@@ -1,0 +1,40 @@
+# Explicit opt-in alongside the normal deployment overlays. Never changes a role's default.
+services:
+  gliformer_model:
+    build:
+      context: .
+      dockerfile: prototypes/parsing_service/model_servers/gliformer/Dockerfile
+      args:
+        GLIFORMER_BASE_IMAGE: "${GLIFORMER_BASE_IMAGE:?Set a CUDA PyTorch image compatible with this host}"
+    init: true
+    restart: unless-stopped
+    mem_limit: 12g
+    cpus: 4
+    shm_size: 1g
+    environment:
+      HF_HOME: /models/huggingface
+      GLIFORMER_THRESHOLD: "${GLIFORMER_THRESHOLD:-0.5}"
+    volumes:
+      - gliformer-models:/models
+    networks: [app]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/info', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 80
+      start_period: 2m
+  parsing_service:
+    environment:
+      KEI_GLIFORMER_URL: http://gliformer_model:8000
+  parsing_worker:
+    environment:
+      KEI_GLIFORMER_URL: http://gliformer_model:8000
+volumes:
+  gliformer-models:

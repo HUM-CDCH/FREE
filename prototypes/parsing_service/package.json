@@ -2,8 +2,13 @@
   "name": "parsing-service",
   "private": true,
   "scripts": {
-    "install:python": "uv sync",
-    "dev": "uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000",
-    "test": "uv run python -m unittest discover -s tests"
+    "install:python": "node ../../scripts/install-python.mjs",
+    "test": "uv run --no-sync pytest -q -m \"not postgres and not live_model\"",
+    "test:postgres": "uv run --no-sync pytest -q -m \"postgres and not live_model\"",
+    "test:live-model": "uv run --no-sync pytest -q -m \"live_model and not postgres\"",
+    "test:service": "uv run --no-sync pytest -q tests/test_service_smoke.py",
+    "test:recovery": "uv run --no-sync pytest -q tests/test_worker_recovery.py",
+    "serve": "uv run --no-sync uvicorn kei_exp.api:app --host 127.0.0.1 --port 8001",
+    "worker": "uv run --no-sync kei-worker worker"
   }
 }

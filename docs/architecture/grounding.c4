@@ -1,0 +1,104 @@
+// Evidence linking, validation, and the grounding lab.
+// The production elements extend `current.c4`; the lab is a separate system
+// on branch `experiment/radical-context-prune` and runs nothing in FREE.
+// Explanations: docs/research/grounding-lab-design-notes.md
+
+model {
+  extend studio.extraction_module {
+    candidates = component 'Candidate selection' 'Article: every canonical anchor of the Source Representation. Catalog: only the anchors inside the record slice.' 'TypeScript'
+    linking = component 'Evidence linking' '`groundExtraction`: one claim per populated value; the pinned model selects one candidate anchor per claim, or none. No score and no threshold.' 'TypeScript'
+    lexical_check = component 'Lexical check' '`lexical.ts`: `verbatim` and `lexicalHits` on each Evidence link, computed without a model. A reviewer doubt, never an acceptance.' 'TypeScript'
+    review = component 'Correction recording' 'The durable repository appends each whole-field correction of a stable saved value against its revision; correction Evidence is optional and source-checked.' 'TypeScript'
+
+    candidates -> linking 'Gives the batch its candidate anchors'
+    linking -> lexical_check 'Checks each proposed link against the same candidates'
+  }
+
+  grounding_lab = system 'Grounding lab' 'Offline benchmark of evidence-linking policies (`prototypes/grounding_lab` on branch `experiment/radical-context-prune`). Nothing here runs in FREE.' {
+    anchor_dump = component 'Anchor dump' '`dump-anchors.mts` writes the canonical anchors in FREE reading order; table cells get their row and column headers as context.' 'TypeScript'
+    claims = datastore 'Extractor claims with blind labels' '`claims_extracted.json`: one claim per leaf that the real extractor emitted, with the sibling values of its record; labeled by a person who did not see the pipeline.'
+    lexical_tier = component 'Lexical tier' '`normalize` and `bounded_contains`. One hit links, zero hits abstain, several hits go to the scorer.' 'Python'
+    sibling_gate = component 'Sibling gate' 'A single hit whose neighbourhood holds no sibling value goes to review. A bare number links only through a sibling-supported hit.' 'Python'
+    reranker = component 'Cross-encoder scorer' 'Nemotron 1B inside the hit set; clipped top-two margin with abstain and accept thresholds. With the lexical tier this is policy E.' 'Python, torch'
+    llm_scorer = component 'LLM scorer' 'Qwen under the same contract as the reranker: field name, sibling values, hit set.' 'Ollama'
+    quote_mapping = component 'Quote mapping' 'The extractor emits one quote per value; the lab locates it in the canonical source with whitespace normalization only.' 'TypeScript'
+    benchmark = component 'Benchmark and evaluation' '`model_benchmark --dump`, frozen holdout and bounded evaluations, `review_risk`. Every claim gets one outcome: link, review, or abstain.' 'Python'
+
+    anchor_dump -> claims 'Supplies the anchor texts the labeler and the policies see'
+    claims -> lexical_tier 'Sends each claim value'
+    lexical_tier -> sibling_gate 'Passes single hits and bare-number hit sets'
+    lexical_tier -> reranker 'Passes hit sets with several anchors'
+    lexical_tier -> llm_scorer 'Passes the same hit sets in the LLM comparison'
+    sibling_gate -> benchmark 'Reports link, review, or abstain'
+    reranker -> benchmark 'Reports link, review, or abstain with the margin'
+    llm_scorer -> benchmark 'Reports the selected anchor or none'
+    quote_mapping -> benchmark 'Reports unique, ambiguous, or unmatched quotes'
+  }
+
+  grounding_lab.anchor_dump -> parsing_service 'Parses each PDF with the Parsing Service environment'
+  grounding_lab.lexical_tier -> studio.extraction_module.lexical_check 'Ported to production; the lab test cases are replayed in grounding.test.ts'
+}
+
+views {
+  view grounding_boundary of studio.extraction_module {
+    title 'Evidence linking and validation — current'
+    description '''
+      Two steps with different owners. Evidence linking is a model step: the
+      Extraction module builds one claim per populated value, selects the
+      candidate anchors, and the pinned model proposes one anchor per claim.
+      The lexical check then stamps `verbatim` and `lexicalHits` on the link
+      without a model. Validation is the researcher's step: Studio shows the
+      two doubts as a "Check" badge and the researcher approves, edits, or
+      rejects each value. No link is accepted automatically.
+    '''
+    include *, studio.ui, studio.provider_registry, model_connections, project_db, package_store
+  }
+
+  dynamic view evidence_linking_vs_validation {
+    title 'From extracted values to saved corrections — current'
+    description '''
+      The linking step ends when the Evidence links and their two lexical
+      doubts are persisted. The validation step starts when the researcher
+      opens the Results tab. Nothing between the two steps changes a value or
+      accepts a link.
+    '''
+    studio.handlers -> studio.extraction_module.candidates 'Execute the attempt: select the candidate anchors, the whole document or the record slice'
+    studio.extraction_module.candidates -> studio.extraction_module.linking 'Give the batch its candidates'
+    studio.extraction_module.linking -> studio.provider_registry 'Ground one claim batch on the pinned Extraction Route'
+    studio.provider_registry -> model_connections 'Select one candidate anchor per claim, or none'
+    studio.extraction_module.linking -> studio.extraction_module.lexical_check 'Check each proposed link against the candidates'
+    studio.extraction_module.lexical_check -> project_db 'Persist the Evidence links with verbatim and lexicalHits'
+    studio.handlers -> studio.ui 'Show Results; flag "Value not found in the linked passage" and "Value also appears in N other passages"'
+    researcher -> studio.ui 'Approve, edit, or reject each value; open the linked passage'
+    studio.ui -> studio.handlers 'POST /api/extractions/:id/durable/values/:valueId'
+    studio.handlers -> studio.extraction_module.review 'Save the correction against its revision'
+    studio.extraction_module.review -> project_db 'Append the correction; earlier ones stay history'
+  }
+
+  view grounding_lab_policies of grounding_lab {
+    title 'Grounding lab — tested policies'
+    description '''
+      The lab measured whether a tiered non-model grounder can replace model
+      evidence linking. The lexical tier is the only part that reached
+      production, as a reviewer doubt and not as a decision. The scorers,
+      the gate, the quote mapping, and the risk scores stay in the lab.
+    '''
+    include *, studio.extraction_module.lexical_check, parsing_service
+  }
+
+  dynamic view grounding_lab_policy_e {
+    title 'Policy E and the sibling gate — lab routing'
+    description '''
+      One claim goes through the tiers in this order. The outcome is link,
+      review, or abstain. "Review" means the link is shown but not accepted.
+      Production has no routing: every proposed link is shown to the
+      researcher with its two doubts.
+    '''
+    grounding_lab.claims -> grounding_lab.lexical_tier 'Normalize the value and scan the anchors for bounded hits'
+    grounding_lab.lexical_tier -> grounding_lab.benchmark 'Zero hits: abstain (the value is absent or paraphrased)'
+    grounding_lab.lexical_tier -> grounding_lab.sibling_gate 'One hit: check the neighbourhood for a sibling value'
+    grounding_lab.sibling_gate -> grounding_lab.benchmark 'Sibling found: link. No sibling: review'
+    grounding_lab.lexical_tier -> grounding_lab.reranker 'Several hits: score each hit with field name and siblings'
+    grounding_lab.reranker -> grounding_lab.benchmark 'Margin above accept: link. Between thresholds: review. Below abstain: abstain'
+  }
+}

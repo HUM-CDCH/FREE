@@ -1,0 +1,2246 @@
+[
+  {
+    "id": "schema.extraction_runtime",
+    "label": "Create schema \"extraction_runtime\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [],
+    "execute": [
+      {
+        "description": "Create schema \"extraction_runtime\"",
+        "sql": "CREATE SCHEMA IF NOT EXISTS \"extraction_runtime\"",
+        "params": []
+      }
+    ],
+    "postcheck": []
+  },
+  {
+    "id": "table.artifactReference",
+    "label": "Create table \"artifactReference\"",
+    "summary": "Creates table \"artifactReference\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "artifactReference"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"artifactReference\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"artifactReference\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"artifactReference\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"artifactReference\" (\n  \"digest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"generation\" text NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"kind\" text NOT NULL,\n  \"reference\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"artifactReference\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"artifactReference\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.attempt",
+    "label": "Create table \"attempt\"",
+    "summary": "Creates table \"attempt\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "attempt"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"attempt\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"attempt\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"attempt\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"failure\" jsonb,\n  \"fence\" int4 NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"outcome\" text,\n  \"selectionId\" \"uuid\" NOT NULL,\n  \"workflowId\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"attempt\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.callFailure",
+    "label": "Create table \"callFailure\"",
+    "summary": "Creates table \"callFailure\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "callFailure"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"callFailure\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"callFailure\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"callFailure\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"callFailure\" (\n  \"attemptId\" \"uuid\" NOT NULL,\n  \"captureId\" \"uuid\" NOT NULL,\n  \"inputDigest\" text NOT NULL,\n  \"output\" jsonb NOT NULL,\n  \"outputDigest\" text NOT NULL,\n  PRIMARY KEY (\"captureId\", \"attemptId\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"callFailure\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"callFailure\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.capture",
+    "label": "Create table \"capture\"",
+    "summary": "Creates table \"capture\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "capture"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"capture\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"capture\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"capture\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"capture\" (\n  \"candidates\" jsonb NOT NULL,\n  \"descriptor\" jsonb NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"feedbackVersion\" int4 NOT NULL,\n  \"generation\" int4 NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"inFlight\" bool NOT NULL,\n  \"invoked\" bool NOT NULL,\n  \"originalAttemptId\" \"uuid\" NOT NULL,\n  \"reservationAttemptId\" \"uuid\" NOT NULL,\n  \"reservationEpoch\" int4 NOT NULL,\n  \"selectionId\" \"uuid\" NOT NULL,\n  \"unitKey\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"capture\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"capture\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.checkpoint",
+    "label": "Create table \"checkpoint\"",
+    "summary": "Creates table \"checkpoint\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "checkpoint"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"checkpoint\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"checkpoint\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"checkpoint\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"checkpoint\" (\n  \"id\" \"uuid\" NOT NULL,\n  \"inputDigest\" text NOT NULL,\n  \"output\" jsonb NOT NULL,\n  \"outputDigest\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"checkpoint\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"checkpoint\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.command",
+    "label": "Create table \"command\"",
+    "summary": "Creates table \"command\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "command"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"command\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"command\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"command\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"command\" (\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"payload\" jsonb NOT NULL,\n  \"response\" jsonb NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"command\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"command\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.correction",
+    "label": "Create table \"correction\"",
+    "summary": "Creates table \"correction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "correction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"correction\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"correction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"correction\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"correction\" (\n  \"candidate\" jsonb NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"decision\" jsonb NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"feedbackVersion\" int4 NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"included\" bool NOT NULL,\n  \"projectId\" \"uuid\" NOT NULL,\n  \"revision\" int4 NOT NULL,\n  \"selectionId\" \"uuid\" NOT NULL,\n  \"snapshotVersion\" int4 NOT NULL,\n  \"valueId\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"correction\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"correction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.dispatch",
+    "label": "Create table \"dispatch\"",
+    "summary": "Creates table \"dispatch\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "dispatch"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"dispatch\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"dispatch\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"dispatch\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"dispatch\" (\n  \"id\" \"uuid\" NOT NULL,\n  \"received\" bool NOT NULL,\n  \"workflowId\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"dispatch\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"dispatch\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.effective",
+    "label": "Create table \"effective\"",
+    "summary": "Creates table \"effective\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "effective"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"effective\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"effective\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"effective\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"effective\" (\n  \"configuration\" jsonb NOT NULL,\n  \"digest\" text NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"effective\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"effective\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.feedbackHead",
+    "label": "Create table \"feedbackHead\"",
+    "summary": "Creates table \"feedbackHead\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "feedbackHead"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"feedbackHead\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"feedbackHead\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"feedbackHead\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"feedbackHead\" (\n  \"id\" \"uuid\" NOT NULL,\n  \"version\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"feedbackHead\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"feedbackHead\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.finalization",
+    "label": "Create table \"finalization\"",
+    "summary": "Creates table \"finalization\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "finalization"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"finalization\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"finalization\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"finalization\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"finalization\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"decisionDigest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"feedbackVersion\" int4 NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"snapshotVersion\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"finalization\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"finalization\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.head",
+    "label": "Create table \"head\"",
+    "summary": "Creates table \"head\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "head"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"head\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"head\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"head\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"head\" (\n  \"acknowledgement\" text NOT NULL,\n  \"attemptId\" \"uuid\",\n  \"controlVersion\" int4 NOT NULL,\n  \"deleted\" bool NOT NULL,\n  \"fence\" int4 NOT NULL,\n  \"generation\" int4 NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"intent\" text NOT NULL,\n  \"leaseEpoch\" int4 NOT NULL,\n  \"leaseOwner\" \"uuid\",\n  \"leaseUntil\" timestamptz(6),\n  \"pendingResume\" bool NOT NULL,\n  \"pendingSelectionId\" \"uuid\",\n  \"projectId\" \"uuid\" NOT NULL,\n  \"selectionId\" \"uuid\" NOT NULL,\n  \"snapshotVersion\" int4 NOT NULL,\n  \"sourcePin\" jsonb NOT NULL,\n  \"sourceRevisionId\" \"uuid\" NOT NULL,\n  \"strategy\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"head\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"head\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.input",
+    "label": "Create table \"input\"",
+    "summary": "Creates table \"input\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "input"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"input\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"input\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"input\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"input\" (\n  \"digest\" text NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"request\" jsonb NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"input\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"input\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.plan",
+    "label": "Create table \"plan\"",
+    "summary": "Creates table \"plan\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "plan"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"plan\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"plan\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"plan\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"plan\" (\n  \"digest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"generation\" int4 NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"manifest\" jsonb NOT NULL,\n  \"stage\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"plan\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"plan\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.protocol",
+    "label": "Create table \"protocol\"",
+    "summary": "Creates table \"protocol\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "protocol"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"protocol\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"protocol\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"protocol\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"protocol\" (\n  \"id\" int4 NOT NULL,\n  \"version\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"protocol\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"protocol\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.selection",
+    "label": "Create table \"selection\"",
+    "summary": "Creates table \"selection\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "selection"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"selection\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"selection\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"selection\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"digest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"method\" jsonb NOT NULL,\n  \"ordinal\" int4 NOT NULL,\n  \"resolved\" jsonb NOT NULL,\n  \"schemaHash\" text NOT NULL,\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  \"schemaTree\" jsonb NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"selection\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.snapshot",
+    "label": "Create table \"snapshot\"",
+    "summary": "Creates table \"snapshot\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "snapshot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"snapshot\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"snapshot\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"snapshot\"",
+        "sql": "CREATE TABLE \"extraction_runtime\".\"snapshot\" (\n  \"coverage\" jsonb NOT NULL,\n  \"digest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"selectionId\" \"uuid\" NOT NULL,\n  \"values\" jsonb NOT NULL,\n  \"version\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"snapshot\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"snapshot\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.attempt.attempt_workflowId_key",
+    "label": "Add unique constraint on \"attempt\" (workflowId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "attempt_workflowId_key",
+        "table": "attempt"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"attempt_workflowId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "attempt_workflowId_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"attempt_workflowId_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"attempt\" ADD CONSTRAINT \"attempt_workflowId_key\" UNIQUE (\"workflowId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"attempt_workflowId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "attempt_workflowId_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.attempt.attempt_extractionId_fence_key",
+    "label": "Add unique constraint on \"attempt\" (extractionId, fence)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "attempt_extractionId_fence_key",
+        "table": "attempt"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"attempt_extractionId_fence_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "attempt_extractionId_fence_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"attempt_extractionId_fence_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"attempt\" ADD CONSTRAINT \"attempt_extractionId_fence_key\" UNIQUE (\"extractionId\", \"fence\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"attempt_extractionId_fence_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "attempt_extractionId_fence_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.capture.capture_extractionId_generation_unitKey_key",
+    "label": "Add unique constraint on \"capture\" (extractionId, generation, unitKey)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "capture_extractionId_generation_unitKey_key",
+        "table": "capture"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"capture_extractionId_generation_unitKey_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "capture_extractionId_generation_unitKey_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"capture\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"capture_extractionId_generation_unitKey_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"capture\" ADD CONSTRAINT \"capture_extractionId_generation_unitKey_key\" UNIQUE (\"extractionId\", \"generation\", \"unitKey\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"capture_extractionId_generation_unitKey_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "capture_extractionId_generation_unitKey_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"capture\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.correction.correction_extractionId_valueId_revision_key",
+    "label": "Add unique constraint on \"correction\" (extractionId, valueId, revision)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "correction_extractionId_valueId_revision_key",
+        "table": "correction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"correction_extractionId_valueId_revision_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "correction_extractionId_valueId_revision_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"correction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"correction_extractionId_valueId_revision_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"correction\" ADD CONSTRAINT \"correction_extractionId_valueId_revision_key\" UNIQUE (\"extractionId\", \"valueId\", \"revision\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"correction_extractionId_valueId_revision_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "correction_extractionId_valueId_revision_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"correction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.dispatch.dispatch_workflowId_key",
+    "label": "Add unique constraint on \"dispatch\" (workflowId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "dispatch_workflowId_key",
+        "table": "dispatch"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"dispatch_workflowId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dispatch_workflowId_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"dispatch\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"dispatch_workflowId_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"dispatch\" ADD CONSTRAINT \"dispatch_workflowId_key\" UNIQUE (\"workflowId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"dispatch_workflowId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dispatch_workflowId_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"dispatch\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.finalization.finalization_extractionId_snapshotVersion_feedbackVersion_key",
+    "label": "Add unique constraint on \"finalization\" (extractionId, snapshotVersion, feedbackVersion)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "finalization_extractionId_snapshotVersion_feedbackVersion_key",
+        "table": "finalization"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"finalization_extractionId_snapshotVersion_feedbackVersion_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "finalization_extractionId_snapshotVersion_feedbackVersion_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"finalization\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"finalization_extractionId_snapshotVersion_feedbackVersion_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"finalization\" ADD CONSTRAINT \"finalization_extractionId_snapshotVersion_feedbackVersion_key\" UNIQUE (\"extractionId\", \"snapshotVersion\", \"feedbackVersion\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"finalization_extractionId_snapshotVersion_feedbackVersion_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "finalization_extractionId_snapshotVersion_feedbackVersion_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"finalization\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.plan.plan_extractionId_generation_stage_key",
+    "label": "Add unique constraint on \"plan\" (extractionId, generation, stage)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "plan_extractionId_generation_stage_key",
+        "table": "plan"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"plan_extractionId_generation_stage_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "plan_extractionId_generation_stage_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"plan\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"plan_extractionId_generation_stage_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"plan\" ADD CONSTRAINT \"plan_extractionId_generation_stage_key\" UNIQUE (\"extractionId\", \"generation\", \"stage\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"plan_extractionId_generation_stage_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "plan_extractionId_generation_stage_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"plan\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.selection.selection_extractionId_ordinal_key",
+    "label": "Add unique constraint on \"selection\" (extractionId, ordinal)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "selection_extractionId_ordinal_key",
+        "table": "selection"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"selection_extractionId_ordinal_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "selection_extractionId_ordinal_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"selection_extractionId_ordinal_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"selection\" ADD CONSTRAINT \"selection_extractionId_ordinal_key\" UNIQUE (\"extractionId\", \"ordinal\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"selection_extractionId_ordinal_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "selection_extractionId_ordinal_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.selection.selection_id_extractionId_key",
+    "label": "Add unique constraint on \"selection\" (id, extractionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "selection_id_extractionId_key",
+        "table": "selection"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"selection_id_extractionId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "selection_id_extractionId_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"selection_id_extractionId_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"selection\" ADD CONSTRAINT \"selection_id_extractionId_key\" UNIQUE (\"id\", \"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"selection_id_extractionId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "selection_id_extractionId_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.snapshot.snapshot_extractionId_version_key",
+    "label": "Add unique constraint on \"snapshot\" (extractionId, version)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "unique",
+        "name": "snapshot_extractionId_version_key",
+        "table": "snapshot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"snapshot_extractionId_version_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "snapshot_extractionId_version_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"snapshot\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"snapshot_extractionId_version_key\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"snapshot\" ADD CONSTRAINT \"snapshot_extractionId_version_key\" UNIQUE (\"extractionId\", \"version\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"snapshot_extractionId_version_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "snapshot_extractionId_version_key",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"snapshot\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.artifactReference.artifactReference_reference_idx",
+    "label": "Create index \"artifactReference_reference_idx\" on \"artifactReference\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "artifactReference_reference_idx",
+        "table": "artifactReference"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"artifactReference_reference_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"artifactReference_reference_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"artifactReference_reference_idx\"",
+        "sql": "CREATE INDEX \"artifactReference_reference_idx\" ON \"extraction_runtime\".\"artifactReference\" (\"reference\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"artifactReference_reference_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"artifactReference_reference_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.artifactReference.artifactReference_extractionId_idx",
+    "label": "Create index \"artifactReference_extractionId_idx\" on \"artifactReference\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "artifactReference_extractionId_idx",
+        "table": "artifactReference"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"artifactReference_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"artifactReference_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"artifactReference_extractionId_idx\"",
+        "sql": "CREATE INDEX \"artifactReference_extractionId_idx\" ON \"extraction_runtime\".\"artifactReference\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"artifactReference_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"artifactReference_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.attempt.attempt_extractionId_idx",
+    "label": "Create index \"attempt_extractionId_idx\" on \"attempt\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "attempt_extractionId_idx",
+        "table": "attempt"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"attempt_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"attempt_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"attempt_extractionId_idx\"",
+        "sql": "CREATE INDEX \"attempt_extractionId_idx\" ON \"extraction_runtime\".\"attempt\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"attempt_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"attempt_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.callFailure.callFailure_captureId_idx",
+    "label": "Create index \"callFailure_captureId_idx\" on \"callFailure\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "callFailure_captureId_idx",
+        "table": "callFailure"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"callFailure_captureId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"callFailure_captureId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"callFailure_captureId_idx\"",
+        "sql": "CREATE INDEX \"callFailure_captureId_idx\" ON \"extraction_runtime\".\"callFailure\" (\"captureId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"callFailure_captureId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"callFailure_captureId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.capture.capture_extractionId_idx",
+    "label": "Create index \"capture_extractionId_idx\" on \"capture\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "capture_extractionId_idx",
+        "table": "capture"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"capture_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"capture_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"capture_extractionId_idx\"",
+        "sql": "CREATE INDEX \"capture_extractionId_idx\" ON \"extraction_runtime\".\"capture\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"capture_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"capture_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.command.command_extractionId_idx",
+    "label": "Create index \"command_extractionId_idx\" on \"command\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "command_extractionId_idx",
+        "table": "command"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"command_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"command_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"command_extractionId_idx\"",
+        "sql": "CREATE INDEX \"command_extractionId_idx\" ON \"extraction_runtime\".\"command\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"command_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"command_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.correction.correction_projectId_feedbackVersion_idx",
+    "label": "Create index \"correction_projectId_feedbackVersion_idx\" on \"correction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "correction_projectId_feedbackVersion_idx",
+        "table": "correction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"correction_projectId_feedbackVersion_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"correction_projectId_feedbackVersion_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"correction_projectId_feedbackVersion_idx\"",
+        "sql": "CREATE INDEX \"correction_projectId_feedbackVersion_idx\" ON \"extraction_runtime\".\"correction\" (\"projectId\", \"feedbackVersion\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"correction_projectId_feedbackVersion_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"correction_projectId_feedbackVersion_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.correction.correction_projectId_idx",
+    "label": "Create index \"correction_projectId_idx\" on \"correction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "correction_projectId_idx",
+        "table": "correction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"correction_projectId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"correction_projectId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"correction_projectId_idx\"",
+        "sql": "CREATE INDEX \"correction_projectId_idx\" ON \"extraction_runtime\".\"correction\" (\"projectId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"correction_projectId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"correction_projectId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.finalization.finalization_extractionId_idx",
+    "label": "Create index \"finalization_extractionId_idx\" on \"finalization\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "finalization_extractionId_idx",
+        "table": "finalization"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"finalization_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"finalization_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"finalization_extractionId_idx\"",
+        "sql": "CREATE INDEX \"finalization_extractionId_idx\" ON \"extraction_runtime\".\"finalization\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"finalization_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"finalization_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.head.head_projectId_idx",
+    "label": "Create index \"head_projectId_idx\" on \"head\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "head_projectId_idx",
+        "table": "head"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"head_projectId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"head_projectId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"head_projectId_idx\"",
+        "sql": "CREATE INDEX \"head_projectId_idx\" ON \"extraction_runtime\".\"head\" (\"projectId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"head_projectId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"head_projectId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.plan.plan_extractionId_idx",
+    "label": "Create index \"plan_extractionId_idx\" on \"plan\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "plan_extractionId_idx",
+        "table": "plan"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"plan_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"plan_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"plan_extractionId_idx\"",
+        "sql": "CREATE INDEX \"plan_extractionId_idx\" ON \"extraction_runtime\".\"plan\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"plan_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"plan_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.selection.selection_extractionId_idx",
+    "label": "Create index \"selection_extractionId_idx\" on \"selection\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "selection_extractionId_idx",
+        "table": "selection"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"selection_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"selection_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"selection_extractionId_idx\"",
+        "sql": "CREATE INDEX \"selection_extractionId_idx\" ON \"extraction_runtime\".\"selection\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"selection_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"selection_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.snapshot.snapshot_extractionId_idx",
+    "label": "Create index \"snapshot_extractionId_idx\" on \"snapshot\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "index",
+        "name": "snapshot_extractionId_idx",
+        "table": "snapshot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"snapshot_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"snapshot_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"snapshot_extractionId_idx\"",
+        "sql": "CREATE INDEX \"snapshot_extractionId_idx\" ON \"extraction_runtime\".\"snapshot\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"snapshot_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"extraction_runtime\".\"snapshot_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.artifactReference.artifactReference_extractionId_fkey",
+    "label": "Add foreign key \"artifactReference_extractionId_fkey\" on \"artifactReference\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "artifactReference_extractionId_fkey",
+        "table": "artifactReference"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"artifactReference_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "artifactReference_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"artifactReference\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"artifactReference_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"artifactReference\"\nADD CONSTRAINT \"artifactReference_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"artifactReference_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "artifactReference_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"artifactReference\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.attempt.attempt_extractionId_fkey",
+    "label": "Add foreign key \"attempt_extractionId_fkey\" on \"attempt\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "attempt_extractionId_fkey",
+        "table": "attempt"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"attempt_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "attempt_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"attempt_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"attempt\"\nADD CONSTRAINT \"attempt_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"attempt_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "attempt_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"attempt\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.callFailure.callFailure_captureId_fkey",
+    "label": "Add foreign key \"callFailure_captureId_fkey\" on \"callFailure\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "callFailure_captureId_fkey",
+        "table": "callFailure"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"callFailure_captureId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "callFailure_captureId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"callFailure\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"callFailure_captureId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"callFailure\"\nADD CONSTRAINT \"callFailure_captureId_fkey\"\nFOREIGN KEY (\"captureId\")\nREFERENCES \"extraction_runtime\".\"capture\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"callFailure_captureId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "callFailure_captureId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"callFailure\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.capture.capture_extractionId_fkey",
+    "label": "Add foreign key \"capture_extractionId_fkey\" on \"capture\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "capture_extractionId_fkey",
+        "table": "capture"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"capture_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "capture_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"capture\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"capture_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"capture\"\nADD CONSTRAINT \"capture_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"capture_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "capture_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"capture\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.checkpoint.checkpoint_id_fkey",
+    "label": "Add foreign key \"checkpoint_id_fkey\" on \"checkpoint\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "checkpoint_id_fkey",
+        "table": "checkpoint"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"checkpoint_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "checkpoint_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"checkpoint\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"checkpoint_id_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"checkpoint\"\nADD CONSTRAINT \"checkpoint_id_fkey\"\nFOREIGN KEY (\"id\")\nREFERENCES \"extraction_runtime\".\"capture\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"checkpoint_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "checkpoint_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"checkpoint\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.command.command_extractionId_fkey",
+    "label": "Add foreign key \"command_extractionId_fkey\" on \"command\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "command_extractionId_fkey",
+        "table": "command"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"command_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "command_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"command\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"command_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"command\"\nADD CONSTRAINT \"command_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"command_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "command_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"command\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.correction.correction_projectId_fkey",
+    "label": "Add foreign key \"correction_projectId_fkey\" on \"correction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "correction_projectId_fkey",
+        "table": "correction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"correction_projectId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "correction_projectId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"correction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"correction_projectId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"correction\"\nADD CONSTRAINT \"correction_projectId_fkey\"\nFOREIGN KEY (\"projectId\")\nREFERENCES \"extraction_runtime\".\"feedbackHead\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"correction_projectId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "correction_projectId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"correction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.dispatch.dispatch_id_fkey",
+    "label": "Add foreign key \"dispatch_id_fkey\" on \"dispatch\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "dispatch_id_fkey",
+        "table": "dispatch"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"dispatch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dispatch_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"dispatch\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"dispatch_id_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"dispatch\"\nADD CONSTRAINT \"dispatch_id_fkey\"\nFOREIGN KEY (\"id\")\nREFERENCES \"extraction_runtime\".\"attempt\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"dispatch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dispatch_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"dispatch\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.effective.effective_id_fkey",
+    "label": "Add foreign key \"effective_id_fkey\" on \"effective\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "effective_id_fkey",
+        "table": "effective"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"effective_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "effective_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"effective\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"effective_id_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"effective\"\nADD CONSTRAINT \"effective_id_fkey\"\nFOREIGN KEY (\"id\")\nREFERENCES \"extraction_runtime\".\"selection\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"effective_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "effective_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"effective\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.finalization.finalization_extractionId_fkey",
+    "label": "Add foreign key \"finalization_extractionId_fkey\" on \"finalization\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "finalization_extractionId_fkey",
+        "table": "finalization"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"finalization_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "finalization_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"finalization\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"finalization_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"finalization\"\nADD CONSTRAINT \"finalization_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"finalization_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "finalization_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"finalization\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.input.input_id_fkey",
+    "label": "Add foreign key \"input_id_fkey\" on \"input\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "input_id_fkey",
+        "table": "input"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"input_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "input_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"input\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"input_id_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"input\"\nADD CONSTRAINT \"input_id_fkey\"\nFOREIGN KEY (\"id\")\nREFERENCES \"extraction_runtime\".\"capture\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"input_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "input_id_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"input\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.plan.plan_extractionId_fkey",
+    "label": "Add foreign key \"plan_extractionId_fkey\" on \"plan\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "plan_extractionId_fkey",
+        "table": "plan"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"plan_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "plan_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"plan\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"plan_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"plan\"\nADD CONSTRAINT \"plan_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"plan_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "plan_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"plan\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.selection.selection_extractionId_fkey",
+    "label": "Add foreign key \"selection_extractionId_fkey\" on \"selection\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "selection_extractionId_fkey",
+        "table": "selection"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"selection_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "selection_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"selection_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"selection\"\nADD CONSTRAINT \"selection_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"selection_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "selection_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"selection\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.snapshot.snapshot_extractionId_fkey",
+    "label": "Add foreign key \"snapshot_extractionId_fkey\" on \"snapshot\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "foreignKey",
+        "name": "snapshot_extractionId_fkey",
+        "table": "snapshot"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"snapshot_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "snapshot_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"snapshot\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"snapshot_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"snapshot\"\nADD CONSTRAINT \"snapshot_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"extraction_runtime\".\"head\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"snapshot_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "snapshot_extractionId_fkey",
+          "extraction_runtime",
+          "\"extraction_runtime\".\"snapshot\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "extraction-runtime.protocol-1",
+    "label": "Install restricted Extraction protocol 1 routines",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "protocol"
+      }
+    },
+    "precheck": [
+      {
+        "description": "protocol is not installed",
+        "sql": "SELECT NOT EXISTS (SELECT FROM extraction_runtime.protocol WHERE id = 1) AS ok"
+      }
+    ],
+    "execute": [
+      {
+        "description": "install protocol and narrow routine ownership",
+        "sql": "-- Owned by a NOLOGIN role with no privileges on Studio's public/dbos schemas.\nDO $bootstrap$\nBEGIN\n  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'free_extraction_runtime') THEN\n    CREATE ROLE free_extraction_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;\n  END IF;\nEXCEPTION WHEN duplicate_object OR unique_violation THEN\n  -- Independent disposable databases can bootstrap this cluster role together.\n  NULL;\nEND $bootstrap$;\nREVOKE ALL ON SCHEMA extraction_runtime FROM PUBLIC;\nGRANT USAGE ON SCHEMA extraction_runtime TO free_extraction_runtime;\nGRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA extraction_runtime TO free_extraction_runtime;\nALTER DEFAULT PRIVILEGES FOR ROLE free_extraction_runtime IN SCHEMA extraction_runtime REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;\nINSERT INTO extraction_runtime.protocol (id,version) VALUES (1, 1);\n\nALTER TABLE extraction_runtime.head ADD CONSTRAINT head_intent CHECK (intent IN ('RUN', 'PAUSE', 'STOP'));\nALTER TABLE extraction_runtime.head ADD CONSTRAINT head_ack CHECK (acknowledgement IN ('QUEUED', 'RUNNING', 'PAUSED', 'STOPPED', 'FAILED', 'COMPLETED'));\nALTER TABLE extraction_runtime.head ADD CONSTRAINT head_versions CHECK (\"controlVersion\" >= 0 AND fence >= 0 AND \"leaseEpoch\" >= 0 AND generation >= 1 AND \"snapshotVersion\" >= 0);\nALTER TABLE extraction_runtime.head ADD CONSTRAINT head_strategy CHECK (strategy IN ('ARTICLE', 'CATALOG'));\nALTER TABLE extraction_runtime.selection ADD CONSTRAINT selection_digest CHECK (digest ~ '^[a-f0-9]{64}$' AND \"schemaHash\" ~ '^[a-f0-9]{64}$');\nALTER TABLE extraction_runtime.input ADD CONSTRAINT input_digest CHECK (digest ~ '^[a-f0-9]{64}$');\nALTER TABLE extraction_runtime.checkpoint ADD CONSTRAINT checkpoint_digest CHECK (\"inputDigest\" ~ '^[a-f0-9]{64}$' AND \"outputDigest\" ~ '^[a-f0-9]{64}$');\n\nCREATE FUNCTION extraction_runtime.content_hash(body jsonb) RETURNS text\nLANGUAGE sql IMMUTABLE SET search_path = pg_catalog\nAS $$ SELECT encode(sha256(convert_to(body::text, 'UTF8')), 'hex') $$;\n\nCREATE FUNCTION extraction_runtime.valid_provider(provider jsonb) RETURNS boolean\nLANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$\n  SELECT coalesce(jsonb_typeof(provider)='object'\n    AND provider ?& ARRAY['key','model','adapter','adapterVersion','url','timeout','maxTokens']\n    AND provider - ARRAY['key','model','adapter','adapterVersion','url','timeout','maxTokens','nativeInfo']='{}'::jsonb\n    AND provider->>'key' ~ '^[a-zA-Z0-9_.:/-]{1,200}$'\n    AND length(provider->>'model') BETWEEN 1 AND 300\n    AND provider->>'adapter' IN ('instruct','nuextract','gliformer') AND provider->'adapterVersion'='1'::jsonb\n    AND provider->>'url' ~ '^https?://[^@?#[:space:]]+$'\n    AND provider->>'timeout' ~ '^[0-9]+(\\.[0-9]+)?$'\n    AND provider->>'maxTokens' ~ '^[0-9]+$'\n    AND jsonb_typeof(provider->'timeout')='number' AND jsonb_typeof(provider->'maxTokens')='number'\n    AND ((provider->>'adapter'<>'gliformer' AND NOT provider ? 'nativeInfo') OR\n      (provider->>'adapter'='gliformer' AND provider->'nativeInfo' ?& ARRAY['protocol','model','identity','max_input_tokens']\n       AND (provider->'nativeInfo')-ARRAY['protocol','model','identity','max_input_tokens']='{}'::jsonb\n       AND provider->'nativeInfo'->'protocol'='1'::jsonb AND provider->'nativeInfo'->'model'=provider->'model'\n       AND jsonb_typeof(provider->'nativeInfo'->'identity')='object'\n       AND provider->'nativeInfo'->>'max_input_tokens' ~ '^[1-9][0-9]*$')),false)\n$$;\n\nCREATE FUNCTION extraction_runtime.valid_value(node jsonb, value jsonb) RETURNS boolean\nLANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog AS $$\nDECLARE child jsonb; item jsonb; kind text := node->>'type';\nBEGIN\n  IF value IS NULL THEN RETURN false; END IF;\n  IF value='null'::jsonb THEN RETURN true; END IF;\n  IF kind IN ('verbatim-string','string','date','number','integer','boolean') THEN\n    IF jsonb_typeof(value) IS DISTINCT FROM (CASE WHEN kind IN ('verbatim-string','date') THEN 'string' WHEN kind='integer' THEN 'number' ELSE kind END) THEN RETURN false; END IF;\n    IF kind='integer' AND (value::text)::numeric <> trunc((value::text)::numeric) THEN RETURN false; END IF;\n    RETURN (NOT node ? 'allowedValues' OR node->'allowedValues'='null'::jsonb\n      OR jsonb_array_length(node->'allowedValues')=0 OR node->'allowedValues' @> jsonb_build_array(value));\n  ELSIF kind='object' THEN\n    IF jsonb_typeof(value)<>'object' OR jsonb_typeof(node->'children')<>'array' THEN RETURN false; END IF;\n    FOR child IN SELECT * FROM jsonb_array_elements(node->'children') LOOP\n      IF NOT extraction_runtime.valid_value(child,value->(child->>'name')) THEN RETURN false; END IF;\n    END LOOP;\n    RETURN NOT EXISTS (SELECT FROM jsonb_object_keys(value) k WHERE NOT EXISTS\n      (SELECT FROM jsonb_array_elements(node->'children') c WHERE c->>'name'=k));\n  ELSIF kind='array' THEN\n    IF jsonb_typeof(value)<>'array' THEN RETURN false; END IF;\n    FOR item IN SELECT * FROM jsonb_array_elements(value) LOOP\n      IF node ? 'itemType' THEN\n        IF NOT extraction_runtime.valid_value(jsonb_build_object('type',node->'itemType'),item) THEN RETURN false; END IF;\n      ELSE\n        IF NOT extraction_runtime.valid_value(jsonb_set(node,'{type}','\"object\"'::jsonb),item) THEN RETURN false; END IF;\n      END IF;\n    END LOOP;\n    RETURN true;\n  END IF;\n  RETURN false;\nEND $$;\n\n-- Internal guard. Not granted to the worker independently.\nCREATE FUNCTION extraction_runtime.authorized(p_extraction uuid, p_attempt uuid, epoch integer)\nRETURNS extraction_runtime.head LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head;\nBEGIN\n  SELECT * INTO h FROM extraction_runtime.head WHERE id = p_extraction FOR UPDATE;\n  IF NOT FOUND OR epoch IS NULL OR h.deleted OR h.\"attemptId\" IS DISTINCT FROM p_attempt OR h.\"leaseEpoch\" <> epoch\n      OR h.\"leaseUntil\" IS NULL OR h.\"leaseUntil\" <= clock_timestamp()\n      OR NOT EXISTS (SELECT FROM extraction_runtime.attempt a WHERE a.id = p_attempt\n          AND a.\"extractionId\" = h.id AND a.fence = h.fence AND a.\"selectionId\" = h.\"selectionId\") THEN\n    RAISE EXCEPTION 'stale execution authorization' USING ERRCODE = '40001';\n  END IF;\n  RETURN h;\nEND $$;\n\nCREATE FUNCTION extraction_runtime.capabilities() RETURNS jsonb\nLANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog\nAS $$ SELECT jsonb_build_object('protocol', version) FROM extraction_runtime.protocol WHERE id = 1 $$;\n\nCREATE FUNCTION extraction_runtime.claim(p_extraction uuid, p_attempt uuid, process uuid) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; s extraction_runtime.selection;\nBEGIN\n  SELECT * INTO h FROM extraction_runtime.head WHERE id = p_extraction FOR UPDATE;\n  IF NOT FOUND OR process IS NULL OR h.deleted OR h.\"attemptId\" IS DISTINCT FROM p_attempt\n      OR NOT EXISTS (SELECT FROM extraction_runtime.attempt a WHERE a.id = p_attempt AND a.fence = h.fence\n          AND a.\"selectionId\" = h.\"selectionId\" AND a.outcome IS NULL) THEN\n    RAISE EXCEPTION 'p_attempt is not current' USING ERRCODE = '40001';\n  END IF;\n  IF h.\"leaseUntil\" > clock_timestamp() AND h.\"leaseOwner\" IS DISTINCT FROM process THEN\n    RAISE EXCEPTION 'execution lease is occupied' USING ERRCODE = '55P03';\n  END IF;\n  IF h.\"leaseOwner\" IS DISTINCT FROM process OR h.\"leaseUntil\" IS NULL OR h.\"leaseUntil\" <= clock_timestamp() THEN\n    h.\"leaseEpoch\" := h.\"leaseEpoch\" + 1;\n    -- A lost native call may still return, but the expired epoch can no longer\n    -- publish. Its unknown output is unfinished; recovery preserves its input.\n    UPDATE extraction_runtime.capture SET \"inFlight\" = false WHERE \"extractionId\" = p_extraction;\n  END IF;\n  UPDATE extraction_runtime.head SET \"leaseEpoch\" = h.\"leaseEpoch\", \"leaseOwner\" = process,\n    \"leaseUntil\" = clock_timestamp() + interval '30 seconds', acknowledgement = 'RUNNING' WHERE id = p_extraction;\n  SELECT * INTO s FROM extraction_runtime.selection WHERE id = h.\"selectionId\" AND \"extractionId\" = p_extraction;\n  RETURN jsonb_build_object('epoch', h.\"leaseEpoch\", 'generation', h.generation, 'selection', to_jsonb(s),\n    'source', h.\"sourcePin\", 'intent', h.intent, 'snapshotVersion', h.\"snapshotVersion\");\nEND $$;\n\nCREATE FUNCTION extraction_runtime.heartbeat(p_extraction uuid, p_attempt uuid, epoch integer) RETURNS text\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  UPDATE extraction_runtime.head SET \"leaseUntil\" = clock_timestamp() + interval '30 seconds' WHERE id = p_extraction;\n  RETURN h.intent;\nEND $$;\n\nCREATE FUNCTION extraction_runtime.publish_plan(p_extraction uuid, p_attempt uuid, epoch integer,\n  identity uuid, stage text, manifest jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; p extraction_runtime.plan; d text;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  IF stage IS NULL OR length(stage) NOT BETWEEN 1 AND 128 OR jsonb_typeof(manifest) <> 'object'\n     OR NOT (manifest ?& ARRAY['plannerVersion', 'selectionId', 'sourceGeneration', 'units', 'coverage'])\n     OR manifest->>'selectionId' IS DISTINCT FROM h.\"selectionId\"::text\n     OR manifest->>'sourceGeneration' IS DISTINCT FROM h.\"sourcePin\"->>'generation' THEN\n    RAISE EXCEPTION 'invalid plan manifest' USING ERRCODE = '22023';\n  END IF;\n  d := extraction_runtime.content_hash(manifest);\n  SELECT * INTO p FROM extraction_runtime.plan WHERE \"extractionId\" = p_extraction AND generation = h.generation AND plan.stage = publish_plan.stage;\n  IF FOUND THEN\n    IF p.digest <> d THEN RAISE EXCEPTION 'plan publication conflict' USING ERRCODE = '23505'; END IF;\n    RETURN to_jsonb(p);\n  END IF;\n  IF h.intent <> 'RUN' THEN RETURN NULL; END IF;\n  INSERT INTO extraction_runtime.plan (id,\"extractionId\",generation,stage,digest,manifest) VALUES (identity, p_extraction, h.generation, stage, d, manifest) RETURNING * INTO p;\n  RETURN to_jsonb(p);\nEND $$;\n\nCREATE FUNCTION extraction_runtime.capture_unit(p_extraction uuid, p_attempt uuid, epoch integer,\n  identity uuid, unit_key text, descriptor jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture; project uuid; v integer; examples jsonb; parent extraction_runtime.capture;\nBEGIN\n  -- Lock order: project feedback before p_extraction control, including replays.\n  SELECT \"projectId\" INTO project FROM extraction_runtime.head WHERE id = p_extraction;\n  SELECT version INTO v FROM extraction_runtime.\"feedbackHead\" WHERE id = project FOR SHARE;\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE \"extractionId\" = p_extraction\n    AND generation = h.generation AND \"unitKey\" = unit_key;\n  IF FOUND THEN\n    IF c.descriptor IS DISTINCT FROM descriptor THEN RAISE EXCEPTION 'unit identity conflict' USING ERRCODE = '23505'; END IF;\n    IF h.intent <> 'RUN' AND NOT EXISTS (SELECT FROM extraction_runtime.checkpoint WHERE id=c.id) THEN RETURN NULL; END IF;\n    UPDATE extraction_runtime.capture SET \"reservationAttemptId\" = p_attempt, \"reservationEpoch\" = epoch WHERE id = c.id;\n    c.\"reservationAttemptId\" := p_attempt; c.\"reservationEpoch\" := epoch;\n    RETURN to_jsonb(c) || jsonb_build_object('input', (SELECT to_jsonb(i) FROM extraction_runtime.input i WHERE i.id = c.id),\n      'checkpoint', (SELECT to_jsonb(o) FROM extraction_runtime.checkpoint o WHERE o.id = c.id));\n  END IF;\n  IF h.intent <> 'RUN' THEN RETURN NULL; END IF;\n  IF v IS NULL OR length(unit_key) NOT BETWEEN 1 AND 256 OR jsonb_typeof(descriptor) <> 'object'\n     OR NOT (descriptor ?& ARRAY['stage', 'scope', 'ordinal', 'planDigest', 'role'])\n     OR descriptor-ARRAY['stage','scope','ordinal','planDigest','role','derivedFrom']<>'{}'::jsonb\n     OR descriptor->>'role' IS NULL OR descriptor->>'role' NOT IN ('fields', 'reasoning')\n     OR coalesce(descriptor->>'ordinal','') !~ '^[0-9]+$' OR jsonb_typeof(descriptor->'scope') IS DISTINCT FROM 'string'\n     OR NOT EXISTS (SELECT FROM extraction_runtime.plan p WHERE p.\"extractionId\" = p_extraction\n       AND p.generation = h.generation AND p.digest = descriptor->>'planDigest'\n       AND p.manifest->'units' @> jsonb_build_array(jsonb_build_object('key', unit_key))) THEN\n    RAISE EXCEPTION 'unit absent from immutable manifest' USING ERRCODE = '22023';\n  END IF;\n  SELECT coalesce(jsonb_agg(to_jsonb(active) ORDER BY active.\"feedbackVersion\" DESC, active.id), '[]'::jsonb) INTO examples FROM (\n    SELECT DISTINCT ON (r.\"extractionId\", r.\"valueId\") r.* FROM extraction_runtime.correction r\n    WHERE r.\"projectId\" = project AND r.\"feedbackVersion\" <= v\n    ORDER BY r.\"extractionId\", r.\"valueId\", r.revision DESC\n  ) active WHERE active.included;\n  IF descriptor ? 'derivedFrom' THEN\n    SELECT * INTO parent FROM extraction_runtime.capture origin WHERE origin.id=(descriptor->>'derivedFrom')::uuid\n      AND origin.\"extractionId\"=p_extraction AND origin.generation=h.generation AND origin.\"selectionId\"=h.\"selectionId\"\n      AND EXISTS (SELECT FROM extraction_runtime.checkpoint o WHERE o.id=origin.id AND o.output->>'formatRefused'='true');\n    IF NOT FOUND THEN RAISE EXCEPTION 'invalid fallback dependency' USING ERRCODE='22023'; END IF;\n    v:=parent.\"feedbackVersion\"; examples:=parent.candidates;\n  END IF;\n  INSERT INTO extraction_runtime.capture (id,\"extractionId\",generation,\"unitKey\",\"selectionId\",\"originalAttemptId\",\"feedbackVersion\",candidates,descriptor,\"reservationAttemptId\",\"reservationEpoch\",\"inFlight\",invoked) VALUES (identity, p_extraction, h.generation, unit_key, h.\"selectionId\",\n    p_attempt, v, examples, descriptor, p_attempt, epoch, false, false) RETURNING * INTO c;\n  RETURN to_jsonb(c) || jsonb_build_object('input', NULL, 'checkpoint', NULL);\nEND $$;\n\nCREATE FUNCTION extraction_runtime.finalize_input(p_extraction uuid, p_attempt uuid, epoch integer,\n  p_capture uuid, request jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture; i extraction_runtime.input; d text;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = p_capture AND \"extractionId\" = p_extraction;\n  IF NOT FOUND OR c.\"reservationAttemptId\" <> p_attempt OR c.\"reservationEpoch\" <> epoch THEN\n    RAISE EXCEPTION 'capture is not reserved' USING ERRCODE = '40001';\n  END IF;\n  IF jsonb_typeof(request) <> 'object' OR NOT (request ?& ARRAY['provider', 'composer', 'tokenizer', 'budget', 'examples', 'omissions', 'body'])\n    OR (request - ARRAY['provider', 'composer', 'tokenizer', 'budget', 'examples', 'omissions', 'body']) <> '{}'::jsonb\n    OR NOT extraction_runtime.valid_provider(request->'provider') OR request->'composer' IS DISTINCT FROM '1'::jsonb\n    OR jsonb_typeof(request->'tokenizer') IS DISTINCT FROM 'object'\n    OR jsonb_typeof(request->'examples') IS DISTINCT FROM 'array' OR jsonb_typeof(request->'omissions') IS DISTINCT FROM 'array'\n    OR jsonb_typeof(request->'body') IS DISTINCT FROM 'object'\n    OR NOT (request->'budget' ?& ARRAY['counted','context','reserve'])\n    OR coalesce(request->'budget'->>'counted','') !~ '^[0-9]+$'\n    OR coalesce(request->'budget'->>'context','') !~ '^[1-9][0-9]*$'\n    OR coalesce(request->'budget'->>'reserve','') !~ '^[0-9]+$' THEN\n    RAISE EXCEPTION 'invalid finalized input' USING ERRCODE = '22023';\n  END IF;\n  IF (request->'budget')-ARRAY['counted','context','reserve']<>'{}'::jsonb\n    OR EXISTS (SELECT FROM jsonb_array_elements(request->'examples') example WHERE NOT EXISTS\n      (SELECT FROM jsonb_array_elements(c.candidates) revision WHERE revision->'candidate'=example)) THEN\n    RAISE EXCEPTION 'invalid captured guidance or budget' USING ERRCODE='22023';\n  END IF;\n  IF request->'body'->>'kind'='native' THEN\n    IF NOT (request->'body' ?& ARRAY['kind','record','text','schema','identity','counted','context'])\n      OR (request->'body')-ARRAY['kind','record','text','schema','identity','counted','context']<>'{}'::jsonb\n      OR request->'provider'->>'adapter' IS DISTINCT FROM 'gliformer'\n      OR request->'body'->'identity' IS DISTINCT FROM request->'provider'->'nativeInfo'->'identity' THEN\n      RAISE EXCEPTION 'invalid captured native request' USING ERRCODE='22023';\n    END IF;\n  ELSE\n    IF NOT (request->'body' ?& ARRAY['stage','record','system','user','schema','max_tokens','max_whitespace','httpRequest'])\n      OR (request->'body')-ARRAY['stage','record','system','user','schema','max_tokens','max_whitespace','httpRequest']<>'{}'::jsonb\n      OR jsonb_typeof(request->'body'->'httpRequest') IS DISTINCT FROM 'object'\n      OR request->'body'->>'stage' IS DISTINCT FROM c.descriptor->>'stage'\n      OR jsonb_typeof(request->'body'->'system') IS DISTINCT FROM 'string'\n      OR jsonb_typeof(request->'body'->'user') IS DISTINCT FROM 'string'\n      OR request->'body'->'httpRequest'->'model' IS DISTINCT FROM request->'provider'->'model'\n      OR (request->'body'->'httpRequest')-ARRAY['model','temperature','max_tokens','messages','chat_template_kwargs','response_format','structured_outputs']<>'{}'::jsonb\n      OR request->'body'->'httpRequest'->'max_tokens' IS DISTINCT FROM request->'budget'->'reserve'\n      OR EXISTS (SELECT FROM jsonb_array_elements(request->'body'->'httpRequest'->'messages') message\n        WHERE message-ARRAY['role','content']<>'{}'::jsonb OR message->>'role' NOT IN ('system','user')\n          OR jsonb_typeof(message->'content') IS DISTINCT FROM 'string') THEN\n      RAISE EXCEPTION 'invalid captured chat request' USING ERRCODE='22023';\n    END IF;\n  END IF;\n  IF (request->'budget'->>'counted')::numeric+(request->'budget'->>'reserve')::numeric > (request->'budget'->>'context')::numeric\n    OR NOT EXISTS (SELECT FROM extraction_runtime.effective e WHERE e.id=h.\"selectionId\"\n      AND e.configuration->'models'->(c.descriptor->>'role')=request->'provider') THEN\n    RAISE EXCEPTION 'unresolved provider or exceeded input budget' USING ERRCODE='22023';\n  END IF;\n  d := extraction_runtime.content_hash(request);\n  SELECT * INTO i FROM extraction_runtime.input WHERE id = p_capture;\n  IF FOUND THEN\n    IF i.digest <> d THEN RAISE EXCEPTION 'immutable input conflict' USING ERRCODE = '23505'; END IF;\n    RETURN to_jsonb(i);\n  END IF;\n  INSERT INTO extraction_runtime.input (id,digest,request) VALUES (p_capture, d, request) RETURNING * INTO i;\n  RETURN to_jsonb(i);\nEND $$;\n\nCREATE FUNCTION extraction_runtime.begin_call(p_extraction uuid, p_attempt uuid, epoch integer, p_capture uuid) RETURNS boolean\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  IF h.intent <> 'RUN' THEN RETURN false; END IF;\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = p_capture AND \"extractionId\" = p_extraction;\n  IF NOT FOUND OR c.\"reservationAttemptId\" <> p_attempt OR c.\"reservationEpoch\" <> epoch OR c.\"inFlight\"\n     OR NOT EXISTS (SELECT FROM extraction_runtime.input WHERE id = p_capture) THEN\n    RAISE EXCEPTION 'call is not reserved or finalized' USING ERRCODE = '40001';\n  END IF;\n  IF EXISTS (SELECT FROM extraction_runtime.checkpoint WHERE id = p_capture) THEN RETURN false; END IF;\n  UPDATE extraction_runtime.capture SET \"inFlight\" = true, invoked = true WHERE id = p_capture;\n  RETURN true;\nEND $$;\n\nCREATE FUNCTION extraction_runtime.commit_output(p_extraction uuid, p_attempt uuid, epoch integer,\n  p_capture uuid, input_digest text, output jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture; o extraction_runtime.checkpoint; d text;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = p_capture AND \"extractionId\" = p_extraction;\n  IF NOT FOUND OR c.\"reservationAttemptId\" <> p_attempt OR c.\"reservationEpoch\" <> epoch\n     OR NOT EXISTS (SELECT FROM extraction_runtime.input i WHERE i.id = p_capture AND i.digest = input_digest) THEN\n    RAISE EXCEPTION 'output authorization or digest mismatch' USING ERRCODE = '40001';\n  END IF;\n  d := extraction_runtime.content_hash(output);\n  SELECT * INTO o FROM extraction_runtime.checkpoint WHERE id = p_capture;\n  IF FOUND THEN\n    IF o.\"inputDigest\" <> input_digest OR o.\"outputDigest\" <> d THEN\n      RAISE EXCEPTION 'checkpoint conflict' USING ERRCODE = '23505';\n    END IF;\n    RETURN to_jsonb(o);\n  END IF;\n  IF NOT c.\"inFlight\" THEN RAISE EXCEPTION 'call was not started' USING ERRCODE = '40001'; END IF;\n  -- PAUSE and STOP deliberately allow outputs admitted before their command.\n  INSERT INTO extraction_runtime.checkpoint (id,\"inputDigest\",\"outputDigest\",output) VALUES (p_capture, input_digest, d, output) RETURNING * INTO o;\n  UPDATE extraction_runtime.capture SET \"inFlight\" = false WHERE id = p_capture;\n  RETURN to_jsonb(o);\nEND $$;\n\nCREATE FUNCTION extraction_runtime.fail_call(p_extraction uuid, p_attempt uuid, epoch integer, p_capture uuid) RETURNS void\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  UPDATE extraction_runtime.capture SET \"inFlight\" = false WHERE id = p_capture AND \"extractionId\" = p_extraction\n    AND \"reservationAttemptId\" = p_attempt AND \"reservationEpoch\" = epoch;\n  IF NOT FOUND THEN RAISE EXCEPTION 'capture is not reserved' USING ERRCODE = '40001'; END IF;\n  UPDATE extraction_runtime.head SET intent = CASE WHEN intent = 'STOP' THEN 'STOP' ELSE 'PAUSE' END WHERE id = p_extraction;\nEND $$;\n\nCREATE FUNCTION extraction_runtime.publish_snapshot(p_extraction uuid, p_attempt uuid, epoch integer,\n  identity uuid, selection uuid, body jsonb, coverage jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; s extraction_runtime.snapshot; d text; previous_coverage jsonb; retained_value jsonb; node jsonb; selected extraction_runtime.selection;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  IF selection IS DISTINCT FROM h.\"selectionId\" OR jsonb_typeof(body) IS DISTINCT FROM 'array' OR jsonb_typeof(coverage) IS DISTINCT FROM 'object' THEN\n    RAISE EXCEPTION 'invalid result snapshot' USING ERRCODE = '22023';\n  END IF;\n  d := extraction_runtime.content_hash(jsonb_build_object('values', body, 'coverage', coverage));\n  SELECT * INTO s FROM extraction_runtime.snapshot WHERE id = identity;\n  IF FOUND THEN\n    IF s.\"extractionId\" <> p_extraction OR s.\"selectionId\" <> selection OR s.coverage->>'publicationDigest' <> d THEN\n      RAISE EXCEPTION 'snapshot publication conflict' USING ERRCODE = '23505';\n    END IF;\n    RETURN to_jsonb(s);\n  END IF;\n  IF EXISTS (SELECT FROM jsonb_array_elements(body) v WHERE jsonb_typeof(v) <> 'object'\n    OR NOT (v ?& ARRAY['id','recordId','fieldId','selectionId','schemaRevisionId','node','modelValue','evidence','grounding','processing','lineage','path'])\n    OR v->>'selectionId' IS DISTINCT FROM selection::text) THEN\n    RAISE EXCEPTION 'invalid retained values' USING ERRCODE = '22023';\n  END IF;\n  SELECT picked.* INTO selected FROM extraction_runtime.selection picked WHERE picked.id=publish_snapshot.selection;\n  FOR retained_value IN SELECT * FROM jsonb_array_elements(body) LOOP\n    SELECT n INTO node FROM jsonb_array_elements(selected.\"schemaTree\"->'schemaNodes') n WHERE n->>'id'=retained_value->>'fieldId';\n    IF node IS NULL OR node IS DISTINCT FROM retained_value->'node' OR retained_value->>'schemaRevisionId' IS DISTINCT FROM selected.\"schemaRevisionId\"::text\n      OR NOT extraction_runtime.valid_value(node,retained_value->'modelValue')\n      OR retained_value->>'grounding' IS NULL OR retained_value->>'grounding' NOT IN ('grounded','ungrounded','provisional')\n      OR retained_value->>'processing' IS NULL OR retained_value->>'processing' NOT IN ('saved','absent','unprocessed','failed')\n      OR jsonb_typeof(retained_value->'id') IS DISTINCT FROM 'string' OR jsonb_typeof(retained_value->'recordId') IS DISTINCT FROM 'string'\n      OR jsonb_typeof(retained_value->'path') IS DISTINCT FROM 'array' OR jsonb_typeof(retained_value->'lineage') IS DISTINCT FROM 'array'\n      OR jsonb_typeof(retained_value->'evidence') IS DISTINCT FROM 'array' THEN\n      RAISE EXCEPTION 'retained value does not fit producing schema' USING ERRCODE='22023';\n    END IF;\n    IF EXISTS (SELECT FROM jsonb_array_elements(retained_value->'path') part WHERE jsonb_typeof(part) NOT IN ('string','number')\n      OR (jsonb_typeof(part)='number' AND (part::text)::numeric<0))\n      OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'lineage') part WHERE jsonb_typeof(part)<>'string')\n      OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'evidence') evidence WHERE\n        jsonb_typeof(evidence)<>'object' OR jsonb_typeof(evidence->'anchorId') IS DISTINCT FROM 'string'\n        OR jsonb_typeof(evidence->'occurrenceIds') IS DISTINCT FROM 'array'\n        OR jsonb_typeof(evidence->'producer') IS DISTINCT FROM 'object'\n        OR evidence-ARRAY['anchorId','occurrenceIds','producer']<>'{}'::jsonb) THEN\n      RAISE EXCEPTION 'invalid retained identity or evidence' USING ERRCODE='22023';\n    END IF;\n    node := NULL;\n  END LOOP;\n  SELECT previous.coverage INTO previous_coverage FROM extraction_runtime.snapshot previous\n    WHERE previous.\"extractionId\"=p_extraction AND previous.version=h.\"snapshotVersion\";\n  SELECT coalesce(jsonb_agg(v ORDER BY v->>'id'),'[]'::jsonb) INTO body FROM (\n    SELECT old_value AS v FROM extraction_runtime.snapshot previous,\n      jsonb_array_elements(previous.values) old_value\n      WHERE previous.\"extractionId\"=p_extraction AND previous.version=h.\"snapshotVersion\"\n      AND NOT EXISTS (SELECT FROM jsonb_array_elements(body) fresh WHERE fresh->>'id'=old_value->>'id')\n    UNION ALL SELECT fresh FROM jsonb_array_elements(body) fresh\n  ) merged;\n  coverage := coverage || jsonb_build_object('publicationDigest',d,'completedScopes',\n    coalesce(previous_coverage->'completedScopes','{}'::jsonb)||coalesce(coverage->'completedScopes','{}'::jsonb));\n  d := extraction_runtime.content_hash(jsonb_build_object('values',body,'coverage',coverage));\n  h.\"snapshotVersion\" := h.\"snapshotVersion\" + 1;\n  INSERT INTO extraction_runtime.snapshot (id,\"extractionId\",version,\"selectionId\",digest,values,coverage) VALUES (identity, p_extraction, h.\"snapshotVersion\", selection, d, body, coverage) RETURNING * INTO s;\n  UPDATE extraction_runtime.head SET \"snapshotVersion\" = h.\"snapshotVersion\" WHERE id = p_extraction;\n  RETURN to_jsonb(s);\nEND $$;\n\nCREATE FUNCTION extraction_runtime.acknowledge(p_extraction uuid, p_attempt uuid, epoch integer,\n  complete boolean, failure jsonb) RETURNS text\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; result text;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  IF EXISTS (SELECT FROM extraction_runtime.capture WHERE \"extractionId\" = p_extraction AND \"inFlight\") THEN\n    RAISE EXCEPTION 'provider calls have not drained' USING ERRCODE = '55000';\n  END IF;\n  result := CASE WHEN h.intent = 'STOP' THEN 'STOPPED' WHEN complete THEN 'COMPLETED'\n    WHEN failure IS NOT NULL THEN 'FAILED' WHEN h.intent = 'PAUSE' THEN 'PAUSED' ELSE NULL END;\n  IF result IS NULL THEN RAISE EXCEPTION 'no idle boundary to acknowledge' USING ERRCODE = '55000'; END IF;\n  UPDATE extraction_runtime.attempt SET outcome = result, failure = acknowledge.failure WHERE id = p_attempt;\n  UPDATE extraction_runtime.head SET acknowledgement = result, \"leaseOwner\" = NULL, \"leaseUntil\" = NULL WHERE id = p_extraction;\n  RETURN result;\nEND $$;\n\n\nCREATE FUNCTION extraction_runtime.resolve_selection(p_extraction uuid, p_attempt uuid, epoch integer, configuration jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; e extraction_runtime.effective;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO e FROM extraction_runtime.effective WHERE id = h.\"selectionId\";\n  IF FOUND THEN RETURN to_jsonb(e); END IF;\n  IF configuration IS NULL THEN RETURN NULL; END IF;\n  IF jsonb_typeof(configuration) <> 'object' OR NOT (configuration ?& ARRAY['models','options','planner','protocols'])\n    OR (configuration - ARRAY['models','options','planner','protocols']) <> '{}'::jsonb\n    OR configuration->>'planner' IS DISTINCT FROM '1'\n    OR configuration->'protocols'->>'calls' IS DISTINCT FROM '1'\n    OR configuration->'protocols'->>'source' IS NULL OR configuration->'protocols'->>'source' NOT IN ('document','records')\n    OR jsonb_typeof(configuration->'options') IS DISTINCT FROM 'object'\n    OR NOT extraction_runtime.valid_provider(configuration->'models'->'fields')\n    OR NOT extraction_runtime.valid_provider(configuration->'models'->'reasoning')\n    OR (configuration->'models')-ARRAY['fields','reasoning']<>'{}'::jsonb THEN\n    RAISE EXCEPTION 'invalid effective configuration' USING ERRCODE = '22023';\n  END IF;\n  INSERT INTO extraction_runtime.effective (id,configuration,digest) VALUES (h.\"selectionId\",configuration,extraction_runtime.content_hash(configuration)) RETURNING * INTO e;\n  RETURN to_jsonb(e);\nEND $$;\n\nCREATE FUNCTION extraction_runtime.read_call(p_extraction uuid, p_attempt uuid, epoch integer, identity uuid) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = identity AND \"extractionId\" = p_extraction\n    AND \"selectionId\" = h.\"selectionId\" AND generation = h.generation;\n  IF NOT FOUND THEN RAISE EXCEPTION 'capture is not in the current selection' USING ERRCODE = '40001'; END IF;\n  IF c.\"inFlight\" AND c.\"reservationEpoch\" = epoch THEN\n    RAISE EXCEPTION 'capture is already in flight' USING ERRCODE = '55P03';\n  END IF;\n  UPDATE extraction_runtime.capture SET \"reservationAttemptId\"=p_attempt,\"reservationEpoch\"=epoch WHERE id=identity;\n  RETURN jsonb_build_object('capture',to_jsonb(c),'intent',h.intent,\n    'input',(SELECT to_jsonb(i) FROM extraction_runtime.input i WHERE i.id=identity),\n    'checkpoint',(SELECT to_jsonb(o) FROM extraction_runtime.checkpoint o WHERE o.id=identity));\nEND $$;\n\nCREATE FUNCTION extraction_runtime.historical_coverage(p_extraction uuid, p_attempt uuid, epoch integer) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; p extraction_runtime.plan;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO p FROM extraction_runtime.plan WHERE \"extractionId\"=p_extraction AND generation=h.generation AND stage='historical-coverage';\n  IF NOT FOUND THEN RAISE EXCEPTION 'historical coverage was not pinned' USING ERRCODE = '55000'; END IF;\n  RETURN to_jsonb(p) || jsonb_build_object('snapshot',(SELECT to_jsonb(s) FROM extraction_runtime.snapshot s WHERE s.id=(p.manifest->'coverage'->>'snapshotId')::uuid));\nEND $$;\n\nCREATE FUNCTION extraction_runtime.immutable_record() RETURNS trigger\nLANGUAGE plpgsql SET search_path = pg_catalog\nAS $$ BEGIN RAISE EXCEPTION 'immutable Extraction history' USING ERRCODE = '55000'; END $$;\nCREATE TRIGGER selection_immutable BEFORE UPDATE ON extraction_runtime.selection FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER effective_immutable BEFORE UPDATE ON extraction_runtime.effective FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER plan_immutable BEFORE UPDATE ON extraction_runtime.plan FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER input_immutable BEFORE UPDATE ON extraction_runtime.input FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER checkpoint_immutable BEFORE UPDATE ON extraction_runtime.checkpoint FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER snapshot_immutable BEFORE UPDATE ON extraction_runtime.snapshot FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER correction_immutable BEFORE UPDATE ON extraction_runtime.correction FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE TRIGGER finalization_immutable BEFORE UPDATE ON extraction_runtime.finalization FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\n\nCREATE FUNCTION extraction_runtime.preserve_origin() RETURNS trigger\nLANGUAGE plpgsql SET search_path = pg_catalog\nAS $$\nBEGIN\n  IF TG_TABLE_NAME = 'capture' AND (to_jsonb(NEW) - ARRAY['reservationAttemptId','reservationEpoch','inFlight','invoked'])\n    <> (to_jsonb(OLD) - ARRAY['reservationAttemptId','reservationEpoch','inFlight','invoked']) THEN\n    RAISE EXCEPTION 'immutable capture attribution' USING ERRCODE = '55000';\n  ELSIF TG_TABLE_NAME = 'attempt' AND (to_jsonb(NEW) - ARRAY['outcome','failure']) <> (to_jsonb(OLD) - ARRAY['outcome','failure']) THEN\n    RAISE EXCEPTION 'immutable attempt attribution' USING ERRCODE = '55000';\n  ELSIF TG_TABLE_NAME = 'head' AND jsonb_build_array(to_jsonb(NEW)->'id',to_jsonb(NEW)->'projectId',\n    to_jsonb(NEW)->'sourceRevisionId',to_jsonb(NEW)->'sourcePin',to_jsonb(NEW)->'strategy')\n    IS DISTINCT FROM jsonb_build_array(to_jsonb(OLD)->'id',to_jsonb(OLD)->'projectId',\n    to_jsonb(OLD)->'sourceRevisionId',to_jsonb(OLD)->'sourcePin',to_jsonb(OLD)->'strategy') THEN\n    RAISE EXCEPTION 'immutable Extraction source and strategy' USING ERRCODE = '55000';\n  END IF;\n  RETURN NEW;\nEND $$;\nCREATE TRIGGER capture_origin BEFORE UPDATE ON extraction_runtime.capture FOR EACH ROW EXECUTE FUNCTION extraction_runtime.preserve_origin();\nCREATE TRIGGER attempt_origin BEFORE UPDATE ON extraction_runtime.attempt FOR EACH ROW EXECUTE FUNCTION extraction_runtime.preserve_origin();\nCREATE TRIGGER head_origin BEFORE UPDATE ON extraction_runtime.head FOR EACH ROW EXECUTE FUNCTION extraction_runtime.preserve_origin();\nCREATE FUNCTION extraction_runtime.read_latest_snapshot(p_extraction uuid, p_attempt uuid, epoch integer) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction,p_attempt,epoch);\n  RETURN (SELECT to_jsonb(s) FROM extraction_runtime.snapshot s WHERE s.\"extractionId\"=p_extraction AND s.version=h.\"snapshotVersion\");\nEND $$;\nDO $ownership$\nDECLARE fn record;\nBEGIN\n  FOR fn IN SELECT p.oid::regprocedure AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'extraction_runtime' LOOP\n    EXECUTE format('ALTER FUNCTION %s OWNER TO free_extraction_runtime', fn.name);\n    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', fn.name);\n  END LOOP;\nEND $ownership$;\n"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "protocol 1 is installed",
+        "sql": "SELECT EXISTS (SELECT FROM extraction_runtime.protocol WHERE id = 1 AND version = 1) AS ok"
+      }
+    ]
+  },
+  {
+    "id": "extraction-runtime.retry-history",
+    "label": "Retain failed responses separately from completed calls",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "callFailure"
+      }
+    },
+    "precheck": [
+      {
+        "description": "failure history exists",
+        "sql": "SELECT to_regclass('extraction_runtime.\"callFailure\"') IS NOT NULL AS ok"
+      }
+    ],
+    "execute": [
+      {
+        "description": "install retry-aware checkpoint routines",
+        "sql": "-- Protocol 1 additive retry history; no public or DBOS table changes.\nGRANT SELECT, INSERT ON extraction_runtime.\"callFailure\" TO free_extraction_runtime;\nCREATE TRIGGER \"callFailure_immutable\" BEFORE UPDATE ON extraction_runtime.\"callFailure\" FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\nCREATE OR REPLACE FUNCTION extraction_runtime.capture_unit(p_extraction uuid, p_attempt uuid, epoch integer,\n  identity uuid, unit_key text, descriptor jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture; project uuid; v integer; examples jsonb; parent extraction_runtime.capture;\nBEGIN\n  -- Lock order: project feedback before p_extraction control, including replays.\n  SELECT \"projectId\" INTO project FROM extraction_runtime.head WHERE id = p_extraction;\n  SELECT version INTO v FROM extraction_runtime.\"feedbackHead\" WHERE id = project FOR SHARE;\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE \"extractionId\" = p_extraction\n    AND generation = h.generation AND \"unitKey\" = unit_key;\n  IF FOUND THEN\n    IF c.descriptor IS DISTINCT FROM descriptor THEN RAISE EXCEPTION 'unit identity conflict' USING ERRCODE = '23505'; END IF;\n    IF h.intent <> 'RUN' AND NOT EXISTS (SELECT FROM extraction_runtime.checkpoint WHERE id=c.id) AND NOT EXISTS (SELECT FROM extraction_runtime.\"callFailure\" WHERE \"captureId\"=c.id AND \"attemptId\"=p_attempt) THEN RETURN NULL; END IF;\n    UPDATE extraction_runtime.capture SET \"reservationAttemptId\" = p_attempt, \"reservationEpoch\" = epoch WHERE id = c.id;\n    c.\"reservationAttemptId\" := p_attempt; c.\"reservationEpoch\" := epoch;\n    RETURN to_jsonb(c) || jsonb_build_object('input', (SELECT to_jsonb(i) FROM extraction_runtime.input i WHERE i.id = c.id),\n      'checkpoint', coalesce((SELECT to_jsonb(o) FROM extraction_runtime.checkpoint o WHERE o.id = c.id), (SELECT to_jsonb(f) FROM extraction_runtime.\"callFailure\" f WHERE f.\"captureId\"=c.id AND f.\"attemptId\"=p_attempt)));\n  END IF;\n  IF h.intent <> 'RUN' THEN RETURN NULL; END IF;\n  IF v IS NULL OR length(unit_key) NOT BETWEEN 1 AND 256 OR jsonb_typeof(descriptor) <> 'object'\n     OR NOT (descriptor ?& ARRAY['stage', 'scope', 'ordinal', 'planDigest', 'role'])\n     OR descriptor-ARRAY['stage','scope','ordinal','planDigest','role','derivedFrom']<>'{}'::jsonb\n     OR descriptor->>'role' IS NULL OR descriptor->>'role' NOT IN ('fields', 'reasoning')\n     OR coalesce(descriptor->>'ordinal','') !~ '^[0-9]+$' OR jsonb_typeof(descriptor->'scope') IS DISTINCT FROM 'string'\n     OR NOT EXISTS (SELECT FROM extraction_runtime.plan p WHERE p.\"extractionId\" = p_extraction\n       AND p.generation = h.generation AND p.digest = descriptor->>'planDigest'\n       AND p.manifest->'units' @> jsonb_build_array(jsonb_build_object('key', unit_key))) THEN\n    RAISE EXCEPTION 'unit absent from immutable manifest' USING ERRCODE = '22023';\n  END IF;\n  SELECT coalesce(jsonb_agg(to_jsonb(active) ORDER BY active.\"feedbackVersion\" DESC, active.id), '[]'::jsonb) INTO examples FROM (\n    SELECT DISTINCT ON (r.\"extractionId\", r.\"valueId\") r.* FROM extraction_runtime.correction r\n    WHERE r.\"projectId\" = project AND r.\"feedbackVersion\" <= v\n    ORDER BY r.\"extractionId\", r.\"valueId\", r.revision DESC\n  ) active WHERE active.included;\n  IF descriptor ? 'derivedFrom' THEN\n    SELECT * INTO parent FROM extraction_runtime.capture origin WHERE origin.id=(descriptor->>'derivedFrom')::uuid\n      AND origin.\"extractionId\"=p_extraction AND origin.generation=h.generation AND origin.\"selectionId\"=h.\"selectionId\"\n      AND EXISTS (SELECT FROM extraction_runtime.checkpoint o WHERE o.id=origin.id AND o.output->>'formatRefused'='true');\n    IF NOT FOUND THEN RAISE EXCEPTION 'invalid fallback dependency' USING ERRCODE='22023'; END IF;\n    v:=parent.\"feedbackVersion\"; examples:=parent.candidates;\n  END IF;\n  INSERT INTO extraction_runtime.capture (id,\"extractionId\",generation,\"unitKey\",\"selectionId\",\"originalAttemptId\",\"feedbackVersion\",candidates,descriptor,\"reservationAttemptId\",\"reservationEpoch\",\"inFlight\",invoked) VALUES (identity, p_extraction, h.generation, unit_key, h.\"selectionId\",\n    p_attempt, v, examples, descriptor, p_attempt, epoch, false, false) RETURNING * INTO c;\n  RETURN to_jsonb(c) || jsonb_build_object('input', NULL, 'checkpoint', NULL);\nEND $$;\n\nCREATE OR REPLACE FUNCTION extraction_runtime.begin_call(p_extraction uuid, p_attempt uuid, epoch integer, p_capture uuid) RETURNS boolean\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  IF h.intent <> 'RUN' THEN RETURN false; END IF;\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = p_capture AND \"extractionId\" = p_extraction;\n  IF NOT FOUND OR c.\"reservationAttemptId\" <> p_attempt OR c.\"reservationEpoch\" <> epoch OR c.\"inFlight\"\n     OR NOT EXISTS (SELECT FROM extraction_runtime.input WHERE id = p_capture) THEN\n    RAISE EXCEPTION 'call is not reserved or finalized' USING ERRCODE = '40001';\n  END IF;\n  IF EXISTS (SELECT FROM extraction_runtime.checkpoint WHERE id = p_capture) OR EXISTS (SELECT FROM extraction_runtime.\"callFailure\" WHERE \"captureId\"=p_capture AND \"attemptId\"=p_attempt) THEN RETURN false; END IF;\n  UPDATE extraction_runtime.capture SET \"inFlight\" = true, invoked = true WHERE id = p_capture;\n  RETURN true;\nEND $$;\n\nCREATE OR REPLACE FUNCTION extraction_runtime.commit_output(p_extraction uuid, p_attempt uuid, epoch integer,\n  p_capture uuid, input_digest text, output jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture; o extraction_runtime.checkpoint; d text; f extraction_runtime.\"callFailure\";\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = p_capture AND \"extractionId\" = p_extraction;\n  IF NOT FOUND OR c.\"reservationAttemptId\" <> p_attempt OR c.\"reservationEpoch\" <> epoch\n     OR NOT EXISTS (SELECT FROM extraction_runtime.input i WHERE i.id = p_capture AND i.digest = input_digest) THEN\n    RAISE EXCEPTION 'output authorization or digest mismatch' USING ERRCODE = '40001';\n  END IF;\n  d := extraction_runtime.content_hash(output);\n  SELECT * INTO o FROM extraction_runtime.checkpoint WHERE id = p_capture;\n  IF FOUND THEN\n    IF o.\"inputDigest\" <> input_digest OR o.\"outputDigest\" <> d THEN\n      RAISE EXCEPTION 'checkpoint conflict' USING ERRCODE = '23505';\n    END IF;\n    RETURN to_jsonb(o);\n  END IF;\n  SELECT * INTO f FROM extraction_runtime.\"callFailure\" WHERE \"captureId\"=p_capture AND \"attemptId\"=p_attempt;\n  IF FOUND THEN\n    IF f.\"inputDigest\"<>input_digest OR f.\"outputDigest\"<>d THEN RAISE EXCEPTION 'failure response conflict' USING ERRCODE='23505'; END IF;\n    RETURN to_jsonb(f);\n  END IF;\n  IF NOT c.\"inFlight\" THEN RAISE EXCEPTION 'call was not started' USING ERRCODE = '40001'; END IF;\n  -- PAUSE and STOP deliberately allow outputs admitted before their command.\n  IF coalesce(output->>'formatRefused','false')<>'true' AND EXISTS (\n    SELECT FROM jsonb_array_elements(output->'calls') call WHERE call->>'ok'='false' AND coalesce(call->>'recovered','false')<>'true'\n  ) THEN\n    INSERT INTO extraction_runtime.\"callFailure\" (\"captureId\",\"attemptId\",\"inputDigest\",\"outputDigest\",output)\n      VALUES (p_capture,p_attempt,input_digest,d,output) RETURNING * INTO f;\n    UPDATE extraction_runtime.capture SET \"inFlight\"=false WHERE id=p_capture;\n    UPDATE extraction_runtime.head SET intent=CASE WHEN intent='STOP' THEN 'STOP' ELSE 'PAUSE' END WHERE id=p_extraction;\n    RETURN to_jsonb(f);\n  END IF;\n  INSERT INTO extraction_runtime.checkpoint (id,\"inputDigest\",\"outputDigest\",output) VALUES (p_capture, input_digest, d, output) RETURNING * INTO o;\n  UPDATE extraction_runtime.capture SET \"inFlight\" = false WHERE id = p_capture;\n  RETURN to_jsonb(o);\nEND $$;\n\nCREATE OR REPLACE FUNCTION extraction_runtime.read_call(p_extraction uuid, p_attempt uuid, epoch integer, identity uuid) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = identity AND \"extractionId\" = p_extraction\n    AND \"selectionId\" = h.\"selectionId\" AND generation = h.generation;\n  IF NOT FOUND THEN RAISE EXCEPTION 'capture is not in the current selection' USING ERRCODE = '40001'; END IF;\n  IF c.\"inFlight\" AND c.\"reservationEpoch\" = epoch THEN\n    RAISE EXCEPTION 'capture is already in flight' USING ERRCODE = '55P03';\n  END IF;\n  UPDATE extraction_runtime.capture SET \"reservationAttemptId\"=p_attempt,\"reservationEpoch\"=epoch WHERE id=identity;\n  RETURN jsonb_build_object('capture',to_jsonb(c),'intent',h.intent,\n    'input',(SELECT to_jsonb(i) FROM extraction_runtime.input i WHERE i.id=identity),\n    'checkpoint',coalesce((SELECT to_jsonb(o) FROM extraction_runtime.checkpoint o WHERE o.id=identity), (SELECT to_jsonb(f) FROM extraction_runtime.\"callFailure\" f WHERE f.\"captureId\"=identity AND f.\"attemptId\"=p_attempt)));\nEND $$;\n\nCREATE FUNCTION extraction_runtime.read_attempt_outcome(p_extraction uuid,p_attempt uuid) RETURNS text\nLANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog\nAS $$ SELECT outcome FROM extraction_runtime.attempt WHERE id=p_attempt AND \"extractionId\"=p_extraction $$;\nALTER FUNCTION extraction_runtime.read_attempt_outcome(uuid,uuid) OWNER TO free_extraction_runtime;\nREVOKE ALL ON FUNCTION extraction_runtime.read_attempt_outcome(uuid,uuid) FROM PUBLIC;\n\n-- Deletion fences worker writes in the SAME transaction as the public cascade.\n-- The definer uses OLD.id and never reads public or either DBOS schema.\nCREATE FUNCTION extraction_runtime.fence_deleted_extraction() RETURNS trigger\nLANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog\nAS $$ BEGIN\n  UPDATE extraction_runtime.head SET deleted=true,intent='STOP',\"pendingResume\"=false,\"pendingSelectionId\"=NULL WHERE id=OLD.id;\n  RETURN OLD;\nEND $$;\nALTER FUNCTION extraction_runtime.fence_deleted_extraction() OWNER TO free_extraction_runtime;\nREVOKE ALL ON FUNCTION extraction_runtime.fence_deleted_extraction() FROM PUBLIC;\nCREATE TRIGGER durable_extraction_delete BEFORE DELETE ON public.extraction FOR EACH ROW EXECUTE FUNCTION extraction_runtime.fence_deleted_extraction();\nCREATE TRIGGER artifactReference_immutable BEFORE UPDATE ON extraction_runtime.\"artifactReference\" FOR EACH ROW EXECUTE FUNCTION extraction_runtime.immutable_record();\n\n-- Carry source coverage and historical aggregation proposals across publications.\nCREATE OR REPLACE FUNCTION extraction_runtime.publish_snapshot(p_extraction uuid, p_attempt uuid, epoch integer,\n  identity uuid, selection uuid, body jsonb, coverage jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; s extraction_runtime.snapshot; d text; previous_coverage jsonb; retained_value jsonb; node jsonb; selected extraction_runtime.selection;\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  IF selection IS DISTINCT FROM h.\"selectionId\" OR jsonb_typeof(body) IS DISTINCT FROM 'array' OR jsonb_typeof(coverage) IS DISTINCT FROM 'object' THEN\n    RAISE EXCEPTION 'invalid result snapshot' USING ERRCODE = '22023';\n  END IF;\n  IF coverage ? 'finalizedAttempt' AND (\n    jsonb_typeof(coverage->'finalizedAttempt') IS DISTINCT FROM 'object'\n    OR (coverage->'finalizedAttempt')-ARRAY['attemptId','selectionId','generation','complete']<>'{}'::jsonb\n    OR coverage->'finalizedAttempt'->>'attemptId' IS DISTINCT FROM p_attempt::text\n    OR coverage->'finalizedAttempt'->>'selectionId' IS DISTINCT FROM selection::text\n    OR coverage->'finalizedAttempt'->'generation' IS DISTINCT FROM to_jsonb(h.generation)\n    OR jsonb_typeof(coverage->'finalizedAttempt'->'complete') IS DISTINCT FROM 'boolean'\n    OR EXISTS (SELECT FROM extraction_runtime.capture WHERE \"extractionId\"=p_extraction AND \"inFlight\")\n  ) THEN\n    RAISE EXCEPTION 'invalid final publication proof' USING ERRCODE='22023';\n  END IF;\n  d := extraction_runtime.content_hash(jsonb_build_object('values', body, 'coverage', coverage));\n  SELECT * INTO s FROM extraction_runtime.snapshot WHERE id = identity;\n  IF FOUND THEN\n    IF s.\"extractionId\" <> p_extraction OR s.\"selectionId\" <> selection OR s.coverage->>'publicationDigest' <> d THEN\n      RAISE EXCEPTION 'snapshot publication conflict' USING ERRCODE = '23505';\n    END IF;\n    RETURN to_jsonb(s);\n  END IF;\n  IF EXISTS (SELECT FROM jsonb_array_elements(body) v WHERE jsonb_typeof(v) <> 'object'\n    OR NOT (v ?& ARRAY['id','recordId','fieldId','selectionId','schemaRevisionId','node','modelValue','evidence','grounding','processing','lineage','path'])\n    OR v->>'selectionId' IS DISTINCT FROM selection::text) THEN\n    RAISE EXCEPTION 'invalid retained values' USING ERRCODE = '22023';\n  END IF;\n  SELECT picked.* INTO selected FROM extraction_runtime.selection picked WHERE picked.id=publish_snapshot.selection;\n  FOR retained_value IN SELECT * FROM jsonb_array_elements(body) LOOP\n    SELECT n INTO node FROM jsonb_array_elements(selected.\"schemaTree\"->'schemaNodes') n WHERE n->>'id'=retained_value->>'fieldId';\n    IF node IS NULL OR node IS DISTINCT FROM retained_value->'node' OR retained_value->>'schemaRevisionId' IS DISTINCT FROM selected.\"schemaRevisionId\"::text\n      OR NOT extraction_runtime.valid_value(node,retained_value->'modelValue')\n      OR retained_value->>'grounding' IS NULL OR retained_value->>'grounding' NOT IN ('grounded','ungrounded','provisional')\n      OR retained_value->>'processing' IS NULL OR retained_value->>'processing' NOT IN ('saved','absent','unprocessed','failed')\n      OR jsonb_typeof(retained_value->'id') IS DISTINCT FROM 'string' OR jsonb_typeof(retained_value->'recordId') IS DISTINCT FROM 'string'\n      OR jsonb_typeof(retained_value->'path') IS DISTINCT FROM 'array' OR jsonb_typeof(retained_value->'lineage') IS DISTINCT FROM 'array'\n      OR jsonb_typeof(retained_value->'evidence') IS DISTINCT FROM 'array' THEN\n      RAISE EXCEPTION 'retained value does not fit producing schema' USING ERRCODE='22023';\n    END IF;\n    IF EXISTS (SELECT FROM jsonb_array_elements(retained_value->'path') part WHERE jsonb_typeof(part) NOT IN ('string','number')\n      OR (jsonb_typeof(part)='number' AND (part::text)::numeric<0))\n      OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'lineage') part WHERE jsonb_typeof(part)<>'string')\n      OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'evidence') evidence WHERE\n        jsonb_typeof(evidence)<>'object' OR jsonb_typeof(evidence->'anchorId') IS DISTINCT FROM 'string'\n        OR jsonb_typeof(evidence->'occurrenceIds') IS DISTINCT FROM 'array'\n        OR jsonb_typeof(evidence->'producer') IS DISTINCT FROM 'object'\n        OR evidence-ARRAY['anchorId','occurrenceIds','producer']<>'{}'::jsonb) THEN\n      RAISE EXCEPTION 'invalid retained identity or evidence' USING ERRCODE='22023';\n    END IF;\n    node := NULL;\n  END LOOP;\n  SELECT previous.coverage INTO previous_coverage FROM extraction_runtime.snapshot previous\n    WHERE previous.\"extractionId\"=p_extraction AND previous.version=h.\"snapshotVersion\";\n  SELECT coalesce(jsonb_agg(v ORDER BY v->>'id'),'[]'::jsonb) INTO body FROM (\n    SELECT old_value AS v FROM extraction_runtime.snapshot previous,\n      jsonb_array_elements(previous.values) old_value\n      WHERE previous.\"extractionId\"=p_extraction AND previous.version=h.\"snapshotVersion\"\n      AND NOT EXISTS (SELECT FROM jsonb_array_elements(body) fresh WHERE fresh->>'id'=old_value->>'id')\n    UNION ALL SELECT fresh FROM jsonb_array_elements(body) fresh\n  ) merged;\n  coverage := coverage || jsonb_build_object('publicationDigest',d,'completedScopes',\n    coalesce(previous_coverage->'completedScopes','{}'::jsonb)||coalesce(coverage->'completedScopes','{}'::jsonb),\n    'historicalProposals',coalesce(previous_coverage->'historicalProposals','{}'::jsonb)||coalesce(coverage->'historicalProposals','{}'::jsonb),\n    'completedDocumentFields',coalesce(previous_coverage->'completedDocumentFields','{}'::jsonb)||coalesce(coverage->'completedDocumentFields','{}'::jsonb));\n  d := extraction_runtime.content_hash(jsonb_build_object('values',body,'coverage',coverage));\n  h.\"snapshotVersion\" := h.\"snapshotVersion\" + 1;\n  INSERT INTO extraction_runtime.snapshot (id,\"extractionId\",version,\"selectionId\",digest,values,coverage) VALUES (identity, p_extraction, h.\"snapshotVersion\", selection, d, body, coverage) RETURNING * INTO s;\n  UPDATE extraction_runtime.head SET \"snapshotVersion\" = h.\"snapshotVersion\" WHERE id = p_extraction;\n  RETURN to_jsonb(s);\nEND $$;\n\n-- Cleanup can inspect only a fenced deleted graph; no application or DBOS reads.\nCREATE FUNCTION extraction_runtime.read_deleted_graph(p_extraction uuid,p_fence integer) RETURNS jsonb\nLANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$\n  SELECT jsonb_build_object('attempts',coalesce((SELECT jsonb_agg(jsonb_build_object('id',a.id,'workflowId',a.\"workflowId\")) FROM extraction_runtime.attempt a WHERE a.\"extractionId\"=h.id),'[]'::jsonb),\n    'captures',coalesce((SELECT jsonb_agg(jsonb_build_object('id',c.id)) FROM extraction_runtime.capture c WHERE c.\"extractionId\"=h.id),'[]'::jsonb))\n  FROM extraction_runtime.head h WHERE h.id=p_extraction AND h.fence=p_fence AND h.deleted\n    AND (h.\"leaseUntil\" IS NULL OR h.\"leaseUntil\"<clock_timestamp())\n$$;\nALTER FUNCTION extraction_runtime.read_deleted_graph(uuid,integer) OWNER TO free_extraction_runtime;\nREVOKE ALL ON FUNCTION extraction_runtime.read_deleted_graph(uuid,integer) FROM PUBLIC;\n"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "failure history is immutable",
+        "sql": "SELECT EXISTS (SELECT FROM pg_trigger WHERE tgname='callFailure_immutable') AS ok"
+      }
+    ]
+  }
+]

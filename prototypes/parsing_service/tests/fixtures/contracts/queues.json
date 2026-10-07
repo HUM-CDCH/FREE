@@ -1,0 +1,14 @@
+{
+  "application_name": "kei",
+  "schema": "kei_dbos",
+  "application_version": "kei@1",
+  "queues": {
+    "kei-convert-large": {"global_concurrency": 1, "worker_concurrency": 1},
+    "kei-convert-small": {"global_concurrency": 1, "worker_concurrency": 1},
+    "kei-extract": {"global_concurrency": 2, "worker_concurrency": 2},
+    "kei-gc": {"global_concurrency": 1, "worker_concurrency": 1}
+  },
+  "priorities": {"interactive": 1, "batch": 10},
+  "small_document_pages": 30,
+  "workflow_id_prefixes": {"convert": "kei-convert:", "deleteRuns": "kei-gc:"}
+}

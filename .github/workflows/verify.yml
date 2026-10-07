@@ -1,0 +1,98 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      FREE_SKIP_PYTHON: '1'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
+      EXTRACTION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
+      PROJECT_STORE_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_project_store
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: free_test_project_store
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d free_test_project_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # The runner image ships Compose 2.38, which rejects `develop.watch.initial_sync`; the repository requires 2.40.
+      - name: Install Docker Compose
+        uses: docker/setup-compose-action@v2
+        with:
+          version: v2.40.0
+
+      - name: Verify Docker Compose
+        run: |
+          docker compose version
+          version="$(docker compose version --short)"
+          test "${version#v}" = "2.40.0"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.8.1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: |
+          docker pull ghcr.io/navikt/mock-oauth2-server:2.2.1 &
+          pnpm install --frozen-lockfile
+          wait
+
+      - name: Create the extraction integration database
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm --filter studio exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter studio exec playwright install --with-deps chromium
+
+      - name: Ensure Playwright Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter studio exec playwright install-deps chromium
+
+      - name: Run deterministic verification
+        run: pnpm test:ci

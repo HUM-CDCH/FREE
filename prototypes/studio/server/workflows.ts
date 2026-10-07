@@ -1,0 +1,99 @@
+import { createInternalProjectWorkerStore, createResearcherProjectStore } from 'db'
+import { dbosSteps } from 'extraction'
+import { createKeiHandoff } from 'extraction/kei-handoff'
+import { canonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
+import {
+  registerBatchSuggestionWorkflow,
+  SUGGEST_SCHEMA_BATCH,
+  workerSuggestionStore,
+} from '../api/_batch_suggestion_workflow.js'
+import { KEI_EXP_URL } from '../api/_extractions.js'
+import {
+  INGEST_SOURCE,
+  registerIngestionWorkflow,
+  type IngestionWorkflowPorts,
+} from '../api/_ingestion_workflow.js'
+import { generateSchemaWithModel } from '../api/_schema_suggestion.js'
+import { registerReprocessWorkflow, REPROCESS_SOURCE, type ReprocessWorkflowPorts } from '../api/_reprocess_workflow.js'
+import { generateSchemaEditJson, proposeSchemaEdit } from '../api/_schema_edit.js'
+import { PROPOSE_SCHEMA_EDIT, registerSchemaEditWorkflow } from '../api/_schema_edit_workflow.js'
+import { registerSchemaGenerationWorkflow, SUGGEST_SCHEMA } from '../api/_schema_generation_workflow.js'
+import { sourceInboxRoot } from '../api/_source_inbox.js'
+import { COLLECT_GARBAGE, garbagePorts, registerGarbageWorkflow, type GarbagePorts } from '../api/_garbage_workflow.js'
+import { COLLECT_GARBAGE_CRON, COLLECT_GARBAGE_SCHEDULE, GC_QUEUE, studioDbos } from './dbos.js'
+import { DBOS, type ScheduledWorkflowFn } from '@dbos-inc/dbos-sdk'
+import { DURABLE_RECONCILE } from 'extraction/durable'
+import { registerDurableExtractionReconciler } from './durable-extraction-workflow.js'
+
+/** Every Studio workflow's explicit name. A bundler renames unnamed functions (M0R 2: `job$1`), and a workflow started
+ *  under one build must be recoverable by another. */
+export const STUDIO_WORKFLOW_NAMES: readonly string[] = [
+  SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT,
+  COLLECT_GARBAGE, DURABLE_RECONCILE,
+]
+
+/** Both source conversion workflows use the same kei handoff, inbox, package store and owner-scoped store. */
+export function sourceConversionWorkflowPorts(): IngestionWorkflowPorts & ReprocessWorkflowPorts {
+  return {
+    steps: dbosSteps,
+    kei: createKeiHandoff(studioDbos().kei),
+    readBase: KEI_EXP_URL,
+    inboxRoot: sourceInboxRoot(),
+    packageStore: canonicalPackageStore,
+    storeFor: (owner) => createResearcherProjectStore(owner),
+  }
+}
+
+let registered = false
+let collectGarbage: ReturnType<typeof registerGarbageWorkflow> | undefined
+let reconcileExtractions: ReturnType<typeof registerDurableExtractionReconciler> | undefined
+
+/** Registers every Studio workflow. Only launchStudioDbos calls it, once, before DBOS.launch(); no module registers a
+ *  workflow at import, because the API dispatcher and several tests import every handler module. */
+export function registerStudioWorkflows(options: { garbagePorts?: () => GarbagePorts } = {}): void {
+  if (registered) return
+  registered = true
+  // Ports are built per run, after launch: they hold the launched DBOS's kei client.
+  registerBatchSuggestionWorkflow(() => ({
+    steps: dbosSteps,
+    generate: generateSchemaWithModel,
+    store: workerSuggestionStore(createInternalProjectWorkerStore()),
+    patched: (name) => DBOS.patch(name),
+  }))
+  registerIngestionWorkflow(sourceConversionWorkflowPorts)
+  registerReprocessWorkflow(sourceConversionWorkflowPorts)
+  registerSchemaGenerationWorkflow(() => {
+    const worker = createInternalProjectWorkerStore()
+    return {
+      steps: dbosSteps,
+      readSource: (id) => worker.readRevisionSchemaSource(id),
+      generate: generateSchemaWithModel,
+      patched: (name) => DBOS.patch(name),
+    }
+  })
+  registerSchemaEditWorkflow(() => {
+    const worker = createInternalProjectWorkerStore()
+    return {
+      steps: dbosSteps,
+      readSchemaTree: (schemaId, revisionId) => worker.readSchemaRevisionTree(schemaId, revisionId),
+      readMarkdown: (id) => worker.readRevisionMarkdown(id),
+      propose: proposeSchemaEdit,
+      generateJson: generateSchemaEditJson,
+    }
+  })
+  collectGarbage = registerGarbageWorkflow(options.garbagePorts ?? (() => garbagePorts()))
+  reconcileExtractions = registerDurableExtractionReconciler()
+}
+
+export async function applyStudioSchedules(): Promise<void> {
+  if (!collectGarbage || !reconcileExtractions) throw new Error('applyStudioSchedules runs after registerStudioWorkflows.')
+  await DBOS.applySchedules([{
+    scheduleName: COLLECT_GARBAGE_SCHEDULE,
+    // The scheduler's type narrows results to void; DBOS still persists this workflow's summary for gc:now.
+    workflowFn: collectGarbage as unknown as ScheduledWorkflowFn,
+    schedule: COLLECT_GARBAGE_CRON,
+    queueName: GC_QUEUE,
+    automaticBackfill: false,
+  },{scheduleName:DURABLE_RECONCILE,workflowFn:reconcileExtractions as unknown as ScheduledWorkflowFn,
+    schedule:'* * * * *',queueName:'studio',automaticBackfill:false}])
+}

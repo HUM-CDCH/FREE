@@ -1,0 +1,354 @@
+specification {
+  element person {
+    style {
+      shape person
+      color blue
+    }
+  }
+  element system
+  element container
+  element component
+  element datastore {
+    style {
+      shape storage
+    }
+  }
+  element external {
+    style {
+      color gray
+    }
+  }
+}
+
+model {
+  operator = person 'FREE Operator' 'Deploys FREE and assigns Researchers to the Microsoft Entra enterprise application.'
+  researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
+  browser = container 'Researcher browser' 'Runs the React client and follows OIDC redirects; it reaches production and local Compose only through their nginx TLS entry points.' 'Web browser'
+  entra = external 'Microsoft Entra ID' 'Single-tenant OIDC identity provider and the source of application assignment.'
+  mock_oidc = container 'Mock OIDC service' 'The sibling development identity service. Studio uses its server issuer while the browser follows the published loopback issuer.' 'mock-oauth2-server'
+
+  gateway = container 'Host nginx TLS gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
+  local_gateway = container 'Container nginx TLS gateway' 'The default local Compose entry point. Terminates mkcert TLS on port 8443 and applies the same shared proxy include as host nginx.' 'Nginx'
+
+  studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary; DBOS runs inside the same process.' {
+    ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence and the Model Configuration page.' 'React'
+    key_store = component 'Browser key store' 'API keys in localStorage, per researcher account, connection and API base.' 'TypeScript, localStorage'
+    browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts` and `src/schemaRevisions.ts` send same-origin requests; `authenticatedFetch` resends keys when the Studio boot ID changes.' 'TypeScript'
+    handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
+    authentication = component 'Authentication boundary' 'OIDC authorization-code transactions with PKCE and nonce validation, fixed token-expiry sessions, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript, MSAL Node'
+    durable = component 'DBOS in Studio' '`server/dbos.ts` launches DBOS once per process (schema `dbos`): workflows, the `studio`, `suggest` and `gc` queues, the ten-minute `collectGarbage` schedule, and clients for admission and the kei handoff.' 'DBOS TypeScript'
+    provider_registry = component 'Provider registry' '`api/_provider.ts` resolves the Capability Route of the Project Context owner and adapts the provider; a keyed model reads its key inside each attempt.' 'AI SDK v7 provider adapters'
+    key_cache = component 'Key cache' 'Researcher keys in Studio memory only, per account and connection.' 'TypeScript'
+    extraction_module = component 'Extraction module' '`packages/extraction` admits a durable Extraction, reconciles its attempts onto the Parsing Service lane, and owns the coordination schema, saved values, corrections and finalizations.' 'TypeScript, Prisma Next'
+    garbage = component 'Garbage collection' '`collectGarbage` repairs missed cancels and removes packages, staged sources, Parsing Service runs and workflow history by reference, retention and quiescence.' 'TypeScript, DBOS'
+    project_store = component 'ProjectStore' '`packages/db` owns Project Store reads and writes, including the model configuration of each account; handlers hold no SQL.' 'TypeScript, Prisma Next'
+  }
+
+  parsing_service = system 'Parsing Service' 'Included Python service for PDF parsing, extraction and grounding; its DBOS worker runs the work Studio enqueues.' {
+    http_api = container 'Read API' '`GET /api/models`, `/api/extraction-models`, `/api/ingestion-models`, run manifests and pages; no database access.' 'FastAPI'
+    parser = container 'DBOS worker' '`kei-worker worker`: convert on kei-convert-large and kei-convert-small, durable Extraction attempts (extractDurableV1, extractionCallV1) on kei-extract, deleteRuns and deleteDurableHistoryV1 on kei-gc; holds its slot lock for its lifetime; schema `kei_dbos` as role `kei`.' 'Python, DBOS, Docling'
+    models = container 'vLLM model servers' 'Surya OCR, NuExtract and the instruction model, one vLLM server each (GPU overlay).' 'vLLM'
+    task_cache = datastore 'Canonical service runs' 'Run directories: the verified source copy, generation-pinned page artifacts and recipe segmentations; deleted by deleteRuns once no revision or durable Extraction head references them.'
+  }
+
+  project_db = datastore 'PostgreSQL free' 'Schema `public`: Researcher Accounts, their model configuration (no keys) and account-owned research state. Schemas `dbos` (Studio) and `kei_dbos` (the Parsing Service, its own role): DBOS system state.' 'PostgreSQL 17, Prisma Next, DBOS'
+  package_store = datastore 'Canonical ingestion packages' 'Content-addressed portable packages in the `FREE Studio` data directory. The Project Store keeps only the package reference.' 'Operating system data directory'
+  source_inbox = datastore 'Source inbox' 'Staged source PDFs named by project and attempt: written by Studio, read by the Parsing Service worker.' 'Docker volume'
+  model_connections = external 'Model Connections' 'Researcher HTTP model providers, and the deployment vLLM servers and enabled CLI providers.'
+
+  operator -> entra 'Registers the application, rotates its certificate, and assigns Researchers'
+  researcher -> browser 'Uses FREE from a web browser'
+  browser -> gateway 'Uses the canonical private HTTPS origin'
+  browser -> local_gateway 'Uses the local HTTPS origin'
+  browser -> entra 'Follows Microsoft Entra authorization and sign-out redirects'
+  gateway -> studio 'Forwards requests from the pinned proxy address'
+  local_gateway -> studio.handlers 'Forwards TLS requests from the dedicated proxy network'
+  studio -> parsing_service 'Enqueues conversions and durable Extraction attempts on its lanes; reads manifests and pages over private HTTP'
+  studio -> project_db 'Reads and writes research state; runs its DBOS workflows'
+  studio -> package_store 'Reads and retains canonical packages'
+  studio -> source_inbox 'Stages source PDFs'
+  studio -> model_connections 'Executes model operations for the Project Context owner'
+  researcher -> studio.ui 'Uses'
+  gateway -> studio.handlers 'Forwards HTTPS requests with one overwritten client-address header'
+  studio.ui -> studio.key_store 'Keeps and reads keys in this browser'
+  studio.ui -> studio.browser_http 'Starts product flows'
+  studio.browser_http -> studio.handlers 'Calls /api/*'
+  studio.handlers -> studio.authentication 'Authenticates the session and resolves its Researcher Account'
+  studio.authentication -> entra 'Exchanges the authorization code and validates tenant identity claims'
+  studio.authentication -> project_db 'Creates or refreshes the local account keyed by tenant and object IDs'
+  studio.authentication -> mock_oidc 'Uses the mock issuer for default local sign-in'
+  studio.handlers -> studio.durable 'Admits, reads and cancels owner-checked workflows'
+  studio.handlers -> studio.key_cache 'Keeps keys sent with PUT /api/model-keys; clears them at sign-out'
+  studio.handlers -> studio.provider_registry 'Probes a connection'
+  studio.handlers -> studio.extraction_module 'Admits durable work and reopens Extractions; saves corrections and named finalizations; reads batches'
+  studio.handlers -> studio.project_store 'Reads a snapshot; manages Project Contexts, Source Documents, schemas and model configuration'
+  studio.handlers -> source_inbox 'Stages an uploaded PDF under its project and attempt'
+  studio.handlers -> package_store 'Reads the pdf, markdown and source entries; discards the packages a deletion left unreferenced'
+  studio.durable -> project_db 'Checkpoints Studio workflows in dbos; enqueues kei work in kei_dbos'
+  studio.durable -> studio.extraction_module 'Runs reconcileDurableExtractions'
+  studio.durable -> studio.provider_registry 'Runs Schema Suggestion and edit proposals'
+  studio.durable -> studio.garbage 'Runs collectGarbage every ten minutes'
+  studio.durable -> parsing_service.http_api 'Reads converted manifests and pages'
+  studio.project_store -> project_db 'Reads and writes through Prisma Next'
+  studio.extraction_module -> project_db 'Reads and writes the Extraction row, its coordination head, saved values, corrections and finalizations'
+  studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
+  studio.provider_registry -> studio.key_cache 'Reads a key inside each provider attempt'
+  studio.provider_registry -> studio.project_store 'Reads the configuration of the owner'
+  studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
+  studio.garbage -> project_db 'Checks references and both workflow schemas; deletes quiescent Studio history; enqueues deleteRuns'
+  studio.garbage -> package_store 'Removes old unreferenced packages'
+  studio.garbage -> source_inbox 'Removes old staged PDFs of finished attempts'
+  parsing_service.parser -> project_db 'Dequeues its lanes and checkpoints in kei_dbos as role kei; calls only its granted coordination routines for durable attempts'
+  parsing_service.parser -> source_inbox 'Copies the staged PDF into a run'
+  parsing_service.parser -> parsing_service.models 'Calls OCR or extraction models as required'
+  parsing_service.parser -> parsing_service.task_cache 'Publishes canonical pages; reads pinned sources; deletes unreferenced runs'
+  parsing_service.http_api -> parsing_service.task_cache 'Serves canonical artifacts'
+
+}
+
+views {
+  view current_context {
+    title 'FREE — production runtime context'
+    description '''
+      Implemented production runtime boundaries only. The browser reaches the
+      deployment through the host nginx TLS boundary; the Hono Node host serves
+      the React client and same-origin API, authenticates each browser session
+      through Microsoft Entra ID, and scopes research state to its local
+      Researcher Account. Each Researcher Account owns its model configuration; keys stay in researchers' browsers and in Studio's memory.
+
+      The Project Store is consumed. Studio reads its research state from
+      PostgreSQL and creates, renames, and deletes Project Contexts, appends
+      Schema Revisions and Extractions, whose durable corrections and named
+      finalizations it saves.
+      The run directory and the source inbox are durable; Studio also stores
+      the verified canonical package used for review.
+    '''
+    include operator, researcher, browser, entra, gateway, studio, parsing_service, project_db, package_store, source_inbox, model_connections
+  }
+
+  view current_modules {
+    title 'FREE — current runtime modules'
+    description 'Maintained module seams; this is not an import graph.'
+    include operator, researcher, browser, entra, gateway, studio.*, parsing_service.*, project_db, package_store, source_inbox, model_connections
+  }
+
+  dynamic view current_account_session {
+    title 'Researcher Account and authenticated session — current'
+    description '''
+      Microsoft Entra application assignment is the authorization source. A
+      successful callback creates or refreshes the local account keyed by the
+      tenant and object claims. The fixed FREE session expires before the ID
+      token and is never renewed in place.
+    '''
+    operator -> entra 'Assign the Researcher to the enterprise application'
+    researcher -> browser 'Open GET /auth/login on the canonical HTTPS origin'
+    browser -> gateway 'Send the TLS request'
+    gateway -> studio.handlers 'Forward from the pinned proxy address'
+    studio.handlers -> studio.authentication 'Create a signed OIDC transaction with state, nonce, and PKCE'
+    studio.authentication -> entra 'Redirect the browser, then exchange the authorization code'
+    studio.authentication -> project_db 'Create or refresh the tenant/object account'
+    studio.handlers -> browser 'Issue a fixed session capped before token expiry and return to the local path'
+  }
+
+  dynamic view project_context_lifecycle {
+    title 'Project Context lifecycle — current'
+    description '''
+      The Project Context page owns rename and permanent delete; the rail owns
+      create. Each write applies to the researcher's view only after the
+      handler acknowledges it. The Project Store includes the authenticated
+      Researcher Account in every ownership condition. Deletion removes the
+      whole owned relational graph through the database cascade, then removes
+      the canonical packages no remaining Source Representation references —
+      best effort, because the durable deletion has already succeeded.
+
+      Packages are content-addressed and shared, so each address is checked,
+      quarantined, then rechecked before unlinking. A concurrent publish restores
+      the package; an unreadable reference answer keeps it.
+    '''
+    researcher -> studio.ui 'Name a new Project Context in the rail'
+    studio.ui -> studio.handlers 'POST /api/project-contexts'
+    studio.handlers -> studio.project_store 'createProjectContext'
+    studio.project_store -> project_db 'Insert the Project Context'
+    studio.handlers -> studio.ui 'Return the durable identity; its Project Context page opens'
+    researcher -> studio.ui 'Rename it on its Project Context page'
+    studio.ui -> studio.handlers 'PATCH /api/project-contexts/:id'
+    studio.handlers -> studio.project_store 'renameProjectContext'
+    studio.project_store -> project_db 'Update the name'
+    researcher -> studio.ui 'Confirm permanent deletion'
+    studio.ui -> studio.handlers 'DELETE /api/project-contexts/:id'
+    studio.handlers -> studio.project_store 'deleteProjectContext'
+    studio.project_store -> project_db 'Delete the Project Context and its cascaded research state'
+    studio.project_store -> studio.handlers 'Return the pinned packages as removal candidates'
+    studio.handlers -> studio.project_store 'isPackageReferenced, per candidate address'
+    studio.handlers -> package_store 'Quarantine the unreferenced address'
+    package_store -> studio.project_store 'Recheck the address before unlinking it'
+    studio.handlers -> package_store 'Remove or restore the quarantined address, logging any failure'
+  }
+
+  dynamic view source_document_reopen {
+    title 'Reopen a durable Source Document — current'
+    description 'The durable, account-scoped path. The browser never reaches the Parsing Service here; the owned database query and pinned package answer every artifact read.'
+    researcher -> studio.ui 'Select a Project Context'
+    studio.ui -> studio.handlers 'GET /api/project-contexts'
+    studio.handlers -> studio.project_store 'listProjectContexts'
+    studio.project_store -> project_db 'Read the Project Contexts and their Source Documents'
+    studio.handlers -> studio.ui 'Return the navigation tree'
+    researcher -> studio.ui 'Select a Source Document'
+    studio.ui -> studio.handlers 'GET /api/project-contexts/:id/source-documents/:id/reopen'
+    studio.handlers -> studio.project_store 'getDocumentReopenSnapshot'
+    studio.project_store -> project_db 'Read the pinned Representation, Annotation Set, schema, and last Extraction'
+    studio.handlers -> studio.ui 'Return the snapshot with artifact URLs'
+    studio.ui -> studio.handlers 'GET /api/source-representations/:id/pdf, /markdown, and /source'
+    studio.handlers -> package_store 'Read the pinned package entries'
+    studio.handlers -> studio.ui 'Return the PDF, canonical Markdown, and parsed_document.v2'
+  }
+
+  dynamic view source_document_ingestion {
+    title 'Add Source Documents — current'
+    description '''
+      The Project Context page submits selected PDFs one at a time. Studio
+      replays completed content from the project without parsing; otherwise it
+      stages the verified PDF and starts one ingestSource workflow per project
+      and content, which a second upload of the same content joins. The workflow
+      hands the conversion to the Parsing Service's small or large lane by page
+      count, with the owner's Ingestion Model Choice frozen into its input, then
+      retains the canonical package and publishes the Source Document and
+      revision 1. The request waits up to thirty minutes; a timeout detaches
+      without cancelling.
+    '''
+    researcher -> studio.ui 'Add one or more PDFs'
+    studio.ui -> studio.browser_http 'POST one PDF'
+    studio.browser_http -> studio.handlers 'POST /api/project-contexts/:id/source-documents'
+    studio.handlers -> studio.project_store 'Replay completed content, if any'
+    studio.handlers -> source_inbox 'Stage the verified PDF under its project and attempt'
+    studio.handlers -> studio.durable 'Start ingestSource, or join the active one for this content'
+    studio.durable -> project_db 'Enqueue kei convert on the lane the page count picks'
+    parsing_service.parser -> source_inbox 'Copy the staged PDF into a run'
+    parsing_service.parser -> parsing_service.task_cache 'Publish the canonical pages'
+    studio.durable -> parsing_service.http_api 'Read the result manifest and canonical pages'
+    studio.durable -> package_store 'Retain and validate the canonical package'
+    studio.durable -> studio.project_store 'Create Source Document and revision 1'
+    studio.project_store -> project_db 'Commit the durable ingestion result'
+    studio.handlers -> studio.ui 'Return the saved Source Document'
+  }
+
+  dynamic view schema_guided_extraction {
+    title 'Schema Suggestion to reviewed Extraction — current'
+    description '''
+      The Schema Suggestion Route serves Schema Suggestion. The Interaction Route
+      serves conversational schema edits. The included Parsing
+      Service executes durable Extraction attempts against the pinned source
+      generation and schema. Admission commits its public row, durable head and
+      workflow enqueue together; saved durable Extractions stay readable
+      and reviewable. A finalization names both the
+      result and the decision version it covers.
+
+      `POST /api/schema-revisions` initializes the first Schema Revision, or
+      appends the next one against `expectedRevisionNumber`. A stale number
+      returns a revision conflict rather than an overwrite.
+    '''
+    researcher -> studio.ui 'Annotate the Source Document and choose Generate schema'
+    studio.ui -> studio.browser_http 'Prepare the Markdown and the browser Annotations'
+    studio.browser_http -> studio.handlers 'POST /api/generate_schema'
+    studio.handlers -> studio.durable 'Start suggestSchema and wait for it'
+    studio.durable -> studio.provider_registry 'Resolve the Schema Suggestion Route of the owner'
+    studio.provider_registry -> model_connections 'Generate the schema, NuExtract or general protocol'
+    model_connections -> studio.handlers 'Return the suggested schema'
+    studio.handlers -> studio.ui 'Show the editable Extraction Schema'
+    researcher -> studio.ui 'Edit a field, or ask for a schema edit proposal'
+    studio.ui -> studio.handlers 'POST /api/edit_schema'
+    studio.handlers -> studio.durable 'Start proposeSchemaEdit and wait for it'
+    studio.durable -> studio.provider_registry 'Resolve the Interaction Route of the owner'
+    studio.provider_registry -> model_connections 'Propose the schema changes'
+    studio.ui -> studio.handlers 'POST /api/schema-revisions'
+    studio.handlers -> studio.project_store 'initializeSchemaRevision or appendSchemaRevision'
+    studio.project_store -> project_db 'Append the immutable Schema Revision'
+    studio.handlers -> studio.ui 'Return the new Current Schema Revision'
+    researcher -> studio.ui 'Run extraction'
+    studio.ui -> studio.handlers 'POST /api/extractions with the pinned Source Representation, Schema Revision and the saved method it showed'
+    studio.handlers -> studio.extraction_module 'Admit the Extraction row, its durable head, pinned selection and workflow enqueue in one transaction'
+    studio.durable -> studio.extraction_module 'Run reconcileDurableExtractions'
+    studio.extraction_module -> project_db 'Enqueue extractDurableV1 on kei-extract with its priority'
+    parsing_service.parser -> project_db 'Read the pinned selection; checkpoint each call; retain saved values'
+    parsing_service.parser -> parsing_service.models 'Extract values and verify source evidence'
+    studio.ui -> studio.handlers 'Read GET /api/extractions/:id and its saved-value pages'
+    researcher -> studio.ui 'Correct saved values and finalize a named result and decision cut'
+    studio.handlers -> studio.extraction_module 'Save the correction or finalization against its revision'
+    studio.extraction_module -> project_db 'Append the correction or finalization; earlier ones stay'
+    studio.handlers -> studio.ui 'Return the saved cut'
+  }
+
+  dynamic view local_compose_topology {
+    title 'Local development — default Compose topology'
+    description '''
+      `pnpm dev` runs compose.yaml with compose.override.yaml: the browser uses
+      the container nginx TLS entry point; Studio, PostgreSQL, the Parsing
+      Service, and mock OIDC are sibling Compose services. Studio redeems tokens
+      against the mock service over the app network.
+    '''
+    researcher -> browser 'Open https://localhost:8443/free'
+    browser -> local_gateway 'Send the TLS request'
+    local_gateway -> studio.handlers 'Forward to Studio on the proxy network'
+    studio.handlers -> studio.authentication 'Start the normal OIDC session path'
+    studio.authentication -> mock_oidc 'Authorize and redeem against the development issuer'
+    studio.durable -> parsing_service.http_api 'Read converted manifests and pages'
+    studio.handlers -> studio.project_store 'Read and write account-owned research state'
+    studio.project_store -> project_db 'Persist through Prisma Next'
+  }
+
+  dynamic view local_entra_topology {
+    title 'Local development — Compose with Microsoft Entra'
+    description '''
+      `pnpm dev -- --entra` adds compose.entra.yaml. The local nginx TLS entry
+      point and the Studio, PostgreSQL, and Parsing Service topology stay the
+      same; FREE_ENTRA_REAL selects Microsoft Entra, and the mock-only Compose
+      profile remains inactive.
+    '''
+    researcher -> browser 'Open https://localhost:8443/free'
+    browser -> local_gateway 'Send the TLS request'
+    local_gateway -> studio.handlers 'Forward to Studio on the proxy network'
+    studio.handlers -> studio.authentication 'Start the normal OIDC session path'
+    studio.authentication -> entra 'Authorize and redeem against the real tenant'
+    studio.durable -> parsing_service.http_api 'Read converted manifests and pages'
+    studio.handlers -> studio.project_store 'Read and write account-owned research state'
+    studio.project_store -> project_db 'Persist through Prisma Next'
+  }
+
+  dynamic view model_configuration {
+    title 'Model configuration — current'
+    description 'Each Researcher Account has its own configuration; keys stay in the browser. Discovery is advisory: it never generates content, changes configuration, or gates Apply.'
+    researcher -> studio.ui 'Open Configure models'
+    studio.ui -> studio.handlers 'GET /api/model_config'
+    studio.handlers -> studio.project_store 'Read the configuration of the signed-in account'
+    studio.handlers -> studio.ui 'Show connections, steps and read-only deployment connections'
+    studio.ui -> studio.key_store 'Read keys in this browser for each keyed connection'
+    studio.ui -> studio.handlers 'POST /api/model_probe with the key the page holds'
+    studio.handlers -> studio.provider_registry 'Probe the provider adapter'
+    studio.provider_registry -> model_connections 'Discover models or check connectivity'
+    studio.handlers -> studio.ui 'Show the probe result without credentials'
+    researcher -> studio.ui 'Edit a connection, a key or a step, then Apply'
+    studio.ui -> studio.key_store 'Keep the key under account, connection and API base'
+    studio.ui -> studio.handlers 'PUT /api/model_config'
+    studio.handlers -> studio.project_store 'Save the account configuration in one transaction'
+    studio.ui -> studio.handlers 'PUT /api/model-keys'
+    studio.handlers -> studio.key_cache 'Keep the keys in memory for this account'
+    studio.handlers -> studio.ui 'Show the committed configuration'
+  }
+
+  dynamic view garbage_collection {
+    title 'Garbage collection — every ten minutes'
+    description '''
+      collectGarbage runs on its own queue. Each phase reads everything first
+      and deletes nothing when a read fails. Work cancelled in the running
+      Studio or Parsing Service process is kept until that process restarts,
+      because one of its steps may still write.
+    '''
+    studio.durable -> studio.garbage 'Fire the schedule'
+    studio.garbage -> project_db 'Cancel live work whose outcome is recorded or whose scope is gone, and kei children of stopped parents'
+    studio.garbage -> project_db 'Delete quiescent Studio history past retention, or of a deleted scope'
+    studio.garbage -> project_db 'Enqueue deleteRuns naming unreferenced conversions and the kei history that may go'
+    parsing_service.parser -> parsing_service.task_cache 'Delete each run no kei workflow can still write, then the history of its conversion'
+    studio.garbage -> source_inbox 'Remove staged PDFs of finished attempts after 24 hours'
+    studio.garbage -> package_store 'Quarantine, recheck and remove unreferenced packages after 24 hours'
+  }
+}

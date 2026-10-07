@@ -1,0 +1,51 @@
+{
+  "page": 2,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "7d5f2e4310a4ec2d9ecf82f9024306551099978ea150fc2a7a4cb5bd45366954",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": [
+        {
+          "crop": 3,
+          "kind": "page",
+          "order": 0,
+          "bbox_pt": [
+            0.0,
+            0.0,
+            400.0,
+            600.0
+          ],
+          "ink": 0.5,
+          "transform": [
+            0.0,
+            0.0,
+            0.288,
+            0.288
+          ],
+          "source_px": null,
+          "image_px": [
+            500,
+            700
+          ],
+          "input_tokens": 10,
+          "output_tokens": 20,
+          "incomplete": null
+        }
+      ]
+    }
+  ],
+  "segments": [],
+  "markdown": "md",
+  "complete": true,
+  "warnings": []
+}

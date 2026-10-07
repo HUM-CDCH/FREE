@@ -1,0 +1,42 @@
+{
+  "fingerprint": "4ee1be7dd70dbf5b305f857d7ee9d3f54b57dfda097624dfa8cc4c40f9968d45",
+  "recipe": {
+    "result_version": 3,
+    "source_sha256": "dcd3cc5abcc1ebd5a1f447ff0a9d8d409daf8b2456f259068e974934401850a9",
+    "ingest_digest": null,
+    "transcriber": "native",
+    "model": null,
+    "repo": null,
+    "cut": "none",
+    "crop_dpi": null,
+    "layout_model": null,
+    "page_source": "pdf",
+    "pages_requested": [
+      5,
+      6
+    ],
+    "max_image_size": null,
+    "max_output_tokens": null,
+    "record": null,
+    "versions": {
+      "docling": "2.127.0",
+      "surya-ocr": "0.22.1"
+    }
+  },
+  "source_name": "main.pdf",
+  "page_count": 8,
+  "effective": {
+    "max_size": null,
+    "scale": 1.0
+  },
+  "status": "success",
+  "incomplete": null,
+  "pages": [
+    5,
+    6
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

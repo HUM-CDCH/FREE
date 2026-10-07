@@ -1,0 +1,162 @@
+{
+  "description": "Headings before and between entries; a parent heading clears the child; a record title labelled SectionHeader is an entry.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Bezirk Nord",
+                "Kreis Heide",
+                "1. Adorf. FA: G.",
+                "Kreis Moor",
+                "2. Bdorf. FA: EF.",
+                {
+                  "text": "Bezirk Süd",
+                  "label": "SectionHeader"
+                },
+                "3. Cdorf. FA: EF.",
+                "Kreis Ried",
+                "4. Ddorf. FA: G.",
+                {
+                  "text": "5. Edorf. FA: EvG.",
+                  "label": "SectionHeader"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "bezirk:Nord",
+        "Bezirk Nord"
+      ],
+      [
+        "p1_s1",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s2",
+        0,
+        16,
+        "entry",
+        "1",
+        "1. Adorf. FA: G."
+      ],
+      [
+        "p1_s3",
+        0,
+        10,
+        "heading",
+        "kreis:Moor",
+        "Kreis Moor"
+      ],
+      [
+        "p1_s4",
+        0,
+        17,
+        "entry",
+        "2",
+        "2. Bdorf. FA: EF."
+      ],
+      [
+        "p1_s5",
+        0,
+        10,
+        "heading",
+        "bezirk:Süd",
+        "Bezirk Süd"
+      ],
+      [
+        "p1_s6",
+        0,
+        17,
+        "entry",
+        "3",
+        "3. Cdorf. FA: EF."
+      ],
+      [
+        "p1_s7",
+        0,
+        10,
+        "heading",
+        "kreis:Ried",
+        "Kreis Ried"
+      ],
+      [
+        "p1_s8",
+        0,
+        16,
+        "entry",
+        "4",
+        "4. Ddorf. FA: G."
+      ],
+      [
+        "p1_s9",
+        0,
+        18,
+        "entry",
+        "5",
+        "5. Edorf. FA: EvG."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "1",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "2",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Moor"
+        }
+      },
+      {
+        "label": "3",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": null
+        }
+      },
+      {
+        "label": "4",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": "Ried"
+        }
+      },
+      {
+        "label": "5",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": "Ried"
+        }
+      }
+    ],
+    "coverage_complete": true
+  }
+}

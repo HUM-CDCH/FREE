@@ -1,0 +1,685 @@
+// Safety boundaries that must hold without a running stack: destructive
+// database operations refuse non-local targets, production configuration
+// validates before anything starts, and both nginx environments consume the
+// same proxy fragment.
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { test } from 'node:test'
+import {
+  developmentComposeArguments,
+  developmentComposeEnvironment,
+  deriveDevProfile,
+  parseDevOptions,
+  productionComposeArguments,
+  renderNginxLocations,
+  validateProductionEnvironment,
+} from '../scripts/free.mjs'
+import { ROOT } from './helpers.mjs'
+
+function resetDatabase(databaseUrl) {
+  return spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'packages/db/node_modules/tsx/dist/cli.mjs'),
+      resolve(ROOT, 'packages/db/src/reset-database.ts'),
+    ],
+    {
+      cwd: ROOT,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+}
+
+function renderDevelopmentCompose(profile, entraEnvironment = null, environment = process.env) {
+  const launchArguments = developmentComposeArguments(profile)
+  const result = spawnSync(
+    'docker',
+    [
+      ...launchArguments.slice(0, launchArguments.indexOf('up')),
+      'config',
+      '--format',
+      'json',
+    ],
+    {
+      cwd: ROOT,
+      env: developmentComposeEnvironment(
+        profile,
+        environment,
+        Buffer.alloc(32, 8).toString('base64'),
+        entraEnvironment,
+      ),
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  return JSON.parse(result.stdout)
+}
+
+function renderProductionCompose(environment, gpu = false) {
+  const composeEnvironment = { ...process.env, ...environment, COMPOSE_DISABLE_ENV_FILE: '1' }
+  const launchArguments = productionComposeArguments(
+    composeEnvironment,
+    gpu ? ['-f', 'compose.gpu.yaml'] : [],
+  )
+  const result = spawnSync('docker', [
+    ...launchArguments.slice(0, launchArguments.indexOf('up')),
+    'config', '--format', 'json',
+  ], {
+    cwd: ROOT,
+    env: composeEnvironment,
+    encoding: 'utf8',
+    timeout: 120_000,
+  })
+  assert.equal(result.status, 0, result.stderr)
+  return JSON.parse(result.stdout)
+}
+
+test('db safety: reset refuses a remote database target', () => {
+  const result = resetDatabase(
+    'postgresql://postgres:secret@db.production.example.com:5432/free',
+  )
+  assert.notEqual(result.status, 0)
+  assert.match(
+    result.stderr + result.stdout,
+    /Destructive database operations require/,
+  )
+})
+
+test('db safety: reset refuses a local database that is not the dev database', () => {
+  const result = resetDatabase('postgresql://postgres:postgres@127.0.0.1:5432/researchdata')
+  assert.notEqual(result.status, 0)
+  assert.match(
+    result.stderr + result.stdout,
+    /Destructive database operations require/,
+  )
+})
+
+test('db safety: reset refuses the Compose database hostname', () => {
+  const result = resetDatabase(
+    'postgresql://postgres:postgres@db:5432/free',
+  )
+
+  assert.notEqual(result.status, 0)
+  assert.match(
+    result.stderr + result.stdout,
+    /Destructive database operations require/,
+  )
+})
+
+const completeProductionEnvironment = (certificatePath) => ({
+  STUDIO_ORIGIN: 'https://free.example.org',
+  STUDIO_BASE_PATH: '/free',
+  FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
+  FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
+  FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
+  FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
+  FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
+  FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
+  FREE_ENTRA_CLIENT_CERT_PATH: certificatePath,
+})
+
+test('production: a complete Entra deployment environment validates', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'free-prod-test-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const certificate = join(directory, 'client.pem')
+  writeFileSync(certificate, 'not-a-real-key')
+  assert.deepEqual(
+    validateProductionEnvironment(completeProductionEnvironment(certificate)),
+    [],
+  )
+})
+
+test('production: missing or weak values are rejected before startup', () => {
+  const errors = validateProductionEnvironment({
+    STUDIO_ORIGIN: 'http://insecure.example.org',
+    STUDIO_BASE_PATH: '/free',
+    FREE_SESSION_SECRET: 'short',
+    FREE_POSTGRES_PASSWORD: 'password',
+  })
+  assert.ok(errors.some((error) => error.includes('STUDIO_ORIGIN')))
+  assert.ok(errors.some((error) => error.includes('FREE_SESSION_SECRET')))
+  assert.ok(errors.some((error) => error.includes('FREE_POSTGRES_PASSWORD')))
+  assert.ok(errors.some((error) => error.includes('FREE_ENTRA_TENANT_ID')))
+})
+
+for (const gpu of [false, true]) test(`production: compose renders with GPU access ${gpu ? 'enabled' : 'disabled'}`, (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'free-prod-compose-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const certificate = join(directory, 'client.pem')
+  writeFileSync(certificate, 'not-a-real-key')
+  const result = spawnSync(
+    'docker',
+    ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml',
+      ...(gpu ? ['-f', 'compose.gpu.yaml'] : []), 'config', '--format', 'json'],
+    {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        ...completeProductionEnvironment(certificate),
+        COMPOSE_DISABLE_ENV_FILE: '1',
+        FREE_GPU: 'auto',
+      },
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  const config = JSON.parse(result.stdout)
+  assertOwnedParsingTopology(config, gpu)
+  assert.equal(new URL(config.services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL).password, 'd'.repeat(64))
+  // Production keeps its host-managed nginx and has no mock identity provider.
+  assert.equal(config.services.nginx, undefined)
+  assert.equal(config.services['mock-oidc'], undefined)
+
+})
+
+function assertPhoenixTracing(config, capture) {
+  const phoenix = config.services.phoenix
+  assert.equal(phoenix.image, 'arizephoenix/phoenix:version-20.16.0')
+  assert.equal(phoenix.restart, 'unless-stopped')
+  assert.equal(phoenix.profiles, undefined, 'tracing must not require an optional profile')
+  assert.deepEqual(phoenix.ports.map(({ host_ip, published, target }) => [host_ip, String(published), target]), [
+    ['127.0.0.1', '6006', 6006],
+  ])
+  assert.equal(phoenix.environment.PHOENIX_WORKING_DIR, '/mnt/data')
+  assert.ok(phoenix.volumes.some(({ source, target }) => source === 'phoenix-data' && target === '/mnt/data'))
+  assert.ok(config.volumes['phoenix-data'].name.endsWith('_phoenix-data'))
+  assert.deepEqual(Object.keys(phoenix.networks), ['app'])
+  for (const name of ['studio', 'parsing_worker']) {
+    assert.equal(config.services[name].environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, 'http://phoenix:6006/v1/traces')
+    assert.equal(config.services[name].environment.FREE_TRACE_CAPTURE, capture)
+  }
+  for (const service of Object.values(config.services))
+    assert.equal(service.depends_on?.phoenix, undefined, 'collector availability cannot gate another service')
+  assert.equal(config.services.parsing_service.environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined)
+}
+
+for (const nginx of ['host', 'container']) {
+  for (const gpu of [false, true]) {
+    for (const capture of ['', 'prompts,responses']) {
+      test(`production tracing: ${nginx} nginx, GPU ${gpu}, capture ${capture || 'off'}`, (t) => {
+        const directory = mkdtempSync(join(tmpdir(), 'free-prod-tracing-'))
+        t.after(() => rmSync(directory, { recursive: true, force: true }))
+        const certificate = join(directory, 'client.pem')
+        writeFileSync(certificate, 'not-a-real-key')
+        const config = renderProductionCompose({
+          ...completeProductionEnvironment(certificate),
+          FREE_NGINX: nginx,
+          FREE_TLS_CERT_PATH: certificate,
+          FREE_TLS_KEY_PATH: certificate,
+          FREE_TRACE_CAPTURE: capture,
+        }, gpu)
+        assertPhoenixTracing(config, capture)
+        assertOwnedParsingTopology(config, gpu)
+        assert.equal(config.services['mock-oidc'], undefined)
+        assert.equal(config.services.studio.environment.NODE_ENV, 'production')
+        assert.equal(config.services.studio.environment.FREE_ENTRA_MOCK_ISSUER, undefined)
+        assert.equal(Boolean(config.services.nginx), nginx === 'container')
+        assert.equal(config.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS,
+          nginx === 'container' ? '172.30.0.10' : '172.30.0.1')
+      })
+    }
+  }
+}
+
+test('production tracing: enabled by default with content capture off', () => {
+  const config = renderProductionCompose({
+    ...completeProductionEnvironment('/tmp/free-test-client.pem'),
+    FREE_TRACE_CAPTURE: '',
+  })
+  assertPhoenixTracing(config, '')
+})
+
+test('development tracing: enabled by default with optional LLM input and output capture', () => {
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  const config = renderDevelopmentCompose(profile, null, {
+    ...process.env,
+    FREE_TRACE_CAPTURE: 'prompts,responses',
+  })
+  assertPhoenixTracing(config, 'prompts,responses')
+  assert.equal(config.services.studio.environment.NODE_ENV, 'development')
+  assert.ok(config.services['mock-oidc'])
+})
+
+function assertOwnedParsingTopology(config, gpu) {
+  const services = config.services
+  assert.equal(services.studio.environment.KEI_EXP_URL, 'http://parsing_service:8001')
+  // Host-run Model Connections still resolve from Studio, independently of parsing.
+  assert.ok(services.studio.extra_hosts?.some((host) => /^host\.docker\.internal[:=]host-gateway$/.test(host)),
+    `studio.extra_hosts: ${JSON.stringify(services.studio.extra_hosts)}`)
+  // kei runs on DBOS in Studio's database: no job database, no migration service, no schema-checking entrypoint.
+  for (const gone of ['parsing_db', 'parsing_migrate']) assert.equal(services[gone], undefined, gone)
+  assert.equal(config.volumes['parsing-postgres'], undefined)
+  assert.equal(services.studio.environment.KEI_EXP_MODEL, undefined, "kei's KEI_OCR_MODEL is the OCR default")
+  // The parsing API reads files only: no database URL, password or dependency.
+  const api = services.parsing_service
+  assert.deepEqual(Object.keys(api.environment).filter((name) => /DATABASE|POSTGRES/.test(name)), [])
+  assert.deepEqual(Object.entries(api.environment).filter(([, value]) => /postgres(ql)?:\/\//i.test(String(value ?? '')))
+    .map(([name]) => name), [], 'no variable of the parsing API, whatever its name, holds a database URL')
+  assert.equal(api.depends_on?.db, undefined)
+  // kei's worker connects as the restricted kei role to database free; its schema is kei_dbos (M2's entrypoint).
+  const kei = new URL(services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL)
+  assert.deepEqual([kei.protocol, kei.username, kei.hostname, kei.port, kei.pathname],
+    ['postgresql:', 'kei', 'db', '5432', '/free'])
+  assert.ok(kei.password.length > 0)
+  assert.deepEqual(services.parsing_worker.command, ['kei-worker', 'worker'])
+  // Studio's entrypoint creates the role and schema, so the worker waits for Studio; Studio no longer waits for it.
+  assert.equal(services.parsing_worker.depends_on.studio.condition, 'service_healthy')
+  assert.equal(services.studio.depends_on.parsing_worker, undefined)
+  for (const name of ['parsing_service', 'parsing_worker']) {
+    const service = services[name]
+    // Compose renders an unset entrypoint as null: the image's own entrypoint runs the command.
+    assert.equal(service.entrypoint ?? null, null, name)
+    assert.equal(service.environment.KEI_RUNS, '/app/runs')
+    assert.equal(service.environment.KEI_SLOT, 'slot-1')
+    assert.equal(service.environment.KEI_OCR_MODEL, 'surya', name)
+    assert.ok(service.volumes.some(({ source, target }) => source === 'parsing-runs' && target === '/app/runs'))
+    assert.equal(service.ports, undefined, 'the unauthenticated service stays private')
+    assert.equal(service.deploy?.resources?.reservations?.devices, undefined)
+  }
+  assert.equal(services.parsing_service.environment.KEI_SYSTEM_DATABASE_URL, undefined)
+  // Studio stages source PDFs that kei's worker reads: one volume, written by Studio, read-only for kei, absent from
+  // the API (M4). Both processes name the same files by their path relative to the volume.
+  const inbox = (service) => (service.volumes ?? []).find(({ source }) => source === 'source-inbox')
+  assert.ok(config.volumes['source-inbox'])
+  assert.equal(inbox(services.studio)?.target, services.studio.environment.FREE_SOURCE_INBOX)
+  assert.notEqual(inbox(services.studio)?.read_only, true)
+  assert.equal(inbox(services.parsing_worker)?.target, services.parsing_worker.environment.KEI_SOURCE_INBOX)
+  assert.equal(inbox(services.parsing_worker)?.read_only, true)
+  assert.equal(inbox(services.parsing_service), undefined)
+  assert.equal(services.parsing_worker.restart, 'unless-stopped')
+  assert.equal(services.studio.depends_on.parsing_service.condition, 'service_healthy')
+  // Extraction is served by vLLM on the GPU overlay only; no Ollama server or pull job remains.
+  assert.equal(services.extraction_model_init, undefined)
+  assert.equal(services.studio.depends_on.extraction_model_init, undefined)
+  assert.equal(config.volumes['extraction-models'], undefined)
+  assert.equal(services.parsing_worker.environment.KEI_EXTRACT_URL, 'http://extraction_model:8000/v1/chat/completions')
+  // NuExtract is registered only where its server runs; without it every extraction call goes to KEI_EXTRACT_URL.
+  for (const name of ['parsing_service', 'parsing_worker'])
+    assert.equal(services[name].environment.KEI_NUEXTRACT_URL,
+      gpu ? 'http://nuextract_model:8000/v1/chat/completions' : undefined, name)
+  const servers = ['ocr_model', 'nuextract_model', 'extraction_model']
+  for (const name of servers) assert.equal(Boolean(services[name]), gpu, name)
+  if (gpu) {
+    for (const name of servers) {
+      const server = services[name]
+      assert.equal(server.deploy.resources.reservations.devices[0].driver, 'nvidia', name)
+      assert.deepEqual(server.entrypoint, ['vllm', 'serve'], name)
+      assert.equal(server.restart, 'unless-stopped', name)
+      assert.equal(server.ports, undefined, `${name} stays private`)
+    }
+    for (const name of servers) assert.equal(services[name].image, services.ocr_model.image, name)
+    // The worker asks for the model each server serves: vLLM's model id is the repo it was started with.
+    assert.equal(services.extraction_model.command[0], services.parsing_worker.environment.KEI_EXTRACT_MODEL)
+    assert.equal(services.nuextract_model.command[0], services.parsing_worker.environment.KEI_NUEXTRACT_MODEL)
+    // Surya sends as many OCR requests at once as the OCR server runs; unset, it guesses 32 from a GPU table and a
+    // book leaves 28 waiting in vLLM, ahead of any small document's requests.
+    const ocrSeqs = services.ocr_model.command[services.ocr_model.command.indexOf('--max-num-seqs') + 1]
+    for (const name of ['parsing_service', 'parsing_worker'])
+      assert.equal(services[name].environment.SURYA_INFERENCE_PARALLEL, ocrSeqs, name)
+    // One vLLM engine profiles the GPU's free memory at a time: OCR, then NuExtract, then the instruction model.
+    assert.equal(services.nuextract_model.depends_on.ocr_model.condition, 'service_healthy')
+    assert.equal(services.extraction_model.depends_on.nuextract_model.condition, 'service_healthy')
+    assert.equal(services.parsing_worker.depends_on.ocr_model.condition, 'service_healthy')
+    // A restarted worker recovers its pending workflows, so it starts once the last extraction server is serving.
+    assert.equal(services.parsing_worker.depends_on.extraction_model.condition, 'service_healthy')
+    // A Catalog sends as many entry requests at once as NuExtract runs (--max-num-seqs).
+    const nuSeqs = services.nuextract_model.command[services.nuextract_model.command.indexOf('--max-num-seqs') + 1]
+    assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, nuSeqs)
+    assert.equal(services.parsing_service.environment.KEI_CATALOG_CHUNKS, undefined)
+    for (const name of ['nuextract_model', 'extraction_model'])
+      assert.equal(services.studio.depends_on[name].condition, 'service_healthy', name)
+    // Studio's deployment default names the same served model, on the servers' private addresses.
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_URL, 'http://extraction_model:8000/v1')
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_MODEL, services.extraction_model.command[0])
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_NUEXTRACT_URL, 'http://nuextract_model:8000/v1')
+  } else {
+    // Without the servers, Studio offers no deployment default.
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_URL, undefined)
+    assert.equal(services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL, undefined)
+    assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, undefined)
+  }
+  assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
+  assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)
+}
+
+test("development: the owned parsing stack runs on Studio's database and restarts both source processes", () => {
+  const config = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}), null, {
+    ...process.env,
+    FREE_TRACE_CAPTURE: '',
+  })
+  assertPhoenixTracing(config, '')
+  assertOwnedParsingTopology(config, false)
+  assert.equal(new URL(config.services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL).password, 'kei-development')
+  for (const name of ['parsing_service', 'parsing_worker']) {
+    const watch = config.services[name].develop.watch
+    const source = watch.find(({ action }) => action === 'sync+restart')
+    assert.ok(source.path.replaceAll('\\', '/').endsWith('/prototypes/parsing_service/src'))
+    assert.equal(source.target, '/app/src')
+    assert.equal(source.initial_sync, true)
+    assert.ok(!(source.ignore ?? []).includes('kei_exp/jobs/schema.py'))
+    for (const filename of ['pyproject.toml', 'uv.lock', 'Dockerfile'])
+      assert.ok(watch.some(({ action, path }) => action === 'rebuild' && path.endsWith(`/${filename}`)))
+  }
+})
+
+test('database tooling: package exposes only supported operator commands', () => {
+  const scripts = JSON.parse(
+    readFileSync(resolve(ROOT, 'packages/db/package.json'), 'utf8'),
+  ).scripts
+
+  for (const supported of [
+    'contract:emit',
+    'db:start',
+    'db:reset',
+    'db:init',
+    'db:verify',
+    'db:kei-role',
+  ])
+    assert.equal(typeof scripts[supported], 'string', supported)
+
+  for (const unsupported of ['db:update', 'db:migrate', 'db:studio'])
+    assert.equal(scripts[unsupported], undefined, unsupported)
+})
+
+test('development: mock and real Entra Compose profiles render exclusively', () => {
+  const mockProfile = deriveDevProfile(parseDevOptions([]), {})
+  const mockServices = renderDevelopmentCompose(mockProfile).services
+  assert.deepEqual(mockServices['mock-oidc']?.profiles, ['mock-oidc'])
+  assert.equal(
+    mockServices.studio.depends_on['mock-oidc'].condition,
+    'service_started',
+  )
+  assert.equal(mockServices.studio.depends_on['mock-oidc'].required, false)
+  assert.equal(
+    mockServices.studio.environment.FREE_ENTRA_MOCK_ISSUER,
+    'http://mock-oidc:8080/dev',
+  )
+  assert.ok(
+    mockServices['mock-oidc'].ports.some(
+      ({ target, published }) =>
+        target === 8080 && String(published) === '8444',
+    ),
+    'the active mock profile must publish its browser issuer',
+  )
+
+  const realProfile = deriveDevProfile(parseDevOptions(['--entra']), {})
+  const certificate = resolve(ROOT, '.certs/studio.key')
+  const realServices = renderDevelopmentCompose(realProfile, {
+    FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
+    FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
+    FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
+    FREE_ENTRA_CLIENT_CERT_PATH: certificate,
+  }).services
+  assert.equal(realServices['mock-oidc'], undefined)
+  assert.equal(realServices.studio.depends_on['mock-oidc'], undefined)
+  assert.equal(
+    realServices.studio.environment.FREE_ENTRA_MOCK_ISSUER,
+    null,
+  )
+  assert.equal(
+    realServices.studio.environment.FREE_ENTRA_MOCK_BROWSER_ISSUER,
+    null,
+  )
+  assert.ok(
+    Object.values(realServices).every((service) =>
+      (service.ports ?? []).every(
+        ({ published }) => String(published) !== '8444',
+      ),
+    ),
+    'the real Entra topology must not bind the mock browser port',
+  )
+})
+
+test('kei role: only Studio receives the kei password, after migrations', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(typeof services.studio.environment.FREE_KEI_POSTGRES_PASSWORD, 'string')
+  assert.notEqual(services.studio.environment.FREE_KEI_POSTGRES_PASSWORD, '')
+  for (const [name, service] of Object.entries(services))
+    if (name !== 'studio')
+      assert.equal(service.environment?.FREE_KEI_POSTGRES_PASSWORD, undefined, name)
+
+  const production = readFileSync(resolve(ROOT, 'compose.prod.yaml'), 'utf8')
+  assert.ok(production.includes('FREE_KEI_POSTGRES_PASSWORD:?'), 'production must require the kei password')
+
+  const entrypoint = readFileSync(resolve(ROOT, 'docker/studio-entrypoint.sh'), 'utf8')
+  const init = entrypoint.indexOf('db:init')
+  const keiRole = entrypoint.indexOf('db:kei-role')
+  const exec = entrypoint.indexOf('exec "$@"')
+  assert.ok(init !== -1 && exec !== -1, 'the entrypoint migrates, then starts Studio')
+  assert.ok(init < keiRole && keiRole < exec, 'the kei role is ensured after migrations and before Studio starts')
+})
+
+test('development enables both CLI deployment connections; the base file leaves them to the operator', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(services.studio.environment.FREE_DEPLOYMENT_CLI_PROVIDERS, 'codex-cli,claude-code')
+
+  const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
+  assert.ok(
+    base.includes('FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"'),
+    'production enables a CLI provider only when the operator sets FREE_DEPLOYMENT_CLI_PROVIDERS',
+  )
+})
+
+test('no deployment admits new Catalog work on the unified method unless its operator sets the gate', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(services.studio.environment.FREE_CATALOG_METHOD, '')
+  const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
+  assert.ok(base.includes('FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"'), 'the unified Catalog stays behind its rollout gate')
+})
+
+test('app shell: the production policy is strict about script, workers and framing', async () => {
+  const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../prototypes/studio/server/contentSecurityPolicy.ts')
+  const policy = new Map(
+    APP_SHELL_CONTENT_SECURITY_POLICY.split(';')
+      .map((directive) => directive.trim().split(/\s+/))
+      .filter(([name]) => name)
+      .map(([name, ...sources]) => [name, sources]),
+  )
+  assert.deepEqual(policy.get('script-src'), ["'self'"])
+  // `blob:` only: the Excel export's zip writer deflates a large workbook part in a Blob-URL Worker.
+  assert.deepEqual(policy.get('worker-src'), ["'self'", 'blob:'])
+  assert.deepEqual(policy.get('frame-ancestors'), ["'none'"])
+  assert.deepEqual(policy.get('object-src'), ["'none'"])
+  for (const source of policy.get('script-src'))
+    assert.ok(
+      source !== "'unsafe-inline'" && source !== "'unsafe-eval'" && !/^'sha(256|384|512)-/.test(source),
+      `script-src must not allow ${source}`,
+    )
+  assert.equal(policy.has('form-action'), false)
+
+  const staticClient = readFileSync(resolve(ROOT, 'prototypes/studio/server/static.ts'), 'utf8')
+  assert.ok(staticClient.includes('APP_SHELL_CONTENT_SECURITY_POLICY'), 'the app shell response sends the policy')
+})
+
+test('development: Studio watches shared configuration and rebuild-owned database inputs', () => {
+  const result = spawnSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.override.yaml',
+      'config',
+      '--format',
+      'json',
+    ],
+    {
+      cwd: ROOT,
+      env: developmentComposeEnvironment(
+        undefined,
+        process.env,
+        Buffer.alloc(32, 8).toString('base64'),
+      ),
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  const watch = JSON.parse(result.stdout).services.studio.develop.watch
+  const rule = (action, suffix) =>
+    watch.find(
+      ({ path, action: candidate }) =>
+        candidate === action && path.replaceAll('\\', '/').endsWith(suffix),
+    )
+
+  // Server code runs in the Studio process, so it restarts the container; browser source is carved out of that rule.
+  const studioServer = rule('sync+restart', '/prototypes/studio')
+  assert.equal(studioServer?.target, '/workspace/prototypes/studio')
+  assert.equal(studioServer?.initial_sync, true)
+  for (const ignored of ['package.json', 'src/', 'e2e/', 'node_modules/'])
+    assert.ok(studioServer.ignore.includes(ignored), `${ignored} must not travel with Studio's server code`)
+  const browserSource = rule('sync', '/prototypes/studio/src')
+  assert.equal(browserSource?.target, '/workspace/prototypes/studio/src')
+  assert.equal(browserSource?.initial_sync, true)
+  assert.deepEqual(
+    watch.filter(({ action }) => action === 'sync'),
+    [browserSource],
+    'only browser source hot-reloads in place',
+  )
+
+  for (const name of ['studio-configuration', 'extraction', 'extraction-result-export']) {
+    const source = rule('sync+restart', `/packages/${name}`)
+    assert.deepEqual(
+      { target: source?.target, initialSync: source?.initial_sync, ignore: source?.ignore },
+      { target: `/workspace/packages/${name}`, initialSync: true, ignore: ['package.json', 'node_modules/'] },
+      name,
+    )
+  }
+  const databaseSource = rule('sync+restart', '/packages/db')
+  assert.equal(databaseSource?.target, '/workspace/packages/db')
+  assert.equal(databaseSource?.initial_sync, true)
+  for (const rebuildOwnedInput of [
+    'prisma-next.config.ts',
+    'migrations/',
+    'src/prisma/contract.prisma',
+  ])
+    assert.ok(
+      databaseSource?.ignore.includes(rebuildOwnedInput),
+      `${rebuildOwnedInput} must not be generically synced`,
+    )
+  const rebuildPaths = watch
+    .filter(({ action }) => action === 'rebuild')
+    .map(({ path }) => path.replaceAll('\\', '/'))
+  for (const rebuildOwnedInput of [
+    '/packages/db/prisma-next.config.ts',
+    '/packages/db/src/prisma/contract.prisma',
+    '/packages/db/migrations',
+  ])
+    assert.ok(
+      rebuildPaths.some((path) => path.endsWith(rebuildOwnedInput)),
+      `${rebuildOwnedInput} must rebuild the Studio image`,
+    )
+  assert.ok(
+    rebuildPaths.some((path) => path.endsWith('/packages/studio-configuration/package.json')),
+    'the shared configuration manifest must rebuild the Studio image',
+  )
+})
+
+test('image: the shared configuration manifest precedes Studio dependency installation', () => {
+  const dockerfile = readFileSync(
+    resolve(ROOT, 'prototypes/studio/Dockerfile'),
+    'utf8',
+  )
+  const manifest = dockerfile.indexOf(
+    'COPY packages/studio-configuration/package.json packages/studio-configuration/',
+  )
+  const install = dockerfile.indexOf('pnpm install --frozen-lockfile')
+  const source = dockerfile.indexOf('COPY . .')
+  assert.ok(manifest >= 0, 'the image must copy the shared package manifest')
+  assert.ok(
+    manifest < install,
+    'the shared package manifest must invalidate the dependency layer',
+  )
+  assert.ok(
+    install < source,
+    'workspace source must remain outside the manifest-first dependency layer',
+  )
+})
+
+test('image: Studio installs no keyring and starts no D-Bus', () => {
+  const dockerfile = readFileSync(resolve(ROOT, 'prototypes/studio/Dockerfile'), 'utf8')
+  for (const forbidden of [
+    'gnome-keyring',
+    'dbus-daemon',
+    'XDG_RUNTIME_DIR',
+    'DBUS_SESSION_BUS_ADDRESS',
+  ]) {
+    assert.ok(!dockerfile.includes(forbidden), `the Studio image must not mention ${forbidden}`)
+  }
+  const entrypoint = readFileSync(resolve(ROOT, 'docker/studio-entrypoint.sh'), 'utf8')
+  for (const forbidden of ['dbus-daemon', 'gnome-keyring-daemon']) {
+    assert.ok(!entrypoint.includes(forbidden), `the Studio entrypoint must not start ${forbidden}`)
+  }
+  assert.match(entrypoint, /: "\$\{CODEX_HOME:\?CODEX_HOME must be set\}"/)
+  const manifest = JSON.parse(
+    readFileSync(resolve(ROOT, 'prototypes/studio/package.json'), 'utf8'),
+  )
+  for (const dependency of ['@napi-rs/keyring', 'env-paths']) {
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      assert.equal(
+        manifest[field]?.[dependency],
+        undefined,
+        `Studio must not depend on ${dependency}`,
+      )
+    }
+  }
+})
+
+test('proxy parity: the shared fragment renders and passes nginx -t for the host wrapper', (t) => {
+  const template = readFileSync(
+    resolve(ROOT, 'docker/nginx/free-studio-locations.inc.template'),
+    'utf8',
+  )
+  const rendered = renderNginxLocations(template, {
+    STUDIO_BASE_PATH: '/free',
+    FREE_STUDIO_UPSTREAM: '127.0.0.1:5173',
+  })
+  assert.match(rendered, /location = \/free|location \/free|\/free/)
+  assert.ok(!rendered.includes('${'), 'no unrendered placeholders')
+
+  const directory = mkdtempSync(join(tmpdir(), 'free-nginx-test-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  writeFileSync(join(directory, 'free-studio-locations.conf'), rendered)
+  writeFileSync(
+    join(directory, 'wrapper.conf'),
+    [
+      // The http-level map the fragment documents for its including wrapper.
+      'map $http_upgrade $free_connection_upgrade {',
+      '  default upgrade;',
+      "  '' close;",
+      '}',
+      'server {',
+      '  listen 8080;',
+      '  server_name free.example.org;',
+      '  include /etc/nginx/free-test/free-studio-locations.conf;',
+      '}',
+      '',
+    ].join('\n'),
+  )
+  const result = spawnSync(
+    'docker',
+    [
+      'run', '--rm',
+      '-v', `${directory}:/etc/nginx/free-test:ro`,
+      '-v', `${directory}/wrapper.conf:/etc/nginx/conf.d/wrapper.conf:ro`,
+      'nginx:alpine', 'nginx', '-t',
+    ],
+    { encoding: 'utf8', timeout: 300_000 },
+  )
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('no committed secrets: tracked files carry no credential material', () => {
+  const listing = spawnSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
+  const files = listing.stdout.split('\n').filter(Boolean)
+  const suspicious = files.filter((file) => /(^|\/)\.env$|\.pem$|\.key$|\.pfx$/.test(file))
+  assert.deepEqual(suspicious, [])
+})

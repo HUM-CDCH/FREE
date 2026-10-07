@@ -1,0 +1,26 @@
+{
+  "page": 2,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "7d5f2e4310a4ec2d9ecf82f9024306551099978ea150fc2a7a4cb5bd45366954",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": []
+    }
+  ],
+  "segments": [],
+  "markdown": "",
+  "complete": true,
+  "warnings": [
+    "no content found by the layout cut"
+  ]
+}

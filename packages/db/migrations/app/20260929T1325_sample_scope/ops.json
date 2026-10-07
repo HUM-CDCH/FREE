@@ -1,0 +1,44 @@
+[
+  {
+    "id": "column.public.extraction.requestedPages",
+    "label": "Add column \"requestedPages\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedPages",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedPages\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedPages"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"requestedPages\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"requestedPages\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedPages\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedPages"
+        ]
+      }
+    ]
+  }
+]

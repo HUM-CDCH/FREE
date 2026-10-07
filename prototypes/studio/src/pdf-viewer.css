@@ -246,3 +246,28 @@
   background-color: transparent;
   color: var(--editor-toolbar-hover-fg-color);
 }
+
+/* Evidence marks (results review redesign §7.2): one Evidence colour; dotted for a rule link, dashed for a doubtful
+   one; a decided value keeps its fill with a 1px border, so every used passage stays visible; the selected value an
+   ev-soft fill and an accent outline. */
+.evidence-mark {
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid var(--color-ev);
+  background: color-mix(in srgb, var(--color-ev-ghost) 70%, transparent);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.evidence-mark.rule { border-bottom-style: dotted; }
+.evidence-mark.doubtful { border-bottom-style: dashed; }
+.evidence-mark.decided { border-bottom-width: 1px; }
+.evidence-mark.selected { background: color-mix(in srgb, var(--color-ev-soft) 70%, transparent); outline: 2px solid var(--color-accent); }
+.evidence-mark:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* The "Evidence marks" switch hides every mark but the selected one. */
+.evidence-marks-off .evidence-mark:not(.selected) { display: none; }
+/* On the PDF a mark lies over the page's own text, so an alpha fill of a pale token washes the ink out. Multiply
+   tints the paper and never lightens the ink, however many marks stack. */
+.pdf-viewer .evidence-mark,
+.pdf-viewer .parsed-evidence-focus { mix-blend-mode: multiply; }
+.pdf-viewer .evidence-mark { background: var(--color-ev-soft); }
+.pdf-viewer .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev) 20%, var(--color-ev-soft)); }

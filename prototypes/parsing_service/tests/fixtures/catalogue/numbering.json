@@ -1,0 +1,211 @@
+{
+  "description": "A suffixed entry, a duplicated label that cannot say which record is 34, a restarted addendum and a prefixed series.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Kreis Heide",
+                "30. Adorf. FA: G.",
+                "31. Bdorf. FA: EF.",
+                "31a. Bdorf. Fdpl. 2. FA: EF.",
+                "34. Cdorf. FA: G.",
+                "34. Ddorf. FA: EF.",
+                "Mus. Halle 3.",
+                "35. Edorf. FA: EvG."
+              ]
+            },
+            {
+              "segments": [
+                {
+                  "text": "Katalognachtrag",
+                  "label": "SectionHeader"
+                },
+                "1. Fdorf. FA: G.",
+                "2. Gdorf. FA: EF.",
+                {
+                  "text": "Ausgesonderte Befunde",
+                  "label": "SectionHeader"
+                },
+                "a 1. Hdorf, Kr. Heide.",
+                "FA: G."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s1",
+        0,
+        17,
+        "entry",
+        "30",
+        "30. Adorf. FA: G."
+      ],
+      [
+        "p1_s2",
+        0,
+        18,
+        "entry",
+        "31",
+        "31. Bdorf. FA: EF."
+      ],
+      [
+        "p1_s3",
+        0,
+        28,
+        "entry",
+        "31a",
+        "31a. Bdorf. Fdpl. 2. FA: EF."
+      ],
+      [
+        "p1_s4",
+        0,
+        17,
+        "unresolved",
+        "duplicate_identity",
+        "34. Cdorf. FA: G."
+      ],
+      [
+        "p1_s5",
+        0,
+        18,
+        "unresolved",
+        "duplicate_identity",
+        "34. Ddorf. FA: EF."
+      ],
+      [
+        "p1_s6",
+        0,
+        13,
+        "unresolved",
+        "duplicate_identity",
+        "Mus. Halle 3."
+      ],
+      [
+        "p1_s7",
+        0,
+        19,
+        "entry",
+        "35",
+        "35. Edorf. FA: EvG."
+      ],
+      [
+        "p1_s8",
+        0,
+        15,
+        "heading",
+        "section:catalogue",
+        "Katalognachtrag"
+      ],
+      [
+        "p1_s9",
+        0,
+        16,
+        "unresolved",
+        "scoped_identity_unsupported",
+        "1. Fdorf. FA: G."
+      ],
+      [
+        "p1_s10",
+        0,
+        17,
+        "unresolved",
+        "scoped_identity_unsupported",
+        "2. Gdorf. FA: EF."
+      ],
+      [
+        "p1_s11",
+        0,
+        21,
+        "heading",
+        "section:catalogue",
+        "Ausgesonderte Befunde"
+      ],
+      [
+        "p1_s12",
+        0,
+        22,
+        "unresolved",
+        "scoped_identity_unsupported",
+        "a 1. Hdorf, Kr. Heide."
+      ],
+      [
+        "p1_s13",
+        0,
+        6,
+        "unresolved",
+        "scoped_identity_unsupported",
+        "FA: G."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "30",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "31",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "31a",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "35",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "rejected_starts": [
+      [
+        "p1_s4",
+        "34",
+        "ambiguous_start"
+      ],
+      [
+        "p1_s5",
+        "34",
+        "ambiguous_start"
+      ]
+    ],
+    "diagnostics": [
+      "duplicate_identity",
+      "numbering_restart",
+      "scoped_series"
+    ],
+    "coverage_complete": false
+  }
+}

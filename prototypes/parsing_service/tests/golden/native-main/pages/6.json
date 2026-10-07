@@ -1,0 +1,42 @@
+{
+  "page": 6,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "4ee1be7dd70dbf5b305f857d7ee9d3f54b57dfda097624dfa8cc4c40f9968d45",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": []
+    }
+  ],
+  "segments": [
+    {
+      "text": "6 Section 6\n\nPage 6 describes test unit 6.\n\nUnit 6 lay along an invented axis; nothing here comes from a real source.",
+      "html": null,
+      "markdown": "## 6 Section 6\n\nPage 6 describes test unit 6.\n\nUnit 6 lay along an invented axis; nothing here comes from a real source.",
+      "label": "text",
+      "confidence": null,
+      "status": "ok",
+      "unit": 0,
+      "crop": null,
+      "bbox_px": null,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ]
+    }
+  ],
+  "markdown": "## 6 Section 6\n\nPage 6 describes test unit 6.\n\nUnit 6 lay along an invented axis; nothing here comes from a real source.",
+  "complete": true,
+  "warnings": []
+}

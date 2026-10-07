@@ -1,0 +1,45 @@
+# The shared FREE application proxy behavior, included at server level by both
+# environment wrappers: the development nginx container renders it with the
+# nginx image's envsubst entrypoint, and `node scripts/free.mjs production`
+# renders it to .nginx/free-studio-locations.conf for the host-managed nginx.
+# Variables: STUDIO_BASE_PATH (a non-root path such as /free; the Studio
+# server itself also supports /, but this shipped proxy config does not) and
+# FREE_STUDIO_UPSTREAM (studio:5173 inside Compose, 127.0.0.1:5173 on the
+# production host).
+#
+# The including wrapper must define the http-level map (nginx allows maps only
+# at http level, and the variable name is namespaced so it cannot collide with
+# unrelated host configuration):
+#
+#   map $http_upgrade $free_connection_upgrade {
+#       default upgrade;
+#       ''      close;
+#   }
+
+location = ${STUDIO_BASE_PATH} {
+    # Relative Location: the client resolves it against the origin it used, so
+    # the redirect survives any published-port mapping in front of nginx.
+    absolute_redirect off;
+    return 308 ${STUDIO_BASE_PATH}/;
+}
+
+location ^~ ${STUDIO_BASE_PATH}/ {
+    client_max_body_size 110m;
+
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    # Not no-referrer: under it browsers send `Origin: null` on form POSTs
+    # (logout), which Studio's canonical Origin check rejects.
+    add_header Referrer-Policy "same-origin" always;
+
+    proxy_pass http://${FREE_STUDIO_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    # Studio trusts this header only after verifying the socket peer is its
+    # configured proxy; replace, never append.
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $free_connection_upgrade;
+    proxy_read_timeout 3600s;
+}

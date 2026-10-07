@@ -1,8 +1,12 @@
 packages:
+  - packages/*
   - prototypes/*
 
 allowBuilds:
+  '@anthropic-ai/claude-code': true
+  '@prisma/engines': true
   esbuild: true
+  prisma: true
 
-onlyBuiltDependencies:
-  - esbuild
+minimumReleaseAgeExclude:
+  - tsx@4.23.4

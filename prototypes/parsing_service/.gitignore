@@ -1,2 +1,10 @@
+.venv/
+runs/
 data/
-comparison_output/
+scratch/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+tests/fixtures/*.pdf
+!tests/fixtures/synthetic-main.pdf

@@ -1,0 +1,296 @@
+[
+  {
+    "id": "dropCheckConstraint.batchSchemaSuggestion.batchSchemaSuggestion_purpose_check",
+    "label": "Drop check constraint \"batchSchemaSuggestion_purpose_check\" on \"batchSchemaSuggestion\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_purpose_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_purpose_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_purpose_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"batchSchemaSuggestion_purpose_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" DROP CONSTRAINT \"batchSchemaSuggestion_purpose_check\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_purpose_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_purpose_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchSchemaSuggestion.purpose",
+    "label": "Drop column \"purpose\" from \"batchSchemaSuggestion\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "purpose",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"purpose\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "purpose"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"purpose\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" DROP COLUMN \"purpose\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"purpose\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "purpose"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_outcome_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_outcome_check\" on \"batchSchemaSuggestion\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_outcome_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_phase_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_phase_check\" on \"batchSchemaSuggestion\".\"phase\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_phase_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_phase_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_phase_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_phase_check\" CHECK (\"phase\" IN ('READY', 'HETEROGENEOUS'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_phase_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_sourceKind_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_sourceKind_check\" on \"batchSchemaSuggestion\".\"sourceKind\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_sourceKind_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_sourceKind_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_sourceKind_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_sourceKind_check\" CHECK (\"sourceKind\" IN ('DOCUMENTS', 'SPREADSHEET'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_sourceKind_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.extraction.extraction_outcome_check",
+    "label": "Add check constraint \"extraction_outcome_check\" on \"extraction\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "extraction_outcome_check",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"extraction_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED', 'CANCELLED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.schemaRevision.schemaRevision_origin_check",
+    "label": "Add check constraint \"schemaRevision_origin_check\" on \"schemaRevision\".\"origin\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "schemaRevision_origin_check",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"schemaRevision_origin_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"schemaRevision_origin_check\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD CONSTRAINT \"schemaRevision_origin_check\" CHECK (\"origin\" IN ('SUGGESTION', 'RESEARCHER_EDIT', 'MODEL_EDIT'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"schemaRevision_origin_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  }
+]

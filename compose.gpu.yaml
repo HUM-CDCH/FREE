@@ -1,0 +1,151 @@
+# The launcher adds this overlay only after verifying NVIDIA GPU access.
+# Layout and native PDF parsing remain on the CPU; model servers own the GPU.
+# Each model runs in its own vLLM server (one model per engine). Engines start
+# one after another: each profiles the GPU's free memory when it starts, and
+# two profiling at once on one GPU can misjudge it. Each server's memory is a
+# fixed KV-cache budget rather than a fraction of the GPU, so the budgets add
+# up predictably on a shared-memory DGX Spark.
+x-gpu: &gpu
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+
+x-vllm: &vllm
+  image: "${VLLM_IMAGE:-vllm/vllm-openai:latest}"
+  init: true
+  # Both the generic vLLM image and an operator-selected Spark image use
+  # this explicit CLI, independent of their image entrypoint defaults.
+  entrypoint: ["vllm", "serve"]
+  restart: unless-stopped
+  shm_size: 2gb
+  deploy: *gpu
+  environment:
+    HF_HOME: /models/huggingface
+    HF_TOKEN: "${HF_TOKEN:-}"
+  volumes:
+    - parsing-models:/models
+  healthcheck:
+    test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+    interval: 15s
+    timeout: 5s
+    # A first start downloads the weights into the shared Hugging Face cache.
+    retries: 160
+    start_period: 2m
+  networks:
+    - app
+
+# The parsing processes learn of the NuExtract server only where it runs.
+# Surya sends as many OCR requests at once as ocr_model runs (--max-num-seqs). Unset, it guesses 32 from a GPU
+# table, and a book leaves 28 requests waiting in vLLM ahead of a small document's.
+x-parsing-gpu-env: &parsing-gpu-env
+  KEI_NUEXTRACT_URL: http://nuextract_model:8000/v1/chat/completions
+  KEI_NUEXTRACT_MODEL: "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+  SURYA_INFERENCE_PARALLEL: "${OCR_MAX_NUM_SEQS:-4}"
+
+services:
+  ocr_model:
+    <<: *vllm
+    command:
+      - datalab-to/surya-ocr-2
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - "${OCR_GPU_MEMORY_UTILIZATION:-0.4}"
+      - --kv-cache-memory-bytes
+      - "${OCR_KV_CACHE_BYTES:-4G}"
+      - --max-model-len
+      - "24576"
+      - --max-num-seqs
+      - "${OCR_MAX_NUM_SEQS:-4}"
+
+  # Extraction's template extractor, for the fields role. Text only. The repo
+  # ships its processor code, which --trust-remote-code runs.
+  nuextract_model:
+    <<: *vllm
+    command:
+      - "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --trust-remote-code
+      - --language-model-only
+      - --chat-template-content-format
+      - openai
+      - --generation-config
+      - vllm
+      - --gpu-memory-utilization
+      - "${NUEXTRACT_GPU_MEMORY_UTILIZATION:-0.35}"
+      - --max-model-len
+      - "${NUEXTRACT_MAX_MODEL_LEN:-32768}"
+      - --kv-cache-memory-bytes
+      - "${NUEXTRACT_KV_CACHE_BYTES:-4G}"
+      - --max-num-seqs
+      # Also parsing_worker's KEI_CATALOG_CHUNKS, which kei bounds at 64: keep it at 64 or below.
+      - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+    depends_on:
+      ocr_model:
+        condition: service_healthy
+
+  # Extraction's instruction model, for the reasoning role (and the fields
+  # role when a run chooses it). Text only: the vision tower is not loaded.
+  # Thinking is switched off per request (chat_template_kwargs), not here, so
+  # the request that is counted and recorded is the one that is served.
+  extraction_model:
+    <<: *vllm
+    command:
+      - "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --language-model-only
+      - --generation-config
+      - vllm
+      - --gpu-memory-utilization
+      - "${EXTRACT_GPU_MEMORY_UTILIZATION:-0.35}"
+      - --max-model-len
+      - "${EXTRACT_MAX_MODEL_LEN:-32768}"
+      - --kv-cache-memory-bytes
+      - "${EXTRACT_KV_CACHE_BYTES:-8G}"
+      - --max-num-seqs
+      - "4"
+    depends_on:
+      nuextract_model:
+        condition: service_healthy
+
+  parsing_service:
+    environment: *parsing-gpu-env
+
+  # A restarted worker recovers its pending workflows, so it starts once the
+  # last extraction server (after OCR and NuExtract) is serving.
+  parsing_worker:
+    environment:
+      <<: *parsing-gpu-env
+      # A Catalog extraction runs its entries in as many chunks as NuExtract serves requests at once.
+      # kei accepts 1 to 64 (MAX_CATALOG_CHUNKS): NUEXTRACT_MAX_NUM_SEQS above 64 stops the worker at
+      # boot, and `restart: unless-stopped` then restarts it in a loop.
+      KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+    depends_on:
+      ocr_model:
+        condition: service_healthy
+      extraction_model:
+        condition: service_healthy
+
+  # Schema Suggestion and Interaction run on these servers until the Model
+  # Configuration page routes them elsewhere; the page lists both read-only.
+  studio:
+    environment:
+      FREE_DEPLOYMENT_INSTRUCT_URL: http://extraction_model:8000/v1
+      FREE_DEPLOYMENT_INSTRUCT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      FREE_DEPLOYMENT_NUEXTRACT_URL: http://nuextract_model:8000/v1
+    depends_on:
+      nuextract_model:
+        condition: service_healthy
+      extraction_model:
+        condition: service_healthy

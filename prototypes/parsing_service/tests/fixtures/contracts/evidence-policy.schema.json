@@ -1,0 +1,11 @@
+{
+  "recordDescription": "One source-supported record.",
+  "schemaNodes": [
+    {"id": "site", "name": "site", "type": "string", "evidencePolicy": "quoted"},
+    {"id": "diagnostic", "name": "diagnostic", "type": "array", "evidencePolicy": "derived", "children": [
+      {"id": "status", "name": "status", "type": "string"},
+      {"id": "observation", "name": "observation", "type": "string", "evidencePolicy": "quoted"}
+    ]},
+    {"id": "review", "name": "review", "type": "string", "evidencePolicy": "unverified"}
+  ]
+}

@@ -2,7 +2,7 @@
 
 ## 1. Atmosphere & Identity
 
-FREE feels like a quiet research desk: paper-forward, compact, and evidence-minded. The signature is warm document surfaces paired with restrained terracotta actions, so the source document remains the primary visual object.
+FREE feels like a quiet research desk: paper-forward, compact, and evidence-minded. The signature is warm document surfaces paired with restrained terracotta accents, so the source document remains the primary visual object.
 
 ## 2. Color
 
@@ -14,21 +14,26 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Surface | `--color-surface` | `#ffffff` | n/a | Sidebars, toolbar, panels |
 | Surface muted | `--color-surface-muted` | `#f5efe9` | n/a | Pills and subtle fills |
 | Ink | `--color-ink` | `#33302c` | n/a | Primary text |
-| Ink muted | `--color-ink-muted` | `#94897f` | n/a | Secondary text |
-| Ink faint | `--color-ink-faint` | `#ab9f93` | n/a | Tertiary labels |
+| Ink muted | `--color-ink-muted` | `#6c6259` | n/a | Secondary text |
+| Ink faint | `--color-ink-faint` | `#776b60` | n/a | Tertiary labels |
 | Line | `--color-line` | `#eadfd6` | n/a | Hairline borders |
 | Line strong | `--color-line-strong` | `#d9cabc` | n/a | Emphasised borders |
-| Accent | `--color-accent` | `#bc5f3f` | n/a | Primary actions and focus |
+| Accent | `--color-accent` | `#a34828` | n/a | Brand, the active tab, selection and drag states, focus |
 | Accent soft | `--color-accent-soft` | `#f4ddd3` | n/a | Accent fills |
 | Accent ghost | `--color-accent-ghost` | `#fbf1ec` | n/a | Hover wash |
 | Evidence | `--color-ev` | `#4f8aa8` | n/a | Evidence-related marks only |
-| Success | `--color-green` | `#3e7c4f` | n/a | Success state |
-| Warning | `--color-stale` | `#c98a2b` | n/a | Stale state |
-| Error | `--color-danger` | `#b3402a` | n/a | Error state |
+| Success | `--color-green` | `#3e7c4f` | n/a | Positive commands (run, apply, accept, save, finalize) and success state |
+| Warning | `--color-stale` | `#b8860b` | n/a | Stale state (golden amber, held off the terracotta hue) |
+| Error | `--color-danger` | `#9e2b33` | n/a | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |
 
 ### Rules
 
-- Use accent only for commands, focus, and active states.
+- Terracotta (accent) is a **rest** colour: brand, the active tab, the selected or current item, drag, and focus. It is never a hover-only transition on an otherwise-neutral control.
+- Neutral controls rest in ink/line and hover to ink (`text-ink`, `bg-surface-muted`, `border-line-strong`) — a muted button, tab, icon button, menu item or text action never turns terracotta on hover. Selectable rows keep the faint `accent-ghost` wash that previews their selected state.
+- Green (`--color-green`) fills positive and commit commands: run, apply, accept, save, finalize, create, add. An inline confirm/save icon button takes green, not terracotta.
+- Red (`--color-danger`) fills destructive commands: delete a field, clear the schema, discard a proposal, cancel. It is deeper and cooler than the terracotta accent so the two never read as one colour.
+- Amber (`--color-stale`) is a distinct golden hue from the terracotta accent, so "stale / re-run" and "brand / current" never blur together.
+- Every coloured action keeps an icon or a label; colour is never the only signal.
 - Preserve the warm paper palette; avoid decorative gradients.
 - Do not introduce raw colors outside this file and `index.css`.
 
@@ -44,6 +49,8 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Compact | 11px | 500-700 | 1.3 | 0 | Pills, buttons, dense controls |
 | Overline | 10.5px | 700 | 1.3 | 0.12em | Panel labels |
 | Code | 11-12.5px | 400-600 | 1.6 | 0 | JSON and field names |
+
+In the right rail only four sizes are used, as the tokens `--text-content` (13), `--text-secondary` (12), `--text-compact` (11) and `--text-overline` (10.5) in `index.css`, plus one display size, `--text-display` (20px, weight 700, line-height 1.25), for the To check count and the one-by-one value.
 
 ### Font Stack
 
@@ -90,13 +97,30 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 
 ### Action Button
 - **Structure**: compact rounded button with border.
-- **Variants**: accent primary, surface secondary, disabled line fill.
-- **States**: hover brightness or color shift, focus-visible accent ring.
+- **Variants**: green positive, danger, surface secondary, rounded pill; `outline-positive` (green text and icon, `border-green/40`, `--color-green-soft` on hover) and `outline-danger` (the same in danger) for the rail's positive and destructive actions; `ghost` (muted text, no border, surface-muted on hover) for quiet text actions; disabled is a line fill. Secondary and pill hover to ink on `line-strong`/`surface-muted`, never to terracotta; only their focus ring is terracotta.
+- **States**: hover brightness or color shift, global dual-color focus indicator.
+- One filled primary per screen. The tab strip's "▶ Run extraction" is positive; while a run is active it reads "■ Stop extraction" in danger, and stays danger (disabled) once its cancellation is requested.
 
 ### Result Card
 - **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.
 - **Variants**: object section, array item, missing primitive.
 - **States**: expandable where content can be long.
+
+### Results rail
+- One header in both phases: the status line (a mark, a bold word, a muted rest, then ⓘ Run details and ⋯ More result actions), the count block (the To check count at the display size, the review bar, "One by one" and "Approve rest…" or "Save review", the breakdown line) and the filter chips (To check · Doubtful · Not reviewable · All; a labelled select at 264px).
+- The list of records with flat value rows (glyph · name over value · chip); the selected row's expansion is one tinted surface with a 2px accent edge, no inner card, with one joined Approve | Edit | Reject group. Colour is never the only signal: every state has a glyph and a text equivalent.
+- One by one is the same rail as a card for one value: its record's queue, its Evidence, 44px actions with their keys, Up next. The rail's own toast docks at its bottom; the Run details drawer covers the rail.
+- While an Extraction runs, the list shows the records in the order kei reads them under "Reading records · k of n · from page p"; a record read is reviewable at once; at settlement the list keeps its place. The Results badge reads "k of n"; Run and Stop share one fixed width and carry no count.
+- Evidence marks on the page use the one Evidence colour: dotted for a rule link, dashed for a doubtful one, a 1px border once decided, an accent outline when selected.
+
+### Toast
+- Toast — message plus one optional action; float shadow; eight seconds when an action is offered, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.
+
+### Field Row
+- Field row — 30px at rest when its pills fit beside the name: grip, disclosure, mono name (never truncated by its metadata: the type and values pills wrap under it when the line is too narrow), then the worded actions "Edit", "Note" and "Delete" (11px semibold, 28px tall, 4px apart, Delete in danger; no tooltips, their accessible names say which field) as an overlay of at least 140px (wider only when a fallback font or a larger text size needs it, then reaching past the pills' 140px reserve) on the right end of the first line, shown on hover and focus-within and stepping aside while a pill has keyboard focus. Hidden, the overlay takes no pointer hits.
+- No pill sits under the actions, so a pointer on a pill always reaches it; only the name may run under them (its full text is its title). On a row line of 296px and more the pills' line keeps the 140px clear (at 344px the top level keeps 123px: `title · string` stays on one 30px line, a values pill usually wraps). A narrower row (the 264px rail, nested rows) starts its pills on the line below the name at full width, so they are never squeezed under their own width. On a row line under 240px (every row at the 264px rail) the actions are no overlay: they take their own line below the pills, kept at rest (so no row moves under a click) and shown on hover and focus-within, so the name and the disclosure stay in view.
+- A field's note starts where its name starts (46px: the 14px grip, 4px, the 24px disclosure, 4px).
+- The row itself (not the slot above it or its children) is the drop target for "into <group>".
 
 ## 6. Motion & Interaction
 

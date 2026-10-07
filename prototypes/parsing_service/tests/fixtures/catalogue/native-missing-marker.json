@@ -1,0 +1,87 @@
+{
+  "description": "A born-digital list whose third item lost its printed number: it is not content of the entry before it; a bulleted item is.",
+  "transcriber": "native",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 0,
+          "segments": [
+            {
+              "text": "31. Oak.",
+              "label": "List-item"
+            },
+            {
+              "text": "• Scherbe.",
+              "label": "List-item"
+            },
+            {
+              "text": "Brook. Mus. Berlin",
+              "label": "List-item"
+            },
+            {
+              "text": "33. Heath.",
+              "label": "List-item"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        8,
+        "entry",
+        "31",
+        "31. Oak."
+      ],
+      [
+        "p1_s1",
+        0,
+        10,
+        "entry",
+        "31",
+        "• Scherbe."
+      ],
+      [
+        "p1_s2",
+        0,
+        18,
+        "unresolved",
+        "unnumbered_item",
+        "Brook. Mus. Berlin"
+      ],
+      [
+        "p1_s3",
+        0,
+        10,
+        "entry",
+        "33",
+        "33. Heath."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "31",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      },
+      {
+        "label": "33",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      }
+    ],
+    "coverage_complete": false
+  }
+}

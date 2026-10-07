@@ -1,0 +1,44 @@
+{
+  "generation": "20260922T120315.748740Z-ae6cc6c9",
+  "page": 2,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "units": [
+    {
+      "index": 0,
+      "kind": "pdf_page",
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": []
+    }
+  ],
+  "segments": [
+    {
+      "text": "2 Section 2\n\nPage 2 describes test unit 2.\n\nUnit 2 lay along an invented axis; nothing here comes from a real source.",
+      "html": null,
+      "markdown": "## 2 Section 2\n\nPage 2 describes test unit 2.\n\nUnit 2 lay along an invented axis; nothing here comes from a real source.",
+      "label": "text",
+      "confidence": null,
+      "status": "ok",
+      "unit": 0,
+      "crop": null,
+      "bbox_px": null,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "extent": "input"
+    }
+  ],
+  "markdown": "## 2 Section 2\n\nPage 2 describes test unit 2.\n\nUnit 2 lay along an invented axis; nothing here comes from a real source.",
+  "complete": true,
+  "warnings": []
+}

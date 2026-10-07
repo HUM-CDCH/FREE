@@ -1,70 +1,264 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { Readable } from 'node:stream'
-import type { IncomingMessage, ServerResponse } from 'node:http'
+import { randomBytes } from 'node:crypto'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import {
+  canonicalEntraCertificateThumbprint,
+  canonicalStudioBasePath,
+  canonicalStudioSessionSecret,
+} from 'studio-configuration'
+import {
+  applyStudioBaseTag,
+  studioBaseHref,
+} from './shared/studioBasePath.js'
+import {
+  createDevelopmentOidcIdentityProvider,
+  createMicrosoftEntraIdentityProvider,
+  DEVELOPMENT_ENTRA_CLIENT_ID,
+  DEVELOPMENT_ENTRA_TENANT_ID,
+} from './server/entraIdentityProvider.js'
+import { createDevelopmentHost } from './server/developmentHost.js'
+import { withDevelopmentContentSecurityPolicy } from './server/contentSecurityPolicy.js'
 
-// ponytail: dev-only stand-in for `vercel dev` so `pnpm dev` serves the Vercel
-// `api/*.ts` handlers. Drop this plugin if you switch to `pnpm vercel:dev`.
-function apiFunctions(): Plugin {
+export function developmentStudioOrigin(server: {
+  https?: unknown
+  host?: string | boolean
+  port?: number
+}): string {
+  const configuredHost = server.host
+  const host =
+    typeof configuredHost === 'string' &&
+    configuredHost !== '0.0.0.0' &&
+    configuredHost !== '::'
+      ? configuredHost
+      : server.https
+        ? 'localhost'
+        : '127.0.0.1'
+  const originHost = host.includes(':') ? `[${host}]` : host
+  return `${server.https ? 'https' : 'http'}://${originHost}:${server.port ?? 5173}`
+}
+
+function studioBaseHtml(basePath: string): Plugin {
+  return {
+    name: 'free-studio-base-path',
+    transformIndexHtml(html) {
+      return applyStudioBaseTag(html, basePath)
+    },
+  }
+}
+
+function appShellContentSecurityPolicy(): Plugin {
+  return {
+    name: 'free-app-shell-csp',
+    apply: 'serve',
+    // After React Refresh injected its preamble, so its hash is part of the policy.
+    transformIndexHtml: { order: 'post', handler: withDevelopmentContentSecurityPolicy },
+  }
+}
+
+type StudioServerModule = {
+  createStudioApp(options: {
+    studioOrigin: string
+    basePath: string
+    sessionSecret: Uint8Array
+    identityProvider: unknown
+    clientHandler: () => Response
+    viteDevelopmentAssets: boolean
+  }): Promise<unknown>
+  viteClientFallback(): Response
+  handleStudioNodeRequest(...args: unknown[]): Promise<boolean>
+}
+
+// One loaded composition root: the module that dispatches a request, the
+// application it composed, and the origin that application enforces.
+type StudioComposition = {
+  studio: StudioServerModule
+  app: unknown
+  studioOrigin: string
+}
+
+// Local development invokes the same Hono composition root as the Node host,
+// and recomposes it whenever a server module it loaded changes. Vite
+// invalidates the SSR module graph upwards, from the edited file through its
+// importers, so recomposition re-evaluates exactly the changed server code
+// while process-wide singletons its dependencies own — the database pool, the
+// Extraction runtime — stay the instances already loaded. DBOS launches once
+// per process, before the first composition, and recomposition re-evaluates
+// handlers only: a registered workflow keeps running the code it was
+// registered with until Studio restarts.
+export function apiFunctions(configuredBasePath: string): Plugin {
+  const basePath = canonicalStudioBasePath(configuredBasePath)
+  const generatedSessionSecret = randomBytes(32)
   return {
     name: 'free-api-functions',
-    configureServer(server) {
-      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
-        const match = /^\/api\/([a-z_]+)(?:[/?]|$)/.exec(req.url ?? '')
-        if (!match) return next()
+    async configureServer(server) {
+      const composeStudio = async (): Promise<StudioComposition> => {
+        const studio = (await server.ssrLoadModule(
+          '/server/app.ts',
+        )) as StudioServerModule
+        const environment = loadEnv(server.config.mode, server.config.root, '')
+        const developmentOrigin = developmentStudioOrigin(server.config.server)
+        const studioOrigin =
+          process.env.STUDIO_ORIGIN ??
+          environment.STUDIO_ORIGIN ??
+          developmentOrigin
+        const encodedSecret =
+          process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
+        const sessionSecret = encodedSecret
+          ? canonicalStudioSessionSecret(encodedSecret)
+          : generatedSessionSecret
+        const environmentValue = (name: string) =>
+          process.env[name] ?? environment[name]
+        const realEntra = environmentValue('FREE_ENTRA_REAL') === '1'
+        if (realEntra && new URL(studioOrigin).protocol !== 'https:')
+          throw new Error(
+            'Real Entra development requires an HTTPS Studio origin.',
+          )
+        const required = (name: string) => {
+          const configured = environmentValue(name)
+          if (!configured)
+            throw new Error(`${name} is required for development sign-in.`)
+          return configured
+        }
+        // compose.override.yaml points development at its mock OIDC service so
+        // every sign-in runs the real MSAL client code and session path.
+        const identityProvider = realEntra
+          ? createMicrosoftEntraIdentityProvider({
+              tenantId: required('FREE_ENTRA_TENANT_ID'),
+              clientId: required('FREE_ENTRA_CLIENT_ID'),
+              certificateThumbprint: canonicalEntraCertificateThumbprint(
+                required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
+              ),
+              certificatePrivateKey: readFileSync(
+                required('FREE_ENTRA_CLIENT_CERT_PATH'),
+                'utf8',
+              ),
+            })
+          : createDevelopmentOidcIdentityProvider({
+              tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+              clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
+              serverIssuer: required('FREE_ENTRA_MOCK_ISSUER'),
+              browserIssuer:
+                environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
+                required('FREE_ENTRA_MOCK_ISSUER'),
+            })
+        const app = await studio.createStudioApp({
+          studioOrigin,
+          basePath,
+          sessionSecret,
+          identityProvider,
+          clientHandler: studio.viteClientFallback,
+          viteDevelopmentAssets: true,
+        })
+        return { studio, app, studioOrigin }
+      }
+
+      const developmentHost = await createDevelopmentHost(server, composeStudio)
+
+      server.middlewares.use(async (request, response, next) => {
         try {
-          const mod = await server.ssrLoadModule(`/api/${match[1]}.ts`)
-          const handler = mod[req.method ?? 'GET']
-          if (typeof handler !== 'function') return next()
-
-          const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
-          const headers = new Headers()
-          for (const [k, v] of Object.entries(req.headers))
-            for (const val of Array.isArray(v) ? v : v == null ? [] : [v]) headers.append(k, val)
-
-          const request = new Request(`http://localhost${req.url}`, {
-            method: req.method,
-            headers,
-            body: hasBody ? await readBody(req) : undefined,
-          })
-          const response: Response = await handler(request)
-
-          res.statusCode = response.status
-          response.headers.forEach((value, key) => res.setHeader(key, value))
-          if (response.body) Readable.fromWeb(response.body).pipe(res)
-          else res.end()
+          const { studio, app, studioOrigin } =
+            await developmentHost.composition()
+          const handled = await studio.handleStudioNodeRequest(
+            app,
+            studioOrigin,
+            request,
+            response,
+          )
+          if (!handled) next()
         } catch (error) {
-          res.statusCode = 500
-          res.setHeader('content-type', 'application/json')
-          res.end(JSON.stringify({ detail: String(error) }))
+          next(error instanceof Error ? error : new Error(String(error)))
         }
       })
     },
   }
 }
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(chunk as Buffer)
-  return Buffer.concat(chunks)
+export function pdfjsWasmAssets(command: 'serve' | 'build', root = import.meta.dirname): Plugin {
+  const prepare = () => {
+    const source = resolve(root, 'node_modules/pdfjs-dist/wasm')
+    const parent = resolve(root, 'public/assets')
+    const destination = join(parent, 'pdfjs-wasm')
+    if (existsSync(destination) || !existsSync(source)) return
+
+    mkdirSync(parent, { recursive: true })
+    const temporary = mkdtempSync(join(parent, '.pdfjs-wasm-'))
+    try {
+      cpSync(source, temporary, { recursive: true })
+      try {
+        // Publish only a complete directory; another process may publish first.
+        renameSync(temporary, destination)
+      } catch (error) {
+        if (!existsSync(destination)) throw error
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true })
+    }
+  }
+  return {
+    name: 'free-pdfjs-wasm',
+    configureServer: prepare,
+    buildStart() {
+      if (command === 'build') prepare()
+    },
+  }
 }
 
-// https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  // ponytail: Vite only exposes VITE_* to the client; the api/* handlers read
-  // process.env. Load .env into process.env so `pnpm dev` matches `vercel dev`.
-  // Override (not soft-merge): Vite restarts in-process on .env edits, so stale
-  // process.env values must be replaced for edits to take effect.
-  Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
-
+// Bind direct development and test servers to IPv4 loopback by default;
+// Compose explicitly selects 0.0.0.0 for its internal proxy connection.
+export default defineConfig(({ command, mode }) => {
+  const environment = loadEnv(mode, import.meta.dirname, '')
+  const basePath = canonicalStudioBasePath(
+    process.env.STUDIO_BASE_PATH ?? environment.STUDIO_BASE_PATH ?? '/',
+  )
+  if (command === 'serve') {
+    process.env.DATABASE_URL ??= loadEnv(
+      mode,
+      resolve(import.meta.dirname, '../..'),
+      '',
+    ).DATABASE_URL
+  }
   return {
+    base: command === 'build' ? './' : studioBaseHref(basePath),
     plugins: [
+      ...(process.env.VITEST ? [] : [pdfjsWasmAssets(command)]),
+      ...(command === 'serve'
+        ? [studioBaseHtml(basePath), appShellContentSecurityPolicy()]
+        : []),
       react(),
-      babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
-      apiFunctions(),
+      apiFunctions(basePath),
     ],
+    build: {
+      outDir: 'dist/client',
+      emptyOutDir: true,
+    },
+    // Signed-out pages load the shared browser configuration without a
+    // session. Pre-bundle the linked workspace package so Vite serves it from
+    // the public dependency path rather than an authenticated /@fs path.
+    optimizeDeps: { include: ['studio-configuration'] },
+    // The Compose development overlay widens the bind with the `--host` CLI
+    // flag; the config itself never listens beyond loopback.
+    server:
+      mode === 'https'
+        ? localHttps()
+        : { host: '127.0.0.1', port: 5173, strictPort: true },
   }
 })
+
+export function localHttps(
+  certificates = resolve(import.meta.dirname, '.certs'),
+) {
+  const cert = join(certificates, 'studio.pem')
+  const key = join(certificates, 'studio-key.pem')
+  try {
+    return { https: { cert: readFileSync(cert), key: readFileSync(key) } }
+  } catch (cause) {
+    throw new Error(
+      `HTTPS mode requires readable certificate files at "${cert}" and "${key}". Create them with mkcert or use "pnpm --filter studio dev" for HTTP.`,
+      { cause },
+    )
+  }
+}

@@ -1,0 +1,252 @@
+# The single FREE topology. Compose is the only orchestrator, nginx is the
+# only entry point, and TLS plus the prefixed STUDIO_BASE_PATH are always on,
+# so development and production differ only by overlay:
+#
+#   node scripts/free.mjs local          # development: containerized nginx
+#                                        # (compose.override.yaml is loaded
+#                                        # automatically by `docker compose up`)
+#   node scripts/free.mjs production     # production: host-managed nginx in
+#                                        # front (compose.yaml + compose.prod.yaml)
+#
+# The base file is not a runnable topology on its own: the entry point (the
+# development nginx container, or the production loopback publish for the host
+# nginx), the trusted proxy peer, the Studio process command, and the database
+# credentials all come from the chosen overlay, so skipping the overlay fails
+# instead of silently running with development defaults.
+
+# Every built image records the last commit of its build context; the
+# production launcher sets one variable per context and reports each service
+# after startup. An unchanged context keeps its label, so its image ID too.
+x-parsing-labels: &parsing-labels
+  org.opencontainers.image.revision: "${FREE_REVISION_PARSING:-unknown}"
+
+x-parsing-build: &parsing-build
+  context: prototypes/parsing_service
+  labels: *parsing-labels
+
+x-tracing-environment: &tracing-environment
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://phoenix:6006/v1/traces
+  FREE_TRACE_CAPTURE: "${FREE_TRACE_CAPTURE:-}"
+
+x-parsing-runtime: &parsing-runtime
+  build: *parsing-build
+  init: true
+  environment: &parsing-environment
+    KEI_RUNS: /app/runs
+    KEI_SLOT: slot-1
+    # Studio's staged source PDFs (the source-inbox volume); only the worker mounts it, read-only.
+    KEI_SOURCE_INBOX: /app/source-inbox
+    # The OCR model of a parse whose owner chose none; the API's listing and `convert` read the same value.
+    KEI_OCR_MODEL: "${KEI_OCR_MODEL:-surya}"
+    KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
+    # Named in every served parse's recipe when set, so a new value stops reuse of what the earlier OCR server wrote:
+    # change it when ocr_model's image or weights change (docs/operations/deployment.md#upgrade-ocr-result-reuse).
+    KEI_OCR_REVISION: "${KEI_OCR_REVISION:-}"
+    # Extraction's vLLM servers exist on the GPU overlay only (compose.gpu.yaml),
+    # which also registers NuExtract. Without it an operator may point the
+    # instruction model at another OpenAI-compatible vLLM endpoint.
+    KEI_EXTRACT_URL: "${KEI_EXTRACT_URL:-http://extraction_model:8000/v1/chat/completions}"
+    KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+    HF_HOME: /models/huggingface
+    HF_TOKEN: "${HF_TOKEN:-}"
+  volumes:
+    - parsing-runs:/app/runs
+    - parsing-models:/models
+  networks:
+    - app
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: free
+      POSTGRES_USER: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d free"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app
+
+  parsing_service:
+    <<: *parsing-runtime
+    command: ["uvicorn", "kei_exp.api:app", "--host", "0.0.0.0", "--port", "8001"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/models', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  parsing_worker:
+    <<: *parsing-runtime
+    environment:
+      <<: [*parsing-environment, *tracing-environment]
+    command: ["kei-worker", "worker"]
+    # Restarting only the API leaves the worker's admitted conversions alive.
+    restart: unless-stopped
+    stop_grace_period: 60s
+    # Studio's entrypoint creates kei's role and schema (M2). A replacement
+    # worker starts after the old process exits and releases its slot lock;
+    # never scale this single slot with replicas or add a second slot:
+    # deleteRuns' boot boundary assumes one kei process.
+    depends_on:
+      studio:
+        condition: service_healthy
+    # A service-level list replaces the anchor's, so it restates the shared volumes.
+    volumes:
+      - parsing-runs:/app/runs
+      - parsing-models:/models
+      - source-inbox:/app/source-inbox:ro
+
+  # Developer-only evaluation watcher. Opt in explicitly with
+  # `docker compose --profile eval up eval_watcher`; never started otherwise.
+  # It polls Project Contexts that have stored gold rows and an ingested
+  # document, runs the fixed pilot/pilot/batch pipeline over the parsing runs,
+  # and records EvaluationRound rows for the read-only Studio panel.
+  eval_watcher:
+    build:
+      context: prototypes/parsing_service
+      dockerfile: Dockerfile.eval-watcher
+      labels: *parsing-labels
+    profiles: ["eval"]
+    init: true
+    environment:
+      # The application principal, the same one Studio migrates with: the
+      # watcher reads projects and writes only evaluationRound.
+      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
+      KEI_RUNS: /app/runs
+      KEI_EXTRACT_URL: "${KEI_EXTRACT_URL:-http://extraction_model:8000/v1/chat/completions}"
+      KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      FREE_EVAL_FIELDS_URL: "${FREE_EVAL_FIELDS_URL:-}"
+      FREE_EVAL_FIELDS_MODEL: "${FREE_EVAL_FIELDS_MODEL:-}"
+      FREE_EVAL_REASONING_URL: "${FREE_EVAL_REASONING_URL:-}"
+      FREE_EVAL_REASONING_MODEL: "${FREE_EVAL_REASONING_MODEL:-}"
+      FREE_EVAL_ROOT: /app/eval-out
+      FREE_EVAL_STRATEGY: "${FREE_EVAL_STRATEGY:-article}"
+      FREE_EVAL_INTERVAL: "${FREE_EVAL_INTERVAL:-60}"
+      FREE_EVAL_RETRY_SECONDS: "${FREE_EVAL_RETRY_SECONDS:-900}"
+      FREE_EVAL_JUDGE: "${FREE_EVAL_JUDGE:-1}"
+      FREE_EVAL_OPTIONS_JSON: "${FREE_EVAL_OPTIONS_JSON:-}"
+      FREE_DEVELOPER_EVAL: "1"
+      HF_HOME: /models/huggingface
+    volumes:
+      - parsing-runs:/app/runs
+      - parsing-models:/models
+      - eval-out:/app/eval-out
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app
+
+  studio:
+    build:
+      context: .
+      dockerfile: prototypes/studio/Dockerfile
+      labels:
+        org.opencontainers.image.revision: "${FREE_REVISION_STUDIO:-unknown}"
+    environment:
+      <<: *tracing-environment
+      NODE_ENV: production
+      # Parsing and extraction use the service built from this checkout.
+      KEI_EXP_URL: http://parsing_service:8001
+      STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
+      STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
+      FREE_STUDIO_PROXY: trusted-proxy
+      FREE_SOURCE_INBOX: /var/lib/free/source-inbox
+      # The CLI providers (comma-separated `codex-cli`, `claude-code`) Studio
+      # offers every researcher as read-only deployment connections. They run
+      # on this server's own CLI login and billing, so none is enabled unless
+      # the operator sets it; the development overlay enables both.
+      FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
+      # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
+      # recipe Catalog. Set it only after the unified method passes a held-out evaluation (docs/operations/deployment.md).
+      FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"
+      # Developer-only evaluation: `1` exposes the read-only round panel and
+      # (with the production launcher) starts the eval_watcher profile.
+      FREE_DEVELOPER_EVAL: "${FREE_DEVELOPER_EVAL:-}"
+      # A Claude Code connection spawns the `claude` CLI as a subprocess; it
+      # authenticates from this env var (`claude setup-token`'s own output)
+      # rather than an interactive login, since the CLI's usual credential
+      # storage (macOS Keychain on a developer host) isn't reachable from
+      # inside this container. Optional: set only if FREE_DEPLOYMENT_CLI_PROVIDERS
+      # enables the Claude Code deployment connection.
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+      # FREE_STUDIO_PROXY_ADDRESS comes from the overlay: development trusts
+      # the dedicated proxy network (the nginx container is its only other
+      # member), production pins the proxy network's bridge gateway, which is
+      # where the host nginx's loopback connections enter.
+    # Schema Suggestion and Interaction call the configured Model Connection
+    # directly; one on a host-run Ollama or OpenAI-compatible server names
+    # host.docker.internal, which Linux Docker Engine resolves only with this.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      parsing_service:
+        condition: service_healthy
+    healthcheck:
+      # Studio rejects direct HTTP peers outside the proxy network. A local TCP
+      # connection proves the server started after migrations.
+      test:
+        - CMD
+        - node
+        - -e
+        - "const socket=require('node:net').connect(5173,'127.0.0.1');socket.setTimeout(3000);socket.once('connect',()=>{socket.end();process.exit(0)});socket.once('timeout',()=>{socket.destroy();process.exit(1)});socket.once('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    volumes:
+      # Canonical ingestion packages under `env-paths('FREE Studio').data`.
+      - studio-data:/root/.local/share
+      # CODEX_HOME (Codex CLI login state).
+      - studio-config:/root/.config
+      # Claude Code CLI login state (`claude /login` or `claude setup-token`,
+      # run once with `docker exec`). Not shared with the host: the host CLI's
+      # OAuth credential lives in the macOS Keychain, which a Linux container
+      # cannot read regardless of what's mounted here, so this volume only
+      # persists a login performed inside the container itself.
+      - studio-claude:/root/.claude
+      # Source PDFs staged for kei's worker (M4); the worker mounts it read-only.
+      - source-inbox:/var/lib/free/source-inbox
+    networks:
+      app:
+      proxy:
+
+  # Tracing is always enabled; collector availability never gates inference.
+  phoenix:
+    image: arizephoenix/phoenix:version-20.16.0
+    restart: unless-stopped
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+    ports:
+      - "127.0.0.1:6006:6006"
+    volumes:
+      - phoenix-data:/mnt/data
+    networks:
+      - app
+
+volumes:
+  phoenix-data:
+  postgres-data:
+  parsing-runs:
+  parsing-models:
+  eval-out:
+  studio-data:
+  studio-config:
+  studio-claude:
+  source-inbox:
+
+networks:
+  app:
+  # Fixed subnet: it is the FREE_STUDIO_PROXY_ADDRESS trust block above.
+  proxy:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

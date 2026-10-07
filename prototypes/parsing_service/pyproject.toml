@@ -1,22 +1,67 @@
 [project]
-name = "parsing_service"
+name = "kei-exp"
 version = "0.1.0"
-description = "Add your description here"
+description = "FREE document parsing, extraction, and durable job worker"
 readme = "README.md"
+authors = [
+    { name = "Gennaro Baratta" }
+]
 requires-python = ">=3.13"
 dependencies = [
-    "docling>=2.106.0",
-    "fastapi[standard]>=0.138.0",
-    "onnxruntime>=1.27.0",
-    "paddleocr>=3.7.0",
-    "paddlepaddle-gpu==3.3.1",
-    "paddlex[ocr]>=3.7.1",
+    "docling>=2.127.0",
+    "fastapi>=0.141.1",
+    "numpy>=2.5.3",
+    "pillow>=10.4.0",
+    "pydantic>=2.13.5",
+    "pypdfium2>=5.13.0",
+    "pyyaml>=6.0.3",
+    "surya-ocr>=0.22.1",
+    "torch>=2.14.0",
+    "torchaudio>=2.11.0",
+    "torchvision>=0.29.0",
+    "uvicorn[standard]>=0.53.0",
+    "psycopg[binary]>=3.2",
+    "dbos[otel]==3.1.0",
+    "opentelemetry-instrumentation-requests>=0.63b0",
+    # Pinned to the extraction server's xgrammar: the EBNF the worker writes for a whitespace-loop recovery must
+    # parse on the server (kie/extract/llm.py bounded_grammar).
+    "xgrammar==0.2.7",
 ]
 
-[[tool.uv.index]]
-name = "paddlepaddle-cuda"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cu130/"
-explicit = true
+[project.scripts]
+kei-exp = "kei_exp.convert:main"
+kei-worker = "kei_exp.workflows.cli:main"
 
-[tool.uv.sources]
-paddlepaddle-gpu = { index = "paddlepaddle-cuda" }
+[tool.uv]
+link-mode = "copy"
+# docling's rapidocr wants opencv-python while surya-ocr wants the headless
+# build. Both wheels unpack into the same cv2/ package, so whichever installs
+# last leaves a mixed module that fails to import. Keep only the headless one.
+override-dependencies = ["opencv-python; sys_platform == 'never'"]
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    # The iterative developer eval reads its golden standard from an Excel workbook.
+    "openpyxl>=3.1.5",
+]
+
+[tool.ruff]
+# The codebase is written at about 120 columns; the default 88 would reflow every file it touches.
+line-length = 120
+
+[tool.pytest.ini_options]
+# The sources beside the tests, first on the path: a worktree's tests read its own `src`, not the editable install of
+# another checkout that a shared venv may hold.
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "slow: spawns real processes or containers",
+    "postgres: requires a disposable PostgreSQL database",
+    "live_model: loads Docling models or runs a real conversion worker",
+]

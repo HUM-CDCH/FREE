@@ -1,0 +1,2959 @@
+[
+  {
+    "id": "schema.public",
+    "label": "Create schema \"public\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [],
+    "execute": [
+      {
+        "description": "Create schema \"public\"",
+        "sql": "CREATE SCHEMA IF NOT EXISTS \"public\"",
+        "params": []
+      }
+    ],
+    "postcheck": []
+  },
+  {
+    "id": "table.annotationSetRevision",
+    "label": "Create table \"annotationSetRevision\"",
+    "summary": "Creates table \"annotationSetRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"annotationSetRevision\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"annotationSetRevision\"",
+        "sql": "CREATE TABLE \"public\".\"annotationSetRevision\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"revisionNumber\" int4 NOT NULL,\n  \"snapshot\" jsonb NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"annotationSetRevision\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.batchExtraction",
+    "label": "Create table \"batchExtraction\"",
+    "summary": "Creates table \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"batchExtraction\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"batchExtraction\"",
+        "sql": "CREATE TABLE \"public\".\"batchExtraction\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  \"strategy\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"batchExtraction\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.batchSchemaSuggestion",
+    "label": "Create table \"batchSchemaSuggestion\"",
+    "summary": "Creates table \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"batchSchemaSuggestion\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"batchSchemaSuggestion\"",
+        "sql": "CREATE TABLE \"public\".\"batchSchemaSuggestion\" (\n  \"attempt\" int4 DEFAULT 1 NOT NULL,\n  \"batchExtractionId\" \"uuid\",\n  \"confirmedSchemaRevisionId\" \"uuid\",\n  \"coverage\" jsonb,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"draft\" jsonb,\n  \"draftVersion\" int4 DEFAULT 0 NOT NULL,\n  \"failure\" jsonb,\n  \"id\" \"uuid\" NOT NULL,\n  \"outcome\" text,\n  \"phase\" text,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"proposal\" jsonb,\n  \"selectionKey\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"batchSchemaSuggestion\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.batchSchemaSuggestionSource",
+    "label": "Create table \"batchSchemaSuggestionSource\"",
+    "summary": "Creates table \"batchSchemaSuggestionSource\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "batchSchemaSuggestionSource"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"batchSchemaSuggestionSource\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"batchSchemaSuggestionSource\"",
+        "sql": "CREATE TABLE \"public\".\"batchSchemaSuggestionSource\" (\n  \"batchSchemaSuggestionId\" \"uuid\" NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"batchSchemaSuggestionId\", \"sourceDocumentId\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"batchSchemaSuggestionSource\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.extraction",
+    "label": "Create table \"extraction\"",
+    "summary": "Creates table \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"extraction\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"extraction\"",
+        "sql": "CREATE TABLE \"public\".\"extraction\" (\n  \"batchExtractionId\" \"uuid\",\n  \"catalogRecipe\" text,\n  \"complete\" bool,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"diagnostics\" jsonb,\n  \"evidenceLinks\" jsonb,\n  \"failure\" jsonb,\n  \"id\" \"uuid\" NOT NULL,\n  \"modelAttribution\" jsonb,\n  \"outcome\" text,\n  \"requestedModels\" jsonb,\n  \"resultPayload\" jsonb,\n  \"reviewDraft\" jsonb,\n  \"reviewDraftVersion\" int4 DEFAULT 0 NOT NULL,\n  \"reviewable\" bool DEFAULT false NOT NULL,\n  \"reviewedAt\" timestamptz(6),\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  \"strategy\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"extraction\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.extractionReview",
+    "label": "Create table \"extractionReview\"",
+    "summary": "Creates table \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"extractionReview\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"extractionReview\"",
+        "sql": "CREATE TABLE \"public\".\"extractionReview\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"decisionDigest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"revisionNumber\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"extractionReview\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.extractionSchema",
+    "label": "Create table \"extractionSchema\"",
+    "summary": "Creates table \"extractionSchema\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extractionSchema"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"extractionSchema\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionSchema\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"extractionSchema\"",
+        "sql": "CREATE TABLE \"public\".\"extractionSchema\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"name\" text NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"extractionSchema\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionSchema\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.modelConfiguration",
+    "label": "Create table \"modelConfiguration\"",
+    "summary": "Creates table \"modelConfiguration\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "modelConfiguration"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"modelConfiguration\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"modelConfiguration\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"modelConfiguration\"",
+        "sql": "CREATE TABLE \"public\".\"modelConfiguration\" (\n  \"document\" jsonb,\n  \"researcherAccountId\" \"uuid\" NOT NULL,\n  \"updatedAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  PRIMARY KEY (\"researcherAccountId\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"modelConfiguration\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"modelConfiguration\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.projectContext",
+    "label": "Create table \"projectContext\"",
+    "summary": "Creates table \"projectContext\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "projectContext"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"projectContext\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectContext\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"projectContext\"",
+        "sql": "CREATE TABLE \"public\".\"projectContext\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"name\" text NOT NULL,\n  \"researcherAccountId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"projectContext\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectContext\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.researcherAccount",
+    "label": "Create table \"researcherAccount\"",
+    "summary": "Creates table \"researcherAccount\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "researcherAccount"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"researcherAccount\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"researcherAccount\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"researcherAccount\"",
+        "sql": "CREATE TABLE \"public\".\"researcherAccount\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"displayName\" text NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"objectId\" \"uuid\" NOT NULL,\n  \"tenantId\" \"uuid\" NOT NULL,\n  \"updatedAt\" timestamptz NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"researcherAccount\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"researcherAccount\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.reviewDecision",
+    "label": "Create table \"reviewDecision\"",
+    "summary": "Creates table \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"reviewDecision\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"reviewDecision\"",
+        "sql": "CREATE TABLE \"public\".\"reviewDecision\" (\n  \"action\" text NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"evidenceAnchorId\" text NOT NULL,\n  \"extractionReviewId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"resultPath\" jsonb NOT NULL,\n  \"resultPathKey\" text NOT NULL,\n  \"reviewedOccurrenceIds\" jsonb NOT NULL,\n  \"reviewedValue\" jsonb,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"reviewDecision\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.schemaRevision",
+    "label": "Create table \"schemaRevision\"",
+    "summary": "Creates table \"schemaRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"schemaRevision\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"schemaRevision\"",
+        "sql": "CREATE TABLE \"public\".\"schemaRevision\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"extractionSchemaId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"modelAttribution\" jsonb,\n  \"origin\" text NOT NULL,\n  \"revisionNumber\" int4 NOT NULL,\n  \"schemaTree\" jsonb NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"schemaRevision\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.sourceDocument",
+    "label": "Create table \"sourceDocument\"",
+    "summary": "Creates table \"sourceDocument\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "sourceDocument"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"sourceDocument\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceDocument\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"sourceDocument\"",
+        "sql": "CREATE TABLE \"public\".\"sourceDocument\" (\n  \"contentSha256\" text NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"mediaType\" text NOT NULL,\n  \"originalName\" text,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"sourceDocument\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceDocument\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.sourceRepresentationRevision",
+    "label": "Create table \"sourceRepresentationRevision\"",
+    "summary": "Creates table \"sourceRepresentationRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"sourceRepresentationRevision\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"sourceRepresentationRevision\"",
+        "sql": "CREATE TABLE \"public\".\"sourceRepresentationRevision\" (\n  \"artifactReference\" text NOT NULL,\n  \"artifactSha256\" text NOT NULL,\n  \"contractVersion\" text NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"parserName\" text NOT NULL,\n  \"parserVersion\" text NOT NULL,\n  \"preprocessId\" text NOT NULL,\n  \"reprocessFingerprint\" text,\n  \"reprocessKey\" \"uuid\",\n  \"revisionNumber\" int4 NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"sourceRepresentationRevision\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.annotationSetRevision.annotationSetRevision_sourceDocumentId_revisionNumber_key",
+    "label": "Add unique constraint on \"annotationSetRevision\" (sourceDocumentId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "annotationSetRevision_sourceDocumentId_revisionNumber_key",
+        "table": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"annotationSetRevision_sourceDocumentId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "annotationSetRevision_sourceDocumentId_revisionNumber_key",
+          "public",
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"annotationSetRevision_sourceDocumentId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"annotationSetRevision\" ADD CONSTRAINT \"annotationSetRevision_sourceDocumentId_revisionNumber_key\" UNIQUE (\"sourceDocumentId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"annotationSetRevision_sourceDocumentId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "annotationSetRevision_sourceDocumentId_revisionNumber_key",
+          "public",
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchExtraction.batch_extraction_pin_key",
+    "label": "Add unique constraint on \"batchExtraction\" (id, schemaRevisionId, strategy)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batch_extraction_pin_key",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batch_extraction_pin_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_extraction_pin_key",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batch_extraction_pin_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" ADD CONSTRAINT \"batch_extraction_pin_key\" UNIQUE (\"id\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batch_extraction_pin_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_extraction_pin_key",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchSchemaSuggestion.batchSchemaSuggestion_selectionKey_key",
+    "label": "Add unique constraint on \"batchSchemaSuggestion\" (selectionKey)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batchSchemaSuggestion_selectionKey_key",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_selectionKey_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_selectionKey_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batchSchemaSuggestion_selectionKey_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_selectionKey_key\" UNIQUE (\"selectionKey\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_selectionKey_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_selectionKey_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchSchemaSuggestion.batchSchemaSuggestion_confirmedSchemaRevisionId_key",
+    "label": "Add unique constraint on \"batchSchemaSuggestion\" (confirmedSchemaRevisionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batchSchemaSuggestion_confirmedSchemaRevisionId_key",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_confirmedSchemaRevisionId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_confirmedSchemaRevisionId_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batchSchemaSuggestion_confirmedSchemaRevisionId_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_confirmedSchemaRevisionId_key\" UNIQUE (\"confirmedSchemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_confirmedSchemaRevisionId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_confirmedSchemaRevisionId_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchSchemaSuggestion.batchSchemaSuggestion_batchExtractionId_key",
+    "label": "Add unique constraint on \"batchSchemaSuggestion\" (batchExtractionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batchSchemaSuggestion_batchExtractionId_key",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_batchExtractionId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_batchExtractionId_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batchSchemaSuggestion_batchExtractionId_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_batchExtractionId_key\" UNIQUE (\"batchExtractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_batchExtractionId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_batchExtractionId_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchSchemaSuggestionSource.batch_suggestion_source_pin_key",
+    "label": "Add unique constraint on \"batchSchemaSuggestionSource\" (batchSchemaSuggestionId, sourceDocumentId, sourceRepresentationRevisionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batch_suggestion_source_pin_key",
+        "table": "batchSchemaSuggestionSource"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batch_suggestion_source_pin_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_suggestion_source_pin_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batch_suggestion_source_pin_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestionSource\" ADD CONSTRAINT \"batch_suggestion_source_pin_key\" UNIQUE (\"batchSchemaSuggestionId\", \"sourceDocumentId\", \"sourceRepresentationRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batch_suggestion_source_pin_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_suggestion_source_pin_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extraction.extraction_id_sourceDocumentId_key",
+    "label": "Add unique constraint on \"extraction\" (id, sourceDocumentId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extraction_id_sourceDocumentId_key",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_id_sourceDocumentId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extraction_id_sourceDocumentId_key\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_id_sourceDocumentId_key\" UNIQUE (\"id\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_id_sourceDocumentId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extraction.extraction_batch_source_key",
+    "label": "Add unique constraint on \"extraction\" (batchExtractionId, sourceDocumentId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extraction_batch_source_key",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_batch_source_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_batch_source_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extraction_batch_source_key\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_batch_source_key\" UNIQUE (\"batchExtractionId\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_batch_source_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_batch_source_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extractionReview.extractionReview_extractionId_revisionNumber_key",
+    "label": "Add unique constraint on \"extractionReview\" (extractionId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extractionReview_extractionId_revisionNumber_key",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extractionReview_extractionId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_revisionNumber_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extractionReview_extractionId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\" ADD CONSTRAINT \"extractionReview_extractionId_revisionNumber_key\" UNIQUE (\"extractionId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extractionReview_extractionId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_revisionNumber_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.researcherAccount.researcherAccount_tenantId_objectId_key",
+    "label": "Add unique constraint on \"researcherAccount\" (tenantId, objectId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "researcherAccount_tenantId_objectId_key",
+        "table": "researcherAccount"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"researcherAccount_tenantId_objectId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "researcherAccount_tenantId_objectId_key",
+          "public",
+          "\"public\".\"researcherAccount\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"researcherAccount_tenantId_objectId_key\"",
+        "sql": "ALTER TABLE \"public\".\"researcherAccount\" ADD CONSTRAINT \"researcherAccount_tenantId_objectId_key\" UNIQUE (\"tenantId\", \"objectId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"researcherAccount_tenantId_objectId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "researcherAccount_tenantId_objectId_key",
+          "public",
+          "\"public\".\"researcherAccount\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.reviewDecision.reviewDecision_extractionReviewId_resultPathKey_key",
+    "label": "Add unique constraint on \"reviewDecision\" (extractionReviewId, resultPathKey)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "reviewDecision_extractionReviewId_resultPathKey_key",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"reviewDecision_extractionReviewId_resultPathKey_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_resultPathKey_key",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"reviewDecision_extractionReviewId_resultPathKey_key\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" ADD CONSTRAINT \"reviewDecision_extractionReviewId_resultPathKey_key\" UNIQUE (\"extractionReviewId\", \"resultPathKey\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"reviewDecision_extractionReviewId_resultPathKey_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_resultPathKey_key",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.schemaRevision.schemaRevision_extractionSchemaId_revisionNumber_key",
+    "label": "Add unique constraint on \"schemaRevision\" (extractionSchemaId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "schemaRevision_extractionSchemaId_revisionNumber_key",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"schemaRevision_extractionSchemaId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_extractionSchemaId_revisionNumber_key",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"schemaRevision_extractionSchemaId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD CONSTRAINT \"schemaRevision_extractionSchemaId_revisionNumber_key\" UNIQUE (\"extractionSchemaId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"schemaRevision_extractionSchemaId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_extractionSchemaId_revisionNumber_key",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.sourceDocument.sourceDocument_projectContextId_contentSha256_key",
+    "label": "Add unique constraint on \"sourceDocument\" (projectContextId, contentSha256)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "sourceDocument_projectContextId_contentSha256_key",
+        "table": "sourceDocument"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"sourceDocument_projectContextId_contentSha256_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceDocument_projectContextId_contentSha256_key",
+          "public",
+          "\"public\".\"sourceDocument\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"sourceDocument_projectContextId_contentSha256_key\"",
+        "sql": "ALTER TABLE \"public\".\"sourceDocument\" ADD CONSTRAINT \"sourceDocument_projectContextId_contentSha256_key\" UNIQUE (\"projectContextId\", \"contentSha256\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"sourceDocument_projectContextId_contentSha256_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceDocument_projectContextId_contentSha256_key",
+          "public",
+          "\"public\".\"sourceDocument\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.sourceRepresentationRevision.sourceRepresentationRevision_sourceDocumentId_revisionNumber_key",
+    "label": "Add unique constraint on \"sourceRepresentationRevision\" (sourceDocumentId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "sourceRepresentationRevision_sourceDocumentId_revisionNumber_key",
+        "table": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"sourceRepresentationRevision_sourceDocumentId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_sourceDocumentId_revisionNumber_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"sourceRepresentationRevision_sourceDocumentId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"sourceRepresentationRevision\" ADD CONSTRAINT \"sourceRepresentationRevision_sourceDocumentId_revisionNumber_key\" UNIQUE (\"sourceDocumentId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"sourceRepresentationRevision_sourceDocumentId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_sourceDocumentId_revisionNumber_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.sourceRepresentationRevision.sourceRepresentationRevision_sourceDocumentId_reprocessKey_key",
+    "label": "Add unique constraint on \"sourceRepresentationRevision\" (sourceDocumentId, reprocessKey)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "sourceRepresentationRevision_sourceDocumentId_reprocessKey_key",
+        "table": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"sourceRepresentationRevision_sourceDocumentId_reprocessKey_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_sourceDocumentId_reprocessKey_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"sourceRepresentationRevision_sourceDocumentId_reprocessKey_key\"",
+        "sql": "ALTER TABLE \"public\".\"sourceRepresentationRevision\" ADD CONSTRAINT \"sourceRepresentationRevision_sourceDocumentId_reprocessKey_key\" UNIQUE (\"sourceDocumentId\", \"reprocessKey\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"sourceRepresentationRevision_sourceDocumentId_reprocessKey_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_sourceDocumentId_reprocessKey_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.sourceRepresentationRevision.sourceRepresentationRevision_id_sourceDocumentId_key",
+    "label": "Add unique constraint on \"sourceRepresentationRevision\" (id, sourceDocumentId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "sourceRepresentationRevision_id_sourceDocumentId_key",
+        "table": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"sourceRepresentationRevision_id_sourceDocumentId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"sourceRepresentationRevision_id_sourceDocumentId_key\"",
+        "sql": "ALTER TABLE \"public\".\"sourceRepresentationRevision\" ADD CONSTRAINT \"sourceRepresentationRevision_id_sourceDocumentId_key\" UNIQUE (\"id\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"sourceRepresentationRevision_id_sourceDocumentId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_outcome_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_outcome_check\" on \"batchSchemaSuggestion\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_outcome_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_phase_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_phase_check\" on \"batchSchemaSuggestion\".\"phase\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_phase_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_phase_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_phase_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_phase_check\" CHECK (\"phase\" IN ('READY', 'HETEROGENEOUS'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_phase_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.extraction.extraction_outcome_check",
+    "label": "Add check constraint \"extraction_outcome_check\" on \"extraction\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "extraction_outcome_check",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"extraction_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED', 'CANCELLED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.schemaRevision.schemaRevision_origin_check",
+    "label": "Add check constraint \"schemaRevision_origin_check\" on \"schemaRevision\".\"origin\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "schemaRevision_origin_check",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"schemaRevision_origin_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"schemaRevision_origin_check\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD CONSTRAINT \"schemaRevision_origin_check\" CHECK (\"origin\" IN ('SUGGESTION', 'RESEARCHER_EDIT', 'MODEL_EDIT'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"schemaRevision_origin_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.annotationSetRevision.annotationSetRevision_sourceDocumentId_idx",
+    "label": "Create index \"annotationSetRevision_sourceDocumentId_idx\" on \"annotationSetRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "annotationSetRevision_sourceDocumentId_idx",
+        "table": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"annotationSetRevision_sourceDocumentId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision_sourceDocumentId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"annotationSetRevision_sourceDocumentId_idx\"",
+        "sql": "CREATE INDEX \"annotationSetRevision_sourceDocumentId_idx\" ON \"public\".\"annotationSetRevision\" (\"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"annotationSetRevision_sourceDocumentId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision_sourceDocumentId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.annotationSetRevision.annotationSetRevision_sourceRepresentationRevisionId_idx",
+    "label": "Create index \"annotationSetRevision_sourceRepresentationRevisionId_idx\" on \"annotationSetRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "annotationSetRevision_sourceRepresentationRevisionId_idx",
+        "table": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"annotationSetRevision_sourceRepresentationRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision_sourceRepresentationRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"annotationSetRevision_sourceRepresentationRevisionId_idx\"",
+        "sql": "CREATE INDEX \"annotationSetRevision_sourceRepresentationRevisionId_idx\" ON \"public\".\"annotationSetRevision\" (\"sourceRepresentationRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"annotationSetRevision_sourceRepresentationRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision_sourceRepresentationRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchExtraction.batchExtraction_projectContextId_createdAt_idx",
+    "label": "Create index \"batchExtraction_projectContextId_createdAt_idx\" on \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchExtraction_projectContextId_createdAt_idx",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchExtraction_projectContextId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction_projectContextId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchExtraction_projectContextId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"batchExtraction_projectContextId_createdAt_idx\" ON \"public\".\"batchExtraction\" (\"projectContextId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchExtraction_projectContextId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction_projectContextId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchExtraction.batchExtraction_projectContextId_idx",
+    "label": "Create index \"batchExtraction_projectContextId_idx\" on \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchExtraction_projectContextId_idx",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchExtraction_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchExtraction_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"batchExtraction_projectContextId_idx\" ON \"public\".\"batchExtraction\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchExtraction_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchExtraction.batchExtraction_schemaRevisionId_idx",
+    "label": "Create index \"batchExtraction_schemaRevisionId_idx\" on \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchExtraction_schemaRevisionId_idx",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchExtraction_schemaRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction_schemaRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchExtraction_schemaRevisionId_idx\"",
+        "sql": "CREATE INDEX \"batchExtraction_schemaRevisionId_idx\" ON \"public\".\"batchExtraction\" (\"schemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchExtraction_schemaRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchExtraction_schemaRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchSchemaSuggestion.batchSchemaSuggestion_projectContextId_createdAt_idx",
+    "label": "Create index \"batchSchemaSuggestion_projectContextId_createdAt_idx\" on \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchSchemaSuggestion_projectContextId_createdAt_idx",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchSchemaSuggestion_projectContextId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion_projectContextId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchSchemaSuggestion_projectContextId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"batchSchemaSuggestion_projectContextId_createdAt_idx\" ON \"public\".\"batchSchemaSuggestion\" (\"projectContextId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchSchemaSuggestion_projectContextId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion_projectContextId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchSchemaSuggestion.batchSchemaSuggestion_projectContextId_idx",
+    "label": "Create index \"batchSchemaSuggestion_projectContextId_idx\" on \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchSchemaSuggestion_projectContextId_idx",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchSchemaSuggestion_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchSchemaSuggestion_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"batchSchemaSuggestion_projectContextId_idx\" ON \"public\".\"batchSchemaSuggestion\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchSchemaSuggestion_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchSchemaSuggestionSource.batchSchemaSuggestionSource_batchSchemaSuggestionId_idx",
+    "label": "Create index \"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\" on \"batchSchemaSuggestionSource\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchSchemaSuggestionSource_batchSchemaSuggestionId_idx",
+        "table": "batchSchemaSuggestionSource"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\"",
+        "sql": "CREATE INDEX \"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\" ON \"public\".\"batchSchemaSuggestionSource\" (\"batchSchemaSuggestionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchSchemaSuggestionSource.batch_suggestion_source_representation_idx",
+    "label": "Create index \"batch_suggestion_source_representation_idx\" on \"batchSchemaSuggestionSource\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batch_suggestion_source_representation_idx",
+        "table": "batchSchemaSuggestionSource"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batch_suggestion_source_representation_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batch_suggestion_source_representation_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batch_suggestion_source_representation_idx\"",
+        "sql": "CREATE INDEX \"batch_suggestion_source_representation_idx\" ON \"public\".\"batchSchemaSuggestionSource\" (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batch_suggestion_source_representation_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batch_suggestion_source_representation_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_schemaRevisionId_idx",
+    "label": "Create index \"extraction_schemaRevisionId_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_schemaRevisionId_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_schemaRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_schemaRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_schemaRevisionId_idx\"",
+        "sql": "CREATE INDEX \"extraction_schemaRevisionId_idx\" ON \"public\".\"extraction\" (\"schemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_schemaRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_schemaRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_sourceDocumentId_createdAt_idx",
+    "label": "Create index \"extraction_sourceDocumentId_createdAt_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_sourceDocumentId_createdAt_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_sourceDocumentId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceDocumentId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_sourceDocumentId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"extraction_sourceDocumentId_createdAt_idx\" ON \"public\".\"extraction\" (\"sourceDocumentId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_sourceDocumentId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceDocumentId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_sourceRepresentationRevisionId_sourceDocumentId_idx",
+    "label": "Create index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_sourceRepresentationRevisionId_sourceDocumentId_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\"",
+        "sql": "CREATE INDEX \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" ON \"public\".\"extraction\" (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_reviewedAt_idx",
+    "label": "Create index \"extraction_reviewedAt_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_reviewedAt_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_reviewedAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_reviewedAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_reviewedAt_idx\"",
+        "sql": "CREATE INDEX \"extraction_reviewedAt_idx\" ON \"public\".\"extraction\" (\"reviewedAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_reviewedAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_reviewedAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_batch_pin_idx",
+    "label": "Create index \"extraction_batch_pin_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_batch_pin_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_batch_pin_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_batch_pin_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_batch_pin_idx\"",
+        "sql": "CREATE INDEX \"extraction_batch_pin_idx\" ON \"public\".\"extraction\" (\"batchExtractionId\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_batch_pin_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_batch_pin_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionReview.extractionReview_extractionId_idx",
+    "label": "Create index \"extractionReview_extractionId_idx\" on \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionReview_extractionId_idx",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionReview_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionReview_extractionId_idx\"",
+        "sql": "CREATE INDEX \"extractionReview_extractionId_idx\" ON \"public\".\"extractionReview\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionReview_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionSchema.extractionSchema_projectContextId_idx",
+    "label": "Create index \"extractionSchema_projectContextId_idx\" on \"extractionSchema\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionSchema_projectContextId_idx",
+        "table": "extractionSchema"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionSchema_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionSchema_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionSchema_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"extractionSchema_projectContextId_idx\" ON \"public\".\"extractionSchema\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionSchema_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionSchema_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.projectContext.projectContext_researcherAccountId_idx",
+    "label": "Create index \"projectContext_researcherAccountId_idx\" on \"projectContext\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "projectContext_researcherAccountId_idx",
+        "table": "projectContext"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"projectContext_researcherAccountId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectContext_researcherAccountId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"projectContext_researcherAccountId_idx\"",
+        "sql": "CREATE INDEX \"projectContext_researcherAccountId_idx\" ON \"public\".\"projectContext\" (\"researcherAccountId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"projectContext_researcherAccountId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectContext_researcherAccountId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.reviewDecision.reviewDecision_extractionReviewId_idx",
+    "label": "Create index \"reviewDecision_extractionReviewId_idx\" on \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "reviewDecision_extractionReviewId_idx",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"reviewDecision_extractionReviewId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision_extractionReviewId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"reviewDecision_extractionReviewId_idx\"",
+        "sql": "CREATE INDEX \"reviewDecision_extractionReviewId_idx\" ON \"public\".\"reviewDecision\" (\"extractionReviewId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"reviewDecision_extractionReviewId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision_extractionReviewId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.schemaRevision.schemaRevision_extractionSchemaId_idx",
+    "label": "Create index \"schemaRevision_extractionSchemaId_idx\" on \"schemaRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "schemaRevision_extractionSchemaId_idx",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"schemaRevision_extractionSchemaId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaRevision_extractionSchemaId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"schemaRevision_extractionSchemaId_idx\"",
+        "sql": "CREATE INDEX \"schemaRevision_extractionSchemaId_idx\" ON \"public\".\"schemaRevision\" (\"extractionSchemaId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"schemaRevision_extractionSchemaId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaRevision_extractionSchemaId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.sourceDocument.sourceDocument_projectContextId_idx",
+    "label": "Create index \"sourceDocument_projectContextId_idx\" on \"sourceDocument\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "sourceDocument_projectContextId_idx",
+        "table": "sourceDocument"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"sourceDocument_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceDocument_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"sourceDocument_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"sourceDocument_projectContextId_idx\" ON \"public\".\"sourceDocument\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"sourceDocument_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceDocument_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.sourceRepresentationRevision.sourceRepresentationRevision_sourceDocumentId_idx",
+    "label": "Create index \"sourceRepresentationRevision_sourceDocumentId_idx\" on \"sourceRepresentationRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "sourceRepresentationRevision_sourceDocumentId_idx",
+        "table": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"sourceRepresentationRevision_sourceDocumentId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceRepresentationRevision_sourceDocumentId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"sourceRepresentationRevision_sourceDocumentId_idx\"",
+        "sql": "CREATE INDEX \"sourceRepresentationRevision_sourceDocumentId_idx\" ON \"public\".\"sourceRepresentationRevision\" (\"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"sourceRepresentationRevision_sourceDocumentId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sourceRepresentationRevision_sourceDocumentId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.annotationSetRevision.annotationSetRevision_sourceDocumentId_fkey",
+    "label": "Add foreign key \"annotationSetRevision_sourceDocumentId_fkey\" on \"annotationSetRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "annotationSetRevision_sourceDocumentId_fkey",
+        "table": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"annotationSetRevision_sourceDocumentId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "annotationSetRevision_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"annotationSetRevision_sourceDocumentId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"annotationSetRevision\"\nADD CONSTRAINT \"annotationSetRevision_sourceDocumentId_fkey\"\nFOREIGN KEY (\"sourceDocumentId\")\nREFERENCES \"public\".\"sourceDocument\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"annotationSetRevision_sourceDocumentId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "annotationSetRevision_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.annotationSetRevision.annotationSetRevision_sourceRepresentationRevisionId_fkey",
+    "label": "Add foreign key \"annotationSetRevision_sourceRepresentationRevisionId_fkey\" on \"annotationSetRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "annotationSetRevision_sourceRepresentationRevisionId_fkey",
+        "table": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"annotationSetRevision_sourceRepresentationRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "annotationSetRevision_sourceRepresentationRevisionId_fkey",
+          "public",
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"annotationSetRevision_sourceRepresentationRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"annotationSetRevision\"\nADD CONSTRAINT \"annotationSetRevision_sourceRepresentationRevisionId_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"annotationSetRevision_sourceRepresentationRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "annotationSetRevision_sourceRepresentationRevisionId_fkey",
+          "public",
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchExtraction.batchExtraction_projectContextId_fkey",
+    "label": "Add foreign key \"batchExtraction_projectContextId_fkey\" on \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batchExtraction_projectContextId_fkey",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batchExtraction_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtraction_projectContextId_fkey",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batchExtraction_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\"\nADD CONSTRAINT \"batchExtraction_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batchExtraction_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtraction_projectContextId_fkey",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchExtraction.batchExtraction_schemaRevisionId_fkey",
+    "label": "Add foreign key \"batchExtraction_schemaRevisionId_fkey\" on \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batchExtraction_schemaRevisionId_fkey",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batchExtraction_schemaRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtraction_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batchExtraction_schemaRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\"\nADD CONSTRAINT \"batchExtraction_schemaRevisionId_fkey\"\nFOREIGN KEY (\"schemaRevisionId\")\nREFERENCES \"public\".\"schemaRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batchExtraction_schemaRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtraction_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchSchemaSuggestion.batchSchemaSuggestion_projectContextId_fkey",
+    "label": "Add foreign key \"batchSchemaSuggestion_projectContextId_fkey\" on \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batchSchemaSuggestion_projectContextId_fkey",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batchSchemaSuggestion_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_projectContextId_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batchSchemaSuggestion_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\"\nADD CONSTRAINT \"batchSchemaSuggestion_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batchSchemaSuggestion_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_projectContextId_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchSchemaSuggestionSource.batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey",
+    "label": "Add foreign key \"batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey\" on \"batchSchemaSuggestionSource\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey",
+        "table": "batchSchemaSuggestionSource"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestionSource\"\nADD CONSTRAINT \"batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey\"\nFOREIGN KEY (\"batchSchemaSuggestionId\")\nREFERENCES \"public\".\"batchSchemaSuggestion\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestionSource_batchSchemaSuggestionId_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchSchemaSuggestionSource.batch_suggestion_source_representation_fkey",
+    "label": "Add foreign key \"batch_suggestion_source_representation_fkey\" on \"batchSchemaSuggestionSource\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batch_suggestion_source_representation_fkey",
+        "table": "batchSchemaSuggestionSource"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batch_suggestion_source_representation_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_suggestion_source_representation_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batch_suggestion_source_representation_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestionSource\"\nADD CONSTRAINT \"batch_suggestion_source_representation_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\", \"sourceDocumentId\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batch_suggestion_source_representation_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_suggestion_source_representation_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestionSource\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extraction.extraction_schemaRevisionId_fkey",
+    "label": "Add foreign key \"extraction_schemaRevisionId_fkey\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_schemaRevisionId_fkey",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_schemaRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_schemaRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\"\nADD CONSTRAINT \"extraction_schemaRevisionId_fkey\"\nFOREIGN KEY (\"schemaRevisionId\")\nREFERENCES \"public\".\"schemaRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_schemaRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extraction.extraction_batch_pin_fkey",
+    "label": "Add foreign key \"extraction_batch_pin_fkey\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_batch_pin_fkey",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_batch_pin_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_batch_pin_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_batch_pin_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\"\nADD CONSTRAINT \"extraction_batch_pin_fkey\"\nFOREIGN KEY (\"batchExtractionId\", \"schemaRevisionId\", \"strategy\")\nREFERENCES \"public\".\"batchExtraction\" (\"id\", \"schemaRevisionId\", \"strategy\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_batch_pin_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_batch_pin_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extraction.extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+    "label": "Add foreign key \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\"\nADD CONSTRAINT \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\", \"sourceDocumentId\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionReview.extractionReview_extractionId_fkey",
+    "label": "Add foreign key \"extractionReview_extractionId_fkey\" on \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extractionReview_extractionId_fkey",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extractionReview_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_fkey",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extractionReview_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\"\nADD CONSTRAINT \"extractionReview_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"public\".\"extraction\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extractionReview_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_fkey",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionSchema.extractionSchema_projectContextId_fkey",
+    "label": "Add foreign key \"extractionSchema_projectContextId_fkey\" on \"extractionSchema\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extractionSchema_projectContextId_fkey",
+        "table": "extractionSchema"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extractionSchema_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionSchema_projectContextId_fkey",
+          "public",
+          "\"public\".\"extractionSchema\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extractionSchema_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionSchema\"\nADD CONSTRAINT \"extractionSchema_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extractionSchema_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionSchema_projectContextId_fkey",
+          "public",
+          "\"public\".\"extractionSchema\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.modelConfiguration.modelConfiguration_researcherAccountId_fkey",
+    "label": "Add foreign key \"modelConfiguration_researcherAccountId_fkey\" on \"modelConfiguration\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "modelConfiguration_researcherAccountId_fkey",
+        "table": "modelConfiguration"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"modelConfiguration_researcherAccountId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "modelConfiguration_researcherAccountId_fkey",
+          "public",
+          "\"public\".\"modelConfiguration\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"modelConfiguration_researcherAccountId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"modelConfiguration\"\nADD CONSTRAINT \"modelConfiguration_researcherAccountId_fkey\"\nFOREIGN KEY (\"researcherAccountId\")\nREFERENCES \"public\".\"researcherAccount\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"modelConfiguration_researcherAccountId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "modelConfiguration_researcherAccountId_fkey",
+          "public",
+          "\"public\".\"modelConfiguration\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.projectContext.projectContext_researcherAccountId_fkey",
+    "label": "Add foreign key \"projectContext_researcherAccountId_fkey\" on \"projectContext\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "projectContext_researcherAccountId_fkey",
+        "table": "projectContext"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"projectContext_researcherAccountId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectContext_researcherAccountId_fkey",
+          "public",
+          "\"public\".\"projectContext\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"projectContext_researcherAccountId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"projectContext\"\nADD CONSTRAINT \"projectContext_researcherAccountId_fkey\"\nFOREIGN KEY (\"researcherAccountId\")\nREFERENCES \"public\".\"researcherAccount\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"projectContext_researcherAccountId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectContext_researcherAccountId_fkey",
+          "public",
+          "\"public\".\"projectContext\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.reviewDecision.reviewDecision_extractionReviewId_fkey",
+    "label": "Add foreign key \"reviewDecision_extractionReviewId_fkey\" on \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "reviewDecision_extractionReviewId_fkey",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"reviewDecision_extractionReviewId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_fkey",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"reviewDecision_extractionReviewId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\"\nADD CONSTRAINT \"reviewDecision_extractionReviewId_fkey\"\nFOREIGN KEY (\"extractionReviewId\")\nREFERENCES \"public\".\"extractionReview\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"reviewDecision_extractionReviewId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_fkey",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.schemaRevision.schemaRevision_extractionSchemaId_fkey",
+    "label": "Add foreign key \"schemaRevision_extractionSchemaId_fkey\" on \"schemaRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "schemaRevision_extractionSchemaId_fkey",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"schemaRevision_extractionSchemaId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_extractionSchemaId_fkey",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"schemaRevision_extractionSchemaId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\"\nADD CONSTRAINT \"schemaRevision_extractionSchemaId_fkey\"\nFOREIGN KEY (\"extractionSchemaId\")\nREFERENCES \"public\".\"extractionSchema\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"schemaRevision_extractionSchemaId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_extractionSchemaId_fkey",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.sourceDocument.sourceDocument_projectContextId_fkey",
+    "label": "Add foreign key \"sourceDocument_projectContextId_fkey\" on \"sourceDocument\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "sourceDocument_projectContextId_fkey",
+        "table": "sourceDocument"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"sourceDocument_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceDocument_projectContextId_fkey",
+          "public",
+          "\"public\".\"sourceDocument\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"sourceDocument_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"sourceDocument\"\nADD CONSTRAINT \"sourceDocument_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"sourceDocument_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceDocument_projectContextId_fkey",
+          "public",
+          "\"public\".\"sourceDocument\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.sourceRepresentationRevision.sourceRepresentationRevision_sourceDocumentId_fkey",
+    "label": "Add foreign key \"sourceRepresentationRevision_sourceDocumentId_fkey\" on \"sourceRepresentationRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "sourceRepresentationRevision_sourceDocumentId_fkey",
+        "table": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"sourceRepresentationRevision_sourceDocumentId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"sourceRepresentationRevision_sourceDocumentId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"sourceRepresentationRevision\"\nADD CONSTRAINT \"sourceRepresentationRevision_sourceDocumentId_fkey\"\nFOREIGN KEY (\"sourceDocumentId\")\nREFERENCES \"public\".\"sourceDocument\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"sourceRepresentationRevision_sourceDocumentId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ]
+  }
+]

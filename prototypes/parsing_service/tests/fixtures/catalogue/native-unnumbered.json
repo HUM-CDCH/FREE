@@ -1,0 +1,49 @@
+{
+  "description": "A born-digital list whose printed numbers are absent from the text: no number is invented; the items stay unresolved.",
+  "transcriber": "native",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 0,
+          "segments": [
+            {
+              "text": "Oak: an urn.",
+              "label": "List-item"
+            },
+            {
+              "text": "Brook: an axe.",
+              "label": "List-item"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        12,
+        "unresolved",
+        "unnumbered_item",
+        "Oak: an urn."
+      ],
+      [
+        "p1_s1",
+        0,
+        14,
+        "unresolved",
+        "unnumbered_item",
+        "Brook: an axe."
+      ]
+    ],
+    "blocks": [],
+    "diagnostics": [
+      "no_records"
+    ],
+    "coverage_complete": false
+  }
+}

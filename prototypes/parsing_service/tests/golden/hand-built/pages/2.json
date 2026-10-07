@@ -1,0 +1,74 @@
+{
+  "page": 2,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "7d5f2e4310a4ec2d9ecf82f9024306551099978ea150fc2a7a4cb5bd45366954",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": [
+        {
+          "crop": 3,
+          "kind": "page",
+          "order": 0,
+          "bbox_pt": [
+            0.0,
+            0.0,
+            400.0,
+            600.0
+          ],
+          "ink": 0.5,
+          "transform": [
+            0.0,
+            0.0,
+            0.288,
+            0.288
+          ],
+          "source_px": null,
+          "image_px": [
+            500,
+            700
+          ],
+          "input_tokens": 10,
+          "output_tokens": 20,
+          "incomplete": null
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "text": "Fdpl.\t2\t\nMbl.\t1827 (3436)",
+      "html": "<table><tr><td>Fdpl.</td><td>2</td></tr><tr><td>Mbl.</td><td>1827 (3436)</td></tr></table>",
+      "markdown": null,
+      "label": "Table",
+      "confidence": 0.98,
+      "status": "ok",
+      "unit": 0,
+      "crop": 3,
+      "bbox_px": [
+        100.0,
+        100.0,
+        200.0,
+        200.0
+      ],
+      "bbox_pt": [
+        28.799999999999997,
+        28.799999999999997,
+        57.599999999999994,
+        57.599999999999994
+      ]
+    }
+  ],
+  "markdown": "| Fdpl. | 2 |",
+  "complete": true,
+  "warnings": []
+}

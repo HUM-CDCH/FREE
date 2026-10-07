@@ -1,0 +1,264 @@
+{
+  "description": "Entries crossing a column, a book page of one spread and a PDF page, with nested finds and running heads between them.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Bezirk Süd",
+                "Kreis Moor",
+                "40. Aue. Fdpl. 1. FA: G. Funde:",
+                "1. Gefäß.",
+                "2. Beil."
+              ]
+            },
+            {
+              "segments": [
+                "3. Knochen.",
+                "Mus. Halle 12.",
+                "41. Bach. Fdpl. 3. FA: EF. Scherbe"
+              ]
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "crops": [
+            {
+              "segments": [
+                {
+                  "text": "115",
+                  "label": "PageHeader"
+                },
+                "mit Rand.",
+                "42. Dorf. FA: G."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "units": [
+        {
+          "index": 3,
+          "crops": [
+            {
+              "segments": [
+                {
+                  "text": "116",
+                  "label": "PageHeader"
+                },
+                "Weitere Scherben.",
+                "Kreis Ried",
+                "43. Eck. FA: EF."
+              ]
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "crops": [
+            {
+              "segments": [
+                {
+                  "text": "117",
+                  "label": "PageHeader"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        10,
+        "heading",
+        "bezirk:Süd",
+        "Bezirk Süd"
+      ],
+      [
+        "p1_s1",
+        0,
+        10,
+        "heading",
+        "kreis:Moor",
+        "Kreis Moor"
+      ],
+      [
+        "p1_s2",
+        0,
+        31,
+        "entry",
+        "40",
+        "40. Aue. Fdpl. 1. FA: G. Funde:"
+      ],
+      [
+        "p1_s3",
+        0,
+        9,
+        "entry",
+        "40",
+        "1. Gefäß."
+      ],
+      [
+        "p1_s4",
+        0,
+        8,
+        "entry",
+        "40",
+        "2. Beil."
+      ],
+      [
+        "p1_s5",
+        0,
+        11,
+        "entry",
+        "40",
+        "3. Knochen."
+      ],
+      [
+        "p1_s6",
+        0,
+        14,
+        "entry",
+        "40",
+        "Mus. Halle 12."
+      ],
+      [
+        "p1_s7",
+        0,
+        34,
+        "entry",
+        "41",
+        "41. Bach. Fdpl. 3. FA: EF. Scherbe"
+      ],
+      [
+        "p1_s8",
+        0,
+        3,
+        "excluded",
+        "furniture",
+        "115"
+      ],
+      [
+        "p1_s9",
+        0,
+        9,
+        "entry",
+        "41",
+        "mit Rand."
+      ],
+      [
+        "p1_s10",
+        0,
+        16,
+        "entry",
+        "42",
+        "42. Dorf. FA: G."
+      ],
+      [
+        "p2_s0",
+        0,
+        3,
+        "excluded",
+        "furniture",
+        "116"
+      ],
+      [
+        "p2_s1",
+        0,
+        17,
+        "entry",
+        "42",
+        "Weitere Scherben."
+      ],
+      [
+        "p2_s2",
+        0,
+        10,
+        "heading",
+        "kreis:Ried",
+        "Kreis Ried"
+      ],
+      [
+        "p2_s3",
+        0,
+        16,
+        "entry",
+        "43",
+        "43. Eck. FA: EF."
+      ],
+      [
+        "p2_s4",
+        0,
+        3,
+        "excluded",
+        "furniture",
+        "117"
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "40",
+        "continuation": true,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": "Moor"
+        }
+      },
+      {
+        "label": "41",
+        "continuation": true,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": "Moor"
+        }
+      },
+      {
+        "label": "42",
+        "continuation": true,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": "Moor"
+        }
+      },
+      {
+        "label": "43",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": "Ried"
+        }
+      }
+    ],
+    "rejected_starts": [
+      [
+        "p1_s3",
+        "1",
+        "list_item"
+      ],
+      [
+        "p1_s4",
+        "2",
+        "list_item"
+      ],
+      [
+        "p1_s5",
+        "3",
+        "list_item"
+      ]
+    ],
+    "coverage_complete": true
+  }
+}

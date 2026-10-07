@@ -1,0 +1,89 @@
+{
+  "description": "A skipped picture is intentional; a block the engine failed on is accounted for and makes processing incomplete.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Kreis Heide",
+                "7. Adorf. FA: G.",
+                {
+                  "text": "",
+                  "label": "Picture",
+                  "status": "skipped"
+                },
+                {
+                  "text": "garbled",
+                  "status": "error"
+                },
+                "Mus. Halle 7."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s1",
+        0,
+        16,
+        "entry",
+        "7",
+        "7. Adorf. FA: G."
+      ],
+      [
+        "p1_s3",
+        0,
+        7,
+        "excluded",
+        "segment_status:error",
+        "garbled"
+      ],
+      [
+        "p1_s4",
+        0,
+        13,
+        "entry",
+        "7",
+        "Mus. Halle 7."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "7",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "withheld": {
+      "intentional": [
+        "p1_s2"
+      ],
+      "failures": [
+        "p1_s3"
+      ]
+    },
+    "coverage_complete": true,
+    "diagnostics": [
+      "engine_failure"
+    ]
+  }
+}

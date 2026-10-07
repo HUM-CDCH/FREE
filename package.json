@@ -1,11 +1,43 @@
 {
   "name": "free-root",
   "private": true,
+  "packageManager": "pnpm@12.8.1",
   "scripts": {
-    "postinstall": "pnpm --recursive --if-present install:python",
+    "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
+    "db:generate": "pnpm --filter db contract:emit",
+    "db:reset": "pnpm --filter db db:reset",
+    "setup": "pnpm --filter db db:init",
     "start": "pnpm dev",
-    "dev": "pnpm --recursive --parallel dev",
-    "test": "pnpm --recursive test",
-    "build": "pnpm --filter studio build"
+    "dev": "node scripts/free.mjs local",
+    "dev:wifi": "node scripts/free.mjs local --wifi",
+    "dev:wifi:revoke": "node scripts/free.mjs local --revoke-wifi-access",
+    "dev:spark": "pnpm --filter studio dev:spark",
+    "production": "node scripts/free.mjs production",
+    "prebuild": "pnpm db:generate",
+    "build": "pnpm --filter studio build",
+    "test": "pnpm test:unit",
+    "test:unit": "pnpm test:unit:node && pnpm --filter parsing-service test",
+    "test:unit:node": "node --test scripts/free.test.mjs scripts/test-ci.test.mjs scripts/install-python.test.mjs scripts/codegraph-prompt-hook.test.mjs && pnpm --filter studio-configuration test && pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test",
+    "test:safety": "node --test --test-concurrency=1 tests/safety.test.mjs",
+    "test:postgres": "pnpm test:postgres:node && pnpm --filter parsing-service test:postgres",
+    "test:postgres:node": "pnpm --filter db test:postgres && pnpm --filter extraction test:postgres && pnpm --filter studio test:postgres",
+    "test:e2e": "pnpm --filter studio test:e2e",
+    "test:service": "pnpm --filter studio test:service",
+    "test:live-model": "pnpm --filter studio test:live-model && pnpm --filter parsing-service test:live-model",
+    "test:system": "node --test --test-concurrency=1 tests/contract.test.mjs",
+    "test:all": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:safety && pnpm test:postgres && pnpm test:e2e && pnpm test:service",
+    "test:all:node": "pnpm typecheck && pnpm lint && pnpm test:unit:node && pnpm test:safety && pnpm test:postgres:node && pnpm test:e2e",
+    "test:ci": "node scripts/test-ci.mjs",
+    "lint": "pnpm --filter studio lint",
+    "typecheck": "pnpm -r typecheck",
+    "architecture:dev": "likec4 dev docs/architecture",
+    "architecture:check": "likec4 validate docs/architecture",
+    "architecture:build": "likec4 build docs/architecture -o artifacts/architecture/site --use-hash-history"
+  },
+  "devDependencies": {
+    "likec4": "^1.59.2"
+  },
+  "dependencies": {
+    "studio-configuration": "workspace:*"
   }
 }

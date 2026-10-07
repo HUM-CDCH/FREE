@@ -1,0 +1,130 @@
+{
+  "description": "Nested 1./2. finds around entries 1-3: sequence and list contiguity resolve them without promoting a find.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Kreis Heide",
+                "1. Adorf. FA: G. Funde:",
+                "1. Gefäß.",
+                "2. Beil.",
+                "2. Bdorf. FA: G.",
+                "1. Urne.",
+                "3. Cdorf. FA: EF."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s1",
+        0,
+        23,
+        "entry",
+        "1",
+        "1. Adorf. FA: G. Funde:"
+      ],
+      [
+        "p1_s2",
+        0,
+        9,
+        "entry",
+        "1",
+        "1. Gefäß."
+      ],
+      [
+        "p1_s3",
+        0,
+        8,
+        "entry",
+        "1",
+        "2. Beil."
+      ],
+      [
+        "p1_s4",
+        0,
+        16,
+        "entry",
+        "2",
+        "2. Bdorf. FA: G."
+      ],
+      [
+        "p1_s5",
+        0,
+        8,
+        "entry",
+        "2",
+        "1. Urne."
+      ],
+      [
+        "p1_s6",
+        0,
+        17,
+        "entry",
+        "3",
+        "3. Cdorf. FA: EF."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "1",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "2",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "3",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "rejected_starts": [
+      [
+        "p1_s2",
+        "1",
+        "list_item"
+      ],
+      [
+        "p1_s3",
+        "2",
+        "list_item"
+      ],
+      [
+        "p1_s5",
+        "1",
+        "list_item"
+      ]
+    ],
+    "coverage_complete": true
+  }
+}

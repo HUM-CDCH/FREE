@@ -1,0 +1,30 @@
+{
+  "defaults": {
+    "1": {
+      "reserves": {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048},
+      "overlap": 1,
+      "headings": true,
+      "verification": true,
+      "splits": 6
+    }
+  },
+  "valid": [
+    {"defaults": 1},
+    {"defaults": 1, "input_tokens": 512, "output_tokens": 64, "overlap": 0, "headings": false, "verification": false},
+    {"defaults": 1, "input_tokens": 1048576, "output_tokens": 65536, "overlap": 4}
+  ],
+  "invalid": [
+    {},
+    {"defaults": 2},
+    {"defaults": 1, "input_tokens": 511},
+    {"defaults": 1, "input_tokens": 1048577},
+    {"defaults": 1, "output_tokens": 63},
+    {"defaults": 1, "output_tokens": 65537},
+    {"defaults": 1, "overlap": -1},
+    {"defaults": 1, "overlap": 5},
+    {"defaults": 1, "input_tokens": 1024.5},
+    {"defaults": 1, "headings": "yes"},
+    {"defaults": 1, "discovery_chars": 48000},
+    {"defaults": 1, "recipe": "numbered-catalogue-de@1"}
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "page": 4,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "70c615bc46c59dcc1c5816b098d812efb23944f3817ebe0173ee88c29c64cd20",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": []
+    }
+  ],
+  "segments": [
+    {
+      "text": "Plain",
+      "html": null,
+      "markdown": "# Plain",
+      "label": "text",
+      "confidence": null,
+      "status": "ok",
+      "unit": 0,
+      "crop": null,
+      "bbox_px": null,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ]
+    }
+  ],
+  "markdown": "# Plain",
+  "complete": true,
+  "warnings": []
+}

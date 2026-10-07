@@ -1,0 +1,33 @@
+{
+  "id": "collagen-iter-1",
+  "schema": "collagen.schema.json",
+  "golden": "golden.xlsx",
+  "golden_sheet": null,
+  "documents": [
+    "sources/paper-a.pdf",
+    "sources/paper-b.pdf"
+  ],
+  "documents_dir": null,
+  "runs": {
+    "paper-a": "runs/run-paper-a",
+    "paper-b": "runs/run-paper-b"
+  },
+  "pilot": 5,
+  "seed": 20261005,
+  "shuffle": false,
+  "options": {
+    "strategy": "article",
+    "models": { "fields": "nuextract", "reasoning": "instruct" },
+    "article": { "context": "full", "grounding": "quoted" }
+  },
+  "providers": {
+    "fields": { "base_url": "http://127.0.0.1:18012", "model": "Qwen/Qwen3.8-27B-FP8", "context_tokens": 32768 },
+    "reasoning": { "base_url": "http://127.0.0.1:18012", "model": "Qwen/Qwen3.8-27B-FP8", "context_tokens": 32768 }
+  },
+  "output": "eval-out/collagen-iter-1",
+  "runs_root": null,
+  "parse": { "model": "granite_vision", "url": null },
+  "cell_separators": ["\n"],
+  "comparison": { "casefold": true, "numeric": true },
+  "baseline": null
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "column.public.reviewDecision.reviewedEvidence",
+    "label": "Add column \"reviewedEvidence\" to \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewedEvidence",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewedEvidence\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "reviewedEvidence"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reviewedEvidence\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" ADD COLUMN \"reviewedEvidence\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewedEvidence\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "reviewedEvidence"
+        ]
+      }
+    ]
+  }
+]

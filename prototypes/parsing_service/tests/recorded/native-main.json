@@ -1,0 +1,115 @@
+{
+ "run": "20260917-125216-native-aefb",
+ "params": {
+  "id": "20260917-125216-native-aefb",
+  "created": "2026-09-17T12:52:16.246443+00:00",
+  "source_name": "main.pdf",
+  "page_count": 8,
+  "source_sha256": "dcd3cc5abcc1ebd5a1f447ff0a9d8d409daf8b2456f259068e974934401850a9",
+  "transcriber": "native",
+  "model": null,
+  "repo": null,
+  "url": null,
+  "cut": "none",
+  "crop_dpi": null,
+  "layout_model": null,
+  "page_source": "pdf",
+  "max_image_size": null,
+  "max_output_tokens": null,
+  "stream": false,
+  "pages": [
+   5,
+   6
+  ],
+  "debug": true
+ },
+ "report": {
+  "transcriber": "native",
+  "model": null,
+  "repo": null,
+  "url": null,
+  "source": "input.pdf",
+  "pages_requested": [
+   5,
+   6
+  ],
+  "cut": "none",
+  "crop_dpi": null,
+  "layout_model": null,
+  "page_source": "pdf",
+  "stream": false,
+  "started": "2026-09-17T12:52:16.253064+00:00",
+  "seconds": 0.788,
+  "status": "success",
+  "incomplete": null,
+  "prompt": null,
+  "scale": 1.0,
+  "max_size": null,
+  "max_output_tokens": null,
+  "generation_params": null,
+  "errors": [],
+  "docling_status": "success",
+  "tokens": {
+   "input": 0,
+   "output": 0
+  },
+  "versions": {
+   "docling": "2.127.0",
+   "surya-ocr": "0.22.1"
+  },
+  "pages": [
+   {
+    "page": 1,
+    "region": null,
+    "image_pixels": null,
+    "seconds": null,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "stop": null,
+    "capped": false,
+    "incomplete": null,
+    "source_page": 5,
+    "markdown": "## 5 Section 5\n\nPage 5 describes test unit 5.\n\nUnit 5 lay along an invented axis; nothing here comes from a real source.",
+    "text": "5 Section 5\n\nPage 5 describes test unit 5.\n\nUnit 5 lay along an invented axis; nothing here comes from a real source."
+   },
+   {
+    "page": 2,
+    "region": null,
+    "image_pixels": null,
+    "seconds": null,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "stop": null,
+    "capped": false,
+    "incomplete": null,
+    "source_page": 6,
+    "markdown": "## 6 Section 6\n\nPage 6 describes test unit 6.\n\nUnit 6 lay along an invented axis; nothing here comes from a real source.",
+    "text": "6 Section 6\n\nPage 6 describes test unit 6.\n\nUnit 6 lay along an invented axis; nothing here comes from a real source."
+   }
+  ]
+ },
+ "recipe": {
+  "result_version": 3,
+  "source_sha256": "dcd3cc5abcc1ebd5a1f447ff0a9d8d409daf8b2456f259068e974934401850a9",
+  "ingest_digest": null,
+  "transcriber": "native",
+  "model": null,
+  "repo": null,
+  "cut": "none",
+  "crop_dpi": null,
+  "layout_model": null,
+  "page_source": "pdf",
+  "pages_requested": [
+   5,
+   6
+  ],
+  "max_image_size": null,
+  "max_output_tokens": null,
+  "record": null,
+  "versions": {
+   "docling": "2.127.0",
+   "surya-ocr": "0.22.1"
+  }
+ },
+ "region_events": []
+}

@@ -1,0 +1,21 @@
+{
+  "enqueue": {
+    "workflow_name": "convert",
+    "queue_name": "kei-convert-small",
+    "workflow_id": "kei-convert:ingest:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222",
+    "application_name": "kei",
+    "priority": 1,
+    "workflow_timeout_ms": 600000
+  },
+  "request": {
+    "source": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.pdf",
+    "source_sha256": "dcd3cc5abcc1ebd5a1f447ff0a9d8d409daf8b2456f259068e974934401850a9",
+    "source_name": "report.pdf",
+    "page_source": "pdf",
+    "ingest": null,
+    "model": null,
+    "layout_model": null,
+    "cut": "auto",
+    "debug": false
+  }
+}

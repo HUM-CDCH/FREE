@@ -1,0 +1,143 @@
+{
+  "description": "Two overlapping crops both read the seam line: one observation is excluded as a duplicate; the same text elsewhere is repeated content and kept.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "bbox_pt": [
+                40,
+                36,
+                380,
+                300
+              ],
+              "segments": [
+                {
+                  "text": "50. Adorf. FA: G.",
+                  "bbox_pt": [
+                    42,
+                    40,
+                    378,
+                    52
+                  ]
+                },
+                {
+                  "text": "Mus. Köthen o. Nr.",
+                  "bbox_pt": [
+                    42,
+                    285,
+                    378,
+                    297
+                  ]
+                }
+              ]
+            },
+            {
+              "bbox_pt": [
+                40,
+                280,
+                380,
+                559
+              ],
+              "segments": [
+                {
+                  "text": "Mus. Köthen o. Nr.",
+                  "bbox_pt": [
+                    42,
+                    283,
+                    378,
+                    295
+                  ]
+                },
+                {
+                  "text": "51. Bdorf. FA: EF.",
+                  "bbox_pt": [
+                    42,
+                    310,
+                    378,
+                    322
+                  ]
+                },
+                {
+                  "text": "Mus. Köthen o. Nr.",
+                  "bbox_pt": [
+                    42,
+                    330,
+                    378,
+                    342
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        17,
+        "entry",
+        "50",
+        "50. Adorf. FA: G."
+      ],
+      [
+        "p1_s1",
+        0,
+        18,
+        "entry",
+        "50",
+        "Mus. Köthen o. Nr."
+      ],
+      [
+        "p1_s2",
+        0,
+        18,
+        "excluded",
+        "duplicate_observation",
+        "Mus. Köthen o. Nr."
+      ],
+      [
+        "p1_s3",
+        0,
+        18,
+        "entry",
+        "51",
+        "51. Bdorf. FA: EF."
+      ],
+      [
+        "p1_s4",
+        0,
+        18,
+        "entry",
+        "51",
+        "Mus. Köthen o. Nr."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "50",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      },
+      {
+        "label": "51",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      }
+    ],
+    "coverage_complete": true
+  }
+}

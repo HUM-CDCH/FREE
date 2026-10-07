@@ -11,7 +11,7 @@ I want to open a source document,
 so that FREE makes its text searchable and ready for annotation or extraction without manual preprocessing.
 
 ### Acceptance criteria
-- The researcher can upload or open a PDF directly in the document viewer.
+- The researcher can add one or more PDFs to a Project Context from its rail.
 - FREE detects whether the source document has a native text layer; if so, no LLM pass is needed.
 - Scanned or complex-layout source documents are parsed automatically with Docling and, when needed, an LLM.
 - The source document is ready to annotate or extract from immediately after ingestion.

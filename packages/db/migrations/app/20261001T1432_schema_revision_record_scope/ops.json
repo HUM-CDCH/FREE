@@ -1,0 +1,73 @@
+[
+  {
+    "id": "column.public.schemaRevision.recordScope",
+    "label": "Add column \"recordScope\" to \"schemaRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "recordScope",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"recordScope\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "schemaRevision",
+          "recordScope"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"recordScope\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD COLUMN \"recordScope\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"recordScope\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "schemaRevision",
+          "recordScope"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "data_migration.schema-revision-record-scope",
+    "label": "Data transform: schema-revision-record-scope",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [
+      {
+        "description": "Check schema-revision-record-scope has work to do",
+        "sql": "SELECT EXISTS (SELECT \"id\" AS \"id\" FROM \"public\".\"schemaRevision\" WHERE \"recordScope\" IS NULL AND (SELECT CASE MIN(\"pinned\".\"strategy\") WHEN 'ARTICLE' THEN 'document' WHEN 'CATALOG' THEN 'records' END FROM (SELECT \"strategy\" FROM \"public\".\"extraction\" WHERE \"extraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\" UNION SELECT \"strategy\" FROM \"public\".\"batchExtraction\" WHERE \"batchExtraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\") AS \"pinned\" HAVING COUNT(DISTINCT \"pinned\".\"strategy\") = 1) IS NOT NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "Run schema-revision-record-scope",
+        "sql": "UPDATE \"public\".\"schemaRevision\" SET \"recordScope\" = (SELECT CASE MIN(\"pinned\".\"strategy\") WHEN 'ARTICLE' THEN 'document' WHEN 'CATALOG' THEN 'records' END FROM (SELECT \"strategy\" FROM \"public\".\"extraction\" WHERE \"extraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\" UNION SELECT \"strategy\" FROM \"public\".\"batchExtraction\" WHERE \"batchExtraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\") AS \"pinned\" HAVING COUNT(DISTINCT \"pinned\".\"strategy\") = 1) WHERE \"recordScope\" IS NULL AND (SELECT CASE MIN(\"pinned\".\"strategy\") WHEN 'ARTICLE' THEN 'document' WHEN 'CATALOG' THEN 'records' END FROM (SELECT \"strategy\" FROM \"public\".\"extraction\" WHERE \"extraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\" UNION SELECT \"strategy\" FROM \"public\".\"batchExtraction\" WHERE \"batchExtraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\") AS \"pinned\" HAVING COUNT(DISTINCT \"pinned\".\"strategy\") = 1) IS NOT NULL",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "Verify schema-revision-record-scope resolved all violations",
+        "sql": "SELECT NOT EXISTS (SELECT \"id\" AS \"id\" FROM \"public\".\"schemaRevision\" WHERE \"recordScope\" IS NULL AND (SELECT CASE MIN(\"pinned\".\"strategy\") WHEN 'ARTICLE' THEN 'document' WHEN 'CATALOG' THEN 'records' END FROM (SELECT \"strategy\" FROM \"public\".\"extraction\" WHERE \"extraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\" UNION SELECT \"strategy\" FROM \"public\".\"batchExtraction\" WHERE \"batchExtraction\".\"schemaRevisionId\" = \"schemaRevision\".\"id\") AS \"pinned\" HAVING COUNT(DISTINCT \"pinned\".\"strategy\") = 1) IS NOT NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ]
+  }
+]

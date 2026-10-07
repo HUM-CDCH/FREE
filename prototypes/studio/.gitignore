@@ -9,9 +9,19 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-lib
 dist-ssr
 .vite/
+.certs/
+public/assets/pdfjs-wasm/
 *.local
+
+# design-sync (staged scripts, build output, machine state — durable inputs under .design-sync/ stay tracked)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
 
 # Editor directories and files
 .vscode/*
@@ -23,4 +33,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.vercel
+
+# Playwright output
+test-results/
+playwright-report/
+.playwright-stack-*/

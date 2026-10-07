@@ -1,0 +1,24 @@
+{
+  "schema": {"recordDescription": "One specimen.", "schemaNodes": [
+    {"id": "species", "name": "species", "type": "string"},
+    {"id": "preparation", "name": "preparation", "type": "verbatim-string"},
+    {"id": "count", "name": "count", "type": "integer"},
+    {"id": "measurements", "name": "measurements", "type": "object", "children": [
+      {"id": "temperature", "name": "temperature", "type": "number"}
+    ]},
+    {"id": "tags", "name": "tags", "type": "array", "itemType": "string"},
+    {"id": "journal", "name": "journal", "type": "string", "valueSource": "document"},
+    {"id": "file", "name": "file", "type": "string", "valueSource": "source-filename"}
+  ]},
+  "cases": [
+    {"fields": ["species", "preparation"], "issues": []},
+    {"fields": ["count"], "issues": []},
+    {"fields": ["Species"], "issues": [{"name": "Species", "reason": "missing"}]},
+    {"fields": ["temperature"], "issues": [{"name": "temperature", "reason": "nested"}]},
+    {"fields": ["measurements"], "issues": [{"name": "measurements", "reason": "not-scalar"}]},
+    {"fields": ["tags"], "issues": [{"name": "tags", "reason": "not-scalar"}]},
+    {"fields": ["journal"], "issues": [{"name": "journal", "reason": "document"}]},
+    {"fields": ["file"], "issues": [{"name": "file", "reason": "filename"}]},
+    {"fields": ["species", "absent"], "issues": [{"name": "absent", "reason": "missing"}]}
+  ]
+}

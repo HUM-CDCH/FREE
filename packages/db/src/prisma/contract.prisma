@@ -1,0 +1,618 @@
+// use prisma-next
+types {
+  Uuid = String @db.Uuid
+  Timestamptz6 = DateTime @db.Timestamptz(6)
+}
+
+model ResearcherAccount {
+  id                 Uuid                 @id @default(uuid())
+  tenantId           Uuid
+  objectId           Uuid
+  displayName        String
+  createdAt          Timestamptz6         @default(now())
+  updatedAt          temporal.updatedAt()
+  projectContexts    ProjectContext[]
+  modelConfiguration ModelConfiguration?
+
+  @@unique([tenantId, objectId])
+}
+
+// Durable control and immutable call/review history belong to each Extraction.
+namespace extraction_runtime {
+  model Protocol {
+    id      Int @id
+    version Int
+  }
+
+  model Head {
+    id                 Uuid                @id
+    projectId          Uuid
+    sourceRevisionId   Uuid
+    sourcePin          Json
+    strategy           String
+    selectionId        Uuid
+    pendingSelectionId Uuid?
+    intent             String
+    controlVersion     Int
+    pendingResume      Boolean
+    acknowledgement    String
+    attemptId          Uuid?
+    fence              Int
+    leaseEpoch         Int
+    leaseOwner         Uuid?
+    leaseUntil         Timestamptz6?
+    generation         Int
+    snapshotVersion    Int
+    deleted            Boolean
+    selections         Selection[]
+    attempts           Attempt[]
+    commands           Command[]
+    plans              Plan[]
+    captures           Capture[]
+    snapshots          Snapshot[]
+    references         ArtifactReference[]
+    finalizations      Finalization[]
+
+    @@index([projectId])
+  }
+
+  model Selection {
+    id               Uuid         @id
+    extractionId     Uuid
+    ordinal          Int
+    schemaRevisionId Uuid
+    schemaHash       String
+    schemaTree       Json
+    method           Json
+    resolved         Json
+    digest           String
+    createdAt        Timestamptz6 @default(now())
+    head             Head         @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+    effective        Effective?
+
+    @@unique([extractionId, ordinal])
+    @@unique([id, extractionId])
+  }
+
+  model Effective {
+    id            Uuid      @id
+    configuration Json
+    digest        String
+    selection     Selection @relation(fields:[id], references:[id], onDelete: Cascade)
+  }
+
+  model Finalization {
+    id              Uuid         @id
+    extractionId    Uuid
+    snapshotVersion Int
+    feedbackVersion Int
+    decisionDigest  String
+    createdAt       Timestamptz6 @default(now())
+    head            Head         @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
+    @@unique([extractionId, snapshotVersion, feedbackVersion])
+  }
+
+  model Attempt {
+    id           Uuid         @id
+    extractionId Uuid
+    selectionId  Uuid
+    fence        Int
+    workflowId   String       @unique
+    outcome      String?
+    failure      Json?
+    createdAt    Timestamptz6 @default(now())
+    head         Head         @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+    dispatch     Dispatch?
+
+    @@unique([extractionId, fence])
+  }
+
+  model Dispatch {
+    id         Uuid    @id
+    workflowId String  @unique
+    received   Boolean
+    attempt    Attempt @relation(fields:[id], references:[id], onDelete: Cascade)
+  }
+
+  model Command {
+    id           Uuid @id
+    extractionId Uuid
+    payload      Json
+    response     Json
+    head         Head @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+  }
+
+  model Plan {
+    id           Uuid   @id
+    extractionId Uuid
+    generation   Int
+    stage        String
+    digest       String
+    manifest     Json
+    head         Head   @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
+    @@unique([extractionId, generation, stage])
+  }
+
+  model Capture {
+    id                   Uuid          @id
+    extractionId         Uuid
+    generation           Int
+    unitKey              String
+    selectionId          Uuid
+    originalAttemptId    Uuid
+    feedbackVersion      Int
+    candidates           Json
+    descriptor           Json
+    reservationAttemptId Uuid
+    reservationEpoch     Int
+    inFlight             Boolean
+    invoked              Boolean
+    head                 Head          @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+    input                Input?
+    checkpoint           Checkpoint?
+    failures             CallFailure[]
+
+    @@unique([extractionId, generation, unitKey])
+  }
+
+  model Input {
+    id      Uuid    @id
+    digest  String
+    request Json
+    capture Capture @relation(fields:[id], references:[id], onDelete: Cascade)
+  }
+
+  model Checkpoint {
+    id           Uuid    @id
+    inputDigest  String
+    outputDigest String
+    output       Json
+    capture      Capture @relation(fields:[id], references:[id], onDelete: Cascade)
+  }
+
+  // Failed returned replies remain diagnostic history. Only the same attempt
+  // replays them; an authorized Retry invokes the existing Input unchanged.
+  model CallFailure {
+    captureId    Uuid
+    attemptId    Uuid
+    inputDigest  String
+    outputDigest String
+    output       Json
+    // A bounded planner fallback may consume this reply within its attempt.
+    // Historical failures keep their existing terminal policy.
+    recoverable  Boolean @default(false)
+    capture      Capture @relation(fields:[captureId], references:[id], onDelete: Cascade)
+
+    @@id([captureId, attemptId])
+  }
+
+  model Snapshot {
+    id           Uuid   @id
+    extractionId Uuid
+    version      Int
+    selectionId  Uuid
+    digest       String
+    values       Json
+    coverage     Json
+    head         Head   @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
+    @@unique([extractionId, version])
+  }
+
+  // The row lock on this head orders committed correction publications and
+  // capture admissions. Sequence allocation or timestamps cannot do that.
+  model FeedbackHead {
+    id          Uuid         @id
+    version     Int
+    corrections Correction[]
+  }
+
+  model Correction {
+    id              Uuid         @id
+    projectId       Uuid
+    extractionId    Uuid
+    valueId         String
+    revision        Int
+    feedbackVersion Int
+    snapshotVersion Int
+    selectionId     Uuid
+    decision        Json
+    candidate       Json
+    included        Boolean
+    createdAt       Timestamptz6 @default(now())
+    feedback        FeedbackHead @relation(fields:[projectId], references:[id], onDelete: Cascade)
+
+    @@unique([extractionId, valueId, revision])
+    @@index([projectId, feedbackVersion])
+  }
+
+  model ArtifactReference {
+    id           Uuid   @id
+    extractionId Uuid
+    reference    String
+    digest       String
+    generation   String
+    kind         String
+    head         Head   @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
+    @@index([reference])
+  }
+}
+
+// One Researcher Account's Model Configuration: its Model Connections (whether each uses a key, never the key),
+// Capability Routes, Extraction Model Choice and Ingestion Model Choice. Studio validates `document` before every
+// write. A committed row always has a document: null exists only inside the first apply's transaction, which
+// creates the row to lock it (packages/db/src/model-configuration-store.ts).
+model ModelConfiguration {
+  researcherAccountId Uuid              @id
+  document            Json?
+  updatedAt           Timestamptz6      @default(now())
+  researcherAccount   ResearcherAccount @relation(fields:[researcherAccountId], references:[id], onDelete: Cascade)
+}
+
+enum ExtractionOutcome {
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum SchemaRevisionOrigin {
+  SUGGESTION
+  RESEARCHER_EDIT
+  MODEL_EDIT
+}
+
+enum BatchSchemaSuggestionPhase {
+  READY
+  HETEROGENEOUS
+}
+
+enum BatchSchemaSuggestionSourceKind {
+  DOCUMENTS
+  SPREADSHEET
+}
+
+enum SuggestionAttemptOutcome {
+  SUCCEEDED
+  FAILED
+}
+
+enum EvaluationRoundLabel {
+  PILOT_1
+  PILOT_2
+  BATCH
+}
+
+enum EvaluationRoundStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model ProjectContext {
+  researcherAccountId        Uuid
+  id                         Uuid                        @id @default(uuid())
+  name                       String
+  createdAt                  Timestamptz6                @default(now())
+  researcherAccount          ResearcherAccount           @relation(fields:[researcherAccountId], references:[id], onDelete: Restrict)
+  sourceDocuments            SourceDocument[]
+  extractionSchemas          ExtractionSchema[]
+  batchExtractions           BatchExtraction[]
+  batchSchemaSuggestions     BatchSchemaSuggestion[]
+  projectSpreadsheetVersions ProjectSpreadsheetVersion[]
+  evaluationRounds           EvaluationRound[]
+
+  @@index([researcherAccountId])
+}
+
+// One versioned, project-scoped spreadsheet slot: uploading again appends a
+// new immutable version rather than replacing one, mirroring SchemaRevision.
+// A project shares this one spreadsheet across every schema-suggestion action
+// that wants it, instead of each action carrying its own one-off upload.
+// `columns` is the header row schema suggestion reads; `rows` is the answer
+// data the developer evaluation reads (null on versions uploaded before rows
+// were kept). `exhaustive` says whether the answers cover every scored
+// document, which decides whether an unmatched prediction is a false positive.
+model ProjectSpreadsheetVersion {
+  id                     Uuid                    @id @default(uuid())
+  projectContextId       Uuid
+  revisionNumber         Int
+  originalFilename       String
+  columns                Json
+  rows                   Json?
+  exhaustive             Boolean                 @default(true)
+  createdAt              Timestamptz6            @default(now())
+  projectContext         ProjectContext          @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  batchSchemaSuggestions BatchSchemaSuggestion[]
+  evaluationRounds       EvaluationRound[]
+
+  @@unique([projectContextId, revisionNumber])
+  @@index([projectContextId, createdAt])
+}
+
+// One developer-evaluation round: pilot-1 and pilot-2 over the same two
+// documents, then a batch over every uploaded document. The pipeline appends
+// three rows per run and never edits a finished one; `metrics` is the immutable
+// result the developer surface reads. Developer-only: the researcher product
+// never reads this model.
+model EvaluationRound {
+  id                          Uuid                       @id @default(uuid())
+  projectContextId            Uuid
+  projectSpreadsheetVersionId Uuid?
+  pipelineRunId               Uuid
+  label                       EvaluationRoundLabel
+  status                      EvaluationRoundStatus      @default(PENDING)
+  documents                   Json
+  pins                        Json?
+  metrics                     Json?
+  failure                     Json?
+  createdAt                   Timestamptz6               @default(now())
+  completedAt                 Timestamptz6?
+  projectContext              ProjectContext             @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  projectSpreadsheetVersion   ProjectSpreadsheetVersion? @relation(fields:[projectSpreadsheetVersionId], references:[id], onDelete: Restrict)
+
+  @@unique([projectContextId, pipelineRunId, label])
+  @@index([projectContextId, createdAt])
+  @@index([projectSpreadsheetVersionId])
+}
+
+model SourceDocument {
+  id                     Uuid                           @id @default(uuid())
+  projectContextId       Uuid
+  contentSha256          String
+  mediaType              String
+  originalName           String?
+  createdAt              Timestamptz6                   @default(now())
+  projectContext         ProjectContext                 @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  representations        SourceRepresentationRevision[]
+  annotationSetRevisions AnnotationSetRevision[]
+
+  @@unique([projectContextId, contentSha256])
+}
+
+model SourceRepresentationRevision {
+  id                           Uuid                          @id @default(uuid())
+  sourceDocumentId             Uuid
+  revisionNumber               Int
+  artifactReference            String
+  artifactSha256               String
+  contractVersion              String
+  preprocessId                 String
+  parserName                   String
+  parserVersion                String
+  reprocessKey                 Uuid?
+  reprocessFingerprint         String?
+  createdAt                    Timestamptz6                  @default(now())
+  sourceDocument               SourceDocument                @relation(fields:[sourceDocumentId], references:[id], onDelete: Cascade)
+  annotationSetRevisions       AnnotationSetRevision[]
+  extractions                  Extraction[]
+  batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
+
+  @@unique([sourceDocumentId, revisionNumber])
+  @@unique([sourceDocumentId, reprocessKey])
+  @@unique([id, sourceDocumentId])
+}
+
+model AnnotationSetRevision {
+  id                             Uuid                         @id @default(uuid())
+  sourceDocumentId               Uuid
+  sourceRepresentationRevisionId Uuid
+  revisionNumber                 Int
+  snapshot                       Json
+  createdAt                      Timestamptz6                 @default(now())
+  sourceDocument                 SourceDocument               @relation(fields:[sourceDocumentId], references:[id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId], references:[id], onDelete: Cascade)
+
+  @@unique([sourceDocumentId, revisionNumber])
+}
+
+model ExtractionSchema {
+  id               Uuid             @id @default(uuid())
+  projectContextId Uuid
+  name             String
+  createdAt        Timestamptz6     @default(now())
+  projectContext   ProjectContext   @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  schemaRevisions  SchemaRevision[]
+
+  @@index([projectContextId])
+}
+
+model SchemaRevision {
+  id                 Uuid                 @id @default(uuid())
+  extractionSchemaId Uuid
+  revisionNumber     Int
+  origin             SchemaRevisionOrigin
+  schemaTree         Json
+  // The definition's task scope: "document" (Article, one document-level object) or "records" (Catalog, a collection
+  // of records); validated in code. Null is an undeclared legacy definition whose task selection was ambiguous.
+  recordScope        String?
+  // When the researcher stabilised this revision for collection-scale
+  // extraction; null until stabilised (guided-pilot-extraction-workflow).
+  stabilisedAt       Timestamptz6?
+  modelAttribution   Json?
+  createdAt          Timestamptz6         @default(now())
+  extractionSchema   ExtractionSchema     @relation(fields:[extractionSchemaId], references:[id], onDelete: Cascade)
+  extractions        Extraction[]
+  batchExtractions   BatchExtraction[]
+  schemaIssueFlags   SchemaIssueFlag[]
+
+  @@unique([extractionSchemaId, revisionNumber])
+}
+
+// A field the researcher flagged as problematic on a Schema Revision, with an
+// optional note. Resolved flags stay for audit; only open ones are listed.
+model SchemaIssueFlag {
+  id               Uuid           @id @default(uuid())
+  schemaRevisionId Uuid
+  fieldPath        String
+  note             String?
+  createdAt        Timestamptz6   @default(now())
+  resolvedAt       Timestamptz6?
+  schemaRevision   SchemaRevision @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
+
+  @@index([schemaRevisionId])
+}
+
+// One researcher-initiated Batch Extraction: one pinned Schema Revision and one
+// Extraction Strategy applied to a chosen set of Source Documents. Its member
+// Extractions, admitted with it, are the intended selection.
+model BatchExtraction {
+  id                Uuid           @id @default(uuid())
+  projectContextId  Uuid
+  schemaRevisionId  Uuid
+  strategy          String
+  // The one method every member was admitted with (members carry the same values). Null before this was recorded.
+  requestedModels   Json?
+  requestedSettings Json?
+  createdAt         Timestamptz6   @default(now())
+  projectContext    ProjectContext @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  schemaRevision    SchemaRevision @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
+  extractions       Extraction[]
+
+  @@unique([id, schemaRevisionId, strategy], map: "batch_extraction_pin_key")
+  @@index([projectContextId, createdAt])
+}
+
+// A server-owned Batch Schema Suggestion: its membership pins, the retained proposal and draft, and its current
+// attempt. `attempt` counts whole-batch runs; `outcome` and `failure` are the current attempt's and stay null while it
+// runs. `phase` is the retained proposal's meaning, null before the first proposal. Execution status is derived from
+// the `suggest:<id>:<attempt>` workflow while `outcome` is null.
+model BatchSchemaSuggestion {
+  id                          Uuid                            @id @default(uuid())
+  projectContextId            Uuid
+  selectionKey                String                          @unique
+  attempt                     Int                             @default(1)
+  outcome                     SuggestionAttemptOutcome?
+  failure                     Json?
+  phase                       BatchSchemaSuggestionPhase?
+  proposal                    Json?
+  coverage                    Json?
+  draft                       Json?
+  draftVersion                Int                             @default(0)
+  // SPREADSHEET-kind suggestions are built synchronously from the project's
+  // shared spreadsheet slot; DOCUMENTS (the default) read Source Documents.
+  sourceKind                  BatchSchemaSuggestionSourceKind @default(DOCUMENTS)
+  // Column name -> matching SchemaNode.id, captured when a SPREADSHEET-kind
+  // suggestion was created; null for DOCUMENTS.
+  columnFieldMapping          Json?
+  projectSpreadsheetVersionId Uuid?
+  projectSpreadsheetVersion   ProjectSpreadsheetVersion?      @relation(fields:[projectSpreadsheetVersionId], references:[id], onDelete: Restrict)
+  confirmedSchemaRevisionId   Uuid?                           @unique
+  batchExtractionId           Uuid?                           @unique
+  createdAt                   Timestamptz6                    @default(now())
+  projectContext              ProjectContext                  @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  sources                     BatchSchemaSuggestionSource[]
+
+  @@index([projectContextId, createdAt])
+}
+
+// One member pin. Deleting its Source Document (or revision) deletes the pin; the suggestion and its draft survive.
+model BatchSchemaSuggestionSource {
+  batchSchemaSuggestionId        Uuid
+  sourceDocumentId               Uuid
+  sourceRepresentationRevisionId Uuid
+  batchSchemaSuggestion          BatchSchemaSuggestion        @relation(fields:[batchSchemaSuggestionId], references:[id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId, sourceDocumentId], references:[id, sourceDocumentId], onDelete: Cascade, map: "batch_suggestion_source_representation_fkey")
+
+  @@id([batchSchemaSuggestionId, sourceDocumentId])
+  @@unique([batchSchemaSuggestionId, sourceDocumentId, sourceRepresentationRevisionId], map: "batch_suggestion_source_pin_key")
+  @@index([sourceRepresentationRevisionId, sourceDocumentId], map: "batch_suggestion_source_representation_idx")
+}
+
+// One Extraction from admission through review (spec, *Background work*). Admission writes the pins, the requested
+// models and Catalog recipe, and the optional batch; `outcome` stays null until the one terminal write (success,
+// failure or cancellation), which only succeeds while it is null. Execution status is never stored: it is the
+// outcome, or else the `extract:<id>` workflow's DBOS status. A batch's pending rows are its intended selection.
+model Extraction {
+  id                             Uuid                         @id @default(uuid())
+  sourceDocumentId               Uuid
+  schemaRevisionId               Uuid
+  sourceRepresentationRevisionId Uuid
+  strategy                       String
+  // The numbered-catalogue recipe (`id@version`) a Catalog Extraction segments by; null for generic Catalog and Article.
+  catalogRecipe                  String?
+  // The Extraction Model Choice requested at admission; null keeps kei-exp's defaults. The models each role ran on are
+  // in `diagnostics.models`; `modelAttribution` names the fields model.
+  requestedModels                Json?
+  // The Extraction's admitted method settings (`ActiveSettings`: `{article}`, `{generic}` or `{recipe}`, each null for
+  // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
+  // settings were recorded ("Not recorded"), never inferred from today's account configuration.
+  requestedSettings              Json?
+  // The page the researcher was reading when the run started (one-based): the order kei reads records in, never which
+  // records. Not part of the admission identity; null for Batch Extractions and for rows admitted before it existed.
+  startPage                      Int?
+  // Retired on 2026-10-02 with the sample workbench. Never written since; read only as a null check (a document's
+  // latest attempt and latest reviewed result, the project summary, the recent-activity feed, and sameAdmission,
+  // which refuses a reuse of a legacy sample's ID) to keep legacy sample rows out. A later migration disposes of
+  // those rows, then drops it.
+  requestedPages                 Json?
+  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
+  reviewTransfer                 Json?
+  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
+  reviewPairings                 Json?
+  outcome                        ExtractionOutcome?
+  complete                       Boolean?
+  modelAttribution               Json?
+  diagnostics                    Json?
+  failure                        Json?
+  resultPayload                  Json?
+  evidenceLinks                  Json?
+  reviewable                     Boolean                      @default(false)
+  batchExtractionId              Uuid?
+  // Admission time: attempts are ordered by it.
+  createdAt                      Timestamptz6                 @default(now())
+  reviewedAt                     Timestamptz6?
+  reviewDraft                    Json?
+  reviewDraftVersion             Int                          @default(0)
+  schemaRevision                 SchemaRevision               @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
+  // The composite pin makes agreement a database guarantee: an Extraction can
+  // only join a Batch Extraction that pinned the same Schema Revision and
+  // Extraction Strategy. A null batch is a single-document Extraction.
+  batchExtraction                BatchExtraction?             @relation(fields:[batchExtractionId, schemaRevisionId, strategy], references:[id, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_batch_pin_fkey")
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId, sourceDocumentId], references:[id, sourceDocumentId], onDelete: Cascade)
+  reviews                        ExtractionReview[]
+
+  @@unique([id, sourceDocumentId])
+  // One member Extraction per selected Source Document; NULL batches (single Extractions) never collide.
+  @@unique([batchExtractionId, sourceDocumentId], map: "extraction_batch_source_key")
+  @@index([schemaRevisionId])
+  @@index([sourceDocumentId, createdAt])
+  @@index([sourceRepresentationRevisionId, sourceDocumentId])
+  @@index([batchExtractionId, schemaRevisionId, strategy], map: "extraction_batch_pin_idx")
+  @@index([reviewedAt])
+}
+
+model ExtractionReview {
+  id             Uuid             @id @default(uuid())
+  extractionId   Uuid
+  revisionNumber Int
+  decisionDigest String
+  createdAt      Timestamptz6     @default(now())
+  extraction     Extraction       @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+  decisions      ReviewDecision[]
+
+  @@unique([extractionId, revisionNumber])
+}
+
+model ReviewDecision {
+  id                    Uuid             @id @default(uuid())
+  extractionReviewId    Uuid
+  resultPath            Json
+  resultPathKey         String
+  evidenceAnchorId      String?
+  reviewedOccurrenceIds Json
+  action                String
+  reviewedValue         Json?
+  // A correction's own Evidence (`[{evidenceAnchorId, reviewedOccurrenceIds}]`): where its value is printed.
+  // Null: none recorded, so the correction never carries as fixed.
+  reviewedEvidence      Json?
+  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
+  carriedFrom           Json?
+  createdAt             Timestamptz6     @default(now())
+  extractionReview      ExtractionReview @relation(fields:[extractionReviewId], references:[id], onDelete: Cascade)
+
+  @@unique([extractionReviewId, resultPathKey])
+}

@@ -1,0 +1,477 @@
+{
+  "source": "synthetic",
+  "page": 3,
+  "size_pt": [
+    595.2755737304688,
+    841.8897705078125
+  ],
+  "segment": {
+    "text": "Number\tDescription\tRemarks\t\n7-8\tGlass bead\t\t\n7-9\tIron nails\t2 pcs.\t\n7-10\tPottery shard\t\t\n7-11\tPottery shard\t\t\n7-12\tAmber beads\t2 pcs.\t\n7-13\tAmber bead\t\t\n7-17\tGlass bead\t-\t\n7-18\tIron nails\t2 pcs.",
+    "html": "<table><tbody><tr><th>Number</th><th>Description</th><th>Remarks</th></tr><tr><td>7-8</td><td>Glass bead</td><td></td></tr><tr><td>7-9</td><td>Iron nails</td><td>2 pcs.</td></tr><tr><td>7-10</td><td>Pottery shard</td><td></td></tr><tr><td>7-11</td><td>Pottery shard</td><td></td></tr><tr><td>7-12</td><td>Amber beads</td><td>2 pcs.</td></tr><tr><td>7-13</td><td>Amber bead</td><td></td></tr><tr><td>7-17</td><td>Glass bead</td><td>-</td></tr><tr><td>7-18</td><td>Iron nails</td><td>2 pcs.</td></tr></tbody></table>",
+    "markdown": null,
+    "label": "Table",
+    "confidence": null,
+    "status": "ok",
+    "unit": 0,
+    "crop": null,
+    "bbox_px": [
+      76.89400585161248,
+      214.31211158826022,
+      499.09332927295253,
+      323.36254984744835
+    ],
+    "bbox_pt": [
+      76.89400585161248,
+      214.31211158826022,
+      499.09332927295253,
+      323.36254984744835
+    ],
+    "extent": "block",
+    "table": {
+      "rows": 9,
+      "columns": 3,
+      "cells": [
+        {
+          "cell_id": "r0_c0",
+          "row": 0,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "column_header",
+          "text": "Number",
+          "start": 0,
+          "end": 6,
+          "bbox_pt": [
+            83.06563600860801,
+            217.80276736889596,
+            121.5275552024,
+            226.0602316812276
+          ]
+        },
+        {
+          "cell_id": "r0_c1",
+          "row": 0,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "column_header",
+          "text": "Description",
+          "start": 7,
+          "end": 18,
+          "bbox_pt": [
+            151.8633774514112,
+            217.80276736889596,
+            200.43522946382726,
+            226.0602316812276
+          ]
+        },
+        {
+          "cell_id": "r0_c2",
+          "row": 0,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "column_header",
+          "text": "Remarks",
+          "start": 19,
+          "end": 26,
+          "bbox_pt": [
+            287.93684860384644,
+            217.80276736889596,
+            352.6906169191997,
+            226.0602316812276
+          ]
+        },
+        {
+          "cell_id": "r1_c0",
+          "row": 1,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-8",
+          "start": 28,
+          "end": 31,
+          "bbox_pt": [
+            80.541668512,
+            230.256328776896,
+            98.9774874145216,
+            238.51379308922765
+          ]
+        },
+        {
+          "cell_id": "r1_c1",
+          "row": 1,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Glass bead",
+          "start": 32,
+          "end": 42,
+          "bbox_pt": [
+            151.81820083158402,
+            230.256328776896,
+            218.87607002268172,
+            238.51379308922765
+          ]
+        },
+        {
+          "cell_id": "r1_c2",
+          "row": 1,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "",
+          "start": 43,
+          "end": 43,
+          "bbox_pt": null
+        },
+        {
+          "cell_id": "r2_c0",
+          "row": 2,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-9",
+          "start": 45,
+          "end": 48,
+          "bbox_pt": [
+            80.541668512,
+            242.2709981528959,
+            98.99254689736958,
+            250.52846246522768
+          ]
+        },
+        {
+          "cell_id": "r2_c1",
+          "row": 2,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Iron nails",
+          "start": 49,
+          "end": 59,
+          "bbox_pt": [
+            151.84329996966397,
+            242.2709981528959,
+            227.34150731430424,
+            250.52846246522768
+          ]
+        },
+        {
+          "cell_id": "r2_c2",
+          "row": 2,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "2 pcs.",
+          "start": 60,
+          "end": 66,
+          "bbox_pt": [
+            287.97901698453785,
+            242.2709981528959,
+            309.81526711413784,
+            250.52846246522768
+          ]
+        },
+        {
+          "cell_id": "r3_c0",
+          "row": 3,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-10",
+          "start": 68,
+          "end": 72,
+          "bbox_pt": [
+            80.541668512,
+            254.28557609305597,
+            104.02040623755519,
+            262.5430404053876
+          ]
+        },
+        {
+          "cell_id": "r3_c1",
+          "row": 3,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Pottery shard",
+          "start": 73,
+          "end": 86,
+          "bbox_pt": [
+            151.81719686606078,
+            254.28557609305597,
+            211.5912961863426,
+            262.5430404053876
+          ]
+        },
+        {
+          "cell_id": "r3_c2",
+          "row": 3,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "",
+          "start": 87,
+          "end": 87,
+          "bbox_pt": null
+        },
+        {
+          "cell_id": "r4_c0",
+          "row": 4,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-11",
+          "start": 89,
+          "end": 93,
+          "bbox_pt": [
+            80.541668512,
+            266.300245469056,
+            104.02040623755519,
+            274.55770978138764
+          ]
+        },
+        {
+          "cell_id": "r4_c1",
+          "row": 4,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Pottery shard",
+          "start": 94,
+          "end": 107,
+          "bbox_pt": [
+            151.81719686606078,
+            266.300245469056,
+            211.5912961863426,
+            274.55770978138764
+          ]
+        },
+        {
+          "cell_id": "r4_c2",
+          "row": 4,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "",
+          "start": 108,
+          "end": 108,
+          "bbox_pt": null
+        },
+        {
+          "cell_id": "r5_c0",
+          "row": 5,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-12",
+          "start": 110,
+          "end": 114,
+          "bbox_pt": [
+            80.541668512,
+            278.315006280896,
+            104.02442209964798,
+            286.57247059322776
+          ]
+        },
+        {
+          "cell_id": "r5_c1",
+          "row": 5,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Amber beads",
+          "start": 115,
+          "end": 126,
+          "bbox_pt": [
+            151.8232206592,
+            278.315006280896,
+            228.98801077235203,
+            286.57247059322776
+          ]
+        },
+        {
+          "cell_id": "r5_c2",
+          "row": 5,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "2 pcs.",
+          "start": 127,
+          "end": 133,
+          "bbox_pt": [
+            287.92580681180806,
+            278.315006280896,
+            309.7570371137922,
+            286.57247059322776
+          ]
+        },
+        {
+          "cell_id": "r6_c0",
+          "row": 6,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-13",
+          "start": 135,
+          "end": 139,
+          "bbox_pt": [
+            80.541668512,
+            290.384537160896,
+            104.02442209964798,
+            298.64200147322765
+          ]
+        },
+        {
+          "cell_id": "r6_c1",
+          "row": 6,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Amber bead",
+          "start": 140,
+          "end": 150,
+          "bbox_pt": [
+            151.8232206592,
+            290.384537160896,
+            225.62974609724805,
+            298.64200147322765
+          ]
+        },
+        {
+          "cell_id": "r6_c2",
+          "row": 6,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "",
+          "start": 151,
+          "end": 151,
+          "bbox_pt": null
+        },
+        {
+          "cell_id": "r7_c0",
+          "row": 7,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-17",
+          "start": 153,
+          "end": 157,
+          "bbox_pt": [
+            80.541668512,
+            302.39920653689603,
+            104.0083586512768,
+            310.6566708492277
+          ]
+        },
+        {
+          "cell_id": "r7_c1",
+          "row": 7,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Glass bead",
+          "start": 158,
+          "end": 168,
+          "bbox_pt": [
+            151.8091651418752,
+            302.39920653689603,
+            218.8670343329729,
+            310.6566708492277
+          ]
+        },
+        {
+          "cell_id": "r7_c2",
+          "row": 7,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "-",
+          "start": 169,
+          "end": 170,
+          "bbox_pt": [
+            287.8926759495425,
+            302.39920653689603,
+            291.23588114179853,
+            310.6566708492277
+          ]
+        },
+        {
+          "cell_id": "r8_c0",
+          "row": 8,
+          "column": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "7-18",
+          "start": 172,
+          "end": 176,
+          "bbox_pt": [
+            80.541668512,
+            314.41378447705597,
+            104.02843796174078,
+            322.67124878938773
+          ]
+        },
+        {
+          "cell_id": "r8_c1",
+          "row": 8,
+          "column": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "Iron nails",
+          "start": 177,
+          "end": 187,
+          "bbox_pt": [
+            151.82924445233917,
+            314.41378447705597,
+            227.32745179697943,
+            322.67124878938773
+          ]
+        },
+        {
+          "cell_id": "r8_c2",
+          "row": 8,
+          "column": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "role": "data",
+          "text": "2 pcs.",
+          "start": 188,
+          "end": 194,
+          "bbox_pt": [
+            287.964961467213,
+            314.41378447705597,
+            309.801211596813,
+            322.67124878938773
+          ]
+        }
+      ],
+      "producer": "docling"
+    }
+  }
+}

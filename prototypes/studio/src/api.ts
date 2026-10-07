@@ -1,83 +1,154 @@
-import { isRecord } from './template'
+import { authenticatedFetch } from './auth/authenticatedFetch.ts'
+import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
+import { isRecord } from '../shared/template'
+import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
+import {
+  extractionRequestSchema,
+  extractionAttemptSchema,
+  extractionReadResponseSchema,
+  extractionModelListingSchema,
+  type ExtractionRequestInput,
+  type ExtractionAttempt,
+  type ExtractionModelListing,
+} from '../shared/extraction.contract'
+import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
+import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
+import { sourceCoverageSchema, type SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 
 export const API_BASE = '/api'
 
-// The parsing service runs the docling/paddleocr extraction. The browser starts
-// the job on upload and polls it; the resulting Markdown becomes the document's
-// representation that the LLM extraction works from.
-export const PARSING_SERVICE_BASE: string =
-  (import.meta.env.VITE_PARSING_SERVICE_URL as string | undefined) ?? 'http://127.0.0.1:8000'
-
-const PARSE_POLL_MS = 1500
-
-export type TemplateAnnotation = { text: string; pageNumber: number }
-
-export type AnnotationsMode = 'hints' | 'fields'
-
 type TemplateOptions = {
-  annotations?: TemplateAnnotation[]
-  annotationsMode?: AnnotationsMode
-  markdown?: string | null
+  instruction?: string
 }
 
-export type ExtractDone = {
-  result: Record<string, unknown>
-  evidence: Record<string, unknown> | null
-  reasoning: string | null
-  raw: string
-  pages: number | null
+export type SourceModelContext = {
+  projectContextId: string
+  sourceRepresentationRevisionId: string
 }
-export type SchemaDone = { template: unknown; raw: string; pages: number | null }
-export type MarkdownDone = { markdown: string; pages: number | null }
+
+export type SchemaModelContext = {
+  projectContextId: string
+  extractionSchemaId: string
+  schemaRevisionId: string
+  sourceRepresentationRevisionId?: string
+}
+
+/** `sourceCoverage` is what the model read of the source; null when the outcome did not record it. */
+export type SchemaDone = { template: unknown; raw: string; pages: number | null; sourceCoverage: SourceCoverage | null }
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
   if (!isRecord(data) || !('template' in data)) {
     throw new Error("generate_schema: response missing 'template' — API contract drift?")
   }
-  return data as SchemaDone
+  const sourceCoverage = sourceCoverageSchema.nullable().safeParse(data.sourceCoverage ?? null)
+  if (!sourceCoverage.success) throw new Error("generate_schema: invalid 'sourceCoverage' — API contract drift?")
+  return { ...(data as Omit<SchemaDone, 'sourceCoverage'>), sourceCoverage: sourceCoverage.data }
 }
 
-export function decodeExtractDone(data: unknown): ExtractDone {
-  if (!isRecord(data) || !isRecord(data.result)) {
-    throw new Error("extract: response missing 'result' — API contract drift?")
-  }
-  if (!('evidence' in data)) {
-    throw new Error("extract: response missing 'evidence' — API contract drift?")
-  }
-  return data as ExtractDone
-}
-
-export function decodeMarkdownDone(data: unknown): MarkdownDone {
-  if (!isRecord(data) || typeof data.markdown !== 'string') {
-    throw new Error("markdown: response missing 'markdown' — API contract drift?")
-  }
-  return data as MarkdownDone
+async function readError(response: Response): Promise<{ code: string; message: string } | null> {
+  const body = await response.json().catch(() => null)
+  const error = isRecord(body) && isRecord(body.error) ? body.error : null
+  return error && typeof error.code === 'string' && typeof error.message === 'string'
+    ? { code: error.code, message: error.message }
+    : null
 }
 
 async function readErrorDetail(response: Response): Promise<string> {
-  const body = await response.json().catch(() => null)
-  const detail = isRecord(body) ? body.detail : null
-  if (typeof detail === 'string') {
-    return detail
-  }
-  if (isRecord(detail) && typeof detail.message === 'string') {
-    return detail.message
-  }
-  return ''
+  const error = await readError(response)
+  return error ? `${error.code}: ${error.message}` : ''
 }
 
-async function postForm<T>(
+const REPEAT_DELAYS_MS = [1_000, 2_000, 4_000] as const
+/** Studio's own codes that still leave the outcome unknown; every other Studio error is a confirmed failure. */
+const UNCERTAIN_CODES: ReadonlySet<string> = new Set(['persistence_unavailable', 'operation_pending'])
+
+async function uncertain(response: Response): Promise<boolean> {
+  if (response.status !== 502 && response.status !== 503 && response.status !== 504) return false
+  const body: unknown = await response.clone().json().catch(() => null)
+  const code = isRecord(body) && isRecord(body.error) ? body.error.code : undefined
+  return typeof code !== 'string' || UNCERTAIN_CODES.has(code)
+}
+
+/** Waits for `promise` unless `signal` aborts first; the promise itself runs on (a shared key handoff serves others). */
+function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return promise
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value) },
+      (error: unknown) => { signal.removeEventListener('abort', onAbort); reject(error) },
+    )
+  })
+}
+
+function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason) }, { once: true })
+  })
+}
+
+/**
+ * A POST that starts model work under a client-minted ID (spec, *Browser*). Studio replays the same ID, so after a
+ * network failure, or a 502/503/504 that is not one of Studio's confirmed failures, the outcome is unknown and the same
+ * request goes again — at most three more times, 1, 2 and 4 s apart. The keys go first each time: a Studio restart
+ * that cut the connection also emptied its copy. An abort ends it; a confirmed failure comes back as it is, and a new
+ * user action — "try again" included — mints a new ID instead.
+ */
+export async function repeatableModelPost(
+  path: string,
+  body: () => BodyInit,
+  init: { headers?: HeadersInit; signal?: AbortSignal } = {},
+): Promise<Response> {
+  for (let attempt = 0; ; attempt += 1) {
+    init.signal?.throwIfAborted()
+    await abortable(ensureModelKeysSent(), init.signal)
+    init.signal?.throwIfAborted()
+    const last = attempt === REPEAT_DELAYS_MS.length
+    try {
+      const streamed = await authenticatedFetch(`${API_BASE}${path}`, { method: 'POST', headers: init.headers, body: body(), signal: init.signal })
+      // The body is read here so a connection dropped after the headers is repeated too; a body that arrived but does
+      // not parse is the caller's terminal failure.
+      const text = await streamed.text()
+      const response = new Response(text === '' ? null : text, { status: streamed.status, statusText: streamed.statusText, headers: streamed.headers })
+      if (last || !(await uncertain(response))) return response
+    } catch (error) {
+      if (init.signal?.aborted || last) throw error
+    }
+    await pause(REPEAT_DELAYS_MS[attempt]!, init.signal)
+  }
+}
+
+/** The scope's generations and edit proposals, newest first: what a reloaded page restores from (spec, *Browser*). */
+export async function listModelOperations(
+  scope: { projectContextId: string; extractionSchemaId: string | null },
+  signal?: AbortSignal,
+): Promise<ModelOperation[]> {
+  const query = new URLSearchParams({ projectContextId: scope.projectContextId })
+  if (scope.extractionSchemaId !== null) query.set('extractionSchemaId', scope.extractionSchemaId)
+  return modelOperationListingSchema.parse(await requestJson(`/model-operations?${query}`, 'GET', null, signal)).operations
+}
+
+/** Stops a model operation (a user's Stop, or Discard of a proposal): 204 and 404 both mean it is not running. */
+export async function deleteModelOperation(workflowId: string): Promise<void> {
+  const response = await authenticatedFetch(`${API_BASE}/model-operations/${encodeURIComponent(workflowId)}`, { method: 'DELETE' })
+  if (response.ok || response.status === 404) return
+  throw new ApiRequestError(
+    (await readErrorDetail(response)) || `Could not stop ${workflowId} (HTTP ${response.status})`,
+    response.status,
+  )
+}
+
+/** A model POST: the keys go first and an uncertain answer is repeated under the same operation ID. */
+async function postModelForm<T>(
   endpoint: string,
   form: FormData,
   decode: (data: unknown) => T,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    body: form,
-    headers: { accept: 'application/json' },
-    signal,
-  })
+  const response = await repeatableModelPost(endpoint, () => form, { headers: { accept: 'application/json' }, signal })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
     throw new Error(detail || `Request to ${endpoint} failed (HTTP ${response.status})`)
@@ -85,107 +156,131 @@ async function postForm<T>(
   return decode(await response.json())
 }
 
-// ---------- parsing service (document indexing) ----------
-
-type TaskStatus = { status: string; error?: string | null }
-
-// Starts a docling parse job on upload and resolves with its Markdown once done.
-// check-then-delay polling so a job that is already complete returns immediately.
-export async function parseDocumentToMarkdown(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-): Promise<string> {
-  const form = new FormData()
-  form.append('file', file, fileName)
-  form.append('pipeline', 'docling_pdf')
-
-  const started = await fetch(`${PARSING_SERVICE_BASE}/tasks`, { method: 'POST', body: form, signal })
-  if (!started.ok) {
-    throw new Error(
-      (await readErrorDetail(started)) || `Parsing service rejected the document (HTTP ${started.status})`,
-    )
-  }
-  const { task_id: taskId } = (await started.json()) as { task_id: string }
-
-  for (;;) {
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError')
-    }
-    const res = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}`, { signal })
-    if (!res.ok) {
-      throw new Error(`Parsing status check failed (HTTP ${res.status})`)
-    }
-    const meta = (await res.json()) as TaskStatus
-    if (meta.status === 'completed') {
-      break
-    }
-    if (meta.status === 'failed') {
-      throw new Error(meta.error || 'Document parsing failed')
-    }
-    await new Promise((resolve) => setTimeout(resolve, PARSE_POLL_MS))
-  }
-
-  const md = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/markdown`, { signal })
-  if (!md.ok) {
-    throw new Error(`Could not fetch parsed Markdown (HTTP ${md.status})`)
-  }
-  return md.text()
-}
-
 // ---------- request wrappers ----------
 
+/** The acknowledged revision a generation starts from; null for a first generation. */
+export type SchemaBase = { extractionSchemaId: string; schemaRevisionId: string }
+
 export async function requestSchema(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-  options?: TemplateOptions,
-): Promise<unknown> {
+  context: SourceModelContext,
+  signal: AbortSignal | undefined,
+  options: TemplateOptions & { operationId: string; base: SchemaBase | null },
+): Promise<Pick<SchemaDone, 'template' | 'sourceCoverage'>> {
   const form = new FormData()
-  if (options?.markdown) {
-    form.append('document_markdown', options.markdown)
-  } else {
-    form.append('file', file, fileName)
-  }
-  if (options?.annotations?.length) {
-    form.append('annotations', JSON.stringify(options.annotations))
-    form.append('annotations_mode', options.annotationsMode ?? 'hints')
+  form.append('project_context_id', context.projectContextId)
+  form.append(
+    'source_representation_revision_id',
+    context.sourceRepresentationRevisionId,
+  )
+  if (options.instruction?.trim())
+    form.append('instruction', options.instruction.trim())
+  // The operation ID makes the POST repeatable; the base tells a reloaded page whether the result may still be saved.
+  form.append('operation_id', options.operationId)
+  if (options.base) {
+    form.append('extraction_schema_id', options.base.extractionSchemaId)
+    form.append('base_schema_revision_id', options.base.schemaRevisionId)
   }
 
-  const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
-  return done.template
+  const done = await postModelForm('/generate_schema', form, decodeSchemaDone, signal)
+  return { template: done.template, sourceCoverage: done.sourceCoverage }
+}
+
+/** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */
+export class ApiRequestError extends Error {
+  readonly status: number
+  /** The server's error code (`{ error: { code } }`), when it sent one. */
+  readonly code: string | null
+
+  constructor(message: string, status: number, code: string | null = null) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    this.code = code
+  }
+}
+
+async function requestJson(
+  path: string,
+  method: 'GET' | 'POST' | 'DELETE',
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const response = await authenticatedFetch(`${API_BASE}${path}`, {
+    method,
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: method === 'POST' ? JSON.stringify(body) : undefined,
+    signal,
+  })
+  if (!response.ok) {
+    const error = await readError(response)
+    throw new ApiRequestError(
+      error ? `${error.code}: ${error.message}` : `Request to ${path} failed (HTTP ${response.status})`,
+      response.status,
+      error?.code ?? null,
+    )
+  }
+  return response.json()
+}
+
+/** The kei-exp deployment's extraction models, the roles each may take and its default per role: what a run's
+ *  Extraction Model Choice picks from. */
+export async function readExtractionModels(signal?: AbortSignal): Promise<ExtractionModelListing> {
+  return extractionModelListingSchema.parse(
+    await requestJson('/extraction-models', 'GET', null, signal),
+  )
+}
+
+/** kei's OCR and layout models, whether its OCR server serves each now, and its default per role: what the
+ *  researcher's Ingestion Model Choice picks from. */
+export async function readIngestionModels(signal?: AbortSignal): Promise<IngestionModelListing> {
+  return ingestionModelListingSchema.parse(
+    await requestJson('/ingestion-models', 'GET', null, signal),
+  )
 }
 
 export async function requestExtraction(
-  file: Blob,
-  fileName: string,
-  template: unknown,
+  input: ExtractionRequestInput,
   signal?: AbortSignal,
-  markdown?: string | null,
-): Promise<{ result: unknown; evidence: unknown }> {
-  const form = new FormData()
-  form.append('template', JSON.stringify(template ?? {}))
-  if (markdown) {
-    form.append('document_markdown', markdown)
-  } else {
-    form.append('file', file, fileName)
-  }
-
-  const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return { result: done.result, evidence: done.evidence }
+): Promise<ExtractionAttempt> {
+  const request = extractionRequestSchema.parse(input)
+  return extractionAttemptSchema.parse(
+    await requestJson('/extractions', 'POST', request, signal),
+  )
 }
 
-export async function requestMarkdown(
-  file: Blob,
-  fileName: string,
+/** Reads one durable Extraction's pins, lifecycle and latest finalized cut. */
+export async function readExtraction(
+  extractionId: string,
   signal?: AbortSignal,
-  markdown?: string | null,
-): Promise<MarkdownDone> {
-  const form = new FormData()
-  form.append('file', file, fileName)
-  if (markdown) {
-    form.append('document_markdown', markdown)
-  }
+) {
+  return extractionReadResponseSchema.parse(
+    await requestJson(`/extractions/${extractionId}`, 'GET', null, signal),
+  )
+}
 
-  return postForm('/markdown', form, decodeMarkdownDone, signal)
+function decodeSchemaEdit(data: unknown): SchemaEditResponse {
+  const parsed = schemaEditResponseSchema.safeParse(data)
+  if (!parsed.success) throw new Error('edit_schema: invalid response — API contract drift?')
+  return parsed.data
+}
+
+export async function requestSchemaEdit(
+  context: SchemaModelContext,
+  instruction: string,
+  signal: AbortSignal | undefined,
+  operationId: string,
+): Promise<SchemaEditResponse> {
+  const form = new FormData()
+  form.append('project_context_id', context.projectContextId)
+  form.append('extraction_schema_id', context.extractionSchemaId)
+  form.append('schema_revision_id', context.schemaRevisionId)
+  if (context.sourceRepresentationRevisionId)
+    form.append(
+      'source_representation_revision_id',
+      context.sourceRepresentationRevisionId,
+    )
+  form.append('instruction', instruction)
+  // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
+  form.append('operation_id', operationId)
+  return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)
 }

@@ -1,22 +1,10 @@
-import { cascadeRepairText } from 'ai-sdk-ollama'
+import { jsonrepair } from 'jsonrepair'
 import { z } from 'zod'
-import { RequestError } from './_http'
+import { ApiError } from './_http.js'
 
 const templateEnvelopeSchema = z.object({
   template: z.record(z.string(), z.unknown()),
 })
-
-export async function parseExtractionResult(text: string, template: unknown): Promise<Record<string, unknown>> {
-  const message = 'Model returned output that did not match the extraction schema.'
-  const object = await parseJsonObject(text, message)
-  const parsed = extractionResultSchema(template).safeParse(object)
-  if (!parsed.success || !isRecord(parsed.data)) {
-    // ponytail: schema mismatch is a warning, not a failure — return the raw JSON object so partial results survive
-    console.warn(message, parsed.success ? object : parsed.error.issues)
-    return object
-  }
-  return parsed.data
-}
 
 export async function parseTemplate(text: string): Promise<Record<string, unknown>> {
   const object = await parseJsonObject(text, 'Model returned an invalid extraction schema.')
@@ -24,30 +12,41 @@ export async function parseTemplate(text: string): Promise<Record<string, unknow
   return envelope.success ? envelope.data.template : object
 }
 
+/**
+ * Parse valid JSON before touching its text, preserving literal tags and fences
+ * inside values. Otherwise remove outer framing, then use jsonrepair for syntax
+ * that still cannot be parsed.
+ */
 export async function parseUnknownJson(text: string, message: string): Promise<unknown> {
   const parsed = tryParseJson(text)
   if (parsed.ok) {
     return unwrapJsonString(parsed.value)
   }
 
-  const repaired = await cascadeRepairText({ text, error: parsed.error })
-  if (repaired !== null) {
-    const repairedParsed = tryParseJson(repaired)
-    if (repairedParsed.ok) {
-      return unwrapJsonString(repairedParsed.value)
-    }
+  const unframedText = withoutOuterFraming(text)
+  const unframed = tryParseJson(unframedText)
+  if (unframed.ok) {
+    return unwrapJsonString(unframed.value)
   }
+  try {
+    return unwrapJsonString(JSON.parse(jsonrepair(unframedText)))
+  } catch (cause) {
+    throw new ApiError(502, 'invalid_model_output', message, { cause })
+  }
+}
 
-  if (parsed.error instanceof SyntaxError) {
-    throw new RequestError(502, message, text)
-  }
-  throw parsed.error
+const LEADING_REASONING = /^\s*<think>[\s\S]*?<\/think>\s*/
+const OUTER_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/
+
+function withoutOuterFraming(text: string): string {
+  const reply = text.replace(LEADING_REASONING, '').trim()
+  return OUTER_FENCE.exec(reply)?.[1] ?? reply
 }
 
 async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
-  const parsed = await parseUnknownJson(text.replace(/<think>[\s\S]*?<\/think>/, '').trim(), message)
+  const parsed = await parseUnknownJson(text, message)
   if (!isRecord(parsed)) {
-    throw new RequestError(502, message, text)
+    throw new ApiError(502, 'invalid_model_output', message)
   }
   return parsed
 }
@@ -84,50 +83,6 @@ function unwrapJsonString(value: unknown): unknown {
 
 function looksLikeJsonContainer(text: string): boolean {
   return (text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))
-}
-
-function extractionResultSchema(template: unknown): z.ZodType<unknown> {
-  if (!isRecord(template)) {
-    return z.record(z.string(), z.unknown())
-  }
-  return objectSchemaFromTemplate(template)
-}
-
-function objectSchemaFromTemplate(template: Record<string, unknown>): z.ZodType<unknown> {
-  const shape: Record<string, z.ZodType<unknown>> = {}
-  for (const [key, value] of Object.entries(template)) {
-    shape[key] = valueSchemaFromTemplate(value)
-  }
-  return z.object(shape).strict()
-}
-
-function valueSchemaFromTemplate(value: unknown): z.ZodType<unknown> {
-  if (Array.isArray(value)) {
-    return z.array(valueSchemaFromTemplate(value[0] ?? 'string')).nullable()
-  }
-
-  if (isRecord(value)) {
-    return objectSchemaFromTemplate(value).nullable()
-  }
-
-  return primitiveSchemaFromLabel(String(value)).nullable()
-}
-
-function primitiveSchemaFromLabel(label: string): z.ZodType<unknown> {
-  switch (label) {
-    case 'number':
-      return z.number()
-    case 'integer':
-      return z.number().int()
-    case 'boolean':
-      return z.boolean()
-    case 'object':
-      return z.record(z.string(), z.unknown())
-    case 'array':
-      return z.array(z.unknown())
-    default:
-      return z.string()
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

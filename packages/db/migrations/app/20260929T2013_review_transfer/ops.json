@@ -1,0 +1,86 @@
+[
+  {
+    "id": "column.public.extraction.reviewTransfer",
+    "label": "Add column \"reviewTransfer\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewTransfer",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewTransfer\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewTransfer"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reviewTransfer\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"reviewTransfer\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewTransfer\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewTransfer"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.reviewDecision.carriedFrom",
+    "label": "Add column \"carriedFrom\" to \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "carriedFrom",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"carriedFrom\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "carriedFrom"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"carriedFrom\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" ADD COLUMN \"carriedFrom\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"carriedFrom\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "carriedFrom"
+        ]
+      }
+    ]
+  }
+]

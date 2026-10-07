@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+.DS_Store
 
 .next/
 
@@ -12,7 +13,32 @@ __pycache__/
 *.py[cod]
 
 node_modules/
+.pnpm-store/
 dist/
 coverage/
+packages/db/src/generated/prisma/
+artifacts/architecture/site/
 
 .playwright-mcp/
+.omo/**
+
+# Local code-analysis output (Understand-Anything, CodeBoarding), regenerated per machine
+.ua/
+.codeboarding/
+
+# Agent scratch and local e2e output
+.scratch/
+.claude/worktrees/
+artifacts/
+.certs/
+.dev/
+.nginx/
+compose.local.yaml
+.codex/worktrees/
+tools/slopo-benchmark/work/
+eval-out/
+
+# Keys and certificates never belong in the repository
+*.pem
+*.key
+*.crt
