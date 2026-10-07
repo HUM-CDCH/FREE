@@ -1,8 +1,7 @@
 # 0010: Serve extraction models from vLLM, one server per model
 
 Date: 2026-09-23. Status: accepted; amends the model-server part of
-[0009](0009-own-parsing-and-extraction-service-in-free.md). Validation on the
-DGX Spark is still to be recorded.
+[0009](0009-own-parsing-and-extraction-service-in-free.md).
 
 ## Context
 
@@ -32,11 +31,13 @@ and grounded entry calls), and `Qwen/Qwen3.8-27B-FP8`, an instruction model,
 does the reasoning calls (record discovery, grounding and arbitration), whose
 replies are label enums a NuExtract template cannot express. A run may route
 the fields role to the instruction model too; Studio offers the choice
-(per run here, deployment-wide since
-[0011](0011-one-model-configuration-page.md)). Thinking is switched off per request through the chat template, and
-NuExtract's template and instructions travel only in the chat template's
-arguments. Token budgets are counted on vLLM's `/tokenize` with the same
-rendered request.
+(per run here; deployment-wide in [0011](0011-one-model-configuration-page.md);
+per Researcher Account since [0013](0013-per-researcher-model-configuration.md),
+sent with each start and pinned at admission since
+[0015](0015-extraction-method-pinned-at-admission.md)). Thinking is switched
+off per request through the chat template, and NuExtract's template and
+instructions travel only in the chat template's arguments. Token budgets are
+counted on vLLM's `/tokenize` with the same rendered request.
 
 ## Consequences
 
@@ -49,6 +50,4 @@ First GPU startup downloads about 38 GB of extraction weights, and the image
 must support the `qwen3_5` architecture and FP8 on the target GPU. The
 NuExtract server runs its repository's processor code (`--trust-remote-code`).
 Extraction results record the model per role, so results from different
-routings stay distinguishable. The memory budgets, FP8 kernels and the equality
-of counted and served prompt tokens must be validated on the Spark before
-researchers use the service.
+routings stay distinguishable.

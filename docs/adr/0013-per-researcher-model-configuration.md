@@ -4,7 +4,7 @@ Date: 2026-09-26. Status: accepted; supersedes
 [0006](0006-machine-wide-local-model-configuration.md); amends
 [0007](0007-two-explicit-model-capability-routes.md) and
 [0011](0011-one-model-configuration-page.md). Implemented in M2–M4 of
-the DBOS plan.
+[the DBOS design](../design/unified-durable-execution.md#milestones).
 
 ## Context
 

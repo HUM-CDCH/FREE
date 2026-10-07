@@ -1,6 +1,6 @@
 # FREE Context
 
-FREE supports document extraction and evaluation for humanities research. In this context, researchers work from source text, extract information directly or with an explicit schema, and keep source-backed evidence that guards against hallucinated results.
+FREE supports document extraction and evaluation for humanities research. In this context, researchers work from source text, extract information with an explicit Extraction Schema, and keep source-backed evidence that guards against hallucinated results.
 
 ## Language
 
@@ -17,7 +17,7 @@ The authenticated identity of one Humanities Researcher and the required owner o
 _Avoid_: user, member
 
 **Source Document**:
-A document that contains the original material a researcher works from, including PDFs and other document formats.
+A document, uploaded as a PDF, that contains the original material a researcher works from.
 _Avoid_: file, PDF, upload
 
 **Source Ingestion**:
@@ -25,7 +25,7 @@ One attempt to turn a document a Humanities Researcher provides into a Source Do
 _Avoid_: upload job, parse job
 
 **Project Context**:
-The research aggregate owned by exactly one Researcher Account. It contains one or more Source Documents, their annotations and Annotation Sets, Schema Suggestions, Extraction Schemas, Extractions, and Extraction Results; every descendant inherits ownership through this aggregate.
+The research aggregate owned by exactly one Researcher Account. It contains zero or more Source Documents, Schema Suggestions, Extraction Schemas, Extractions, and Extraction Results; every descendant inherits ownership through this aggregate.
 _Avoid_: research context, workspace when referring to one Project Context
 
 **Project**:
@@ -37,23 +37,19 @@ The authenticated area of FREE in which a Humanities Researcher works across Pro
 _Avoid_: Project Context when the whole authenticated area is meant
 
 **Annotation**:
-A researcher-created mark on a source document that identifies source text as relevant for possible extraction and may guide direct extraction when present.
+A researcher-created mark on a Source Document that identifies source text as relevant. Creating Annotations is temporarily disabled; existing ones are read-only, and neither Schema Suggestion nor Extraction reads them.
 _Avoid_: passage, highlight, selection
 
 **Annotation Set**:
-A collection of annotations from a single source document that may guide schema suggestions or direct extraction.
+A collection of Annotations from a single Source Document; read-only, like its Annotations.
 _Avoid_: batch, selection set, training set
 
-**Feedback Set**:
-A collection of review decisions saved for audit purposes after a humanities researcher validates extraction results.
-_Avoid_: annotation set, validation set, correction set
-
 **Source Context**:
-Source material and annotations from a single source document that FREE may consider when proposing schemas or producing extraction results.
+Source material from a single Source Document that FREE may consider when proposing schemas or producing extraction results.
 _Avoid_: annotation text, surrounding text, document context, full context
 
 **Extraction Strategy**:
-How FREE applies an Extraction Schema to Source Context: Article or Catalog. The researcher selects it, and the selection is saved with the Schema Revision as its Record Scope, so every Extraction on that revision uses it. Article and Catalog are Extraction Strategies and do not replace Direct Extraction or Schema-Guided Extraction.
+How FREE applies an Extraction Schema to Source Context: Article or Catalog. The researcher selects it, and the selection is saved with the Schema Revision as its Record Scope, so every Extraction on that revision uses it.
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
@@ -65,31 +61,19 @@ An Extraction Strategy whose result is a collection of record objects (Record Sc
 _Avoid_: catalog mode, hierarchical extraction, schema-guided extraction
 
 **Record Scope**:
-The authoritative declaration, saved with a Schema Revision, of what one Extraction result is: `document` (one object per Source Document: Article) or `records` (a collection of records: Catalog). It is set only through the Article/Catalog selection, never inferred from array fields or model output, and checked when an Extraction is admitted and when its result is accepted (a `document` result has exactly one root). A Schema Revision from before the declaration existed has one when its Extractions all used one strategy; otherwise the researcher chooses before the next Extraction.
+The authoritative declaration, saved with a Schema Revision, of what one Extraction result is: `document` (one object per Source Document: Article) or `records` (a collection of records: Catalog). It is set only through the Article/Catalog selection, never inferred from array fields or model output, and checked when an Extraction is admitted and when its result is accepted (a `document` result has exactly one root). A Schema Revision without one cannot be extracted until the researcher chooses.
 _Avoid_: cardinality, extraction mode, document type
 
-**Direct Extraction**:
-An extraction mode where a humanities researcher extracts information from a source document without first creating annotations, reviewing schema suggestions, or approving an extraction schema.
-_Avoid_: quick extraction, simple extraction, automatic extraction
-
-**Schema-Guided Extraction**:
-An extraction mode where a humanities researcher uses an explicit extraction schema to make extraction more precise and repeatable.
-_Avoid_: advanced extraction, technical extraction, schema extraction
-
 **Schema Suggestion**:
-A proposed set of entities and fields produced from a source document and, when present, its annotations for researcher review before schema-guided extraction.
+A proposed Extraction Schema for researcher review, built from a whole Source Document (read in windows) and the researcher's optional instruction. A Batch Schema Suggestion suggests per Source Document and keeps the fields the documents share; a project spreadsheet's columns can also seed one.
 _Avoid_: extraction suggestion, recommendation, prediction, candidate
-
-**Entity**:
-A named or identifiable thing that can appear in an extraction schema, such as a person, place, organization, work, or event.
-_Avoid_: name, subject
 
 **Field**:
 A structured value or attribute that can appear in an extraction schema.
 _Avoid_: property, column, metadata
 
 **Extraction Schema**:
-A researcher-approved structure that belongs to at least a ProjectContext and describes which entities and fields FREE should extract.
+A researcher-approved structure that belongs to exactly one Project Context: a record description and the Fields FREE should extract. Every Extraction applies one of its Schema Revisions, which keeps extraction precise and repeatable.
 _Avoid_: template, extraction target, target list
 
 **Schema Revision**:
@@ -129,12 +113,22 @@ _Avoid_: extraction, output, response
 A researcher's choice to approve, edit, or reject a schema suggestion or
 extraction result. For an Extraction it is a revisioned correction of one saved
 value, bound to that value's stable identity and producing type, and saved in a
-numbered decision version of its Project.
+numbered Decision Version of its Project.
 _Avoid_: status, vote, review draft
+
+**Decision Version**:
+The numbered version of a Project's corrections: saving a correction raises it
+by one, and earlier corrections stay. A Finalized Review names one beside a
+result snapshot. Active edits the researcher keeps in use guide later
+Extractions when they fit the target schema; an edit that does not fit stays
+saved but is not sent. In code the counter is `FeedbackHead.version`, which
+each correction and finalization records as `feedbackVersion`;
+`/api/project-contexts/:id/feedback` lists the corrections.
+_Avoid_: feedback set, correction set
 
 **Finalized Review**:
 A researcher's explicit finalization of one named pair: an Extraction's result
-snapshot version and its Project's decision version. It never finalizes
+snapshot version and its Project's Decision Version. It never finalizes
 implicitly, never freezes later work, and a deliberately older pair may be
 finalized when it is clearly named. "Latest reviewed" opens the most recently
 finalized pair.
@@ -160,27 +154,27 @@ A Researcher Account's choice of Model Connection and model for a related family
 _Avoid_: task route, model setting, project model
 
 **Schema Suggestion Route**:
-The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. Formerly the Extraction Route; Extraction itself runs in the Parsing Service.
+The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
-A Researcher Account's choice, set on the Model Configuration page, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. Every single and batch Extraction is requested on its Project Context owner's choice as its start view showed it, pinned at admission, and records it beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
+A Researcher Account's choice of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). A role left unchosen uses the deployment's default; the choice is not a Capability Route and names no Model Connection.
 _Avoid_: extraction model, extraction route, model setting
 
 **Extraction Method Settings**:
-A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run: Article's source context, record identity, instructions, source representation, value evidence and verification choices; generic Catalog's text limits; a recipe Catalog's budgets and factors; or, where the deployment admits new Catalog work on the Unified Catalog Method, its input token ceiling, reply token reserve, window overlap, heading context and verification. Legacy Catalog choices are never converted into unified ones: the researcher applies the unified settings before the next Catalog Extraction. They are set on the Model Configuration page's Advanced tab; unset settings keep the Parsing Service's defaults. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
+A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings keep the Parsing Service's defaults. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. The method of each producing input selection never changes after its admission; a durable interactive Extraction may adopt another immutable selection at a paused boundary. Execution reads its selected pinned method; Extraction details show the requested method beside the effective models, options and protocol versions the Parsing Service captured for that selection. Equal methods do not promise identical model output across runtime revisions.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (recipe Catalog only), Extraction Model Choice and the applicable Extraction Method Settings. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
-The one versioned Catalog method for new single and batch Catalog Extractions where the deployment enables it: general record discovery over the complete admitted source, a ledger giving every nonblank source range a disposition, counted windows for every stage, candidates accepted only after a separate verification, and conservative merging that leaves conflicts and partial list items as proposals. It needs no recipe, language, numbering convention, field name or particular model. Source accounting, processing and evidence are reported apart; recall is not measured.
+The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and accepts a candidate only after a separate verification. It needs no recipe, language, numbering convention, field name or particular model.
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:
-A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions). It applies to new ingestions and reprocessing only: an admitted ingestion keeps the models it was admitted with, and existing Source Representation Revisions never change. Native PDF text uses neither model. In a document whose nonblank pages all have native text, substantial textless images or vector forms use only the OCR model, as crops; their surrounding native text is preserved. A role left unchosen uses the deployment's default. It names no Model Connection.
+A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, and a role left unchosen uses the deployment's default.
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:

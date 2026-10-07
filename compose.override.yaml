@@ -47,7 +47,7 @@ services:
 
   parsing_worker:
     environment:
-      # kei's own role on Studio's database; the password is Studio's FREE_KEI_POSTGRES_PASSWORD (M2).
+      # kei's own role on Studio's database; the password is Studio's FREE_KEI_POSTGRES_PASSWORD.
       KEI_SYSTEM_DATABASE_URL: "postgresql://kei:${FREE_KEI_POSTGRES_PASSWORD:-kei-development}@db:5432/free"
     develop: *parsing-watch
 
@@ -83,8 +83,8 @@ services:
         required: false
     develop:
       watch:
-        # Server code (api/, server/, shared/, the Vite and TypeScript configs) runs in the Studio process. From M4
-        # that process also hosts DBOS, which launches once per process, so an edit restarts the container instead
+        # Server code (api/, server/, shared/, the Vite and TypeScript configs) runs in the Studio process. That
+        # process also hosts DBOS, which launches once per process, so an edit restarts the container instead
         # of re-evaluating modules in place. Only the browser source below hot-reloads.
         - action: sync+restart
           path: ./apps/studio
@@ -217,10 +217,10 @@ services:
     networks:
       - app
 
-  # The development TLS entry point. Production has no nginx container: the
-  # host-managed nginx includes the same rendered
-  # docker/nginx/free-studio-locations.inc.template and proxies to Studio's
-  # loopback-published port (compose.prod.yaml).
+  # The development TLS entry point. In production the host-managed nginx
+  # includes the same rendered docker/nginx/free-studio-locations.inc.template
+  # and proxies to Studio's loopback-published port (compose.prod.yaml), unless
+  # the bundled nginx container replaces it (compose.nginx.yaml).
   nginx:
     image: nginx:stable-alpine
     environment:

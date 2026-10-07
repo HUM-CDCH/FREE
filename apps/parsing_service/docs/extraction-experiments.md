@@ -10,7 +10,7 @@ The experiment runner calls the same strategy implementations through
 ```mermaid
 flowchart LR
   C[Verified canonical passages] --> R{Strategy}
-  R --> A[Article: inventory and identity reconciliation]
+  R --> A[Article: one document root per value context]
   R --> G[Catalog: entry discovery or recipe segmentation]
   A --> V[Record values]
   G --> V
@@ -23,31 +23,40 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
+| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Return the assembled result. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
 | `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
-| `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
+| `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; assemble or reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
-| `article.py` | The Article implementation: enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
+| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts and grounded. The service path sends no inventory request but counts `inventory_request` to size bounded contexts; research replays still use the inventory functions. |
 | `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
 | `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
 | `stages.py` | The shared value prompts (guardrail, schema instruction, labelled passages), document and record value requests and their conformance, value helpers, and the record merge. |
+| `schema.py` | The extraction schema as Studio's editor writes it: the strict reply schema, the field notes a prompt lists, `conform`, and evidence-policy resolution. |
 | `calls.py` | Extraction call execution: `complete` routes a finished request to its role's model, admits it against the served context when counted, invokes the adapter, reads the reply and records every attempt as a `Call`. The only way an extraction stage reaches a model. |
 | `llm.py` | The protocol adapters `OpenAIChat` and `NuExtractChat` (request construction, the one explicit unsupported-format fallback, the HTTP call) and `parse_json`. |
+| `gliformer.py` | Native GLiFormer fields over discovered entries, with no chat emulation or value repair. |
 | `models.py` | The deployment's extraction models, their permitted roles and defaults, a run's choice, and `ROLE`/`Router`: which role and chat serve each stage. |
 | `tokens.py` | Count requests on the serving endpoint's `/tokenize` and read its context size. |
 | `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
 | `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
 | `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
+| `locate.py` | Locate a quoted value in a block's own text as raw code-point spans, matching on a normalised view that maps back to raw offsets. |
 | `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
 | `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
-| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Return the assembled result. |
+| `unified.py` | The unified Catalog, result version 3: per-stage budgets resolved from the served context, record discovery, then each entry's extraction, verification and arbitration. |
+| `discovery.py` | The unified Catalog's source units, counted windows and record discovery with its source ledger. |
+| `durable.py` | Plan and capture calls for every method: planning runs the algorithms against committed call outputs, and an unexecuted request yields to the durable workflow instead of reaching a provider. |
+| `captured_provider.py` | Send a captured request's saved HTTP body without recomposition. |
+| `retained.py` | Validate typed values, bind stable record and field identities and publish retained snapshots, always from validated stage objects, never debug files. |
 | `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
 
 These are ordinary Python functions. There is no plugin graph or separate
-service per stage. Strategy differences reflect source structure: Article
-identities recur across sections; Catalog entries own contiguous source spans.
+service per stage. Strategy differences reflect source structure: an Article is
+one document-level object read across the whole source; Catalog entries own
+contiguous source spans.
 
 ## Pipeline map
 
@@ -77,15 +86,13 @@ the source and builds the prompt and reply schema, and who interprets the answer
 
 | Strategy | Stage → role | Initiated by | Source, prompt and reply schema | Interpretation |
 | --- | --- | --- | --- | --- |
-| Article | `document` → fields | [`assembly.document_values`](../src/kei_exp/kie/extract/assembly.py), per source context | [`stages.extract_document`](../src/kei_exp/kie/extract/stages.py): `_instruction` over the document fields, the context's complete text as `text_of` or `rendering.structured_source`, [`schema.json_schema`](../src/kei_exp/kie/extract/schema.py); counted, 2,048 output tokens | `schema.conform`; contexts reconciled by `contexts.reconcile_values`; listed as `unverified` |
-| Article | `inventory` → reasoning | [`article.extract_records`](../src/kei_exp/kie/extract/article.py), per source context | [`article.inventory_request`](../src/kei_exp/kie/extract/article.py): identity-inventory instruction plus `_instruction`, passages labelled with canonical IDs (`_labelled`) or structured, reply schema enumerating those IDs; counted, output allowance chosen in `article.inventory` | `article.inventory` validates identities and passage IDs and merges duplicates; `article.reconcile_identities` across bounded contexts |
-| Article | `record` → fields | `article.extract_records`, per identity and value context | [`stages.record_request`](../src/kei_exp/kie/extract/stages.py) with the identity and the `ARTICLE` (or neutral) instruction, over each value context (by default the complete source); counted, 4,096 output tokens | `schema.conform` under the bound identity; `contexts.reconcile_values` across value contexts |
-| Article | `grounding` → reasoning | [`assembly.ground_records`](../src/kei_exp/kie/extract/assembly.py) → `grounding.technique` (default `semantic`) | [`grounding.verify`](../src/kei_exp/kie/extract/grounding.py): `GROUNDING`, `QUOTED_GROUNDING` or `SPAN_GROUNDING`, record identity, claims and complete evidence; per-batch reply schema enumerating eligible labels; counted, 2,048 output tokens, batches split to fit | `grounding.verify` accepts only offered labels (and, when quoted, exact substrings with attribution) as `Link`s; every claim is verified by the model |
+| Article | `document` → fields | [`assembly.document_values`](../src/kei_exp/kie/extract/assembly.py), per source context | [`stages.extract_document`](../src/kei_exp/kie/extract/stages.py): `_instruction` over the document fields, the context's complete text as `text_of` or `rendering.structured_source`, [`schema.json_schema`](../src/kei_exp/kie/extract/schema.py); counted, 2,048 output tokens | `schema.conform`; contexts assembled by `contexts.assemble_document`; listed as `unverified` |
+| Article | `record` → fields | [`article.document_root`](../src/kei_exp/kie/extract/article.py), per value context | [`stages.record_request`](../src/kei_exp/kie/extract/stages.py) under `stages.DOCUMENT`, no identity, over each value context (by default the complete source); counted; the reply may use the served context the input leaves, at least 4,096 tokens | `schema.conform`; contexts assembled by `contexts.assemble_document` |
+| Article | `grounding` → reasoning | [`assembly.ground_records`](../src/kei_exp/kie/extract/assembly.py) → `grounding.technique` (default `semantic`), each claim first in the context its value was read from (`routing.verify_routed`) | [`grounding.verify`](../src/kei_exp/kie/extract/grounding.py): `GROUNDING`, `QUOTED_GROUNDING` or `SPAN_GROUNDING`, the record's scalar fields, each claim beside the scalar fields of the list items enclosing it, and complete evidence; per-batch reply schema enumerating eligible labels; counted, 2,048 output tokens, batches split to fit | `grounding.verify` accepts only offered labels (and, when quoted, exact substrings with attribution) as `Link`s; every claim is verified by the model, with exhaustive fallback stopping at support |
 | Generic Catalog | `document` → fields | `assembly.document_values`, one context | `stages.extract_document` over the source clipped to `record_chars` (`text_truncated` when cut) | `schema.conform`; `unverified` |
 | Generic Catalog | `discovery` → reasoning | [`catalog.discover`](../src/kei_exp/kie/extract/catalog.py), per page-aligned chunk of `discovery_chars` | `catalog.DISCOVERY` with its examples, `B`-labelled blocks (`_labelled`), reply schema enumerating the shown labels | `catalog.discover` keeps ordered starts and a final-chunk end, reports ignored labels and numbering anomalies, and cuts record slices |
 | Generic Catalog | `record` → fields | [`catalog.extract`](../src/kei_exp/kie/extract/catalog.py), per slice | [`stages.extract_record`/`stages.record_request`](../src/kei_exp/kie/extract/stages.py): `_instruction` and the slice clipped to `record_chars` | `schema.conform` |
 | Generic Catalog | `grounding` → reasoning | `assembly.ground_records` → `grounding.semantic` | `grounding.verify`: every claim, a value found once in its slice included, goes to `GROUNDING` calls with its field, its sibling fields and the record's fields, under the `record_chars` character budget | as Article |
-
 | Unified Catalog | `discovery` → reasoning | [`discovery.discover`](../src/kei_exp/kie/extract/discovery.py), per counted window of source lines (`discovery.plan`), halved on a failed or cut-off reply | `discovery.DISCOVERY`: record description, `L`-labelled window lines between unlabelled context; reply names each record or record-free start by line and exact text, and whether the window begins and ends inside a record | code places each start where its text occurs once in its line; windows join only on agreeing continuation flags; the rest stays `unresolved` in the ledger |
 | Unified Catalog | `entry` → fields | [`unified._Run.entry`](../src/kei_exp/kie/extract/unified.py), per counted window of the entry's own lines | `unified.ENTRY` with field notes; the entry text, earlier and later lines of the entry as overlap, record-free lines before it as context; `{value, quote}` candidates, `_item_text` per list object | `unified._Checker`: typed value, quote located in the entry, literal or supporting span (a value in another cell of the quoted table row is literal in its own cell); `unified._merged` joins equal observations and keeps partial list items as proposals |
 | Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per window's candidates | `unified.VERIFY`: the window's text and labelled candidates; reply `supported`, `unsupported` or `unclear` per label; batches halved on overflow | only `supported` is accepted; anything else stays a proposal or rejection |
@@ -95,10 +102,11 @@ the source and builds the prompt and reply schema, and who interprets the answer
 Article counts every request on the serving endpoint of its role
 ([`tokens.counters_for`](../src/kei_exp/kie/extract/tokens.py) over `/tokenize`)
 and refuses when either role's context size is unknown. Generic Catalog uses
-character budgets and sends no `max_tokens`, so the adapter's 8,192 applies.
-The unified Catalog counts every request too; each stage's input ceiling is the
-served context minus its reply reserve (or the method's custom ceiling), and
-its reply reserve is sent as `max_tokens`.
+character budgets: its record calls reply within 2,048 tokens, and its other
+calls send no `max_tokens`, so the adapter's 8,192 applies. The unified Catalog
+counts every request too; each stage's input ceiling is the served context minus
+its reply reserve (or the method's custom ceiling), and its reply reserve is
+sent as `max_tokens`.
 
 Every row above sends its request through the same execution seam,
 [`calls.complete`](../src/kei_exp/kie/extract/calls.py):
@@ -122,18 +130,24 @@ Every row above sends its request through the same execution seam,
    prompt count differs is failed too.
 5. Every attempt becomes a `Call`, the refused one included, in order.
 
-Transport failures (connection errors, timeouts, HTTP errors) are not `Call`s:
-they end the step, and [`failures.classify`](../src/kei_exp/failures.py) decides
-whether DBOS reruns the whole `extract_run` step. `calls.complete` owns no prompt,
-reply schema, conformance or grounding decision, and makes no retry of its own.
+`llm.parse_json` accepts literal control characters inside strings and keeps
+their exact value, like their escaped spellings; it removes only a leading
+thinking envelope and a code fence. Malformed structure, missing delimiters,
+trailing objects and truncated replies still fail.
 
-Cancellation is cooperative. `extract_run` checks before model work and again
-before publication. Article and generic Catalog invoke their `before_entry`
-hook before document calls, inventory or discovery, record extraction, record
-verification and grounding batches. Recipe Catalog invokes it before each entry
-in `grounded._in_chunks`; its document-level call in `grounded._document`
-precedes those entry checks and does not invoke the hook. A request already
-in flight finishes first.
+A provider exception (connection error, timeout, HTTP error) is not a `Call`:
+[`invoke_capture`](../src/kei_exp/workflows/durable_extract.py) marks that
+capture failed, and the attempt is acknowledged as `capture_failed` once the
+committed responses of its other calls are compiled. `calls.complete` owns no
+prompt, reply schema, conformance or grounding decision, and makes no retry of
+its own.
+
+Pause and Stop are cooperative. A durable attempt stops at its coordination
+boundaries: the planner checks the attempt's intent before it plans, and a
+capture checks it again, and must be admitted by `begin_call`, before its
+request is sent. A request already in flight finishes first. The `before_entry`
+hooks of `run.extract` and `run.dispatch` stay for callers that pass one; the
+durable planner passes none.
 
 ### The recipe Catalog
 
@@ -144,153 +158,63 @@ generic Catalog's replacement. Structural segmentation replaces discovery.
 `grounded._Run.call` counts each `entry` and `document` (fields) and
 `arbitration` (reasoning) request against the recipe's input budget before handing it to the same
 `calls.complete`; code in `acceptance.py` accepts, proposes or rejects each
-candidate, and the result is version 2 with code-point span Evidence.
+candidate, and the result is version 2 with code-point span Evidence. The
+[grounded catalogue design](design/2026-09-23-grounded-catalogue-design.md) is
+its contract.
 
 ## Article choices
 
-Omitting `options.article` retains the full-source reference requests. Protocol v12
-preserves literal source control characters when decoding replies; quoted verification
-also has corrected instructions and literal source matching. Version/fingerprint metadata
-therefore differs from v11. The frozen R1 checkout/archive retains exact v11 behavior.
-Specifying Article options records all settings and `method_version: 1` in the fingerprint. It is currently a research interface;
-Studio does not expose these controls.
+Omitting `options.article` runs the reference method: the complete source as
+one value context, `semantic` grounding. Setting any option records every
+setting and `method_version: 1` in the fingerprint. Studio sets these options on
+its Model Configuration Advanced tab, where the options of the last two rows are
+read-only. `method.ArticleOptions.coherent` refuses the combinations the last
+column names.
 
-- `identity=reference|conservative`: the reference deduplicates any nonempty
-  scalar key. Conservative reconciliation restricts inventory attributes to
-  explicit `identity_fields`. Only complete declared keys merge across units;
-  incomplete keys also require the same label and supporting passages. Partial
-  identities remain visible and can produce duplicates requiring review.
-- `prompt=reference|schema`: retain the earlier laboratory instructions or
-  derive record semantics from the supplied schema without laboratory examples.
-- `rendering=structured`: expose canonical block IDs, labels and pages, plus
-  table cell IDs, rows, columns, spans and available roles in document, inventory
-  and value inputs. Tagged text preserves every source character; it is not XML.
-  Missing table cells stay missing. Omission preserves plain reference requests.
-  Rendering and `rendering_version` participate in the fingerprint. Tokenizers
-  count the actual markup, so structure can increase costs or cause refusal.
-  This changes neither the grouping algorithm nor the verifier's cell renderer.
-- `context=full|bounded`: send the full source, or partition whole canonical
-  passages under a fixed served-token ceiling, including output reserves.
-  Inventory and record-value prompts use their actual tokenizer/template.
-  By default every record reads every unit.
-- `grouping=structural` (bounded only): keep a heading with its first body block
-  and tables with immediately adjacent captions/footnotes, across page furniture.
-  Prefer section boundaries and carry the latest heading into continuation units.
-  Required heading context is token-counted and recorded separately from primary
-  ownership. An oversized group is refused intact; it never sheds its qualifier
-  to fit. Labels do not establish a heading hierarchy or arbitrary cross-page
-  table association, so neither is inferred. Omission keeps token-only partitioning.
-  The setting and `grouping_version` participate in the fingerprint.
-- `selection=supported` (bounded only): retain value units owning identity
-  support and neighboring canonical passages, plus at most one additional unit
-  with positive schema-term relevance. The deterministic lexical score uses
-  term frequency, inverse unit frequency and length normalization. It preserves
-  whole original units and records selected/omitted passages and reasons.
-  Inventory, document fields and verification still visit all bounded units.
-  Selection can omit relevant late evidence; relevance recall remains unmeasured.
-  Omission of this setting preserves the all-unit method and its fingerprint.
-- `overlap_passages=0..2`: preceding context that never changes primary
-  ownership. Tables are indivisible passages. An oversized passage is explicitly
-  refused; it is never clipped or reconstructed under its original identity.
-- `grounding=semantic|quoted|spans|off`: source-label verification; verification with
-  exact source-substring checks and model-attested attribution; or no links.
-  Quoted verification uses four claims per batch and at most 500 characters per
-  quote. Matching preserves case and whitespace; normalization cannot manufacture
-  a source substring. Quoted support is retained in the artifact. A valid substring and a
-  model's attribution are **not independent proof of semantic correctness**.
-- `grounding=spans` reconstructs quotes from offered canonical ranges instead of
-  asking the model to generate source text. Replies select a span ID and attest
-  support for the field and record; negative attribution creates no link. Prose
-  ranges cover every character and are at most 500 code points, preferring sentence
-  or whitespace boundaries. Existing table cells stay intact, including longer
-  cells. Complete parent text and eligible cell/header context remain available.
-  `quoted_support` retains exact start/end offsets, source text and cell identity;
-  geometry remains at the parent's precision unless a measured cell box exists.
-  Batches start at 32 claims, then split under actual input-token admission with
-  a 2,048-token output reserve. Missing/unknown decisions and truncation remain
-  failures. The setting and `span_grounding_version` change the fingerprint.
-- `grounding_schedule=unresolved` independently removes supported full record paths
-  from later source-unit calls. NONE, missing decisions and failed calls stay
-  unresolved. Omission keeps the exhaustive all-claim schedule and its previous
-  fingerprint. Early exit searches for support; it does not establish absence of
-  contradictions elsewhere. It can amplify false-positive support and needs
-  independently reviewed attribution evidence before production adoption.
+| Option | Effect | Requires |
+| --- | --- | --- |
+| `context=full\|bounded` | The complete source, or whole canonical passages partitioned under `context_tokens` (default 12,288, at least 8,192), output reserves included. A refused bounded call never falls back to the complete source. | |
+| `overlap_passages=0..2` | Preceding passages as context that never changes primary ownership. Tables are indivisible; an oversized passage is refused, never clipped. | `context=bounded` |
+| `grouping=structural` | Keep a heading with its first body block and tables with adjacent captions and footnotes, across page furniture; carry the latest heading into continuation units. An oversized group is refused intact; no heading hierarchy or cross-page table is inferred. | `context=bounded` |
+| `rendering=structured` | Expose canonical block IDs, labels and pages, and table cell IDs, rows, columns, spans and roles. Every source character is kept; the markup is counted, so it can raise cost or cause refusal. | |
+| `grounding=semantic\|quoted\|spans\|off` | Source-label verification; exact source-substring checks with model-attested attribution; span IDs chosen from offered canonical ranges, with quotes rebuilt from the source; or no links. A valid substring and the model's attribution are not independent proof of semantic correctness. | |
+| `evidence_policy=schema` | Apply the schema's `evidencePolicy` metadata (below). | `quoted` or `spans` grounding |
+| `identity`, `identity_fields`, `prompt`, `selection` | No effect on Article's prompts, record identity or units read, but they stay in the fingerprint, and with `context=bounded` the first three can still shift source-context sizing. Research replays still read them. | `identity=conservative` needs `identity_fields`; `selection` needs `context=bounded` |
+| `grounding_schedule`, `grounding_routing` | No effect on how Article grounds: it always checks each claim first in the context its value was read from, with exhaustive fallback, stopping at support. `grounding_routing` still adds its diagnostics (`value_origins`, `grounding_routes`). | `grounding_schedule` needs grounding; `grounding_routing` needs `grounding_schedule=unresolved` and `quoted` or `spans` grounding |
 
-- `evidence_policy=schema` independently enables node `evidencePolicy` metadata
-  with quoted or span grounding. Policies are `quoted`, `derived` or `unverified`.
-  Omitted metadata inherits the closest parent's policy, defaulting to `quoted`;
-  explicit child metadata overrides its parent. Explicit null is rejected.
-  For example, a diagnostic array node can declare `"evidencePolicy": "derived"`
-  while an observation child declares `"evidencePolicy": "quoted"`. Renaming the
-  array does not change eligibility. Derived describes eligibility, not a verified
-  calculation. Both skipped policies retain values, full paths in `ungrounded`,
-  and `evidence_policy_skipped` reasons in the result and Studio adapter.
-  `grounding_eligibility` records all/eligible leaf counts and skipped paths/policies;
-  `completion.eligible_grounding` reports only the eligible set (or `not_applicable`
-  when empty). Existing all-leaf grounding and link-rate metrics remain unchanged.
-  The analyzer checks the ledger against the schema and rejects links on skipped
-  fields. Without this method factor, metadata does not prune verification.
-- `grounding_routing=origin_lexical` requires `grounding_schedule=unresolved` and
-  quoted or span grounding. It orders whole source units per claim: units owning
-  extraction-origin passages first, then bounded lexical value matches and BM25
-  field/value relevance, with canonical index as the final tie-breaker. No source
-  unit is excluded; unresolved claims continue through every remaining unit.
-  Claims sharing their next unit are verified in one batch where budgets allow.
-  Failed, missing and invalid decisions do not stop search; refusals remain gaps.
-  Table cells, headers, qualifiers and structural context are not cut by routing.
-  This is deterministic lexical retrieval, without a dense model or service.
+With `evidence_policy=schema`, each schema node's `evidencePolicy` decides
+whether its values are verified: `quoted`, `derived` or `unverified`. A node
+without one inherits the closest parent's policy, defaulting to `quoted`; an
+explicit child policy overrides its parent; an explicit null is rejected. Values
+under `derived` or `unverified` are kept unverified: listed in `ungrounded` with
+an `evidence_policy_skipped` issue, and counted in `grounding_eligibility` (all
+and eligible record leaves, skipped paths and policies);
+`completion.eligible_grounding` reports only the eligible set (`not_applicable`
+when it is empty). `derived` describes eligibility; it does not verify a
+calculation. Without this option the metadata prunes nothing.
 
-With routing enabled, `value_origins` retains each full record leaf path and its
-contributing value-call unit/index path. Array unions may change output indexes;
-the mapping requires an exact whole-item match to an original reply. Scalar
-conflicts remain null and acquire no origin. Identity fields bound by the inventory
-retain `kind=inventory` and its model-supplied citations instead of pretending they
-were extracted again in each value call. Value units refer to `value_contexts`;
-routing prefers their primary ownership, not duplicated heading/overlap text.
-These are extraction hints, not canonical evidence or proof of support.
+Across value contexts, `contexts.assemble_document` keeps every array item in
+reading order. An item equal to one an earlier context returned is joined only
+when the two contexts share source that prints it exactly once
+(`overlap_items_joined`); other equal items stay and are named as
+`possible_repeated_items`. Objects merge field by field, and a disagreeing
+scalar is null with its conflict recorded. Nothing infers that two different
+items are one observation, so more contexts can mean more duplicate or
+contradictory candidates.
 
-`grounding_routes` retains full claim paths, ordered unit indexes, origin/value
-match hints, lexical scores, attempted/refused/remaining units and supported status.
-An attempted unit can still have a failed model reply; the existing calls/issues
-ledger retains those failures. `attempted_all` means every unit was submitted,
-not that every reply was usable or no contradiction exists. `partial` retains
-budget/no-evidence refusals; `stopped_after_support` retains unvisited units.
-The separately recorded `grounding_routing_version` participates in fingerprints.
+With `options.article` set, `completion` separates processing, attempted source
+coverage, grounding, document fields and record recall (always `unmeasured`),
+and `complete` is false: successful calls and linked fields cannot establish
+that every array item was found.
 
-These methods are opt-in prototypes. Their controlled live comparison remains in
-the follow-up plan.
-They do not alter the running frozen R1/R2a/R3/R4 study.
-
-The shared decoder accepts literal control characters only inside strings and
-preserves their values exactly, like escaped JSON spellings. It still rejects
-missing delimiters, invalid escapes, trailing objects and output truncation.
-Only a leading model thinking envelope is removed; literal tags inside source
-quotes remain intact. The provider prompt requests escaped JSON strings. Recipe
-Catalog records protocol v5 for the same decoder correction. This is an explicit
-syntax extension, not semantic acceptance or repair of missing model output.
-
-To exercise the new structural input with an approved schema, set:
+A request exercising the structural input:
 
 ```json
 {"strategy": "article", "article": {
   "context": "bounded", "context_tokens": 12288,
-  "rendering": "structured", "grouping": "structural",
-  "prompt": "schema", "grounding": "quoted"
+  "rendering": "structured", "grouping": "structural", "grounding": "quoted"
 }}
 ```
-
-Add conservative identity reconciliation only with identity fields appropriate to
-the schema. These remain experimental controls, not a new Studio default.
-
-Bounded value reconciliation unions exactly equal array items, merges objects,
-and leaves scalar conflicts null with all alternatives recorded. It does not
-infer that different array items represent the same observation. Multiple
-units can therefore increase duplicate or contradictory candidates.
-
-`completion` separates processing, attempted inventory coverage, grounding,
-unverified document fields and unmeasured recall. Experimental Article artifacts
-never assert complete record recall from their own inventory. A successful call
-is not evidence that the model found every subject.
 
 ## Catalog choices
 
@@ -310,32 +234,21 @@ printed identifier. Transfer to other grave reports is unmeasured.
 
 ## Research boundary
 
-The assemblies implement controllable adaptations of the intentions in
-kei-exp's literature review:
+The methods adapt published ideas rather than replicate published systems:
 bounded decomposition, stable source IDs, overlap, explicit nulls, deterministic
-verification, and schema/glossary context. They do not replicate trained models,
-coordinate-embedding experiments, supervised SCRI/GEC training, stochastic voting,
-VLM crop rereading, learned routing, or the complete published systems. Those
-require separate implementations and evaluation data.
-
-The full-source reference remains an experimental baseline because comparison
-is an explicit requirement. It is not an invisible fallback for a refused
-bounded call. Bounded processing currently trades repeated calls for exhaustive
-source visitation; call count grows with records times source units. The optional
-lexical selector is a separate hypothesis, not hybrid retrieval replication.
-Cross-unit semantic reconciliation remains unimplemented. Structural grouping adapts
-[BLOCKIE's linked-block idea](https://arxiv.org/html/2505.13535v1) using canonical
-labels, without an LLM rewriting the source or proof of block independence. Literal
-quoted-source checking follows the decoding constraint in
-[LMDX Algorithm 2](https://arxiv.org/html/2309.10952v2); it does not reproduce coordinate
-training or voting. These development fixes are separate from the frozen studies.
-The R3 [rendering protocol](../experiments/extraction/rendering-protocol.md)
-declares a separate six-paper fresh comparison. It tests structure in model input,
-not semantic grouping or the complete historical DocTags pipeline.
+verification and schema or glossary context. Structural grouping adapts
+[BLOCKIE's linked-block idea](https://arxiv.org/html/2505.13535v1) using
+canonical labels, without an LLM rewriting the source or proof of block
+independence. Literal quoted-source checking follows the decoding constraint in
+[LMDX Algorithm 2](https://arxiv.org/html/2309.10952v2), without its coordinate
+training or voting. Trained models, coordinate embeddings, supervised SCRI/GEC
+training, stochastic voting, VLM crop rereading, learned routing and cross-unit
+semantic reconciliation are not implemented.
 
 ## Run a study
 
-From this service directory, with the existing virtual environment:
+From this service directory, the study harness registers an immutable comparison
+and runs it cell by cell:
 
 ```sh
 .venv/bin/python -m experiments.extraction.register DIAGNOSIS_ROOT MANIFEST.json
@@ -347,128 +260,77 @@ From this service directory, with the existing virtual environment:
 
 Registration pins source PDFs, every canonical JSON file, generations, schemas,
 gold, scorer, implementation files, method settings and model endpoint metadata.
-Any changed pinned input refuses execution. Registration is immutable; a code,
-schema or policy change requires a new study revision. No new conversion is
-mixed into a method comparison. The registry uses only existing example and
-validation inputs; the six gold papers are development data, and the ten examples
-have no independently annotated field gold.
+Any changed pinned input refuses execution, so a code, schema or policy change
+needs a new registration. `register` freezes a six-paper annotated development
+corpus and ten example PDFs that are not public, so the registered studies
+cannot be rerun from a public checkout. `run` resumes an interrupted cell only
+when its next request exactly matches the captured one; saved replies count as
+reused, not fresh inference. The runner starts no model service and supplies no
+credentials. Small development samples cannot establish generalization, and
+model links are not an independent semantic grounding score.
 
-`run --cell CELL_ID` selects one registered cell. Rerunning `run` retains completed
-cells and resumes interrupted cells only when their next request exactly matches
-the captured request. Saved replies count as reused, not fresh inference.
-Requests without saved replies carry an unknown-prior-completion count before
-resubmission. A cell lock prevents concurrent execution of that cell. Completed
-results commit together with their execution receipt in `cells/ID/result.json`:
-the native extraction artifact is under `artifact`, execution accounting under
-`execution`. Failed attempts and full request/reply captures remain separate.
+Each study's protocol was declared before its results were inspected:
 
-The runner does not start or deploy model services, supply credentials, reset
-databases, or claim authenticated service/DBOS timing. It uses greedy decoding.
-Saved model latency is distinguished from the wall time of the current attempt.
-
-Analysis uses the unchanged adjudicated collagen scorer. It reports populated
-and empty fields separately, per-document paired effects, document bootstrap
-intervals, one registered two-factor interaction, token/call costs, grounding
-diagnostics, failures, and an extra-prediction review queue. Extra predictions
-are not automatically false positives because the gold is non-exhaustive.
-Unannotated examples support operational comparisons only. Small development
-samples cannot establish generalization, and model links cannot establish an
-independent semantic grounding accuracy score.
-
-The selector has a separate [conditional replay protocol](../experiments/extraction/selection-protocol.md).
-`python -m experiments.extraction.selection_replay register R1_DIR OUTPUT_DIR`
-pins that comparison; `run OUTPUT_DIR SOURCE_ID` first reproduces the original
-bounded result exactly, then compares all versus selected value units using only
-captured response subsequences. Both paired arms disable grounding. Tokenizer
-probes are cached, and unseen generation requests fail. Saved calls/tokens are
-counterfactual costs; replay is not a fresh latency or model-variability trial.
+- R2a, value-unit selection replay: [selection protocol](../experiments/extraction/selection-protocol.md) (`experiments.extraction.selection_replay`).
+- R3, structured Article input: [rendering protocol](../experiments/extraction/rendering-protocol.md) (`experiments.extraction.register_rendering`).
+- R4, structural grouping: [grouping protocol](../experiments/extraction/grouping-protocol.md).
+- R5, fixed-upstream grounding: [grounding protocol](../experiments/extraction/grounding-protocol.md) (`experiments.extraction.grounding_study`).
 
 ## Iterative evaluation against a golden workbook
 
 `experiments/extraction/iterative_eval.py` is the developer loop for "pilot a few
 documents, then run the whole set": it reads a golden Excel sheet, extracts
-through the service's own entrypoint, and reports field-level precision, recall
-and F1 for a pilot of the first N documents and then for the whole set.
+through the service's own entrypoint, and scores field-level precision, recall
+and F1, compared as multisets after NFKC, casefold and whitespace normalization.
+Its module docstring defines the sheet format and the metrics, and
+`iterative-eval.example.json` shows the configuration.
 
 ```sh
-.venv/bin/python -m experiments.extraction.iterative_eval gold    CONFIG.json  # inspect how the sheet was read
-.venv/bin/python -m experiments.extraction.iterative_eval run     CONFIG.json  # pilot, then full; both scored
-.venv/bin/python -m experiments.extraction.iterative_eval report  CONFIG.json
-.venv/bin/python -m experiments.extraction.iterative_eval compare BASELINE.json CANDIDATE.json
+.venv/bin/python -m experiments.extraction.iterative_eval gold     CONFIG.json  # inspect how the sheet was read
+.venv/bin/python -m experiments.extraction.iterative_eval run      CONFIG.json  # pilot, then full; both scored
+.venv/bin/python -m experiments.extraction.iterative_eval pipeline CONFIG.json  # the fixed three rounds
+.venv/bin/python -m experiments.extraction.iterative_eval report   CONFIG.json
+.venv/bin/python -m experiments.extraction.iterative_eval compare  BASELINE.json CANDIDATE.json
 ```
 
-The golden workbook is one sheet: each row is a document (the first column, or a
-header that names the file, identifies it) and each remaining column is a schema
-field. A cell holds one value, a JSON array, or newline-separated values. A
-prediction is counted per (document, field): true positives are values both
-claim, false positives are values only the extraction populated, false negatives
-are values only the gold claims, compared as multisets after NFKC, casefold and
-whitespace normalization, with numbers compared as numbers. The report lists
-micro P/R/F1 over all cells, a presence P/R/F1 (was the field populated at all),
-exact-cell accuracy and a per-field breakdown; `compare` turns two metrics
-artifacts into the improvement conclusion. Metric definitions live in the module
-docstring.
-
-Configuration and defaults are in `iterative-eval.example.json`. Documents are
-canonical runs: name existing runs in `runs`, let the harness reuse a run under
-`runs_root`, or point it at a PDF it parses first (a born-digital PDF needs no
-model server). Extraction uses the service's own `extract` entrypoint against
-the named `providers`; it never starts a service, supplies credentials or
+Documents are canonical runs: name existing runs in `runs`, let the harness reuse
+a run under `runs_root`, or point it at a PDF it parses first (a born-digital PDF
+needs no model server). It never starts a service, supplies credentials or
 touches PostgreSQL. Each cell's model calls are captured under the output, so an
 interrupted run resumes from the exact saved requests and the full phase only
 extracts the documents the pilot did not.
 
 ### The fixed three-round pipeline
 
-`python -m experiments.extraction.iterative_eval pipeline CONFIG.json` runs the
-fixed developer loop the evaluation surface drives:
-
-1. `PILOT_1` extracts the first two documents in upload order, or the pair named
-   by `pilot_documents`.
-2. `PILOT_2` extracts the same two documents with `PILOT_1`'s shadow-review
-   differences carried as patterns-only guidance.
-3. `BATCH` extracts every document with `PILOT_2`'s differences as guidance.
-
-Each round writes `rounds/<label>/{metrics.json,report.md,status.json}` beside
-its resumable cells, and the manifest pins the schema, options, gold digests and
-the guidance digest each round used. Rounds run in order and a failed round is
-recorded rather than lost; completed cells are reused on resume, so an
-interrupted run continues where it stopped. Guidance is applied by the harness's
-own field-role wrapper (`GuidanceChat`); it never enters a durable admission or
-a product fingerprint.
+`pipeline` runs `PILOT_1` over the first two documents in upload order (or the
+pair named by `pilot_documents`), `PILOT_2` over the same two with `PILOT_1`'s
+shadow-review differences as patterns-only guidance, then `BATCH` over every
+document with `PILOT_2`'s. Each round writes `metrics.json`, `report.md` and
+`status.json` under `rounds/<round>/` (the label lower-cased) beside its
+resumable cells; the manifest pins the schema, options, gold digests and each
+round's guidance digest, and `metrics.csv` and `metrics.xlsx` hold one row per
+round. Guidance is applied by the harness's own field-role wrapper
+(`GuidanceChat`); it never enters a durable admission or a product fingerprint.
 
 Metrics per round: micro, macro and per-field precision, recall and F1; presence
-and exact-cell accuracy; evidence-anchor coverage (the share of populated,
-grounding-eligible record leaves carrying a locatable anchor — coverage, not
-semantic correctness); and shadow-reviewer effort (`edited + rejected + added +
-deleted`, each count reported). Catalog records align to gold rows one-to-one
-and mutually by the record-identity field (`identity`, defaulting to
-`amino_acid_hydroxyproline_value` when present and to the first field
-otherwise); unmatched records are reported, never counted as correct. The
-`exhaustive` flag (default true) decides whether a prediction with no gold
-counterpart is a false positive or an unscored extra.
+and exact-cell accuracy; evidence-anchor coverage (populated, grounding-eligible
+record leaves carrying a locatable anchor: coverage, not correctness); and
+shadow-reviewer effort (`edited + rejected + added + deleted`). Catalog records
+align to gold rows one to one by the record-identity field (`identity`);
+unmatched records are reported, never counted as correct. `exhaustive` (default
+true) decides whether a prediction with no gold counterpart is a false positive
+or an unscored extra.
 
-Each run also writes `metrics.csv` and `metrics.xlsx` beside the manifest: one
-row per round with every metric — micro precision, recall and F1, presence and
-exact accuracy, anchor coverage (raw and eligible), effort with its four counts,
-and the gold and guidance digests — so the three rounds can be read without
-opening each round's JSON. Metrics are per round; the per-field breakdown stays
-in each round's `report.md`. The Studio panel shows the same per-round table.
-
-Strict normalized matching is the primary score. Because a faithful value can
-still differ in wording, the harness sends only the pairs strict matching did
-not confirm to the deployment's reasoning model, which returns a structured
-verdict (`match` / `extra` / `uncertain`, plus the gold values it found missing).
-The judge layer reports its own precision, recall and F1 beside the strict
-numbers, with judged and unjudged counts; a pair whose judge call failed stays
-unjudged instead of counting as wrong. The judge runs with a pinned prompt
-version on the reasoning provider, records every request and verdict under
-`rounds/<label>/judge/`, and is developer-only: `FREE_EVAL_JUDGE=0` disables it.
-It is a diagnostic, not ground truth.
+Strict normalized matching is the primary score. A judge, when the
+configuration's `judge.enabled` is true, sends only the pairs strict matching did
+not confirm to the reasoning model and reports its own precision, recall and F1
+beside the strict numbers, with judged and unjudged counts; a pair whose judge
+call failed stays unjudged. It records every request and verdict under the
+round's `judge/` and is a diagnostic, not ground truth.
 
 ### Running the watcher on a developer deployment
 
-The Spark deployment runs the evaluator as a profile-gated Compose service, so
+A developer deployment runs the evaluator as a profile-gated Compose service, so
 the production stack starts nothing extra unless an operator asks for it:
 
 ```sh
@@ -479,11 +341,12 @@ The watcher polls every `FREE_EVAL_INTERVAL` seconds for a Project Context that
 has both a current `projectSpreadsheetVersion` with rows and at least one Source
 Document whose canonical run is on the host. It builds the Extraction Schema
 from the gold header columns (`FREE_EVAL_STRATEGY=article` by default), writes
-the stored gold rows back to a workbook, runs the fixed pipeline, and records one
-`EvaluationRound` per round — `PENDING` before the run, then `SUCCEEDED` or
-`FAILED` with its metrics and pins. A gold version that already has rounds is
-skipped, so restarting the watcher does not duplicate work, and a new gold
-upload is a new version evaluated on its own.
+the stored gold rows back to a workbook, runs the fixed pipeline with the judge
+on (`FREE_EVAL_JUDGE=0` turns it off), and records one `EvaluationRound` per
+round — `PENDING` before the run, then `SUCCEEDED` or `FAILED` with its metrics
+and pins. A gold version that already has rounds is skipped, so restarting the
+watcher does not duplicate work, and a new gold upload is a new version
+evaluated on its own.
 
 Model endpoints default to the deployment's extraction server
 (`KEI_EXTRACT_URL`/`KEI_EXTRACT_MODEL`); `FREE_EVAL_FIELDS_URL`/`_MODEL` and

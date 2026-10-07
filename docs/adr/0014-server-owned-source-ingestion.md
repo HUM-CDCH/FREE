@@ -1,10 +1,9 @@
 # 0014: Server-owned Source Ingestion
 
 Date: 2026-09-27. Status: accepted; supersedes, for uploads, the thirty-minute
-upload wait of the DBOS plan
-(2026-09-24-unified-durable-execution.md,
-*Source ingestion*) and its out-of-scope line on asynchronous ingestion.
-Plan: 2026-09-27-server-owned-source-ingestion.md.
+upload wait of the DBOS design and its out-of-scope line on asynchronous
+ingestion ([unified durable execution](../design/unified-durable-execution.md),
+*Background work* → `ingestSource`).
 
 ## Context
 
@@ -13,8 +12,8 @@ also kept a queue of its own: it sent one PDF at a time and held each request
 open until the parse ended (up to thirty minutes). Files behind it lived only
 in browser memory, so a reload, a second tab or a Studio restart made the
 in-progress upload disappear until it became a Source Document. The browser
-queue was also redundant: kei's conversion lanes already order GPU work, and a
-small PDF waited in the browser behind a large one.
+queue was also redundant: the Parsing Service's conversion lanes already order
+GPU work, and a small PDF waited in the browser behind a large one.
 
 ## Decision
 
@@ -31,8 +30,9 @@ One queue, the server's.
    Document. Named workflow IDs are answered whatever their age.
 3. **Dismissing a failure deletes it.** `DELETE …/source-ingestions/<id>`
    deletes the failed attempts of that content from DBOS history, all or
-   nothing under M6's quiescence rule (a stopped attempt only once it was last
-   updated before this Studio process booted). There is no new table.
+   nothing under the garbage collector's quiescence rule (design, *Cancelled
+   Studio history*): a stopped attempt only once it was last updated before
+   this Studio process booted. There is no new table.
 4. **Retrying a failed upload sends the bytes again**; the workflow removes its
    staged file on failure. A send that Studio could not acknowledge keeps its
    file in the tab for Retry.
@@ -45,12 +45,12 @@ One queue, the server's.
 
 - An admitted upload survives reloads, other tabs, navigation and Studio
   restarts. A file not yet sent does not.
-- Every selected PDF reaches `source-inbox` and kei's lanes at once; no quota is
-  added.
+- Every selected PDF reaches `source-inbox` and the Parsing Service's lanes at
+  once; no quota is added.
 - An observed Project Context costs at most three `listWorkflows` reads and one
   content lookup per request, every 3 s while work is live and every 30 s
   otherwise.
-- Dismissal is the one exception to M6's thirty-day background-history
-  retention.
+- Dismissal is the one exception to the thirty-day background-history
+  retention (design, *History retention*).
 - Reprocessing still waits on its parse, in its own browser region, until it
   moves to the same model.

@@ -2,8 +2,14 @@
 
 # Model multi-page tables as one logical table
 
-> **Accepted.** This decision defines the implemented `parsed_document.v2`
-> table and Evidence contract.
+> **Accepted.** This decision defines the `parsed_document.v2` table and
+> Evidence contract, which the strict decoder in
+> [`packages/extraction/src/parsed-document.ts`](../../packages/extraction/src/parsed-document.ts)
+> enforces. Since the parser replacement in
+> [0009](0009-own-parsing-and-extraction-service-in-free.md), the producer,
+> [`apps/studio/api/_kei_exp.ts`](../../apps/studio/api/_kei_exp.ts), emits
+> page-local tables only: the decoder accepts a derived continuation, but none
+> is produced.
 
 A table that continues across physical pages is one derived logical table with
 page-scoped Evidence. Docling records remain page-local; the runtime does not
@@ -23,7 +29,3 @@ OTSL matrices, a header-bearing first fragment, a body-only next fragment, and
 page-break-only interstitial content. Narrative, captions, new headers,
 malformed observations, adjacency, textual similarity, geometry, and generated
 IDs cannot establish continuation.
-
-Docling remains semantic table authority. Camelot may monotonically enrich
-geometry after an exact content/structure match; Camelot-only candidates are
-diagnostics and are not canonical tables.

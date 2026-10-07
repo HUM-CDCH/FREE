@@ -2,7 +2,7 @@
 # profile for the real Microsoft Entra tenant on top of the automatic
 # development overlay:
 #
-#   docker compose -f compose.yaml -f compose.override.yaml -f compose.entra.yaml up --build --watch
+#   pnpm dev -- --entra
 #
 # Requires the four FREE_ENTRA_* values in .env and the exact
 # https://localhost:8443/free/auth/callback and .../auth/signed-out URIs

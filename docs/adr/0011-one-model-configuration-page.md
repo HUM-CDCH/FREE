@@ -3,7 +3,8 @@
 Date: 2026-09-23. Status: accepted; amends
 [0007](0007-two-explicit-model-capability-routes.md) and the Studio part of
 [0010](0010-serve-extraction-models-from-vllm.md); amended by
-[0013](0013-per-researcher-model-configuration.md).
+[0013](0013-per-researcher-model-configuration.md) and
+[0015](0015-extraction-method-pinned-at-admission.md).
 
 ## Context
 
@@ -62,5 +63,7 @@ and `DELETE /api/model_config` are gone, and nothing is kept in a keyring.
 Clients again send the Extraction Model Choice: every start submits the choice
 and the Extraction Method Settings its view showed, and admission refuses a
 stale one and pins the rest on the Extraction (see
-[0015](0015-extraction-method-pinned-at-admission.md)). The page has Models,
-Connections and Advanced tabs.
+[0015](0015-extraction-method-pinned-at-admission.md)). An identical repeat of
+a start replays its admitted Extraction even if the account's choice changed
+since; only a different request under the same ID conflicts. The page has
+Models, Connections and Advanced tabs.

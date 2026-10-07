@@ -141,10 +141,11 @@ pnpm test:e2e    # Playwright, browser flows
 pnpm test:all    # every tier except live-model and system tests
 ```
 
-The [product contract](docs/product-contract.md) describes every test tier, plus
-the rules for authentication, storage and deployment.
 [docs/operations/local-development.md](docs/operations/local-development.md)
-covers the rest of local setup.
+covers local setup and describes every test tier under
+[Verification](docs/operations/local-development.md#verification). The
+[product contract](docs/product-contract.md) sets the rules for
+authentication, storage and deployment.
 
 The repository also works with coding agents. [AGENTS.md](AGENTS.md) is the
 entry point for Codex, Claude Code and other agents (`CLAUDE.md` points to it).
@@ -153,8 +154,11 @@ entry point for Codex, Claude Code and other agents (`CLAUDE.md` points to it).
 
 - [CONTEXT.md](CONTEXT.md): domain language
 - [docs/product-contract.md](docs/product-contract.md): product and safety contract
+- [docs/architecture/](docs/architecture/): architecture model (LikeC4) and code map
 - [docs/adr/](docs/adr/): architecture decisions
+- [docs/design/unified-durable-execution.md](docs/design/unified-durable-execution.md): durable execution design
 - [docs/operations/](docs/operations/): local development, deployment, Entra sign-in
+- [apps/studio/README.md](apps/studio/README.md): Studio
 - [apps/parsing_service/README.md](apps/parsing_service/README.md): Parsing Service
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute
 

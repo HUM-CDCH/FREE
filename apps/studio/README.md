@@ -6,89 +6,56 @@ run from the Node host in `server/`.
 
 ## Commands
 
-Run the full prototype from the repository root:
+Run FREE from the repository root with `pnpm dev`, which serves Studio at
+<https://localhost:8443/free>. This folder has `pnpm dev`, `pnpm test`,
+`pnpm test:e2e`, `pnpm lint` and `pnpm build`. Its `pnpm dev` runs Vite alone
+at `http://127.0.0.1:5173` and needs PostgreSQL at startup; start it first with
+`pnpm --filter db db:start`. See
+[local development](../../docs/operations/local-development.md) for the rest.
 
-```bash
-pnpm install
-pnpm start
-```
+## Source Documents
 
-Local development uses Vite's implicit localhost binding at
-`http://localhost:5173`; the Parsing Service defaults to
-`http://127.0.0.1:8055`. The root `compose.yaml` supplies the supported private
-HTTPS deployment. See [the deployment guide](../../docs/operations/deployment.md#network-exposure-and-proxy-trust)
-for its port boundary and the production Node host's explicit trust modes.
+An upload is Studio's once it is admitted (`202 { workflowId }`). The Parsing
+Service parses it; Studio translates the result into a strict
+`parsed_document.v2` document and its canonical Markdown, kept as the Source
+Representation. The Project page lists the upload as a Source Ingestion
+(queued, parsing or failed) across reloads, tabs and Studio restarts until it
+becomes a Source Document. A failure can be dismissed or uploaded again. Files
+the browser has not sent yet are still only in the tab. A PDF the project
+already holds returns its Source Document without a new parse.
 
-From this folder:
-
-```bash
-pnpm dev
-pnpm test
-pnpm test:e2e
-pnpm lint
-pnpm build
-```
-
-## Source-document Evidence
-
-Completed parsing supplies canonical Markdown and the strict `parsed_document.v2`
-contract together. A reopened Source Document reads both from its durable Source
-Representation at `/api/source-representations/{id}/markdown` and
-`/api/source-representations/{id}/source`. A Source Document that you open from
-disk goes to the Parsing Service, which returns the same two payloads.
-The **Evidence** tab groups text and table-cell Evidence by physical page, shows
-producer and logical coordinates, continuation/page-span status, geometry availability,
-unplaced content, and parser diagnostics. Selecting an anchor uses only its recorded
-physical page and canonical bounding box; missing geometry never triggers PDF text
-matching. This source-document Evidence view is separate
-from extraction-result Evidence and arbitrary extraction JSON remains permissive.
-
-## Model configuration
-
-Each Researcher Account has its own model configuration in PostgreSQL; a fresh account starts with none. Open **Configure models** for the Model Configuration page. Its **Models** tab follows the work in three steps — reading documents (the Ingestion Model Choice), schema and chat (the *Assistant model*, which Schema Suggestion follows until given its own model), and extracting data (the Extraction Model Choice) — and its **Connections** tab lists the researcher's connections beside the deployment's read-only ones (`FREE_DEPLOYMENT_INSTRUCT_URL`, `FREE_DEPLOYMENT_INSTRUCT_MODEL`, `FREE_DEPLOYMENT_NUEXTRACT_URL` from the GPU overlay, and the CLI providers enabled by `FREE_DEPLOYMENT_CLI_PROVIDERS`).
-
-- A connection's key is typed into the page and stays in this browser's `localStorage`, bound to the account, the connection and its API base; changing the base or provider clears it. The page sends keys to Studio with `PUT /api/model-keys`, and Studio keeps them only in memory. After a Studio restart the page resends them on its next request; background work with no page open fails with `model_key_required` and can be retried.
-- **Apply** saves the whole draft in one transaction; the configuration is validated on every write, so there is no reset.
-- Connection checks run when the page opens and after edited provider inputs settle. They are advisory: they never generate content or change configuration, and never gate a manual model ID or Apply.
-- A keyless Ollama connection calls its server anonymously, even when `OLLAMA_API_KEY` is set in Studio's environment.
-
-Ollama, OpenAI, Anthropic, Google, vLLM, and generic OpenAI-compatible connections can be added by a researcher; Codex CLI and Claude Code are deployment connections only. A vLLM connection is OpenAI-compatible and switches the chat template's thinking off. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
-
-The Studio container includes the Codex CLI and Claude Code. Enable them with `FREE_DEPLOYMENT_CLI_PROVIDERS`, then log in once inside the running container:
-
-```bash
-studio=$(docker ps -qf label=com.docker.compose.service=studio)
-docker exec -it "$studio" pnpm --filter studio exec codex login --device-auth
-docker exec "$studio" pnpm --filter studio exec codex login status
-```
-
-Claude Code authenticates from `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`). The Codex home and Claude Code's state live in the `studio-config` and `studio-claude` volumes, so rebuilding the image keeps the logins.
-
-## Reprocessing a Source Document
+The rail's **Evidence** tab is a developer view, shown only when
+`VITE_SHOW_DEVELOPER_UI=true` (the root `pnpm dev` stack sets it; production
+builds do not): the parsed document's text and table-cell Evidence by page.
 
 Use **Reprocess** in a Source Document menu and select single pages or two-page
-spreads. Studio parses the retained PDF and publishes the next Source
-Representation Revision after the complete canonical package is retained.
-The request pins the expected current revision; concurrent changes return a
-conflict, and a retry with the same request key replays its published revision.
+spreads. The Parsing Service parses the retained PDF again, and Studio publishes
+the next Source Representation Revision once the complete canonical package is
+retained. The request pins the expected current revision, so a concurrent
+change returns a conflict. Reprocessing is a durable workflow: closing the
+browser does not stop it, and repeating the request with the same request key
+rejoins it or returns its published revision.
 
-Existing Extractions, Review Decisions and Annotations retain their original
-source revision. Opening the document without an Extraction identity selects
-its current revision; opening a historical Extraction uses its original source.
-A new Extraction can be started only on the document's current source revision:
-the server answers 409 `source_representation_superseded` for a superseded one,
-and the historical view offers no run. Runs started from a Schema Suggestion keep
-the revisions saved with the suggestion; they are the one exception.
-Run a new Extraction on the current revision to use upgraded cell Evidence; an
-Extraction opened on an earlier revision offers no new run. Ordinary
-re-uploading still deduplicates by PDF content and does not reprocess it.
+Existing Extractions, Review Decisions and Annotations keep their original
+source revision. Opening the document without an Extraction selects its current
+revision; opening a historical Extraction uses its original source. A new
+Extraction runs only on the current revision: the historical view offers no
+run, and the server refuses a superseded one with 409
+`source_representation_superseded`. Runs started from a Schema Suggestion are
+the one exception: they keep the revisions saved with the suggestion.
 
-Reprocessing runs as a durable workflow: closing the browser does not stop it,
-and repeating the request with the same request key rejoins it or returns its
-published revision. Its browser request still waits on the parse; after closing
-the page, the result becomes visible as the new revision.
+## Schema Suggestion and editing
 
-An upload is Studio's once it is admitted (`202 { workflowId }`): the Project page
-lists it as a Source Ingestion, queued, parsing or failed, across reloads, tabs and
-Studio restarts, until it becomes a Source Document. A failure can be dismissed or
-uploaded again. Files the browser has not sent yet are still only in the tab.
+Schema Suggestion cuts the source Markdown into gap-free windows of at most
+48,000 characters and suggests a schema per window through the Schema
+Suggestion Route. Only the windows get the researcher's instruction: read again
+at the combining step, a document-scope exclusion ("exclude the bibliography")
+removed per-entry fields in a real-model probe. Combining works level by level:
+the union of one source's windows, and in a Batch Schema Suggestion the
+intersection of the sources' suggestions. The DBOS patches
+`schema-suggestion-windows` and `batch-schema-suggestion-windows` gate these
+steps. A suggestion too large to combine in one request fails with
+`merge_input_too_large` rather than being left out; one stopped for length fails
+with `model_output_truncated`. Ollama connections get `truncate: false`, so an
+over-long prompt fails instead of being cut. Schema editing proposals come from
+the Interaction Route and never change the pinned Schema Revision.

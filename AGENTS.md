@@ -2,7 +2,7 @@
 
 - Read `docs/product-contract.md` before changing authentication, persistence,
   deployment, database lifecycle, or verification. It is the normative product
-  and safety contract; `README.md` is the short public getting-started guide.
+  and safety contract.
 - Read `CONTEXT.md` before naming or changing domain concepts.
 - Read `CONTRIBUTING.md` when recording plans, unresolved work, or durable
   decisions.

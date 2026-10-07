@@ -730,8 +730,7 @@ def test_a_stage_that_fails_half_writes_or_misreports_leaves_the_accepted_genera
     CALLED.clear()
     accepted = state(paths.accepted)
     # `split` is the only setting active in single mode, so a changed active config is the change to spread mode.
-    # The stage is a stub here because the gutter policy is still the user's to write (spec 7); what this case
-    # asks is only whether the cache skipped, and it did not.
+    # The stage is a stub here because what this case asks is only whether the cache skipped, and it did not.
     with patch.object(ingest, "run", refuse):
         refused("a run whose active config changed",
                 lambda: step(catalogue, SPREAD_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")

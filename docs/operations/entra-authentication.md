@@ -9,9 +9,7 @@ Microsoft Graph, groups, app roles, refresh tokens, or a local disable list.
 
 1. Create a single-tenant web application registration and require assignment
    on its enterprise application.
-2. Register the exact web redirect and post-logout URIs. For
-   `STUDIO_BASE_PATH=/`, use `<STUDIO_ORIGIN>/auth/callback` and
-   `<STUDIO_ORIGIN>/auth/signed-out`. Otherwise use
+2. Register the exact web redirect and post-logout URIs,
    `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/callback` and
    `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/signed-out`. For local real-Entra
    development (`pnpm dev -- --entra`) these are
@@ -45,29 +43,6 @@ openssl x509 -in entra-client.crt -noout -fingerprint -sha256 -checkend 0
 
 The two public-key digests must match.
 
-## Guarded cutover
-
-The Entra schema migration intentionally accepts only an empty
-`ResearcherAccount` and an empty `ProjectContext`. Its first operation checks
-both tables in the migration transaction; either non-empty table fails before
-any schema mutation. The application startup never deletes or rewrites auth
-data.
-
-1. Quiesce writes and take a verified PostgreSQL and Studio-volume backup.
-2. Inspect both tables. If either contains data that must survive, stop: this
-   release has no compatibility or identity-conversion path.
-3. If the operator has explicitly approved a clean cutover, remove owned
-   Project Contexts before their Researcher Accounts using an audited, manual
-   database operation. This deletion is runbook-only and must not be added to
-   startup or migration code.
-4. Replay the authored forward migrations with `pnpm --filter db db:init`,
-   then start Studio. This migration command may target the deployment;
-   production must never use `pnpm db:reset`.
-5. Keep the previous image and backup until the browser smoke checks pass.
-
-The Project Context foreign key remains `ON DELETE RESTRICT`, so an account
-cannot be removed while it owns research data.
-
 ## Validate the deployment
 
 Check all of the following through the canonical HTTPS URL and configured base
@@ -91,19 +66,23 @@ loss of arbitrary component-local text across the reauthentication redirect.
 
 ## Operate and rotate
 
+Assign or remove Researchers on the Entra enterprise application. The Project
+Context foreign key is `ON DELETE RESTRICT`, so a local account cannot be
+deleted while it owns research data.
+
 FREE sessions never renew in place and expire eight hours after successful
 sign-in, for both Microsoft Entra and local mock OIDC. The identity token must
 have more than one minute remaining at sign-in; its later expiry does not end
-the FREE session. Microsoft Entra token settings are unchanged, and local mock
-OIDC continues to issue 24-hour tokens.
+the FREE session. Local mock OIDC issues 24-hour tokens.
 
 On expiry, FREE redirects through the existing authorization-code flow. Entra
 SSO may complete it without a credential prompt, subject to tenant policy.
-Only the supported drafts described above are restored. No token-lifetime
-policy change or refresh-token storage is required.
+Before the redirect the browser keeps unsaved schema drafts, in the schema
+editor and in a Batch Schema Suggestion, in same-tab storage for up to 30
+minutes, and restores them after sign-in only for the same account and
+resource. No token-lifetime policy change or refresh-token storage is
+required.
 
-Session cookie version 4 rejects older cookies issued under previous lifetime
-rules; updating Studio requires a fresh sign-in.
 Removing enterprise-app assignment blocks the next sign-in, but an existing
 FREE session can remain usable for up to eight hours. FREE has no
 per-account emergency kill switch; rotating
@@ -112,7 +91,6 @@ session. Session and authorization-transaction signatures use separate HMAC
 contexts even though both derive from that deployment secret.
 
 For certificate rotation, upload the new public certificate before replacing
-the mounted private key and thumbprint, restart Studio, complete a sign-in, then
-remove the old certificate. To roll back the auth cutover, stop the new image
-and restore the previous image together with its matching database and volume
-backup; do not attempt to reverse only the schema in place.
+the mounted private key and thumbprint, re-run `node scripts/free.mjs
+production` so Studio starts with them, complete a sign-in, then remove the old
+certificate.

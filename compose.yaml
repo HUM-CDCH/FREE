@@ -40,7 +40,7 @@ x-parsing-runtime: &parsing-runtime
     KEI_OCR_MODEL: "${KEI_OCR_MODEL:-surya}"
     KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
     # Named in every served parse's recipe when set, so a new value stops reuse of what the earlier OCR server wrote:
-    # change it when ocr_model's image or weights change (docs/operations/deployment.md#upgrade-ocr-result-reuse).
+    # change it when ocr_model's image or weights change (docs/operations/deployment.md#ocr-result-reuse).
     KEI_OCR_REVISION: "${KEI_OCR_REVISION:-}"
     # Extraction's vLLM servers exist on the GPU overlay only (compose.gpu.yaml),
     # which also registers NuExtract. Without it an operator may point the
@@ -89,7 +89,7 @@ services:
     # Restarting only the API leaves the worker's admitted conversions alive.
     restart: unless-stopped
     stop_grace_period: 60s
-    # Studio's entrypoint creates kei's role and schema (M2). A replacement
+    # Studio's entrypoint creates kei's role and schema. A replacement
     # worker starts after the old process exits and releases its slot lock;
     # never scale this single slot with replicas or add a second slot:
     # deleteRuns' boot boundary assumes one kei process.
@@ -102,8 +102,8 @@ services:
       - parsing-models:/models
       - source-inbox:/app/source-inbox:ro
 
-  # Developer-only evaluation watcher. Opt in explicitly with
-  # `docker compose --profile eval up eval_watcher`; never started otherwise.
+  # Developer-only evaluation watcher, started only with `--profile eval` (the
+  # production launcher adds it when FREE_DEVELOPER_EVAL=1).
   # It polls Project Contexts that have stored gold rows and an ingested
   # document, runs the fixed pilot/pilot/batch pipeline over the parsing runs,
   # and records EvaluationRound rows for the read-only Studio panel.
@@ -213,7 +213,7 @@ services:
       # cannot read regardless of what's mounted here, so this volume only
       # persists a login performed inside the container itself.
       - studio-claude:/root/.claude
-      # Source PDFs staged for kei's worker (M4); the worker mounts it read-only.
+      # Source PDFs staged for kei's worker; the worker mounts it read-only.
       - source-inbox:/var/lib/free/source-inbox
     networks:
       app:

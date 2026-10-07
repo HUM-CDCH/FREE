@@ -1,9 +1,10 @@
 # 0012: One durable execution layer: DBOS in Studio and in the Parsing Service
 
-Date: 2026-09-26. Status: accepted; M1–M6 implemented locally on
-`feat/dbos-m2-m6`, with the Spark cutover and smoke still pending under
-the DBOS plan. Amends the
-job-backend part of [0009](0009-own-parsing-and-extraction-service-in-free.md).
+Date: 2026-09-26. Status: accepted; amends the job-backend part of
+[0009](0009-own-parsing-and-extraction-service-in-free.md); amended by
+[0017](0017-durable-extraction-control-and-call-checkpoints.md) for
+Extractions. Design:
+[unified durable execution](../design/unified-durable-execution.md).
 
 ## Context
 
@@ -23,7 +24,8 @@ lost them.
   worker runs its own DBOS application (schema `kei_dbos`, owned by its own
   restricted role). Both schemas live in database `free`.
 - FREE's tables keep outcomes with research meaning. Execution status is
-  derived from DBOS on read, never mirrored.
+  derived from DBOS on read, never mirrored, except an Extraction's, whose
+  lifecycle its coordination head owns (0017).
 - Row-backed work (Extractions, Batch Extractions, suggestion attempts) is
   enqueued in the same transaction as its rows. Other work starts
   workflow-first under a client-minted or server-minted ID.
@@ -31,8 +33,8 @@ lost them.
   enqueue on its lanes: a large and a small conversion lane, a two-slot
   extraction lane and a cleanup lane.
 - Schema Suggestion and schema edit proposals run as workflows, so a reload
-  or a Studio restart finds them again. The document chat, which no page
-  had shown since August 2026, was deleted rather than made durable.
+  or a Studio restart finds them again. The document chat is deleted, not
+  made durable.
 - A ten-minute `collectGarbage` schedule removes canonical packages, staged
   sources, Parsing Service runs and both workflow histories by reference,
   retention and quiescence. Cancelled work is cleaned up only after the
@@ -43,9 +45,9 @@ lost them.
 
 ## Consequences
 
-- `parsing_db`, Procrastinate, `ExtractionJob`, `BatchExtractionMember`, the
-  lease worker and the suggestion pump are gone; one PostgreSQL server holds
-  everything.
+- One PostgreSQL server holds everything: there is no separate parsing
+  database, Procrastinate queue, `ExtractionJob` or `BatchExtractionMember`
+  table, lease worker or suggestion pump.
 - A Studio restart interrupts calls in flight; unfinished steps run again on
   recovery. Exactly-once provider execution is not claimed.
 - Cancelled history and runs wait for the next restart of their process;
@@ -55,28 +57,10 @@ lost them.
 - DBOS history holds interactive results for about 24 hours and background
   inputs for about 30 days, and database dumps include it.
 
-## Durable interactive Extraction amendment (2026-10-04)
+## Amendment (0017, 2026-10-06)
 
-[ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md) explicitly
-extends this decision for admission-disabled durable interactive Extractions.
-The pre-production candidate adds no historical extraction compatibility layer.
-Durable interactive execution keeps one
-visible Extraction across linked attempts, preserves immutable producing input
-selections and exact captured calls, and reviews saved typed values independently
-of execution completion or grounding. Compatible ungrounded corrections may be
-Project guidance with optional own-source Evidence. Fixed retained snapshots
-support partial/failed/stopped exports and explicit finalization; an approval or
-rejection cannot silently transfer to changed model output. The review redesign
-is reused where compatible; path/anchor reconciliation is not applied
-to durable correction history. Neither existing DBOS application versions nor
-existing workflow step sequences change. Release admissions remain disabled.
-
-## Durable-only admission amendment (2026-10-06)
-
-The [admission amendment in ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md#admission-amendment)
-supersedes the admission-disabled statement above. Valid requests admit durable
-Extractions directly, with no release flag or environment switch; legacy
-Extraction workflows and readers were removed. PostgreSQL, browser, Compose
-and exact-commit Spark acceptance in the
-recorded OpenSpec tasks
-must pass before merging this follow-up. Deployment remains a separate action.
+[ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md) amends
+this decision for Extractions: the coordination head owns an Extraction's
+lifecycle, and DBOS dispatches and recovers its attempts. Since its
+[admission amendment](0017-durable-extraction-control-and-call-checkpoints.md#admission-amendment),
+valid requests admit durable Extractions directly.

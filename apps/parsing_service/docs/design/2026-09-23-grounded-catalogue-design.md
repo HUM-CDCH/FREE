@@ -1,12 +1,7 @@
 # Grounded numbered-catalogue segmentation and extraction: contract
 
-Date: 2026-09-23. Status: accepted for implementation (milestone M0 of
-the execution plan). Product decisions that
-still need the researcher-facing owner are tracked in the OpenSpec change
-`grounded-numbered-catalogue`; this
-document fixes what the code relies on. Revised the same day after a four-round review with Codex (gpt-6-astra);
-the agreed amendments are folded into §3–§8. It amends the
-[model/ingest design](2026-09-14-kie-model-and-ingest-design.md) where §9 says so and leaves the
+Status: implemented. This document fixes what the code relies on for the optional recipe Catalog path. It
+amends the [model/ingest design](2026-09-14-kie-model-and-ingest-design.md) where §10 says so and leaves the
 [canonical evidence design](2026-09-21-canonical-evidence-design.md) unchanged.
 
 ## 1. Scope and selection
@@ -16,11 +11,12 @@ printed number (`31.`, `31a.`), grouped under headings, inside recognisable sect
 one catalogue family lives in a versioned **recipe** (`src/kei_exp/kie/recipes/<id>.json`); the algorithms
 contain no PDF names, page counts, coordinates or German words.
 
-Selection is explicit per Extraction: `options.catalog = {"recipe": "<id>@<version>"}` on
-`POST /api/runs/{id}/extract`. Without it, Catalog keeps the existing generic model discovery; with it, record
-boundaries come only from the recipe. A recipe failure never falls back to model discovery, and there is no
-global toggle. FREE's default Catalog behaviour is unchanged until the product owner settles how a
-researcher chooses a recipe (OpenSpec change, decision D1).
+Selection is explicit per Catalog Extraction: `options.catalog = {recipe: "<id>@<version>", input_tokens?,
+output_tokens?, factors?}` in the Extraction's pinned options (`extractDurableV1`). Without it, Catalog keeps
+model discovery; with it, record boundaries come only from the recipe. A recipe failure never falls back to
+model discovery, and there is no global toggle. Studio's Boundaries selector sets the recipe: model discovery is
+the default, and a researcher chooses a recipe per Catalog Extraction, one-shot per run (currently only
+`numbered-catalogue-de@1`). The selector is hidden when the unified Catalog applies.
 
 A recipe has two parts with two fingerprints:
 
@@ -28,16 +24,13 @@ A recipe has two parts with two fingerprints:
   line syntax, context window, numbering tolerance. Segmentation depends only on this part.
 - `bindings`: which schema fields are filled from structure (`entry_label` or a heading kind), listed by
   exact top-level field name. A binding whose field is absent from the approved schema is inactive and
-  reported (`binding_unmatched`). Bindings enter the extraction fingerprint, never the segmentation one.
+  reported (`bindings_unmatched`). Bindings enter the extraction fingerprint, never the segmentation one.
 
 ## 2. Evidence identity, offsets and geometry
 
 - Segmentation and extraction name canonical segments `p{page}_s{index}`: the physical, one-based PDF page
   and the zero-based position in that page file's `segments`. This is the id FREE's anchors
   (`a_p{page}_s{index}`) are built from, so **no id is converted on the extraction path**.
-- The book-page ids of `kie/evidence.py` (`p{unit}_s{n}`, one-based per unit) exist only inside the KIE
-  CLI. `canonical_id(segment.source)` is the one resolver from them to the canonical id, through
-  `EvidenceRef(generation, page, index)`. Internal `p2_s1` may be `p1_s3`; nothing assumes the strings agree.
 - Every artifact binds the parse `generation` and `digest`. A reader refuses any artifact whose generation
   or digest differs from the parse it is used with; canonical text is never rewritten or renumbered.
 - A **span** is `{segment, start, end}`: a half-open range of Unicode code points over the canonical
@@ -45,12 +38,13 @@ A recipe has two parts with two fingerprints:
   hyphenation at line ends) keeps a map back to raw offsets and emits raw spans only.
 - Geometry stays at the precision the parser measured. A span's visual evidence is its segment's
   `bbox_pt` with `precision: "segment"` (an engine block box) or `"input"` (a whole input, deliberately
-  coarse). No box is ever derived by dividing a block box by characters. Finer geometry is M7.
+  coarse). No box is ever derived by dividing a block box by characters, and geometry finer than the segment
+  box is not implemented.
 
 ## 3. The ordered view
 
-`kie/extract/evidence.py` stays the one extraction view. Each `Passage` gains `unit` (0 for the PDF page,
-else its book page), `crop`, `crop_order` and `crop_bbox_pt`. Reading order is the page-file order the
+`kie/passages.py` is the one extraction view. Each `Passage` carries `unit` (0 for the PDF page, else its book
+page), `crop`, `crop_order` and `crop_bbox_pt`. Reading order is the page-file order the
 parser published (units ascending, crops by their cut `order`, blocks in engine order); the view checks that
 order and reports disagreement rather than inventing a whitespace rule the parser does not need. The view refuses a
 page whose segments name a unit or crop the page does not have, or that repeats a unit or crop ordinal: hashes prove
@@ -64,7 +58,7 @@ are often one line. Blank lines are not source intervals.
 ## 4. Roles, dispositions and coverage
 
 Section rules switch the **region** (`catalogue`, `glossary`, `references`, `prose`, `index`, `lists`,
-`excluded`). Every non-blank line receives exactly one **disposition**:
+`figures`, `excluded`). Every non-blank line receives exactly one **disposition**:
 
 | role | meaning | owner |
 | --- | --- | --- |
@@ -102,8 +96,8 @@ evidence that OCR read every printed entry.
   `rejected_starts`; no text is discarded to satisfy `1..N`. Indentation does not separate nested finds from
   entries in the reference scan (both start at the column edge), so it is not used.
 - A section whose rule says `numbering: restart`, and a line matching `structure.series_marker`
-  (`a 1.`, `u 1.`), would need a scoped identity the frozen contract does not have: their lines are
-  `unresolved` (`scoped_identity_unsupported`) until decision D4 specifies one.
+  (`a 1.`, `u 1.`), would need a scoped identity. Decision D4: the frozen contract defines none, so their lines
+  are `unresolved` (`scoped_identity_unsupported`), reported once as `numbering_restart` or `scoped_series`.
 - A block's primary content runs from its start line to the line before the next start, heading, section
   heading, unclassified heading or unresolved start, across crops, book pages and PDF pages. Furniture and
   figures in between are excluded without ending it. `continuation` is true exactly when its primary spans
@@ -136,15 +130,18 @@ anywhere else is repeated content. Canonical evidence is never deleted.
 ## 7. The segmentation artifact
 
 Pure function `segment(view, recipe) -> Segmentation`; it calls no model and writes no file. Publication is
-`<run>/segmentations/<fingerprint>/segmentation.json`, renamed into place by `kei_exp.files.publish`.
+`<run>/segmentations/<recipe id>@<version>-<first 16 hex of structure_sha256>/segmentation.json`, renamed into
+place by `kei_exp.files.publish`. The path names the recipe structure only, so an artifact of an older parse is
+found there and refused on its generation.
 
 - `fingerprint = sha256(canonical_json({segmentation_version, generation, digest, structure}))`.
-- `digest = sha256(canonical_json(namespace))`, the namespace being everything but `fingerprint`, `digest`
-  and `report`.
-- Load refuses: a missing or unparsable file, a fingerprint or digest that does not recompute, another
-  generation/digest, a span outside its segment's current text or naming an unknown segment, overlapping
-  primary ownership, and a disposition set that is not exactly one per non-blank line. A refused artifact
-  is recomputed; OCR is never rerun for it.
+- `digest = sha256(canonical_json(namespace))`, the namespace being everything but `fingerprint` and `digest`.
+- Without a file, the segmentation is computed. Load refuses: an unparsable file, another
+  `segmentation_version`, a fingerprint or digest that does not recompute, another generation/digest, a span
+  outside its segment's current text or naming an unknown segment, two blocks sharing `(entry_no,
+  entry_suffix)`, overlapping primary ownership, a disposition set that is not exactly one per non-blank line,
+  and primary spans that disagree with the lines the dispositions give their block. A refused artifact is
+  recomputed; OCR is never rerun for it.
 
 ```json
 {
@@ -165,13 +162,14 @@ Pure function `segment(view, recipe) -> Segmentation`; it calls no model and wri
   "dispositions": [{"segment_id": "p3_s4", "start": 0, "end": 41, "role": "entry", "block": "b1"},
                    {"segment_id": "p3_s8", "start": 0, "end": 3, "role": "excluded", "reason": "furniture"}],
   "rejected_starts": [{"span": {"segment_id": "p3_s6", "start": 0, "end": 3}, "label": "1",
-                       "reason": "nested_list"}],
+                       "role": "list_item", "reason": "list_item"}],
   "glossary": [{"key": "Mbl.", "expansion": "Meßtischblatt",
                 "key_span": {"segment_id": "p1_s20", "start": 30, "end": 34},
                 "expansion_span": {"segment_id": "p1_s20", "start": 37, "end": 50}}],
   "diagnostics": [{"code": "numbering_gap", "detail": "33 missing between 32 and 34", "block": "b3"}],
-  "coverage": {"complete": true, "lines": 212, "entries": 2, "unresolved": 0, "reading_order_issues": 0,
-               "excluded": {"furniture": 1}, "roles": {"entry": 180, "heading": 3}}
+  "coverage": {"complete": true, "lines": 212, "entries": 2, "unresolved": 0, "roles": {"entry": 180, "heading": 3},
+               "excluded": {"furniture": 1}, "potential_duplicates": 0, "reading_order_issues": 0,
+               "withheld_intentional": [], "withheld_failures": []}
 }
 ```
 
@@ -199,17 +197,16 @@ stays readable unchanged. Version 2 keeps every version 1 field and adds the res
   one field (windows of one block) are `competitors`; the record holds `null` until an arbitration call over
   those candidates only chooses one or answers unresolved.
 - `ungrounded` stays in the shape and is empty for record fields; document-level fields remain `unverified`.
-- Budget: every call's rendered request is counted before it is sent with the served model's own tokenizer,
-  pinned to the served model digest with its chat template and flags: for Ollama, rebuilt from `/api/show`'s
-  vocabulary and merges (verified to match served prompt counts exactly, schema not injected, fixed template
-  overhead measured on `/v1/chat/completions` with the real flags); for vLLM, its `/tokenize` endpoint. An
-  unknown server or an unobtainable tokenizer refuses the recipe path before any call. `budget.input_tokens`
-  (default 4096) covers instructions, schema, context, headings and glossary; `budget.output_tokens` is the reply
-  allowance, and both must fit the server context. Oversized primary text is cut into mapped windows under one
-  entry identity (at line boundaries, then whitespace, then code points, or refused), overlap visible to the
-  later window, located values attributed to their owning source range and deduplicated by located span,
-  separators never evidence. A schema that alone exceeds the budget is refused before any call
-  (`schema_exceeds_budget`). A server-reported prompt count different from the count is `budget_count_mismatch`.
+- Budget: every call's rendered request is counted before it is sent, on the serving endpoint's `/tokenize`:
+  vLLM renders the chat adapter's own `tokenize_body` through the served chat template, so every template
+  switch the real call sends is counted. An endpoint without `/tokenize`, or one that reports no context size,
+  refuses the recipe path before any call. `budget.input_tokens` (default 4096) covers instructions, schema,
+  context, headings and glossary; `budget.output_tokens` is the reply allowance, and both must fit the server
+  context. Oversized primary text is cut into mapped windows under one entry identity (at line boundaries,
+  then whitespace, then code points, or refused), overlap visible to the later window, located values
+  attributed to their owning source range and deduplicated by located span, separators never evidence. A
+  schema that alone exceeds the budget is refused before any call (`schema_exceeds_budget`). A server-reported
+  prompt count different from the count is `budget_count_mismatch`.
 - The chat client retries without `response_format` only on a positively identified unsupported-capability error
   and records every attempt as its own call.
 - `completeness` separates `processing` (no failed or truncated call, no refusal, no withheld engine failure,
@@ -228,7 +225,9 @@ stays readable unchanged. Version 2 keeps every version 1 field and adds the res
                    "diagnostics": [{"code": "numbering_gap", "detail": "33 missing between 32 and 34",
                                     "block": "b3", "spans": [{"segment": "p4_s1", "start": 0, "end": 3}]}]},
   "budget": {"version": 1, "input_tokens": 4096, "output_tokens": 1024,
-             "tokenizer": {"source": "ollama:/api/show", "model_digest": "500a1f06…", "template_tokens": 21}},
+             "tokenizer": {"source": "vllm:/tokenize", "model": "…", "model_digest": null, "template_tokens": null},
+             "tokenizers": {"fields": {"source": "vllm:/tokenize", "model": "…", "model_digest": null,
+                                       "template_tokens": null}, "reasoning": {…}}},
   "normalization": {"version": 1, "rules": ["glossary"]},
   "records": [{"Katalognummer": "31", "Fundort": null, "Kreis": "Köthen", "Fundart": "G", "Mbl": null}],
   "record_blocks": [{"block": "b1", "entry_label": "31"}],
@@ -260,7 +259,7 @@ stays readable unchanged. Version 2 keeps every version 1 field and adds the res
 
 ## 9. Boundary labels and block-F1
 
-The Phase 1 gate measures segmentation against reviewer labels (`kie/boundaries.py`). The unit is the
+Segmentation is measured against reviewer labels (`kie/boundaries.py`). The unit is the
 segmentation's own line: canonical segment id plus raw code-point range, bound to one parse generation and
 digest. A label file (`labels_version` 1) lists every non-blank line of the labelled book pages `(page, unit)`
 with the printed label of the entry that owns it or `null`; `31#2` tells two entries printed `31` apart. A file
@@ -282,13 +281,14 @@ reads the run and never writes into it.
 
 ## 10. Amendments and boundaries
 
-- Model/ingest design §3.6: `HeadingEvent.kind` is the recipe's heading-level name and `level` its depth
-  (was the fixed `bezirk | kreis`). The German recipe keeps those two names, so invariant 6 (“a new Bezirk
-  clears the Kreis”) holds as the general rule that a heading clears every deeper level.
+- Model/ingest design §3.6: `HeadingEvent.kind` is the recipe's heading-level name and `level` its depth.
+  The German recipe keeps the names `bezirk` and `kreis`, so invariant 6 (“a new Bezirk clears the Kreis”)
+  holds as the general rule that a heading clears every deeper level.
 - Coverage (§4) replaces “every entry-eligible character is owned” with exactly one disposition per line.
-- Source layout (plan M1): Studio chooses `page_source` `pdf` (single PDF pages, the default) or `ingest`
-  (scanned two-page spreads) at upload, with optional gutter overrides. The parse recipe already records
-  `page_source` and the ingest digest, which fingerprints the ingest configuration. Born-digital PDFs are
-  always read natively page by page; the choice never sends them through the splitter.
+- Source layout: Studio chooses `page_source` `pdf` (single PDF pages, the default) or `ingest` (scanned
+  two-page spreads) at upload and sends no ingest overrides; only the service's `convert` request accepts
+  them. The parse recipe records `page_source` and the ingest digest, which fingerprints the ingest
+  configuration. Born-digital PDFs are always read natively page by page; the choice never sends them through
+  the splitter.
 - Not claimed by this contract: OCR completeness, extraction accuracy, calibrated confidence, sub-line
-  geometry, or transfer to a second catalogue. Those are measured separately (plan M6–M10).
+  geometry, or transfer to a second catalogue.

@@ -8,23 +8,25 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 
 ### Palette
 
-| Role | Token | Light | Dark | Usage |
-|------|-------|-------|------|-------|
-| Canvas | `--color-canvas` | `#faf6f2` | n/a | App backdrop and source document area |
-| Surface | `--color-surface` | `#ffffff` | n/a | Sidebars, toolbar, panels |
-| Surface muted | `--color-surface-muted` | `#f5efe9` | n/a | Pills and subtle fills |
-| Ink | `--color-ink` | `#33302c` | n/a | Primary text |
-| Ink muted | `--color-ink-muted` | `#6c6259` | n/a | Secondary text |
-| Ink faint | `--color-ink-faint` | `#776b60` | n/a | Tertiary labels |
-| Line | `--color-line` | `#eadfd6` | n/a | Hairline borders |
-| Line strong | `--color-line-strong` | `#d9cabc` | n/a | Emphasised borders |
-| Accent | `--color-accent` | `#a34828` | n/a | Brand, the active tab, selection and drag states, focus |
-| Accent soft | `--color-accent-soft` | `#f4ddd3` | n/a | Accent fills |
-| Accent ghost | `--color-accent-ghost` | `#fbf1ec` | n/a | Hover wash |
-| Evidence | `--color-ev` | `#4f8aa8` | n/a | Evidence-related marks only |
-| Success | `--color-green` | `#3e7c4f` | n/a | Positive commands (run, apply, accept, save, finalize) and success state |
-| Warning | `--color-stale` | `#b8860b` | n/a | Stale state (golden amber, held off the terracotta hue) |
-| Error | `--color-danger` | `#9e2b33` | n/a | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |
+| Role | Token | Value | Usage |
+|------|-------|-------|-------|
+| Canvas | `--color-canvas` | `#faf6f2` | App backdrop and source document area |
+| Surface | `--color-surface` | `#ffffff` | Sidebars, toolbar, panels |
+| Surface muted | `--color-surface-muted` | `#f5efe9` | Pills and subtle fills |
+| Ink | `--color-ink` | `#33302c` | Primary text |
+| Ink muted | `--color-ink-muted` | `#6c6259` | Secondary text |
+| Ink faint | `--color-ink-faint` | `#776b60` | Tertiary labels |
+| Line | `--color-line` | `#eadfd6` | Hairline borders |
+| Line strong | `--color-line-strong` | `#d9cabc` | Emphasised borders |
+| Accent | `--color-accent` | `#a34828` | Brand, the active tab, selection and drag states, focus |
+| Accent soft | `--color-accent-soft` | `#f4ddd3` | Accent fills |
+| Accent ghost | `--color-accent-ghost` | `#fbf1ec` | Hover wash |
+| Evidence | `--color-ev` | `#4f8aa8` | Evidence-related marks only |
+| Success | `--color-green` | `#3e7c4f` | Positive commands (run, apply, accept, save, finalize) and success state |
+| Warning | `--color-stale` | `#b8860b` | Stale state (golden amber, held off the terracotta hue) |
+| Error | `--color-danger` | `#9e2b33` | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |
+
+`index.css` holds the full token set, including the `-soft` and `-ghost` tints, `--color-stale-ink`, `--radius-card` and `--shadow-lift`.
 
 ### Rules
 
@@ -43,7 +45,6 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 
 | Level | Size | Weight | Line Height | Tracking | Usage |
 |-------|------|--------|-------------|----------|-------|
-| App title | 17px | 800 | 1.2 | 0.06em | FREE wordmark |
 | Panel body | 13px | 400-700 | 1.5 | 0 | Side panels |
 | Secondary | 12px | 400-600 | 1.5 | 0 | Hints and metadata |
 | Compact | 11px | 500-700 | 1.3 | 0 | Pills, buttons, dense controls |
@@ -67,16 +68,7 @@ In the right rail only four sizes are used, as the tokens `--text-content` (13),
 
 ### Base Unit
 
-All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.25` map to the same base grid.
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--space-1` | 4px | Tight inline gaps |
-| `--space-2` | 8px | Dense controls |
-| `--space-3` | 12px | Default row padding |
-| `--space-4` | 16px | Panel padding |
-| `--space-6` | 24px | Empty states |
-| `--space-8` | 32px | Source document vertical padding |
+Spacing uses Tailwind's default scale, in steps of 0.25rem (4px); FREE defines no spacing tokens of its own.
 
 ### Grid
 
@@ -90,6 +82,8 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 
 ## 5. Components
 
+The shared primitives are exported from [`src/ui/index.ts`](src/ui/index.ts).
+
 ### Segmented Control
 - **Structure**: bordered flex group with button segments.
 - **Variants**: active uses `bg-ink text-canvas`; inactive uses surface and muted ink.
@@ -99,27 +93,22 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 - **Structure**: compact rounded button with border.
 - **Variants**: green positive, danger, surface secondary, rounded pill; `outline-positive` (green text and icon, `border-green/40`, `--color-green-soft` on hover) and `outline-danger` (the same in danger) for the rail's positive and destructive actions; `ghost` (muted text, no border, surface-muted on hover) for quiet text actions; disabled is a line fill. Secondary and pill hover to ink on `line-strong`/`surface-muted`, never to terracotta; only their focus ring is terracotta.
 - **States**: hover brightness or color shift, global dual-color focus indicator.
-- One filled primary per screen. The tab strip's "▶ Run extraction" is positive; while a run is active it reads "■ Stop extraction" in danger, and stays danger (disabled) once its cancellation is requested.
-
-### Result Card
-- **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.
-- **Variants**: object section, array item, missing primitive.
-- **States**: expandable where content can be long.
+- One filled primary per screen. The tab strip's "▶ Run extraction" is positive. While the latest Extraction can still continue, it gives way to "❚❚ Pause extraction" (secondary), "▶ Resume extraction" or "↻ Retry extraction" (positive), or a disabled "Pausing…" or "Stopping…", with an outline-danger "■ Stop" beside it until stopping begins.
 
 ### Results rail
-- One header in both phases: the status line (a mark, a bold word, a muted rest, then ⓘ Run details and ⋯ More result actions), the count block (the To check count at the display size, the review bar, "One by one" and "Approve rest…" or "Save review", the breakdown line) and the filter chips (To check · Doubtful · Not reviewable · All; a labelled select at 264px).
+- One header in both phases: the status line (a mark, a bold word, a muted rest, then ⓘ Run details and ⋯ More result actions), the count block (the To check count at the display size, the review bar, "One by one" and "Save review" ("List" in one-by-one), the breakdown line) and the filter chips (To check · Doubtful · Not reviewable · All; a labelled select at 264px).
 - The list of records with flat value rows (glyph · name over value · chip); the selected row's expansion is one tinted surface with a 2px accent edge, no inner card, with one joined Approve | Edit | Reject group. Colour is never the only signal: every state has a glyph and a text equivalent.
 - One by one is the same rail as a card for one value: its record's queue, its Evidence, 44px actions with their keys, Up next. The rail's own toast docks at its bottom; the Run details drawer covers the rail.
-- While an Extraction runs, the list shows the records in the order kei reads them under "Reading records · k of n · from page p"; a record read is reviewable at once; at settlement the list keeps its place. The Results badge reads "k of n"; Run and Stop share one fixed width and carry no count.
+- While an Extraction runs, the list shows the records in the order the Parsing Service reads them under "Reading records · k of n"; a record read is reviewable at once; at settlement the list keeps its place. The Results tab's badge names the run's status; Run, Pause, Resume and Retry share one fixed width and carry no count, and Stop sits beside them.
 - Evidence marks on the page use the one Evidence colour: dotted for a rule link, dashed for a doubtful one, a 1px border once decided, an accent outline when selected.
 
 ### Toast
-- Toast — message plus one optional action; float shadow; eight seconds when an action is offered, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.
+- Toast — message plus one optional action; float shadow; 8 s when an action is offered, 6 s for errors and notices, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.
 
 ### Field Row
-- Field row — 30px at rest when its pills fit beside the name: grip, disclosure, mono name (never truncated by its metadata: the type and values pills wrap under it when the line is too narrow), then the worded actions "Edit", "Note" and "Delete" (11px semibold, 28px tall, 4px apart, Delete in danger; no tooltips, their accessible names say which field) as an overlay of at least 140px (wider only when a fallback font or a larger text size needs it, then reaching past the pills' 140px reserve) on the right end of the first line, shown on hover and focus-within and stepping aside while a pill has keyboard focus. Hidden, the overlay takes no pointer hits.
-- No pill sits under the actions, so a pointer on a pill always reaches it; only the name may run under them (its full text is its title). On a row line of 296px and more the pills' line keeps the 140px clear (at 344px the top level keeps 123px: `title · string` stays on one 30px line, a values pill usually wraps). A narrower row (the 264px rail, nested rows) starts its pills on the line below the name at full width, so they are never squeezed under their own width. On a row line under 240px (every row at the 264px rail) the actions are no overlay: they take their own line below the pills, kept at rest (so no row moves under a click) and shown on hover and focus-within, so the name and the disclosure stay in view.
-- A field's note starts where its name starts (46px: the 14px grip, 4px, the 24px disclosure, 4px).
+- Field row — grip, disclosure, mono name (never truncated by its metadata: the type and values pills wrap under it when the line is too narrow), then the worded actions "Edit", "Note" and "Delete" (Delete in danger; no tooltips, their accessible names say which field) as an overlay on the right end of the first line, shown on hover and focus-within and stepping aside while a pill has keyboard focus. Hidden, the overlay takes no pointer hits.
+- No pill sits under the actions, so a pointer on a pill always reaches it; only the name may run under them (its full text is its title). A narrow row starts its pills on the line below the name, so they are never squeezed under their own width; at the narrowest (every row at the 264px rail) the actions take their own line below the pills, kept at rest so no row moves under a click. `src/FieldRow.tsx` holds the widths and breakpoints.
+- A field's note starts where its name starts.
 - The row itself (not the slot above it or its children) is the drop target for "into <group>".
 
 ## 6. Motion & Interaction
@@ -128,7 +117,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 |------|----------|--------|-------|
 | Micro | 150-200ms | ease | Button and hover transitions |
 | Spinner | 800ms | linear | Running states |
-| Entry | 200ms | ease | Toast and chat message entry |
+| Entry | 200ms | ease | Toast, review row and sign-in card entry |
 
 ### Rules
 
