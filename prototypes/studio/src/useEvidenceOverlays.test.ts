@@ -184,6 +184,38 @@ describe('dimming in one-by-one (results review redesign §7.3)', () => {
     rerender({ link: null })
     expect(container.querySelectorAll('.evidence-dim')).toHaveLength(0)
   })
+
+  it('leaves both places of a passage continued in the next column clear', () => {
+    const fixture = decodeParsedDocument(parsedFixture)
+    const [anchor, ...others] = fixture.evidence_index.anchors
+    const first = anchor.producer_observations[0]
+    // The fixture's passage at the head of the left column, continued at the foot of the right one.
+    const continued = { ...first, occurrence_id: `${first.occurrence_id}_1`, bbox: { x0: 330, y0: 700, x1: 560, y1: 740 } }
+    const parsedDocument = decodeParsedDocument({ ...fixture, evidence_index: { anchors: [
+      { ...anchor, producer_observations: [first, continued] }, ...others,
+    ] } })
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${first.page_number}"></div>`
+    document.body.append(container)
+    renderHook(() => useEvidenceOverlays({
+      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
+      parsedDocument, attempt: null, resultPath: null, active: true,
+      dimLink: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision: 'segment' },
+    }))
+    // In percent of the 612 x 792 pt page: each place grown by 24pt.
+    const holes = [[12, 12, 124, 78], [306, 676, 584, 764]]
+      .map(([x0, y0, x1, y1]) => [x0! / 6.12, y0! / 7.92, x1! / 6.12, y1! / 7.92])
+    const shades = [...container.querySelectorAll<HTMLElement>('.evidence-dim')].map((shade) => {
+      const [left, top, width, height] = [shade.style.left, shade.style.top, shade.style.width, shade.style.height].map(Number.parseFloat)
+      return [left!, top!, left! + width!, top! + height!]
+    })
+    const area = ([x0, y0, x1, y1]: number[]) => (x1! - x0!) * (y1! - y0!)
+    const overlap = (a: number[], b: number[]) => Math.max(0, Math.min(a[2]!, b[2]!) - Math.max(a[0]!, b[0]!))
+      * Math.max(0, Math.min(a[3]!, b[3]!) - Math.max(a[1]!, b[1]!))
+    for (const shade of shades) for (const hole of holes) expect(overlap(shade, hole)).toBeCloseTo(0)
+    // Shaded: the whole page but the two places, nothing twice.
+    expect(shades.reduce((sum, shade) => sum + area(shade), 0)).toBeCloseTo(100 * 100 - area(holes[0]!) - area(holes[1]!))
+  })
 })
 
 describe('marks select their values (results review redesign §7.2)', () => {

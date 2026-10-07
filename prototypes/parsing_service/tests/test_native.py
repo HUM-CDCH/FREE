@@ -357,6 +357,37 @@ def test_a_numbered_list_item_keeps_its_printed_marker_from_the_source_text():
     assert [block["html"] for block in blocks_of(document, 1)] == ["<p>31. Oak: an urn.</p>", "<p>Brook: an axe.</p>"]
 
 
+def test_a_paragraph_continued_in_the_next_column_publishes_every_box_it_is_printed_in():
+    """Docling merges a paragraph running from the foot of one column to the head of the next into one item with a
+    provenance per place, and `PageBoundPipeline` keeps that merge on a page. Its block publishes each of the page's
+    boxes, not only the first, and the page file carries them through the record's transform. A provenance on
+    another page is that page's box."""
+    document = DoclingDocument(name="columns")
+    for number in (1, 2):
+        document.add_page(page_no=number, size=Size(width=200.0, height=400.0))
+
+    def at(left: float, right: float, top: float, bottom: float, page_no: int = 1) -> ProvenanceItem:
+        return ProvenanceItem(page_no=page_no, charspan=(0, 0), bbox=BoundingBox(
+            l=left, t=top, r=right, b=bottom, coord_origin=CoordOrigin.BOTTOMLEFT))
+    item = document.add_text(label=DocItemLabel.TEXT, text="runs on", prov=at(10, 95, 40, 10))
+    item.prov += [at(105, 190, 390, 360), at(10, 95, 390, 380, page_no=2)]
+    document.add_text(label=DocItemLabel.TEXT, text="in one place", prov=at(105, 190, 350, 330))
+    continued, single = blocks_of(document, 1)
+    assert continued["bbox"] == [10.0, 360.0, 95.0, 390.0]
+    assert continued["boxes"] == [[10.0, 360.0, 95.0, 390.0], [105.0, 10.0, 190.0, 40.0]]
+    assert "boxes" not in single
+    (overleaf,) = blocks_of(document, 2)
+    assert overleaf["bbox"] == [10.0, 10.0, 95.0, 20.0] and "boxes" not in overleaf
+    record = PageRecord(page=1, region=None, image=None, seconds=None, input_tokens=0, output_tokens=0, stop=None,
+                        capped=False, payload={"blocks": [continued, single]}, stats={}, markdown="", text="",
+                        incomplete=None, source_page=1)
+    first, second = _segments(0, None, record, CropTransform(0.0, 0.0, 1.0, 1.0, None),
+                              lambda box: tuple(v + 1 for v in box), (0.0, 0.0, 200.0, 400.0))
+    assert first.boxes_pt == ((11.0, 361.0, 96.0, 391.0), (106.0, 11.0, 191.0, 41.0))
+    assert first.bbox_pt == first.boxes_pt[0]
+    assert second.boxes_pt is None and "boxes_pt" not in second.model_dump_json()  # one place: the file as before
+
+
 @pytest.fixture(scope="module")
 def native_result(recorded_digital_pdf, tmp_path_factory) -> Path:
     """One real native run over the whole digital fixture, written as an accepted result directory: no model

@@ -22,9 +22,10 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # The version of the rules by which a transcriber turns what its engine read into canonical text, per transcriber
 # kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
 # native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
+# native 3: a block merged across a column break publishes every box it is printed in (`PageSegment.boxes_pt`).
 # hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
 # publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
-TEXT_RULES: dict[str, int] = {"native": 2, "hybrid": 1}
+TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 1}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {

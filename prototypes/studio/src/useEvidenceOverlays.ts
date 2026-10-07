@@ -87,19 +87,34 @@ function appendOverlay(
   return overlay
 }
 
-/** Dims the page around one occurrence (results review redesign §7.3): four canvas-coloured rectangles at 45% around
- *  its bbox grown by 24pt, so the page reads through at .55 and the passage stays clear; they take no pointer hits. */
-function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, occurrence: EvidenceOccurrence) {
-  const page = container.querySelector(`.page[data-page-number="${occurrence.page_number}"]`)
-  const bbox = verifiedEvidenceBbox(parsedDocument, occurrence)
-  const meta = parsedDocument.pages.find((candidate) => candidate.page_number === occurrence.page_number)
-  if (!(page instanceof HTMLElement) || !bbox || !meta) return
-  const x0 = Math.max(0, bbox.x0 - 24), y0 = Math.max(0, bbox.y0 - 24)
-  const x1 = Math.min(meta.width_pt, bbox.x1 + 24), y1 = Math.min(meta.height_pt, bbox.y1 + 24)
+/** Dims the page of a passage's first occurrence around each of its occurrences there (results review redesign §7.3):
+ *  canvas-coloured rectangles at 45% outside every bbox grown by 24pt, so the page reads through at .55 and the
+ *  passage stays clear, both places of a paragraph continued in the next column included; they take no pointer hits. */
+function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, occurrences: readonly EvidenceOccurrence[]) {
+  const number = occurrences[0]?.page_number
+  const page = container.querySelector(`.page[data-page-number="${number}"]`)
+  const meta = parsedDocument.pages.find((candidate) => candidate.page_number === number)
+  if (!(page instanceof HTMLElement) || !meta) return
+  const holes = occurrences
+    .filter((occurrence) => occurrence.page_number === number)
+    .flatMap((occurrence) => verifiedEvidenceBbox(parsedDocument, occurrence) ?? [])
+    .map(({ x0, y0, x1, y1 }) => [Math.max(0, x0 - 24), Math.max(0, y0 - 24),
+      Math.min(meta.width_pt, x1 + 24), Math.min(meta.height_pt, y1 + 24)] as const)
+  if (holes.length === 0) return
+  // The page in bands between consecutive hole edges; each band is shaded outside the holes spanning it.
+  const edges = [...new Set([0, meta.height_pt, ...holes.flatMap(([, y0, , y1]) => [y0, y1])])].sort((a, b) => a - b)
+  const shades: (readonly [number, number, number, number])[] = []
+  for (const [index, top] of edges.slice(0, -1).entries()) {
+    const bottom = edges[index + 1]!
+    let left = 0
+    for (const [x0, , x1] of holes.filter(([, y0, , y1]) => y0 <= top && bottom <= y1).sort((a, b) => a[0] - b[0])) {
+      if (x0 > left) shades.push([left, top, x0, bottom])
+      left = Math.max(left, x1)
+    }
+    if (left < meta.width_pt) shades.push([left, top, meta.width_pt, bottom])
+  }
   const pct = (value: number, of: number) => `${(value / of) * 100}%`
-  for (const [left, top, right, bottom] of [
-    [0, 0, meta.width_pt, y0], [0, y1, meta.width_pt, meta.height_pt], [0, y0, x0, y1], [x1, y0, meta.width_pt, y1],
-  ] as const) {
+  for (const [left, top, right, bottom] of shades) {
     const shade = window.document.createElement('div')
     shade.className = 'evidence-dim'
     shade.ariaHidden = 'true'
@@ -171,9 +186,9 @@ export function useEvidenceOverlays({
     const viewer = viewerRef.current
     if (!active || !dimLink || !parsedDocument || !container || (dimLink.precision !== 'cell' && dimLink.precision !== 'segment')) return
     const anchor = parsedDocument.evidence_index.anchors.find((candidate) => candidate.anchor_id === dimLink.evidenceAnchorId)
-    const occurrence = anchor ? anchorOccurrences(anchor)[0] : undefined
-    if (!occurrence) return
-    const paint = () => { removeOverlays(container, 'evidence-dim'); appendDimming(container, parsedDocument, occurrence) }
+    const occurrences = anchor ? anchorOccurrences(anchor) : []
+    if (occurrences.length === 0) return
+    const paint = () => { removeOverlays(container, 'evidence-dim'); appendDimming(container, parsedDocument, occurrences) }
     viewer?.eventBus?.on('pagerendered', paint)
     paint()
     return () => {

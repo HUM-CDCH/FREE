@@ -191,9 +191,10 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
     structure as HTML, any other text-bearing item is its text in a paragraph; an item with neither (a bare
     picture) carries no evidence and is left out. A table's caption is serialised inside that table's HTML, so
     the caption item itself is left out too rather than published twice; a picture's caption is published,
-    because the picture it belongs to is not. The box is the item's provenance on *this* page, in the page's own
-    top-left points, which is where `kei_exp.result` expects an engine box whose record has no image to be
-    transformed through.
+    because the picture it belongs to is not. The box is the item's first provenance on *this* page, in the page's
+    own top-left points, which is where `kei_exp.result` expects an engine box whose record has no image to be
+    transformed through. An item printed in several places on the page (a paragraph Docling merged across a column
+    break) also lists every such box, the first included, in reading order as `boxes`.
     """
     page = document.pages.get(page_no)
     if page is None:  # a page Docling could not build: its record keeps the coarse segment
@@ -203,9 +204,8 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
                if isinstance(item, TableItem) for reference in item.captions}
     blocks = []
     for item, _level in items:
-        provenance = next((prov for prov in item.prov if prov.page_no == page_no), None) \
-            if isinstance(item, DocItem) else None
-        if provenance is None or item.self_ref in inlined:
+        provenances = [prov for prov in item.prov if prov.page_no == page_no] if isinstance(item, DocItem) else []
+        if not provenances or item.self_ref in inlined:
             continue
         if isinstance(item, TableItem):
             html = item.export_to_html(doc=document)
@@ -217,9 +217,12 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
             html = f"<p>{escape(text)}</p>"
         else:
             continue
-        box = provenance.bbox.to_top_left_origin(page.size.height)
+        boxes = [[box.l, box.t, box.r, box.b]
+                 for box in (prov.bbox.to_top_left_origin(page.size.height) for prov in provenances)]
         block = {"html": html, "label": BLOCK_LABELS.get(item.label, str(item.label)),
-                 "bbox": [box.l, box.t, box.r, box.b], "confidence": None, "error": False, "skipped": False}
+                 "bbox": boxes[0], "confidence": None, "error": False, "skipped": False}
+        if len(boxes) > 1:
+            block["boxes"] = boxes
         if isinstance(item, TableItem):
             block["table"] = _table_of(item, document, page_no, html)
         blocks.append(block)

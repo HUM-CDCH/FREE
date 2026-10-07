@@ -130,11 +130,16 @@ class PageSegment(_Base):
     extent: Literal["block", "input"]  # block: the engine's box of one block; input: the whole input, the transcriber
                                        # returned no boxes, and bbox_pt is the input's extent, deliberately coarse
     table: PageTable | None = None      # absent on version 4; cells refine, never replace, this segment
+    # A block printed in several places on its page (a native paragraph Docling merged across a column break): every
+    # box in reading order, bbox_pt the first. Absent for a block in one place, and before native text rules 3.
+    boxes_pt: tuple[PointBox, ...] | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def _extent_follows_the_box(self) -> Self:
         if (self.extent == "input") != (self.bbox_px is None):
             raise ValueError(f"a segment of extent {self.extent!r} with bbox_px {self.bbox_px}: input means no engine box")
+        if self.boxes_pt is not None and (len(self.boxes_pt) < 2 or self.boxes_pt[0] != self.bbox_pt):
+            raise ValueError("a segment's boxes must be several, bbox_pt the first")
         if self.table:
             for cell in self.table.cells:
                 if cell.end > len(self.text) or self.text[cell.start:cell.end] != cell.text:
