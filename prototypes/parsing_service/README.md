@@ -83,7 +83,7 @@ run would lose its result.
 | `KEI_SYSTEM_DATABASE_URL` | Worker only: kei's DBOS system database (role `kei` on `free`); required |
 | `KEI_RUNS` | Shared source/result directory; `/app/runs` in the image |
 | `KEI_SOURCE_INBOX` | Staged source PDFs, written by Studio, read by the worker |
-| `KEI_SLOT` | The worker's slot: its lock file and its DBOS executor `kei-<slot>` |
+| `KEI_SLOT` | The worker's slot: its lock file and its DBOS executor `kei-<slot>`. A deployment runs one slot: `deleteRuns` trusts its own process's boot timestamp, which says nothing about another slot's running steps |
 | `KEI_VLLM_URL` | OCR chat-completions endpoint, normally the `ocr_model` service |
 | `KEI_OCR_MODEL` | Default OCR model of a parse that names none (default `surya`) |
 | `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in every served parse's recipe; change it when they change, so earlier output is not reused |
