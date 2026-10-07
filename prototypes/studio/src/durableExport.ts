@@ -15,10 +15,10 @@ export function durableExportTables(fixed:Fixed,values:DurablePage['values']):{r
   const inputs=fixed.history.selections.map(s=>({'Input selection':s.id,'Ordinal':s.ordinal,'Schema revision':s.schemaRevisionId,'Schema':encoded(s.schemaTree),'Requested method':encoded(s.method),'Resolved method':encoded(s.resolved),'Digest':s.digest}))
   return {results:{columns,rows},versions:{columns:['Snapshot','Record','Field','Schema revision','Input selection','Model value','Evidence','Lineage'],rows:versions},reviews:{columns:['Revision','Feedback version','Value','Schema selection','Decision','Guidance included','Candidate'],rows:reviews},inputs:{columns:['Input selection','Ordinal','Schema revision','Schema','Requested method','Resolved method','Digest'],rows:inputs},processing:{columns:['Extraction','State','Snapshot','Feedback version','Source revision','Coverage'],rows:[{'Extraction':fixed.state.extractionId,'State':fixed.page.status,'Snapshot':fixed.page.snapshotVersion,'Feedback version':fixed.page.feedbackVersion,'Source revision':fixed.state.sourceRevisionId,'Coverage':encoded(fixed.page.coverage)}]}}
 }
-export async function fixedDurableValues(fixed:Fixed) {
-  let page=await durableRequest<DurablePage>(`${durableRoot(fixed.state.extractionId)}/values?${new URLSearchParams({snapshotVersion:String(fixed.page.snapshotVersion),feedbackVersion:String(fixed.page.feedbackVersion),limit:'500'})}`)
+export async function fixedDurableValues(fixed:Fixed,signal?:AbortSignal) {
+  let page=await durableRequest<DurablePage>(`${durableRoot(fixed.state.extractionId)}/values?${new URLSearchParams({snapshotVersion:String(fixed.page.snapshotVersion),feedbackVersion:String(fixed.page.feedbackVersion),limit:'500'})}`,undefined,signal)
   const values=[...page.values]
-  while(page.next) {page=await durableRequest<DurablePage>(`${durableRoot(fixed.state.extractionId)}/values?${new URLSearchParams(Object.entries(page.next).map(([k,v])=>[k,String(v)]))}`);values.push(...page.values)}
+  while(page.next) {page=await durableRequest<DurablePage>(`${durableRoot(fixed.state.extractionId)}/values?${new URLSearchParams(Object.entries(page.next).map(([k,v])=>[k,String(v)]))}`,undefined,signal);values.push(...page.values)}
   return values
 }
 function frozen(fixed:Fixed,values:DurablePage['values']) {
@@ -55,9 +55,11 @@ function download(blob:Blob,name:string) {
   const url=URL.createObjectURL(blob),link=document.createElement('a')
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
 }
-export async function downloadDurableExport(fixed:Fixed,format:'xlsx'|'csv') {
-  const values=await fixedDurableValues(fixed)
-  download(await durableExportBlob(fixed,values,format),`extraction-${fixed.state.extractionId}-s${fixed.page.snapshotVersion}.${format==='xlsx'?'xlsx':'zip'}`)
+export async function downloadDurableExport(fixed:Fixed,format:'xlsx'|'csv',signal?:AbortSignal) {
+  const values=await fixedDurableValues(fixed,signal)
+  const blob=await durableExportBlob(fixed,values,format)
+  signal?.throwIfAborted()
+  download(blob,`extraction-${fixed.state.extractionId}-s${fixed.page.snapshotVersion}.${format==='xlsx'?'xlsx':'zip'}`)
 }
 /** Batch members keep independent snapshot and review cursors and attribution. */
 export async function downloadDurableBatch(batchId:string,members:readonly BatchExportMember[],format:'xlsx'|'csv'):Promise<boolean> {

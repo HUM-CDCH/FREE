@@ -6,11 +6,40 @@ export type DurableReviewProgress={extractionId:string;snapshotVersion:number;fe
 /** The Extraction's state; while discovery still looks for its records, the starts it has found so far. */
 export type DurableState=DurableRead&{discovery?:{found:{segment:string;label:string|null}[]}|null}
 
+const READ_RETRY_DELAYS = [1000, 2000] as const
+function waitForReadRetry(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
+  })
+}
+
+/** Retry interrupted reads, including a body cut off after successful headers. Writes, HTTP errors and invalid
+ * JSON are terminal; replaying a correction or a control command could apply it twice. */
 export async function durableRequest<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<T> {
-  const response=await authenticatedFetch(url,{signal,...(body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})})
-  const result=await response.json()
-  if(!response.ok) throw new Error(result.error?.message ?? 'Unable to save. Your draft is still here.')
-  return result as T
+  for (let attempt = 0; ; attempt += 1) {
+    signal?.throwIfAborted()
+    let response: Response | undefined
+    try {
+      response=await authenticatedFetch(url,{signal,...(body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})})
+      const result=await response.json()
+      if(!response.ok) throw new Error(result.error?.message ?? 'Unable to save. Your draft is still here.')
+      return result as T
+    } catch (error) {
+      if (body !== undefined || signal?.aborted || response?.ok === false ||
+        !(error instanceof TypeError) || attempt === READ_RETRY_DELAYS.length) throw error
+      await waitForReadRetry(READ_RETRY_DELAYS[attempt], signal)
+    }
+  }
 }
 export const durableRoot=(id:string)=>`/api/extractions/${id}/durable`
 /** Every value of one saved cut (`query` names it), read in pages of the server's largest size. */
@@ -32,4 +61,4 @@ export async function readDurable(id:string,signal?:AbortSignal,previous?:{page:
   // ponytail: the whole cut is read again on each change; read only the changed values if catalogues outgrow this.
   return {state,page:await readValues(id,{snapshotVersion:state.snapshotVersion},signal)}
 }
-export const readDurableHistory=(id:string)=>durableRequest<DurableHistory>(`${durableRoot(id)}/history`)
+export const readDurableHistory=(id:string,signal?:AbortSignal)=>durableRequest<DurableHistory>(`${durableRoot(id)}/history`,undefined,signal)
