@@ -59,3 +59,4 @@ sgconfig.yml
 .semgrep.yaml
 skills-lock.json
 GEMINI.md
+scripts/codegraph-prompt-hook*.mjs
