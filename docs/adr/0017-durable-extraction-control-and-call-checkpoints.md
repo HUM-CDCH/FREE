@@ -1,6 +1,6 @@
 # 0017: Durable Extraction control and call checkpoints
 
-Date: 2026-10-04. Status: accepted direction, implemented and verified in the isolated candidate under [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Production deployment/enablement remains a separate unapproved action.
+Date: 2026-10-04. Status: accepted direction, implemented and verified in the isolated candidate under Map durable interactive extraction and project-wide feedback. Production deployment/enablement remains a separate unapproved action.
 
 One researcher-visible Extraction must survive cooperative pause, revised settings, retries, and live review without losing completed work. DBOS remains the durable executor, but an attempt that returns at a pause boundary is runtime-successful while the Extraction remains Paused; DBOS messages alone also cannot establish which committed correction context a new call captured. Use immutable linked execution selections and a restricted PostgreSQL coordination schema for durable controls, call captures/checkpoints, and feedback publication, with DBOS enqueue/recovery driving attempts rather than defining researcher-visible lifecycle.
 

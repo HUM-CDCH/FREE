@@ -311,7 +311,7 @@ printed identifier. Transfer to other grave reports is unmeasured.
 ## Research boundary
 
 The assemblies implement controllable adaptations of the intentions in
-[kei-exp's literature review](https://github.com/GennaroBaratta/kei-exp/blob/4f724dd9d576329e4b8a53c6f25d3da8c84fe319/docs/literature.md):
+kei-exp's literature review:
 bounded decomposition, stable source IDs, overlap, explicit nulls, deterministic
 verification, and schema/glossary context. They do not replicate trained models,
 coordinate-embedding experiments, supervised SCRI/GEC training, stochastic voting,
