@@ -228,6 +228,34 @@ def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its
     assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
 
 
+@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3)])
+def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
+    """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
+    source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
+    request=unified_request(defaults=defaults)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    result=finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,counter=counter))
+    kept=lease.plans["unified-execution"]["manifest"]
+    assert kept["units"]==[] and kept["execution"]==result["execution"]
+    assert (kept["execution"]["effective"].get("windows"),kept["execution"]["effective"]["overlap"])==(windows,overlap)
+    assert kept["execution"]["method"]=={"defaults":defaults}
+
+
+def test_a_paused_unified_run_plans_on_without_its_execution_record():
+    """The record is no gate: while the attempt does not run, planning goes on and the next running round keeps it."""
+    source=unified_evidence("1. Hill. Material: gold.")
+    request=unified_request(defaults=2)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    lease.intent="PAUSE"
+    counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
+    stages,call=[],lease.call
+    lease.call=lambda name,*args:(stages.append(args[1]) if name=="publish_plan" else None,call(name,*args))[1]
+    with pytest.raises(Boundary):
+        run.dispatch(None,source,request,Router(CountingChat(Model(source)),CountingChat(Model(source)),planner),counter=counter)
+    assert "unified-execution" not in lease.plans
+    assert stages[0]=="unified-execution" and stages[1].startswith("call:")  # on to discovery's first call
+
+
 def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():
     source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
     request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article"})

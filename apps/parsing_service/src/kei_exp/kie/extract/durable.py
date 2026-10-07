@@ -86,6 +86,15 @@ class CapturePlanner:
         if self.lease.call("publish_plan",str(uuid4()),stage,manifest) is None:
             raise Boundary()
 
+    def plan_execution(self, stage, execution):
+        """A method's execution record (its effective settings, discovery windows included) kept as the attempt's
+        plan for `stage`, with no units: a record of how the run reads, never a gate. While the attempt does not run
+        it is left for the next planning round to publish."""
+        manifest = {"plannerVersion": 1, "selectionId": self.selection["id"],
+                    "sourceGeneration": self.lease.state["source"]["generation"], "units": [], "coverage": {},
+                    "execution": execution}
+        self.lease.call("publish_plan", str(uuid4()), stage, manifest)
+
     def filter_evidence(self, evidence):
         """Subtract fixed historical primary coverage without moving offsets.
 

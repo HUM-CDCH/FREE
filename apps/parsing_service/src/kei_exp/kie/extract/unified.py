@@ -233,8 +233,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     execution_sha256 = digest(execution)
     effective = execution["effective"]
     budget = _Budget(chat, counters, effective["stages"], check)
-
-    from kei_exp.kie.extract.retained import discovering
+    from kei_exp.kie.extract.retained import discovering, plan_execution
+    plan_execution(chat, "unified-execution", execution)  # durable runs keep it in their plans (`plan_execution`)
 
     def discover() -> dict:
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
