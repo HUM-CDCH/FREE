@@ -1,7 +1,7 @@
 # Readable spreadsheet export restoration — 7 October 2026
 
-Status: implementation and local verification complete; independent review
-follow-up pending in [PR #208](https://github.com/HUM-CDCH/FREE/pull/208).
+Status: implementation and local verification complete; independent Fable 5.1
+review approved in [PR #208](https://github.com/HUM-CDCH/FREE/pull/208).
 
 ## Regression and scope
 
@@ -28,7 +28,8 @@ durable coordination and the saved History UI contract are unchanged.
 An owner-scoped, read-only production read captured result version 411 and
 decision version 1: 1,025 field values across 205 records. No model or correction
 writes were made. Private source text and generated spreadsheets stay outside
-Git in ignored local artifacts.
+Git in ignored local artifacts. The final independent review approved all four
+corrections and found no remaining blocking or actionable issue.
 
 The previous history response was 297,191,419 bytes; the audit workbook was
 73,408,830 bytes. The restored three-sheet workbook is approximately 35 KB;
