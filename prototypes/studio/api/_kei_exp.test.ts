@@ -247,6 +247,22 @@ describe('kei-exp translation', () => {
     ])
   })
 
+  it('observes a block printed in several places on its page once per box, the first as before', () => {
+    // A paragraph from the foot of the left column to the head of the right one; its last box lies off the page.
+    const { manifest, pages } = suryaRun([
+      segment({ crop: null, text: 'Runs on', bbox_pt: [72, 700, 300, 760],
+        boxes_pt: [[72, 700, 300, 760], [312, 40, 540, 90], [312, 795, 540, 820]] }),
+    ])
+    manifest.recipe.transcriber = 'native'
+    const { document } = translate(manifest, pages)
+    const observed = (occurrence_id: string, x0: number, y0: number, x1: number, y1: number) =>
+      ({ occurrence_id, page_number: 1, producer_ref: 'kei-exp:native:page-1', bbox: { x0, y0, x1, y1 } })
+    expect(document.content_stream[0]?.bbox).toEqual({ x0: 72, y0: 700, x1: 300, y1: 760 })
+    expect(document.evidence_index.anchors[0]?.producer_observations).toEqual([
+      observed('o_p1_s0', 72, 700, 300, 760), observed('o_p1_s0_1', 312, 40, 540, 90),
+    ])
+  })
+
   it('maps Surya labels, keeps geometry coarse where it must, and renders spans while writing', () => {
     const { manifest, pages } = suryaRun(
       [

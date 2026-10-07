@@ -13,7 +13,10 @@
  * file's `segments`), which kei-exp's extraction evidence will also name:
  * block `b_p{page}_s{index}`, anchor `a_p{page}_s{index}`, occurrence
  * `o_p{page}_s{index}`. A segment without a block (error, skipped, an empty
- * figure) leaves its index unused, so the index keeps its meaning.
+ * figure) leaves its index unused, so the index keeps its meaning. A block
+ * printed in several places on its page (a paragraph continued in the next
+ * column, `boxes_pt`) has one occurrence per place: `o_p{page}_s{index}`
+ * first, then `o_p{page}_s{index}_{n}` for its n-th further box.
  *
  * Two departures from the agreed mapping table: a list segment's non-empty
  * lines become one item each (Surya's `ListGroup` carries a whole list), and
@@ -69,6 +72,8 @@ const segmentSchema = z
     bbox_pt: pointBoxSchema,
     extent: z.enum(['block', 'input']),
     table: tableSchema.nullable().optional(),
+    /** Every box of a block printed in several places on its page, `bbox_pt` first. */
+    boxes_pt: z.array(pointBoxSchema).min(2).optional(),
   })
   .loose()
 export const keiExpPageSchema = z
@@ -133,6 +138,8 @@ type Kind =
   | 'paragraph'
 type Draft = { block: ParsedContentBlock
   producerRef: string
+  /** Where else on its page the block is printed, after `block.bbox`. */
+  continued: Bbox[]
   table?: KeiExpSegment['table']
   tableText?: string }
 type DraftPage = { page: KeiExpPage; drafts: Draft[] }
@@ -324,6 +331,9 @@ function draftsOf(
     drafts.push({
       block: blockOf(kind, segment, blockId, page.page, bbox),
       producerRef: `${PARSER_NAME}:${transcriber}:${input}`,
+      continued: (segment.boxes_pt ?? [])
+        .slice(1)
+        .flatMap((box) => clamped(box, width, height).bbox ?? []),
       ...(segment.table
         ? { table: segment.table, tableText: segment.text }
         : {}),
@@ -532,7 +542,7 @@ export function parsedDocumentFromKeiExp(
   const tables: ParsedLogicalTable[] = []
   const documentPages: ParsedDocumentPage[] = []
   for (const { page, span, blocks } of rendered.pages) {
-    for (const { block, producerRef, table } of blocks) {
+    for (const { block, producerRef, continued, table } of blocks) {
       contentStream.push(block)
       const identity = block.block_id.slice('b_'.length)
       if (block.bbox !== null && block.markdown_span !== null)
@@ -543,14 +553,12 @@ export function parsedDocumentFromKeiExp(
         preprocess_id: preprocessId,
         block_id: block.block_id,
         markdown_span: block.markdown_span,
-        producer_observations: [
-          {
-            occurrence_id: `o_${identity}`,
-            page_number: page.page,
-            producer_ref: producerRef,
-            bbox: block.bbox,
-          },
-        ],
+        producer_observations: [block.bbox, ...continued].map((bbox, n) => ({
+          occurrence_id: n === 0 ? `o_${identity}` : `o_${identity}_${n}`,
+          page_number: page.page,
+          producer_ref: producerRef,
+          bbox,
+        })),
       })
       if (block.kind === 'table' && table) {
         const cells: ParsedLogicalTable['cells'] = []
