@@ -157,3 +157,7 @@ entry point for Codex, Claude Code and other agents (`CLAUDE.md` points to it).
 - [docs/operations/](docs/operations/): local development, deployment, Entra sign-in
 - [apps/parsing_service/README.md](apps/parsing_service/README.md): Parsing Service
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute
+
+## License
+
+FREE is licensed under the [Creative Commons Attribution 4.0 International License (CC BY 4.0)](LICENSE).
