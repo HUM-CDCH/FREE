@@ -149,18 +149,18 @@ def fixture_files(generation: str = GENERATION) -> dict[int, dict]:
     return {
         1: page_file(1, [unit(1, [crop(1, 0, CROP_1, (110, 80)), crop(3, 1, (200, 0, 240, 300), (20, 150))]),
                          unit(2, [crop(2, 0, (0, 0, 160, 300), (80, 150))])],
-                     [page_segment(1, 1, (1.0, 2.5, 10.0, 7.25), "Kreis Wanzleben"),
+                     [page_segment(1, 1, (1.0, 2.5, 10.0, 7.25), "Kreis Heide"),
                       page_segment(1, 1, None, "no box"),
                       page_segment(1, 1, (105.0, 0.0, 112.0, 10.0), "poking past the crop"),
                       page_segment(1, 1, (110.0, 0.0, 115.0, 10.0), "entirely outside"),
                       page_segment(1, 3, (0.0, 0.0, 20.0, 150.0), "102", label="PageHeader"),
-                      page_segment(2, 2, (0.0, 0.0, 80.0, 150.0), "76. Ampfurth"),
+                      page_segment(2, 2, (0.0, 0.0, 80.0, 150.0), "76. Adorf"),
                       page_segment(2, 2, (0.0, 0.0, 1.0, 1.0), "", status="skipped")],
                      generation),
         2: page_file(2, [unit(3, [crop(4, 0, (0, 0, 240, 300), (120, 150))]),
                          unit(4, [crop(5, 0, (0, 0, 160, 300), (80, 150))])],
-                     [page_segment(3, 4, (0.0, 0.0, 120.0, 150.0), "77. Bebertal"),
-                      page_segment(4, 5, (0.0, 0.0, 80.0, 150.0), "Kreis Haldensleben")],
+                     [page_segment(3, 4, (0.0, 0.0, 120.0, 150.0), "77. Bdorf"),
+                      page_segment(4, 5, (0.0, 0.0, 80.0, 150.0), "Kreis Aue")],
                      generation),
     }
 

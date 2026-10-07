@@ -19,12 +19,12 @@ export const DEMO_ARTIFACT_REFERENCE = '00000000-0000-4000-8000-0000000000b1'
 export function projectContextFixture(): ProjectStoreReads {
   const project = {
     projectContextId: DEMO_PROJECT_ID,
-    name: 'Ellekilde, TAK 1355',
+    name: 'Elmbrooke, TAK 9355',
     createdAt: new Date('2026-07-31T12:00:00.000Z'),
   }
   const sourceDocument = {
     sourceDocumentId: DEMO_DOCUMENT_ID,
-    name: 'Beretning_Ellekilde_8_13.pdf',
+    name: 'Beretning_Elmbrooke_8_13.pdf',
     createdAt: new Date('2026-07-31T12:01:00.000Z'),
   }
   return {

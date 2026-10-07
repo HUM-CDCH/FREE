@@ -44,7 +44,7 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
     assert len(systems) == 1 and DOCUMENT in systems[0] and "Extract ONLY the record" not in systems[0]
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
-                                  "title": "Sites", "filename": "beier.pdf"}]
+                                  "title": "Sites", "filename": "bauer.pdf"}]
     assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
     assert not result["issues"] and result["article_version"] == 8
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]

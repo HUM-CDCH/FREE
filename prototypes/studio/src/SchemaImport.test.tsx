@@ -227,7 +227,7 @@ it('previews every nested field with its full path and type', async () => {
   const columns = [
     { id: 'name-id', column: 1, name: 'person.name', type: 'string', include: true, examples: ['Ane'], kinds: ['text'], choices: [], suggestedType: 'string' },
     { id: 'year-id', column: 2, name: 'person.birth.year', type: 'integer', include: true, examples: ['1790'], kinds: ['number'], choices: [], suggestedType: 'number' },
-    { id: 'site-id', column: 3, name: 'site', type: 'string', include: true, examples: ['Ellekilde'], kinds: ['text'], choices: [], suggestedType: 'string' },
+    { id: 'site-id', column: 3, name: 'site', type: 'string', include: true, examples: ['Elmbrooke'], kinds: ['text'], choices: [], suggestedType: 'string' },
   ]
   const { schema, upload } = previewSetup(undefined, columns)
   render(<SchemaImport schema={schema} disabled={false} open onClose={vi.fn()} />)

@@ -82,8 +82,8 @@ export async function parseSpreadsheetRows(
 }
 
 /** A file name's identity for matching: its base name without extension,
- *  case-folded and whitespace-collapsed, so `sources/Beier1988 GAC.pdf` and a
- *  Source Document named `Beier1988 GAC.pdf` resolve to the same document. */
+ *  case-folded and whitespace-collapsed, so `sources/Bauer1988 GAC.pdf` and a
+ *  Source Document named `Bauer1988 GAC.pdf` resolve to the same document. */
 function documentKey(name: string): string {
   const base = name.trim().replace(/^.*[\\/]/, '')
   const stem = base.replace(/\.[^.]+$/, '')

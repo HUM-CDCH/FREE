@@ -219,7 +219,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       { source: 'audit', finding: 'Identical requests returned different decisions in 4 of 20 groups; two model reviews agreed on record attribution for only 43 of 69 claim–evidence pairs.' },
       { source: 'harvey', finding: 'Compact span labels admitted all 16 selected decisions that the original labels refused, but used 8 versus 4 calls and 80,806 versus 34,910 input tokens compared with generated quotes; both methods linked a compound claim the source only partly supports.' },
       { source: 'r1r3r4', finding: 'Generated quotes changed mean accuracy by −1.52 [−4.55, 0.00] on bounded context and 0.00 [0.00, 0.00] on full source; the upstream records also changed, so neither is an estimate of verifier quality.' },
-      { source: 'labels', finding: 'Compact labels removed every span budget refusal for two sources in a scripted admission check; Hamburg still refused 345 of 460 claim–unit pairs.' },
+      { source: 'labels', finding: 'Compact labels removed every span budget refusal for two sources in a scripted admission check; a third still refused 345 of 460 claim–unit pairs.' },
     ],
     gaps: [{ kind: 'Not measured', text: 'Semantic precision, evidence recall and unsupported-link rates: no human adjudication is available.' }],
     technical: 'grounding=semantic|quoted|spans|off. Span runs record span_grounding_version; it is metadata, not a setting.',

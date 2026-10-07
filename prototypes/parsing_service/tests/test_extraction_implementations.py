@@ -33,7 +33,7 @@ def test_the_version_1_catalog_reads_the_evidence_it_is_given():
                              before_entry=lambda: checks.append("check"))
     assert result["strategy"] == "catalog" and result["extraction_version"] == assembly.EXTRACTION_VERSION == 1
     assert [(record["entry_no"], record["title"], record["filename"]) for record in result["records"]] == [
-        ("31", "Fund fra Hjortlund", "beier.pdf"), ("32", "Fund fra Hjortlund", "beier.pdf")]
+        ("31", "Fund fra Hjortlund", "bauer.pdf"), ("32", "Fund fra Hjortlund", "bauer.pdf")]
     assert [call["stage"] for call in result["calls"]] == [
         "document", "discovery", "record", "record", "grounding", "grounding"]
     assert [(link["path"], link["linked_by"]) for link in result["evidence"]] == [

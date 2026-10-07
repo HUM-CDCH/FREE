@@ -57,7 +57,7 @@ The tree at `e5ad72f` persists the same OCR evidence twice and describes it thre
 
 Baseline, measured on 2026-09-21 at `e5ad72f` (`scratch/check_*.py`, `node scratch/check_web.cjs`): 12 of 14
 checks pass. `check_pages.py:136` fails because its expectation assumes the fixture's placement is a pure
-translation, and `Beier1988_GAC_02_Catalogue7.pdf` carries a −0.11° rotation in its image matrix (b = −2.33,
+translation, and `Bauer1988_GAC_02_Catalogue7.pdf` carries a −0.11° rotation in its image matrix (b = −2.33,
 c = 1.64): the bounding box of a 678 pt tall rotated crop is 1.3 pt wider than the crop, so a block 10 px into the
 crop is not 7.2 pt into the crop's bounding box. `check_result.py:99` fails because pdfium's crop render differs
 from a slice of the whole-page render by one grey level in 74 of 1722 pixels (anti-aliasing rounding); the crop

@@ -66,7 +66,7 @@ describe('packageConversion', () => {
       })
       expect(Object.keys(converted.descriptor).sort()).toEqual(['artifactReference', 'artifactSha256'])
       expect(decoder.decode((await store.read(converted.descriptor, 'pdf')).bytes)).toBe('%PDF-1.7\n')
-      expect(decoder.decode((await store.read(converted.descriptor, 'markdown')).bytes)).toBe('Grav 8\n')
+      expect(decoder.decode((await store.read(converted.descriptor, 'markdown')).bytes)).toBe('Unit 7\n')
       const document = decodeParsedDocument(JSON.parse(decoder.decode((await store.read(converted.descriptor, 'source')).bytes)))
       expect(document.document).toMatchObject({
         document_id: 'run-1',

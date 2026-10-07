@@ -32,7 +32,7 @@ const currentNodes = [
 ] as const
 
 const pdfPath = fileURLToPath(
-  new URL('../../../examples/1790-06-17-1.pdf', import.meta.url),
+  new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url),
 )
 const parsedDocumentPath = fileURLToPath(
   new URL('../src/assets/parsed_document.v2.json', import.meta.url),
@@ -89,7 +89,7 @@ test.beforeAll(async () => {
     projectContextId: id.project,
     contentSha256: 'a'.repeat(64),
     mediaType: 'application/pdf',
-    originalName: '1790-06-17-1.pdf',
+    originalName: 'synthetic-scan.pdf',
   })
   await db.orm.public.SourceRepresentationRevision.create({
     id: id.representation,

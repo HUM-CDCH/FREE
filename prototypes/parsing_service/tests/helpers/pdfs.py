@@ -34,7 +34,8 @@ def binary_pdf(path: Path, *masks: np.ndarray, dpi: float = DPI) -> Path:
     return path
 
 
-def text_pdf(path: Path, pages: list[list[str]], font: Path | None = None) -> None:
+def text_pdf(path: Path, pages: list[list[str]], font: Path | None = None,
+             size: tuple[float, float] = (595, 842)) -> None:
     """One paragraph per page, a text object per line. The stock Helvetica keeps no soft hyphen (it prints as ÿ);
     an embedded TrueType font, when one is given, keeps every character."""
     with pdfium.PdfDocument.new() as pdf:
@@ -43,12 +44,14 @@ def text_pdf(path: Path, pages: list[list[str]], font: Path | None = None) -> No
             loaded = pdfium_raw.FPDFText_LoadFont(pdf, (ctypes.c_ubyte * len(data)).from_buffer_copy(data), len(data),
                                                   pdfium_raw.FPDF_FONT_TRUETYPE, 1)
         for lines in pages:
-            page = pdf.new_page(595, 842)
+            page = pdf.new_page(*size)
             for n, line in enumerate(lines):
                 obj = pdfium_raw.FPDFPageObj_CreateTextObj(pdf, loaded, 11.0) if font is not None else \
                     pdfium_raw.FPDFPageObj_NewTextObj(pdf, b"Helvetica", 11.0)
-                pdfium_raw.FPDFText_SetText(obj, ctypes.cast((line + "\0").encode("utf-16-le"),
-                                                             pdfium_raw.FPDF_WIDESTRING))
+                # A ctypes copy, not a cast of a temporary bytes object, which pdfium sometimes read as garbage.
+                text = (line + "\0").encode("utf-16-le")
+                buffer = (ctypes.c_ubyte * len(text)).from_buffer_copy(text)
+                pdfium_raw.FPDFText_SetText(obj, ctypes.cast(buffer, pdfium_raw.FPDF_WIDESTRING))
                 pdfium_raw.FPDFPageObj_Transform(obj, 1, 0, 0, 1, 72, 770 - 14 * n)
                 pdfium_raw.FPDFPage_InsertObject(page, obj)
             page.gen_content()

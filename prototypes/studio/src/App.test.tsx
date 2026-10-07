@@ -303,7 +303,7 @@ function durableRead(url: string, status: ExtractionAttempt['executionStatus'] =
   const feedbackVersion = Number(asked.get('feedbackVersion') ?? cut.feedbackVersion)
   const value = { id: 'place', recordId: 'record', fieldId: 'place', path: ['records', 0, 'place'],
     selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-    node: { id: 'place', name: 'place', type: 'string' }, modelValue: 'Ellekilde', evidence: [], links: [],
+    node: { id: 'place', name: 'place', type: 'string' }, modelValue: 'Elmbrooke', evidence: [], links: [],
     grounding: 'ungrounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null }
   if (values) return Response.json({ extractionId, snapshotVersion, feedbackVersion, status, finalization: null,
     reviewCounts: { required: 1, toCheck: 1, approved: 0, edited: 0, rejected: 0 }, values: [value], total: 1, next: null, coverage: {} })
@@ -473,11 +473,11 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await screen.findByRole('button', { name: '❚❚ Pause extraction' })
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    expect(await screen.findByText('Elmbrooke')).toBeVisible()
     if (inspection === 'the rail collapses') fireEvent.click(screen.getByTitle('Collapse panel'))
     else if (inspection === 'Latest reviewed is inspected') {
       fireEvent.change(screen.getByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reopened.persistedExtraction!.extractionId } })
-      expect(await screen.findByText('Ellekilde')).toBeVisible()
+      expect(await screen.findByText('Elmbrooke')).toBeVisible()
     }
     status = 'COMPLETED'
     if (inspection === 'latest Results stays open') {
@@ -799,7 +799,7 @@ describe('reopened Source Document workspace', () => {
     const mounted = await renderReopened()
     await waitFor(() => expect(getDocument).toHaveBeenCalledOnce())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(screen.getByText('Ellekilde')).toBeVisible()
+    expect(screen.getByText('Elmbrooke')).toBeVisible()
 
     const nextSourceRepresentationId =
       '51000000-0000-4000-8002-000000000099'
@@ -844,7 +844,7 @@ describe('reopened Source Document workspace', () => {
     expect(
       screen.getByRole('status', { name: 'Loading Source Document' }),
     ).toBeVisible()
-    expect(screen.queryByText('Ellekilde')).not.toBeInTheDocument()
+    expect(screen.queryByText('Elmbrooke')).not.toBeInTheDocument()
   })
 
   it('keeps the collapsed right rail narrow at mobile widths', async () => {
@@ -1106,8 +1106,8 @@ describe('reopened Source Document workspace', () => {
   // The first generation names the schema after its Source Document; a rename through the pencil meanwhile waits for
   // that save and is the name that stays, whatever the automatic save answers (Ruling: renames are serialized).
   it.each([
-    ['succeeds', 'succeeds', 'Ellekilde graves'],
-    ['fails', 'succeeds', 'Ellekilde graves'],
+    ['succeeds', 'succeeds', 'Elmbrooke graves'],
+    ['fails', 'succeeds', 'Elmbrooke graves'],
     ['fails', 'is refused', 'Extraction Schema'],
   ] as const)('the automatic first name %s late; a manual rename that %s meanwhile leaves "%s"', async (automatic, manual, expected) => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000040'
@@ -1154,14 +1154,14 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
     await waitFor(() => expect(releaseAutomatic).not.toBeNull())
-    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Ellekilde graves' } })
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Elmbrooke graves' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
     // The manual rename waits for the automatic one: the server applies them in the order they were asked for.
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(patches).toEqual(['Beretning'])
 
     releaseAutomatic!()
-    await waitFor(() => expect(patches).toEqual(['Beretning', 'Ellekilde graves']))
+    await waitFor(() => expect(patches).toEqual(['Beretning', 'Elmbrooke graves']))
     if (manual === 'is refused') {
       expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
       fireEvent.click(screen.getByRole('button', { name: 'Cancel schema rename' }))
@@ -1216,7 +1216,7 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
     await waitFor(() => expect(patches).toEqual(['Beretning']))
-    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Ellekilde graves' } })
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Elmbrooke graves' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(patches).toEqual(['Beretning'])
@@ -1226,11 +1226,11 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
     }
 
-    await waitFor(() => expect(patches).toEqual(['Beretning', 'Ellekilde graves']), { timeout: 3_000 })
-    expect(await screen.findByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+    await waitFor(() => expect(patches).toEqual(['Beretning', 'Elmbrooke graves']), { timeout: 3_000 })
+    expect(await screen.findByRole('heading', { name: 'Elmbrooke graves' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Schema name for/)).not.toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 10))
-    expect(screen.getByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Elmbrooke graves' })).toBeInTheDocument()
   })
 
   // Giving up on the first name stops the browser's waiting, not the server's write: here its PATCH reaches the server's
@@ -2017,7 +2017,7 @@ describe('reopened Source Document workspace', () => {
 
       const run = tabStripRun('ARTICLE')
       // Results shows the reopened Catalog attempt's saved values, not an empty workspace.
-      expect(await screen.findByText('Ellekilde')).toBeVisible()
+      expect(await screen.findByText('Elmbrooke')).toBeVisible()
       fireEvent.click(run)
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('ARTICLE'))
@@ -2399,13 +2399,13 @@ describe('reopened Source Document workspace', () => {
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-      expect(screen.getByText('Ellekilde')).toBeVisible()
+      expect(screen.getByText('Elmbrooke')).toBeVisible()
 
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       expect(posts).toHaveLength(1)
       expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
-      expect(screen.getByText('Ellekilde')).toBeVisible()
+      expect(screen.getByText('Elmbrooke')).toBeVisible()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
       expect(run).toBeDisabled()
@@ -2811,7 +2811,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByLabelText('Record scope')).toBeDisabled()
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     // The durable reader owns the running Extraction's status in Results.
-    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    expect(await screen.findByText('Elmbrooke')).toBeVisible()
     expect(screen.getByRole('button', { name: '❚❚ Pause extraction' })).toHaveTextContent(/^❚❚ Pause extraction$/)
 
     mounted.rerender(
@@ -3116,7 +3116,7 @@ describe('updated latest reviewed extraction', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     // Ordinary inspection of the latest attempt follows its live cut.
-    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    expect(await screen.findByText('Elmbrooke')).toBeVisible()
     expect(screen.queryByText(/Showing saved results/)).not.toBeInTheDocument()
     fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: finalizedA.extractionId } })
     expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
@@ -3132,7 +3132,7 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={latest} latestReviewedExtraction={latest} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    expect(await screen.findByText('Elmbrooke')).toBeVisible()
     expect(screen.queryByText(/Showing saved results/)).not.toBeInTheDocument()
     expect(requests.some((url) => url.includes('feedbackVersion='))).toBe(false)
   })

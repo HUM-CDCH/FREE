@@ -85,7 +85,7 @@ describe('Project Context routes', () => {
     ).toMatchObject({
       sourceDocuments: [
         {
-          name: 'Beretning_Ellekilde_8_13.pdf',
+          name: 'Beretning_Elmbrooke_8_13.pdf',
           pageCount: parsedDocument.page_count,
         },
       ],
@@ -158,7 +158,7 @@ describe('Project Context routes', () => {
   it('creates, renames, and permanently deletes one Project Context', async () => {
     const created = {
       projectContextId: '00000000-0000-4000-8000-000000000047',
-      name: 'Ellekilde, TAK 1356',
+      name: 'Elmbrooke, TAK 9356',
       createdAt: new Date('2026-08-11T09:00:00.000Z'),
     }
     const deleteProjectContext = vi.fn(
@@ -271,7 +271,7 @@ describe('Project Context routes', () => {
     ).toBe(404)
 
     const failed = await POST(
-      write('http://test/api/project-contexts', 'POST', 'Ellekilde'),
+      write('http://test/api/project-contexts', 'POST', 'Elmbrooke'),
     )
     expect(failed.status).toBe(503)
     expect(failed.headers.get('cache-control')).toBe('no-store')
@@ -295,7 +295,7 @@ describe('Project Context routes', () => {
         write(
           `http://test/api/project-contexts/${DEMO_PROJECT_ID}`,
           'PATCH',
-          'Ellekilde',
+          'Elmbrooke',
         ),
       ),
       await writes.DELETE(

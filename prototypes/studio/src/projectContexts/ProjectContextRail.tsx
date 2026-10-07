@@ -12,7 +12,7 @@ import { sourceName } from '../sourceIngestionMachine'
 
 /**
  * Names wrap in this rail rather than truncate, but the line-breaking algorithm
- * offers no break after `_`, so a name like `Herredsvejen_SBM1694.pdf` is one
+ * offers no break after `_`, so a name like `Millbrook_Survey_0042.pdf` is one
  * unbreakable word that `break-words` then splits mid-token. `<wbr>` marks the
  * separators as break opportunities; it renders nothing and contributes nothing
  * to text content, so the name a test or a screen reader reads is unchanged.

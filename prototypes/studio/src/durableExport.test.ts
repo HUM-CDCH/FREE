@@ -139,9 +139,9 @@ describe('durable exports', () => {
     const long = { state: { ...fixed.state, snapshotVersion: 411, feedbackVersion: 1, status: 'COMPLETED' },
       page: { ...fixed.page, snapshotVersion: 411, feedbackVersion: 1, status: 'COMPLETED', values: many, total: many.length } } as unknown as Fixed
     const downloads = stubDownloads()
-    await downloadDurableExport(long, 'xlsx', root, 'Beretning_Ellekilde_8_13.pdf')
+    await downloadDurableExport(long, 'xlsx', root, 'Beretning_Elmbrooke_8_13.pdf')
     expect(fetch).not.toHaveBeenCalled()
-    expect(downloads.map((download) => download.filename)).toEqual(['Beretning_Ellekilde_8_13-extraction-result-s411.xlsx'])
+    expect(downloads.map((download) => download.filename)).toEqual(['Beretning_Elmbrooke_8_13-extraction-result-s411.xlsx'])
     const results = (await workbook(downloads[0]!.blob)).getWorksheet('Results')!
     expect(results.rowCount).toBe(206)
     expect(cells(results)[0]).toEqual(['title', 'site', 'year', 'gilded', 'names'])

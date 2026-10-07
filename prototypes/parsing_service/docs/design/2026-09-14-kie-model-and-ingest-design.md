@@ -42,7 +42,7 @@ particular spread index to choose a split; source-specific knowledge belongs in 
 |---|---|
 | Source, Page, Segment, Span, runner and artifacts | Reusable across documents; derive counts and dimensions from the input |
 | Gutter detector | Configurable scan assumptions, distances independent of raster resolution, explicit evidence and fallbacks |
-| Beier method counts and selected page numbers | Reference-fixture measurements only; never runtime conditions |
+| Bauer method counts and selected page numbers | Reference-fixture measurements only; never runtime conditions |
 | Block and HeadingEvent | Numbered-catalogue domain contracts; `bezirk`/`kreis` is an explicit domain restriction |
 
 This first ingest does not support arbitrary PDFs. Grayscale or colour rasters, composite pages (anything
@@ -295,7 +295,7 @@ shadow's dark run is too narrow to pass the width minimum, and the blank margin 
 The three distances are fractions of the full native spread width `W`, not pixel constants, so that the
 rule transfers to a catalogue scanned at another resolution; a pixel default would silently mean a different
 physical distance there. Each resolves to pixels once per spread with `max(1, floor(fraction * W + 0.5))`,
-giving `min_blank_px`, `min_dark_px` and `support_radius_px`. At the Beier width `W = 9928` they resolve to
+giving `min_blank_px`, `min_dark_px` and `support_radius_px`. At the Bauer width `W = 9928` they resolve to
 the same 40, 60 and 10 px the baseline of §4.5 was measured with; at half that raster resolution they
 approximately halve. Evidence coordinates and `overrides` stay in native pixels, because they name places in
 one particular image, and the resolved distances are recorded per spread in the report. These fractional
@@ -398,8 +398,7 @@ raster the run met.
 ### 4.5 Measured baseline, and what acceptance may assert
 
 A temporary read-only probe applied the reference policy of §4.3 to all 45 native rasters on 2026-09-14.
-Source `Beier1988_GAC_02_Catalogue.pdf`, sha256
-`31b024007313aa5323e5d428ea49ec47dfd236ed95a31a56ba14cacc3211dc2f`. It used `get_bitmap(render=False)`,
+Source: the 45-spread reference catalogue scan. It used `get_bitmap(render=False)`,
 black pixels `< 128`, columns `[3971, 5956)`, interior rows `[701, 6314)`, five `array_split` bands, unjoined
 half-open runs, the ink thresholds and width minima of §4.3 at their resolved values for this width, and a
 floor-rounded blank centre. It measured selection only: it wrote no PNGs and did not exercise the runner.
@@ -509,14 +508,14 @@ Tests, only where a plausible bug would fail them:
 - Model: duplicate ids, overlapping primary spans, out-of-range spans, out-of-page bboxes and
   non-complementary source rects are rejected at the right level.
 
-Smoke run on `~/Downloads/Beier1988_GAC_02_Catalogue.pdf`: 90 pages from 45 spreads, 1-bit PNGs, and a
+Smoke run on `~/Downloads/Bauer1988_GAC_02_Catalogue.pdf`: 90 pages from 45 spreads, 1-bit PNGs, and a
 rerun that skips. The gate is that every non-`shadow` selection and every weak-support spread is listed in
 the report and inspected, and that the method counts either match the §4.5 baseline or the difference is
 explained. It is not an assertion that all 45 spreads select `shadow`. Acceptance depends on `choose_gutter`
 being complete (§7).
 
-Two acceptance levels are kept apart. Implementation correctness is the checks above plus the Beier fixture.
-Demonstrated transfer is a second, independent scanned catalogue; the one-spread Beier sample does not count
+Two acceptance levels are kept apart. Implementation correctness is the checks above plus the Bauer fixture.
+Demonstrated transfer is a second, independent scanned catalogue; the one-spread Bauer sample does not count
 as one, since it is the same scan. If no second catalogue is available, finish the implementation checks and
 report transfer validation as pending rather than claiming generality from the presence of config fields.
 

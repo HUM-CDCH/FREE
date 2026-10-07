@@ -75,7 +75,7 @@ def _header(text) -> str:
 
 
 def _document_key(name: str) -> str:
-    """A file's identity for matching: its stem, normalized. `Beier1988 GAC.pdf` and a run's `source_name` match."""
+    """A file's identity for matching: its stem, normalized. `Bauer1988 GAC.pdf` and a run's `source_name` match."""
     return _header(Path(str(name).strip()).stem)
 
 

@@ -23,8 +23,9 @@ def root() -> Path:
 
 @pytest.fixture(scope="session")
 def scan_pdf() -> Path:
-    """One spread of the Beier catalogue: a 1-bit 600 dpi scan, placed with a -0.11 degree rotation."""
-    return _fixture_pdf("Beier1988_GAC_02_Catalogue7.pdf")
+    """An optional scanned catalogue spread (a 1-bit 600 dpi scan placed with a -0.11 degree rotation), supplied
+    as scan.pdf through PARSING_FIXTURE_DIR; the tests that need it skip without it."""
+    return _fixture_pdf("scan.pdf")
 
 
 @pytest.fixture(scope="session")
@@ -41,8 +42,8 @@ def digital_pdf(tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="session")
 def recorded_digital_pdf() -> Path:
-    """The exact original source required by recorded hashes and table geometry assertions."""
-    return _fixture_pdf("main.pdf")
+    """The committed synthetic eight-page A4 text PDF whose hash the recorded native run and the goldens pin."""
+    return ROOT / "tests" / "fixtures" / "synthetic-main.pdf"
 
 
 @pytest.fixture

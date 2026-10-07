@@ -229,7 +229,7 @@ test('One by one waits for its pinned source before navigating retained Model Ev
   try {
     const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
-    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Grav 8'],'PAUSED',
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
         segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
     // Direct reopen already chooses the producing source. Hold its real parsed
@@ -244,7 +244,7 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     await expect.poll(()=>received).toBe(true)
     await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'One by one',exact:true}).click()
-    await expect(page.getByRole('heading',{name:'Grav 8',exact:true})).toBeFocused()
+    await expect(page.getByRole('heading',{name:'Unit 7',exact:true})).toBeFocused()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
     release.resolve()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
@@ -508,7 +508,7 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
   try {
     const source=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)
     expect(source.status()).toBe(200)
-    const parsed=decodeParsedDocument(await source.json()),prefix='# Grav 8\n\nØrsted: ',passage='NØ-SV',markdown=`${prefix}${passage} orienteret.\n`
+    const parsed=decodeParsedDocument(await source.json()),prefix='# Unit 7\n\nCafé wall: ',passage='NE–SW',markdown=`${prefix}${passage} aligned.\n`
     const anchor=parsed.evidence_index.anchors.find(anchor=>anchor.kind==='text'&&anchor.producer_observations.length)
     if(!anchor||anchor.kind!=='text')throw new Error('The Markdown fixture requires text Evidence.')
     anchor.markdown_span={start:Buffer.byteLength(prefix),end:Buffer.byteLength(prefix+passage)}

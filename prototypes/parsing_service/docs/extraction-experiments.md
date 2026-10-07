@@ -303,7 +303,7 @@ disables glossary normalization; heading-off disables inherited bindings and
 heading context; overlap-off disables neighboring context and window overlap.
 
 `headed-graves-da@1` is a narrow, declared recipe for standalone `Grav N`
-headings. It was developed on the supplied Ellekilde excerpt. Its seven detected
+headings. It was developed on one supplied excavation-report excerpt. Its seven detected
 blocks and complete line disposition are observations, not annotated block F1.
 It does not apply the German catalogue's field bindings or strip `Grav` from a
 printed identifier. Transfer to other grave reports is unmeasured.

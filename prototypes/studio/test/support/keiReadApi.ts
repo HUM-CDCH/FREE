@@ -13,11 +13,11 @@ export function keiPage(overrides: Record<string, unknown> = {}) {
     units: [],
     segments: [
       {
-        text: 'Grav 8', html: null, markdown: 'Grav 8', label: 'text', confidence: null, status: 'ok', unit: 0,
+        text: 'Unit 7', html: null, markdown: 'Unit 7', label: 'text', confidence: null, status: 'ok', unit: 0,
         crop: null, bbox_px: null, bbox_pt: [36, 36, 100, 54], extent: 'input',
       },
     ],
-    markdown: 'Grav 8',
+    markdown: 'Unit 7',
     complete: true,
     warnings: [],
     ...overrides,

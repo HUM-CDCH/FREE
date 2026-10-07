@@ -38,12 +38,12 @@ export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNo
 /** Distinct valid source bytes for another member of this fixture's project. */
 export async function savedBatchSource(fixture:InteractiveDocument,source:ParsedDocument,name:string) {
   const documentId=randomUUID(),representationId=randomUUID(),parsed=structuredClone(source)
-  const original=await readFile(new URL('../../../examples/Beretning_Ellekilde_8_13.pdf',import.meta.url))
+  const original=await readFile(new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf',import.meta.url))
   const pdf=new Uint8Array([...original,...new TextEncoder().encode(`\n% Durable batch fixture ${name}\n`)])
   const hash=createHash('sha256').update(pdf).digest('hex')
   parsed.document.content_sha256=hash;parsed.document.source.original_filename=name;parsed.document.source.byte_size=pdf.length
   for(const anchor of parsed.evidence_index.anchors)anchor.content_sha256=hash
-  const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf,document:decodeParsedDocument(parsed),markdown:'# Article fixture\n\n> Grav 8\n'}))
+  const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf,document:decodeParsedDocument(parsed),markdown:'# Article fixture\n\n> Unit 7\n'}))
   await pool.query(`INSERT INTO public."sourceDocument" (id,"projectContextId","contentSha256","mediaType","originalName") VALUES ($1,$2,$3,'application/pdf',$4)`,[documentId,fixture.projectContextId,hash,name])
   await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
     VALUES ($1,$2,1,$3,$4,'parsed_document.v2',$5,'fixture','1')`,

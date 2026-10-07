@@ -18,7 +18,7 @@ import {
 // eight pages through the native Docling path, one whole-page segment each.
 const FIXTURE = resolve(import.meta.dirname, '../test/fixtures/kei-exp')
 const SAMPLE_SHA256 =
-  '641e16c209b792546e79ca2a660e14ecf6750c3c027ffb46a3b89f9a79770293'
+  'dcd3cc5abcc1ebd5a1f447ff0a9d8d409daf8b2456f259068e974934401850a9'
 const NOW = new Date('2026-09-22T13:00:00.000Z')
 const decoder = new TextDecoder()
 
@@ -229,7 +229,7 @@ describe('kei-exp translation', () => {
       { parser: 'kei-exp', version: 'docling 2.127.0', status: 'success', warnings: [], error: null },
     ])
     expect(document.arbitration).toEqual({ primary_document_parser: 'kei-exp' })
-    expect(decoder.decode(markdown).startsWith('Analyze abstracts of empirical research\n\nGennaro Baratta')).toBe(true)
+    expect(decoder.decode(markdown).startsWith('Synthetic field report\n\nTest Author 0000')).toBe(true)
     expectSpansSliceBack(document, markdown)
     expectBoxesWithinPages(document)
   })
@@ -380,11 +380,11 @@ describe('kei-exp translation', () => {
 
 it('publishes v5 native cells with distinct anchors and unchanged parent text', () => {
   const text =
-    'nummer\tbeskrivelse\t\n24-8\tOverarmsknogle\t\n24-17\tOverarmsknogle'
+    'number\tdescription\t\n7-8\tGlass bead\t\n7-17\tGlass bead'
   const values = [
-    ['nummer', 'beskrivelse'],
-    ['24-8', 'Overarmsknogle'],
-    ['24-17', 'Overarmsknogle'],
+    ['number', 'description'],
+    ['7-8', 'Glass bead'],
+    ['7-17', 'Glass bead'],
   ]
   let offset = 0
   const cells = values.flatMap((row, r) =>
@@ -435,9 +435,9 @@ it('publishes v5 native cells with distinct anchors and unchanged parent text', 
   expect(() => translate(manifest, pages)).toThrow()
 })
 
-it('retains the real Ellekilde page 3 table and all 23 measured cell anchors', async () => {
+it('retains a measured page 3 table (synthetic text) and all 23 cell anchors', async () => {
   const measured = JSON.parse(
-    await readFile(resolve(FIXTURE, 'ellekilde-table-v5.json'), 'utf8'),
+    await readFile(resolve(FIXTURE, 'synthetic-table-v5.json'), 'utf8'),
   )
   const { manifest, pages } = suryaRun([measured.segment])
   pages[0].size_pt = measured.size_pt
@@ -445,9 +445,9 @@ it('retains the real Ellekilde page 3 table and all 23 measured cell anchors', a
   const table = document.tables[0]
   expect([table.rows, table.cols, table.cells.length]).toEqual([9, 3, 23])
   expect(table.cells.find((cell) => cell.cell_id === 'r1_c0')?.text).toBe(
-    '24-8',
+    '7-8',
   )
-  const repeated = table.cells.filter((cell) => cell.text === 'Overarmsknogle')
+  const repeated = table.cells.filter((cell) => cell.text === 'Glass bead')
   expect(repeated.map((cell) => cell.cell_id)).toEqual(['r1_c1', 'r7_c1'])
   expect(repeated[0].bbox).not.toEqual(repeated[1].bbox)
   expect(decoder.decode(markdown)).toContain(measured.segment.text)

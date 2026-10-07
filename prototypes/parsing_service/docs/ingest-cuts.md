@@ -4,7 +4,7 @@ Imported from kei-exp `93b9435c2b9a01a5424758d917c058fc79bbc159`. This document
 retains the original internal design or measurements. The service README and
 FREE root deployment runbooks govern the current runtime and verification commands.
 
-Measured 2026-09-13 on `Beier1988_GAC_02_Catalogue7.pdf` (one spread) with the
+Measured 2026-09-13 on `Bauer1988_GAC_02_Catalogue7.pdf` (one spread) with the
 installed Docling 2.126.0 and pypdfium2 5.13. Implemented the same day in
 `src/kei_exp/cut.py` (`--cut auto`, the default, and `--crop-dpi`); the
 deviations from the sketch are listed at the end.
@@ -80,7 +80,7 @@ crop (860 x 2400, 2.1 MP) passes unscaled, and one column needs about a quarter
 of the spread's 13k output tokens, well inside the full-page output cap (Surya's
 default 12,288; the CLI raises it to 16,384). Overflow is silent: Surya ignores
 `finish_reason`, so a truncated page comes back error-free at full confidence,
-which is what the whole Beier spread did at the default cap. Its own block mode
+which is what the whole Bauer spread did at the default cap. Its own block mode
 (`LayoutPredictor` result passed to `RecognitionPredictor`, one request per
 block, 4 px padding) would also avoid the downscale, but its reading order
 across a gutter is unverified and it is Surya-only; the shared cut serves every
@@ -132,7 +132,7 @@ Rules, in order of leverage:
   carrying the same pipeline options, and join the Markdown in region order.
   The report writer (`src/kei_exp/report.py`) numbers pages across results.
 - One check: `scripts/test_cut.py` asserts 4 regions and the three x-cuts on
-  the Beier page.
+  the Bauer page.
 
 Skipped: deskew and dewarp (this scan needs neither); a second layout model;
 PyMuPDF (AGPL, duplicates pypdfium2).
@@ -157,7 +157,7 @@ Implemented (2026-09-13), where it differs from the sketch:
   a legitimate layout whose widths differ by half. A layout gap with no ink-free
   run remains the box-versus-profile check.
 - No `pages` cut mode and no `scripts/`: the golden check is
-  `scratch/check_cut.py` beside the other checks. Result on the Beier spread:
+  `scratch/check_cut.py` beside the other checks. Result on the Bauer spread:
   4 column regions, cuts at 323, 607 and 890 pt, crops of about 857 x 2400 px
   at 250 dpi; Surya through vLLM returns all entries 76-82 in 13,455 characters
   against 13,354 from the whole spread, with abbreviations such as
@@ -170,11 +170,11 @@ has the final say on each page's cut, including pages where the layout model
 found no body block. At or above 90 % page coverage, each column is also checked against
 the ink in its vertical span between cuts. If its crop misses more than 3 %,
 layout runs once on that column's full span; newly detected text can extend its
-top or bottom while its x-cuts and neighbouring crops stay fixed. On Beier
+top or bottom while its x-cuts and neighbouring crops stay fixed. On Bauer
 source page 6, page coverage was 94.2 % but column 2 covered only 85.3 % of its
 ink, omitting the final paragraph. The column view recovers that paragraph.
 Measured on the
-45-page Beier catalogue: median coverage 97 %, every page above 92 % except
+45-page Bauer catalogue: median coverage 97 %, every page above 92 % except
 source page 38, the two-column site index, at 39 %: a partial left column
 (ink 24 %), a 192 x 18 pt two-line sliver (1 %) and a "figure" (15 %). The
 sliver makes Surya OCR 2 loop until its token cap at greedy decoding (about
@@ -226,12 +226,12 @@ faster at about 0.8 s but missed substantial content on page 37 of this catalogu
 
 ## Unsafe proposed gaps (2026-09-26)
 
-The Hamburg example exposed a layout gap crossing actual text on physical page 3. A gap with no ink-free
+One scanned map sheet exposed a layout gap crossing actual text on physical page 3. A gap with no ink-free
 run is now rejected as a boundary: its adjacent boxes stay in one region, while other verified gaps still
 split. Both axes recurse only when the accepted cuts make more than one group. This preserves the content
 without inventing a cut or aborting the entire document. The earlier fail-page policy above records the
 original implementation.
 
-Katrinesminde's last page contains only a footer (the page number). When layout finds no body after its
+One report's last page contains only a footer (the page number). When layout finds no body after its
 retry, but detected headers/footers account for at least 90% of the ink, the complete page is transcribed.
 This retains the furniture and any remaining ink. Unexplained missing body content still fails explicitly.

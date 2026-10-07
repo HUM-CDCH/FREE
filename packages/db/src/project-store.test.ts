@@ -40,7 +40,7 @@ const ingestion = (
 ): IngestSourceDocumentInput => ({
   contentSha256: 'c'.repeat(64),
   mediaType: 'application/pdf',
-  originalName: 'Ellekilde.pdf',
+  originalName: 'Elmbrooke.pdf',
   artifactReference: 'd'.repeat(64),
   artifactSha256: 'd'.repeat(64),
   contractVersion: 'parsed_document.v2',
@@ -71,7 +71,7 @@ function fakeDatabase(
       {
         id: PROJECT,
         researcherAccountId: RESEARCHER_A,
-        name: 'Ellekilde, TAK 1355',
+        name: 'Elmbrooke, TAK 9355',
         createdAt: new Date('2026-08-01T11:00:00Z'),
       },
       {
@@ -520,7 +520,7 @@ describe('ResearcherProjectStore developer evaluation rounds', () => {
     const pilot = await store.appendEvaluationRound(PROJECT, {
       pipelineRunId,
       label: 'PILOT_1',
-      documents: [{ sourceDocumentId: DOCUMENT, filename: 'Ellekilde.pdf' }],
+      documents: [{ sourceDocumentId: DOCUMENT, filename: 'Elmbrooke.pdf' }],
       pins: { schemaDigest: 'sha256:demo' },
     })
     assert.equal(pilot?.status, 'PENDING')
@@ -590,9 +590,9 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
-    const created = await store.createProjectContext('  Ellekilde, TAK 1356  ')
+    const created = await store.createProjectContext('  Elmbrooke, TAK 9356  ')
 
-    assert.equal(created.name, 'Ellekilde, TAK 1356')
+    assert.equal(created.name, 'Elmbrooke, TAK 9356')
     assert.equal(database.tables.ProjectContext.length, 4)
     assert.equal(
       database.tables.ProjectContext.at(-1)?.id,
@@ -695,7 +695,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       )
     }
     assert.equal(database.tables.ProjectContext.length, 3)
-    assert.equal(database.tables.ProjectContext[0].name, 'Ellekilde, TAK 1355')
+    assert.equal(database.tables.ProjectContext[0].name, 'Elmbrooke, TAK 9355')
     // The boundary itself is accepted, trimmed.
     assert.equal(
       (await store.createProjectContext(` ${'x'.repeat(512)} `)).name.length,
@@ -707,11 +707,11 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
-    const renamed = await store.renameProjectContext(PROJECT, ' Ellekilde II ')
+    const renamed = await store.renameProjectContext(PROJECT, ' Elmbrooke II ')
 
     assert.deepEqual(renamed, {
       projectContextId: PROJECT,
-      name: 'Ellekilde II',
+      name: 'Elmbrooke II',
       createdAt: new Date('2026-08-01T11:00:00Z'),
     })
     assert.equal(database.tables.ProjectContext[1].name, 'Other')
@@ -1195,7 +1195,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       events.every(
         (event) =>
           event.projectContextId === PROJECT &&
-          event.projectContextName === 'Ellekilde, TAK 1355',
+          event.projectContextName === 'Elmbrooke, TAK 9355',
       ),
     )
     // The Schema Revision event surfaces once the bound allows it.
@@ -1335,7 +1335,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
 
     const result = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
 
-    assert.equal(result?.name, 'Ellekilde.pdf')
+    assert.equal(result?.name, 'Elmbrooke.pdf')
     assert.equal(result?.revisionNumber, 1)
     assert.equal(result?.disposition, 'created')
     assert.equal(database.tables.SourceDocument.length, 3)
@@ -1344,7 +1344,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
       projectContextId: EMPTY_PROJECT,
       contentSha256: 'c'.repeat(64),
       mediaType: 'application/pdf',
-      originalName: 'Ellekilde.pdf',
+      originalName: 'Elmbrooke.pdf',
       id: result?.sourceDocumentId,
       createdAt: result?.createdAt,
     })
@@ -1494,7 +1494,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     )
 
     assert.deepEqual(second, { ...first, disposition: 'replayed' })
-    assert.equal(second?.name, 'Ellekilde.pdf')
+    assert.equal(second?.name, 'Elmbrooke.pdf')
     assert.equal(database.tables.SourceDocument.length, 3)
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
   })

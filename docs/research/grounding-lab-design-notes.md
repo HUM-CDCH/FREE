@@ -188,7 +188,7 @@ Each part gives the reason, the other options, and the effects.
   risk parameters before the holdout labels open. Two blind labelers and one
   adjudicator label each family. Failed attempts stay failed.
 - Effects: Four of eight full-source extraction calls failed. Only Kirsch has
-  two valid arms. Beier is a transfer case because of prior overlap. The
+  two valid arms. Bauer is a transfer case because of prior overlap. The
   labels of this experiment must not tune any reported policy.
 
 ## 4. Parts that reached production
@@ -218,7 +218,7 @@ Each part gives the reason, the other options, and the effects.
 - Reason: Catalog grounding shows the model only the record slice, but the
   count scanned the whole document. A code repeated in each entry got the
   warning "also appears in N other passages" although no other passage was a
-  candidate. The Beier run had 1,287 such warnings.
+  candidate. The Bauer run had 1,287 such warnings.
 - Other options: Keep the document-wide count as a value doubt. Extraction
   works on one slice, so this signal had no action.
 - Effects: The count now matches the candidates. Article runs and stored links

@@ -24,8 +24,8 @@ const id = {
 } as const
 
 const documentName = {
-  [id.beretning]: 'Beretning_Ellekilde_8_13.pdf',
-  [id.fundliste]: 'Fundliste_Ellekilde.pdf',
+  [id.beretning]: 'Beretning_Elmbrooke_8_13.pdf',
+  [id.fundliste]: 'Fundliste_Elmbrooke.pdf',
 } as const
 
 /** The pinned Schema Revision every member of the batch is extracted through. */
@@ -211,7 +211,7 @@ function batchFixture(nested = false): {
 
   const project = {
     projectContextId: id.project,
-    name: 'Ellekilde, TAK 1355',
+    name: 'Elmbrooke, TAK 9355',
     createdAt: at(0),
   }
   const unsupported = () => {

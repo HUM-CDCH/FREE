@@ -2,7 +2,7 @@
   "fingerprint": "70c615bc46c59dcc1c5816b098d812efb23944f3817ebe0173ee88c29c64cd20",
   "recipe": {
     "result_version": 3,
-    "source_sha256": "641e16c209b792546e79ca2a660e14ecf6750c3c027ffb46a3b89f9a79770293",
+    "source_sha256": "dcd3cc5abcc1ebd5a1f447ff0a9d8d409daf8b2456f259068e974934401850a9",
     "ingest_digest": null,
     "transcriber": "surya",
     "model": "surya",
