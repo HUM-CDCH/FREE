@@ -103,7 +103,7 @@ The shared primitives are exported from [`src/ui/index.ts`](src/ui/index.ts).
 - Evidence marks on the page use the one Evidence colour: dotted for a rule link, dashed for a doubtful one, a 1px border once decided, an accent outline when selected.
 
 ### Toast
-- Toast — message plus one optional action; float shadow; 8 s when an action is offered, 6 s for errors and notices, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.
+- Toast — message plus one optional action; float shadow; 8 s when an action is offered, 6 s for some run errors and notices, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.
 
 ### Field Row
 - Field row — grip, disclosure, mono name (never truncated by its metadata: the type and values pills wrap under it when the line is too narrow), then the worded actions "Edit", "Note" and "Delete" (Delete in danger; no tooltips, their accessible names say which field) as an overlay on the right end of the first line, shown on hover and focus-within and stepping aside while a pill has keyboard focus. Hidden, the overlay takes no pointer hits.

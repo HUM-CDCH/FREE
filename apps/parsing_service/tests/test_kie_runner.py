@@ -677,10 +677,10 @@ def test_a_cache_entry_that_cannot_be_proven_is_rerun_not_repaired(damage, paths
 
 
 def test_a_generation_of_an_earlier_version_reruns_once_under_the_current_one(paths, catalogue, runs):
-    # The release check for STAGE_VERSION 2: a generation produced at version 1,
-    # in the version-1 report shape without `text_layers`, reruns once under version 2, and the version-2 generation
-    # then skips on an identical rerun. The report is outside the digest, so dropping the field is what a
-    # version-1 run left behind and not a tampered artifact.
+    # The release check for a STAGE_VERSION bump: a generation produced at version 1, in the version-1 report shape
+    # without `text_layers`, reruns once under the current version, and that generation then skips on an identical
+    # rerun. The report is outside the digest, so dropping the field is what a version-1 run left behind and not a
+    # tampered artifact.
     with patch.object(ingest, "STAGE_VERSION", 1):
         assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     rewrite_accepted(paths, lambda data: data["report"].pop("text_layers"))

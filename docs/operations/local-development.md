@@ -268,6 +268,6 @@ Node-only CI tier skips these two checks; full-host verification must run them.
 `test:live-model` and `test:system` are intentionally excluded from the three
 aggregates (`test:all`, `test:all:node`, and `test:ci`) because the former needs
 an external model and the latter builds and restarts a full Docker stack. The
-GitHub `verify` workflow runs `test:ci` on Linux for pull requests and pushes
-to `main`, so the POSIX session-secret permission check is part of the required
-deterministic gate.
+GitHub `verify` workflow runs `test:ci` on Linux for pull requests into `main`
+(the merge PRs from `dev`) and pushes to `main`, so the POSIX session-secret
+permission check is part of the required deterministic gate.

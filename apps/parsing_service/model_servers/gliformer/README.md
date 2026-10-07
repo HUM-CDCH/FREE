@@ -6,8 +6,8 @@ showed incorrect grouping and extra records.
 
 This encoder service keeps no state. Studio admits Extractions and refuses
 incompatible GLiFormer choices; the Parsing Service worker revalidates and owns
-durable execution, retries and canonical source identities; results are
-retained snapshots in the coordination schema.
+durable execution and canonical source identities; results are retained
+snapshots in the coordination schema.
 
 The optional `gliformer` registry key fills fields in **unified Catalog** runs;
 the instruction model, in the reasoning role, discovers the entries. The native
@@ -87,15 +87,16 @@ model.
 The equivalent extraction options are:
 
 ```json
-{"strategy":"catalog","models":{"fields":"gliformer","reasoning":"instruct"},"unified":{"defaults":1}}
+{"strategy":"catalog","models":{"fields":"gliformer","reasoning":"instruct"},"unified":{"defaults":2}}
 ```
 
 Weights, framework, threshold, prompt version and decoding protocol form the
 execution's pinned identity, so changing any of them, `GLIFORMER_THRESHOLD`
 included, makes resuming a pinned Extraction fail explicitly; submit a new
-extraction. Transient backend failures retry and reuse completed entries. A
-permanent native-service refusal fails the run without publishing a fabricated
-or partial reply.
+extraction. A failed native call, transient or not, fails its capture without
+publishing a fabricated or partial reply: the attempt ends `capture_failed`
+once its other calls' committed outputs are compiled, and Retry continues the
+Extraction and reuses every completed entry.
 
 To remove the option, first finish or stop Extractions pinned to it, restore
 affected researchers' field choices, then remove its URL and optional service.

@@ -57,10 +57,12 @@ lost them.
 - DBOS history holds interactive results for about 24 hours and background
   inputs for about 30 days, and database dumps include it.
 
-## Amendment (0017, 2026-10-06)
+## Amendment (0017, 2026-10-05)
 
 [ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md) amends
 this decision for Extractions: the coordination head owns an Extraction's
 lifecycle, and DBOS dispatches and recovers its attempts. Since its
 [admission amendment](0017-durable-extraction-control-and-call-checkpoints.md#admission-amendment),
-valid requests admit durable Extractions directly.
+valid requests admit durable Extractions directly. A durable Extraction's kei
+history holds its result and is kept until the Extraction is deleted, not for
+the periods above.

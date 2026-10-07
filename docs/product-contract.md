@@ -77,8 +77,9 @@ FREE's normative product and safety contract is:
    uses the configured provider directly for Schema Suggestion and Interaction.
    Their output format needs no setting: FREE uses the adapter's output
    support, falls back to prompt-only generation only after an explicit
-   unsupported-format response, and still validates what returns. The
-   configuration is validated whenever it is saved, so there is no reset.
+   unsupported-format response, keeps that route prompt-only until Studio
+   restarts, and still validates what returns. The configuration is validated
+   whenever it is saved, so there is no reset.
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Studio's
    entrypoint then creates the Parsing Service's restricted database role and
@@ -133,10 +134,11 @@ Every Extraction is durable
 there is one execution, review and export path. Admission commits the
 Extraction row, its durable coordination head and its workflow enqueue in one
 transaction, or none of them. The Parsing Service's worker runs each attempt
-(`extractDurableV1`) on the input selection pinned at admission and calls only
-the deployment's extraction models; Model Connections, Capability Routes and
-researchers' keys never reach it. An Extraction has no overall deadline; each
-chat model call times out after `KEI_EXTRACT_TIMEOUT` seconds.
+(`extractDurableV1`) on the Extraction's current pinned input selection and
+calls only the deployment's extraction models; Model Connections, Capability
+Routes and researchers' keys never reach it. An Extraction has no overall
+deadline; each chat model call times out after waiting `KEI_EXTRACT_TIMEOUT`
+seconds for its reply, or for the next piece of a streamed discovery reply.
 
 Admission pins the method the start view showed
 ([ADR 0015](adr/0015-extraction-method-pinned-at-admission.md)). It starts
@@ -154,13 +156,14 @@ a separate selection and adopted only at a drained boundary. A Resume
 requested while the Extraction is pausing runs once it has drained, unless a
 later edit cancels it.
 
-A researcher's active edits can guide the Project's later admitted calls
-wherever their field keeps its meaning, with optional Evidence from the
-correction's own source. An incompatible correction stays saved but never
-enters the consuming target's context, and FREE classifies no guidance
-conflicts automatically. Batch Extraction members keep independent result and
-decision versions: each stays openable and exportable when paused, failed or
-stopped, and there is no batch-wide review grid.
+A researcher's active edits can guide the Project's later admitted calls other
+than record-boundary discovery, wherever their field keeps its meaning, with
+optional Evidence from the correction's own source. An incompatible correction
+stays saved but never enters the consuming target's context, and FREE
+classifies no guidance conflicts automatically. Each Batch Extraction member
+is its own Extraction, with its own result snapshots and finalized reviews;
+it stays openable and exportable when paused, failed or stopped, and there is
+no batch-wide review grid.
 
 ## Pipeline reference
 

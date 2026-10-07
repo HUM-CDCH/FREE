@@ -524,7 +524,8 @@ model BatchSchemaSuggestionSource {
 
 // One Extraction from admission through review (spec, *Background work*). Admission writes the pins, the requested
 // models and Catalog recipe, and the optional batch. Status and outcome live in extraction_runtime (the coordination
-// head and its attempts, ADR 0017), not on this row. A batch's pending rows are its intended selection.
+// head and its attempts, ADR 0017); this row's `outcome`, `complete` and `failure` are never written for durable
+// Extractions. A batch's pending rows are its intended selection.
 model Extraction {
   id                             Uuid                         @id @default(uuid())
   sourceDocumentId               Uuid

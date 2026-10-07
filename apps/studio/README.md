@@ -59,7 +59,10 @@ steps. Each step checkpoints the model's output, never the source text; a
 failed one checkpoints a stable code and FREE's own message, never the
 provider's error, body or headers. A suggestion too large to combine in one
 request fails with `merge_input_too_large` rather than being left out; one
-stopped for length fails with `model_output_truncated`. Ollama connections get
+stopped for length fails with `model_output_truncated`. A Batch Schema
+Suggestion keeps the first code only for its merge: a failed source fails it
+with `source_suggestion_failed` (a missing key with `model_key_required`), and
+a merge stopped for length with `unexpected_failure`. Ollama connections get
 `truncate: false`, so an over-long prompt fails instead of being cut. Schema
 editing proposals come from the Interaction Route and never change the pinned
 Schema Revision.

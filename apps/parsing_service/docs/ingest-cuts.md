@@ -130,7 +130,7 @@ Rules, in order of leverage:
    runs at `scale=1.0`, with `--max-image-size` only as a safety cap. Docling's
    image backend otherwise LANCZOS-resizes again to `scale * dpi`.
 5. **Budget with the token rule.** At 250 dpi a 235 x 675 pt column is about
-   816 x 2344 px: about 2.4 k Nanonets or 1.9 k Infinity tokens per crop, and
+   816 x 2344 px: about 2.5 k Nanonets or 2.2 k Infinity tokens per crop, and
    each call emits a quarter of the spread's output tokens.
 6. **Masters stay bilevel.** A run keeps its source PDF (for this 1-bit scan,
    about 1.5 MB per spread) or the ingest's 1-bit book-page PNGs, and renders

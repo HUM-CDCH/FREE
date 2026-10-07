@@ -27,6 +27,8 @@ establish which committed correction context a new call captured.
   revisions in one transaction.
 - **Every provider call is a checkpoint.** It durably captures its inputs and
   context before invocation and commits its output before acknowledgement.
+  A failed response stays immutable history of its attempt; a later attempt
+  reuses only successful outputs, for unchanged call inputs.
 - **Pause drains; Resume links.** A paused attempt drains and exits, releasing
   capacity; Resume creates a linked attempt that reuses eligible saved work.
 - Stable source anchors and result identities are distinct from

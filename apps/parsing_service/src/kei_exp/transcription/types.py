@@ -94,7 +94,9 @@ class Execution:
 
 
 class ConversionError(RuntimeError):
-    """A run that produced no trustworthy output; the message is what the CLI prints before exit 1."""
+    """A run that produced no trustworthy output; the message is what the CLI prints before exit 1. An adapter raises
+    it only when nothing can be reported (a page range outside the document, the backend's own runtime failure); any
+    other loss is an incomplete outcome."""
 
 
 class IncompleteConversionError(ConversionError):

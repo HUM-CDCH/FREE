@@ -22,7 +22,8 @@ Every published Evidence occurrence carries finite, ordered, page-bounded
 geometry in displayed top-left physical-page space. Canonical v2 publication
 fails when safe geometry is unavailable. Rotation metadata does not invalidate
 already normalized displayed-page geometry; consumers repeat the bounds check
-before rendering it.
+before rendering it. An occurrence that fails the check is not drawn, and Studio
+never locates Evidence by matching text in the PDF.
 
 For native PDFs, Docling supplies semantic table values and structure. OCR
 runs on Surya by default, or on the model the account's Ingestion Model Choice

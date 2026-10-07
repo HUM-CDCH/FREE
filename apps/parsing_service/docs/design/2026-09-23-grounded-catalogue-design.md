@@ -12,11 +12,12 @@ one catalogue family lives in a versioned **recipe** (`src/kei_exp/kie/recipes/<
 contain no PDF names, page counts, coordinates or German words.
 
 Selection is explicit per Catalog Extraction: `options.catalog = {recipe: "<id>@<version>", input_tokens?,
-output_tokens?, factors?}` in the Extraction's pinned options (`extractDurableV1`). Without it, Catalog keeps
-model discovery; with it, record boundaries come only from the recipe. A recipe failure never falls back to
-model discovery, and there is no global toggle. Studio's Boundaries selector sets the recipe: model discovery is
-the default, and a researcher chooses a recipe per Catalog Extraction, one-shot per run (currently only
-`numbered-catalogue-de@1`). The selector is hidden when the unified Catalog applies.
+output_tokens?, factors?}` in the Extraction's pinned options (`extractDurableV1`). Without it, Catalog runs
+generic model discovery, or the unified Catalog when `options.unified` is set (a request naming both is
+refused); with it, record boundaries come only from the recipe. A recipe failure never falls back to model
+discovery, and no global setting turns a recipe on. Studio's Boundaries selector sets the recipe: model
+discovery is the default, and a researcher chooses a recipe per Catalog Extraction, one-shot per run
+(currently only `numbered-catalogue-de@1`). The selector is hidden when the unified Catalog applies.
 
 A recipe has two parts with two fingerprints:
 

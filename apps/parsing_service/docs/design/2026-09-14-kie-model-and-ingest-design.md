@@ -116,9 +116,9 @@ order is the reading order.
 
 ### 3.4 Text from HTML
 
-A block segment's text is `html_to_text` (`transcription/types.py`) of its HTML: data and entities as given, a
-newline where a block ends or at `<br>`, a tab where a table cell ends, trailing whitespace stripped. Text is
-never rewritten (`CONTEXT.md`).
+A block segment's text is `html_to_text` (`transcription/types.py`) of its HTML: data as given, entities decoded,
+a newline where a block ends or at `<br>`, a tab where a table cell ends, trailing whitespace stripped. Text
+is never rewritten (`CONTEXT.md`).
 
 ### 3.5 Span
 
@@ -350,7 +350,7 @@ resolved for its width (selection only, no PNGs written):
 The support rule tests a neighbourhood across a selected run edge, which can explain weak support even when
 the shadow candidate is the right one. That explanation is an inference: visual split quality is unverified.
 So this is a baseline, not a target. Acceptance inspects the non-`shadow` selections and the weak-support
-evidence instead of asserting 45 `shadow` selections (§6). Any change to selection or support needs a stated
+evidence instead of asserting 45 `shadow` selections. Any change to selection or support needs a stated
 reason, new measured numbers, and the matching config or `stage_version` change; thresholds are not tuned to
 obtain a method count.
 

@@ -39,8 +39,9 @@ x-parsing-runtime: &parsing-runtime
     # The OCR model of a parse whose owner chose none; the API's listing and `convert` read the same value.
     KEI_OCR_MODEL: "${KEI_OCR_MODEL:-surya}"
     KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
-    # Named in every served parse's recipe when set, so a new value stops reuse of what the earlier OCR server wrote:
-    # change it when ocr_model's image or weights change (docs/operations/deployment.md#ocr-result-reuse).
+    # Named, when set, in the recipe of every parse that runs an OCR model, so a new value stops reuse of what
+    # the earlier OCR server wrote: change it when ocr_model's image or weights change
+    # (docs/operations/deployment.md#ocr-result-reuse).
     KEI_OCR_REVISION: "${KEI_OCR_REVISION:-}"
     # Extraction's vLLM servers exist on the GPU overlay only (compose.gpu.yaml),
     # which also registers NuExtract. Without it an operator may point the

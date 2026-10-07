@@ -135,7 +135,7 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `collectGarbage` | 10-minute schedule on `gc` | — | sweep summary |
 | kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
 | kei `extractDurableV1` | `kei-durable:<extractionId>:<attemptId>` | enqueued by the reconciler on `kei-extract`, priority 1 (interactive) or 10 (batch) | the attempt's acknowledgement |
-| kei `extractionCallV1` | `kei-call:<attemptId>:<captureId>` | started by its attempt, one per provider call | the call's committed output |
+| kei `extractionCallV1` | `kei-call:<attemptId>:<captureId>` | started by its attempt, one per provider call | whether the attempt can go on; the output itself is committed to `extraction_runtime` |
 | kei `deleteRuns` | `kei-gc:<schedule time>` | enqueued by `collectGarbage` on `kei-gc` | deleted run/history IDs |
 | kei `deleteDurableHistoryV1` | `kei-gc:durable:<extractionId>:<fence>:<minute>` | enqueued by the reconciler on `kei-gc` | whether the history went |
 
@@ -476,7 +476,8 @@ the scope unreadable immediately; execution and file cleanup can finish later.
   cleanup), 30 days for background work; deleted scopes bypass age, not
   quiescence. Never delete kei history referenced by a live Studio parent.
   kei history goes through `deleteRuns`, and a deleted durable graph's through
-  `deleteDurableHistoryV1`.
+  `deleteDurableHistoryV1`. A durable Extraction's kei history has no age
+  limit.
 - **Cancelled Studio history:** capture `bootTimestamp` using the database
   clock before launch, only after the previous Studio process has terminated.
   Delete cancelled history only when `updatedAt < bootTimestamp` and its age
@@ -518,8 +519,10 @@ queue.
     250 s), so no slot is reserved.
   - **Extraction.** Attempts have no deadline, so with one slot a small
     extraction would wait for a whole Catalog. With two, a small extraction
-    beside a 200-entry Catalog took 7.75 s (Catalog; 8.5 s alone) or 22 s
-    (Article; 13.8 s alone), and the Catalog's own time did not change.
+    beside a 200-entry Catalog sending one request at a time took 7.75 s
+    (Catalog; 8.5 s alone) or 22 s (Article; 13.8 s alone), and the Catalog's
+    own time did not change. Beside a chunked Catalog its requests wait about
+    one round (*Parallel Catalog chunks*).
   - **Cleanup** has its own queue, so it never takes a conversion or
     extraction slot.
 - **Lane is not fairness.** Two large books run one after the other, and two
@@ -602,8 +605,8 @@ queue.
     document injected while a book was being cut finished in 33.8 s, against
     32.8 s alone.
   - Each conversion has its own run directory.
-- **Parallel Catalog chunks.** A Catalog extraction sending one request at a
-  time would leave 3 of the fields server's 4 slots idle, so it runs its
+- **Parallel Catalog chunks.** A recipe Catalog extraction sending one request
+  at a time would leave 3 of the fields server's 4 slots idle, so it runs its
   entries in `KEI_CATALOG_CHUNKS` contiguous chunks at once.
   - **Setting.** Compose derives `KEI_CATALOG_CHUNKS` from the same
     `NUEXTRACT_MAX_NUM_SEQS` (default 4) as `nuextract_model`'s
@@ -621,8 +624,8 @@ queue.
     count.
   - **Calls.** Chunking runs inside the durable planner, so each chunk's
     provider requests are captured and run as `extractionCallV1` children
-    like any other call; Pause and Stop act at lease boundaries. Article
-    extraction is not chunked.
+    like any other call; Pause and Stop act at lease boundaries. Article and
+    generic Catalog extraction are not chunked.
   - **Evidence** (200-entry Catalog): 106 s against 434 s. The same chunks run
     one after another gave records identical to the unsplit run. Run in
     parallel, they changed 19–21 borderline `fundart` values, against 0–1
@@ -630,6 +633,12 @@ queue.
   - **With two extraction slots,** two chunked Catalogs send up to 8 requests
     to a 4-slot server. vLLM queues the rest in arrival order, so a small
     extraction's request waits behind those already queued, about one round.
+  - **Unified Catalog** (`FREE_CATALOG_METHOD=unified`) uses
+    `KEI_CATALOG_CHUNKS` without contiguous chunks. Discovery asks its windows
+    that many at a time, so a planning round yields at most that many
+    discovery calls.
+    Entries then run that many at a time, nearest the start page first, and
+    are assembled in source order.
 - **Read API.** Five routes, with their path confinement and manifest, page
   and hash checks. Saved Extraction values are never served here.
   - `GET /api/models` (Compose health);
@@ -691,8 +700,9 @@ keys, with their risks. What touches execution:
   so a 2000-page scan spends about 90 min cutting on the CPU and holds all its
   crops in memory before OCR starts.
 - **Research content in DBOS history** for 24 h (interactive) or 30 days
-  (background), longer while cancellations are unquiesced. Database dumps
-  include it.
+  (background), longer while cancellations are unquiesced; a durable
+  Extraction's kei history (its planner result and progress events) stays
+  until the Extraction is deleted. Database dumps include it.
 - **Cleanup can wait.** A hung native step blocks its lane, and cancelled
   history and runs remain until their process restarts.
 - **Output varies under concurrency.** vLLM's batching flips borderline
@@ -735,8 +745,9 @@ Code comments name the milestones the design was built in:
 ## Evidence
 
 M0 was a throwaway spike on x86_64 with `@dbos-inc/dbos-sdk` 5.0.2 and `dbos`
-3.0.0. M0R reran the review probes on the pins, on x86_64 and ARM64, and
-measured scheduling on the GPU host with synthetic documents.
+3.0.0. M0R reran the earlier DBOS probes, transactional enqueue among them,
+on the pins, on x86_64 and ARM64, and measured scheduling on the GPU host with
+synthetic documents.
 
 **M0 findings.**
 
@@ -758,7 +769,7 @@ measured scheduling on the GPU host with synthetic documents.
 
 **M0R probes.**
 
-1. **Versions.** The review probes reproduce on the pins, on x86_64 and
+1. **Versions.** The earlier DBOS probes reproduce on the pins, on x86_64 and
    ARM64.
 2. **In-process lifecycle.** A second `DBOS.launch()` in one process resolves
    silently and ignores its configuration, and a workflow registered after

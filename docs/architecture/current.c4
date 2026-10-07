@@ -90,6 +90,7 @@ model {
   studio.durable -> studio.garbage 'Runs collectGarbage every ten minutes'
   studio.durable -> parsing_service.http_api 'Reads converted manifests and pages'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
+  studio.project_store -> package_store 'Discards the packages a deletion left unreferenced'
   studio.extraction_module -> project_db 'Reads and writes the Extraction row, its coordination head, saved values, corrections and finalizations'
   studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
   studio.provider_registry -> studio.key_cache 'Reads a key inside each provider attempt'
@@ -157,9 +158,12 @@ views {
       create. Each write applies to the researcher's view only after the
       handler acknowledges it. The Project Store includes the authenticated
       Researcher Account in every ownership condition. Deletion removes the
-      whole owned relational graph through the database cascade, then cancels
-      the live work of the deleted scope; collectGarbage later removes the
-      canonical packages no remaining Source Representation references.
+      whole owned relational graph through the database cascade. It then
+      discards, best effort, each canonical package the deleted rows pinned
+      that no remaining Source Representation or durable Extraction head
+      references (quarantined, then checked before unlinking), and cancels the
+      live work of the deleted scope. collectGarbage later removes any
+      unreferenced package left over.
     '''
     researcher -> studio.ui 'Name a new Project Context in the rail'
     studio.ui -> studio.handlers 'POST /api/project-contexts'
@@ -174,6 +178,7 @@ views {
     studio.ui -> studio.handlers 'DELETE /api/project-contexts/:id'
     studio.handlers -> studio.project_store 'deleteProjectContext'
     studio.project_store -> project_db 'Delete the Project Context and its cascaded research state'
+    studio.project_store -> package_store 'Quarantine each package the deleted rows pinned, then remove it, or restore it if still referenced'
     studio.handlers -> studio.durable 'Cancel the live Studio and kei work of the deleted scope'
     studio.handlers -> studio.ui 'Return 204'
   }

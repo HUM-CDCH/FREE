@@ -35,10 +35,11 @@ admitted with.
   today's settings are consulted; this includes a batch request that waited for
   an equal one.
 - **Execution reads only the pinned method.** The Extraction (and its Batch
-  Extraction) records the admitted method, and each durable input selection
-  pins it. The Parsing Service captures the effective models, options and
-  protocol versions per selection, and call captures carry only that method,
-  also after a restart.
+  Extraction) records the admitted method; each durable input selection pins
+  the method it was saved with, the first one the admitted method. The
+  Parsing Service captures the effective models, options and protocol
+  versions per selection, and call captures carry only that method, also
+  after a restart.
 - **Batch identity includes the active method.** Equal-selection reuse compares
   the pinned method for the batch's strategy. Settings for the other strategy
   do not affect it.
@@ -59,7 +60,7 @@ admitted with.
   only that Extraction.
 - Direct API clients must now send the `method` intent with every start.
 
-## Amendment (0017, 2026-10-06)
+## Amendment (0017, 2026-10-05)
 
 The [durable-only amendment of ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md#durable-only-amendment)
 extends the pin from one admission to each linked input selection: each

@@ -193,8 +193,8 @@ type AdmittedIdentity = Readonly<{
 }>
 
 /** An identical interactive request: the same pins and choices. A batch member's ID is never an interactive one.
- * The start page is not identity: the same whole-document Extraction, whatever page the researcher was reading
- * (design §4). Replay also requires a live coordination head. */
+ * The start page is not identity: the same whole-document Extraction, whatever page the researcher was reading.
+ * Replay also requires a live coordination head. */
 function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
   return row.batchExtractionId === null &&
     row.sourceDocumentId === pins.sourceDocumentId &&

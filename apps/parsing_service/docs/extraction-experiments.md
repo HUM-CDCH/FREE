@@ -93,7 +93,7 @@ the source and builds the prompt and reply schema, and who interprets the answer
 | Generic Catalog | `discovery` → reasoning | [`catalog.discover`](../src/kei_exp/kie/extract/catalog.py), per page-aligned chunk of `discovery_chars` | `catalog.DISCOVERY` with its examples, `B`-labelled blocks (`_labelled`), reply schema enumerating the shown labels | `catalog.discover` keeps ordered starts and a final-chunk end, reports ignored labels and numbering anomalies, and cuts record slices |
 | Generic Catalog | `record` → fields | [`catalog.extract`](../src/kei_exp/kie/extract/catalog.py), per slice | [`stages.extract_record`/`stages.record_request`](../src/kei_exp/kie/extract/stages.py): `_instruction` and the slice clipped to `record_chars` | `schema.conform` |
 | Generic Catalog | `grounding` → reasoning | `assembly.ground_records` → `grounding.semantic` | `grounding.verify`: every claim, a value found once in its slice included, goes to `GROUNDING` calls with its field, its sibling fields and the record's fields, under the `record_chars` character budget | as Article |
-| Unified Catalog | `discovery` → reasoning | [`discovery.discover`](../src/kei_exp/kie/extract/discovery.py), per counted window of source lines (`discovery.plan`), halved on a failed or cut-off reply | `discovery.DISCOVERY`: record description, `L`-labelled window lines between unlabelled context; reply names each record or record-free start by line and exact text, and whether the window begins and ends inside a record | code places each start where its text occurs once in its line; windows join only on agreeing continuation flags; the rest stays `unresolved` in the ledger |
+| Unified Catalog | `discovery` → reasoning | [`discovery.discover`](../src/kei_exp/kie/extract/discovery.py), per counted window of source lines (`discovery.plan`), which under defaults version 2 never crosses a printed page (`discovery.groups_of`); asked `KEI_CATALOG_CHUNKS` at a time; halved on a cut-off reply or one that is not the requested object (run directly, on any failed call) | `discovery.DISCOVERY`: record description, `L`-labelled window lines between unlabelled context; reply names each record or record-free start by line and printed label, adding its exact text only when it begins mid-line, and whether the window begins and ends inside a record | code places each start at its line's start, or where its text occurs once in the line; windows join only on agreeing continuation flags; the rest stays `unresolved` in the ledger |
 | Unified Catalog | `entry` → fields | [`unified._Run.entry`](../src/kei_exp/kie/extract/unified.py), per counted window of the entry's own lines | `unified.ENTRY` with field notes; the entry text, earlier and later lines of the entry as overlap, record-free lines before it as context; `{value, quote}` candidates, `_item_text` per list object | `unified._Checker`: typed value, quote located in the entry, literal or supporting span (a value in another cell of the quoted table row is literal in its own cell); `unified._merged` joins equal observations and keeps partial list items as proposals |
 | Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per window's candidates | `unified.VERIFY`: the window's text and labelled candidates; reply `supported`, `unsupported` or `unclear` per label; batches halved on overflow | only `supported` is accepted; anything else stays a proposal or rejection |
 | Unified Catalog | `arbitration` → reasoning | `unified._Run._settle`, per scalar whose accepted values disagree | `unified.ARBITRATION` over every candidate with its snippet, or no call when they do not fit | the chosen candidate, or all left unresolved |
@@ -244,13 +244,18 @@ printed identifier. Transfer to other grave reports is unmeasured.
 The unified Catalog (`options.unified`) gives every nonblank source line one
 ledger disposition: `entry`, `other`, `unresolved` or `withheld`. Its windows
 read the whole admitted text. A window that cannot be read leaves its range
-unresolved rather than clipped, and a request the server refuses for itself (a
-non-transient HTTP error) fails only its window, which is halved or left failed
-and visible. A record the supplied source ends inside, with no unread text
-after it, ends `source_end` and does not make boundaries incomplete. The
-internal result carries the execution record (pins and resolved budgets), the
-discovery record and each entry's work; retained snapshots keep the execution
-and discovery records as diagnostics.
+unresolved rather than clipped. Run directly (`run.extract`, as the study and
+evaluation harnesses do), a failed call, a request the server refuses for itself
+(a non-transient HTTP error) included, fails only its window, which is halved or
+left failed and visible. A durable Extraction halves a window only for a
+discovery or entry reply cut off at its token limit, or a reply that parses but
+is not the requested object. Any other failed call, such as a reply
+`llm.parse_json` cannot read, or a provider exception fails its capture, and the
+attempt is acknowledged as `capture_failed` (above). A record the supplied
+source ends inside, with no unread text after it, ends `source_end` and does not
+make boundaries incomplete. The internal result carries the execution record
+(pins and resolved budgets), the discovery record and each entry's work;
+retained snapshots keep the execution and discovery records as diagnostics.
 
 ## Research boundary
 
@@ -336,10 +341,11 @@ Metrics per round: micro, macro and per-field precision, recall and F1; presence
 and exact-cell accuracy; evidence-anchor coverage (populated, grounding-eligible
 record leaves carrying a locatable anchor: coverage, not correctness); and
 shadow-reviewer effort (`edited + rejected + added + deleted`). Catalog records
-align to gold rows one to one by the record-identity field (`identity`);
-unmatched records are reported, never counted as correct. `exhaustive` (default
-true) decides whether a prediction with no gold counterpart is a false positive
-or an unscored extra.
+align to gold rows one to one by the record-identity field (`identity`,
+defaulting to `amino_acid_hydroxyproline_value` when the sheet has that field
+and to the first field column otherwise); unmatched records are reported, never
+counted as correct. `exhaustive` (default true) decides whether a prediction
+with no gold counterpart is a false positive or an unscored extra.
 
 Strict normalized matching is the primary score. A judge, when the
 configuration's `judge.enabled` is true, sends only the pairs strict matching did

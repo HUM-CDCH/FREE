@@ -107,7 +107,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: chunks a durable attempt plans a Catalog's entries in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, and how many unified Catalog discovery windows it asks at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -196,11 +196,13 @@ scanned OCR and Extraction; native parsing uses Docling locally.
 
 Limitations:
 
-- Counted requests need the extraction endpoint's vLLM `/tokenize` and its
-  reported context size, for both roles; otherwise the request is refused before
-  any call. Oversized input is reported, never clipped. Only generic Catalog
-  uses character budgets instead (`record_chars`, `discovery_chars`), naming
-  any source text a budget cut in a `text_truncated` issue.
+- Counted requests need each role's server to count them before the call:
+  vLLM's `/tokenize` and its reported context size, or, for GLiFormer fields,
+  the service's own `/tokenize` and the input ceiling its `/info` reports;
+  otherwise the request is refused before any call. Oversized input is
+  reported, never clipped. Only generic Catalog uses character budgets instead
+  (`record_chars`, `discovery_chars`), naming any source text a budget cut in a
+  `text_truncated` issue.
 - `complete` applies to record values and is not a recall score: array-item
   recall and semantic correctness still need evaluation. Document-level fields
   are listed as `unverified`.
@@ -245,6 +247,7 @@ The recipe path is split across these files:
 - `kie/boundaries.py` handles boundary labels and block-F1
   (`python -m kei_exp.kie.boundaries report|prefill|score RUN_DIR`, read-only
   on the run).
+
 The designs under `docs/design/` are the contracts that code cites as
 `spec N.N` or `design §N`.
 

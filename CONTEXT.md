@@ -128,10 +128,11 @@ _Avoid_: feedback set, correction set
 
 **Finalized Review**:
 A researcher's explicit finalization of one named pair: an Extraction's result
-snapshot version and its Project's Decision Version. It never finalizes
-implicitly, never freezes later work, and a deliberately older pair may be
-finalized when it is clearly named. "Latest reviewed" opens the most recently
-finalized pair.
+snapshot version and its Project's Decision Version. It is refused until every
+saved value of that snapshot has an approve, edit or reject decision as of that
+Decision Version. It never finalizes implicitly, never freezes later work, and
+a deliberately older pair may be finalized when it is clearly named. "Latest
+reviewed" opens the most recently finalized pair.
 _Avoid_: saved review, accepted result
 
 **Evidence**:
@@ -166,7 +167,7 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (recipe Catalog only), Extraction Model Choice and the applicable Extraction Method Settings. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (recipe Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:

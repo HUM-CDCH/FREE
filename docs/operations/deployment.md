@@ -171,9 +171,12 @@ extraction server; it loads the text model only. `KEI_NUEXTRACT_MODEL`
 which runs its repository's processor code (`--trust-remote-code`); pin a
 reviewed model revision if that matters to the deployment.
 `NUEXTRACT_MAX_NUM_SEQS` (default 4) sets how many requests the NuExtract
-server runs at once and how many chunks a Catalog Extraction runs at once. Keep
-it at 64 or below: a larger value stops the worker at boot, and its restart
-policy then restarts it in a loop. Leave room
+server runs at once and, as the worker's `KEI_CATALOG_CHUNKS`, how many model
+calls a recipe or unified Catalog Extraction makes at once. Its reasoning
+calls, unified discovery among them, go to the extraction server, which runs 4
+at once, so a larger value queues them there. Keep it at 64 or below: a larger
+value stops the worker at boot, and its restart policy then restarts it in a
+loop. Leave room
 for every server's weights, the document-layout process, and the operating
 system; on DGX Spark, system memory is shared with the GPU.
 
@@ -553,8 +556,10 @@ them.
 - **Application versions.** A change to a workflow's steps ships behind a DBOS
   patch, so workflows started before it recover on the old path. The versions
   `studio@1` and `kei@1` change only for an incompatible contract change, and
-  only after draining: stop new work, wait until neither schema has an
-  `ENQUEUED`, `DELAYED` or `PENDING` workflow, then deploy.
+  only after draining. To drain, close the researcher-facing route on the host
+  nginx or stop the bundled `nginx` service, stop any external API callers, and
+  leave `studio` and `parsing_worker` running so admitted work finishes; when
+  neither schema has an `ENQUEUED`, `DELAYED` or `PENDING` workflow, deploy.
 
 ## Back up and restore
 
@@ -596,6 +601,8 @@ checkout and run `node scripts/free.mjs production`. On a GPU host,
 `docker compose … config --hash '*'` shows beforehand whether a model server's
 configuration changed: Compose recreates a container whose hash differs from
 its `com.docker.compose.config-hash` label, and a recreated model server loads
-its model again. To roll back, stop the application processes, restore the
-pre-upgrade backup set as above, check out the previous release and run the
-launcher again; anything saved after the backup is lost.
+its model again. To roll back, stop the application processes, remove the `db`
+container and its `postgres-data` volume (`docker compose … rm -sf db`, then
+`docker volume rm <project>_postgres-data`; `docker volume ls` lists it),
+restore the pre-upgrade backup set as above, check out the previous release and
+run the launcher again; anything saved after the backup is lost.

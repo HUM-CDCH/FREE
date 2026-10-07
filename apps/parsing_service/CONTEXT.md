@@ -134,7 +134,7 @@ the execution has no type of its own.
 6. **A heading clears every deeper level.** Heading levels are a hierarchy, so a deeper heading is only
    meaningful under the heading it appeared beneath. In `numbered-catalogue-de` a new Bezirk clears the current
    Kreis: carrying the previous Bezirk's Kreis across the boundary would attach every entry of the new Bezirk
-   to a district it is not in. A heading replaces only its own level and keeps the shallower ones; a section
+   to a district it is not in. A heading replaces its own level and keeps the shallower ones; a section
    heading clears every level.
 
 7. **`31` and `31a` are distinct entry identities**, and each inherits its own heading state. Uniqueness,
