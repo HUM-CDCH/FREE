@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-path = Path(__file__).resolve().parents[3] / "docs/validation/extraction_ablation_accounting.py"
+path = Path(__file__).resolve().parents[1] / "experiments/extraction/extraction_ablation_accounting.py"
 spec = importlib.util.spec_from_file_location("observation_accounting", path)
 accounting = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(accounting)

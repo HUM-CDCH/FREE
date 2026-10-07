@@ -8,8 +8,8 @@ import {
 } from './entraIdentityProvider.js'
 import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
 
-const TENANT_ID = 'a3927f91-cda1-4696-af89-8c9f1ceffa91'
-const OBJECT_ID = 'cd97c8af-656f-412a-977c-ef5fc06dd1a2'
+const TENANT_ID = '22222222-2222-4222-8222-222222222222'
+const OBJECT_ID = '33333333-3333-4333-8333-333333333333'
 
 function microsoftProvider(claims: Record<string, unknown>) {
   const getAuthCodeUrl = vi.fn(

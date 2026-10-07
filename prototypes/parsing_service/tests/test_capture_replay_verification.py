@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-path = Path(__file__).resolve().parents[3] / "docs/validation/extraction_capture_replay.py"
+path = Path(__file__).resolve().parents[1] / "experiments/extraction/extraction_capture_replay.py"
 spec = importlib.util.spec_from_file_location("capture_replay", path)
 replay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(replay)

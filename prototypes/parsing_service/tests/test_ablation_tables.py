@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-spec = importlib.util.spec_from_file_location("ablation_tables", Path(__file__).resolve().parents[3]
-                                            / "docs/validation/extraction_ablation_tables.py")
+spec = importlib.util.spec_from_file_location("ablation_tables", Path(__file__).resolve().parents[1]
+                                            / "experiments/extraction/extraction_ablation_tables.py")
 tables = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tables)
 

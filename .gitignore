@@ -34,3 +34,11 @@ artifacts/
 .dev/
 .nginx/
 compose.local.yaml
+.codex/worktrees/
+tools/slopo-benchmark/work/
+eval-out/
+
+# Keys and certificates never belong in the repository
+*.pem
+*.key
+*.crt

@@ -11,8 +11,6 @@ Sources: `prototypes/grounding_lab` on branch `experiment/radical-context-prune`
 `packages/extraction/src/grounding.ts` and `lexical.ts`. The lab code is not on
 `dev`.
 
-Numbers: [`grounding-lab-performance-report.md`](grounding-lab-performance-report.md).
-
 Diagrams: [`docs/architecture/grounding.c4`](../architecture/grounding.c4).
 Run `pnpm architecture:dev` and open the views `grounding_boundary`,
 `evidence_linking_vs_validation`, `grounding_lab_policies`, and

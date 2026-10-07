@@ -18,7 +18,7 @@ from tests.test_extraction_span_grounding import span_chat
 from tests.test_grounding_study import frozen, registered  # shared registered fixed-upstream fixture
 
 
-HELPER = Path(__file__).resolve().parents[3] / "docs/validation/extraction_grounding_report.py"
+HELPER = Path(__file__).resolve().parents[1] / "experiments/extraction/extraction_grounding_report.py"
 reporter = runpy.run_path(str(HELPER))
 
 

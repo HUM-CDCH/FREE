@@ -1,4 +1,4 @@
-// `pnpm dev:spark`: this checkout's Studio client, with HMR, against a deployed Studio (Baratheon by default). Only
+// `pnpm dev:spark`: this checkout's Studio client, with HMR, against a deployed Studio (FREE_SPARK_ORIGIN). Only
 // /free/api is forwarded; no local server, database, DBOS executor or model runs. Sign-in happens in a dedicated
 // browser profile (.dev/spark-browser/), and its `free_session` lives only in this process, injected into forwarded
 // requests. See docs/operations/local-development.md.
@@ -11,7 +11,7 @@ import { defineConfig, type ConfigEnv, type Plugin, type PluginOption, type User
 import { DEFAULT_RETURN_PATH, validateLocalReturnPath } from './shared/returnPath.js'
 import studio from './vite.config.ts'
 
-const spark = process.env.FREE_SPARK_ORIGIN ?? 'https://baratheon.cdch-dgxspark.lan.ku.dk:11434'
+const spark = process.env.FREE_SPARK_ORIGIN ?? ''
 const caFile = process.env.FREE_SPARK_CA_FILE ?? resolve(import.meta.dirname, '../../.certs/spark.crt')
 const write = process.env.FREE_SPARK_WRITE === '1'
 const basePath = '/free'
@@ -134,6 +134,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
   const plugins = (base.plugins as PluginOption[]).flat()
   const clientOnly = plugins.filter((plugin) => !(plugin && 'name' in plugin && plugin.name === 'free-api-functions'))
   if (clientOnly.length === plugins.length) throw new Error('vite.config.ts no longer has the free-api-functions plugin.')
+  if (!spark) throw new Error('dev:spark needs FREE_SPARK_ORIGIN, the deployed Studio origin (e.g. https://free.example.org).')
   if (!existsSync(caFile))
     throw new Error(`dev:spark pins Spark's TLS certificate and found none at ${caFile}. Copy it once over SSH (docs/operations/local-development.md) or set FREE_SPARK_CA_FILE.`)
   const ca = readFileSync(caFile)

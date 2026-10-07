@@ -1,8 +1,0 @@
-
- RUN  v4.1.10 /home/gebbaro/Progetti/FREE/prototypes/studio
-
-
- Test Files  7 passed (7)
-      Tests  229 passed (229)
-   Start at  22:03:27
-   Duration  19.87s (transform 4.35s, setup 0ms, import 8.85s, tests 26.81s, environment 8.00s)

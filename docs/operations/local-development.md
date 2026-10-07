@@ -128,14 +128,14 @@ See the [Entra authentication runbook](entra-authentication.md). In the host
 Compose topologies the base path and TLS behavior are identical, so the
 redirect URIs differ from production only by host.
 
-## Studio client against Spark
+## Studio client against a deployment
 
-To work on browser code against a deployed Studio's real data (Baratheon by
-default), run only this checkout's client, with HMR:
+To work on browser code against a deployed Studio's real data, run only this
+checkout's client, with HMR. `FREE_SPARK_ORIGIN` is the deployment's origin:
 
 ```bash
-ssh baratheon 'docker exec free-nginx-1 cat /etc/nginx/tls/studio.crt' > .certs/spark.crt  # once
-pnpm dev:spark
+ssh <deploy-host> 'docker exec free-nginx-1 cat /etc/nginx/tls/studio.crt' > .certs/spark.crt  # once
+FREE_SPARK_ORIGIN=https://<studio-host> pnpm dev:spark
 ```
 
 It opens `http://127.0.0.1:5173/free/`. Vite forwards `/free/api` to Spark;
@@ -149,8 +149,8 @@ listens on loopback only.
 - Writes are refused by default, because they would change real data: a
   save answers 403 `read_only` and the terminal names the request. Use
   `FREE_SPARK_WRITE=1 pnpm dev:spark` to allow them.
-- `FREE_SPARK_ORIGIN` selects another deployment; `FREE_SPARK_CA_FILE` names
-  its certificate (default `.certs/spark.crt`). Both the proxy and the sign-in
+- `FREE_SPARK_ORIGIN` is required; `FREE_SPARK_CA_FILE` names
+  the deployment's certificate (default `.certs/spark.crt`). Both the proxy and the sign-in
   window accept only that certificate.
 - The client must stay compatible with the API deployed on Spark; API or
   workflow changes need `pnpm dev` or a deployment.
