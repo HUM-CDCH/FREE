@@ -1,5 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch'
-import type { DurableRead, DurablePage, DurableHistory } from 'extraction/durable-types'
+import type { DurableRead, DurablePage, DurableHistory, DurableHistorySummary } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
 export type PinnedExtractionSource={document:ParsedDocument;markdown:string}
 export type DurableReviewProgress={extractionId:string;snapshotVersion:number;feedbackVersion:number;required:number;toCheck:number;finalized:boolean}
@@ -62,3 +62,5 @@ export async function readDurable(id:string,signal?:AbortSignal,previous?:{page:
   return {state,page:await readValues(id,{snapshotVersion:state.snapshotVersion},signal)}
 }
 export const readDurableHistory=(id:string,signal?:AbortSignal)=>durableRequest<DurableHistory>(`${durableRoot(id)}/history`,undefined,signal)
+/** History's saved versions without their values or any call's request: small however long the run. */
+export const readDurableHistorySummary=(id:string,signal?:AbortSignal)=>durableRequest<DurableHistorySummary>(`${durableRoot(id)}/history?summary`,undefined,signal)

@@ -60,7 +60,7 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
           const [source,markdown]=await Promise.all([canonicalPackageStore.read(revision,'source'),canonicalPackageStore.read(revision,'markdown')])
           return json({document:decodeParsedDocument(JSON.parse(new TextDecoder().decode(source.bytes))),markdown:new TextDecoder().decode(markdown.bytes)},{headers:noStore})
         }
-        if(action==='history') return json(await repository.history(id),{headers:noStore})
+        if(action==='history') return json(await (url.searchParams.has('summary')?repository.historySummary(id):repository.history(id)),{headers:noStore})
         if(action==='values') {
           const input=z.object({snapshotVersion:z.coerce.number().int().nonnegative().optional(),feedbackVersion:z.coerce.number().int().nonnegative().optional(),offset:z.coerce.number().int().nonnegative().optional(),limit:z.coerce.number().int().min(1).max(500).optional()}).strict().parse(Object.fromEntries(url.searchParams))
           return json(await repository.page(id,{...input,...(match[3]?{valueId:decodeURIComponent(match[3])}:{})}),{headers:noStore})

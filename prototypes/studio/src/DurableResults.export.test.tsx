@@ -105,14 +105,15 @@ it('keeps the chosen options for the next export and starts one download per cho
   expect(vi.mocked(downloadDurableExport).mock.calls.map(call => [call[1], call[2].rowsRepresent])).toEqual([['csv', 'finds'], ['xlsx', 'finds']])
 })
 
-it('keeps an interrupted export visible across result polls and lets the researcher retry', async () => {
+it('keeps an interrupted export visible across result reads and lets the researcher retry', async () => {
   vi.mocked(downloadDurableExport).mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(undefined)
   renderResults()
   await openOptions()
   fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
   expect(await screen.findByRole('alert')).toHaveTextContent(/export.*connection.*try again/i)
   const calls = vi.mocked(readDurable).mock.calls.length
-  await waitFor(() => expect(readDurable).toHaveBeenCalledTimes(calls + 1), { timeout: 2500 })
+  fireEvent.focus(window)
+  await waitFor(() => expect(readDurable).toHaveBeenCalledTimes(calls + 1))
   expect(screen.getByRole('alert')).toHaveTextContent(/export.*connection.*try again/i)
   await openOptions()
   fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
