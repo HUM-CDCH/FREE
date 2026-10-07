@@ -74,11 +74,13 @@ ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apa
 # The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
 # candidates; Auto input is the served context minus the stage's reserve; heading context and verification on; a failed
 # window is halved at most six times. 1: discovery windows cut by the budget alone, one unit of overlap. 2: discovery
-# windows never cross a printed page (`discovery.groups_of`), three units of overlap. Measured on a scanned 3-page
-# catalogue excerpt (29 numbered entries; Qwen3.8-27B, 7 October 2026): version 1's single window left each entry its
-# first line alone, the rest read as record-free, where page windows kept 0.62 of the entries' text; over the excerpt
-# repeated five times (145 entries) 0.73 against 0.60, every start found. Column windows kept more (0.85) but missed
-# the start in a short column three times in five.
+# windows never cross a printed page, ingestion's unit (`discovery.groups_of`), three units of overlap. Measured on one
+# scanned 3-page catalogue excerpt (29 numbered entries; Qwen3.8-27B and NuExtract3, 7 October 2026, two runs each):
+# version 1's single window read each entry's body as record-free, so no find type was extracted (0/29, value accuracy
+# 0.52); page windows 16/29 (0.65); windows at ingestion's column cuts 24/29 (0.72), but over the excerpt repeated five
+# times (145 entries) they missed 3 starts in a short column, page windows none. Moving to column windows is a new
+# version with `"windows": "column"`, once `experiments/extraction/discovery_windows.py --windows column` holds on more
+# than this one catalogue.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,

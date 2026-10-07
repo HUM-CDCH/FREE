@@ -339,6 +339,18 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     assert any(call["stage"] == "discovery" and not call["ok"] for call in result["calls"])
 
 
+def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
+    passages = [replace(passage("p1_s0", "a"), crop=1), replace(passage("p1_s1", "b"), crop=1),
+                replace(passage("p1_s2", "c"), crop=2), passage("p2_s0", "d"), passage("p2_s1", "e")]
+    units = discovery.units_of(passages)
+
+    def groups(by):
+        return [[unit.segment for unit in group] for group in discovery.groups_of(units, passages, by)]
+    assert groups("column") == [["p1_s0", "p1_s1"], ["p1_s2"], ["p2_s0", "p2_s1"]]
+    assert groups("page") == [["p1_s0", "p1_s1", "p1_s2"], ["p2_s0", "p2_s1"]]
+    assert groups("budget") == [["p1_s0", "p1_s1", "p1_s2", "p2_s0", "p2_s1"]]
+
+
 def test_version_2_discovery_windows_never_cross_a_printed_page_but_show_its_neighbours():
     """Each page is its own discovery window, its neighbours' lines its context; a record continued over a page still
     joins, both windows saying so."""

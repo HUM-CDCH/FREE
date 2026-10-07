@@ -194,8 +194,11 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--values", type=Path, help="gold rows (JSON with `rows[].values`): score whole extractions")
     parser.add_argument("--defaults", nargs="+", type=int, default=[1, 2])
+    parser.add_argument("--windows", choices=["budget", "page", "column"], help="replace version 2's discovery windows")
     args = parser.parse_args()
     evidence = load(args.run_dir)
+    if args.windows:
+        unified.DEFAULTS[2] = {**unified.DEFAULTS[2], "windows": args.windows}
     if args.values:
         rows = json.loads(args.values.read_text(encoding="utf-8"))["rows"]
         results = []
