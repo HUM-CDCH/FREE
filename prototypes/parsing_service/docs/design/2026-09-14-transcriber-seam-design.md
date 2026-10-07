@@ -183,7 +183,7 @@ README: delete lines 133-134 (the pre-Surya-2 report description; the accurate o
 
 ## 14. Sequencing
 
-Step 1 (VLM assembly, candidate 2): vlm.py, models.py, progress.py, the VLM branch of `convert()`, check updates. Independent of the pending Surya guard fix. Step 2 (the seam, candidates 1 and 4): based on the committed guard fix; transcription.py, surya_ocr.py, report.py, `convert()` rewrite, cut.py move, api.py, checks, docs. Work happens in the worktree `.claude/worktrees/transcriber-seam` on branch `transcriber-seam`; checks run with `PYTHONPATH=<worktree>/src uv run --no-sync --project /home/gennaro/projects/kei-exp python scratch/<check>.py`.
+Step 1 (VLM assembly, candidate 2): vlm.py, models.py, progress.py, the VLM branch of `convert()`, check updates. Independent of the pending Surya guard fix. Step 2 (the seam, candidates 1 and 4): based on the committed guard fix; transcription.py, surya_ocr.py, report.py, `convert()` rewrite, cut.py move, api.py, checks, docs. Checks run as scratch scripts against the service's own environment.
 
 ## 15. Constraints carried from the review
 

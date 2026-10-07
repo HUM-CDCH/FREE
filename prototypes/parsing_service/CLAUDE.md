@@ -1,6 +1,6 @@
 # Parsing Service
 
-Read this directory's `README.md` and `docs/product-contract.md` before changing the
+Read this directory's `README.md` and the root `docs/product-contract.md` before changing the
 service, persistence, or verification. FREE Studio owns authentication, project
 ownership, schemas and review; this internal service owns parsing, extraction,
 canonical evidence, and its DBOS worker (`kei_exp.workflows`, schema `kei_dbos`,

@@ -129,11 +129,11 @@ Do not use the Parsing Service `/status` response to verify GPU use: its
 4. [NVIDIA: DGX Spark system overview](https://docs.nvidia.com/dgx/dgx-spark/system-overview.html)
 5. [FREE Parsing Service lock](../../prototypes/parsing_service/uv.lock)
 6. [NVIDIA: DGX Spark release notes](https://docs.nvidia.com/dgx/dgx-spark/release-notes.html)
-7. [FREE Docling adapter](../../prototypes/parsing_service/app/docling_parser.py)
+7. FREE Docling adapter
 8. [FREE production launcher](../../scripts/free.mjs)
 9. [PyTorch: `torch.cuda.is_available`](https://docs.pytorch.org/docs/stable/generated/torch.cuda.is_available)
-10. [FREE live Docling smoke test](../../prototypes/parsing_service/tests/test_docling_smoke.py)
-11. [FREE Parsing Service status implementation](../../prototypes/parsing_service/app/main.py)
+10. FREE live Docling smoke test
+11. FREE Parsing Service status implementation
 12. [NVIDIA: Porting CUDA to DGX Spark](https://docs.nvidia.com/dgx/dgx-spark-porting-guide/porting/compilation.html)
 13. [NVIDIA: CUDA minor-version compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html)
 14. [NVIDIA: DGX Spark OS and component update](https://docs.nvidia.com/dgx/dgx-spark/os-and-component-update.html)

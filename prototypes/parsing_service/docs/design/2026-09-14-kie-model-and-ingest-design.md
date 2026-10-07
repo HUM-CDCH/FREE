@@ -508,7 +508,7 @@ Tests, only where a plausible bug would fail them:
 - Model: duplicate ids, overlapping primary spans, out-of-range spans, out-of-page bboxes and
   non-complementary source rects are rejected at the right level.
 
-Smoke run on `~/Downloads/Bauer1988_GAC_02_Catalogue.pdf`: 90 pages from 45 spreads, 1-bit PNGs, and a
+Smoke run on a scanned 1988 catalogue: 90 pages from 45 spreads, 1-bit PNGs, and a
 rerun that skips. The gate is that every non-`shadow` selection and every weak-support spread is listed in
 the report and inspected, and that the method counts either match the §4.5 baseline or the difference is
 explained. It is not an assertion that all 45 spreads select `shadow`. Acceptance depends on `choose_gutter`
