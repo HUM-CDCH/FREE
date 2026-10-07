@@ -16,7 +16,7 @@ pnpm start
 Local development uses Vite's implicit localhost binding at
 `http://localhost:5173`; the Parsing Service defaults to
 `http://127.0.0.1:8055`. The root `compose.yaml` supplies the supported private
-HTTPS deployment. See [the product contract](../../docs/product-contract.md#network-exposure-and-proxy-trust)
+HTTPS deployment. See [the deployment guide](../../docs/operations/deployment.md#network-exposure-and-proxy-trust)
 for its port boundary and the production Node host's explicit trust modes.
 
 From this folder:
