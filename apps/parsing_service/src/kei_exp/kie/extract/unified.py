@@ -234,7 +234,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     effective = execution["effective"]
     budget = _Budget(chat, counters, effective["stages"], check)
     from kei_exp.kie.extract.retained import discovering, plan_execution
-    plan_execution(chat, "unified-execution", execution)  # durable runs keep it in their plans (`plan_execution`)
+    # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose
+    # record changed (a deploy, a served context) adds a row instead of conflicting with the first.
+    plan_execution(chat, f"unified-execution:{execution_sha256[:16]}", execution)
 
     def discover() -> dict:
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
