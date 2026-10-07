@@ -164,7 +164,7 @@ services:
       # the operator sets it; the development overlay enables both.
       FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
       # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
-      # recipe Catalog. Its release gates (unify-catalog-extraction) must pass before a deployment sets it.
+      # recipe Catalog. Set it only after the unified method passes a held-out evaluation (docs/operations/deployment.md).
       FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"
       # Developer-only evaluation: `1` exposes the read-only round panel and
       # (with the production launcher) starts the eval_watcher profile.

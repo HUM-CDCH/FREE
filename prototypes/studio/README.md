@@ -57,8 +57,9 @@ Ollama, OpenAI, Anthropic, Google, vLLM, and generic OpenAI-compatible connectio
 The Studio container includes the Codex CLI and Claude Code. Enable them with `FREE_DEPLOYMENT_CLI_PROVIDERS`, then log in once inside the running container:
 
 ```bash
-docker compose exec studio codex login --device-auth
-docker compose exec studio codex login status
+studio=$(docker ps -qf label=com.docker.compose.service=studio)
+docker exec -it "$studio" pnpm --filter studio exec codex login --device-auth
+docker exec "$studio" pnpm --filter studio exec codex login status
 ```
 
 Claude Code authenticates from `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`). The Codex home and Claude Code's state live in the `studio-config` and `studio-claude` volumes, so rebuilding the image keeps the logins.

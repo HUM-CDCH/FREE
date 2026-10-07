@@ -46,7 +46,7 @@ pnpm dev
 Open <https://localhost:8443/free> and sign in. In development the sign-in is a
 local mock identity provider, so you don't need an account or a `.env` file.
 The first start builds the images and downloads models, which can take a while.
-Stop with Ctrl+C; `docker compose down -v` also deletes the local data.
+Stop it with Ctrl+C.
 
 If Docker can see an NVIDIA GPU, the launcher also runs the vLLM model servers.
 If you don't want them, set `FREE_GPU=off`; set `FREE_GPU=required` to stop with
@@ -103,7 +103,7 @@ turns them on. The development stack enables both. In production, set
 
 ```bash
 # Codex: log in once inside the running Studio container
-studio=$(docker ps -qf label=com.docker.compose.service=studio)
+studio=$(docker ps -qf label=com.docker.compose.service=studio)   # with one FREE stack running
 docker exec -it "$studio" pnpm --filter studio exec codex login --device-auth
 docker exec "$studio" pnpm --filter studio exec codex login status
 
