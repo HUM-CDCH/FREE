@@ -38,6 +38,34 @@ async function openOptions() {
   return screen.getByRole('dialog', { name: 'Export options' })
 }
 
+it.each(['a', 'r', 'e', 'j', 'k', 'z'])('the export dialog owns %s instead of changing the open review', async key => {
+  renderResults()
+  fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+  await openOptions()
+  const excel = screen.getByRole('button', { name: 'Excel' })
+  excel.focus()
+  fireEvent.keyDown(excel, { key })
+  expect(durableRequest).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog', { name: 'Export options' })).toBeVisible()
+  fireEvent.keyDown(excel, { key: 'Escape' })
+  expect(screen.queryByRole('dialog', { name: 'Export options' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Leave one-by-one review, back to the list' })).toBeVisible()
+})
+
+it('Escape closes the export dialog while preserving an unsaved review edit', async () => {
+  renderResults([title])
+  fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reviewed value' }), { target: { value: 'Keep this draft' } })
+  await openOptions()
+  const excel = screen.getByRole('button', { name: 'Excel' })
+  excel.focus()
+  fireEvent.keyDown(excel, { key: 'Escape' })
+  expect(screen.queryByRole('dialog', { name: 'Export options' })).not.toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Reviewed value' })).toHaveValue('Keep this draft')
+  expect(durableRequest).not.toHaveBeenCalled()
+})
+
 it.each([['Excel', 'xlsx'], ['CSV', 'csv']] as const)('builds the %s export from the shown results with the chosen rows, never reading history', async (label, format) => {
   let finishDownload!: () => void
   vi.mocked(downloadDurableExport).mockImplementation(() => new Promise(resolve => { finishDownload = resolve }))

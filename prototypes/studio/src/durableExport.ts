@@ -1,6 +1,6 @@
 import {
   buildDurableEvidenceTable, buildExportTable, buildIdentityTable, createExportFilename, createFieldRegistry, createXlsxBlob,
-  downloadBlob, durableRecords, serializeCsv, EVIDENCE_SHEET, EXTRACTION_SHEET, ROOT_ROWS,
+  downloadBlob, durableRecords, deriveRowsRepresentOptions, serializeCsv, EVIDENCE_SHEET, EXTRACTION_SHEET, ROOT_ROWS,
   type CellValue, type CompanionSheet, type ExportChoices, type ExportFormat, type Table,
 } from 'extraction-result-export'
 import type { DurablePage, DurableRead } from 'extraction/durable-types'
@@ -39,14 +39,14 @@ export function durableExportTables(fixed:Fixed,values:DurablePage['values'],cho
     ['Source Representation Revision ID',fixed.state.sourceRevisionId],['State',toneOf(fixed.page.status)],
     ['Results version',fixed.page.snapshotVersion],['Decisions version',fixed.page.feedbackVersion],
     ['Review saved',fixed.page.finalization?'Yes':'Not saved'],
-    ['Inputs version',fixed.state.selection?.ordinal??null],['Producing Schema Revision IDs',revisions.join(', ')||'None'],
+    ['Current inputs version',fixed.state.selection?.ordinal??null],['Producing Schema Revision IDs',revisions.join(', ')||'None'],
     ['Records',records.length],['Fields',registry.schemaNodes.length],['Values',values.length],
     ['Approved',fixed.page.reviewCounts.approved],['Edited',fixed.page.reviewCounts.edited],['Rejected',fixed.page.reviewCounts.rejected],['To check',fixed.page.reviewCounts.toCheck],
     ...registry.ambiguous.map(({name,columns})=>[`Field "${name}" produced under more than one type`,columns.join(', ')] as const),
     ['Rows represent',choices.rowsRepresent===ROOT_ROWS?'Root result':choices.rowsRepresent],['Other repeated fields',choices.otherRepeatedFields==='preserve'?'Preserved as indexed columns':'Omitted'],
     ['Record recall','Unmeasured'],['Exported at',new Date().toISOString()],
   ])
-  return {results,extraction,evidence:buildDurableEvidenceTable(values)}
+  return {results,extraction,evidence:buildDurableEvidenceTable(values,registry)}
 }
 
 /** Every value of the fixed cut: the open page already holds them all; only a partial page is read again, by value pages. */
@@ -90,15 +90,16 @@ export async function downloadDurableBatch(batch:{batchExtractionId:string;name:
  * field produced under two types stays two named columns), with the member's Source Document on each row. */
 export async function durableBatchExportBlob(batch:{batchExtractionId:string},members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES):Promise<Blob> {
   const registry=createFieldRegistry(snapshots.flatMap(snapshot=>snapshot.values),snapshots.flatMap(snapshot=>snapshot.fixed.state.selection?.schemaTree?.schemaNodes??[]))
+  if(!deriveRowsRepresentOptions(registry.schemaNodes).some(option=>option.value===choices.rowsRepresent))
+    throw new Error('The selected repeated field is unavailable in these saved results. Choose Root result or another field.')
   const projected=snapshots.map(snapshot=>({snapshot,records:durableRecords(snapshot.values,registry)}))
-  const tables=projected.map(({snapshot,records})=>({snapshot,table:buildExportTable(registry.schemaNodes,records.map(record=>record.fields),choices)}))
-  const columns:string[]=[]
-  for(const {table} of tables)for(const column of table.columns)if(!columns.includes(column))columns.push(column)
   const attribution:string[]=[]
-  for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(attributionColumn(base,[...columns,...attribution]))
+  for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(attributionColumn(base,[...registry.schemaNodes.map(node=>node.name),...attribution]))
   const [document,documentId,batchId]=attribution as [string,string,string]
-  const results:Table={columns:[...attribution,...columns],rows:tables.flatMap(({snapshot,table})=>table.rows.map(row=>({
-    [document]:snapshot.member.sourceDocumentName,[documentId]:snapshot.member.sourceDocumentId,[batchId]:batch.batchExtractionId,...row})))}
+  // One projection over all records keeps repeated-item columns together, regardless of each member's list length.
+  const records=projected.flatMap(({snapshot,records})=>records.map(record=>({
+    [document]:snapshot.member.sourceDocumentName,[documentId]:snapshot.member.sourceDocumentId,[batchId]:batch.batchExtractionId,...record.fields})))
+  const results=buildExportTable([...attribution.map(name=>({id:name,name,type:'string' as const})),...registry.schemaNodes],records,choices)
   if(format==='csv')return csvBlob(results)
   const membersTable:Table={columns:[SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,'Extraction ID','State','Results version','Decisions version','Review saved','Values','Source Representation Revision ID'],rows:members.map(member=> {
     const saved=snapshots.find(snapshot=>snapshot.member.extractionId===member.extractionId)
@@ -106,7 +107,7 @@ export async function durableBatchExportBlob(batch:{batchExtractionId:string},me
       'State':toneOf(saved?.fixed.page.status??member.status),'Results version':saved?.fixed.page.snapshotVersion??null,'Decisions version':saved?.fixed.page.feedbackVersion??null,
       'Review saved':saved?saved.fixed.page.finalization?'Yes':'Not saved':null,'Values':saved?.values.length??null,'Source Representation Revision ID':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId}
   })}
-  const evidenceRows=snapshots.flatMap(snapshot=>buildDurableEvidenceTable(snapshot.values).rows.map(row=>({[SOURCE_DOCUMENT]:snapshot.member.sourceDocumentName,...row})))
+  const evidenceRows=snapshots.flatMap(snapshot=>buildDurableEvidenceTable(snapshot.values,registry).rows.map(row=>({[SOURCE_DOCUMENT]:snapshot.member.sourceDocumentName,...row})))
   const evidence:Table={columns:[SOURCE_DOCUMENT,...buildDurableEvidenceTable([]).columns],rows:evidenceRows}
   const companions:CompanionSheet[]=[{sheet:MEMBERS_SHEET,table:fitTable(membersTable)},{sheet:EVIDENCE_SHEET,table:fitTable(evidence)}]
   return createXlsxBlob(fitTable(results),companions)

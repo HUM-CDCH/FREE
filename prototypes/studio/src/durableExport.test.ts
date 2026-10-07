@@ -57,6 +57,25 @@ function stubDownloads() {
 }
 
 describe('durable exports', () => {
+  it('explains an unavailable batch row choice without silently changing the requested projection', async () => {
+    const member = { extractionId: 'one', sourceDocumentId: 'one', sourceDocumentName: 'one.pdf', sourceRevisionId: 'one', status: 'PAUSED' };
+    const snapshots = [{ fixed, member, values: [value(0, title, 'A title')] }];
+    await expect(durableBatchExportBlob({ batchExtractionId: 'batch' }, [member], snapshots, 'csv', { ...root, rowsRepresent: 'finds' })).rejects.toThrow('Choose Root result or another field');
+  })
+  it('keeps Evidence labels aligned with the Results columns for mixed producing types', async () => {
+    const asText: SchemaNode = { ...year, type: 'string' };
+    const mixed = [value(1, asText, 'c. 1902'), value(0, year, 1901)];
+    const book = await workbook(await durableExportBlob(fixed, mixed, 'xlsx', root));
+    expect(cells(book.getWorksheet('Results')!)[0]).toEqual(['year', 'year (string)']);
+    expect(cells(book.getWorksheet('Evidence')!).slice(1).map(row => row[1])).toEqual(['year (string)', 'year']);
+  })
+
+  it('keeps repeated columns together across batch members with different collection lengths', async () => {
+    const members = ['one', 'two'].map(id => ({ extractionId: id, sourceDocumentId: id, sourceDocumentName: `${id}.pdf`, sourceRevisionId: id, status: 'PAUSED' }));
+    const snapshots = members.map((member, index) => ({ fixed, member, values: [value(0, title, member.sourceDocumentName), value(0, finds, Array.from({ length: index + 1 }, (_, n) => ({ name: `Find ${n}`, count: n }))), value(0, catalogue, 'Catalogue')] }));
+    const book = await workbook(await durableBatchExportBlob({ batchExtractionId: 'batch' }, members, snapshots, 'xlsx', root));
+    expect(cells(book.getWorksheet('Results')!)[0]).toEqual(['Source Document', 'Source Document ID', 'Batch Extraction ID', 'title', 'finds.0.name', 'finds.0.count', 'finds.1.name', 'finds.1.count', 'catalogue']);
+  })
   it('writes schema-ordered columns when values were saved in a different order', async () => {
     const shuffled = [values[3]!, values[2]!, values[0]!];
     const csv = await durableExportBlob(fixed, shuffled, 'csv', root, 'Beretning.pdf');

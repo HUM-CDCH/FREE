@@ -190,8 +190,7 @@ const evidenceWords = (value: DurableExportValue): string =>
 
 /** The compact Evidence sheet: one row per saved field with its extracted value, decision, reviewed value, Evidence
  *  status and anchors, so a workbook keeps what the Results sheet's one cell per field cannot say. */
-export function buildDurableEvidenceTable(values: readonly DurableExportValue[]): Table {
-  const registry = createFieldRegistry(values);
+export function buildDurableEvidenceTable(values: readonly DurableExportValue[], registry: FieldRegistry = createFieldRegistry(values)): Table {
   const ordinals = new Map(durableRecords(values, registry).map((record) => [record.recordId, record.ordinal]));
   return {
     columns: ["Record", "Field", "Extracted value", "Decision", "Reviewed value", "Evidence", "Evidence anchors", "Schema revision", "Note"],

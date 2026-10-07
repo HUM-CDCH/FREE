@@ -51,7 +51,7 @@ function statusLine(state:DurableState,model:RailModel,article:boolean,finalized
   }
 }
 
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,onCloseOverlay,readOnly=false}:{
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
   newer?:boolean;
@@ -59,13 +59,13 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
   keyboardRoot:RefObject<HTMLDivElement|null>;
-  menuOpen:boolean;detailsOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer')=>void;
+  menuOpen:boolean;detailsOpen:boolean;exportOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer'|'dialog')=>void;
   projectId:string;sourceDocumentId:string;article:boolean;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
   const headingRef=useRef<HTMLHeadingElement>(null)
-  useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen])
+  useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen&&!exportOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen,exportOpen])
   useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
   const row=durableRailRow(state.context.value,document)
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
@@ -83,11 +83,12 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     if(!focus||readOnly||!root)return
     const keys=(event:KeyboardEvent)=> {
       if(event.defaultPrevented||root.closest('[hidden]')||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
-      const action=keyAction(event,{readable:true,saving:busy,editing,dialog:false,drawer:detailsOpen,menu:menuOpen,
+      const action=keyAction(event,{readable:true,saving:busy,editing:editing&&!exportOpen,dialog:exportOpen,drawer:detailsOpen,menu:menuOpen,
         oneByOne:focus,canUndo:row.kind!=='to-check',current:row.kind==='to-check'?'open':'decided'})
       if(!action)return
       event.preventDefault();event.stopPropagation()
       if(action==='cancel-edit')setEditing(false)
+      else if(action==='close-dialog')onCloseOverlay('dialog')
       else if(action==='close-drawer')onCloseOverlay('drawer')
       else if(action==='close-menu')onCloseOverlay('menu')
       else if(action==='leave')onClose()
@@ -460,7 +461,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const inline=Boolean(shownVersion)
   const valueReview=review&&<ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
-    menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
+    menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
