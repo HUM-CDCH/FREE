@@ -5,6 +5,7 @@ import type { NavigableRoute, ProjectResource } from '../projectNavigation'
 import type { SourceIngestionItem, SourceLayout } from '../sourceIngestionMachine'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import type { ProjectSpreadsheetVersion } from '../../shared/projectSpreadsheet.contract'
+import { isLiveIngestion } from '../../shared/sourceDocumentIngestion.contract'
 import {
   deleteExtractionSchema,
   ExtractionSchemaHasExtractionsError,
@@ -614,6 +615,12 @@ export default function ProjectContextPage({
       (source.kind === 'reprocess' || source.status !== 'admitted' || !listedIds.has(source.workflowId!)),
   )
   const serverIngestions = (listed?.ingestions ?? []).filter((row) => row.status !== 'succeeded')
+  // The ingest step's own unfinished work: a file still sending, or an
+  // admitted Source Ingestion still queued or parsing. Terminal failures are
+  // not "in flight" — they wait for the researcher, not the other way round.
+  const sourcesInFlight =
+    queued.some((source) => source.status !== 'failed') ||
+    serverIngestions.some(isLiveIngestion)
   const sourceDocuments =
     branch?.status === 'ready'
       ? branch.detail.sourceDocuments
@@ -917,6 +924,7 @@ export default function ProjectContextPage({
         {projectSummary && (
           <ProjectWorkflowSteps
             summary={projectSummary}
+            sourcesInFlight={sourcesInFlight}
             onNavigate={(nextTab) =>
               onNavigate({ kind: 'project', projectContextId, tab: nextTab })
             }

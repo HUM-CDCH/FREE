@@ -34,9 +34,14 @@ const extractPhaseIndex = phaseOrder.indexOf('extract')
  */
 function ProjectWorkflowSteps({
   summary,
+  sourcesInFlight = false,
   onNavigate,
 }: {
   summary: ProjectContext['summary']
+  /** Source Ingestions this project still has queued or parsing. Only the
+   *  ingest step waits on them; a later step's own run is already in
+   *  `summary.runningBatch`. */
+  sourcesInFlight?: boolean
   onNavigate: (tab: StepTab) => void
 }) {
   const currentPhaseIndex = phaseOrder.indexOf(summary.phase)
@@ -118,6 +123,15 @@ function ProjectWorkflowSteps({
   // it's a persistent "what's next" anchor, not a one-shot nudge that
   // should vanish the moment they act on it.
   const showNext = !fullyValidated
+  // The button is the way *into* the current step's work, so it stays live
+  // while that work is still waiting to be started — but once the work is
+  // actually running (Source Ingestions still queued or parsing, or a
+  // pilot/collection-scale Extraction whose members have not all settled)
+  // there is nothing left to open, so it goes non-clickable until the run
+  // completes. Only then does the next action become the live one.
+  const running =
+    summary.runningBatch !== null ||
+    (summary.phase === 'ingest' && sourcesInFlight)
 
   return (
     <div className="mb-5 flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
@@ -203,7 +217,8 @@ function ProjectWorkflowSteps({
       {showNext && (
         <button
           type="button"
-          className="shrink-0 cursor-pointer rounded-md border border-accent px-3 py-1.5 text-xs font-semibold text-accent outline-none transition-colors hover:bg-accent-soft"
+          disabled={running}
+          className="shrink-0 cursor-pointer rounded-md border border-accent px-3 py-1.5 text-xs font-semibold text-accent outline-none transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:border-line disabled:text-ink-faint disabled:hover:bg-transparent"
           onClick={() => onNavigate(nextTab)}
         >
           Next: {nextLabel}

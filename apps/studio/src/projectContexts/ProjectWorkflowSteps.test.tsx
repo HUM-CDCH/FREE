@@ -25,9 +25,16 @@ function summary(
   }
 }
 
-function renderSteps(value: ProjectContextActivitySummary) {
+function renderSteps(
+  value: ProjectContextActivitySummary,
+  sourcesInFlight = false,
+) {
   return render(
-    <ProjectWorkflowSteps summary={value} onNavigate={vi.fn()} />,
+    <ProjectWorkflowSteps
+      summary={value}
+      sourcesInFlight={sourcesInFlight}
+      onNavigate={vi.fn()}
+    />,
   )
 }
 
@@ -38,7 +45,7 @@ const currentStepCount = (container: HTMLElement) =>
 describe('ProjectWorkflowSteps', () => {
   it('keeps piloting current until the current Revision has a reviewed pilot', () => {
     const { container } = renderSteps(summary())
-    expect(screen.getByRole('button', { name: 'Next: Pilot Extraction' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Next: Pilot Extraction' })).toBeEnabled()
     expect(screen.getAllByText('Pilot Extraction').length).toBeGreaterThan(0)
     expect(currentStepCount(container)).toBe(1)
   })
@@ -53,7 +60,7 @@ describe('ProjectWorkflowSteps', () => {
     )
     expect(
       screen.getByRole('button', { name: 'Next: Approve for batch extraction' }),
-    ).toBeVisible()
+    ).toBeEnabled()
     expect(currentStepCount(container)).toBe(1)
   })
 
@@ -66,8 +73,47 @@ describe('ProjectWorkflowSteps', () => {
         schemaStabilised: true,
       }),
     )
-    expect(screen.getByRole('button', { name: 'Next: Batch Extraction' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Next: Batch Extraction' })).toBeEnabled()
     expect(currentStepCount(container)).toBe(1)
+  })
+
+  it('refuses the next action while its own Extraction run is still in flight', () => {
+    renderSteps(
+      summary({
+        phase: 'validate',
+        reviewedSourceDocumentCount: 1,
+        extractedSourceDocumentCount: 3,
+        schemaStabilised: true,
+        runningBatch: { completedMemberCount: 1, memberCount: 3 },
+      }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Next: Batch Extraction' }),
+    ).toBeDisabled()
+  })
+
+  it('refuses the next action while the ingest step still has Source Ingestions running', () => {
+    const { container } = renderSteps(
+      summary({ phase: 'ingest', extractionCount: 0, extractedSourceDocumentCount: 0 }),
+      true,
+    )
+    expect(screen.getByRole('button', { name: 'Next: Upload' })).toBeDisabled()
+    expect(currentStepCount(container)).toBe(1)
+  })
+
+  it('leaves the next action live once a settling run no longer blocks it', () => {
+    renderSteps(
+      summary({
+        phase: 'validate',
+        reviewedSourceDocumentCount: 1,
+        extractedSourceDocumentCount: 3,
+        schemaStabilised: true,
+        runningBatch: null,
+      }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Next: Batch Extraction' }),
+    ).toBeEnabled()
   })
 
   it('hides the next action once every current Extraction is reviewed and nothing is stale', () => {
