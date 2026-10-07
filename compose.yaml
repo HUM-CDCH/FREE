@@ -91,7 +91,8 @@ services:
     stop_grace_period: 60s
     # Studio's entrypoint creates kei's role and schema (M2). A replacement
     # worker starts after the old process exits and releases its slot lock;
-    # never scale this single slot with replicas.
+    # never scale this single slot with replicas or add a second slot:
+    # deleteRuns' boot boundary assumes one kei process.
     depends_on:
       studio:
         condition: service_healthy
