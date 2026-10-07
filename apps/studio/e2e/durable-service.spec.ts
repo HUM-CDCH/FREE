@@ -28,7 +28,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-  const settings={[method]:method==='unified'?{defaults:1}:method==='article'&&options.articleContext
+  const settings={[method]:method==='unified'?{defaults:2}:method==='article'&&options.articleContext
     ?{context:options.articleContext,context_tokens:8192}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.

@@ -4,9 +4,11 @@ For each window plan it reports record-start recall against numbered gold starts
 cut-off replies, wall time, and when each entry could start were entries run as soon as the windows deciding it were
 read (the `pipelined` times; the product starts every entry after the last window). `--scale K` repeats the source's
 pages K times with the gold numbers shifted, a synthetic long source for throughput only. The models come from the
-environment as for the live tests (`KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL`, `KEI_NUEXTRACT_URL`, ...).
+environment as for the live tests (`KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL`, `KEI_NUEXTRACT_URL`, ...). `--values GOLD`
+instead runs whole extractions under each `--defaults` version and scores their values against gold rows.
 
     python -m experiments.extraction.discovery_windows RUN_DIR --gold 205 233 --by budget page column --repeats 2
+    python -m experiments.extraction.discovery_windows RUN_DIR --values reference.json --defaults 1 2
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import re
 import statistics
 import tempfile
 import time
+import unicodedata
 from collections import Counter
 from functools import partial
 from itertools import groupby
@@ -150,18 +153,59 @@ def score(evidence: Evidence, gold: dict[str, int], body: dict, finished: dict[s
             else None, "issues": dict(Counter(issue.code for issue in body["issues"]))}
 
 
+def same(got, expected) -> bool:
+    def norm(value) -> str:
+        return " ".join(unicodedata.normalize("NFKC", str(value)).casefold().split()).rstrip(".")
+    return got is not None and norm(got) == norm(expected)
+
+
+def values(evidence: Evidence, rows: list[dict], version: int, chunks: int) -> dict:
+    """The whole unified extraction under defaults `version`, its records scored against gold rows by catalogue number:
+    a number extracted twice or not in the gold is not scored, and counts against the run."""
+    request = run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {"strategy": "catalog", "unified": {
+        "defaults": version}}})
+    started = time.monotonic()
+    result = run.dispatch(None, evidence, request, chats_for(request.options), chunks=chunks)
+    wall = time.monotonic() - started
+    gold = {row["values"]["catalog_number"]: row["values"] for row in rows}
+    names = [node["name"] for node in SCHEMA["schemaNodes"] if node["name"] != "catalog_number"]
+    numbers = Counter(record.get("catalog_number") for record in result["records"])
+    right, present = Counter(), Counter(name for row in gold.values() for name in names if row.get(name) is not None)
+    for record in result["records"]:
+        expected = gold.get(record.get("catalog_number"))
+        if expected is not None and numbers[record["catalog_number"]] == 1:
+            right.update(name for name in names if expected.get(name) is not None and same(record.get(name), expected[name]))
+    return {"defaults": version, "wall": wall, "records": len(result["records"]),
+            "matched": sum(numbers[number] == 1 for number in gold), "duplicated": sum(numbers[number] > 1 for number in gold),
+            "spurious": sum(count for number, count in numbers.items() if number not in gold),
+            "fields": {name: f"{right[name]}/{present[name]}" for name in names},
+            "accuracy": sum(right.values()) / max(1, sum(present.values()))}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("run_dir", type=Path)
-    parser.add_argument("--gold", nargs=2, type=int, required=True, metavar=("FIRST", "LAST"))
+    parser.add_argument("--gold", nargs=2, type=int, metavar=("FIRST", "LAST"))
     parser.add_argument("--by", nargs="+", default=["budget", "page", "column"], choices=["budget", "page", "column"])
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--overlap", type=int)
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--scale", type=int, default=1)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--values", type=Path, help="gold rows (JSON with `rows[].values`): score whole extractions")
+    parser.add_argument("--defaults", nargs="+", type=int, default=[1, 2])
     args = parser.parse_args()
     evidence = load(args.run_dir)
+    if args.values:
+        rows = json.loads(args.values.read_text(encoding="utf-8"))["rows"]
+        results = []
+        for _ in range(args.repeats):
+            for version in args.defaults:
+                results.append(values(evidence, rows, version, args.workers))
+                print(json.dumps(results[-1]), flush=True)
+        if args.out:
+            args.out.write_text(json.dumps(results, indent=1) + "\n", encoding="utf-8")
+        return
     first, last = args.gold
     with tempfile.TemporaryDirectory() as scratch:
         if args.scale > 1:
