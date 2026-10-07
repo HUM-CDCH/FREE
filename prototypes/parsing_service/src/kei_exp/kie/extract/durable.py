@@ -150,7 +150,14 @@ class CapturePlanner:
             context = counter.context_tokens
             if type(context) is not int or count + minimum > context:
                 raise ValueError("required source and reply budget exceed the served context")
-            examples, omissions = self._feedback(capture["candidates"], system, user, schema, minimum, counter)
+            # Discovery locates record boundaries, not schema field values. A
+            # field correction can derail this different task into an empty
+            # response; retain its exclusion in the exact captured input.
+            if stage == "discovery":
+                examples = []
+                omissions = [{"id": revision["id"], "reason": "stage"} for revision in capture["candidates"]]
+            else:
+                examples, omissions = self._feedback(capture["candidates"], system, user, schema, minimum, counter)
             if examples:
                 system += self._guidance(examples)
             count = counter.request_tokens(system, user, schema)

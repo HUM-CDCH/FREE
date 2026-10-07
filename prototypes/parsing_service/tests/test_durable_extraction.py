@@ -243,6 +243,60 @@ def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
         CapturePlanner(lease,{"fields":Counter()}).complete(chat,**{**args,"user":"new source"})
 
 
+def test_field_corrections_do_not_enter_discovery_but_still_guide_record_values():
+    from kei_exp.kie.extract.durable import field_meaning
+
+    source = unified_evidence("1. Adorf. Material: Bronze.\n2. Bdorf. Material: Eisen.")
+    request = unified_request()
+    tree = request.schema_.model_dump(by_alias=True, exclude_none=True)
+    node = next(node for node in tree["schemaNodes"] if node["id"] == "m")
+    lease = MemoryLease(tree)
+    candidate = {"id": "example", "fieldId": node["id"], "meaning": field_meaning(node),
+                 "node": node, "value": "Gold", "grounded": False}
+    lease.candidates = [{"id": "revision", "candidate": candidate}]
+
+    class CorrectedModel(Model):
+        def __call__(self, system, user, schema):
+            # A schema-valid empty answer observed when field examples polluted
+            # the boundary prompt; it must never become a successful empty run.
+            if system.startswith("You find where records begin") and "Researcher correction examples" in system:
+                return {"places": [], "begins_inside_record": True, "ends_inside_record": True}
+            return super().__call__(system, user, schema)
+
+    result = finish(lease, CountingChat(CorrectedModel(source)),
+                    lambda router, counter: run.dispatch(None, source, request, router,
+                                                         counter={"fields": counter, "reasoning": counter}))
+    assert [record["material"] for record in result["records"]] == ["Bronze", "Eisen"]
+    captured = [unit["input"]["request"] for unit in lease.units.values()]
+    discovery = next(item for item in captured if item["body"]["stage"] == "discovery")
+    assert discovery["examples"] == []
+    assert discovery["omissions"] == [{"id": "revision", "reason": "stage"}]
+    assert "Researcher correction examples" not in discovery["body"]["system"]
+    entry = next(item for item in captured if item["body"]["stage"] == "entry")
+    assert entry["examples"] == [candidate]
+    assert "Researcher correction examples" in entry["body"]["system"]
+
+
+def test_discovery_keeps_an_already_captured_guided_input_immutable():
+    node = {"id": "field", "name": "title", "type": "string"}
+    lease = MemoryLease({"recordDescription": "document", "schemaNodes": [node]})
+    chat = CountingChat(lambda *_: {})
+    args = dict(stage="discovery", record=None, system="Find record boundaries", user="source",
+                schema={"type": "object"}, max_tokens=10)
+    with pytest.raises(NeedsCall):
+        CapturePlanner(lease, {"reasoning": Counter()}).complete(chat, **args)
+    unit = next(iter(lease.units.values()))
+    # Represent a finalized input captured by the previous composition rule. Retry
+    # must invoke this saved body, even though new discovery inputs omit it.
+    unit["input"]["request"]["body"]["system"] += "\nResearcher correction examples: saved old guidance"
+    unit["input"]["digest"] = digest(unit["input"]["request"])
+    captured = deepcopy(unit["input"])
+    with pytest.raises(NeedsCall):
+        CapturePlanner(lease, {"reasoning": Counter()}).complete(chat, **args)
+    assert unit["input"] == captured
+    assert not chat.calls
+
+
 @pytest.mark.parametrize("oversized", [False, True])
 def test_article_reply_allocation_protects_its_floor_and_selects_guidance(oversized):
     from kei_exp.kie.extract.durable import field_meaning
