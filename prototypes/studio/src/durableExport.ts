@@ -1,92 +1,114 @@
-import { zipSync, strToU8 } from 'fflate'
-import { createXlsxBlob, serializeCsv, type Table } from 'extraction-result-export'
-import type { DurableHistory, DurablePage, DurableRead } from 'extraction/durable-types'
-import { durableRequest, durableRoot, readDurable, readDurableHistory } from './durableExtractionApi'
+import {
+  buildDurableEvidenceTable, buildExportTable, buildIdentityTable, createExportFilename, createFieldRegistry, createXlsxBlob,
+  downloadBlob, durableRecords, deriveRowsRepresentOptions, serializeCsv, EVIDENCE_SHEET, EXTRACTION_SHEET, ROOT_ROWS,
+  type CellValue, type CompanionSheet, type ExportChoices, type ExportFormat, type Table,
+} from 'extraction-result-export'
+import type { DurablePage, DurableRead } from 'extraction/durable-types'
+import { readDurable, readValues } from './durableExtractionApi'
 
-export type Fixed={state:DurableRead;page:DurablePage;history:DurableHistory}
-export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceRevisionId:string;status:string}
+/** One fixed cut of a durable Extraction: its state and the result page (a named result and decision version) the
+ * researcher has open. The export reads nothing else: no history, no model calls, no other versions. */
+export type Fixed={state:DurableRead;page:DurablePage}
+export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceDocumentName:string;sourceRevisionId:string;status:string}
 export type BatchExportSnapshot={fixed:Fixed;values:DurablePage['values'];member:BatchExportMember}
-const encoded=(value:unknown)=>value===undefined?null:JSON.stringify(value)
-export function durableExportTables(fixed:Fixed,values:DurablePage['values']):{results:Table;versions:Table;reviews:Table;inputs:Table;processing:Table} {
-  const columns=['Extraction','Snapshot','Record','Field','Schema revision','Input selection','Path','Model value','Reviewed value','Review','Processing','Grounding','Evidence','Historical correction','Lineage']
-  const rows=values.map(v=>({'Extraction':fixed.state.extractionId,'Snapshot':fixed.page.snapshotVersion,'Record':v.recordId,'Field':v.fieldId,'Schema revision':v.schemaRevisionId,'Input selection':v.selectionId,'Path':encoded(v.path),'Model value':encoded(v.modelValue),'Reviewed value':v.correction?.decision.action==='EDITED'?encoded(v.correction.decision.value):null,'Review':v.correction?.decision.action??'PENDING','Processing':v.processing,'Grounding':v.grounding,'Evidence':encoded(v.evidence),'Historical correction':encoded(v.historicalCorrection),'Lineage':encoded(v.lineage)}))
-  const versions=fixed.history.snapshots.filter(s=>s.version<=fixed.page.snapshotVersion).flatMap(s=>s.values.map((v:DurablePage['values'][number])=>({'Snapshot':s.version,'Record':v.recordId,'Field':v.fieldId,'Schema revision':v.schemaRevisionId,'Input selection':v.selectionId,'Model value':encoded(v.modelValue),'Evidence':encoded(v.evidence),'Lineage':encoded(v.lineage)})))
-  const reviews=fixed.history.corrections.filter(c=>c.feedbackVersion<=fixed.page.feedbackVersion).map(c=>({'Revision':c.revision,'Feedback version':c.feedbackVersion,'Value':c.valueId,'Schema selection':c.selectionId,'Decision':encoded(c.decision),'Guidance included':c.included,'Candidate':encoded(c.candidate)}))
-  const inputs=fixed.history.selections.map(s=>({'Input selection':s.id,'Ordinal':s.ordinal,'Schema revision':s.schemaRevisionId,'Schema':encoded(s.schemaTree),'Requested method':encoded(s.method),'Resolved method':encoded(s.resolved),'Digest':s.digest}))
-  return {results:{columns,rows},versions:{columns:['Snapshot','Record','Field','Schema revision','Input selection','Model value','Evidence','Lineage'],rows:versions},reviews:{columns:['Revision','Feedback version','Value','Schema selection','Decision','Guidance included','Candidate'],rows:reviews},inputs:{columns:['Input selection','Ordinal','Schema revision','Schema','Requested method','Resolved method','Digest'],rows:inputs},processing:{columns:['Extraction','State','Snapshot','Feedback version','Source revision','Coverage'],rows:[{'Extraction':fixed.state.extractionId,'State':fixed.page.status,'Snapshot':fixed.page.snapshotVersion,'Feedback version':fixed.page.feedbackVersion,'Source revision':fixed.state.sourceRevisionId,'Coverage':encoded(fixed.page.coverage)}]}}
+export const DEFAULT_EXPORT_CHOICES:ExportChoices={rowsRepresent:ROOT_ROWS,otherRepeatedFields:'preserve'}
+export const MEMBERS_SHEET='Members'
+const SOURCE_DOCUMENT='Source Document',SOURCE_DOCUMENT_ID='Source Document ID',BATCH_EXTRACTION_ID='Batch Extraction ID'
+/** Excel holds 32,767 characters in a cell; a longer composite value is cut with a note, never silently. */
+const CELL_LIMIT=32000
+const csvBlob=(table:Table)=>new Blob([serializeCsv(table)],{type:'text/csv;charset=utf-8'})
+const fitCell=(value:CellValue):CellValue=>typeof value==='string'&&value.length>CELL_LIMIT?`${value.slice(0,CELL_LIMIT)}… [cut: the full value is in Studio]`:value
+const fitTable=(table:Table):Table=>({...table,rows:table.rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,fitCell(value)])))})
+const toneOf=(status:string)=>status.charAt(0)+status.slice(1).toLowerCase()
+
+/** Schema fields keep their names; attribution columns move to an unused suffix. */
+function attributionColumn(base:string,columns:readonly string[]):string {
+  let column=base
+  for(let ordinal=2;columns.includes(column);ordinal+=1)column=`${base} (${ordinal})`
+  return column
 }
-export async function fixedDurableValues(fixed:Fixed,signal?:AbortSignal) {
-  let page=await durableRequest<DurablePage>(`${durableRoot(fixed.state.extractionId)}/values?${new URLSearchParams({snapshotVersion:String(fixed.page.snapshotVersion),feedbackVersion:String(fixed.page.feedbackVersion),limit:'500'})}`,undefined,signal)
-  const values=[...page.values]
-  while(page.next) {page=await durableRequest<DurablePage>(`${durableRoot(fixed.state.extractionId)}/values?${new URLSearchParams(Object.entries(page.next).map(([k,v])=>[k,String(v)]))}`,undefined,signal);values.push(...page.values)}
-  return values
+
+/** The tables of one fixed cut: the research table, the compact Extraction identity and the Evidence sheet. */
+export function durableExportTables(fixed:Fixed,values:DurablePage['values'],choices:ExportChoices,sourceName:string):{results:Table;extraction:Table;evidence:Table} {
+  const registry=createFieldRegistry(values,fixed.state.selection?.schemaTree?.schemaNodes)
+  const records=durableRecords(values,registry)
+  const results=buildExportTable(registry.schemaNodes,records.map(record=>record.fields),choices)
+  const revisions=[...new Set(values.map(value=>value.schemaRevisionId))]
+  const extraction=buildIdentityTable([
+    ['Extraction ID',fixed.state.extractionId],['Strategy',fixed.state.strategy],['Source Document',sourceName],
+    ['Source Representation Revision ID',fixed.state.sourceRevisionId],['State',toneOf(fixed.page.status)],
+    ['Results version',fixed.page.snapshotVersion],['Decisions version',fixed.page.feedbackVersion],
+    ['Review saved',fixed.page.finalization?'Yes':'Not saved'],
+    ['Current inputs version',fixed.state.selection?.ordinal??null],['Producing Schema Revision IDs',revisions.join(', ')||'None'],
+    ['Records',records.length],['Fields',registry.schemaNodes.length],['Values',values.length],
+    ['Approved',fixed.page.reviewCounts.approved],['Edited',fixed.page.reviewCounts.edited],['Rejected',fixed.page.reviewCounts.rejected],['To check',fixed.page.reviewCounts.toCheck],
+    ...registry.ambiguous.map(({name,columns})=>[`Field "${name}" produced under more than one type`,columns.join(', ')] as const),
+    ['Rows represent',choices.rowsRepresent===ROOT_ROWS?'Root result':choices.rowsRepresent],['Other repeated fields',choices.otherRepeatedFields==='preserve'?'Preserved as indexed columns':'Omitted'],
+    ['Record recall','Unmeasured'],['Exported at',new Date().toISOString()],
+  ])
+  return {results,extraction,evidence:buildDurableEvidenceTable(values,registry)}
 }
-function frozen(fixed:Fixed,values:DurablePage['values']) {
-  const manifest={protocol:1,extractionId:fixed.state.extractionId,snapshotVersion:fixed.page.snapshotVersion,feedbackVersion:fixed.page.feedbackVersion,status:fixed.page.status,source:fixed.state.source,coverage:fixed.page.coverage,recall:'unmeasured',values:values.length,
-    historyCapturedAt:fixed.history.capturedAt,historyScope:'Complete execution inputs and call history at capture time; result versions and decisions are limited to the named snapshot cuts.'}
-  return {manifest,values,history:{...fixed.history,snapshots:fixed.history.snapshots.filter(s=>s.version<=fixed.page.snapshotVersion),corrections:fixed.history.corrections.filter(c=>c.feedbackVersion<=fixed.page.feedbackVersion),
-    finalizations:fixed.history.finalizations.filter(f=>f.snapshotVersion<=fixed.page.snapshotVersion&&f.feedbackVersion<=fixed.page.feedbackVersion)}}
+
+/** Every value of the fixed cut: the open page already holds them all; only a partial page is read again, by value pages. */
+export async function fixedDurableValues(fixed:Fixed,signal?:AbortSignal):Promise<DurablePage['values']> {
+  if(fixed.page.values.length>=fixed.page.total)return fixed.page.values
+  const page=await readValues(fixed.state.extractionId,{snapshotVersion:fixed.page.snapshotVersion,feedbackVersion:fixed.page.feedbackVersion},signal)
+  return page.values
 }
-/** Base64 over UTF-8 is XML-safe, and the prefix prevents spreadsheet formula
- * protection from changing chunks. Concatenate chunks without their prefixes,
- * decode base64, then parse JSON to reconstruct authoritative provenance. */
-export function provenanceTable(body:unknown):Table {
-  const bytes=strToU8(JSON.stringify(body)),rows=[]
-  // Divisible by three: only the final chunk needs base64 padding.
-  for(let index=0;index<bytes.length;index+=22500)rows.push({'Part':index/22500+1,
-    'JSON base64 chunk':`b64:${btoa(String.fromCharCode(...bytes.subarray(index,index+22500)))}`})
-  return {columns:['Part','JSON base64 chunk'],rows}
+
+/** CSV holds the research table alone; the workbook adds the Extraction and Evidence sheets. */
+export async function durableExportBlob(fixed:Fixed,values:DurablePage['values'],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,sourceName=fixed.state.extractionId):Promise<Blob> {
+  const tables=durableExportTables(fixed,values,choices,sourceName)
+  if(format==='csv')return csvBlob(tables.results)
+  return createXlsxBlob(fitTable(tables.results),[{sheet:EXTRACTION_SHEET,table:fitTable(tables.extraction)},{sheet:EVIDENCE_SHEET,table:fitTable(tables.evidence)}])
 }
-function workbookTable(table:Table):Table {
-  return {...table,rows:table.rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,typeof value==='string'&&value.length>30000?'[Full value is retained in the Provenance JSON chunks]':value])))}
-}
-export async function durableExportBlob(fixed:Fixed,values:DurablePage['values'],format:'xlsx'|'csv'):Promise<Blob> {
-  const tables=durableExportTables(fixed,values),snapshot=frozen(fixed,values)
-  if(format==='xlsx')return createXlsxBlob(workbookTable(tables.results),[
-    {sheet:'Model versions',table:workbookTable(tables.versions)},{sheet:'Reviews and feedback',table:workbookTable(tables.reviews)},
-    {sheet:'Input selections',table:workbookTable(tables.inputs)},{sheet:'Processing',table:workbookTable(tables.processing)},
-    {sheet:'Provenance',table:provenanceTable(snapshot)}])
-  return new Blob([new Uint8Array(zipSync(Object.fromEntries([
-    ...Object.entries(tables).map(([name,table])=>[`${name}.csv`,strToU8(serializeCsv(table))] as const),
-    ['manifest.json',strToU8(JSON.stringify(snapshot.manifest,null,2))],['snapshot.json',strToU8(JSON.stringify(snapshot))],
-  ])))],{type:'application/zip'})
-}
-function download(blob:Blob,name:string) {
-  const url=URL.createObjectURL(blob),link=document.createElement('a')
-  link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
-}
-export async function downloadDurableExport(fixed:Fixed,format:'xlsx'|'csv',signal?:AbortSignal) {
+
+export const exportFilename=(sourceName:string,snapshotVersion:number,format:ExportFormat)=>createExportFilename(sourceName,format,`extraction-result-s${snapshotVersion}`)
+
+export async function downloadDurableExport(fixed:Fixed,format:ExportFormat,choices:ExportChoices,sourceName:string,signal?:AbortSignal):Promise<void> {
   const values=await fixedDurableValues(fixed,signal)
-  const blob=await durableExportBlob(fixed,values,format)
+  const blob=await durableExportBlob(fixed,values,format,choices,sourceName)
   signal?.throwIfAborted()
-  download(blob,`extraction-${fixed.state.extractionId}-s${fixed.page.snapshotVersion}.${format==='xlsx'?'xlsx':'zip'}`)
+  downloadBlob(blob,exportFilename(sourceName,fixed.page.snapshotVersion,format))
 }
-/** Batch members keep independent snapshot and review cursors and attribution. */
-export async function downloadDurableBatch(batchId:string,members:readonly BatchExportMember[],format:'xlsx'|'csv'):Promise<boolean> {
-  const durable:{state:DurableRead;page:DurablePage;member:BatchExportMember}[]=[]
+
+/** Batch members keep independent result and decision versions; each row names its Source Document. */
+export async function downloadDurableBatch(batch:{batchExtractionId:string;name:string},members:readonly BatchExportMember[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,signal?:AbortSignal):Promise<boolean> {
+  const snapshots:BatchExportSnapshot[]=[]
   for(const member of members) {
-    const loaded=await readDurable(member.extractionId)
-    durable.push({...loaded,member})
+    const fixed=await readDurable(member.extractionId,signal)
+    snapshots.push({fixed,values:await fixedDurableValues(fixed,signal),member})
   }
-  if(!durable.length)return false
-  const snapshots=[]
-  for(const loaded of durable) {
-    const fixed={...loaded,history:await readDurableHistory(loaded.state.extractionId)}
-    snapshots.push({fixed,values:await fixedDurableValues(fixed),member:loaded.member})
-  }
-  download(await durableBatchExportBlob(batchId,members,snapshots,format),`batch-${batchId}.${format==='xlsx'?'xlsx':'zip'}`)
+  if(!snapshots.length)return false
+  const blob=await durableBatchExportBlob(batch,members,snapshots,format,choices)
+  signal?.throwIfAborted()
+  downloadBlob(blob,createExportFilename(batch.name,format,'batch-extraction-results'))
   return true
 }
-export async function durableBatchExportBlob(batchId:string,members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:'xlsx'|'csv'):Promise<Blob> {
-  const tables=snapshots.map(s=>durableExportTables(s.fixed,s.values)),columns=tables[0].results.columns
-  const results:Table={columns:['Source Document',...columns],rows:snapshots.flatMap((s,index)=>tables[index].results.rows.map(row=>({'Source Document':s.member.sourceDocumentId,...row})))}
-  const body={protocol:1,batchId,totalMembers:members.length,members,durable:snapshots.map(s=>({...s.member,...frozen(s.fixed,s.values)})),recall:'unmeasured'}
-  const processing:Table={columns:['Source Document','Extraction','State','Failure','Snapshot','Feedback version','Source revision','Coverage'],rows:members.map(member=>{
-    const saved=snapshots.find(snapshot=>snapshot.member.sourceDocumentId===member.sourceDocumentId)
-    return {'Source Document':member.sourceDocumentId,'Extraction':member.extractionId,'State':saved?.fixed.page.status??member.status,
-      'Failure':saved?.fixed.state.failure?encoded(saved.fixed.state.failure):null,'Snapshot':saved?.fixed.page.snapshotVersion??null,'Feedback version':saved?.fixed.page.feedbackVersion??null,
-      'Source revision':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId,'Coverage':saved?encoded(saved.fixed.page.coverage):null}
+
+/** One table over every member, projected through the fields their values were produced with (one registry, so a
+ * field produced under two types stays two named columns), with the member's Source Document on each row. */
+export async function durableBatchExportBlob(batch:{batchExtractionId:string},members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES):Promise<Blob> {
+  const registry=createFieldRegistry(snapshots.flatMap(snapshot=>snapshot.values),snapshots.flatMap(snapshot=>snapshot.fixed.state.selection?.schemaTree?.schemaNodes??[]))
+  if(!deriveRowsRepresentOptions(registry.schemaNodes).some(option=>option.value===choices.rowsRepresent))
+    throw new Error('The selected repeated field is unavailable in these saved results. Choose Root result or another field.')
+  const projected=snapshots.map(snapshot=>({snapshot,records:durableRecords(snapshot.values,registry)}))
+  const attribution:string[]=[]
+  for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(attributionColumn(base,[...registry.schemaNodes.map(node=>node.name),...attribution]))
+  const [document,documentId,batchId]=attribution as [string,string,string]
+  // One projection over all records keeps repeated-item columns together, regardless of each member's list length.
+  const records=projected.flatMap(({snapshot,records})=>records.map(record=>({
+    [document]:snapshot.member.sourceDocumentName,[documentId]:snapshot.member.sourceDocumentId,[batchId]:batch.batchExtractionId,...record.fields})))
+  const results=buildExportTable([...attribution.map(name=>({id:name,name,type:'string' as const})),...registry.schemaNodes],records,choices)
+  if(format==='csv')return csvBlob(results)
+  const membersTable:Table={columns:[SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,'Extraction ID','State','Results version','Decisions version','Review saved','Values','Source Representation Revision ID'],rows:members.map(member=> {
+    const saved=snapshots.find(snapshot=>snapshot.member.extractionId===member.extractionId)
+    return {[SOURCE_DOCUMENT]:member.sourceDocumentName,[SOURCE_DOCUMENT_ID]:member.sourceDocumentId,'Extraction ID':member.extractionId,
+      'State':toneOf(saved?.fixed.page.status??member.status),'Results version':saved?.fixed.page.snapshotVersion??null,'Decisions version':saved?.fixed.page.feedbackVersion??null,
+      'Review saved':saved?saved.fixed.page.finalization?'Yes':'Not saved':null,'Values':saved?.values.length??null,'Source Representation Revision ID':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId}
   })}
-  const blob=format==='xlsx'?await createXlsxBlob(workbookTable(results),[{sheet:'Processing',table:workbookTable(processing)},{sheet:'Provenance',table:provenanceTable(body)}]):new Blob([new Uint8Array(zipSync({'results.csv':strToU8(serializeCsv(results)),'processing.csv':strToU8(serializeCsv(processing)),'snapshot.json':strToU8(JSON.stringify(body))}))],{type:'application/zip'})
-  return blob
+  const evidenceRows=snapshots.flatMap(snapshot=>buildDurableEvidenceTable(snapshot.values,registry).rows.map(row=>({[SOURCE_DOCUMENT]:snapshot.member.sourceDocumentName,...row})))
+  const evidence:Table={columns:[SOURCE_DOCUMENT,...buildDurableEvidenceTable([]).columns],rows:evidenceRows}
+  const companions:CompanionSheet[]=[{sheet:MEMBERS_SHEET,table:fitTable(membersTable)},{sheet:EVIDENCE_SHEET,table:fitTable(evidence)}]
+  return createXlsxBlob(fitTable(results),companions)
 }

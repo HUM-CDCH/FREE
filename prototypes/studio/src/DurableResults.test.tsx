@@ -204,7 +204,7 @@ it.each(['More result actions','Run details'])('gives %s keyboard ownership befo
   fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
   const overlay=screen.getByRole('button',{name});overlay.focus();fireEvent.click(overlay)
   expect(overlay).toHaveAttribute('aria-expanded','true')
-  const target=name==='More result actions'?screen.getByRole('menuitem',{name:'Export XLSX'}):overlay
+  const target=name==='More result actions'?screen.getByRole('menuitem',{name:'Export…'}):overlay
   target.focus()
   for(const key of ['a','r','e','j','k','z'])fireEvent.keyDown(target,{key})
   expect(durableRequest).not.toHaveBeenCalled()
@@ -232,7 +232,7 @@ it('keeps menu Escape available while a correction save is pending and suspends 
   await screen.findByText('Saving your decision…')
   fireEvent.keyDown(screen.getByRole('heading',{name:'Saved title'}),{key:'r'})
   const menu=screen.getByRole('button',{name:'More result actions'});fireEvent.click(menu)
-  const target=screen.getByRole('menuitem',{name:'Export XLSX'});target.focus()
+  const target=screen.getByRole('menuitem',{name:'Export…'});target.focus()
   fireEvent.keyDown(target,{key:'a'});fireEvent.keyDown(target,{key:'Escape'})
   expect(menu).toHaveAttribute('aria-expanded','false')
   expect(screen.getByRole('heading',{name:'Saved title'})).toHaveFocus()

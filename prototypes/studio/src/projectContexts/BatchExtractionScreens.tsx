@@ -1,5 +1,7 @@
-import { useId, useState, type ReactNode } from 'react'
-import type { ExportFormat } from 'extraction-result-export'
+import { useId, useRef, useState, type ReactNode } from 'react'
+import type { ExportChoices, ExportFormat } from 'extraction-result-export'
+import type { SchemaNode } from 'extraction/schema'
+import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import {
   PILOT_BATCH_SELECTION_LIMIT,
   batchExtractionProgress,
@@ -116,20 +118,20 @@ function batchSchemaLine(batch: BatchExtraction): string {
   return `${batch.extractionSchemaName} · Schema Revision ${batch.schemaRevisionNumber}`
 }
 
-function RetainedBatchExport({disabled,onExport}:{disabled:boolean;onExport:(format:ExportFormat)=>Promise<void>}) {
+/** The batch's one spreadsheet: every member's saved values, one row per record, through the shared export options. */
+function RetainedBatchExport({disabled,schemaNodes,onExport}:{disabled:boolean;schemaNodes:readonly SchemaNode[];onExport:(format:ExportFormat,choices:ExportChoices)=>Promise<void>}) {
   const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null)
-  const download=async(format:ExportFormat)=> {
+  const trigger=useRef<HTMLButtonElement>(null)
+  const download=async(format:ExportFormat,choices:ExportChoices)=> {
+    if(busy)return
     setBusy(true);setOpen(false);setError(null)
-    try {await onExport(format)}
+    try {await onExport(format,choices)}
     catch(error){setError(error instanceof Error?error.message:'Unable to export saved values.')}
     finally {setBusy(false)}
   }
   return <div className="space-y-1">
-    <Button disabled={disabled||busy} aria-expanded={open} aria-haspopup="menu" onClick={()=>setOpen(!open)}>{busy?'Exporting…':'Export'}</Button>
-    {open&&<div role="menu" aria-label="Retained batch exports" className="flex flex-wrap gap-2">
-      <Button role="menuitem" onClick={()=>void download('csv')}>Export CSV bundle</Button>
-      <Button role="menuitem" onClick={()=>void download('xlsx')}>Export XLSX</Button>
-    </div>}
+    <Button ref={trigger} disabled={disabled||busy} aria-busy={busy} aria-expanded={open} aria-haspopup="dialog" onClick={()=>setOpen(true)}>{busy?'Exporting…':'Export'}</Button>
+    <ExtractionResultExportControl open={open} schemaNodes={schemaNodes} returnFocusRef={trigger} onDismiss={()=>setOpen(false)} onExport={(format,choices)=>void download(format,choices)}/>
     {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
   </div>
 }
@@ -237,6 +239,7 @@ export function BatchExtractionMembers({
   runAgainRefusal,
   runAgainMethod,
   documentName,
+  exportSchemaNodes,
   onExport,
   onRetrySchema,
   onRunAgain,
@@ -245,6 +248,8 @@ export function BatchExtractionMembers({
   batch: BatchExtraction
   pinnedSchemaFailure: string | null
   hasSuccessfulResult: boolean
+  /** The pinned Schema Revision's fields, for the export's Rows represent choices; empty while it is unread. */
+  exportSchemaNodes: readonly SchemaNode[]
   coverageMessage: string | null
   opening: boolean
   /** Run again submits the account's saved method, so it waits until that has been read. */
@@ -254,7 +259,7 @@ export function BatchExtractionMembers({
   /** The saved method Run again submits, with its loading, error and stale-settings refusal. */
   runAgainMethod: ReactNode
   documentName(sourceDocumentId: string): string
-  onExport(format: ExportFormat): Promise<void>
+  onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
   onOpenMember(sourceDocumentId: string, extractionId: string): void
@@ -269,7 +274,7 @@ export function BatchExtractionMembers({
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
-          <RetainedBatchExport disabled={!hasSuccessfulResult} onExport={onExport}/>
+          <RetainedBatchExport disabled={!hasSuccessfulResult} schemaNodes={exportSchemaNodes} onExport={onExport}/>
           <Button
             size="sm"
             variant="secondary"

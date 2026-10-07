@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { ExportFormat } from 'extraction-result-export'
+import type { ExportChoices, ExportFormat } from 'extraction-result-export'
 import type { NavigableRoute } from '../projectNavigation'
 import {
   getSchemaRevision,
@@ -595,15 +595,15 @@ export default function BatchExtractionsPanel({
     return () => controller.abort()
   }, [projectContextId, pinnedExtractionSchemaId, pinnedSchemaRevisionId, pinnedBatchSchemaReload])
 
-  /** One bundle of every member's saved values at its own fixed result and decision cuts. */
-  const exportOpenBatch = async (format: ExportFormat) => {
+  /** One table of every member's saved values at its own result and decision versions, each row named by its Source Document. */
+  const exportOpenBatch = async (format: ExportFormat, choices: ExportChoices) => {
     if (!openBatch) return
     const { downloadDurableBatch } = await import('../durableExport')
-    await downloadDurableBatch(openBatch.batchExtractionId, openBatch.members.map((member) => ({
-      sourceDocumentId: member.sourceDocumentId, extractionId: member.extractionId,
+    await downloadDurableBatch({ batchExtractionId: openBatch.batchExtractionId, name: openBatch.extractionSchemaName }, openBatch.members.map((member) => ({
+      sourceDocumentId: member.sourceDocumentId, sourceDocumentName: documentName(member.sourceDocumentId), extractionId: member.extractionId,
       sourceRevisionId: member.sourceRepresentationRevisionId, status: member.executionStatus,
-    })), format)
-    setExportCoverage({ batchExtractionId: openBatch.batchExtractionId, message: 'Exports retained durable values at fixed member snapshots, with producing schemas, corrections, Evidence and full provenance. Recall is unmeasured.' })
+    })), format, choices)
+    setExportCoverage({ batchExtractionId: openBatch.batchExtractionId, message: 'Exported every member’s saved values at its own result and review versions: one row per record, named by its Source Document. Recall is unmeasured.' })
   }
   const recordBatch = useCallback((batch: BatchExtraction) => {
     historyGeneration.current += 1
@@ -1516,6 +1516,7 @@ export default function BatchExtractionsPanel({
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
             }
             documentName={documentName}
+            exportSchemaNodes={currentPinnedBatchSchema?.schemaNodes ?? []}
             onExport={exportOpenBatch}
             onRetrySchema={() =>
               setPinnedBatchSchemaReload((value) => value + 1)

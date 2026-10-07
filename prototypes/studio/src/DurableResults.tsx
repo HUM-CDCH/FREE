@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { createPortal } from 'react-dom'
 import { useMachine } from '@xstate/react'
 import type { DurablePage, DurableHistory } from 'extraction/durable-types'
+import { durableSchemaNodes, type ExportChoices, type ExportFormat } from 'extraction-result-export'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { decodeParsedDocument, type ParsedDocument } from 'extraction/parsed-document'
 import { durableRequest, durableRoot, readDurable, readDurableHistory, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import { durableReviewMachine } from './durableReviewMachine'
 import Button from './ui/Button'
 import { DurableInputs } from './DurableInputs'
+import ExtractionResultExportControl from './ExtractionResultExportControl'
 import { ProjectFeedback } from './ProjectFeedback'
 import ReviewRow from './ReviewRow'
 import ReviewFocus from './ReviewFocus'
@@ -49,7 +51,7 @@ function statusLine(state:DurableState,model:RailModel,article:boolean,finalized
   }
 }
 
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,onCloseOverlay,readOnly=false}:{
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
   newer?:boolean;
@@ -57,13 +59,13 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
   keyboardRoot:RefObject<HTMLDivElement|null>;
-  menuOpen:boolean;detailsOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer')=>void;
+  menuOpen:boolean;detailsOpen:boolean;exportOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer'|'dialog')=>void;
   projectId:string;sourceDocumentId:string;article:boolean;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
   const headingRef=useRef<HTMLHeadingElement>(null)
-  useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen])
+  useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen&&!exportOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen,exportOpen])
   useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
   const row=durableRailRow(state.context.value,document)
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
@@ -81,11 +83,12 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     if(!focus||readOnly||!root)return
     const keys=(event:KeyboardEvent)=> {
       if(event.defaultPrevented||root.closest('[hidden]')||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
-      const action=keyAction(event,{readable:true,saving:busy,editing,dialog:false,drawer:detailsOpen,menu:menuOpen,
+      const action=keyAction(event,{readable:true,saving:busy,editing:editing&&!exportOpen,dialog:exportOpen,drawer:detailsOpen,menu:menuOpen,
         oneByOne:focus,canUndo:row.kind!=='to-check',current:row.kind==='to-check'?'open':'decided'})
       if(!action)return
       event.preventDefault();event.stopPropagation()
       if(action==='cancel-edit')setEditing(false)
+      else if(action==='close-dialog')onCloseOverlay('dialog')
       else if(action==='close-drawer')onCloseOverlay('drawer')
       else if(action==='close-menu')onCloseOverlay('menu')
       else if(action==='leave')onClose()
@@ -228,10 +231,12 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
   /** The explicit result/decision cut this view opens on, e.g. a finalized
    * review or a saved-correction link; null follows the latest saved results. */
-  initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
+  initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;
+  /** Names the export file; falls back to the pinned source's own name, then the Extraction's id. */
+  sourceDocumentName?:string;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
   onResultPathChange?:(path:string[]|null)=>void;onFocusEvidence?:(link:EvidenceLink|null)=>void;
   onMarksChange?:(marks:RailMarkState|null)=>void;
   selectValueRef?:RefObject<((key:string)=>void)|null>;headerExtras?:React.ReactNode;
@@ -248,9 +253,11 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
   const [exportState,setExportState]=useState<
-    {status:'pending';format:'xlsx'|'csv'}|{status:'started'}|{status:'failed';message:string}|null
+    {status:'pending';format:ExportFormat}|{status:'started'}|{status:'failed';message:string}|null
   >(null)
+  const [exportOpen,setExportOpen]=useState(false)
   const exportRequest=useRef<AbortController|null>(null)
+  const menuButton=useRef<HTMLButtonElement>(null)
   useEffect(()=>()=>{exportRequest.current?.abort()},[])
   const [unfit,setUnfit]=useState(0)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
@@ -285,6 +292,8 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     fields:(state.selection?.schemaTree?.schemaNodes??[]).filter((node:{valueSource?:unknown})=>!node.valueSource).map((node:{name:string})=>node.name),
     startPage:state.selection?.resolved?.startPage??null}:null,[state])
   const model=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress):null,[page,document,progress,pinned])
+  // The export's fields are the shown values' own producing fields, never today's schema reinterpreting them.
+  const exportFields=useMemo(()=>page?durableSchemaNodes(page.values,state?.selection?.schemaTree?.schemaNodes):[],[page,state?.selection?.schemaTree?.schemaNodes])
   // Records open as a run reads them; a settled Extraction opens only its first record with a value to check, chosen
   // once so a decision doesn't close it (§3.1). The record holding the reviewed value always opens.
   const [opening,setOpening]=useState<{live:boolean;first:string|undefined}|null>(null)
@@ -424,16 +433,17 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     setError(null);setNotice('Review saved.')
     onReviewFinalized?.()
   }).catch(error=>setError(error.message))
-  const exportSaved=async(format:'xlsx'|'csv')=> {
+  // The ordinary research table of the cut shown: built from the values already read, so a long run's saved history
+  // is never downloaded for it (History stays one tab away for audit).
+  const exportSaved=async(format:ExportFormat,choices:ExportChoices)=> {
     if(exportRequest.current)return
     const controller=new AbortController()
     exportRequest.current=controller
     setExportState({status:'pending',format})
     try {
-      const history=await readDurableHistory(id,controller.signal)
-      controller.signal.throwIfAborted()
       const module=await import('./durableExport')
-      await module.downloadDurableExport({state,page,history},format,controller.signal)
+      const sourceName=sourceDocumentName??document?.document.source.original_filename??`extraction-${id}`
+      await module.downloadDurableExport({state,page},format,choices,sourceName,controller.signal)
       if(!controller.signal.aborted)setExportState({status:'started'})
     } catch(error) {
       if(!controller.signal.aborted)setExportState({status:'failed',message:error instanceof TypeError
@@ -451,7 +461,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const inline=Boolean(shownVersion)
   const valueReview=review&&<ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
-    menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
+    menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
@@ -462,20 +472,21 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):counts.toCheck===0?'Nothing left to check here':null}:null,
         saveReview:canSave?'Save review':null,list:focus}}
       breakdown={`${counts.approved} approved · ${counts.edited} edited · ${counts.rejected} rejected${page.finalization?' · review saved':''}`}
-      chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen}
+      chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);openNext()}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {menuOpen&&<ResultsMenu items={[
-      {label:'Export XLSX',disabled:exportState?.status==='pending'?'Exporting…':null,onSelect:()=>{setMenuOpen(false);void exportSaved('xlsx')}},
-      {label:'Export CSV bundle',disabled:exportState?.status==='pending'?'Exporting…':null,onSelect:()=>{setMenuOpen(false);void exportSaved('csv')}},
+      {label:'Export…',disabled:exportState?.status==='pending'?'Exporting…':page.total===0?'Nothing saved to export yet':null,onSelect:()=>{setMenuOpen(false);setExportOpen(true)}},
       ...(!readOnly&&!terminal?[{label:'Change inputs',disabled:busy?'Saving…':null,
         onSelect:()=>{setMenuOpen(false);void command('editing').then(accepted=>{if(accepted)setEditing(true)})}}]:[]),
     ]}/>}
+    <ExtractionResultExportControl open={exportOpen} schemaNodes={exportFields} returnFocusRef={menuButton} onDismiss={()=>setExportOpen(false)}
+      onExport={(format,choices)=>{setExportOpen(false);void exportSaved(format,choices)}}/>
     {exportState&&<div className="shrink-0 border-b border-line p-3 text-secondary">
       {exportState.status==='failed'
         ? <p role="alert" className="m-0 text-danger">{exportState.message}</p>
-        : <p role="status" aria-label="Export progress" aria-busy={exportState.status==='pending'} className="m-0">
-          {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV bundle'} export… Downloading saved history and values.`:'Download started. Check your browser’s downloads.'}
+        : <p role="status" aria-label="Export progress" className="m-0">
+          {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV'} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
         </p>}
     </div>}
     {(detailsOpen||error||notice||state.pendingSelection||editing||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
