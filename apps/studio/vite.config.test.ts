@@ -388,22 +388,22 @@ describe('Vite Hono integration', () => {
         handleStudioNodeRequest,
       }),
     })
-    development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
+    development.serverModules.add('/workspace/apps/studio/server/app.ts')
     const plugin = apiFunctions('/free')
 
     await configureServerHook(plugin)(development.server)
     expect(createStudioApp).toHaveBeenCalledOnce()
 
     // A client module is not part of the server graph, so it recomposes nothing.
-    development.change('/workspace/prototypes/studio/src/App.tsx')
+    development.change('/workspace/apps/studio/src/App.tsx')
     await vi.advanceTimersByTimeAsync(100)
     expect(createStudioApp).toHaveBeenCalledOnce()
     expect(development.onFileChange).not.toHaveBeenCalled()
 
-    development.change('/workspace/prototypes/studio/server/app.ts')
+    development.change('/workspace/apps/studio/server/app.ts')
     await vi.advanceTimersByTimeAsync(100)
     expect(development.onFileChange).toHaveBeenCalledWith(
-      '/workspace/prototypes/studio/server/app.ts',
+      '/workspace/apps/studio/server/app.ts',
     )
     expect(createStudioApp).toHaveBeenCalledTimes(2)
     expect(development.logger.info).toHaveBeenCalledWith(
@@ -440,9 +440,9 @@ describe('Vite Hono integration', () => {
       ssrLoadModule: studioModules({ createStudioApp }),
     })
     const workflowModule =
-      '/workspace/prototypes/studio/api/_ingestion_workflow.ts'
+      '/workspace/apps/studio/api/_ingestion_workflow.ts'
     development.serverModules.add(workflowModule)
-    development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
+    development.serverModules.add('/workspace/apps/studio/server/app.ts')
 
     await configureServerHook(apiFunctions('/free'))(development.server)
     development.change(workflowModule)
@@ -455,13 +455,13 @@ describe('Vite Hono integration', () => {
     // The handlers still recompose; only the registered workflow code is stale.
     expect(createStudioApp).toHaveBeenCalledTimes(2)
 
-    development.change('/workspace/prototypes/studio/server/app.ts')
+    development.change('/workspace/apps/studio/server/app.ts')
     await vi.advanceTimersByTimeAsync(100)
     expect(development.logger.warn).toHaveBeenCalledOnce()
     expect(development.dbos.launchStudioDbos).toHaveBeenCalledOnce()
 
     // The running DBOS keeps the configuration and queues it launched with.
-    const dbosModule = '/workspace/prototypes/studio/server/dbos.ts'
+    const dbosModule = '/workspace/apps/studio/server/dbos.ts'
     development.serverModules.add(dbosModule)
     development.change(dbosModule)
     await vi.advanceTimersByTimeAsync(100)
@@ -471,7 +471,7 @@ describe('Vite Hono integration', () => {
     )
 
     // runExtraction was registered with the ports this module built.
-    const portsModule = '/workspace/prototypes/studio/api/_extractions.ts'
+    const portsModule = '/workspace/apps/studio/api/_extractions.ts'
     development.serverModules.add(portsModule)
     development.change(portsModule)
     await vi.advanceTimersByTimeAsync(100)
@@ -570,13 +570,13 @@ describe('Vite Hono integration', () => {
         }
       },
     })
-    development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
+    development.serverModules.add('/workspace/apps/studio/server/app.ts')
     const plugin = apiFunctions('/free')
 
     await configureServerHook(plugin)(development.server)
 
     broken = true
-    development.change('/workspace/prototypes/studio/server/app.ts')
+    development.change('/workspace/apps/studio/server/app.ts')
     await vi.advanceTimersByTimeAsync(100)
     expect(development.logger.error).toHaveBeenCalledWith(
       expect.stringContaining('Unexpected token'),
@@ -590,7 +590,7 @@ describe('Vite Hono integration', () => {
     expect(next).toHaveBeenCalledWith(expect.any(Error))
 
     broken = false
-    development.change('/workspace/prototypes/studio/server/app.ts')
+    development.change('/workspace/apps/studio/server/app.ts')
     await vi.advanceTimersByTimeAsync(100)
     const recomposed = vi.fn()
     await development.middleware()(
@@ -605,7 +605,7 @@ describe('Vite Hono integration', () => {
     const development = developmentServer({
       ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
     })
-    development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
+    development.serverModules.add('/workspace/apps/studio/server/app.ts')
     development.onFileChange.mockImplementation(() => {
       throw new Error('module graph unavailable')
     })
@@ -614,7 +614,7 @@ describe('Vite Hono integration', () => {
     await configureServerHook(plugin)(development.server)
 
     expect(() =>
-      development.change('/workspace/prototypes/studio/server/app.ts'),
+      development.change('/workspace/apps/studio/server/app.ts'),
     ).not.toThrow()
     expect(development.logger.error).toHaveBeenCalledWith(
       expect.stringContaining('module graph unavailable'),

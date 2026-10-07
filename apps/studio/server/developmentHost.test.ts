@@ -4,7 +4,7 @@ import { createDevelopmentHost } from './developmentHost.js'
 function middlewareModeServer() {
   return {
     config: {
-      root: '/workspace/prototypes/studio',
+      root: '/workspace/apps/studio',
       logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
     },
     httpServer: undefined,
@@ -57,11 +57,11 @@ describe('development host lifecycle', () => {
     try {
       for (const file of ['server/dbos.ts', 'server/workflowOutcome.ts']) {
         server.config.logger.warn.mockClear()
-        change(`/workspace/prototypes/studio/${file}`)
+        change(`/workspace/apps/studio/${file}`)
         expect(server.config.logger.warn, file).toHaveBeenCalledOnce()
       }
       server.config.logger.warn.mockClear()
-      change('/workspace/prototypes/studio/server/app.ts')
+      change('/workspace/apps/studio/server/app.ts')
       expect(server.config.logger.warn).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()

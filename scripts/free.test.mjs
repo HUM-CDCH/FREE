@@ -645,9 +645,9 @@ describe('production image revisions', () => {
   // Studio Dockerfile.
   const checkout = (_command, args) => {
     const paths = args.slice(args.indexOf('--') + 1)
-    const parsing = paths.every((path) => path.startsWith('prototypes/parsing_service'))
+    const parsing = paths.every((path) => path.startsWith('apps/parsing_service'))
     if (args[0] === 'log') return { status: 0, stdout: `${parsing ? parsingSha : sha}\n` }
-    return { status: 0, stdout: parsing ? '' : ' M prototypes/studio/Dockerfile\n' }
+    return { status: 0, stdout: parsing ? '' : ' M apps/studio/Dockerfile\n' }
   }
 
   it('labels each build with the last commit of its context, dirty per context', () => {
@@ -655,9 +655,9 @@ describe('production image revisions', () => {
     assert.equal(buildRevision(BUILD_REVISIONS.FREE_REVISION_STUDIO, checkout), `${sha}-dirty`)
     assert.equal(buildRevision(['.'], () => ({ status: 128, stdout: '' })), 'unknown')
     assert.equal(buildRevision(['missing'], () => ({ status: 0, stdout: '' })), 'unknown')
-    buildRevision(['prototypes/parsing_service'], (_command, args) => {
+    buildRevision(['apps/parsing_service'], (_command, args) => {
       if (args[0] === 'status') assert.ok(args.includes('--untracked-files=no'))
-      assert.deepEqual(args.slice(-2), ['--', 'prototypes/parsing_service'])
+      assert.deepEqual(args.slice(-2), ['--', 'apps/parsing_service'])
       return { status: 0, stdout: sha }
     })
   })
@@ -673,13 +673,13 @@ describe('production image revisions', () => {
     assert.deepEqual(builtServices(JSON.stringify({ services: {
       db: { image: 'postgres:17' },
       phoenix: { image: 'arizephoenix/phoenix' },
-      studio: { build: { context: root, dockerfile: 'prototypes/studio/Dockerfile' } },
-      eval_watcher: { build: { context: `${root}/prototypes/parsing_service`, dockerfile: 'Dockerfile.eval-watcher' } },
-      parsing_service: { build: { context: `${root}/prototypes/parsing_service` } },
+      studio: { build: { context: root, dockerfile: 'apps/studio/Dockerfile' } },
+      eval_watcher: { build: { context: `${root}/apps/parsing_service`, dockerfile: 'Dockerfile.eval-watcher' } },
+      parsing_service: { build: { context: `${root}/apps/parsing_service` } },
     } }), root), [
-      { service: 'studio', paths: ['.', 'prototypes/studio/Dockerfile'] },
-      { service: 'eval_watcher', paths: ['prototypes/parsing_service', 'prototypes/parsing_service/Dockerfile.eval-watcher'] },
-      { service: 'parsing_service', paths: ['prototypes/parsing_service'] },
+      { service: 'studio', paths: ['.', 'apps/studio/Dockerfile'] },
+      { service: 'eval_watcher', paths: ['apps/parsing_service', 'apps/parsing_service/Dockerfile.eval-watcher'] },
+      { service: 'parsing_service', paths: ['apps/parsing_service'] },
     ])
   })
 

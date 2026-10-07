@@ -19,7 +19,7 @@ startup, deployment, persistence, and verification contracts.
 
 Import the backend from kei-exp commit
 `93b9435c2b9a01a5424758d917c058fc79bbc159` into
-`prototypes/parsing_service`, replacing the previous implementation. Retain
+`apps/parsing_service`, replacing the previous implementation. Retain
 the `kei_exp` Python package and its locked dependencies. FREE Studio is the
 researcher interface; the standalone experimental web application, research
 artifacts, run caches, and agent worktrees are not imported.

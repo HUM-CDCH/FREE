@@ -2,7 +2,7 @@
 
 Studio's `packages/extraction/src/extraction-method.test.ts` enumerates the same categorical inventory from the
 fixture's own factor lists and must reach the same verdicts, so TS/Python parity is a test on both sides. After an
-intended `ArticleOptions` change, regenerate from `prototypes/parsing_service`:
+intended `ArticleOptions` change, regenerate from `apps/parsing_service`:
 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. .venv/bin/python -m tests.helpers.article_options --write`
 """
 from __future__ import annotations

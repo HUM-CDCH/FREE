@@ -358,7 +358,7 @@ statuses in one `listWorkflows({workflowIDs})` call. A DBOS/store outage is
   `submitToKei` cancels its kei child before rethrowing.
 - **Contract.** Portable JSON `{ok: true, ...} | {ok: false, code, reason,
   retryable}` with ISO dates (M0 #11). Shared fixtures in
-  `prototypes/parsing_service/tests/fixtures/contracts/` are checked by pytest
+  `apps/parsing_service/tests/fixtures/contracts/` are checked by pytest
   and node:test. No PDF, page or artifact bytes enter workflow history.
 - **Acceptance.** Studio's transaction is the acceptance boundary: lock the
   row, recheck ownership, the cancel outcome and the expected head, then
@@ -1147,7 +1147,7 @@ quiescence checks.
     accountless configuration fallbacks;
   - `DELETE /api/model_config` with its UI and tests;
   - the `@napi-rs/keyring` and `env-paths` dependencies;
-  - apt `dbus-daemon` and `gnome-keyring` (`prototypes/studio/Dockerfile:5-9`),
+  - apt `dbus-daemon` and `gnome-keyring` (`apps/studio/Dockerfile:5-9`),
     and the `XDG_RUNTIME_DIR` / `DBUS_*` settings (`Dockerfile:61-63`);
   - the entrypoint's D-Bus start and empty-password keyring unlock
     (`docker/studio-entrypoint.sh:7-8,12-21`), keeping `CODEX_HOME`.
@@ -1496,7 +1496,7 @@ handlers or pages is an acceptance test of the milestone that builds it
     `_legacy_duration`, `summary`, `is_legacy`, `logged_events`, `replay`.
 - **Deleted legacy readers:**
   - v4 manifests: `pagefile.py:228` and Studio's `_kei_exp.ts:86` union; the
-    fixture `prototypes/studio/test/fixtures/kei-exp/result.json` is rewritten
+    fixture `apps/studio/test/fixtures/kei-exp/result.json` is rewritten
     as v5;
   - the `options.model` branch (`kie/extract/run.py:58,63-68`,
     `kie/extract/models.py:109-117`), which Studio never sends.
@@ -1676,7 +1676,7 @@ handlers or pages is an acceptance test of the milestone that builds it
     researcher's browser, and the Ingestion Model Choice), superseding 0006.
     Amend 0007 and 0011 as *Decision records* says.
   - Mark the Procrastinate plan and
-    `prototypes/parsing_service/docs/job-backend.md` superseded.
+    `apps/parsing_service/docs/job-backend.md` superseded.
 - **README.**
   - #5: describe the unified Extraction record and remove the unimplemented
     Prompt Revision persistence promise with its unused table.

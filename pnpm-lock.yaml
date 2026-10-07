@@ -294,9 +294,9 @@ importers:
 
   packages/studio-configuration: {}
 
-  prototypes/parsing_service: {}
+  apps/parsing_service: {}
 
-  prototypes/studio:
+  apps/studio:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^4.0.49

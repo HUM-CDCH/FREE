@@ -1,6 +1,6 @@
 """Report observations that a projected score can hide, without changing extraction or its scorer.
 
-Usage: python prototypes/parsing_service/experiments/extraction/extraction_ablation_accounting.py STUDY_DIR ANALYSIS_JSON OUTPUT_JSON
+Usage: python apps/parsing_service/experiments/extraction/extraction_ablation_accounting.py STUDY_DIR ANALYSIS_JSON OUTPUT_JSON
 This is supplementary descriptive accounting, not a new accuracy metric or new gold labels.
 """
 from __future__ import annotations

@@ -15,7 +15,7 @@ const importsOf = (name: string) =>
 test('serving code imports no experiment, validation report or Studio code', () => {
   for (const name of serving)
     for (const specifier of importsOf(name))
-      assert.doesNotMatch(specifier, /experiments|docs\/validation|prototypes\//, `${name} imports ${specifier}`)
+      assert.doesNotMatch(specifier, /experiments|docs\/validation|apps\//, `${name} imports ${specifier}`)
 })
 
 test('execution reads the admitted method only: nothing on the durable execution path touches the account configuration', () => {

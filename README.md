@@ -155,5 +155,5 @@ entry point for Codex, Claude Code and other agents (`CLAUDE.md` points to it).
 - [docs/product-contract.md](docs/product-contract.md): product and safety contract
 - [docs/adr/](docs/adr/): architecture decisions
 - [docs/operations/](docs/operations/): local development, deployment, Entra sign-in
-- [prototypes/parsing_service/README.md](prototypes/parsing_service/README.md): Parsing Service
+- [apps/parsing_service/README.md](apps/parsing_service/README.md): Parsing Service
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute

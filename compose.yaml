@@ -21,7 +21,7 @@ x-parsing-labels: &parsing-labels
   org.opencontainers.image.revision: "${FREE_REVISION_PARSING:-unknown}"
 
 x-parsing-build: &parsing-build
-  context: prototypes/parsing_service
+  context: apps/parsing_service
   labels: *parsing-labels
 
 x-tracing-environment: &tracing-environment
@@ -109,7 +109,7 @@ services:
   # and records EvaluationRound rows for the read-only Studio panel.
   eval_watcher:
     build:
-      context: prototypes/parsing_service
+      context: apps/parsing_service
       dockerfile: Dockerfile.eval-watcher
       labels: *parsing-labels
     profiles: ["eval"]
@@ -146,7 +146,7 @@ services:
   studio:
     build:
       context: .
-      dockerfile: prototypes/studio/Dockerfile
+      dockerfile: apps/studio/Dockerfile
       labels:
         org.opencontainers.image.revision: "${FREE_REVISION_STUDIO:-unknown}"
     environment:
