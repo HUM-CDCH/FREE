@@ -44,7 +44,8 @@ FREE's normative product and safety contract is:
    source-representation and schema revisions it used, and to the extraction
    method it was admitted with (its Extraction Model Choice and Extraction
    Method Settings), so newer revisions can make it stale without rewriting its
-   history. Work in progress survives too: the durable coordination head owns
+   history. Work in progress survives too: the durable coordination head
+   ([ADR 0017](adr/0017-durable-extraction-control-and-call-checkpoints.md)) owns
    an Extraction's lifecycle, saved values and control intent, while DBOS
    workflows dispatch linked attempts, retain call checkpoints and recover
    unfinished work after a restart. Other background workflow status is
@@ -118,8 +119,8 @@ deployment paths, and speculative extensibility.
 `pnpm test` is the fast tier: it needs no running stack, PostgreSQL, browser
 or model. A tier that mutates data touches only disposable targets: the
 guarded `free_test_*` databases, or a stack it creates and removes itself.
-GitHub's `verify` workflow runs `pnpm test:ci` on pull requests and pushes to
-`main` with `FREE_SKIP_PYTHON=1`, because the Parsing Service's CUDA PyTorch
+GitHub's `verify` workflow runs `pnpm test:ci` on pull requests into and
+pushes to `main` with `FREE_SKIP_PYTHON=1`, because the Parsing Service's CUDA PyTorch
 wheels do not fit the hosted runner. CI therefore skips the Parsing Service
 tiers, `test:service` and the Python-backed durable lifecycle and recovery
 checks, which full-host verification (`pnpm test:all`) must run;

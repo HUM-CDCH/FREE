@@ -10,7 +10,8 @@ It has two parts, run together with Docker Compose:
 - **Studio**: the web app (React + TypeScript) where you upload documents,
   build schemas, run extractions, review the results and export them.
 - **Parsing Service**: a Python service that parses PDFs (text or OCR) and runs
-  extraction on vLLM model servers.
+  extraction on vLLM model servers. Its code calls it *kei* (package `kei_exp`,
+  `KEI_*` settings).
 
 ## Requirements
 
@@ -22,7 +23,7 @@ It has two parts, run together with Docker Compose:
 | Python | 3.13 | Installed through [uv](https://docs.astral.sh/uv/) |
 | uv | recent | `pnpm install` runs `uv sync` for the Parsing Service |
 | mkcert | any | Run `mkcert -install` once; local HTTPS uses it |
-| NVIDIA GPU | optional | Needed for extraction and OCR of scanned PDFs (vLLM); the default models need about 60 GB of GPU memory |
+| NVIDIA GPU | optional | Needed for extraction and OCR of scanned PDFs (vLLM); Docker must see it (NVIDIA Container Toolkit on Linux); the default models need about 60 GB of GPU memory |
 
 Linux is the main target. macOS and Windows work through Docker Desktop. Plan
 for roughly 70 GB of disk with the default models: about 40 GB of model weights,
@@ -48,14 +49,18 @@ local mock identity provider, so you don't need an account or a `.env` file.
 The first start builds the images and downloads models, which can take a while.
 Stop it with Ctrl+C.
 
-If Docker can see an NVIDIA GPU, the launcher also runs the vLLM model servers.
-If you don't want them, set `FREE_GPU=off`; set `FREE_GPU=required` to stop with
+If Docker can see an NVIDIA GPU, the launcher also runs the vLLM model servers,
+and Studio starts only once they are healthy. With the default models they need
+about 60 GB of GPU memory; on a smaller GPU, choose smaller models (see
+[Models](#models)) or set `FREE_GPU=off`. Set `FREE_GPU=required` to stop with
 an error when no GPU is available. Without model servers you can still upload
 text PDFs and build schemas, but OCR and extraction need vLLM.
 
-`pnpm dev` reads settings from your shell, not from `.env`, so prefix or export
-them: `FREE_GPU=off pnpm dev`. `pnpm production` reads `.env`. To deploy for production (Microsoft Entra
-sign-in, TLS, backups), see [docs/operations/deployment.md](docs/operations/deployment.md).
+`pnpm dev` reads settings from your shell, not from `.env` (only `DATABASE_URL`,
+and the `FREE_ENTRA_*` values of `pnpm dev -- --entra`, come from `.env`), so
+prefix or export them: `FREE_GPU=off pnpm dev`. `pnpm production` reads `.env`.
+To deploy for production (Microsoft Entra sign-in, TLS, backups), see
+[docs/operations/deployment.md](docs/operations/deployment.md).
 
 ## Models
 

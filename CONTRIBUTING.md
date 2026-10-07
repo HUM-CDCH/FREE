@@ -4,7 +4,10 @@
 
 - Work on a branch from `dev`, open a pull request against `dev`, get one
   review, then merge. `dev` reaches `main` through merge PRs, which run the
-  [`verify`](.github/workflows/verify.yml) workflow.
+  [`verify`](.github/workflows/verify.yml) workflow; a pull request against
+  `dev` runs no CI, so run `pnpm typecheck`, `pnpm lint`, `pnpm test` and the
+  [tiers](docs/operations/local-development.md#verification) your change
+  touches before asking for review.
 - Reviewers, human or agent, also check the diff against
   [CODING_STANDARDS.md](CODING_STANDARDS.md).
 - Give each PR one coherent, testable review boundary: the smallest change that

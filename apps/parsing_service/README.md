@@ -1,7 +1,8 @@
 # Parsing and extraction service
 
-This directory holds FREE's Python document-processing service, package
-`kei_exp`. FREE Studio owns authentication, Project Contexts, Extraction Schemas
+This directory holds FREE's Python document-processing service, called *kei*
+in code (package `kei_exp`, settings `KEI_*`, worker `kei-worker`, database
+role `kei`). FREE Studio owns authentication, Project Contexts, Extraction Schemas
 and review. This internal service owns PDF parsing, canonical Evidence, Article
 and Catalog Extraction, and durable processing jobs. Studio is its only product
 UI.
@@ -102,7 +103,7 @@ run would lose its result.
 | `KEI_LOG_LEVEL` | Worker only: log level; default `INFO` |
 | `KEI_VLLM_URL` | OCR chat-completions endpoint, normally the `ocr_model` service |
 | `KEI_OCR_MODEL` | Default OCR model of a parse that names none (default `surya`) |
-| `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in every served parse's recipe; change it when they change, so earlier output is not reused |
+| `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in the recipe of every parse that runs an OCR model; change it when they change, so earlier output is not reused |
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |

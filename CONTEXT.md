@@ -167,7 +167,7 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (recipe Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (a single recipe Catalog Extraction only; a Batch Extraction has none), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:

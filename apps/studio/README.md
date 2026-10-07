@@ -9,9 +9,11 @@ run from the Node host in `server/`.
 Run FREE from the repository root with `pnpm dev`, which serves Studio at
 <https://localhost:8443/free>. This folder has `pnpm dev`, `pnpm test`,
 `pnpm test:e2e`, `pnpm lint` and `pnpm build`. Its `pnpm dev` runs Vite alone
-at `http://127.0.0.1:5173` and needs PostgreSQL at startup; start it first with
-`pnpm --filter db db:start`, which needs `DATABASE_URL` and `FREE_SESSION_SECRET`
-([Database operations](../../docs/operations/local-development.md#database-operations)).
+at `http://127.0.0.1:5173`. It needs PostgreSQL at startup (start it first with
+`pnpm --filter db db:start`, which needs `DATABASE_URL` and `FREE_SESSION_SECRET`;
+see [Database operations](../../docs/operations/local-development.md#database-operations))
+and `FREE_ENTRA_MOCK_ISSUER` naming a running mock OIDC issuer, or the real
+Entra values with `FREE_ENTRA_REAL=1`.
 See [local development](../../docs/operations/local-development.md) for the rest.
 
 ## Source Documents
@@ -51,7 +53,7 @@ Schema Suggestion cuts the source Markdown into gap-free windows of at most
 48,000 characters and suggests a schema per window through the Schema
 Suggestion Route. Only the windows get the researcher's instruction: read again
 at the combining step, a document-scope exclusion ("exclude the bibliography")
-removed per-entry fields in a real-model probe. Combining works level by level:
+also removes per-entry fields. Combining works level by level:
 the union of one source's windows, and in a Batch Schema Suggestion the
 intersection of the sources' suggestions. The DBOS patches
 `schema-suggestion-windows` and `batch-schema-suggestion-windows` gate these

@@ -106,7 +106,8 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   least 32 bytes. Keep it secret and stable; replacing it invalidates every
   browser session.
 - `FREE_ENTRA_TENANT_ID` and `FREE_ENTRA_CLIENT_ID` identify the single-tenant
-  application registration. `FREE_ENTRA_CLIENT_CERT_PATH` names the private-key
+  application registration; [register it](entra-authentication.md#register-the-application)
+  first, since production signs in only through Microsoft Entra ID. `FREE_ENTRA_CLIENT_CERT_PATH` names the private-key
   PEM mounted read-only into Studio; the thumbprint is the uploaded
   certificate's SHA-256 fingerprint with or without colons.
 - `FREE_POSTGRES_PASSWORD` must be the generated hexadecimal value. Compose
@@ -128,11 +129,11 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   [README](../../README.md#models) shows; in production Claude Code's
   `CLAUDE_CODE_OAUTH_TOKEN` goes in `.env`.
 - `FREE_CATALOG_METHOD` (optional; `unified`) admits new single and batch
-  Catalog Extractions on the unified Catalog method instead of the legacy
-  generic and recipe Catalog. Leave it unset until the unified method
-  has passed a preregistered held-out evaluation on independent labelled
-  documents (boundary, field and evidence quality, partial-item rate).
-  Accounts with legacy Catalog preferences must apply the unified settings
+  Catalog Extractions on the unified Catalog method instead of the generic and
+  recipe Catalog methods. It is experimental: the unified method has not yet
+  passed a held-out evaluation on independent labelled documents, so leave it
+  unset unless you have checked it on your own documents.
+  Accounts with generic or recipe Catalog preferences must apply the unified settings
   before their next Catalog Extraction; admitted work, including a retried
   Extraction ID, keeps the method it was admitted with. Unsetting it again
   pauses new unified admissions; admitted unified work still runs and reads.
@@ -227,8 +228,8 @@ sent to a changed one.
 
 A parse of PDF bytes the Parsing Service already converted with the same
 effective settings reuses the earlier result instead of running OCR again; the
-match is on the parse recipe's fingerprint
-([service contract](../../apps/parsing_service/README.md)). The OCR server's
+match is on the fingerprint of the parse's recipe: its settings, library
+versions and text rules ([service contract](../../apps/parsing_service/README.md)). The OCR server's
 image (`VLLM_IMAGE`, default `vllm/vllm-openai:latest`) and its weights
 (`datalab-to/surya-ocr-2`) are not pinned, so the recipe cannot see a change to
 either.
@@ -240,9 +241,6 @@ either.
   change keep their earlier OCR. The label is part of the recipe of every parse
   that runs an OCR model, so the first such parse of each PDF after the change
   runs OCR again; a native parse keeps reusing. Earlier results stay readable.
-- **Never bump `RESULT_VERSION` to force a re-OCR.** It is the result format:
-  the reader refuses results written at another version, so every earlier run
-  would lose its result, and extraction over its documents would fail.
 
 ## Host nginx (one-time include)
 
@@ -281,7 +279,8 @@ server {
 
 Adjust the include to the repository checkout path (or copy the rendered file
 under `/etc/nginx/` if policy requires it — then re-copy after every
-`STUDIO_BASE_PATH` change or template update). The rendered file contains only
+`STUDIO_BASE_PATH` change or template update). nginx before 1.25.1 has no
+`http2` directive: drop `http2 on;` and write `listen 443 ssl http2;` instead. The rendered file contains only
 `location` blocks for `STUDIO_BASE_PATH`, so it cannot affect anything else
 the host nginx serves. Validate and load:
 
@@ -517,12 +516,12 @@ Studio and the Parsing Service run their work as DBOS workflows in database `fre
 | --- | --- | --- |
 | `public` | Studio | Research state and each account's model configuration (no keys) |
 | `dbos` | Studio | Studio's workflows; queues `studio`, `suggest` and `gc`; the schedules `collectGarbage` (queue `gc`) and `reconcileDurableExtractions` (queue `studio`) |
-| `kei_dbos` | role `kei` | The Parsing Service's workflows; lanes `kei-convert-large`, `kei-convert-small`, `kei-extract`, `kei-gc` |
+| `kei_dbos` | role `kei` | The Parsing Service's workflows; queues `kei-convert-large`, `kei-convert-small`, `kei-extract`, `kei-gc` |
 | `extraction_runtime` | Studio (migrations); its routines belong to the `NOLOGIN` role `free_extraction_runtime` and run as `SECURITY DEFINER` | Durable Extraction coordination: heads, attempts, call checkpoints and snapshots |
 
 The `kei` role is denied on `public` and `dbos`; in `extraction_runtime` it has
-no table access, only `EXECUTE` on an allowlist of routines. One worker serves
-the one slot; never scale `parsing_worker`.
+no table access, only `EXECUTE` on an allowlist of routines. One
+`parsing_worker` process (its `KEI_SLOT`) owns the runs; never scale it.
 
 Inspect both workflow schemas from the database container (read-only queries):
 
@@ -544,7 +543,8 @@ them.
 - **Garbage collection** runs every ten minutes on queue `gc`. It cancels work
   whose outcome is already recorded or whose Project Context is gone; deletes
   current interactive history 24 hours and background history 30 days after it ends,
-  and a deleted scope's history at once; asks the Parsing Service to delete
+  and a deleted scope's history at once (a durable Extraction's history stays
+  until the Extraction is deleted); asks the Parsing Service to delete
   runs nothing references (after 24 hours) with their history; and removes
   staged PDFs of finished attempts and unreferenced canonical packages after
   24 hours. Work cancelled in the running process is kept until that process
@@ -570,7 +570,8 @@ runs. The backup set is:
   `docker compose … exec -T db pg_dump -U postgres -Fc free > free.dump` (all
   four schemas: `public`, `dbos`, `kei_dbos` and `extraction_runtime`; it
   includes workflow history — interactive results for up to about a day,
-  background inputs for up to about 30 days);
+  background inputs for up to about 30 days, and each durable Extraction's
+  results and progress until it is deleted);
 - the `source-inbox`, `parsing-runs` and `studio-data` volumes;
 - the CLI homes: `studio-config` (the Codex login under `codex/`) and
   `studio-claude`;

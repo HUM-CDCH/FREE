@@ -63,6 +63,8 @@ rebuild the image (see the watch rules in `compose.override.yaml`).
 Running Studio on the host (`pnpm --filter studio dev`) needs PostgreSQL at
 startup, because DBOS launches with the server: start it first with
 `pnpm --filter db db:start` (see [Database operations](#database-operations)).
+Sign-in also needs `FREE_ENTRA_MOCK_ISSUER` naming a running mock OIDC issuer,
+or the real Entra values with `FREE_ENTRA_REAL=1`.
 
 Stop with Ctrl+C. Data lives in named Docker volumes and survives restarts;
 the parsing run volume and the source inbox are durable inputs to future
@@ -120,7 +122,9 @@ redirect URIs differ from production only by host.
 ## Studio client against a deployment
 
 To work on browser code against a deployed Studio's real data, run only this
-checkout's client, with HMR, through `pnpm dev:spark`. Copy the certificate
+checkout's client, with HMR, through `pnpm dev:spark` (named after the DGX
+Spark deployment it was first written for; it needs an account on the
+deployment you point it at). Copy the certificate
 the deployment serves once over SSH (the host nginx's `ssl_certificate`, or
 `FREE_TLS_CERT_PATH` with the bundled nginx); `FREE_SPARK_ORIGIN` is the
 deployment's origin:
