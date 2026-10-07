@@ -11,9 +11,15 @@
 # Runs take hours and an ssh drop stops them; start this in the background.
 set -euo pipefail
 host=${BARATHEON_HOST:-baratheon}
+[[ $host =~ ^[a-zA-Z0-9][a-zA-Z0-9._@-]*$ ]] || { echo 'Invalid BARATHEON_HOST' >&2; exit 2; }
+ssh_options=()
+if [ -n "${BARATHEON_SSH_CONFIG:-}" ]; then
+  [ -r "$BARATHEON_SSH_CONFIG" ] || { echo 'BARATHEON_SSH_CONFIG must name a readable file' >&2; exit 2; }
+  ssh_options=(-F "$BARATHEON_SSH_CONFIG")
+fi
 defaults=(typecheck lint test test:safety test:postgres test:e2e test:service)
 # Other root scripts (test:postgres:node, test:all, ...) would skip the database provisioning below.
-supported=" ${defaults[*]} test:system live "
+supported=" ${defaults[*]} test:unit:python test:system live "
 usage="usage: $0 <commit> [tier...]; tiers:${supported}(default: ${defaults[*]})"
 [ $# -ge 1 ] || { echo "$usage" >&2; exit 2; }
 for tier in "${@:2}"; do
@@ -29,10 +35,10 @@ remote_bundle=/tmp/free-verify-${sha:0:8}-$$-$RANDOM.bundle
 trap 'git update-ref -d "$ref"; rm -f "$bundle"' EXIT
 git update-ref "$ref" "$sha"
 git bundle create -q "$bundle" "$ref"
-scp -q "$bundle" "$host:$remote_bundle"
+scp "${ssh_options[@]}" -q "$bundle" "$host:$remote_bundle"
 
 # Quoted heredoc: everything below expands on Baratheon, whose $HOME differs from ours.
-ssh -o ServerAliveInterval=60 "$host" bash -s -- "$sha" "$remote_bundle" "$ref" "$@" <<'REMOTE'
+ssh "${ssh_options[@]}" -o ServerAliveInterval=60 "$host" bash -s -- "$sha" "$remote_bundle" "$ref" "$@" <<'REMOTE'
 set -uo pipefail
 sha=$1 bundle=$2 ref=$3
 shift 3
@@ -108,9 +114,18 @@ step() {
 setup() { step "$@"; [ "${results[-1]##* }" = 0 ] || { tail -20 "$E/${1//:/-}.log"; exit 1; }; }
 
 echo "$sha" > "$E/verified-head.txt"
-setup install pnpm install --frozen-lockfile
+if [ "${#tiers[@]}" = 1 ] && [ "${tiers[0]}" = test:unit:python ]; then
+  setup install-python uv sync --frozen --project prototypes/parsing_service
+else
+  setup install pnpm install --frozen-lockfile
+fi
+setup python-dependencies uv run --no-sync --project prototypes/parsing_service python -c \
+  'import pytest, dbos, xgrammar, opentelemetry.sdk, opentelemetry.instrumentation.requests; from importlib.metadata import version; print({name: version(name) for name in ("pytest", "dbos", "xgrammar", "opentelemetry-sdk")})'
 for tier in "${tiers[@]}"; do
   case $tier in
+    test:unit:python)
+      step "$tier" uv run --no-sync --project prototypes/parsing_service pytest -q -m 'not postgres and not live_model'
+      ;;
     test:postgres)
       provisioned=1
       for database in "${databases[@]}"; do

@@ -129,7 +129,8 @@ describe('CI without Python', () => {
 
   it('the full chains end with the Parsing Service tiers', () => {
     const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-    assert.equal(scripts['test:unit'], 'pnpm test:unit:node && pnpm --filter parsing-service test')
+    assert.equal(scripts['test:unit'], 'pnpm test:unit:node && pnpm test:unit:python')
+    assert.equal(scripts['test:unit:python'], 'pnpm --filter parsing-service test')
     assert.equal(scripts['test:postgres'], 'pnpm test:postgres:node && pnpm --filter parsing-service test:postgres')
     assert.equal(
       scripts['test:all:node'],
@@ -199,13 +200,15 @@ describe('CI step reporting', () => {
 })
 
 describe('verify workflow', () => {
-  it('skips Python and installs no uv', () => {
+  it('keeps the Node job separate from the fast CPU Python job', () => {
     const workflow = readFileSync(new URL('../.github/workflows/verify.yml', import.meta.url), 'utf8')
-    assert.match(workflow, /^\s+FREE_SKIP_PYTHON: '1'$/m)
-    assert.doesNotMatch(workflow, /setup-uv/)
-    assert.doesNotMatch(workflow, /PARSING_TEST_DATABASE_URL/)
-    assert.doesNotMatch(workflow, /free_test_parsing/)
-    assert.match(workflow, /run: pnpm test:ci$/m)
+    const nodeJob = workflow.split('  verify-python:')[0]
+    assert.ok(/^\s+FREE_SKIP_PYTHON: '1'$/m.test(nodeJob))
+    assert.ok(!nodeJob.includes('setup-uv'))
+    assert.ok(!workflow.includes('PARSING_TEST_DATABASE_URL'))
+    assert.ok(!workflow.includes('free_test_parsing'))
+    assert.ok(/run: pnpm test:ci$/m.test(nodeJob))
+    assert.ok(workflow.includes('run: uv run --no-sync pytest -q -m "not postgres and not live_model"'))
   })
 })
 

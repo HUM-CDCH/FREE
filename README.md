@@ -133,13 +133,15 @@ mutating checks:
 | Command | Scope and infrastructure |
 | --- | --- |
 | `pnpm test` | Fast unit/static checks only; no live stack, PostgreSQL, browser, or model |
+| `pnpm test:unit:python` | Existing fast Parsing Service checks; requires the frozen Python environment |
+| `pnpm test:ops` | Shared release-tool checks using temporary repositories and mocked containers; no live deployment |
 | `pnpm test:safety` | Safety/configuration checks; no running FREE stack, but Docker is required for Compose rendering and a throwaway nginx config check; no database mutation |
 | `pnpm test:postgres` | Studio's DBOS workflows, db, extraction and Parsing Service PostgreSQL checks against caller-provisioned disposable loopback `free_test_*` databases; the DBOS checks create and drop their own schemas |
 | `pnpm test:e2e` | Playwright browser tests; creates and removes its own Docker PostgreSQL and mock-OIDC stack, migrates it, and starts Studio locally |
 | `pnpm test:service` | Isolated authenticated FREE workflows using the real Python API/worker; checks native parsing recovery/reuse, durable controls, retained corrections and exports, deletion and garbage collection; model responses are scripted unless a live endpoint is supplied |
 | `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, E2E, and the real-service workflow |
 | `pnpm test:all:node` | The deterministic tiers that need no Python environment: typecheck, lint, Node unit (`test:unit:node`), safety, db and extraction PostgreSQL (`test:postgres:node`), and E2E |
-| `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs every step of `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's job), otherwise of `test:all`, even after one fails; it prints a PASS/FAIL summary and fails if any step failed |
+| `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs every step of `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's Node job), otherwise of `test:all`, even after one fails; it prints a PASS/FAIL summary and fails if any step failed |
 | `pnpm test:live-model` | Real Ollama and Docling smoke checks; requires the configured Ollama model and may download Docling models |
 | `pnpm test:system` | Black-box contract check against its own disposable Compose project; builds and restarts the stack, scripts the external extraction-model response, sweeps garbage after project deletion, and removes its project and volumes afterward |
 | `pnpm typecheck` | TypeScript checks only; no services or data mutation |
@@ -148,11 +150,14 @@ mutating checks:
 `test:live-model` and `test:system` remain deliberately outside `test:all`
 and `test:ci`: the former requires a live model, and the latter builds and
 restarts a full Docker stack. GitHub's Linux `verify` job runs `test:ci` with `FREE_SKIP_PYTHON=1`:
-it installs no Python environment (the CUDA PyTorch wheels do not fit the
-hosted runner), so the Parsing Service tiers and `test:service` run locally,
-as the dated records in `docs/validation/` show: the PostgreSQL tier against
-a disposable database, the fast tier with none, and `test:service` against the
-stack it starts itself. `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip
+that job installs no Python environment. A separate `verify-python` job runs
+the existing fast Parsing Service tier with CPU PyTorch wheels at the frozen
+lock's versions, using [uv's CPU backend](https://docs.astral.sh/uv/guides/integration/pytorch/).
+Production's GPU dependencies and lock remain unchanged. Python PostgreSQL,
+real-service and live-model tiers still run on full verification hosts with
+their existing target guards. Both CI jobs must pass before the trusted `dev`
+workflow publishes a commit eligible for shared Baratheon release
+([operator contract](scripts/ops/README.md)). `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip
 the parsing service's `uv sync --frozen`; leave it unset on development and
 deployment hosts.
 

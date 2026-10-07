@@ -3,6 +3,16 @@
 Review-time judgement rules: things a reviewer must weigh that no linter or test
 can check. Mechanical rules belong in lint config and tests, not here.
 
+## Acceptance evidence for a bug fix
+
+Review whether the regression reaches the reported failure and whether the
+acceptance check demonstrates the intended result. Error handling, retries and
+progress messages alone do not establish that the original operation succeeds.
+For exports, inspect the resulting file's format, fields and row count. For
+performance or transfer failures, use a representative payload size. A small
+fixture may lock down the mechanism; the original scenario still needs an
+acceptance check, with any remaining limitations stated in the PR.
+
 ## Effect-reported callbacks in tests
 
 When a component reports through a callback from a React effect (e.g.

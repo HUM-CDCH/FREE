@@ -96,3 +96,49 @@ jobs:
 
       - name: Run deterministic verification
         run: pnpm test:ci
+
+  verify-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/prototypes/parsing_service/.venv-cpu
+      CUDA_VISIBLE_DEVICES: ''
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.11.7'
+          enable-cache: true
+          cache-dependency-glob: prototypes/parsing_service/uv.lock
+      - name: Check verification tools
+        run: node --test scripts/ci-python.test.mjs scripts/publish-verified-commit.test.mjs scripts/baratheon-verify.test.mjs
+      - name: Check shared release tools
+        run: python3 -m unittest discover -s scripts/ops -p 'test*.py'
+      - name: Prepare the frozen CPU test environment
+        run: node scripts/install-python-cpu.mjs
+      - name: Run fast Python checks
+        working-directory: prototypes/parsing_service
+        run: uv run --no-sync pytest -q -m "not postgres and not live_model"
+
+  publish-verified:
+    needs: [verify, verify-python]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Publish the commit eligible for release
+        env:
+          VERIFY_NODE_RESULT: ${{ needs.verify.result }}
+          VERIFY_PYTHON_RESULT: ${{ needs.verify-python.result }}
+        run: node scripts/publish-verified-commit.mjs
