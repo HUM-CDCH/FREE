@@ -139,7 +139,7 @@ const snapshotOf = (documentId: string) =>
   ({
     projectContext: {
       projectContextId,
-      name: 'Ellekilde, TAK 1355',
+      name: 'Elmbrooke, TAK 9355',
       createdAt: '2026-07-31T12:00:00.000Z',
     },
     sourceDocument: {

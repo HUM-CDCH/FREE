@@ -1,7 +1,7 @@
 """The ingest artifact and its parts: the source, the book pages cut from its spreads with their placement and
 gutter evidence, the ingest configuration, the envelope and the ingest report.
 
-Vocabulary: `CONTEXT.md`. Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
+Vocabulary: `CONTEXT.md`. Contract: `docs/design/2026-09-14-kie-model-and-ingest-design.md`
 (sections are cited as "spec 3.8" below). An artifact type checks what one stage file can know on its own. Nothing
 here reads a file, renders a spread or hashes bytes: `kie/stages/ingest.py` produces the artifact and
 `kie/artifacts.py` hashes it and reads it back.

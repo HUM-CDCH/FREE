@@ -1,16 +1,17 @@
 # FREE repository context
 
-- Read `README.md` before changing authentication, persistence, deployment,
-  database lifecycle, or verification. It is the normative product and safety
-  contract.
+- Read `docs/product-contract.md` before changing authentication, persistence,
+  deployment, database lifecycle, or verification. It is the normative product
+  and safety contract; `README.md` is the short public getting-started guide.
 - Read `CONTEXT.md` before naming or changing domain concepts.
 - Read `CONTRIBUTING.md` when recording plans, unresolved work, or durable
   decisions.
 - For Parsing Service changes, read `prototypes/parsing_service/README.md` and
   its local `CLAUDE.md`.
 - For Studio changes, read `prototypes/studio/CLAUDE.md`.
-- Baratheon (Spark) verification of a commit → `scripts/baratheon-verify.sh`.
-- Code changes → a worktree from `origin/dev`, the PR base (`origin/main` is
-  stale): `git worktree add .claude/worktrees/<name> -b <branch> origin/dev`.
+- Code changes → a worktree from `origin/dev`, the PR base:
+  `git worktree add .claude/worktrees/<name> -b <branch> origin/dev`.
 - `(spec, *Section*)` in code comments →
-  `docs/plans/2026-09-24-unified-durable-execution.md`.
+  `docs/design/unified-durable-execution.md`.
+- This repository is public: no credentials, internal hostnames/IPs, personal
+  data or non-redistributable documents in tracked files (see `CONTRIBUTING.md`).

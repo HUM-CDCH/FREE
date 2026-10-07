@@ -92,7 +92,7 @@ export const batchSchemaSuggestionSchema = z
     phase: z.enum(['SOURCES', 'MERGING', 'READY', 'HETEROGENEOUS']).nullable(),
     /** A spreadsheet-derived suggestion has no document `sources` — it's
      *  ready immediately, skipping the SOURCES/MERGING phases (design.md
-     *  D1b in openspec/changes/spreadsheet-schema-suggestion). */
+     *  D1b in the spreadsheet-schema-suggestion design). */
     sourceKind: batchSchemaSuggestionSourceKindSchema,
     /** Column name -> the matching `SchemaNode.id`, captured when a
      *  SPREADSHEET-kind suggestion was created; null for a DOCUMENTS-kind

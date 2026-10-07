@@ -15,9 +15,9 @@ const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest(
 export async function canonicalPackage(
   originalFilename: string,
   sourceDocument?: ParsedDocument,
-  pdfFilename = 'Beretning_Ellekilde_8_13.pdf',
+  pdfFilename = 'Beretning_Elmbrooke_8_13.pdf',
 ) {
-  const pdf = await readFile(resolve(import.meta.dirname, '../../../examples', pdfFilename))
+  const pdf = await readFile(resolve(import.meta.dirname, 'fixtures', pdfFilename))
   const sourceHash = sha256(pdf)
   const document = structuredClone(
     sourceDocument ?? JSON.parse(await readFile(resolve(import.meta.dirname, '../src/assets/parsed_document.v2.json'), 'utf8')),
@@ -31,7 +31,7 @@ export async function canonicalPackage(
   }
   // The bundled anchor spans UTF-8 bytes21–27: the quote prefix aligns the retained source text.
   return {
-    bytes: packCanonicalPackage({ pdf, document, markdown: '# Article fixture\n\n> Grav 8\n' }),
+    bytes: packCanonicalPackage({ pdf, document, markdown: '# Article fixture\n\n> Unit 7\n' }),
     sourceHash,
   }
 }

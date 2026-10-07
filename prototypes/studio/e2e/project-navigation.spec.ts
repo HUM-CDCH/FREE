@@ -23,7 +23,7 @@ import {
 } from './accessibility.js'
 
 const sourcePdf = fileURLToPath(
-  new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
+  new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url),
 )
 const parsedDocument = await readFile(
   fileURLToPath(
@@ -32,7 +32,7 @@ const parsedDocument = await readFile(
   'utf8',
 )
 
-const ELLEKILDE = DEMO_PROJECT_ID
+const ELMBROOKE = DEMO_PROJECT_ID
 const HORSHOLM = '00000000-0000-4000-8000-000000000144'
 const BERETNING = DEMO_DOCUMENT_ID
 const FUNDLISTE = '00000000-0000-4000-8000-000000000046'
@@ -47,7 +47,7 @@ const REPRESENTATIONS: Record<string, string> = {
 const SEED = [
   {
     projectContextId: HORSHOLM,
-    name: 'Hørsholm, TAK 1402',
+    name: 'Harrowmere, TAK 9402',
     createdAt: '2026-08-02T09:00:00.000Z',
     sourceDocuments: [
       {
@@ -59,19 +59,19 @@ const SEED = [
     ],
   },
   {
-    projectContextId: ELLEKILDE,
-    name: 'Ellekilde, TAK 1355',
+    projectContextId: ELMBROOKE,
+    name: 'Elmbrooke, TAK 9355',
     createdAt: '2026-07-31T12:00:00.000Z',
     sourceDocuments: [
       {
         sourceDocumentId: BERETNING,
-        name: 'Beretning_Ellekilde_8_13.pdf',
+        name: 'Beretning_Elmbrooke_8_13.pdf',
         createdAt: '2026-07-31T12:01:00.000Z',
         pageCount: 6,
       },
       {
         sourceDocumentId: FUNDLISTE,
-        name: 'Fundliste_Ellekilde.pdf',
+        name: 'Fundliste_Elmbrooke.pdf',
         createdAt: '2026-07-31T12:02:00.000Z',
         pageCount: 2,
       },
@@ -296,7 +296,7 @@ async function stubStudio(
           headers: immutable,
         })
       return settle({
-        body: '# Beretning\n\nGrav 8',
+        body: '# Beretning\n\nUnit 7',
         contentType: 'text/markdown; charset=utf-8',
         headers: immutable,
       })
@@ -375,7 +375,7 @@ test.describe('rail navigation', () => {
         status: 201,
         json: {
           sourceDocumentId: BERETNING,
-          name: 'Beretning_Ellekilde_8_13.pdf',
+          name: 'Beretning_Elmbrooke_8_13.pdf',
           createdAt: '2026-07-31T12:01:00.000Z',
           sourceRepresentationId: REPRESENTATIONS[BERETNING],
           revisionNumber: 2,
@@ -383,9 +383,9 @@ test.describe('rail navigation', () => {
         },
       })
     })
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}`)
     const action = page.getByRole('button', {
-      name: 'Reprocess Beretning_Ellekilde_8_13.pdf',
+      name: 'Reprocess Beretning_Elmbrooke_8_13.pdf',
       exact: true,
       includeHidden: true,
     })
@@ -500,7 +500,7 @@ test.describe('rail navigation', () => {
       })
     })
     await gotoAuthenticated(page, '/')
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
     const acceptedName = `${'😀'.repeat(176)}.pdf`
     const rejectedName = `${'😀'.repeat(177)}.pdf`
 
@@ -561,7 +561,7 @@ test.describe('rail navigation', () => {
       })
     })
     await gotoAuthenticated(page, '/')
-    await activateWithKeyboard(page, projectMenuTrigger(page, 'Hørsholm, TAK 1402'))
+    await activateWithKeyboard(page, projectMenuTrigger(page, 'Harrowmere, TAK 9402'))
     await activateWithKeyboard(
       page,
       rail(page).getByRole('button', { name: 'Open project' }),
@@ -592,7 +592,7 @@ test.describe('rail navigation', () => {
       workflowId, name: 'refused.pdf', status: 'failed', createdAt: '2026-08-24T09:00:00.000Z',
       completedAt: '2026-08-24T09:05:00.000Z', failure: { code: 'source_ingestion_failed', message: 'kei refused the PDF.' },
     }])
-    await activateWithKeyboard(page, projectMenuTrigger(page, 'Hørsholm, TAK 1402'))
+    await activateWithKeyboard(page, projectMenuTrigger(page, 'Harrowmere, TAK 9402'))
     await activateWithKeyboard(page, rail(page).getByRole('button', { name: 'Open project' }))
 
     await expect(projectPage(page).getByText('kei refused the PDF.', { exact: true })).toBeVisible()
@@ -606,7 +606,7 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
     await gotoAuthenticated(page, '/')
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
 
     const remove = projectPage(page).getByRole('button', { name: 'Delete' })
     await remove.click()
@@ -628,7 +628,7 @@ test.describe('rail navigation', () => {
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(create).toBeFocused()
 
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
     const rename = projectPage(page).getByRole('button', { name: 'Rename' })
     await rename.click()
     await page
@@ -649,7 +649,7 @@ test.describe('rail navigation', () => {
     await page.keyboard.press('Escape')
     await expect(create).toBeFocused()
 
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
     const pageActions = projectPage(page).getByLabel(
       'Actions for Oversigt_Hoersholm.pdf',
     )
@@ -682,7 +682,7 @@ test.describe('rail navigation', () => {
     await expect(page.getByRole('region', { name: 'Projects' })).toBeFocused()
 
     await page
-      .getByRole('button', { name: 'Hørsholm, TAK 1402', exact: true })
+      .getByRole('button', { name: 'Harrowmere, TAK 9402', exact: true })
       .click()
     await expect(page.getByRole('region', { name: 'Project', exact: true })).toBeFocused()
   })
@@ -732,7 +732,7 @@ test.describe('rail navigation', () => {
       page.getByRole('button', { name: 'Create project' }),
     ).toBeFocused()
 
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
     await projectPage(page).getByRole('button', { name: 'Rename' }).click()
     const rename = page.getByRole('textbox', { name: 'Project name' })
     await rename.fill('Renamed project')
@@ -759,40 +759,40 @@ test.describe('rail navigation', () => {
     page.on('pageerror', (error) => browserDiagnostics.push(error.message))
     await stubStudio(page)
     await gotoAuthenticated(page, '/')
-    await openProject(page, 'Ellekilde, TAK 1355')
+    await openProject(page, 'Elmbrooke, TAK 9355')
     const routeBefore = page.url()
 
     for (const viewport of REQUIRED_VIEWPORTS) {
       await page.setViewportSize(viewport)
       await expectOperableInViewport(
         page,
-        projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
+        projectPage(page).getByRole('heading', { name: 'Elmbrooke, TAK 9355' }),
       )
       await expectOperableInViewport(
         page,
-        projectPage(page).getByLabel('Actions for Beretning_Ellekilde_8_13.pdf'),
+        projectPage(page).getByLabel('Actions for Beretning_Elmbrooke_8_13.pdf'),
       )
     }
     await emulateBrowserZoom200(page)
     await expectOperableInViewport(
       page,
-      projectPage(page).getByLabel('Actions for Beretning_Ellekilde_8_13.pdf'),
+      projectPage(page).getByLabel('Actions for Beretning_Elmbrooke_8_13.pdf'),
     )
     await page.setViewportSize({ width: 1280, height: 800 })
 
     const actions = projectPage(page).getByLabel(
-      'Actions for Beretning_Ellekilde_8_13.pdf',
+      'Actions for Beretning_Elmbrooke_8_13.pdf',
     )
     await activateWithKeyboard(page, actions)
     const downloadEvent = page.waitForEvent('download')
     await activateWithKeyboard(
       page,
       projectPage(page).getByRole('button', {
-        name: 'Download Beretning_Ellekilde_8_13.pdf',
+        name: 'Download Beretning_Elmbrooke_8_13.pdf',
       }),
     )
     const download = await downloadEvent
-    expect(download.suggestedFilename()).toBe('Beretning_Ellekilde_8_13.pdf')
+    expect(download.suggestedFilename()).toBe('Beretning_Elmbrooke_8_13.pdf')
     const bytes = await readFile((await download.path())!)
     expect(bytes.byteLength).toBeGreaterThan(4)
     expect(bytes.subarray(0, 4).toString('ascii')).toBe('%PDF')
@@ -818,12 +818,12 @@ test.describe('rail navigation', () => {
     await activateWithKeyboard(
       page,
       projectPage(page).getByRole('button', {
-        name: 'Download Beretning_Ellekilde_8_13.pdf',
+        name: 'Download Beretning_Elmbrooke_8_13.pdf',
       }),
     )
     const alert = projectPage(page).getByRole('alert')
     await expect(alert).toHaveText(
-      'Could not download “Beretning_Ellekilde_8_13.pdf”.',
+      'Could not download “Beretning_Elmbrooke_8_13.pdf”.',
     )
     await expect(alert).not.toContainText('artifact.zip')
     await expect.poll(() => laterDownloads).toBe(0)
@@ -839,21 +839,21 @@ test.describe('rail navigation', () => {
 
     await gotoAuthenticated(page, '/')
     await expect(projectRows(page)).toHaveText([
-      /Hørsholm, TAK 1402/,
-      /Ellekilde, TAK 1355/,
+      /Harrowmere, TAK 9402/,
+      /Elmbrooke, TAK 9355/,
     ])
     await expect(
       home(page).getByRole('heading', { name: 'Projects' }),
     ).toBeVisible()
 
-    await openProject(page, 'Ellekilde, TAK 1355')
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await openProject(page, 'Elmbrooke, TAK 9355')
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toBeVisible()
-    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
+    await expect(documentRow(page, 'Fundliste_Elmbrooke.pdf')).toBeVisible()
     await expect(
-      projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
+      projectPage(page).getByRole('heading', { name: 'Elmbrooke, TAK 9355' }),
     ).toBeVisible()
 
     await page.goBack()
@@ -868,31 +868,31 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
-    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${BERETNING}`)
+    await expect(documentRow(page, 'Fundliste_Elmbrooke.pdf')).toBeVisible()
 
     // The chevron and name are one control: the other Project Context opens
     // without leaving this Source Document, and both branches stay open at
     // once — clicking it never navigates.
-    await disclosure(page, 'Hørsholm, TAK 1402').click()
+    await disclosure(page, 'Harrowmere, TAK 9402').click()
     await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
-    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
+    await expect(documentRow(page, 'Fundliste_Elmbrooke.pdf')).toBeVisible()
     await expect(page).toHaveURL(
-      `/projects/${ELLEKILDE}/documents/${BERETNING}`,
+      `/projects/${ELMBROOKE}/documents/${BERETNING}`,
     )
 
     // Its "•••" menu opens the Project Context page instead, even from the
     // open Source Document of that very Project Context.
-    await openProject(page, 'Ellekilde, TAK 1355')
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await openProject(page, 'Elmbrooke, TAK 9355')
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await expect(
-      projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
+      projectPage(page).getByRole('heading', { name: 'Elmbrooke, TAK 9355' }),
     ).toBeVisible()
 
     // And its row control collapses it while it stays the routed page.
-    await disclosure(page, 'Ellekilde, TAK 1355').click()
-    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeHidden()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await disclosure(page, 'Elmbrooke, TAK 9355').click()
+    await expect(documentRow(page, 'Fundliste_Elmbrooke.pdf')).toBeHidden()
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
   })
 
   test('reopens a directly routed Project Context across a refresh', async ({
@@ -900,19 +900,19 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
-    const project = disclosure(page, 'Ellekilde, TAK 1355')
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}`)
+    const project = disclosure(page, 'Elmbrooke, TAK 9355')
     await expect(project).toHaveAttribute('aria-current', 'page')
     await expect(project).toHaveAttribute('aria-expanded', 'true')
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toBeVisible()
 
     await page.reload()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await expect(project).toHaveAttribute('aria-current', 'page')
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toBeVisible()
   })
 
@@ -923,7 +923,7 @@ test.describe('rail navigation', () => {
     const BATCH = '00000000-0000-4000-8000-0000000001b1'
     const batchExtraction = batchExtractionSchema.parse({
       batchExtractionId: BATCH,
-      projectContextId: ELLEKILDE,
+      projectContextId: ELMBROOKE,
       schemaRevisionId: '00000000-0000-4000-8000-0000000001b2',
       extractionSchemaId: '00000000-0000-4000-8000-0000000001b3',
       extractionSchemaName: 'Places',
@@ -959,24 +959,24 @@ test.describe('rail navigation', () => {
     )
 
     // A deep link opens the tab it names, and a refresh keeps it.
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/schemas`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/schemas`)
     const tab = (name: string) =>
       projectPage(page).getByRole('tab', { name, exact: true })
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
     await expect(projectPage(page).getByRole('heading', { name: 'Build your schema from a document' })).toBeVisible()
     await page.reload()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/schemas`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
 
     // Sources is the page's entry, so it keeps the bare Project Context path.
     await tab('Sources').click()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await tab('Extractions').click()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/extractions`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions`)
 
     // The opened Batch Extraction is routed too, so it is linkable on its own.
     await projectPage(page).getByText('Places · Schema Revision 1').click()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/extractions/${BATCH}`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions/${BATCH}`)
     const members = projectPage(page).getByRole('list', {
       name: 'Batch Extraction members',
     })
@@ -986,17 +986,17 @@ test.describe('rail navigation', () => {
 
     // Back undoes each step it took to get here, tab switches included.
     await page.goBack()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/extractions`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions`)
     await expect(members).toBeHidden()
     await page.goBack()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await expect(tab('Sources')).toHaveAttribute('aria-selected', 'true')
     await page.goBack()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/schemas`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
 
     // Sources' path is the bare one, so no other segment is routable.
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/sources`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/sources`)
     await expect(
       page.getByRole('heading', {
         name: 'That project reference is invalid',
@@ -1008,16 +1008,16 @@ test.describe('rail navigation', () => {
     page,
   }) => {
     await stubStudio(page)
-    const beretning = `/projects/${ELLEKILDE}/documents/${BERETNING}`
-    const fundliste = `/projects/${ELLEKILDE}/documents/${FUNDLISTE}`
+    const beretning = `/projects/${ELMBROOKE}/documents/${BERETNING}`
+    const fundliste = `/projects/${ELMBROOKE}/documents/${FUNDLISTE}`
 
     await gotoAuthenticated(page, '/')
-    await openProject(page, 'Ellekilde, TAK 1355')
-    await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
+    await openProject(page, 'Elmbrooke, TAK 9355')
+    await documentRow(page, 'Beretning_Elmbrooke_8_13.pdf').click()
     await expect(page).toHaveURL(beretning)
-    await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
+    await documentRow(page, 'Fundliste_Elmbrooke.pdf').click()
     await expect(page).toHaveURL(fundliste)
-    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toHaveAttribute(
+    await expect(documentRow(page, 'Fundliste_Elmbrooke.pdf')).toHaveAttribute(
       'aria-current',
       'page',
     )
@@ -1025,12 +1025,12 @@ test.describe('rail navigation', () => {
     await page.goBack()
     await expect(page).toHaveURL(beretning)
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toHaveAttribute('aria-current', 'page')
     await page.goBack()
-    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await expect(
-      projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
+      projectPage(page).getByRole('heading', { name: 'Elmbrooke, TAK 9355' }),
     ).toBeVisible()
     await page.goBack()
     await expect(page).toHaveURL('/')
@@ -1039,7 +1039,7 @@ test.describe('rail navigation', () => {
     await page.goForward()
     await expect(page).toHaveURL(beretning)
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toHaveAttribute('aria-current', 'page')
   })
 
@@ -1048,33 +1048,33 @@ test.describe('rail navigation', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${BERETNING}`)
     await expect(
-      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
+      page.getByRole('tab', { name: /Beretning_Elmbrooke_8_13\.pdf/ }),
     ).toBeVisible()
 
     // Hold the next Source Document so the switch can be superseded mid-read.
     const release = studio.hold(`${FUNDLISTE}/reopen`)
-    await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
+    await documentRow(page, 'Fundliste_Elmbrooke.pdf').click()
     // The previous Source Document stays readable-in-place under the overlay.
     const opening = page.getByRole('status', {
       name: 'Opening Source Document',
     })
     await expect(opening).toBeVisible()
     await expect(
-      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
+      page.getByRole('tab', { name: /Beretning_Elmbrooke_8_13\.pdf/ }),
     ).toBeVisible()
 
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
     release()
 
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
     await expect(
-      projectPage(page).getByRole('heading', { name: 'Hørsholm, TAK 1402' }),
+      projectPage(page).getByRole('heading', { name: 'Harrowmere, TAK 9402' }),
     ).toBeVisible()
     await expect(opening).toBeHidden()
     expect(studio.cancelled).toContain(
-      `/api/project-contexts/${ELLEKILDE}/source-documents/${FUNDLISTE}/reopen`,
+      `/api/project-contexts/${ELMBROOKE}/source-documents/${FUNDLISTE}/reopen`,
     )
   })
 })
@@ -1085,9 +1085,9 @@ test.describe('reopening a routed Source Document', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${BERETNING}`)
     await expect(
-      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
+      page.getByRole('tab', { name: /Beretning_Elmbrooke_8_13\.pdf/ }),
     ).toBeVisible()
     await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
       timeout: 20_000,
@@ -1095,14 +1095,14 @@ test.describe('reopening a routed Source Document', () => {
     await expect(page.getByText('Indexing document…')).toBeHidden()
     await expect(page.getByText('Indexing failed')).toBeHidden()
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toHaveAttribute('aria-current', 'page')
 
     // Every resource the snapshot offers is pinned to the reopened revision;
     // the version query only busts caches across representation revisions.
     const resource = (artifact: string) =>
       new RegExp(
-        `^/api/project-contexts/${ELLEKILDE}/source-representations/${DEMO_REPRESENTATION_ID}/${artifact}\\?v=`,
+        `^/api/project-contexts/${ELMBROOKE}/source-representations/${DEMO_REPRESENTATION_ID}/${artifact}\\?v=`,
       )
     const resources = Object.values(
       studio.snapshots[0].sourceRepresentation.resources,
@@ -1113,10 +1113,10 @@ test.describe('reopening a routed Source Document', () => {
     // And the two the workspace reads came from that revision, same-origin.
     // Recorded paths carry no query, so they match the bare resource path.
     expect(studio.requests).toContain(
-      `/api/project-contexts/${ELLEKILDE}/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
+      `/api/project-contexts/${ELMBROOKE}/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
     )
     expect(studio.requests).toContain(
-      `/api/project-contexts/${ELLEKILDE}/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
+      `/api/project-contexts/${ELMBROOKE}/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
     )
 
     await page.reload()
@@ -1124,7 +1124,7 @@ test.describe('reopening a routed Source Document', () => {
       timeout: 20_000,
     })
     await expect(
-      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+      documentRow(page, 'Beretning_Elmbrooke_8_13.pdf'),
     ).toHaveAttribute('aria-current', 'page')
   })
 
@@ -1145,7 +1145,7 @@ test.describe('bad references and bounded failures', () => {
     // The rail stays usable, so the researcher is never stranded.
     await expect(projectRows(page)).toHaveCount(2)
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/xyz`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/xyz`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That project reference is invalid',
@@ -1165,8 +1165,8 @@ test.describe('bad references and bounded failures', () => {
     const invalid = [
       `/api/project-contexts/NOT-A-UUID`,
       `/api/project-contexts?limit=999`,
-      `/api/project-contexts/${ELLEKILDE}/source-documents/xyz/reopen`,
-      `/api/project-contexts/${ELLEKILDE}/source-representations/xyz/pdf`,
+      `/api/project-contexts/${ELMBROOKE}/source-documents/xyz/reopen`,
+      `/api/project-contexts/${ELMBROOKE}/source-representations/xyz/pdf`,
     ]
 
     for (const path of invalid) {
@@ -1186,7 +1186,7 @@ test.describe('bad references and bounded failures', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${OVERSIGT}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${OVERSIGT}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document is not in this project',
@@ -1194,10 +1194,10 @@ test.describe('bad references and bounded failures', () => {
     ).toBeVisible()
     // Containment is settled by the branch read; no snapshot is ever requested.
     expect(studio.requests).not.toContain(
-      `/api/project-contexts/${ELLEKILDE}/source-documents/${OVERSIGT}/reopen`,
+      `/api/project-contexts/${ELMBROOKE}/source-documents/${OVERSIGT}/reopen`,
     )
 
-    await openProject(page, 'Hørsholm, TAK 1402')
+    await openProject(page, 'Harrowmere, TAK 9402')
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
     await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
   })
@@ -1213,7 +1213,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     })
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}`)
     await expect(
       projectPage(page).getByRole('heading', {
         name: 'That project no longer exists',
@@ -1233,7 +1233,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     })
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${BERETNING}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document cannot be reopened',
@@ -1260,7 +1260,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     })
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${BERETNING}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document could not be opened',
@@ -1274,7 +1274,7 @@ test.describe('bad references and bounded failures', () => {
     unavailable = false
     await page.getByRole('button', { name: 'Try again' }).click()
     await expect(
-      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
+      page.getByRole('tab', { name: /Beretning_Elmbrooke_8_13\.pdf/ }),
     ).toBeVisible()
   })
 
@@ -1283,7 +1283,7 @@ test.describe('bad references and bounded failures', () => {
   }) => {
     await stubStudio(page, { artifacts: 'unavailable' })
 
-    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/documents/${BERETNING}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document could not be opened',

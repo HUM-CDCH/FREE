@@ -112,7 +112,7 @@ def test_columns_of_unequal_widths_are_all_columns():
      (50, 80, 550, 130)),
 ])
 def test_a_layout_gap_crossing_printed_content_keeps_the_region_whole(boxes, bridge):
-    # Hamburg p3: layout boxes suggest a gap that the printed text crosses. Neither axis may cut that text.
+    # A scanned map sheet, p3: layout boxes suggest a gap that the printed text crosses. Neither axis may cut that text.
     page = fake_page(boxes, unboxed=[bridge])
     regions = page.regions()
     assert len(regions) == 1
@@ -201,7 +201,7 @@ def test_a_few_missing_lines_still_extend_the_column():
 
 
 def test_column_end_recovery_gives_small_text_more_vertical_resolution():
-    # Beier spread 13, unit 26: full-height layout and its narrow-column retry both miss the last two lines.
+    # Catalogue spread 13, unit 26: full-height layout and its narrow-column retry both miss the last two lines.
     short = fake_page([(50, 40, 280, 700, "text"), (320, 40, 550, 670, "text")],
                       unboxed=[(320, 674, 550, 686), (320, 689, 550, 701)])
     initial = short._candidate_regions()
@@ -276,7 +276,7 @@ def test_no_body_blocks_at_either_resolution_is_a_cut_error():
 
 @pytest.mark.parametrize("found_initially", [True, False])
 def test_a_numbered_blank_page_keeps_its_furniture(found_initially):
-    # Katrinesminde p23 has only a page number, which must not abort the whole document.
+    # A report's p23 has only a page number, which must not abort the whole document.
     footer = Box(520, 760, 535, 780, "page_footer")
     page = fake_page([footer] if found_initially else [], unboxed=[footer[:4]])
     with patch("kei_exp.cut._layout", return_value=[] if found_initially else [footer]):

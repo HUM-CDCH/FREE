@@ -82,8 +82,8 @@ export async function parseSpreadsheetRows(
 }
 
 /** A file name's identity for matching: its base name without extension,
- *  case-folded and whitespace-collapsed, so `sources/Beier1988 GAC.pdf` and a
- *  Source Document named `Beier1988 GAC.pdf` resolve to the same document. */
+ *  case-folded and whitespace-collapsed, so `sources/Bauer1988 GAC.pdf` and a
+ *  Source Document named `Bauer1988 GAC.pdf` resolve to the same document. */
 function documentKey(name: string): string {
   const base = name.trim().replace(/^.*[\\/]/, '')
   const stem = base.replace(/\.[^.]+$/, '')
@@ -242,7 +242,7 @@ function nodeIdAtPath(nodes: readonly SchemaNode[], path: readonly string[]): st
  * Maps each column's name to the id of the `SchemaNode` its path resolved
  * to in the confirmed suggestion — the stable identity a renamed field can
  * still be traced back through (design.md D3 in
- * openspec/changes/spreadsheet-schema-suggestion).
+ * the spreadsheet-schema-suggestion design).
  */
 export function columnFieldIds(
   nodes: readonly SchemaNode[],

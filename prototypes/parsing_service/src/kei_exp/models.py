@@ -37,7 +37,7 @@ MODELS: dict[str, Model] = {
         spec_key="infinity_parser",
     ),
     # Render DPI follows Surya's own vLLM launcher default. Its 18,000-token context and 12,288
-    # full-page output cap do not: the whole Beier spread needs 13,062 output tokens after 6,259
+    # full-page output cap do not: the whole Bauer spread needs 13,062 output tokens after 6,259
     # for image and prompt (measured at Surya's client-side image cap, so prefill cannot grow much),
     # and the overflow is lost silently (see transcription.surya). 24,576 = 16,384 output + 8,192 prefill.
     # The four decoding settings Surya would otherwise read from the environment, pinned so a run's recipe names

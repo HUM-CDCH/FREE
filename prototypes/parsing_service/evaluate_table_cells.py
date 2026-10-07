@@ -22,7 +22,7 @@ from kei_exp.transcription.tables import table_of_html
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('result', type=Path)
-    parser.add_argument('--pdf', type=Path, default=Path('../../examples/Beretning_Ellekilde_8_13.pdf'))
+    parser.add_argument('--pdf', type=Path, required=True)
     parser.add_argument('--url', required=True)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()

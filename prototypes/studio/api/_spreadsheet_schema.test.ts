@@ -97,7 +97,7 @@ describe('parseSpreadsheetRows', () => {
 
 describe('mapGoldRows', () => {
   const documents = [
-    { sourceDocumentId: 'doc-a', filename: 'Beier1988 GAC.pdf' },
+    { sourceDocumentId: 'doc-a', filename: 'Bauer1988 GAC.pdf' },
     { sourceDocumentId: 'doc-b', filename: 'Harvey 1990.pdf' },
   ]
 
@@ -105,8 +105,8 @@ describe('mapGoldRows', () => {
     const parsed = {
       columns: [{ columnName: 'filename' }, { columnName: 'species' }],
       rows: [
-        { filename: 'sources/Beier1988 GAC.pdf', species: 'Salmon' },
-        { filename: 'beier1988 gac', species: 'Cod' },
+        { filename: 'sources/Bauer1988 GAC.pdf', species: 'Salmon' },
+        { filename: 'bauer1988 gac', species: 'Cod' },
         { filename: 'Harvey 1990.pdf', species: 'Trout' },
         { filename: 'Unknown.pdf', species: 'Pike' },
       ],
@@ -117,7 +117,7 @@ describe('mapGoldRows', () => {
       documents: [
         {
           sourceDocumentId: 'doc-a',
-          filename: 'Beier1988 GAC.pdf',
+          filename: 'Bauer1988 GAC.pdf',
           rows: [{ species: 'Salmon' }, { species: 'Cod' }],
         },
         {
@@ -127,7 +127,7 @@ describe('mapGoldRows', () => {
         },
       ],
       unmatched: [
-        { filename: 'Unknown.pdf', known: ['Beier1988 GAC.pdf', 'Harvey 1990.pdf'] },
+        { filename: 'Unknown.pdf', known: ['Bauer1988 GAC.pdf', 'Harvey 1990.pdf'] },
       ],
     })
   })
@@ -140,7 +140,7 @@ describe('mapGoldRows', () => {
     expect(mapGoldRows(parsed, documents)).toEqual({
       ok: true,
       documents: [],
-      unmatched: [{ filename: '', known: ['Beier1988 GAC.pdf', 'Harvey 1990.pdf'] }],
+      unmatched: [{ filename: '', known: ['Bauer1988 GAC.pdf', 'Harvey 1990.pdf'] }],
     })
   })
 

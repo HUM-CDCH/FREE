@@ -6,7 +6,7 @@ different layers and must not depend on each other to agree. The ingest artifact
 recomputes (`kei_exp.pagefile`) are all taken over this encoding; putting it with any one of them would make the
 others import that one's package to hash.
 
-Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md` section 5.
+Contract: `docs/design/2026-09-14-kie-model-and-ingest-design.md` section 5.
 """
 
 import hashlib

@@ -280,7 +280,7 @@ def synthetic() -> DoclingDocument:
     data = TableData(num_rows=1, num_cols=2, table_cells=cells)
     # The furniture the PDF pipeline files every running header and footer under, in the document order Docling
     # yields it: the header opens the page, the page number closes it.
-    document.add_text(label=DocItemLabel.PAGE_HEADER, text="Beier, Catalogue", prov=at(398, 392),
+    document.add_text(label=DocItemLabel.PAGE_HEADER, text="Bauer, Catalogue", prov=at(398, 392),
                       content_layer=ContentLayer.FURNITURE)
     document.add_text(label=DocItemLabel.TEXT, text="a & b <c>", prov=at(390, 370))
     document.add_heading(text="Head", level=1, prov=at(360, 350))
@@ -322,7 +322,7 @@ def test_a_native_page_publishes_its_running_header_and_page_number(synthetic):
     """
     blocks = blocks_of(synthetic, 1)
     labelled = {block["label"]: block["html"] for block in blocks}
-    assert labelled["PageHeader"] == "<p>Beier, Catalogue</p>" and labelled["PageFooter"] == "<p>7</p>"
+    assert labelled["PageHeader"] == "<p>Bauer, Catalogue</p>" and labelled["PageFooter"] == "<p>7</p>"
     # In document order, not appended after the body: the header opens the page and the page number closes it.
     labels = [block["label"] for block in blocks]
     assert labels[0] == "PageHeader" and labels[-1] == "PageFooter"

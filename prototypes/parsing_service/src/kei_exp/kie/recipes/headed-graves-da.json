@@ -1,7 +1,7 @@
 {
   "id": "headed-graves-da",
   "version": 1,
-  "description": "Danish grave descriptions headed by a standalone 'Grav N' line. Developed on the supplied Ellekilde excerpt; unmeasured transfer. No field is automatically accepted from the numeric label because the printed prefix is part of the identifier.",
+  "description": "Danish grave descriptions headed by a standalone 'Grav N' line. Developed on one supplied excavation-report excerpt; unmeasured transfer. No field is automatically accepted from the numeric label because the printed prefix is part of the identifier.",
   "structure": {
     "entry_marker": "Grav\\s+(?P<number>\\d{1,4})(?P<suffix>[a-z]?)\\s*$",
     "inline_marker": "(?!)Grav (?P<number>\\d+)",

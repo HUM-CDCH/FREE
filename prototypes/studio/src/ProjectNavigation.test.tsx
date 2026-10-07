@@ -95,7 +95,7 @@ const secondSourceDocumentId = '51000000-0000-4000-8001-000000000003'
 const representationId = '51000000-0000-4000-8002-000000000001'
 const project = {
   projectContextId,
-  name: 'Ellekilde, TAK 1355',
+  name: 'Elmbrooke, TAK 9355',
   createdAt: '2026-07-31T12:00:00.000Z',
 }
 const beretning = {
@@ -355,7 +355,7 @@ async function openProjectPage(name = project.name) {
 
 const secondProject = {
   projectContextId: '51000000-0000-4000-8000-000000000002',
-  name: 'Fæstningen, TAK 1400',
+  name: 'Fernhollow, TAK 9400',
   createdAt: '2026-08-11T09:00:00.000Z',
 }
 
@@ -386,7 +386,7 @@ function lifecycleFetch(
         return (
           options.patch?.() ??
           Response.json({
-            projectContext: { ...project, name: 'Ellekilde II' },
+            projectContext: { ...project, name: 'Elmbrooke II' },
           })
         )
       case 'DELETE':
@@ -738,7 +738,7 @@ describe('Project Context lifecycle in the rail', () => {
       'Use no more than 512 characters.',
     )
 
-    fireEvent.change(name, { target: { value: '  Fæstningen, TAK 1400  ' } })
+    fireEvent.change(name, { target: { value: '  Fernhollow, TAK 9400  ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(
@@ -831,7 +831,7 @@ describe('Project Context lifecycle in the rail', () => {
                 503,
               )
             : Response.json({
-                projectContext: { ...project, name: 'Ellekilde II' },
+                projectContext: { ...project, name: 'Elmbrooke II' },
               })
         },
       }),
@@ -839,22 +839,22 @@ describe('Project Context lifecycle in the rail', () => {
     const page = await openProjectPage()
     fireEvent.click(within(page).getByRole('button', { name: 'Rename' }))
     const name = screen.getByRole('textbox', { name: 'Project name' })
-    fireEvent.change(name, { target: { value: 'Ellekilde II' } })
+    fireEvent.change(name, { target: { value: 'Elmbrooke II' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Project Context storage is unavailable.',
     )
-    expect(name).toHaveValue('Ellekilde II')
+    expect(name).toHaveValue('Elmbrooke II')
     expect(
-      screen.queryByRole('button', { name: railRow('Ellekilde II') }),
+      screen.queryByRole('button', { name: railRow('Elmbrooke II') }),
     ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
 
     expect(
-      await screen.findByRole('button', { name: railRow('Ellekilde II') }),
+      await screen.findByRole('button', { name: railRow('Elmbrooke II') }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('textbox', { name: 'Project name' }),
@@ -958,10 +958,10 @@ describe('Project Context lifecycle in the rail', () => {
     )
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Project name' }),
-      { target: { value: 'Ellekilde II' } },
+      { target: { value: 'Elmbrooke II' } },
     )
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
-    await screen.findByRole('button', { name: railRow('Ellekilde II') })
+    await screen.findByRole('button', { name: railRow('Elmbrooke II') })
 
     // This list read started before the rename and still carries the old name.
     list.resolve(projectListResponse([project]))
@@ -972,7 +972,7 @@ describe('Project Context lifecycle in the rail', () => {
       ).not.toBeInTheDocument(),
     )
     expect(
-      screen.getByRole('button', { name: railRow('Ellekilde II') }),
+      screen.getByRole('button', { name: railRow('Elmbrooke II') }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: railRow() }),

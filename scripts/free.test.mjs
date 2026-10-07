@@ -88,7 +88,7 @@ const interfaces = {
     { address: '10.20.30.40', family: 'IPv4', internal: false },
   ],
   'Wi-Fi': [
-    { address: '192.168.1.149', family: 'IPv4', internal: false },
+    { address: '192.168.1.10', family: 'IPv4', internal: false },
   ],
 }
 
@@ -226,10 +226,10 @@ describe('development launcher profiles', () => {
   })
 
   it('selects Wi-Fi ahead of other private adapters', () => {
-    assert.equal(selectWifiAddress(interfaces), '192.168.1.149')
+    assert.equal(selectWifiAddress(interfaces), '192.168.1.10')
     const profile = deriveDevProfile(parseDevOptions(['--wifi']), interfaces)
 
-    assert.equal(profile.origin, 'https://192.168.1.149:8443')
+    assert.equal(profile.origin, 'https://192.168.1.10:8443')
     assert.equal(profile.nginxBind, '0.0.0.0')
   })
 

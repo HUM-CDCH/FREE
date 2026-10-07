@@ -150,7 +150,7 @@ export function createResearcherApiHandlers(
    *  (`GET/POST /api/project-spreadsheets`, shared across every action
    *  that wants it, not a one-off upload per suggestion) and is built
    *  synchronously, immediately READY (design.md D1b/D4 in
-   *  openspec/changes/spreadsheet-schema-suggestion). */
+   *  the spreadsheet-schema-suggestion design). */
   const createFromSpreadsheet = async (request: Request) => {
     const parsed = batchSchemaSuggestionCreateFromSpreadsheetRequestSchema.safeParse(
       await parseJsonRequest(request),

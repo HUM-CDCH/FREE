@@ -98,7 +98,7 @@ def test_the_document_root_keeps_every_array_item_across_value_contexts():
     read in different contexts stay, and are named as possible repeats; scalars still conflict to null."""
     first = {"title": "Report", "year": 1827, "place": None,
              "finds": [{"kind": "sword", "tags": ["iron"]}, {"kind": "urn", "tags": None}],
-             "authors": ["Beier", "Hansen"], "site": {"name": "Hill", "parish": None}}
+             "authors": ["Bauer", "Hansen"], "site": {"name": "Hill", "parish": None}}
     second = {"title": "Report", "year": 1828, "place": "Ribe",
               "finds": [{"kind": "urn", "tags": None}, {"kind": "spear", "tags": ["iron", "iron"]}],
               "authors": ["Hansen"], "site": {"name": None, "parish": "Vedsted"}}
@@ -106,7 +106,7 @@ def test_the_document_root_keeps_every_array_item_across_value_contexts():
     assert root == {"title": "Report", "year": None, "place": "Ribe",
                     "finds": [{"kind": "sword", "tags": ["iron"]}, {"kind": "urn", "tags": None},
                               {"kind": "urn", "tags": None}, {"kind": "spear", "tags": ["iron", "iron"]}],
-                    "authors": ["Beier", "Hansen", "Hansen"], "site": {"name": "Hill", "parish": "Vedsted"}}
+                    "authors": ["Bauer", "Hansen", "Hansen"], "site": {"name": "Hill", "parish": "Vedsted"}}
     assert conflicts == [{"path": ["year"], "candidates": [1827, 1828]}]
     assert repeats == [{"path": ["finds"], "contexts": [0, 1], "indices": [1, 2]},
                        {"path": ["authors"], "contexts": [0, 1], "indices": [1, 2]}] and joined == []
@@ -133,8 +133,8 @@ def grounded_by_first_label(system, user, schema):
 
 
 def test_an_article_with_nested_arrays_is_one_root_with_evidence_for_every_leaf():
-    source = passages(["Hill excavation, by Beier and Hansen.", "A sword of iron and bronze; an urn of clay."])
-    reply = {"title": "Hill excavation", "year": None, "place": None, "authors": ["Beier", "Hansen"],
+    source = passages(["Hill excavation, by Bauer and Hansen.", "A sword of iron and bronze; an urn of clay."])
+    reply = {"title": "Hill excavation", "year": None, "place": None, "authors": ["Bauer", "Hansen"],
              "finds": [{"kind": "sword", "materials": ["iron", "bronze"]}, {"kind": "urn", "materials": ["clay"]}]}
     systems = []
 
@@ -161,7 +161,7 @@ def test_an_article_with_nested_arrays_is_one_root_with_evidence_for_every_leaf(
 
 def bounded_article(script, **method):
     """Article over two value contexts: each passage alone fills an 8192-token window."""
-    source = passages(["Report by Beier. Finds: sword, urn. Dated 1827. " + "filler " * 3000,
+    source = passages(["Report by Bauer. Finds: sword, urn. Dated 1827. " + "filler " * 3000,
                        "Finds: urn, spear. Dated 1828. Found at Ribe. " + "filler " * 3000])
     request = run.ExtractRequest.model_validate({"schema": NESTED.model_dump(by_alias=True, exclude_none=True),
         "options": {"strategy": "article", "article": {"context": "bounded", "context_tokens": 8192, **method}}})
@@ -173,8 +173,8 @@ def two_parts(system, user, schema):
     if "title" not in schema["properties"]:  # grounding: nothing attested
         return {claim: ({"label": "NONE", "quote": "", "attribution": False} if spec.get("type") == "object"
                         else "NONE") for claim, spec in schema["properties"].items()}
-    if "Report by Beier" in user:
-        return {"title": None, "year": 1827, "place": None, "authors": ["Beier"],
+    if "Report by Bauer" in user:
+        return {"title": None, "year": 1827, "place": None, "authors": ["Bauer"],
                 "finds": [{"kind": "sword", "materials": None}, {"kind": "urn", "materials": None}]}
     return {"title": None, "year": 1828, "place": "Ribe", "authors": None,
             "finds": [{"kind": "urn", "materials": None}, {"kind": "spear", "materials": None}]}
@@ -185,7 +185,7 @@ def two_parts(system, user, schema):
 def test_a_bounded_article_assembles_one_root_across_contexts_without_deduplicating_items(method):
     result = bounded_article(two_parts, **method)
     assert len(result["value_contexts"]) == 1 and len(result["value_contexts"][0]) == 2
-    assert result["records"] == [{"title": None, "year": None, "place": "Ribe", "authors": ["Beier"],
+    assert result["records"] == [{"title": None, "year": None, "place": "Ribe", "authors": ["Bauer"],
         "finds": [{"kind": "sword", "materials": None}, {"kind": "urn", "materials": None},
                   {"kind": "urn", "materials": None}, {"kind": "spear", "materials": None}]}]
     assert result["conflicts"]["records"] == [{"record": 0, "path": ["year"], "candidates": [1827, 1828]}]

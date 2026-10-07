@@ -27,7 +27,7 @@ from kei_exp.pages import PageSource, RenderablePage
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
 
 LAYOUT_DPI = 100          # The layout detector resizes to 640 px; 100 dpi keeps the ink profile usable.
-# ponytail: fixed thresholds tuned on the Beier scan (9 pt column gaps, 90 pt gutter);
+# ponytail: fixed thresholds tuned on the Bauer scan (9 pt column gaps, 90 pt gutter);
 # derive them from the document's median line pitch if another corpus fails the checks.
 MIN_GAP = 6               # pt: narrower gaps are word spacing or box jitter
 SPAN = 0.6                # a block at least this fraction of its region's width may bridge columns

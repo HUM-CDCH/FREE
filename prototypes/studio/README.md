@@ -16,7 +16,7 @@ pnpm start
 Local development uses Vite's implicit localhost binding at
 `http://localhost:5173`; the Parsing Service defaults to
 `http://127.0.0.1:8055`. The root `compose.yaml` supplies the supported private
-HTTPS deployment. See [the root deployment guide](../../README.md#network-exposure-and-proxy-trust)
+HTTPS deployment. See [the deployment guide](../../docs/operations/deployment.md#network-exposure-and-proxy-trust)
 for its port boundary and the production Node host's explicit trust modes.
 
 From this folder:
@@ -57,8 +57,9 @@ Ollama, OpenAI, Anthropic, Google, vLLM, and generic OpenAI-compatible connectio
 The Studio container includes the Codex CLI and Claude Code. Enable them with `FREE_DEPLOYMENT_CLI_PROVIDERS`, then log in once inside the running container:
 
 ```bash
-docker compose exec studio codex login --device-auth
-docker compose exec studio codex login status
+studio=$(docker ps -qf label=com.docker.compose.service=studio)
+docker exec -it "$studio" pnpm --filter studio exec codex login --device-auth
+docker exec "$studio" pnpm --filter studio exec codex login status
 ```
 
 Claude Code authenticates from `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`). The Codex home and Claude Code's state live in the `studio-config` and `studio-claude` volumes, so rebuilding the image keeps the logins.

@@ -2,9 +2,9 @@
 
 Date: 2026-09-27. Status: accepted; supersedes, for uploads, the thirty-minute
 upload wait of the DBOS plan
-([2026-09-24-unified-durable-execution.md](../plans/2026-09-24-unified-durable-execution.md),
+(2026-09-24-unified-durable-execution.md,
 *Source ingestion*) and its out-of-scope line on asynchronous ingestion.
-Plan: [2026-09-27-server-owned-source-ingestion.md](../plans/2026-09-27-server-owned-source-ingestion.md).
+Plan: 2026-09-27-server-owned-source-ingestion.md.
 
 ## Context
 

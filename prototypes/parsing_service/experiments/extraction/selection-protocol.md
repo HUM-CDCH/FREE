@@ -34,7 +34,7 @@ canonical inputs, schema, selector code and protocol before evaluation.
 
 Replay audit amendment (R2a): a repeated identical request with different captured
 replies is ambiguous when earlier calls are omitted, so refuse that source rather
-than choose a response. The initial R2 Katrinesminde implementation canary is
+than choose a response. The initial R2 implementation canary is
 superseded and excluded from the R2a report. This integrity guard does not change
 the selector, outcome definitions or source set.
 

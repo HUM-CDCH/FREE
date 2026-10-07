@@ -26,7 +26,7 @@ from tests.helpers.replay import Replay
 from tests.helpers.synthetic import cases
 
 TEXTS = ["Fund fra Hjortlund", "31. Hjortlund sogn. Gravhøj med spyd, 1827.", "Se også nr. 32.",
-         "32. Vester Vedsted. Urne af ler.", "Litteratur: Beier 1988."]
+         "32. Vester Vedsted. Urne af ler.", "Litteratur: Bauer 1988."]
 
 
 def passages(texts=TEXTS, page=1) -> list[Passage]:
@@ -35,7 +35,7 @@ def passages(texts=TEXTS, page=1) -> list[Passage]:
 
 
 def evidence(items=None) -> Evidence:
-    return Evidence(run_id="run-x", generation="g1", digest="d1", source_name="beier.pdf", page_count=1,
+    return Evidence(run_id="run-x", generation="g1", digest="d1", source_name="bauer.pdf", page_count=1,
                     passages=tuple(items or passages()))
 
 
@@ -380,10 +380,10 @@ def test_verification_reports_unknown_labels_and_missing_claims_and_leaves_them_
 
 
 def test_merge_orders_fields_as_the_schema_does_and_adds_document_and_filename_values():
-    merged = merge({"site": "Hjortlund", "entry_no": "31", "year": None, "finds": None}, {"title": "Beier 1988"},
-                   "beier.pdf", SCHEMA)
+    merged = merge({"site": "Hjortlund", "entry_no": "31", "year": None, "finds": None}, {"title": "Bauer 1988"},
+                   "bauer.pdf", SCHEMA)
     assert list(merged) == ["entry_no", "site", "year", "finds", "title", "filename"]
-    assert merged["title"] == "Beier 1988" and merged["filename"] == "beier.pdf"
+    assert merged["title"] == "Bauer 1988" and merged["filename"] == "bauer.pdf"
 
 
 def test_extract_composes_the_stages_into_a_complete_grounded_artifact(digital_pdf, tmp_path):
@@ -423,7 +423,7 @@ def test_an_article_whose_document_states_nothing_is_one_empty_root_and_the_inve
     chat = FakeChat(lambda s, u, schema: pytest.fail("no inventory") if "records" in schema["properties"] else {})
     result = extract_over(evidence(), request, chat)
     assert result["records"] == [{"entry_no": None, "site": None, "year": None, "finds": None, "title": None,
-                                  "filename": "beier.pdf"}]
+                                  "filename": "bauer.pdf"}]
     assert result["issues"] == [] and result["ungrounded"] == [] and result["complete"] is True
     without = FakeChat(lambda s, u, schema: {"nothing": 1})
     found, (call,), issues = inventory(passages(), SCHEMA, without, counter=FixedCounter())
@@ -439,7 +439,7 @@ def test_document_fields_are_declared_unverified():
             return one_identity(schema)
         if "entry_no" in schema["properties"]:
             return {"entry_no": "31"}
-        return {"title": "Beier 1988"} if "title" in schema["properties"] else {"C1": "E2"}
+        return {"title": "Bauer 1988"} if "title" in schema["properties"] else {"C1": "E2"}
     chat = FakeChat(script)
     result = extract_over(evidence(), request, chat)
     assert result["unverified"] == ["title"] and result["complete"] is True
@@ -587,7 +587,7 @@ def test_a_record_call_that_loops_on_whitespace_is_read_once_more_under_a_bounde
     assert first["error"].startswith(WHITESPACE_LOOP)
     assert (second["ok"], second["recovered"]) == (True, False)
     assert result["records"][0] | {"title": None} == {"entry_no": "31", "site": "Hjortlund sogn", "year": 1827,
-                                                      "finds": ["spyd"], "title": None, "filename": "beier.pdf"}
+                                                      "finds": ["spyd"], "title": None, "filename": "bauer.pdf"}
     assert result["ungrounded"] == [] and len(result["evidence"]) == 4
     assert result["issues"] == [] and result["complete"] is True
     assert result["tokens"]["output"] == sum(call["output_tokens"] for call in result["calls"])
@@ -599,7 +599,7 @@ def test_a_recovery_that_loops_again_leaves_the_record_null_with_both_failures(m
     assert len(records) == 2
     assert [(call["ok"], call["recovered"]) for call in record_calls(result)] == [(False, False)] * 2
     assert [issue["code"] for issue in result["issues"]] == ["call_failed", "call_failed"]
-    assert set(result["records"][0].values()) == {None, "beier.pdf"} and result["complete"] is False
+    assert set(result["records"][0].values()) == {None, "bauer.pdf"} and result["complete"] is False
 
 
 def test_a_refused_recovery_is_recorded_as_a_failed_call_and_the_extraction_finishes(monkeypatch):
@@ -667,7 +667,7 @@ def test_a_record_without_record_fields_makes_no_record_call(node):
     request = ExtractRequest.model_validate({"schema": {"recordDescription": "One numbered catalogue entry.",
                                                         "schemaNodes": [node]}, "options": {"strategy": "catalog"}})
     result = catalog.extract(None, evidence(), request, Router(fields=FakeChat(script), reasoning=FakeChat(script)))
-    assert result["records"] == [{node["name"]: "beier.pdf" if node["name"] == "filename" else None}]
+    assert result["records"] == [{node["name"]: "bauer.pdf" if node["name"] == "filename" else None}]
     assert record_calls(result) == []
     if node["name"] == "filename":
         assert result["complete"] is True and result["issues"] == []

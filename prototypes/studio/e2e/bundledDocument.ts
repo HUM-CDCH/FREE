@@ -7,7 +7,7 @@ import { projectContextFixture } from '../api/project_contexts.fixture.js'
 import { activateWithKeyboard } from './accessibility.js'
 
 const sourcePdf = fileURLToPath(
-  new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
+  new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url),
 )
 const parsedDocument = await readFile(
   fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url)),
@@ -20,7 +20,7 @@ const emptyExtractions = {
   },
 }
 
-/** Serves the bundled Ellekilde project and its page-scoped PDF from fixtures. */
+/** Serves the bundled Elmbrooke project and its page-scoped PDF from fixtures. */
 export async function routeBundledDocument(page: Page): Promise<void> {
   const store = projectContextFixture()
   const projectContexts = createGetProjectContexts(store)
@@ -47,7 +47,7 @@ export async function routeBundledDocument(page: Page): Promise<void> {
           body: parsedDocument,
           contentType: 'application/json',
         })
-      return route.fulfill({ body: '# Source Document\n\nGrav 8' })
+      return route.fulfill({ body: '# Source Document\n\nUnit 7' })
     },
   )
 }
@@ -57,12 +57,12 @@ export async function openBundledDocument(page: Page): Promise<void> {
   await activateWithKeyboard(
     page,
     page.getByRole('button', {
-      name: /Source Documents in Ellekilde, TAK 1355$/,
+      name: /Source Documents in Elmbrooke, TAK 9355$/,
     }),
   )
   await activateWithKeyboard(
     page,
-    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
+    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Elmbrooke_8_13.pdf' }),
   )
   await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
     timeout: 15_000,

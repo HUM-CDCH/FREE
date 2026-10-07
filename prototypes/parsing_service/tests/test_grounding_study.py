@@ -201,7 +201,7 @@ def test_runner_dispatch_and_offline_replay_preserve_completed_and_budget_outcom
         assert len(generated) == saved["execution"]["fresh_calls"]
     else:
         assert not (directory / "result.json").exists() and terminal["error_type"] == "TimeoutError"
-    helper = Path(__file__).resolve().parents[3] / "docs/validation/extraction_grounding_replay.py"
+    helper = Path(__file__).resolve().parents[1] / "experiments/extraction/extraction_grounding_replay.py"
     replay_cell = runpy.run_path(str(helper))["replay_cell"]
     def forbidden(*_args, **_kwargs):
         pytest.fail("offline replay made an HTTP request")

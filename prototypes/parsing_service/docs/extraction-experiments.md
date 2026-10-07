@@ -258,7 +258,7 @@ budget/no-evidence refusals; `stopped_after_support` retains unvisited units.
 The separately recorded `grounding_routing_version` participates in fingerprints.
 
 These methods are opt-in prototypes. Their controlled live comparison remains in
-the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md).
+the follow-up plan.
 They do not alter the running frozen R1/R2a/R3/R4 study.
 
 The shared decoder accepts literal control characters only inside strings and
@@ -303,7 +303,7 @@ disables glossary normalization; heading-off disables inherited bindings and
 heading context; overlap-off disables neighboring context and window overlap.
 
 `headed-graves-da@1` is a narrow, declared recipe for standalone `Grav N`
-headings. It was developed on the supplied Ellekilde excerpt. Its seven detected
+headings. It was developed on one supplied excavation-report excerpt. Its seven detected
 blocks and complete line disposition are observations, not annotated block F1.
 It does not apply the German catalogue's field bindings or strip `Grav` from a
 printed identifier. Transfer to other grave reports is unmeasured.
@@ -311,7 +311,7 @@ printed identifier. Transfer to other grave reports is unmeasured.
 ## Research boundary
 
 The assemblies implement controllable adaptations of the intentions in
-[kei-exp's literature review](https://github.com/GennaroBaratta/kei-exp/blob/4f724dd9d576329e4b8a53c6f25d3da8c84fe319/docs/literature.md):
+kei-exp's literature review:
 bounded decomposition, stable source IDs, overlap, explicit nulls, deterministic
 verification, and schema/glossary context. They do not replicate trained models,
 coordinate-embedding experiments, supervised SCRI/GEC training, stochastic voting,

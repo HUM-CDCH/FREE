@@ -42,9 +42,9 @@ class _Handler(BaseHTTPRequestHandler):
         fake = cast(_Server, self.server).fake
         payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         fake.requests.append(payload)
-        text = "# Kreis Wanzleben\n\nGrüße: 76. Ampfurth."
+        text = "# Kreis Heide\n\nGrüße: 76. Adorf."
         if payload["model"] == MODELS["granite_docling"].repo:
-            text = "<doctag><text><loc_0><loc_0><loc_500><loc_500>Grüße: 76. Ampfurth.</text></doctag>"
+            text = "<doctag><text><loc_0><loc_0><loc_500><loc_500>Grüße: 76. Adorf.</text></doctag>"
         else:
             text += "\n\n76. First site\n\n1. Find\n\n77. Second site"
         if payload["model"] == MODELS["infinity_parser"].repo:
@@ -139,7 +139,7 @@ def test_each_vlm_record_converts_the_scan_and_refuses_a_truncated_output(model,
         argv += ["--stream"]
     assert exit_code(*argv) is None
     markdown = (output / f"{scan_pdf.stem}.md").read_text(encoding="utf-8")
-    assert "Grüße: 76. Ampfurth." in markdown, (model, stream, markdown)
+    assert "Grüße: 76. Adorf." in markdown, (model, stream, markdown)
     payload = fake.requests[-1]
     assert payload["model"] == MODELS[model].repo and payload["max_tokens"] == 128
     assert payload["messages"][0]["content"][1]["text"] == vlm_options(MODELS[model], fake.url, 1200).model_spec.prompt
@@ -176,10 +176,10 @@ def bare(text: str) -> SimpleNamespace:
     return SimpleNamespace(blocks=[block(text)], model_dump=lambda mode: {"blocks": 1})
 
 
-PAGE = SimpleNamespace(blocks=[block("<h2>Kreis Wanzleben</h2>"), block("<p>Grüße: 76. Ampfurth.</p>"),
+PAGE = SimpleNamespace(blocks=[block("<h2>Kreis Heide</h2>"), block("<p>Grüße: 76. Adorf.</p>"),
                                block("<p>Figure</p>", skipped=True)], model_dump=lambda mode: {"blocks": 3})
 # The first crop continues a section: a page number and a paragraph before any heading, as on most pages.
-LEAD = SimpleNamespace(blocks=[block("160"), block("<p>Ketzin/Stadt, G, 529. Lietzow, vS.</p>")],
+LEAD = SimpleNamespace(blocks=[block("160"), block("<p>Cdorf/Stadt, G, 529. Ddorf, vS.</p>")],
                        model_dump=lambda mode: {"blocks": 2})
 
 
@@ -205,13 +205,13 @@ def test_surya_keeps_everything_before_the_first_heading(predictor, surya_argv, 
     assert exit_code(*surya_argv, "--stream") is None
     # Everything before the first heading is kept: Docling's HTML backend would take it for page furniture.
     markdown = (tmp_path / "surya" / f"{scan_pdf.stem}.md").read_text(encoding="utf-8")
-    assert markdown.startswith("160\n\nKetzin/Stadt, G, 529. Lietzow, vS.\n\n## Kreis Wanzleben"), markdown[:120]
+    assert markdown.startswith("160\n\nCdorf/Stadt, G, 529. Ddorf, vS.\n\n## Kreis Heide"), markdown[:120]
 
 
 def test_surya_leaves_skipped_blocks_out_and_writes_the_debug_files(predictor, surya_argv, scan_pdf, tmp_path):
     assert exit_code(*surya_argv) is None
     markdown = (tmp_path / "surya" / f"{scan_pdf.stem}.md").read_text(encoding="utf-8")
-    assert "## Kreis Wanzleben" in markdown and "Grüße: 76. Ampfurth." in markdown and "Figure" not in markdown
+    assert "## Kreis Heide" in markdown and "Grüße: 76. Adorf." in markdown and "Figure" not in markdown
     assert (tmp_path / "surya-debug" / "page-1.png").exists() and (tmp_path / "surya-debug" / "report.json").exists()
 
 
@@ -275,7 +275,7 @@ def test_each_crop_is_converted_on_its_own(predictor, surya_argv, scan_pdf, tmp_
     predictor.return_value.side_effect = lambda images: [bare("160"), bare("161")] + [PAGE] * (len(images) - 2)
     assert exit_code(*surya_argv) is None
     markdown = (tmp_path / "surya" / f"{scan_pdf.stem}.md").read_text(encoding="utf-8")
-    assert markdown.startswith("160\n\n161\n\n## Kreis Wanzleben"), markdown[:80]
+    assert markdown.startswith("160\n\n161\n\n## Kreis Heide"), markdown[:80]
 
 
 # --- Surya's real client against the fake server, whole and streamed ------------------------------------------------

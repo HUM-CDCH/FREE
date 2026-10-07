@@ -1,6 +1,6 @@
 """The transcriber contract: what a run was asked for, what will run, and what a backend gives back.
 
-Contract: `docs/superpowers/specs/2026-09-14-transcriber-seam-design.md`. The backends beside this module
+Contract: `docs/design/2026-09-14-transcriber-seam-design.md`. The backends beside this module
 (`native`, `surya`, `vlm`) implement `Transcriber` and nothing else; which one runs is `kei_exp.kie.stages.ocr`'s
 decision, and this module never imports them, so an adapter can be read without the stage that registers it.
 """

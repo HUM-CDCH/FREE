@@ -9,7 +9,7 @@ import { activateWithKeyboard } from './accessibility.js'
 import { openBundledDocument, routeBundledDocument } from './bundledDocument.js'
 
 const sourcePdf = fileURLToPath(
-  new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
+  new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url),
 )
 const parsedDocument = await readFile(
   fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url)),
@@ -65,7 +65,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
           contentType: 'application/json',
         })
       return route.fulfill({
-        body: '# Source Document\n\nGrav 8',
+        body: '# Source Document\n\nUnit 7',
         contentType: 'text/markdown',
       })
     },
@@ -99,12 +99,12 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
   await activateWithKeyboard(
     page,
     page.getByRole('button', {
-      name: /Source Documents in Ellekilde, TAK 1355$/,
+      name: /Source Documents in Elmbrooke, TAK 9355$/,
     }),
   )
   await activateWithKeyboard(
     page,
-    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
+    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Elmbrooke_8_13.pdf' }),
   )
   await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
     timeout: 15_000,
@@ -116,7 +116,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
   // app's own editors below.
   const text = page
     .locator('.textLayer span')
-    .filter({ hasText: 'Grav 8' })
+    .filter({ hasText: 'Unit 7' })
     .first()
   const box = await text.boundingBox()
   if (!box) throw new Error('PDF text was not rendered')
@@ -126,7 +126,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
     steps: 8,
   })
   await page.mouse.up()
-  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('Grav 8')
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('Unit 7')
 
   const chatInput = page.getByPlaceholder(
     /Add a generation instruction/,

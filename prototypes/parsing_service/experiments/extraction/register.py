@@ -68,7 +68,7 @@ def register(root: Path, service: Path) -> dict:
     pdfs = {pin(p)["sha256"]: p for p in service.parents[1].joinpath("examples").rglob("*.pdf")}
     for item in examples:
         name = item["source_id"]
-        variant = {"Hamburg": "Hamburg-cut-fix", "Katrinesminde_SBM1116": "Katrinesminde_SBM1116-footer-fix"}.get(name, name)
+        variant = item.get("conversion", name)  # the plan names a fixed re-conversion when one replaced the original
         fields = {"historical-person.json": ["person_name", "associated_enslaver"],
                   "research-paper.json": ["study_title"], "archaeology-report.json": ["site_name", "report_id"],
                   "collagen-groups.json": [*identity, "sample_group"], "grave-entry.json": ["grave_id"]}[Path(item["schema"]).name]

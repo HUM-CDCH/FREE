@@ -25,7 +25,7 @@ const schemaNodes = [
 /** Every field, root to depth 2; all groups start open. */
 const rows = ['title', 'archaeological_context', 'sex', 'findings', 'kind', 'deposit', 'layer']
 
-const pdfPath = fileURLToPath(new URL('../../../examples/1790-06-17-1.pdf', import.meta.url))
+const pdfPath = fileURLToPath(new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url))
 const parsedDocumentPath = fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url))
 
 /** The disposable-stack gate the deterministic stack specs share. */
@@ -55,7 +55,7 @@ async function seed() {
   await db.orm.public.ProjectContext.create({ id: id.project, researcherAccountId: id.account, name: 'Field row widths E2E' })
   await db.orm.public.SourceDocument.create({
     id: id.document, projectContextId: id.project, contentSha256: 'c'.repeat(64), mediaType: 'application/pdf',
-    originalName: '1790-06-17-1.pdf',
+    originalName: 'synthetic-scan.pdf',
   })
   await db.orm.public.SourceRepresentationRevision.create({
     id: id.representation, sourceDocumentId: id.document, revisionNumber: 1, artifactReference: 'field-row-widths-e2e',

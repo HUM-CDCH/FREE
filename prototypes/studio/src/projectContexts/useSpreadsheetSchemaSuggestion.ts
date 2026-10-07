@@ -17,7 +17,7 @@ import { batchSchemaSuggestionMachine } from './batchSchemaSuggestionMachine'
  * sentinel satisfies that guard without meaning anything on its own;
  * `create` below ignores it entirely and reads the project's
  * already-uploaded spreadsheet instead (design.md D2 in
- * openspec/changes/spreadsheet-schema-suggestion: no change to the
+ * the spreadsheet-schema-suggestion design: no change to the
  * machine, only a different `create` operation feeding it).
  */
 const SPREADSHEET_SELECTION_SENTINEL = ['spreadsheet-upload']

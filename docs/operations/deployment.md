@@ -116,13 +116,14 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   read-only deployment connections. They run on this server's own CLI login,
   so every researcher's calls on them use the operator's billing and rate
   limits; leave it unset to offer neither. Log the CLIs in once inside the
-  running container (`docker compose … exec studio codex login --device-auth`;
+  running container (`docker compose … exec studio pnpm --filter studio exec codex login --device-auth`;
   Claude Code reads `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`).
 - `FREE_CATALOG_METHOD` (optional; `unified`) admits new single and batch
   Catalog Extractions on the unified Catalog method instead of the legacy
-  generic and recipe Catalog. It is the rollout gate of the
-  `unify-catalog-extraction` change: leave it unset until that change's
-  held-out evaluation gates have passed. Accounts with legacy Catalog
+  generic and recipe Catalog. Leave it unset until the unified method
+  has passed a preregistered held-out evaluation on independent labelled
+  documents (boundary, field and evidence quality, partial-item rate); that
+  evaluation has not been done yet. Accounts with legacy Catalog
   preferences must apply the unified settings before their next Catalog
   Extraction; admitted work, including a retried Extraction ID, keeps the
   method it was admitted with. Unsetting it again pauses new unified

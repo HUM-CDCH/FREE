@@ -3,7 +3,7 @@
 This protocol governs registration of a separate grounding study. The concrete
 manifest, source archive and result receipts establish its actual execution state.
 It does not change or replace frozen R1/R2a/R3/R4. Tasks and completion gates are
-tracked in `openspec/changes/extraction-span-grounding/tasks.md`.
+tracked in the extraction-span-grounding change.
 
 ## Question and corpus
 

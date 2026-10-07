@@ -3,8 +3,8 @@ from copy import deepcopy
 from pathlib import Path
 import runpy
 
-helper = runpy.run_path(str(Path(__file__).resolve().parents[3] /
-                           "docs/validation/extraction_grounding_variation.py"))
+helper = runpy.run_path(str(Path(__file__).resolve().parents[1] /
+                           "experiments/extraction/extraction_grounding_variation.py"))
 
 
 def capture(identity, text, *, limit=2048, finish="stop"):

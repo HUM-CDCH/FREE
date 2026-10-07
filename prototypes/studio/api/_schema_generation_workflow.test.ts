@@ -204,7 +204,7 @@ describe('suggestSchemaWorkflow, patched to read every window', () => {
   })
 
   it("asks every window with the researcher's instruction and combines them without it", async () => {
-    // A document-scope exclusion ("exclude the bibliography") read again at the union drops per-entry fields (Beier probe).
+    // A document-scope exclusion ("exclude the bibliography") read again at the union drops per-entry fields (Bauer probe).
     const { steps } = checkpointedSteps(new Map())
     const { generate, ports: p } = windowedPorts(steps)
     await suggestSchemaWorkflow(input, p)
