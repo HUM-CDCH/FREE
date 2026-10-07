@@ -113,3 +113,14 @@ The current follow-up removes the admission block. No production database
 migration, merge or deployment is authorized by this work.
 See the [integration evidence](../validation/2026-10-04-durable-review-integration-verification.md)
 for exact source cuts, conditional skips and independent review.
+
+## Discovery guidance amendment (2026-10-07)
+
+New record-boundary discovery inputs exclude field-value correction examples;
+those examples still guide value extraction and the other existing stages.
+Captured `omissions` records each excluded revision with reason `stage`.
+The composer-1 exact-input protocol remains unchanged: already finalized
+requests and checkpointed answers are never recomposed. This narrows which
+guidance belongs to the discovery task, without changing workflow steps or the
+DBOS application version. See the
+[failure comparisons and actual-source verification](../validation/2026-10-07-empty-discovery.md).
