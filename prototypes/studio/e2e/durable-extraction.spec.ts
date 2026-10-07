@@ -296,6 +296,8 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
     const pending=await page.request.post(`/api/extractions/${id}/durable/selection`,{headers:{Origin:new URL(page.url()).origin},data:{expectedVersion:head.controlVersion,schemaRevisionId:revision,method:{models:null,settings:{generic:null}}}})
     expect(pending.status()).toBe(200)
+    // A settled view reads inputs changed elsewhere when the researcher comes back to it.
+    await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
     await page.locator('#rail-tab-results').click()
     await expect(page.getByText(/1 saved correction doesn’t fit the pending schema/)).toBeVisible()
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
@@ -734,7 +736,9 @@ test('feedback-only lag names the older pair before browser finalization',async(
     await page.locator('#rail-tab-results').click()
     await expect(page.getByRole('button',{name:/Approved title Original title/})).toBeVisible()
     expect((await page.request.post(`${root}/values/title`,{headers,data:{expectedRevision:1,snapshotVersion:1,action:'EDITED',value:'Newer decision'}})).ok()).toBe(true)
-    // The linked cut stays put while newer decisions are saved elsewhere; saving the review names the cut shown.
+    // The linked cut stays put while newer decisions are saved elsewhere, which the view reads once the researcher comes
+    // back to it; saving the review names the cut shown.
+    await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
     await expect(page.getByText(/Showing saved results 1/)).toBeVisible()
     await page.getByRole('button',{name:'Save review',exact:true}).click()
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
