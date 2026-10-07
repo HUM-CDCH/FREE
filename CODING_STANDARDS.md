@@ -27,3 +27,20 @@ instead of `waitFor`, which waits on the frozen clock.
 
 Reference: 3dded2ee (PR #197) fixed `BatchExtractionsPanel.test.tsx` this way
 after it flaked in CI.
+
+## Read order in cleanup decisions
+
+When code deletes or cancels on the strength of several reads made one after
+another, read each gate before the set it gates: a parent's quiescence before
+the references it could still publish, references before the work they admit,
+a directory listing before its writers' statuses. Name the order in a comment
+beside the reads.
+
+Why: each read is a snapshot. Something created between two reads is missed
+when its gate is read last, and the cleanup removes what that newcomer still
+needs.
+
+Reference: `collectKei` (`prototypes/studio/api/_garbage_workflow.ts`) reads
+parents before references; `delete_runs`
+(`prototypes/parsing_service/src/kei_exp/workflows/gc.py`) lists `.prepare-*`
+before reading which conversions may still write.
