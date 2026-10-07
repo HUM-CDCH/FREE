@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-/** Design §8's invariants, checked at this package's source boundary; an independent review covers the rest. */
+/** The serving boundary's invariants, checked at this package's source; an independent review covers the rest. */
 const SOURCE = fileURLToPath(new URL('.', import.meta.url))
 const read = (name: string) => readFileSync(`${SOURCE}${name}`, 'utf8')
 const serving = readdirSync(SOURCE).filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))

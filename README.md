@@ -31,7 +31,7 @@ for roughly 70 GB of disk with the default models: about 40 GB of model weights,
 ## Install
 
 ```bash
-git clone <this-repo-url> free && cd free
+git clone https://github.com/HUM-CDCH/FREE.git free && cd free
 corepack enable
 mkcert -install
 pnpm install
