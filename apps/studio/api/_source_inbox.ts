@@ -96,7 +96,7 @@ export async function removeStagedSource(root: string, relative: string): Promis
   await rm(inside(root, relative), { force: true })
 }
 
-/** The workflow a staged file belongs to (M4 plan decision 11), or null for a name Studio never writes. */
+/** The workflow a staged file belongs to, or null for a name Studio never writes. */
 export function stagedSourceWorkflowId(relative: string): string | null {
   const upload = UPLOAD.exec(relative)
   if (upload) return ingestWorkflowId(upload[1], upload[2])

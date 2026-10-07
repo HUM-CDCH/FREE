@@ -127,7 +127,8 @@ services:
   parsing_worker:
     environment:
       <<: *parsing-gpu-env
-      # A Catalog extraction runs its entries in as many chunks as NuExtract serves requests at once.
+      # A recipe or unified Catalog extraction makes as many model calls at once as NuExtract serves
+      # requests; its reasoning calls (unified discovery among them) go to extraction_model, which runs 4.
       # kei accepts 1 to 64 (MAX_CATALOG_CHUNKS): NUEXTRACT_MAX_NUM_SEQS above 64 stops the worker at
       # boot, and `restart: unless-stopped` then restarts it in a loop.
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"

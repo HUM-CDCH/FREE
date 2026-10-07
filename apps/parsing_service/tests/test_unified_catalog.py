@@ -890,7 +890,8 @@ def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
 
 
 def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_records():
-    """The start page orders the work (design §4); the artifact and its fingerprint are those of the request without it."""
+    """The start page orders the work (service README, start_page); the artifact and its fingerprint are those of the
+    request without it."""
     with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}, "start_page": 6})
     assert with_page.start_page == 6
     assert "start_page" not in with_page.dumped()

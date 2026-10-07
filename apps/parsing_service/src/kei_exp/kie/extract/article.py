@@ -178,9 +178,9 @@ def _answered(attempts: Sequence[Call]) -> bool:
 
 
 def context_order(groups: Sequence[Context], start_page: int | None) -> list[int]:
-    """Value contexts in the order they are called (design §4): nearest `start_page` first (a context's distance is
-    its nearest page's), a context without a page last, ties in source order; without a start page, source order.
-    Answers are assembled in source order whatever this returns."""
+    """Value contexts in the order they are called (service README, start_page): nearest `start_page` first (a
+    context's distance is its nearest page's), a context without a page last, ties in source order; without a start
+    page, source order. Answers are assembled in source order whatever this returns."""
     def distance(index: int) -> tuple[float, int]:
         pages = [passage.page for passage in groups[index].passages]
         return (0.0 if start_page is None else min((abs(page - start_page) for page in pages), default=float("inf")),

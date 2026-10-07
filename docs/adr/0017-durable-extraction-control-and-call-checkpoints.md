@@ -1,75 +1,91 @@
 # 0017: Durable Extraction control and call checkpoints
 
-Date: 2026-10-04. Status: accepted direction, implemented and verified in the isolated candidate under Map durable interactive extraction and project-wide feedback. Production deployment/enablement remains a separate unapproved action.
+Date: 2026-10-04. Status: accepted; amends
+[0012](0012-one-durable-execution-layer.md) (Extraction status authority) and
+[0015](0015-extraction-method-pinned-at-admission.md) (method pins per input
+selection).
 
-One researcher-visible Extraction must survive cooperative pause, revised settings, retries, and live review without losing completed work. DBOS remains the durable executor, but an attempt that returns at a pause boundary is runtime-successful while the Extraction remains Paused; DBOS messages alone also cannot establish which committed correction context a new call captured. Use immutable linked execution selections and a restricted PostgreSQL coordination schema for durable controls, call captures/checkpoints, and feedback publication, with DBOS enqueue/recovery driving attempts rather than defining researcher-visible lifecycle.
+## Context
 
-The Parsing worker retains no access to the application `public` tables or Studio's `dbos` schema. It receives only narrowly granted coordination routines that validate attempt fences and immutable inputs; Studio publishes corrections and eligible guidance revisions in one transaction. Every provider call durably captures inputs/context before invocation and commits its output before acknowledgement. A paused attempt drains and exits, releasing capacity; Resume creates a linked attempt reusing eligible saved work. Stable source anchors and result identities are distinct from schema-dependent work-window boundaries. DBOS rewind or rewriting an old admitted method is rejected because it would corrupt historical attribution.
+One researcher-visible Extraction must survive cooperative pause, revised
+settings, retries and live review without losing completed work. DBOS alone
+cannot carry that lifecycle: an attempt that returns at a pause boundary is
+runtime-successful while the Extraction is Paused, and DBOS messages cannot
+establish which committed correction context a new call captured.
 
-This direction will amend the Extraction-specific status authority in [0012](0012-one-durable-execution-layer.md) and extend the immutable selection rule in [0015](0015-extraction-method-pinned-at-admission.md) from one admission to each linked execution selection. It does not introduce another job scheduler, permit worker access to researcher account configuration, or weaken source Evidence requirements. Details and release conditions live in the implementation specification and migration/verification plan.
+## Decision
 
-## Pre-production scope amendment
+- **The coordination head owns the visible lifecycle; DBOS dispatches and
+  recovers attempts.** Immutable linked execution selections and a restricted
+  PostgreSQL coordination schema (`extraction_runtime`) hold durable controls,
+  call captures and checkpoints, and feedback publication. DBOS enqueue and
+  recovery drive attempts but do not define the researcher-visible lifecycle.
+- **The Parsing worker stays restricted.** It has no access to the
+  application `public` tables or Studio's `dbos` schema, and receives only
+  narrowly granted coordination routines that validate attempt fences and
+  immutable inputs. Studio publishes corrections and eligible guidance
+  revisions in one transaction.
+- **Every provider call is a checkpoint.** It durably captures its inputs and
+  context before invocation and commits its output before acknowledgement.
+  A failed response stays immutable history of its attempt; a later attempt
+  reuses only successful outputs, for unchanged call inputs.
+- **Pause drains; Resume links.** A paused attempt drains and exits, releasing
+  capacity; Resume creates a linked attempt that reuses eligible saved work.
+- Stable source anchors and result identities are distinct from
+  schema-dependent work-window boundaries.
+- Review reads each value through its immutable producing schema, and an
+  approval or rejection binds to the model version actually reviewed.
+- Article aggregation retains historical lineage and explicit scalar proposals.
+- Cleanup of a deleted graph's native history waits for the Parsing worker's
+  boot boundary, so cancellation alone never proves quiescence.
+- **No legacy compatibility.** There is no legacy result reader or identity
+  mapping, protocol-0 fallback, Cancel-to-Stop translation or mixed-protocol
+  export. Retry applies to durable attempts in the same Extraction.
+- Rejected: DBOS rewind and rewriting an old admitted method, because both
+  would corrupt historical attribution; another job scheduler; worker access
+  to researcher account configuration; weaker source Evidence requirements.
 
-Scope amendment, 2026-10-04: the user confirmed this is pre-production and
-removed historical extraction compatibility from this feature. No legacy result
-reader/identity mapping, failed-legacy upgrade Retry, protocol-0 fallback,
-Cancel-to-Stop translation, or mixed-protocol export is required. Retry applies
-to durable attempts in the same Extraction. Immutable producing inputs,
-corrections, source Evidence, restricted coordination, and the admission gate
-remain required. This amendment supersedes the original planning map's legacy
-release requirements; it does not change the settled durable product decisions.
+## Consequences
+
+- An Extraction's status comes from its head, not from DBOS as 0012 derives
+  other work's status.
+- 0015's immutable method pin applies to each linked execution selection, not
+  only to the first admission.
+- The DBOS application versions stay `studio@1` and `kei@1`: durable attempts
+  are new workflows, not changed ones.
+- The [product contract](../product-contract.md) states the Extraction
+  contract, and the
+  [durable execution design](../design/unified-durable-execution.md) its
+  workflows, queues and cleanup.
 
 ## Durable-only amendment
 
-Amendment, 2026-10-05: the user required durable-only code with no legacy
-implementation or compatibility shim. Admission, readers, review, finalization
-and exports now use the durable model alone. The non-durable `runExtraction`
-workflow and its registration, path/anchor Review Drafts and settlement, the
-review/draft/reset/cancel routes, the batch review grid and the old result and
-batch exports were deleted. Successful admission now commits the Extraction,
-its durable head and its workflow enqueue in one transaction. Saved durable
-Extractions remain readable, controllable, reviewable and exportable. A public Extraction row without a live coordination head is not
-listed or opened. No historical migration or table drop was made. The Parsing
-Service's `extract` workflow, its artifact and progress routes, the stage files
-and write-once records it published beside a run, and its `kei-extract:`
-contract were deleted too. The worker registers only `convert`, `deleteRuns`
-and the durable `extractDurableV1`, `extractionCallV1` and
-`deleteDurableHistoryV1` workflows; durable attempts keep the `kei-extract`
-lane. Studio's and the Parsing Service's garbage collection keep only current
-ownership: a run stays while a surviving revision or any durable head,
-tombstoned heads included, pins it, and a deleted graph's DBOS history goes
-only after its native calls are quiescent. Project summaries and activity count
-an Extraction as extracted once it is COMPLETED or any of its result/decision
-pairs is finalized, and as reviewed once a pair is finalized, whatever its
-processing state. The
-living `canonical-evidence-lifecycle` specification and the retired
-`result-tree-navigator` specification were reconciled with this model by the
-OpenSpec change `durable-only-extraction-review`. Its completed infrastructure
-and exploratory acceptance is recorded in the
-2026-10-06 merge acceptance.
+2026-10-05. Admission, readers, review, finalization and exports use the
+durable model alone. Successful admission commits the Extraction, its durable
+head and its workflow enqueue in one transaction. A public Extraction row
+without a live coordination head is not listed or opened. The worker registers
+only `convert`, `deleteRuns` and the durable `extractDurableV1`,
+`extractionCallV1` and `deleteDurableHistoryV1` workflows; durable attempts
+keep the `kei-extract` lane. Garbage collection keeps a run while a surviving
+revision or any durable head, tombstoned heads included, pins it, and deletes
+a deleted graph's DBOS history only after its native calls are quiescent.
+Project summaries and activity count an Extraction as extracted once it is
+COMPLETED or any of its result/decision pairs is finalized, and as reviewed
+once a pair is finalized, whatever its processing state. This amendment
+supersedes [0016](0016-review-drafts-on-a-running-extraction.md).
 
 ## Admission amendment
 
-Amendment, 2026-10-05: the user required removal of the whole admission gate.
-Valid requests now admit durable Extractions directly. There is no release flag,
-environment switch, disabled-admission error, or non-durable fallback.
-This amendment supersedes the admission-disabled clauses in ADRs 0012 and
-0015 and the pre-production scope amendment above. Exact-commit Spark
-acceptance is a merge prerequisite in the recorded
-OpenSpec tasks.
-PostgreSQL checks cover successful single and batch admission, replay and enqueue
-rollback. The Compose contract checks HTTP 201 followed by durable COMPLETED.
-Merging this implementation removes the admission block. This follow-up must
-pass its own infrastructure checks before deployment. The older validation and
-plan records remain unchanged and describe their own source cuts.
+2026-10-05. Valid requests admit durable Extractions directly. There is no
+release flag, environment switch, disabled-admission error or non-durable
+fallback.
 
 ## Live results amendment
 
-Amendment, 2026-10-06: the researcher asked for the pre-durable feedback loop
-back. The results rail follows the latest saved results while a run reads,
-instead of staying on the first saved cut; only an explicitly opened cut (a
-finalized review, a saved-correction link, History's "Open") stays put. A
-finished unified Catalog entry, and each Article grounding batch, retains its
+2026-10-06. The results rail follows the latest saved results while a run
+reads, instead of staying on the first saved cut; only an explicitly opened
+cut (a finalized review, a saved-correction link, History's "Open") stays put.
+A finished unified Catalog entry, and each Article grounding batch, retains its
 verified Evidence links at once, so values are marked on the source as they
 are read. Pause, Resume, Retry and Stop take the run button's place.
 
@@ -81,39 +97,6 @@ worker shows the places it has completed, and the planner the record starts
 earlier windows found, as DBOS events Studio reads for display only; nothing in
 a run reads them back, and failing to write them never fails a call.
 
-## Candidate implementation and integration status
-
-The candidate lives on `feat/durable-interactive-extraction`, based on current
-`dev` (`db6f8b92`), with the planning commit and ADR 0016/redesign artifacts
-preserved. Its `extraction_runtime` namespace adds no mutated historical public
-Extraction pins. Runtime capability is selected by its Head row. DBOS attempts
-and call workflows retain distinct names;
-failed responses are immutable attempt-specific history, while successful
-checkpoints are reusable by unchanged-input retries.
-
-Review projection uses each value's immutable producing schema, independently
-of consuming-target guidance compatibility. Stable child identities permit
-nested renames; approvals/rejections bind to the actual reviewed model version.
-Article aggregation retains historical lineage and explicit scalar proposals.
-The shared results-review components consume stable saved values directly.
-Whole-field edits validate against their producing type; optional correction
-Evidence names explicitly selected occurrences from the pinned source.
-Finalizations identify immutable result and decision cuts independently of
-processing completion. Operational export history has its own capture time.
-The source artifact and preprocessing generation stay referenced through
-terminal states and deletion drain. Deleted graphs are fenced atomically with
-public cascade deletion; native-history cleanup uses the Parsing worker's boot
-boundary so cancellation alone never proves quiescence.
-
-The completed PR 183 report satisfied the requested Spark wait. Guarded tests
-then ran in a private Spark checkout, with disposable databases and isolated
-resources. The integrated candidate passed lifecycle/recovery, shared review,
-exports, deletion and selected real-provider checks at that earlier source cut.
-The current follow-up removes the admission block. No production database
-migration, merge or deployment is authorized by this work.
-See the integration evidence
-for exact source cuts, conditional skips and independent review.
-
 ## Discovery guidance amendment (2026-10-07)
 
 New record-boundary discovery inputs exclude field-value correction examples;
@@ -122,5 +105,4 @@ Captured `omissions` records each excluded revision with reason `stage`.
 The composer-1 exact-input protocol remains unchanged: already finalized
 requests and checkpointed answers are never recomposed. This narrows which
 guidance belongs to the discovery task, without changing workflow steps or the
-DBOS application version. See the
-failure comparisons and actual-source verification.
+DBOS application version.

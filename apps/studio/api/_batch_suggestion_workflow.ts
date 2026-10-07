@@ -314,7 +314,7 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
   STORE_STEP_RETRY)
 }
 
-/** Registers `suggestSchemaBatch`; only registerStudioWorkflows calls it (plan decision 1). Ports are built per run. */
+/** Registers `suggestSchemaBatch`; only registerStudioWorkflows calls it. Ports are built per run. */
 export function registerBatchSuggestionWorkflow(ports: () => SuggestionWorkflowPorts): void {
   DBOS.registerWorkflow(async (input: SuggestionAttemptInput) => suggestSchemaBatchWorkflow(input, ports()), { name: SUGGEST_SCHEMA_BATCH })
 }

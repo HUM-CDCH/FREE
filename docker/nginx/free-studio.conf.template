@@ -1,9 +1,11 @@
-# Development nginx entry point (Compose service in compose.override.yaml).
-# The nginx image's entrypoint renders every /etc/nginx/templates/*.template
-# with envsubst; free-studio-locations.inc.template renders alongside this file
-# and carries the application proxy behavior shared with the production host
-# nginx. Only this wrapper is environment-specific: mkcert TLS files and the
-# root redirect on a server that serves nothing else.
+# Entry point of the nginx containers: development (compose.override.yaml)
+# and the production bundled nginx (compose.nginx.yaml). The nginx image's
+# entrypoint renders every /etc/nginx/templates/*.template with envsubst;
+# free-studio-locations.inc.template renders alongside this file and carries
+# the application proxy behavior shared with the production host nginx. Only
+# this wrapper is container-specific: the TLS files (mkcert's in development,
+# the deployment's FREE_TLS_CERT_PATH and FREE_TLS_KEY_PATH in production) and
+# the root redirect on a server that serves nothing else.
 map $http_upgrade $free_connection_upgrade {
     default upgrade;
     ''      close;

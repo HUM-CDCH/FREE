@@ -5,9 +5,8 @@
 Schema Suggestion's NuExtract protocol (`generateWithNuExtract` in
 `api/_model_execution.ts`) drives NuExtract3 through its chat template, which vLLM
 passes `chat_template_kwargs` to: `mode` selects the task and the document is
-the only user message. Ollama's OpenAI-compatible endpoint ignored those
-kwargs, which is why an earlier raw `/api/generate` path rebuilt the control
-tokens; that path is retired with Ollama.
+the only user message. Ollama's endpoints ignore `chat_template_kwargs`, so only
+vLLM connections get the protocol.
 
 Only `structured` mode has an `【instructions】` slot. Guidance for
 `template-generation` must lead the document content in the message body.

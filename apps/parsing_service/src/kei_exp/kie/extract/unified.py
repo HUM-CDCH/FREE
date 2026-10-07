@@ -201,9 +201,9 @@ def _issue_json(issue: Issue) -> dict:
 
 
 def work_order(entries: list[dict], pages: dict[str, int], start_page: int | None) -> list[int]:
-    """Entry indices in the order they are read (design §4): by distance of each entry's first page from `start_page`,
-    an entry whose page is unknown last, ties in source order; without a start page, source order. Assembly keeps
-    source order whatever this returns, so the artifact is the same."""
+    """Entry indices in the order they are read (service README, start_page): by distance of each entry's first page
+    from `start_page`, an entry whose page is unknown last, ties in source order; without a start page, source order.
+    Assembly keeps source order whatever this returns, so the artifact is the same."""
     def distance(number: int) -> tuple[float, int]:
         ranges = entries[number].get("ranges") or []
         page = pages.get(ranges[0]["segment"]) if ranges else None

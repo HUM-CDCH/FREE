@@ -317,7 +317,7 @@ def test_a_native_page_publishes_its_running_header_and_page_number(synthetic):
     which `iterate_items` leaves out unless it is asked for. Left out, a born-digital page published no running
     header, no running footer and no page number, while the same page scanned publishes Surya's `PageHeader`
     blocks — two evidence sets for one page, against "one consumer mapping serves both paths". A catalogue's
-    running header is evidence a record may inherit from (docs/plan.md stage 8), so it is published, in the
+    running header is evidence a record may inherit from, so it is published, in the
     document order Docling yields it, under the same Surya-vocabulary labels as the rest.
     """
     blocks = blocks_of(synthetic, 1)
