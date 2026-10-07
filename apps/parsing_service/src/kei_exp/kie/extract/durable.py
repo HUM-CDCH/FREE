@@ -208,7 +208,10 @@ class CapturePlanner:
             request=deepcopy(parent["input"]["request"])
             request["body"]["httpRequest"].pop("response_format")
             self.lease.call("finalize_input",capture["id"],request)
-        self.pending[capture["id"]]=key
+        with self._lock:
+            self.pending[capture["id"]]=key
+            if parent["descriptor"].get("stage") == "discovery" and self.discovery is not None:
+                self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
     def structure(self, backend, *, record, text, schema, identity, counted, context):

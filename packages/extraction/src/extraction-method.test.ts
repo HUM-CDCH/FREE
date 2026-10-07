@@ -224,6 +224,9 @@ test('the unified Catalog defaults and option bounds are the service\'s', () => 
   const shared = fixture('unified-catalog-options') as { defaults: Record<string, unknown>; valid: unknown[]; invalid: unknown[] }
   assert.deepEqual(shared.defaults, UNIFIED_CATALOG_DEFAULTS)
   for (const options of shared.valid) assert.deepEqual(unifiedCatalogSettingsSchema.parse(options), options)
+  // An Extraction recorded under any defaults version stays readable after the next one is added.
+  for (const version of Object.keys(UNIFIED_CATALOG_DEFAULTS).map(Number))
+    assert.equal(unifiedCatalogSettingsSchema.safeParse({ defaults: version }).success, true, `defaults ${version}`)
   for (const options of shared.invalid)
     assert.equal(unifiedCatalogSettingsSchema.safeParse(options).success, false, JSON.stringify(options))
 })

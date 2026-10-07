@@ -43,6 +43,9 @@ describe('discovery progress',()=> {
     expect(await discoveryProgress(null,{getEvent:vi.fn()} as never)).toBeNull()
     expect(await discoveryProgress(attempt,{getEvent:vi.fn().mockResolvedValue(null)} as never)).toBeNull()
     expect(await discoveryProgress(attempt,{getEvent:vi.fn().mockRejectedValue(new Error('offline'))} as never)).toBeNull()
+    // An event an earlier worker wrote (one `lines` for every capture) reads as none, never a wrong line.
+    expect(await discoveryProgress(attempt,{getEvent:vi.fn(async(_workflow:string,key:string)=>key==='discovery'
+      ?{found:[{segment:'p1_s0',label:'1'}],lines:[{segment:'p2_s0'}],captures:['call']}:[['L1','record','2']])} as never)).toBeNull()
   })
   it.each([['a Catalog whose records are listed',{strategy:'CATALOG',records:[{ordinal:0,page:1}]}],['an Article',{strategy:'ARTICLE',records:null}]])('adds no discovery to %s',async(_name,read)=> {
     const state={status:'RUNNING',...read,attempt}

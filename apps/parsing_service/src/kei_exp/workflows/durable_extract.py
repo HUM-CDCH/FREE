@@ -78,6 +78,13 @@ class Shown:
         show("places", self.places.places)
 
 
+def discovery_event(discovery):
+    """Studio's discovery progress (`discoveryProgress`): the record starts found so far, and each discovery capture
+    this round yielded with the lines its window labels from L1."""
+    return {"found": discovery["found"], "windows": [{"capture": capture, "lines": lines}
+                                                     for capture, lines in sorted(discovery["windows"].items())]}
+
+
 def failed_output(output):
     return not output.get("formatRefused") and any(not call.get("ok") and not call.get("recovered") for call in output.get("calls",[]))
 
@@ -239,8 +246,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
             result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
         except NeedsCall:
             if planner.discovery is not None:
-                show("discovery", {"found": planner.discovery["found"], "windows": [
-                    {"capture": capture, "lines": lines} for capture, lines in sorted(planner.discovery["windows"].items())]})
+                show("discovery", discovery_event(planner.discovery))
             return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
         except Boundary:
             return {"boundary": True}

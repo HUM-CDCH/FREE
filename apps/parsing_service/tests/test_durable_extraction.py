@@ -13,6 +13,7 @@ from kei_exp.kie.extract import calls, run
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract import retained
+from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
 from tests.test_extract_grounded import CountingChat, WordCounter, honest, request as recipe_request
 from tests.test_extract_stages import SCHEMA, evidence, passages
@@ -202,16 +203,29 @@ def test_unified_planning_shows_discovery_progress_until_its_records_are_planned
     assert plan().discovery is None
 
 
-def test_one_planning_round_yields_every_page_window_of_discovery_each_shown_with_its_own_lines():
-    source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
+@pytest.mark.parametrize("chunks",[1,3])
+def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its_own_lines(chunks):
+    """Discovery's fan-out is bounded: each round yields the next `chunks` page windows in source order, the event
+    names each with its own lines, and the starts found so far are every earlier window's, in source order."""
+    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,11)))
     request=unified_request(defaults=2)
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
-    with pytest.raises(NeedsCall):
-        run.dispatch(None,source,request,Router(CountingChat(Model(source)),CountingChat(Model(source)),planner),counter=counter,chunks=2)
-    assert set(planner.discovery["windows"])==set(planner.pending) and len(planner.pending)==2
-    assert sorted(planner.discovery["windows"].values(),key=str)==[[{"segment":"p1_s0","start":0,"end":24}],
-                                                                  [{"segment":"p2_s0","start":0,"end":27}]]
+    rounds=[]
+    def extract(router,counter):
+        try:
+            return run.dispatch(None,source,request,router,counter=counter,chunks=chunks)
+        except NeedsCall:
+            if router.runtime.discovery is not None:
+                rounds.append(worker.discovery_event(router.runtime.discovery))
+                assert {window["capture"] for window in rounds[-1]["windows"]}==set(router.runtime.pending)
+            raise
+    result=finish(lease,CountingChat(Model(source)),extract)
+    assert [record["material"] for record in result["records"]]==[f"m{n}" for n in range(1,11)]
+    starts=[f"p{n}_s0" for n in range(1,11)]
+    assert [{window["lines"][0]["segment"] for window in event["windows"]} for event in rounds]==\
+        [set(starts[at:at+chunks]) for at in range(0,10,chunks)]
+    assert all([found["segment"] for found in event["found"]]==starts[:len(event["found"])] for event in rounds)
+    assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
 
 
 def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():

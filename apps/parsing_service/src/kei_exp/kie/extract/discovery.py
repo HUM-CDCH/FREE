@@ -254,10 +254,11 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
-    boundary; context does. Every window is asked at once, `workers` at a time, then every failed one's halves; what an
-    `ask` raises is raised once all have stopped, the first in source order. Before each call, `progress` is given the
-    record starts the earlier rounds found and the lines the window labels: a view of the run while it reads, never an
-    input to discovery."""
+    boundary; context does. Windows are asked in source order, `workers` at once, slice by slice, then every failed
+    one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
+    raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
+    call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
+    labels: a view of the run while it reads, never an input to discovery."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
@@ -272,6 +273,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
             return None
         windows += planned
         at += len(group)
+    rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
     done: list[_Seen] = []
 
     def one(window: Window, found: list[dict]) -> tuple[_Seen | None, list, list[Issue]]:
@@ -285,14 +287,17 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
 
     def read(batch: list[Window], depth: int) -> list[list[tuple[_Seen | None, list, list[Issue]]]]:
         """Per window of `batch`, in order: its reading, then its halves' when it failed and may still be halved."""
-        found = record_starts(done)
-        with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="discovery") as pool:
-            futures = [pool.submit(one, window, found) for window in batch]
-        for future in futures:
-            if (error := future.exception()) is not None:
-                raise error
-        results = [future.result() for future in futures]
-        done.extend(observed for observed, _, _ in results if observed is not None)
+        size, results = max(1, workers), []
+        with ThreadPoolExecutor(max_workers=size, thread_name_prefix="discovery") as pool:
+            for at in range(0, len(batch), size):
+                found = record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
+                                                                    each.window.primary[0].start)))
+                futures = [pool.submit(one, window, found) for window in batch[at:at + size]]
+                for future in futures:
+                    if (error := future.exception()) is not None:
+                        raise error
+                results += [future.result() for future in futures]
+                done.extend(observed for observed, _, _ in results[-len(futures):] if observed is not None)
         cut = [split(window, texts, fits, overlap=overlap) if observed is None and len(window.primary) > 1
                and depth < splits else [] for window, (observed, _, _) in zip(batch, results, strict=True)]
         halves = iter(read([half for each in cut for half in each], depth + 1) if any(cut) else ())

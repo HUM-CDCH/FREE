@@ -365,8 +365,8 @@ def test_version_2_discovery_windows_never_cross_a_printed_page_but_show_its_nei
     assert "windows" not in extract(source)[0]["execution"]["effective"]  # version 1's records are unchanged
 
 
-def test_every_discovery_window_is_asked_before_the_first_raised_in_source_order_is_raised():
-    """A durable planning round yields every window's call at once: one window's yield does not stop the others."""
+def test_once_a_slice_of_discovery_windows_raises_no_later_window_is_asked_and_the_first_is_raised():
+    """A durable planning round yields at most `workers` discovery calls, as the entry pool does."""
     class Yielded(BaseException):
         pass
     asked = []
@@ -375,10 +375,10 @@ def test_every_discovery_window_is_asked_before_the_first_raised_in_source_order
         asked.append(section(user, "WINDOW"))
         raise Yielded(section(user, "WINDOW"))
     with pytest.raises(Yielded) as raised:
-        discovery.discover(evidence("1. Adorf.", "2. Bdorf.", "3. Cdorf."), "entry", lambda *_: True, ask,
+        discovery.discover(evidence(*(f"{n}. Ort{n}." for n in range(1, 9))), "entry", lambda *_: True, ask,
                            overlap=0, splits=6, by="page", workers=2)
-    assert sorted(asked) == ["[L1] 1. Adorf.", "[L1] 2. Bdorf.", "[L1] 3. Cdorf."]
-    assert raised.value.args == ("[L1] 1. Adorf.",)
+    assert sorted(asked) == ["[L1] 1. Ort1.", "[L1] 2. Ort2."]  # the first slice of `workers` windows, nothing after
+    assert raised.value.args == ("[L1] 1. Ort1.",)
 
 
 def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
