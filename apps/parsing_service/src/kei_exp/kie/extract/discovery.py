@@ -26,7 +26,9 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from itertools import groupby
 
 from kei_exp.kie.extract.locate import normalise
 from kei_exp.kie.extract.stages import Issue
@@ -237,42 +239,83 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
     return _Seen(window, True, located, begins, ends)
 
 
+def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> list[list[Unit]]:
+    """The units in consecutive runs that share a printed page (`page`: a PDF page's book page) or one of its columns
+    (`column`); `budget` is one run, cut by the budget alone."""
+    if by == "budget":
+        return [list(units)] if units else []
+    where = {passage.id: (passage.page, passage.unit, passage.crop if by == "column" else None) for passage in passages}
+    return [list(run) for _, run in groupby(units, key=lambda unit: where[unit.segment])]
+
+
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
-             ask: Callable[..., dict | None], *, overlap: int, splits: int,
+             ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
              progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
-    `ask(record, system, user, schema, calls, issues)` makes one counted call. Before each call, `progress` is given
-    the record starts the windows read so far found and the lines the next window labels: a view of the run while it
-    reads, never an input to discovery."""
+    `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
+    boundary; context does. Windows are asked in source order, `workers` at once, slice by slice, then every failed
+    one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
+    raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
+    call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
+    labels: a view of the run while it reads, never an input to discovery."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
     def fits(window: Window) -> bool:
         user, labels = _render(window, texts)
         return fits_budget(system, user, _reply(labels))
-    windows = plan(units_of(evidence.passages), texts, fits, overlap=overlap)
-    if windows is None:
-        return None
-    calls: list = []
-    issues: list[Issue] = [Issue("reading_order", detail) for detail in evidence.order_issues]
-    seen: list[_Seen] = []
-    queue = [(window, 0) for window in windows]
-    while queue:
-        window, depth = queue.pop(0)
+    units, windows, at = units_of(evidence.passages), [], 0
+    for group in groups_of(units, evidence.passages, by):
+        planned = plan(group, texts, fits, overlap=overlap, lead=units[max(0, at - overlap):at],
+                       trail=units[at + len(group):at + len(group) + overlap])
+        if planned is None:
+            return None
+        windows += planned
+        at += len(group)
+    rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
+    done: list[_Seen] = []
+
+    def one(window: Window, found: list[dict]) -> tuple[_Seen | None, list, list[Issue]]:
         user, labels = _render(window, texts)
         if progress is not None:
-            progress(record_starts(seen), ranges_json(window.primary))
+            progress(found, ranges_json(window.primary))
+        calls: list = []
+        issues: list[Issue] = []
         answer = ask(None, system, user, _reply(labels), calls, issues)
-        observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
-        if observed is None and len(window.primary) > 1 and depth < splits:
-            queue[0:0] = [(half, depth + 1) for half in split(window, texts, fits, overlap=overlap)]
-            continue
-        if observed is None:
-            issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
-        seen.append(observed or _Seen(window, False, []))
+        return (_observe(answer, window, texts, labels, issues) if answer is not None else None), calls, issues
+
+    def read(batch: list[Window], depth: int) -> list[list[tuple[_Seen | None, list, list[Issue]]]]:
+        """Per window of `batch`, in order: its reading, then its halves' when it failed and may still be halved."""
+        size, results = max(1, workers), []
+        with ThreadPoolExecutor(max_workers=size, thread_name_prefix="discovery") as pool:
+            for at in range(0, len(batch), size):
+                found = record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
+                                                                    each.window.primary[0].start)))
+                futures = [pool.submit(one, window, found) for window in batch[at:at + size]]
+                for future in futures:
+                    if (error := future.exception()) is not None:
+                        raise error
+                results += [future.result() for future in futures]
+                done.extend(observed for observed, _, _ in results[-len(futures):] if observed is not None)
+        cut = [split(window, texts, fits, overlap=overlap) if observed is None and len(window.primary) > 1
+               and depth < splits else [] for window, (observed, _, _) in zip(batch, results, strict=True)]
+        halves = iter(read([half for each in cut for half in each], depth + 1) if any(cut) else ())
+        readings = []
+        for window, (observed, calls, issues), each in zip(batch, results, cut, strict=True):
+            if each:
+                readings.append([(None, calls, issues), *[item for _ in each for item in next(halves)]])
+                continue
+            if observed is None:
+                issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
+            readings.append([(observed or _Seen(window, False, []), calls, issues)])
+        return readings
+    readings = [item for each in read(windows, 0) for item in each]
+    seen = [observed for observed, _, _ in readings if observed is not None]
     return {**_assemble(seen, evidence, texts), "windows": [_window_json(each) for each in seen],
-            "issues": issues, "calls": calls}
+            "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
+                       *(issue for _, _, issues in readings for issue in issues)],
+            "calls": [call for _, calls, _ in readings for call in calls]}
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:

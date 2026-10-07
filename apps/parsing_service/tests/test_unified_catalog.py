@@ -339,6 +339,48 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     assert any(call["stage"] == "discovery" and not call["ok"] for call in result["calls"])
 
 
+def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
+    passages = [replace(passage("p1_s0", "a"), crop=1), replace(passage("p1_s1", "b"), crop=1),
+                replace(passage("p1_s2", "c"), crop=2), passage("p2_s0", "d"), passage("p2_s1", "e")]
+    units = discovery.units_of(passages)
+
+    def groups(by):
+        return [[unit.segment for unit in group] for group in discovery.groups_of(units, passages, by)]
+    assert groups("column") == [["p1_s0", "p1_s1"], ["p1_s2"], ["p2_s0", "p2_s1"]]
+    assert groups("page") == [["p1_s0", "p1_s1", "p1_s2"], ["p2_s0", "p2_s1"]]
+    assert groups("budget") == [["p1_s0", "p1_s1", "p1_s2", "p2_s0", "p2_s1"]]
+
+
+def test_version_2_discovery_windows_never_cross_a_printed_page_but_show_its_neighbours():
+    """Each page is its own discovery window, its neighbours' lines its context; a record continued over a page still
+    joins, both windows saying so."""
+    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf.", "Material: Stein.\n3. Cdorf. Material: Glas.")
+    result, chat = extract(source, defaults=2)
+    asked = {section(call["user"], "WINDOW"): section(call["user"], "CONTEXT AFTER") for call in chat.calls
+             if call["system"].startswith("You find where records begin")}
+    assert asked == {"[L1] 1. Adorf. Material: Holz.\n[L2] 2. Bdorf.": "Material: Stein.\n3. Cdorf. Material: Glas.",
+                     "[L1] Material: Stein.\n[L2] 3. Cdorf. Material: Glas.": ""}
+    assert [record["material"] for record in result["records"]] == ["Holz", "Stein", "Glas"]
+    assert result["execution"]["effective"]["windows"] == "page" and result["execution"]["effective"]["overlap"] == 3
+    assert "windows" not in extract(source)[0]["execution"]["effective"]  # version 1's records are unchanged
+
+
+def test_once_a_slice_of_discovery_windows_raises_no_later_window_is_asked_and_the_first_is_raised():
+    """A durable planning round yields at most `workers` discovery calls, as the entry pool does."""
+    class Yielded(BaseException):
+        pass
+    asked = []
+
+    def ask(record, system, user, schema, calls, issues):
+        asked.append(section(user, "WINDOW"))
+        raise Yielded(section(user, "WINDOW"))
+    with pytest.raises(Yielded) as raised:
+        discovery.discover(evidence(*(f"{n}. Ort{n}." for n in range(1, 9))), "entry", lambda *_: True, ask,
+                           overlap=0, splits=6, by="page", workers=2)
+    assert sorted(asked) == ["[L1] 1. Ort1.", "[L1] 2. Ort2."]  # the first slice of `workers` windows, nothing after
+    assert raised.value.args == ("[L1] 1. Ort1.",)
+
+
 def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     """A place is its line's id, kind and label on one line; start text is copied only for a place inside a line."""
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz. 2. Bdorf. Material: Stein.")

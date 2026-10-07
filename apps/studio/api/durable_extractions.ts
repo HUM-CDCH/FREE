@@ -7,10 +7,10 @@ import { ApiError, json, noStore, noStoreError, parseJsonRequest, persistenceUna
 import { requestDurableReconciliation } from '../server/durable-extraction-workflow.js'
 import { studioDbos } from '../server/dbos.js'
 
-type DiscoveryRun={found:{segment:string;label:string|null}[];lines:{segment:string}[];captures:string[]}
+type DiscoveryRun={found:{segment:string;label:string|null}[];windows:{capture:string;lines:{segment:string}[]}[]}
 /** The record starts discovery has found while the run still looks for its records: the worker's progress events
- *  (the windows read, then the places the window being read has generated so far). Display only, so a missing or
- *  unreadable event reads as none. */
+ *  (the windows read, then the places each window being read has generated so far, by its own lines). Display only,
+ *  so a missing or unreadable event reads as none. */
 export async function discoveryProgress(attempt:{id:string;workflowId:string}|null,
   client?:Pick<ReturnType<typeof studioDbos>['kei'],'getEvent'>) {
   if(!attempt)return null
@@ -18,11 +18,11 @@ export async function discoveryProgress(attempt:{id:string;workflowId:string}|nu
     const events=client??studioDbos().kei
     const run=await events.getEvent<DiscoveryRun>(attempt.workflowId,'discovery',0)
     if(!run)return null
-    const streamed=await Promise.all(run.captures.map(capture=>events.getEvent<unknown[][]>(`kei-call:${attempt.id}:${capture}`,'places',0)))
-    const starts=streamed.flatMap(places=>places??[]).flatMap(place=> {
-      const line=typeof place[0]==='string'?run.lines[Number(place[0].slice(1))-1]:undefined
+    const streamed=await Promise.all(run.windows.map(window=>events.getEvent<unknown[][]>(`kei-call:${attempt.id}:${window.capture}`,'places',0)))
+    const starts=run.windows.flatMap((window,index)=>(streamed[index]??[]).flatMap(place=> {
+      const line=typeof place[0]==='string'?window.lines[Number(place[0].slice(1))-1]:undefined
       return line&&place[1]==='record'?[{segment:line.segment,label:typeof place[2]==='string'?place[2]:null}]:[]
-    })
+    }))
     return {found:[...run.found,...starts]}
   } catch {return null}
 }

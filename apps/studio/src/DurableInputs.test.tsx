@@ -32,6 +32,8 @@ it.each([
   expect(screen.queryByRole('alert')).toBeNull()
   expect(save).toBeEnabled()
   expect(screen.getByRole('radio',{name:strategy==='ARTICLE'?'Article':'Catalog'})).toBeChecked()
+  // A unified Extraction's editor shows the defaults version it runs under, not the latest.
+  if('unified' in settings&&settings.unified&&!('input_tokens' in settings.unified))expect(screen.getByText('Service defaults, version 1')).toBeInTheDocument()
   fireEvent.click(save)
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/selection',{
     expectedVersion:3,schemaRevisionId:'schema',method:{models:null,settings},

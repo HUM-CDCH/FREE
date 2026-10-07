@@ -21,7 +21,7 @@ it('derives each strategy\'s method from the saved document', () => {
 it('derives the unified Catalog method, and no recipe, where the deployment enables it', () => {
   const unified = { config: { ...config, extractionSettings: { catalog: { unified: { overlap: 0 } } } }, unifiedCatalog: true }
   expect(savedMethodFor(unified, 'CATALOG', 'numbered-catalogue-de@1'))
-    .toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 1, overlap: 0 } } })
+    .toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 2, overlap: 0 } } })
 })
 
 it('keeps the deployment\'s Catalog method with the saved document it read', async () => {
