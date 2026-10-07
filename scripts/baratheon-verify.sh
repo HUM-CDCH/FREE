@@ -123,6 +123,9 @@ setup python-dependencies uv run --no-sync --project prototypes/parsing_service 
   'import pytest, dbos, xgrammar, opentelemetry.sdk, opentelemetry.instrumentation.requests; from importlib.metadata import version; print({name: version(name) for name in ("pytest", "dbos", "xgrammar", "opentelemetry-sdk")})'
 for tier in "${tiers[@]}"; do
   case $tier in
+    test:unit:python)
+      step "$tier" uv run --no-sync --project prototypes/parsing_service pytest -q -m 'not postgres and not live_model'
+      ;;
     test:postgres)
       provisioned=1
       for database in "${databases[@]}"; do

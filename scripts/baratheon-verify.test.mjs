@@ -30,4 +30,6 @@ if (${JSON.stringify(name)}==='ssh') fs.writeFileSync(process.env.FREE_VERIFY_TE
   assert.ok(remote.includes('uv sync --frozen --project prototypes/parsing_service'))
   assert.ok(remote.includes('setup python-dependencies'))
   assert.ok(remote.includes('test:unit:python'))
+  const parsing = JSON.parse(readFileSync(new URL('../prototypes/parsing_service/package.json', import.meta.url), 'utf8'))
+  assert.ok(remote.includes(parsing.scripts.test.replace('uv run --no-sync', 'uv run --no-sync --project prototypes/parsing_service').replaceAll('"', "'")))
 })

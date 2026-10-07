@@ -208,7 +208,7 @@ describe('verify workflow', () => {
     assert.ok(!workflow.includes('PARSING_TEST_DATABASE_URL'))
     assert.ok(!workflow.includes('free_test_parsing'))
     assert.ok(/run: pnpm test:ci$/m.test(nodeJob))
-    assert.ok(workflow.includes('run: pnpm --filter parsing-service test'))
+    assert.ok(workflow.includes('run: uv run --no-sync pytest -q -m "not postgres and not live_model"'))
   })
 })
 

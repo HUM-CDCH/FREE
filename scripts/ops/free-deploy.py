@@ -57,6 +57,9 @@ def require_verified_commit(commit):
     """
     if not re.fullmatch(r'[a-f0-9]{40}', commit):
         raise RuntimeError('A full GitHub commit is required for verification.')
+    origin = capture([*GIT, 'remote', 'get-url', 'origin']).decode().strip()
+    if origin not in ('git@github.com:HUM-CDCH/FREE.git', 'https://github.com/HUM-CDCH/FREE.git'):
+        raise RuntimeError('The deployment origin must be the configured FREE GitHub repository.')
     ref = f'refs/free-deploy-verified/{commit}'
     env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0', 'GIT_ASKPASS': '/bin/false'}
     try:

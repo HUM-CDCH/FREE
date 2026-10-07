@@ -6,7 +6,8 @@ import { cpuRequirements } from './install-python-cpu.mjs'
 test('CI runs the existing fast Python tier and verifies both jobs before publishing a release tag', () => {
   const workflow = readFileSync(new URL('../.github/workflows/verify.yml', import.meta.url), 'utf8')
   assert.ok(/^  verify-python:/m.test(workflow), 'Python verification job is required')
-  assert.ok(workflow.includes('pnpm --filter parsing-service test'), 'Run the existing fast Python tier')
+  const parsing = JSON.parse(readFileSync(new URL('../prototypes/parsing_service/package.json', import.meta.url), 'utf8'))
+  assert.ok(workflow.includes(`run: ${parsing.scripts.test}`), 'Run the existing fast Python tier directly, without Node installation')
   assert.ok(workflow.includes('needs: [verify, verify-python]'), 'Release publication requires both jobs')
 })
 

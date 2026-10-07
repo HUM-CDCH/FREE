@@ -56,13 +56,9 @@ class UpdateTests(unittest.TestCase):
                 raise RuntimeError('fixture transient network failure')
             kwargs = {} if timeout is None else {'timeout': timeout}
             return self.original_capture(args, env=env, **kwargs)
-        original_is_file = Path.is_file
-        def is_file(path):
-            return True if str(path) == '/srv/free/secrets/github.env' else original_is_file(path)
         self.patches = [patch.object(module, 'ROOT', self.root),
                         patch.object(module, 'GIT', ('git', '-C', str(self.root))),
-                        patch.object(module, 'capture', capture),
-                        patch.object(Path, 'is_file', is_file)]
+                        patch.object(module, 'capture', capture)]
         for p in self.patches:p.start()
     def tearDown(self):
         for p in reversed(self.patches):p.stop()
