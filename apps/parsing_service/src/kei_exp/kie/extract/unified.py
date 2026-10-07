@@ -71,19 +71,25 @@ ENTRY_VERSION = 3
 # prints it as exactly one occurrence.
 DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
-# The versioned service defaults: engineering choices, none measured yet. Reserves are sized for replies that list
-# many boundaries or candidates; Auto input is the served context minus the stage's reserve; one unit of overlap;
-# heading context and verification on; a failed window is halved at most six times.
-DEFAULTS = {1: {"reserves": {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512,
-                             "document": 2048},
-                "overlap": 1, "headings": True, "verification": True, "splits": 6}}
+# The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
+# candidates; Auto input is the served context minus the stage's reserve; heading context and verification on; a failed
+# window is halved at most six times. 1: discovery windows cut by the budget alone, one unit of overlap. 2: discovery
+# windows never cross a printed page (`discovery.groups_of`), three units of overlap. Measured on a scanned 3-page
+# catalogue excerpt (29 numbered entries; Qwen3.8-27B, 7 October 2026): version 1's single window left each entry its
+# first line alone, the rest read as record-free, where page windows kept 0.62 of the entries' text; over the excerpt
+# repeated five times (145 entries) 0.73 against 0.60, every start found. Column windows kept more (0.85) but missed
+# the start in a short column three times in five.
+_RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
+DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
+            2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
+                "windows": "page"}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1]
+    defaults: Literal[1, 2]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -169,6 +175,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
+            | {name: value for name, value in DEFAULTS[options.defaults].items() if name == "windows"}
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {}),
             "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
@@ -230,7 +237,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     def discover() -> dict:
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
                                   partial(budget.ask, "discovery"), overlap=effective["overlap"],
-                                  splits=effective["splits"], progress=partial(discovering, chat))
+                                  splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
+                                  progress=partial(discovering, chat))
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
         return {"version": discovery.VERSION, "execution_sha256": execution_sha256, "entries": body["entries"],

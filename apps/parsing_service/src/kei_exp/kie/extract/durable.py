@@ -65,9 +65,17 @@ class CapturePlanner:
         self.pending = {}
         self.historical = lease.call("historical_coverage")
         self.scopes = {}
-        self.discovery = None  # discovery's progress while its next window is called (retained.discovering)
+        self.discovery = None  # discovery's progress while its windows are called (retained.discovering)
+        self._lines = threading.local()  # the lines of the window this thread asks for next
         self._ordinals = {}
         self._lock = threading.Lock()
+
+    def discovering(self, found, lines):
+        """The record starts the earlier rounds found, and the lines of the window this thread asks for next: each
+        discovery capture yielded is shown with its own window's lines, since every window labels its lines from L1."""
+        with self._lock:
+            self.discovery = None if found is None else {"found": found, "windows": (self.discovery or {}).get("windows", {})}
+        self._lines.value = lines
 
     def plan_records(self, stage, scopes):
         self.scopes.update({index: scope for index,scope in enumerate(scopes)})
@@ -176,6 +184,8 @@ class CapturePlanner:
             self.lease.call("finalize_input", capture["id"], finalized)
         with self._lock:
             self.pending[capture["id"]] = key
+            if stage == "discovery" and self.discovery is not None:
+                self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
     def _fallback(self, parent, parent_key):

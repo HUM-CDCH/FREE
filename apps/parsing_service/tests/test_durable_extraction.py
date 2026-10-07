@@ -195,9 +195,23 @@ def test_unified_planning_shows_discovery_progress_until_its_records_are_planned
             pass
         return planner
     waiting=plan()
-    assert waiting.discovery=={"found":[],"lines":[{"segment":"p1_s0","start":0,"end":24},{"segment":"p2_s0","start":0,"end":27}]}
+    assert waiting.discovery["found"]==[]
+    assert list(waiting.discovery["windows"].values())==[[{"segment":"p1_s0","start":0,"end":24},{"segment":"p2_s0","start":0,"end":27}]]
+    assert set(waiting.discovery["windows"])==set(waiting.pending)
     finish(lease,chat,extract)
     assert plan().discovery is None
+
+
+def test_one_planning_round_yields_every_page_window_of_discovery_each_shown_with_its_own_lines():
+    source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
+    request=unified_request(defaults=2)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
+    with pytest.raises(NeedsCall):
+        run.dispatch(None,source,request,Router(CountingChat(Model(source)),CountingChat(Model(source)),planner),counter=counter,chunks=2)
+    assert set(planner.discovery["windows"])==set(planner.pending) and len(planner.pending)==2
+    assert sorted(planner.discovery["windows"].values(),key=str)==[[{"segment":"p1_s0","start":0,"end":24}],
+                                                                  [{"segment":"p2_s0","start":0,"end":27}]]
 
 
 def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():

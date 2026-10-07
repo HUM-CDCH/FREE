@@ -58,7 +58,10 @@ export function DurableInputs({attempt,state,currentSchema,onSaved,onEdited}:{
     setBusy(true);setError(null)
     try {
       const latest=await durableRequest<DurableRead>(durableRoot(attempt.extractionId))
-      const method=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy,state.selection.resolved.catalogRecipe,unified)
+      const edited=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy,state.selection.resolved.catalogRecipe,unified)
+      // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under.
+      const method='unified' in edited.settings&&'unified' in used.settings
+        ?{...edited,settings:{unified:{...edited.settings.unified,defaults:used.settings.unified.defaults}}}:edited
       await durableRequest(`${durableRoot(attempt.extractionId)}/selection`,{expectedVersion:latest.controlVersion,schemaRevisionId:schemaId,method})
       onSaved()
     } catch(error){setError(error instanceof Error?error.message:'Unable to save pending inputs.')}

@@ -30,11 +30,14 @@ describe('durable extraction reads require an owned runtime head',()=> {
 
 describe('discovery progress',()=> {
   const attempt={id:'attempt',workflowId:'kei-durable:extraction:attempt'}
-  it('lists the record starts of the windows read and those the window being read has generated so far',async()=> {
+  it('lists the record starts of the windows read and those each window being read has generated so far, by its own lines',async()=> {
+    const places:Record<string,unknown[][]>={'kei-call:attempt:call':[['L2','record','2'],['L1','other',null],['L9','record',null]],
+      'kei-call:attempt:other':[['L1','record','3']]}
     const getEvent=vi.fn(async(workflow:string,key:string)=>workflow===attempt.workflowId&&key==='discovery'
-      ?{found:[{segment:'p1_s0',label:'1'}],lines:[{segment:'p2_s0'},{segment:'p2_s1'}],captures:['call']}
-      :workflow==='kei-call:attempt:call'&&key==='places'?[['L2','record','2'],['L1','other',null],['L9','record',null]]:null)
-    expect(await discoveryProgress(attempt,{getEvent} as never)).toEqual({found:[{segment:'p1_s0',label:'1'},{segment:'p2_s1',label:'2'}]})
+      ?{found:[{segment:'p1_s0',label:'1'}],windows:[{capture:'call',lines:[{segment:'p2_s0'},{segment:'p2_s1'}]},
+        {capture:'other',lines:[{segment:'p3_s0'}]}]}
+      :key==='places'?places[workflow]??null:null)
+    expect(await discoveryProgress(attempt,{getEvent} as never)).toEqual({found:[{segment:'p1_s0',label:'1'},{segment:'p2_s1',label:'2'},{segment:'p3_s0',label:'3'}]})
   })
   it('reads as none without an attempt, before the first event, or when the events cannot be read',async()=> {
     expect(await discoveryProgress(null,{getEvent:vi.fn()} as never)).toBeNull()

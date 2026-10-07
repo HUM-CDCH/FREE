@@ -239,7 +239,8 @@ def plan_next(extraction: str, attempt: str) -> dict:
             result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
         except NeedsCall:
             if planner.discovery is not None:
-                show("discovery", {**planner.discovery, "captures": sorted(planner.pending)})
+                show("discovery", {"found": planner.discovery["found"], "windows": [
+                    {"capture": capture, "lines": lines} for capture, lines in sorted(planner.discovery["windows"].items())]})
             return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
         except Boundary:
             return {"boundary": True}
