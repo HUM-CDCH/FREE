@@ -10,3 +10,7 @@
   its local `CLAUDE.md`.
 - For Studio changes, read `prototypes/studio/CLAUDE.md`.
 - Baratheon (Spark) verification of a commit → `scripts/baratheon-verify.sh`.
+- Code changes → a worktree from `origin/dev`, the PR base (`origin/main` is
+  stale): `git worktree add .claude/worktrees/<name> -b <branch> origin/dev`.
+- `(spec, *Section*)` in code comments →
+  `docs/plans/2026-09-24-unified-durable-execution.md`.
