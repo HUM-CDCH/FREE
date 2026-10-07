@@ -29,7 +29,7 @@ it('follows the latest saved results while the run reads its records, and keeps 
     await act(async()=>{render(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
     expect(screen.getByText('Starting')).toBeVisible()
     expect(screen.getByText('Finding the records in the source…')).toBeVisible()
-    const found={...state,records:[{ordinal:0,page:1},{ordinal:1,page:2}],reading:[0]}
+    const found={...state,records:[{ordinal:0,page:1},{ordinal:1,page:2}],recordsFinal:true,reading:[0]}
     vi.mocked(readDurable).mockResolvedValue({state:found,page:empty} as never)
     await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
     expect(screen.getByText('Reading records')).toBeVisible()
@@ -70,13 +70,32 @@ it('shows the record starts discovery has found on the source while it still loo
   expect(onMarksChange.mock.calls.at(-1)![0].selectableKeys).toEqual(new Set())
 })
 
+it('lists the records found so far, with no total, while a pipelined run reads them and discovery still looks',async()=>{
+  const value={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Early title',evidence:[],links:[],grounding:'provisional',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[{id:'title',name:'title',type:'string'}]},resolved:{startPage:null}},pendingSelection:null,
+    counts:{saved:3,inFlight:2},records:[{ordinal:0,page:1},{ordinal:1,page:1},{ordinal:2,page:2}],recordsFinal:false,reading:[1],
+    discovery:{found:[{segment:'p1_s0',label:'1'},{segment:'p1_s1',label:'2'},{segment:'p2_s0',label:'3'},{segment:'p3_s0',label:'4'}]}}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  const onMarksChange=vi.fn()
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} onMarksChange={onMarksChange}/>)
+  expect(await screen.findByText('Finding records')).toBeVisible()
+  expect(screen.getByText('· 4 found so far · 1 read')).toBeVisible()
+  expect(screen.getByText('Early title')).toBeVisible()
+  expect(screen.getByRole('region',{name:'Record 2, Reading…'})).toBeVisible()
+  expect(screen.getByRole('region',{name:'Record 3, Queued'})).toBeVisible()
+  await waitFor(()=>expect(onMarksChange.mock.calls.at(-1)![0].savedLinks.filter((saved:{key:string})=>saved.key.startsWith('found:'))).toHaveLength(4))
+})
+
 it('reads the run again at once when the run button already shows a newer status, and names a record of missing values',async()=>{
   const absent={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
     node:{id:'title',name:'title',type:'string'},modelValue:null,evidence:[],links:[],grounding:'provisional',processing:'absent',lineage:[],correction:null,historicalCorrection:null}
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[absent],total:1,next:null,coverage:{}} as unknown as DurablePage
   const state={extractionId:'extraction',projectId:'project',status:'PAUSING',controlVersion:1,snapshotVersion:1,feedbackVersion:0,
     selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[{id:'title',name:'title',type:'string'}]},resolved:{startPage:null}},pendingSelection:null,
-    counts:{saved:1,inFlight:1},records:[{ordinal:0,page:1},{ordinal:1,page:2}],reading:[]}
+    counts:{saved:1,inFlight:1},records:[{ordinal:0,page:1},{ordinal:1,page:2}],recordsFinal:true,reading:[]}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   const attempt={extractionId:'extraction',strategy:'CATALOG',executionStatus:'PAUSING'} as ExtractionAttempt
   vi.useFakeTimers()

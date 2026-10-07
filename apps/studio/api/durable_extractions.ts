@@ -52,7 +52,7 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
         if(!action) {
           const state=await repository.read(id)
           // While discovery still looks for the records, the ones it has found so far show on the source.
-          return json(state.status==='RUNNING'&&state.strategy==='CATALOG'&&state.records===null?{...state,discovery:await discoveryProgress(state.attempt)}:state,{headers:noStore})
+          return json(state.status==='RUNNING'&&state.strategy==='CATALOG'&&!state.recordsFinal?{...state,discovery:await discoveryProgress(state.attempt)}:state,{headers:noStore})
         }
         if(action==='source') {
           const head=await repository.read(id)

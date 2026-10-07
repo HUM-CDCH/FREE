@@ -1184,11 +1184,11 @@ describe('BatchExtractionsPanel', () => {
     await screen.findByLabelText('Extraction Schema fields')
     await waitFor(() => expect(screen.getByLabelText('Batch extraction strategy')).toBeEnabled())
     fireEvent.change(screen.getByLabelText('Batch extraction strategy'), { target: { value: 'CATALOG' } })
-    expect(await screen.findByText('Saved advanced settings: Unified Catalog, defaults version 2')).toBeInTheDocument()
+    expect(await screen.findByText('Saved advanced settings: Unified Catalog, defaults version 3')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
     await waitFor(() => expect(posted).toHaveLength(1))
-    expect(posted[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 2 } } } })
+    expect(posted[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 3 } } } })
   })
 
 

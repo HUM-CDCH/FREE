@@ -2,13 +2,14 @@
 
 For each window plan it reports record-start recall against numbered gold starts, the ledger's unresolved text, calls,
 cut-off replies, wall time, and when each entry could start were entries run as soon as the windows deciding it were
-read (the `pipelined` times; the product starts every entry after the last window). `--scale K` repeats the source's
+read (the `pipelined` times; the product did so from defaults version 3, durable runs only). `--scale K` repeats the source's
 pages K times with the gold numbers shifted, a synthetic long source for throughput only. The models come from the
 environment as for the live tests (`KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL`, `KEI_NUEXTRACT_URL`, ...). `--values GOLD`
-instead runs whole extractions under each `--defaults` version and scores their values against gold rows.
+instead runs whole extractions under each `--defaults` version and scores their values against gold rows, with each
+stage's call durations (median, p90, max seconds).
 
     python -m experiments.extraction.discovery_windows RUN_DIR --gold 205 233 --by budget page column --repeats 2
-    python -m experiments.extraction.discovery_windows RUN_DIR --values reference.json --defaults 1 2
+    python -m experiments.extraction.discovery_windows RUN_DIR --values reference.json --defaults 2 3
 """
 from __future__ import annotations
 
@@ -175,7 +176,14 @@ def values(evidence: Evidence, rows: list[dict], version: int, chunks: int) -> d
         expected = gold.get(record.get("catalog_number"))
         if expected is not None and numbers[record["catalog_number"]] == 1:
             right.update(name for name in names if expected.get(name) is not None and same(record.get(name), expected[name]))
+    seconds: dict[str, list[float]] = {}
+    for call in result["calls"]:
+        seconds.setdefault(call["stage"], []).append(call["seconds"])
     return {"defaults": version, "wall": wall, "records": len(result["records"]),
+            # each call's own duration, as served beside `chunks` others: what a slow call holds up
+            "seconds": {stage: {"calls": len(each), "median": round(statistics.median(each), 1),
+                                "p90": round(sorted(each)[int(0.9 * (len(each) - 1))], 1), "max": round(max(each), 1)}
+                        for stage, each in seconds.items()},
             "matched": sum(numbers[number] == 1 for number in gold), "duplicated": sum(numbers[number] > 1 for number in gold),
             "spurious": sum(count for number, count in numbers.items() if number not in gold),
             "fields": {name: f"{right[name]}/{present[name]}" for name in names},

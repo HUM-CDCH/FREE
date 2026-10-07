@@ -34,9 +34,9 @@ def plan_execution(router, stage, execution):
         router.runtime.plan_execution(stage,execution)
 
 
-def plan_records(router, stage, scopes):
+def plan_records(router, stage, scopes, *, partial=False):
     if getattr(router,"runtime",None) is not None:
-        router.runtime.plan_records(stage,scopes)
+        router.runtime.plan_records(stage,scopes,partial=partial)
 
 
 def merge_contribution(node, earlier, later, conflicts, path=()):
@@ -53,7 +53,8 @@ def merge_contribution(node, earlier, later, conflicts, path=()):
     return earlier
 
 
-def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=False, primary=(), field_ids=None, metadata=None):
+def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=False, primary=(), field_ids=None, metadata=None,
+                   historical=None):
     selection = lease.state["selection"]
     raw = selection["schemaTree"]
     schema = Schema.model_validate(raw)
@@ -61,7 +62,7 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
     fields = conform(fields, schema.nodes)
     source_revision = lease.state["source"]["sourceRevisionId"]
     record_id = record_identity(source_revision, scope)
-    historical = lease.call("historical_coverage")
+    historical = historical if historical is not None else lease.call("historical_coverage")  # fixed per generation
     old_snapshot = historical.get("snapshot") or {}
     prior = {v["fieldId"]: v for v in old_snapshot.get("values", []) if v["recordId"] == record_id}
     reprocess = set(historical.get("manifest", {}).get("coverage", {}).get("reprocessValueIds", []))

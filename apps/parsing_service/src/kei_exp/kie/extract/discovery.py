@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -248,9 +249,47 @@ def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> li
     return [list(run) for _, run in groupby(units, key=lambda unit: where[unit.segment])]
 
 
+class Gate:
+    """Admits work in its turn order while fewer than `size` admitted items are running or yielded: an item that
+    finishes without yielding gives its place back, one that yielded (its call is not answered yet) keeps it. Once
+    every place is held by a yielded item, or `close` is called, nothing later is admitted, so what yields is the first
+    `size` unanswered items in order, however the threads interleave. Turns are the order items were handed to the
+    pool, which a pool takes them in."""
+
+    def __init__(self, size: int) -> None:
+        self.size, self.running, self.yielded, self.closed, self.turn = max(1, size), 0, 0, False, 0
+        self._cond = threading.Condition()
+
+    def enter(self, turn: int) -> bool:
+        with self._cond:
+            while self.turn != turn or not self.closed and self.running + self.yielded >= self.size:
+                if self.turn == turn and self.running == 0:
+                    self.closed = True
+                else:
+                    self._cond.wait()
+            self.turn += 1
+            self._cond.notify_all()
+            if self.closed:
+                return False
+            self.running += 1
+            return True
+
+    def leave(self, yielded: bool) -> None:
+        with self._cond:
+            self.running -= 1
+            self.yielded += yielded
+            self._cond.notify_all()
+
+    def close(self) -> None:
+        with self._cond:
+            self.closed = True
+            self._cond.notify_all()
+
+
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
-             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict | None:
+             progress: Callable[[list[dict], list[dict]], None] | None = None,
+             unanswered: tuple[type[BaseException], ...] = ()) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
@@ -258,7 +297,13 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
     raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
     call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
-    labels: a view of the run while it reads, never an input to discovery."""
+    labels: a view of the run while it reads, never an input to discovery.
+
+    With `unanswered` (the exceptions an `ask` raises for a call whose reply is not there yet), windows are read as a
+    sliding frontier instead: no slices, a failed window's halves asked as soon as it fails, at most `workers`
+    unanswered windows at a time (`Gate`), and nothing of `unanswered` raised. The body then also says whether it is
+    `complete`; until it is, it holds only the windows of the read prefix (the windows before the first one not yet
+    read whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`)."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
@@ -310,12 +355,63 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
                 issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
             readings.append([(observed or _Seen(window, False, []), calls, issues)])
         return readings
-    readings = [item for each in read(windows, 0) for item in each]
+
+    def resolve(window: Window, depth: int) -> list | None:
+        """The window's reading, then its halves' when it failed and may still be halved, each half once the one
+        before it is read; None once one of them is unanswered."""
+        try:
+            observed, calls, issues = one(window, sorted_starts())
+        except unanswered:
+            return None
+        if observed is not None:
+            with lock:
+                done.append(observed)
+        elif len(window.primary) > 1 and depth < splits:
+            readings = [(None, calls, issues)]
+            for half in split(window, texts, fits, overlap=overlap):
+                if (more := resolve(half, depth + 1)) is None:
+                    return None
+                readings += more
+            return readings
+        else:
+            issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
+        return [(observed or _Seen(window, False, []), calls, issues)]
+
+    def sorted_starts() -> list[dict]:
+        with lock:
+            return record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
+                                                                each.window.primary[0].start)))
+
+    def frontier(turn: int, window: Window) -> list | None:
+        if not gate.enter(turn):
+            return None
+        readings = None
+        try:
+            readings = resolve(window, 0)
+            return readings
+        except BaseException:
+            gate.close()
+            raise
+        finally:
+            gate.leave(readings is None)
+
+    if unanswered:
+        lock, gate = threading.Lock(), Gate(workers)
+        with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="discovery") as pool:
+            futures = [pool.submit(frontier, turn, window) for turn, window in enumerate(windows)]
+        for future in futures:  # the first error in source order, once every window has stopped
+            if (error := future.exception()) is not None:
+                raise error
+        resolved = [future.result() for future in futures]
+        complete = None not in resolved
+        readings = [item for each in resolved[:None if complete else resolved.index(None)] for item in each]
+    else:
+        readings, complete = [item for each in read(windows, 0) for item in each], True
     seen = [observed for observed, _, _ in readings if observed is not None]
-    return {**_assemble(seen, evidence, texts), "windows": [_window_json(each) for each in seen],
+    return {**_assemble(seen, evidence, texts, prefix=not complete), "windows": [_window_json(each) for each in seen],
             "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
                        *(issue for _, _, issues in readings for issue in issues)],
-            "calls": [call for _, calls, _ in readings for call in calls]}
+            "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if unanswered else {})
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:
@@ -366,8 +462,12 @@ def _window_json(seen: _Seen) -> dict:
             "context_omitted": [{"kind": kind, **ranges_json([unit])[0]} for kind, unit in seen.window.omitted]}
 
 
-def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str]) -> dict:
-    """Regions from the windows' places and their explicit continuation observations; then entries and the ledger."""
+def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, prefix: bool = False) -> dict:
+    """Regions from the windows' places and their explicit continuation observations; then entries and the ledger.
+
+    A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
+    so every entry here is final (number, ranges, context, end) except the one still open at the prefix's end, whose
+    end the next window decides; it is left out."""
     units: list[Unit] = [unit for each in seen for unit in each.window.primary]
     regions: list[list] = []  # [kind, entry index or None, (unit index, offset)]
     entries: list[dict] = []
@@ -410,6 +510,9 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str]) -> d
                 open_entry = len(entries) - 1
             regions.append([kind, open_entry, position])
         previous = each
+    if prefix:
+        body = _ledger(regions, units, entries, evidence, texts)
+        return body if open_entry is None else {**body, "entries": entries[:open_entry]}
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])

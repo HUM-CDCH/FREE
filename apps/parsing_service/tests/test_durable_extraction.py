@@ -11,7 +11,7 @@ import pytest
 
 from kei_exp.kie.extract import calls, run, unified
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
-from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.models import ROLE, Router
 from kei_exp.kie.extract import retained
 from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
@@ -537,3 +537,104 @@ def test_renamed_composites_carry_typed_children_and_keep_conflicting_proposals(
     assert after["values"][0]["modelValue"]=={"full_name":"Alice","years":30}
     assert after["coverage"]["historicalProposals"][before["values"][0]["id"]]["conflicts"]==[{"path":["Z"],"historical":"Alice","proposed":"Bob"}]
     assert before["values"][0]["modelValue"]=={"name":"Alice","age":None}
+
+
+def drive(lease, chat, extract, chunks, until=lambda answered: False):
+    """The wait-first loop over the memory lease: each planned call starts while fewer than `chunks` of its role run,
+    and one running call (the earliest started) is answered per round before the attempt is planned again. `until`
+    stops it early, returning the calls still running."""
+    running, rounds, answered = {}, [], []
+    while not until(answered):
+        counter=Counter()
+        planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
+        try:
+            result=extract(Router(chat,chat,planner),counter)
+        except NeedsCall:
+            stages={unit["id"]:unit["descriptor"]["stage"] for unit in lease.units.values()}
+            for capture,role in planner.roles.items():
+                if capture not in running and sum(each==role for each in running.values())<chunks:
+                    running[capture]=role
+            rounds.append({"planned":{capture:stages[capture] for capture in planner.pending},
+                           "answered":list(answered),
+                           "saved":{value["path"][1] for each in lease.publications.values() for value in each["values"]
+                                    if value["modelValue"] is not None}})
+            capture=next(iter(running))
+            del running[capture]
+            unit=next(u for u in lease.units.values() if u["id"]==capture)
+            body=dict(unit["input"]["request"]["body"])
+            body.pop("max_whitespace")
+            parsed,attempts=calls.complete(chat,**body,counter=counter)
+            unit["checkpoint"]={"output":{"parsed":parsed,"calls":[asdict(call) for call in attempts]}}
+            answered.append(stages[capture])
+            continue
+        lease.state["recordScopes"]=planner.scopes
+        publish_final(lease,result)
+        return result,rounds,answered
+    return running,rounds,answered
+
+
+def test_version_3_paused_during_discovery_shows_every_entry_read_before_it_stops():
+    """A Pause lets the calls already running save; planning then shows every entry whose read was saved, and stops."""
+    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
+    request=unified_request(defaults=3)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    chat=CountingChat(Model(source))
+    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
+    running,_,_=drive(lease,chat,extract,2,until=lambda answered: "entry" in answered)
+    def shown():
+        return {value["path"][1] for each in lease.publications.values() for value in each["values"] if value["modelValue"]}
+    before=shown()
+    assert "entry" in [unit["descriptor"]["stage"] for unit in lease.units.values() if unit["id"] in running]
+    lease.intent="PAUSE"
+    for capture in running:
+        unit=next(u for u in lease.units.values() if u["id"]==capture)
+        body=dict(unit["input"]["request"]["body"])
+        body.pop("max_whitespace")
+        parsed,attempts=calls.complete(chat,**body,counter=Counter())
+        unit["checkpoint"]={"output":{"parsed":parsed,"calls":[asdict(call) for call in attempts]}}
+    counter=Counter()
+    with pytest.raises(Boundary):
+        extract(Router(chat,chat,CapturePlanner(lease,{"fields":counter,"reasoning":counter})),counter)
+    read={unit["input"]["request"]["body"]["record"] for unit in lease.units.values()
+          if unit["descriptor"]["stage"]=="entry" and unit["checkpoint"]}
+    assert before<shown()==read
+
+
+@pytest.mark.parametrize("chunks",[1,2])
+def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks):
+    """Each entry of the windows read so far is read, and shown with its candidates, before discovery has read the
+    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. A round plans
+    at most `chunks` calls per role however many pages there are, and the result is a plain run's."""
+    from tests.test_unified_catalog import untimed
+    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
+    request=unified_request(defaults=3)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=chunks)
+    result,rounds,answered=drive(lease,CountingChat(Model(source)),extract,chunks)
+    last_window=len(answered)-1-answered[::-1].index("discovery")
+    assert answered.index("entry")<last_window<answered.index("verification")
+    assert any("discovery" in each["planned"].values() and 0 in each["saved"] for each in rounds)
+    assert all(sum(ROLE[stage]==role for stage in each["planned"].values())<=chunks
+               for each in rounds for role in ("fields","reasoning"))
+    # however the planning threads interleave, discovery keeps `chunks` windows asked until none is left to ask
+    assert all(list(each["planned"].values()).count("discovery")==min(chunks,12-each["answered"].count("discovery"))
+               for each in rounds if each["answered"].count("discovery")<12)
+    plain=run.dispatch(None,source,request,CountingChat(Model(source)),counter=Counter(),chunks=chunks)
+    assert untimed(result)==untimed(plain)
+    assert [record["material"] for record in result["records"]]==[f"m{n}" for n in range(1,13)]
+    assert any(stage.startswith("unified-prefix:") for stage in lease.plans) and "unified-records" in lease.plans
+
+
+def test_version_3_entry_calls_keep_their_captures_when_an_earlier_record_moves_their_number():
+    """An entry's calls are captured by the entry (where it starts and what it covers), not by its number: a record
+    found earlier on another page renumbers the later entries but reuses their saved calls."""
+    def entry_keys(defaults, first_page):
+        source=unified_evidence(first_page,"3. Site3. Material: m3.","4. Site4. Material: m4.")
+        request=unified_request(defaults=defaults)
+        lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+        finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,
+                                                                                       counter=counter))
+        return {key for key,unit in lease.units.items() if unit["descriptor"]["stage"] in ("entry","verification")}
+    for defaults in (3,2):
+        one,two=entry_keys(defaults,"1. Site1. Material: m1."),entry_keys(defaults,"1. Site1. Material: m1.\n2. Site2. Material: m2.")
+        assert (one<=two)==(defaults==3), defaults  # version 2 numbers entries 3 and 4 anew: their calls are new
