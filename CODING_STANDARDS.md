@@ -40,7 +40,7 @@ Why: each read is a snapshot. Something created between two reads is missed
 when its gate is read last, and the cleanup removes what that newcomer still
 needs.
 
-Reference: `collectKei` (`prototypes/studio/api/_garbage_workflow.ts`) reads
+Reference: `collectKei` (`apps/studio/api/_garbage_workflow.ts`) reads
 parents before references; `delete_runs`
-(`prototypes/parsing_service/src/kei_exp/workflows/gc.py`) lists `.prepare-*`
+(`apps/parsing_service/src/kei_exp/workflows/gc.py`) lists `.prepare-*`
 before reading which conversions may still write.

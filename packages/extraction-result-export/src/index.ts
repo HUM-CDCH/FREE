@@ -1,7 +1,7 @@
 /**
  * The researcher's spreadsheet export: a schema-led table (schema fields as columns, one row per record or per
  * selected repeated object) written as CSV or XLSX with formula protection and the Excel limits enforced. Durable
- * Extractions project their fixed saved values through the same table (prototypes/studio/src/durableExport.ts).
+ * Extractions project their fixed saved values through the same table (apps/studio/src/durableExport.ts).
  */
 export type { ExportFormat } from "./filename.js";
 export { createExportFilename } from "./filename.js";

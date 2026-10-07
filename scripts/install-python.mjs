@@ -11,7 +11,7 @@ export function shouldInstallPython(environment = process.env) {
  * cannot resolve (libuv ignores PATHEXT), so run it through `cmd.exe`.
  */
 export function installPythonCommand(platform = process.platform) {
-  const cwd = fileURLToPath(new URL('../prototypes/parsing_service/', import.meta.url))
+  const cwd = fileURLToPath(new URL('../apps/parsing_service/', import.meta.url))
   if (platform === 'win32')
     return {
       command: process.env.ComSpec ?? 'cmd.exe',

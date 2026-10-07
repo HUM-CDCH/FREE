@@ -53,7 +53,7 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
   const root=resolve(import.meta.dirname,'../../..')
   const {stdout}=await promisify(execFile)('docker',['run','--rm','--network',network,'--entrypoint','sh',
     '-e','PYTHONDONTWRITEBYTECODE=1','-e','DURABLE_RECOVERY_FIXTURE=/fixture/fixture.json',
-    '-v',`${root}/prototypes/parsing_service:/test:ro`,'-v',`${directory}:/fixture:ro`,'-w','/test',
+    '-v',`${root}/apps/parsing_service:/test:ro`,'-v',`${directory}:/fixture:ro`,'-w','/test',
     process.env.DURABLE_TEST_WORKER_IMAGE??'free-parsing_worker','-c',
     'uv pip install --python /app/.venv/bin/python pytest==9.1.1 && /app/.venv/bin/python -m pytest -q --tb=short -o cache_dir=/tmp/pytest_cache tests/test_durable_workflow_recovery.py'],
     {timeout:240000,maxBuffer:1024*1024}).catch((error:{stdout?:string})=>{

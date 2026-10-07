@@ -103,7 +103,7 @@ test("a large companion sheet builds past the zip writer's worker threshold", as
   // Generous: guards only against blow-up.
   assert.ok(performance.now() - started < 10_000, `built in ${performance.now() - started} ms`);
   // fflate deflates a part of 160,000 bytes or more in a Blob-URL Worker: Studio's Content-Security-Policy must allow
-  // `worker-src blob:` (prototypes/studio/server/contentSecurityPolicy.ts) or such an export never finishes.
+  // `worker-src blob:` (apps/studio/server/contentSecurityPolicy.ts) or such an export never finishes.
   assert.ok(new TextEncoder().encode(files["xl/worksheets/sheet2.xml"]!).length >= 160_000);
   assert.equal(files["xl/worksheets/sheet2.xml"]!.match(/<row\b/g)?.length, 3001);
 });

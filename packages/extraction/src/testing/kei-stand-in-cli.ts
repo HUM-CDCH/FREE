@@ -20,7 +20,7 @@ import { KEI_FAILURE_CODES, type KeiConvertInput } from '../kei-handoff.js'
 import { launchKeiStandIn, type StandInConversion, type StandInDecision } from './kei-stand-in.js'
 import type { HeldWork, StandInAnswer, StandInPolicy } from './kei-stand-in-client.js'
 
-const DEFAULT_FIXTURE = fileURLToPath(new URL('../../../../prototypes/studio/test/fixtures/kei-exp/', import.meta.url))
+const DEFAULT_FIXTURE = fileURLToPath(new URL('../../../../apps/studio/test/fixtures/kei-exp/', import.meta.url))
 const failureSchema = z.object({ code: z.enum(KEI_FAILURE_CODES), reason: z.string(), retryable: z.boolean() }).strict()
 const ruleSchema = z.union([z.enum(['auto', 'hold']), z.object({ failure: failureSchema }).strict()])
 const policySchema = z.object({ convert: ruleSchema.optional() }).strict()

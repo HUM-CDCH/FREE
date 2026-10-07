@@ -360,7 +360,7 @@ test("development: the owned parsing stack runs on Studio's database and restart
   for (const name of ['parsing_service', 'parsing_worker']) {
     const watch = config.services[name].develop.watch
     const source = watch.find(({ action }) => action === 'sync+restart')
-    assert.ok(source.path.replaceAll('\\', '/').endsWith('/prototypes/parsing_service/src'))
+    assert.ok(source.path.replaceAll('\\', '/').endsWith('/apps/parsing_service/src'))
     assert.equal(source.target, '/app/src')
     assert.equal(source.initial_sync, true)
     assert.ok(!(source.ignore ?? []).includes('kei_exp/jobs/schema.py'))
@@ -475,7 +475,7 @@ test('no deployment admits new Catalog work on the unified method unless its ope
 })
 
 test('app shell: the production policy is strict about script, workers and framing', async () => {
-  const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../prototypes/studio/server/contentSecurityPolicy.ts')
+  const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../apps/studio/server/contentSecurityPolicy.ts')
   const policy = new Map(
     APP_SHELL_CONTENT_SECURITY_POLICY.split(';')
       .map((directive) => directive.trim().split(/\s+/))
@@ -494,7 +494,7 @@ test('app shell: the production policy is strict about script, workers and frami
     )
   assert.equal(policy.has('form-action'), false)
 
-  const staticClient = readFileSync(resolve(ROOT, 'prototypes/studio/server/static.ts'), 'utf8')
+  const staticClient = readFileSync(resolve(ROOT, 'apps/studio/server/static.ts'), 'utf8')
   assert.ok(staticClient.includes('APP_SHELL_CONTENT_SECURITY_POLICY'), 'the app shell response sends the policy')
 })
 
@@ -531,13 +531,13 @@ test('development: Studio watches shared configuration and rebuild-owned databas
     )
 
   // Server code runs in the Studio process, so it restarts the container; browser source is carved out of that rule.
-  const studioServer = rule('sync+restart', '/prototypes/studio')
-  assert.equal(studioServer?.target, '/workspace/prototypes/studio')
+  const studioServer = rule('sync+restart', '/apps/studio')
+  assert.equal(studioServer?.target, '/workspace/apps/studio')
   assert.equal(studioServer?.initial_sync, true)
   for (const ignored of ['package.json', 'src/', 'e2e/', 'node_modules/'])
     assert.ok(studioServer.ignore.includes(ignored), `${ignored} must not travel with Studio's server code`)
-  const browserSource = rule('sync', '/prototypes/studio/src')
-  assert.equal(browserSource?.target, '/workspace/prototypes/studio/src')
+  const browserSource = rule('sync', '/apps/studio/src')
+  assert.equal(browserSource?.target, '/workspace/apps/studio/src')
   assert.equal(browserSource?.initial_sync, true)
   assert.deepEqual(
     watch.filter(({ action }) => action === 'sync'),
@@ -585,7 +585,7 @@ test('development: Studio watches shared configuration and rebuild-owned databas
 
 test('image: the shared configuration manifest precedes Studio dependency installation', () => {
   const dockerfile = readFileSync(
-    resolve(ROOT, 'prototypes/studio/Dockerfile'),
+    resolve(ROOT, 'apps/studio/Dockerfile'),
     'utf8',
   )
   const manifest = dockerfile.indexOf(
@@ -605,7 +605,7 @@ test('image: the shared configuration manifest precedes Studio dependency instal
 })
 
 test('image: Studio installs no keyring and starts no D-Bus', () => {
-  const dockerfile = readFileSync(resolve(ROOT, 'prototypes/studio/Dockerfile'), 'utf8')
+  const dockerfile = readFileSync(resolve(ROOT, 'apps/studio/Dockerfile'), 'utf8')
   for (const forbidden of [
     'gnome-keyring',
     'dbus-daemon',
@@ -620,7 +620,7 @@ test('image: Studio installs no keyring and starts no D-Bus', () => {
   }
   assert.match(entrypoint, /: "\$\{CODEX_HOME:\?CODEX_HOME must be set\}"/)
   const manifest = JSON.parse(
-    readFileSync(resolve(ROOT, 'prototypes/studio/package.json'), 'utf8'),
+    readFileSync(resolve(ROOT, 'apps/studio/package.json'), 'utf8'),
   )
   for (const dependency of ['@napi-rs/keyring', 'env-paths']) {
     for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {

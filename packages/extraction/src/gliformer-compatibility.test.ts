@@ -7,7 +7,7 @@ import { parseSchemaDefinition } from './schema.js'
 import { ExtractionError } from './errors.js'
 
 const { cases } = JSON.parse(readFileSync(new URL(
-  '../../../prototypes/parsing_service/tests/fixtures/contracts/gliformer-compatibility.json', import.meta.url), 'utf8'))
+  '../../../apps/parsing_service/tests/fixtures/contracts/gliformer-compatibility.json', import.meta.url), 'utf8'))
 
 for (const item of cases) test(`GLiFormer service compatibility: ${item.id}`, () => {
   const method = extractionMethodIntentSchema.parse(item.method)

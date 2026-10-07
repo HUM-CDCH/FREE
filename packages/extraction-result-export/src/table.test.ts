@@ -191,7 +191,7 @@ test("a data key the approved schema does not declare never becomes a column", (
 });
 
 test("exports a unified Catalog result the Parsing Service produced, by list item or by record", async () => {
-  const contract = (await import("../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json",
+  const contract = (await import("../../../apps/parsing_service/tests/fixtures/contracts/extract.result.v3.json",
     { with: { type: "json" } })).default;
   const nodes = contract.request.schema.schemaNodes as SchemaNode[];
   const byItem = buildExportTable(nodes, contract.artifact.records, choices("finds"));

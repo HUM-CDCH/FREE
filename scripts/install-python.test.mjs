@@ -11,7 +11,7 @@ describe('install:python', () => {
     assert.equal(shouldInstallPython({ FREE_SKIP_PYTHON: '1' }), false)
   })
 
-  const cwd = fileURLToPath(new URL('../prototypes/parsing_service/', import.meta.url))
+  const cwd = fileURLToPath(new URL('../apps/parsing_service/', import.meta.url))
 
   it('runs the frozen sync in the parsing service directory', () => {
     assert.deepEqual(installPythonCommand('linux'), {

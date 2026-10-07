@@ -42,13 +42,13 @@ or `pnpm production`. Both go through `scripts/free.mjs`.
 
 | Layer | Files | What lives here |
 |---|---:|---|
-| **Studio Web UI** — `prototypes/studio/src` | 96 | React SPA: auth screens, project contexts, schema editor, durable results-review rail, batch-member navigation, evidence overlays, provider config, XState machines, `ui/` kit |
-| **Shared Studio Contracts** — `prototypes/studio/shared` | 17 | Zod schemas + pure helpers imported by *both* SPA and API handlers |
-| **Studio HTTP API** — `prototypes/studio/api` | 34 | Request handlers (project contexts, source documents, schemas, extractions, model probing, LLM inspector) and private `_*.ts` helpers |
-| **Studio Server Host** — `prototypes/studio/server` | 17 | Hono composition root: Entra/dev auth, signed session cookies, origin (CSRF) checks, API dispatch, static serving |
+| **Studio Web UI** — `apps/studio/src` | 96 | React SPA: auth screens, project contexts, schema editor, durable results-review rail, batch-member navigation, evidence overlays, provider config, XState machines, `ui/` kit |
+| **Shared Studio Contracts** — `apps/studio/shared` | 17 | Zod schemas + pure helpers imported by *both* SPA and API handlers |
+| **Studio HTTP API** — `apps/studio/api` | 34 | Request handlers (project contexts, source documents, schemas, extractions, model probing, LLM inspector) and private `_*.ts` helpers |
+| **Studio Server Host** — `apps/studio/server` | 17 | Hono composition root: Entra/dev auth, signed session cookies, origin (CSRF) checks, API dispatch, static serving |
 | **Extraction Packages** — `packages/extraction`, `packages/extraction-result-export` | 28 | Durable admission, immutable selections, controls, corrections, finalization, batch readers, canonical Evidence and fixed-cut exports |
 | **Persistence Layer** — `packages/db` | 15 | prisma-next contract, researcher-scoped project store, content-addressed artifact store, account store, DB-URL safety guards |
-| **Parsing Service (kei_exp)** — `prototypes/parsing_service` | 64 | FastAPI run store, PDF ingest/layout/OCR (native, Surya, VLM), KIE segmentation, grounded extraction, durable jobs |
+| **Parsing Service (kei_exp)** — `apps/parsing_service` | 64 | FastAPI run store, PDF ingest/layout/OCR (native, Surya, VLM), KIE segmentation, grounded extraction, durable jobs |
 | **Deployment & Operations** | 19 | Dockerfiles, `compose*.yaml` overlays, nginx templates, container entrypoint, CI workflow, `scripts/*.mjs` |
 | **Workspace & Build Config** | 35 | Manifests, tsconfigs, Vite/Vitest/Playwright/ESLint, Semgrep/ast-grep rules, `studio-configuration` package |
 
@@ -145,16 +145,16 @@ files. There are no code imports across the TypeScript/Python boundary.
 |---|---:|---:|---:|---|
 | `packages/db/src/project-store.ts` | 2292 | 12 | 2 | God-store for projects, sources, schemas, revisions, batches — every ownership rule lives here |
 | `packages/extraction/src/postgres-admission.ts` | 422 | — | — | Admission and replay under document row locks; attempt, batch and ownership readers compose in `postgres-persistence.ts`; durable selections, corrections and finalization live in `durable-repository.ts` |
-| `prototypes/studio/src/SchemaPanel.tsx` | 1813 | 2 | 11 | Tree editor + DnD + AI-proposal review in one component |
-| `prototypes/studio/src/projectContexts/BatchExtractionsPanel.tsx` | 1386 | 1 | 18 | Highest UI fan-out; orchestrates selection, suggestion, runs, history |
-| `prototypes/studio/src/DurableResults.tsx` | — | — | — | Fixed snapshots, correction versions, selected values and named finalization; replaces the historical results sub-view |
-| `prototypes/studio/src/App.tsx` | 958 | 0 | 13 | Per-document workspace composition |
-| `prototypes/parsing_service/src/kei_exp/kie/ingest_model.py` | 407 | — | — | Largest of the KIE core type modules (split by layer: `primitives`, `blocks`, `ingest_model`) |
-| `prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py` | 767 | 1 | 10 | The evidence-verification heart of the product promise |
-| `prototypes/studio/api/source_documents.ts` | 742 | 1 | 6 | Upload → submit → poll with retry → publish representation |
-| `prototypes/studio/api/_provider.ts` | 732 | 7 | 4 | Eight provider kinds behind one runtime |
-| `prototypes/studio/server/app.ts` | 653 | 2 | 15 | Composition root — security middleware ordering matters |
-| `prototypes/parsing_service/src/kei_exp/api.py` | — | — | 20 | Highest fan-out in the repo |
+| `apps/studio/src/SchemaPanel.tsx` | 1813 | 2 | 11 | Tree editor + DnD + AI-proposal review in one component |
+| `apps/studio/src/projectContexts/BatchExtractionsPanel.tsx` | 1386 | 1 | 18 | Highest UI fan-out; orchestrates selection, suggestion, runs, history |
+| `apps/studio/src/DurableResults.tsx` | — | — | — | Fixed snapshots, correction versions, selected values and named finalization; replaces the historical results sub-view |
+| `apps/studio/src/App.tsx` | 958 | 0 | 13 | Per-document workspace composition |
+| `apps/parsing_service/src/kei_exp/kie/ingest_model.py` | 407 | — | — | Largest of the KIE core type modules (split by layer: `primitives`, `blocks`, `ingest_model`) |
+| `apps/parsing_service/src/kei_exp/kie/extract/grounded.py` | 767 | 1 | 10 | The evidence-verification heart of the product promise |
+| `apps/studio/api/source_documents.ts` | 742 | 1 | 6 | Upload → submit → poll with retry → publish representation |
+| `apps/studio/api/_provider.ts` | 732 | 7 | 4 | Eight provider kinds behind one runtime |
+| `apps/studio/server/app.ts` | 653 | 2 | 15 | Composition root — security middleware ordering matters |
+| `apps/parsing_service/src/kei_exp/api.py` | — | — | 20 | Highest fan-out in the repo |
 
 Most-depended-on files (change with care): `studio/api/_http.ts` (28 importers),
 `studio/shared/extraction.contract.ts` (26), `studio/shared/projectContext.contract.ts` (20),

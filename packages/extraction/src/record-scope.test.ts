@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import contract from '../../../prototypes/parsing_service/tests/fixtures/contracts/record-scope.json' with { type: 'json' }
+import contract from '../../../apps/parsing_service/tests/fixtures/contracts/record-scope.json' with { type: 'json' }
 import { ExtractionError } from './errors.js'
 import { refuseRecordCardinality, refuseRecordScope, storedRecordScope } from './record-scope.js'
 import { RECORD_SCOPES, recordScopeOf, recordScopeSchema, strategyOf, type RecordScope } from './schema.js'
