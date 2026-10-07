@@ -26,8 +26,9 @@ Use topic labels to make it clear which part of the system an issue touches:
 Keep domain language in [CONTEXT.md](CONTEXT.md), durable decisions in
 `docs/adr/`, and current contracts beside the product area they describe.
 Track unresolved work and open questions in GitHub Issues or an active OpenSpec
-change. `docs/` may hold dated execution plans, defect ledgers, and validation
-evidence when they form a reproducible review record that remains useful with
-the code. Date those artifacts and, where applicable, state their status and
-link the outcome or superseding artifact so they do not become ambiguous
-handoff notes.
+change. Execution plans, run logs, and validation evidence go in the pull
+request or Issue, not in `docs/`.
+
+This repository is public. Never commit credentials, internal hostnames or IP
+addresses, personal data, or documents you may not redistribute; test fixtures
+use synthetic documents only.

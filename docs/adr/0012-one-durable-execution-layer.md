@@ -2,7 +2,7 @@
 
 Date: 2026-09-26. Status: accepted; M1–M6 implemented locally on
 `feat/dbos-m2-m6`, with the Spark cutover and smoke still pending under
-[the DBOS plan](../plans/2026-09-24-unified-durable-execution.md). Amends the
+the DBOS plan. Amends the
 job-backend part of [0009](0009-own-parsing-and-extraction-service-in-free.md).
 
 ## Context
@@ -78,5 +78,5 @@ supersedes the admission-disabled statement above. Valid requests admit durable
 Extractions directly, with no release flag or environment switch; legacy
 Extraction workflows and readers were removed. PostgreSQL, browser, Compose
 and exact-commit Spark acceptance in the
-[recorded OpenSpec tasks](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md)
+recorded OpenSpec tasks
 must pass before merging this follow-up. Deployment remains a separate action.

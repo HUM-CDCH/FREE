@@ -6,7 +6,7 @@ FREE root deployment runbooks govern the current runtime and verification comman
 
 Organization update: shared encoding and hashing now live in `kei_exp.canonical`, transcription contracts and
 adapters in `kei_exp.transcription`, and API job ownership in `kei_exp.runs`. The evidence and execution
-contracts below remain unchanged; see the [current code organization](../../../README.md#code-organization).
+contracts below remain unchanged; see the [current code organization](../../README.md#code-organization).
 
 Evidence amendment, 2026-09-22: a born-digital page no longer publishes one coarse segment. Docling already
 carries every item's page and provenance box, so the native transcriber returns one block per item — of the

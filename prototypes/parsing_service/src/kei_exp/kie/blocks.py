@@ -1,6 +1,6 @@
 """Entry blocks and what the recipe stages attach to them: spans, heading events, glossary entries and diagnostics.
 
-Vocabulary: `CONTEXT.md`. Contracts: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
+Vocabulary: `CONTEXT.md`. Contracts: `docs/design/2026-09-14-kie-model-and-ingest-design.md`
 (sections are cited as "spec 3.6" below) and the grounded catalogue design. These are the only model types the
 recipe stages, the segmentation artifact and extraction use, and this module imports only `kie.primitives`, so none
 of them loads the ingest artifact. Whether a span lies inside real text is checked where the text is: by the

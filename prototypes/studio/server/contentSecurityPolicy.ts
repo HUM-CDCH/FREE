@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 /**
- * Researchers' API keys live in this origin's localStorage (docs/plans/2026-09-24-unified-durable-execution.md,
+ * Researchers' API keys live in this origin's localStorage (docs/design/unified-durable-execution.md,
  * *Model configuration and keys → XSS*), so script and pdf.js's worker load only from Studio, inline script is
  * refused and no page may frame Studio. Workers may also start from a `blob:` URL, which only script already running
  * in Studio can mint: the Excel export's zip writer (fflate, under write-excel-file) deflates each workbook part of

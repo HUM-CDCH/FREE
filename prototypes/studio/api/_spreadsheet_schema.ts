@@ -242,7 +242,7 @@ function nodeIdAtPath(nodes: readonly SchemaNode[], path: readonly string[]): st
  * Maps each column's name to the id of the `SchemaNode` its path resolved
  * to in the confirmed suggestion — the stable identity a renamed field can
  * still be traced back through (design.md D3 in
- * openspec/changes/spreadsheet-schema-suggestion).
+ * the spreadsheet-schema-suggestion design).
  */
 export function columnFieldIds(
   nodes: readonly SchemaNode[],

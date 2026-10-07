@@ -1,7 +1,7 @@
 import type { ArticleSection } from './advancedSettings'
 
 /** The Explain guide's content: illustrations and dated study findings, never a recommendation. Ordinary local data;
- *  every number is copied from the cited report under `docs/validation/`. */
+ *  every number is copied from the dated development study it names. */
 
 export type GuideTopicId = 'scope' | 'grouping' | 'selection' | 'identity' | 'format' | 'grounding' | 'policy' | 'scheduling' | 'catalog'
 /** One labelled block of an illustration; `note` is its state in words (never colour alone); `mark` highlights an
@@ -29,56 +29,47 @@ export const SECTION_TOPIC: Readonly<Record<ArticleSection | 'generic' | 'recipe
   unified: 'catalog',
 }
 
-const COMPLETED = 'docs/validation/2026-09-28-completed-development-study.md'
-
 export const EVIDENCE_SOURCES: readonly Readonly<{
-  id: EvidenceSourceId; title: string; date: string; corpus: string; revision: string; evidence: string; limits: string; path: string
+  id: EvidenceSourceId; title: string; date: string; corpus: string; revision: string; evidence: string; limits: string
 }>[] = [
   { id: 'r1r3r4', title: 'Completed R1/R3/R4 development cells', date: '2026-09-28',
     corpus: 'Six annotated development documents per accuracy comparison (cost pairs as stated); R1 79/79, R3 12/12 and R4 4/12 cells',
     revision: 'Frozen historical runtimes, schemas and canonical parses (R1 and R3 protocol v11; R4 protocol v12)',
     evidence: 'Exact replay of completed fresh-generation cells',
-    limits: 'Each comparison changes one choice from its control arm; one repetition per arm; bracketed ranges are descriptive document-bootstrap intervals; development corpus, not a prediction for today’s runtime; semantic adjudication outstanding',
-    path: COMPLETED },
+    limits: 'Each comparison changes one choice from its control arm; one repetition per arm; bracketed ranges are descriptive document-bootstrap intervals; development corpus, not a prediction for today’s runtime; semantic adjudication outstanding' },
   { id: 'r1catalog', title: 'Completed R1 Catalog cells', date: '2026-09-28',
     corpus: 'One unannotated document', revision: 'Frozen historical R1 runtime',
     evidence: 'Exact replay of completed fresh-generation cells',
-    limits: 'Operational observations, not Catalog accuracy or exhaustive recall; human adjudication unavailable', path: COMPLETED },
+    limits: 'Operational observations, not Catalog accuracy or exhaustive recall; human adjudication unavailable' },
   { id: 'r2a', title: 'Value-unit selection (R2a)', date: '2026-09-28',
     corpus: '15 development documents, six of them annotated; 30 sealed cells',
     revision: 'Registered R2a selection replay; inventory and retained requests use fixed R1 replies',
     evidence: 'Conditional fixed-reply replay, grounding disabled; no new model calls',
-    limits: 'Fixed-reply savings do not establish fresh-model speed or evidence recall; gold is not exhaustive; no held-out accuracy; human adjudication of the review queues outstanding',
-    path: 'docs/validation/2026-09-28-extraction-selection-results.md' },
+    limits: 'Fixed-reply savings do not establish fresh-model speed or evidence recall; gold is not exhaustive; no held-out accuracy; human adjudication of the review queues outstanding' },
   { id: 'pilot', title: 'Grounding pilot', date: '2026-09-28',
     corpus: 'One selected development document (Zelechowska, no table cells); six cells of the registered 90-cell R5 matrix',
     revision: 'Registered R5 grounding settings with the original span labels (version 1); upstream records fixed',
     evidence: 'Fresh generation (101 calls), exactly replayed',
-    limits: 'One document, not representative or held out; not a general cost saving; linked-claim counts are not semantic accuracy; identical requests varied; human adjudication unavailable',
-    path: 'docs/validation/2026-09-28-grounding-pilot.md' },
+    limits: 'One document, not representative or held out; not a general cost saving; linked-claim counts are not semantic accuracy; identical requests varied; human adjudication unavailable' },
   { id: 'audit', title: 'Grounding pilot audit', date: '2026-09-28',
     corpus: 'The pilot’s one selected development document: 101 saved requests, 35 separately authorized fresh repeat calls and 69 reviewed claim–evidence pairs',
     revision: 'The pilot’s captured requests (span labels version 1)',
     evidence: 'Capture recheck, fresh repeats and two model reviews',
-    limits: 'Model judgments, not human gold; selected divergent requests give no population disagreement rate; human adjudication outstanding',
-    path: 'docs/validation/2026-09-28-grounding-pilot-audit.md' },
+    limits: 'Model judgments, not human gold; selected divergent requests give no population disagreement rate; human adjudication outstanding' },
   { id: 'harvey', title: 'Harvey grounding micro-pilot', date: '2026-09-28',
     corpus: 'One previously inspected development document (Harvey); 12 cells, 16 selected decisions per method',
-    revision: 'Frozen span-label versions 1 and 2, before the #145/#146 integration (2ce78e4c)',
+    revision: 'Frozen span-label versions 1 and 2, before version 2 was integrated',
     evidence: 'Fresh generation, exactly replayed',
-    limits: 'A selected-claim development diagnostic, not full-document accuracy or generalization; two repeats; mechanical checks do not certify entailment; no semantic review of version 2',
-    path: 'docs/validation/2026-09-28-harvey-grounding-micro.md' },
+    limits: 'A selected-claim development diagnostic, not full-document accuracy or generalization; two repeats; mechanical checks do not certify entailment; no semantic review of version 2' },
   { id: 'labels', title: 'Compact span labels', date: '2026-09-28',
     corpus: 'Five source documents (two development-gold, three unannotated); 3,138 saved admission probes in ten tokenizer-only cells',
-    revision: 'Compact span labels, version 2 (684723f7)',
+    revision: 'Compact span labels, version 2',
     evidence: 'Tokenizer-only admission check with scripted NONE replies; offline replay',
-    limits: 'Not a semantic-quality evaluation (no semantic review or held-out evaluation); fresh quality, output tokens and wall time for version 2 unmeasured',
-    path: 'docs/validation/2026-09-28-compact-span-labels.md' },
+    limits: 'Not a semantic-quality evaluation (no semantic review or held-out evaluation); fresh quality, output tokens and wall time for version 2 unmeasured' },
   { id: 'overflow', title: 'Singleton overflows', date: '2026-09-28',
     corpus: '15 pinned requests across eight catalogues of two unannotated documents',
-    revision: 'Compact span labels, version 2 (PR #146)', evidence: 'Tokenizer-only diagnosis; no model calls',
-    limits: 'Selected diagnostic requests, not admission totals, evaluation gold or quality estimates; no semantic review',
-    path: 'docs/validation/2026-09-28-grounding-singleton-overflows.md' },
+    revision: 'Compact span labels, version 2', evidence: 'Tokenizer-only diagnosis; no model calls',
+    limits: 'Selected diagnostic requests, not admission totals, evaluation gold or quality estimates; no semantic review' },
 ]
 
 const unit = (label: string, text: string, note?: string, inactive = false): FigureBlock =>

@@ -1,6 +1,6 @@
 """The field types and the base model every KIE model is built from, with their validation rules.
 
-Vocabulary: `CONTEXT.md`. Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
+Vocabulary: `CONTEXT.md`. Contract: `docs/design/2026-09-14-kie-model-and-ingest-design.md`
 (sections are cited as "spec 3.1" below). Pixels, counts and offsets are strict integers, coordinates fixed-length
 tuples and times zoned ISO 8601, so a block, an ingest artifact and a segmentation refuse the same value in the same
 way. `IngestError` is ingest's one refusal of input or configuration. This module imports no other KIE

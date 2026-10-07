@@ -5,7 +5,7 @@ retains the original internal design or measurements. The service README and
 FREE root deployment runbooks govern the current runtime and verification commands.
 
 Current locations (2026-09-21): contracts and adapters now live in `src/kei_exp/transcription/`;
-the registry and execution live in `kie/stages/ocr.py`. See the [current code organization](../../../README.md#code-organization).
+the registry and execution live in `kie/stages/ocr.py`. See the [current code organization](../../README.md#code-organization).
 The original module map below records the design at the time.
 
 Date: 2026-09-14. Status: approved in chat (approach 3 of three, one report writer with richer diagnostics, all code written by the assistant).

@@ -43,7 +43,7 @@ the evidence record.
 The 2026-09-25 risk probes
 validate the small corrections below; no new cross-tab synchronization is
 required for tomorrow's build.
-Supersedes `docs/plans/2026-09-24-procrastinate-source-ingestion.md` (not
+Supersedes the earlier Procrastinate source-ingestion plan (not
 implemented).
 
 ## Context

@@ -163,7 +163,7 @@ function StudyEvidence({ topic }: { topic: GuideTopic }) {
   const pages = topic.evidence.flatMap((row, index) => {
     const source = EVIDENCE_SOURCES.find((item) => item.id === row.source)!
     return [
-      { title: `Finding ${index + 1}`, content: <div><p>{row.finding}</p><p className="mt-2 break-all text-ink-faint">{source.title} · {source.path}</p></div> },
+      { title: `Finding ${index + 1}`, content: <div><p>{row.finding}</p><p className="mt-2 text-ink-faint">{source.title}</p></div> },
       { title: `Study details ${index + 1}`, content: <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
         {Object.entries({ Date: source.date, Corpus: source.corpus, 'Method revision': source.revision, 'Evidence type': source.evidence })
           .map(([label, value]) => <div key={label} className="contents"><dt className="font-semibold text-ink-muted">{label}</dt><dd>{value}</dd></div>)}

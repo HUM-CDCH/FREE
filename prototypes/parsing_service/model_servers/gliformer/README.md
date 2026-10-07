@@ -125,5 +125,4 @@ from a numbered discussion section. The development verification uses this descr
 > skins, hides and fur.
 
 This is schema guidance to discovery and native extraction, not a page filter or
-an output correction. See [PR verification](../../../../docs/validation/2026-10-03-gliformer-fields.md#pr-164-baratheon-application-verification)
-for the real application test and its model-quality limits.
+an output correction.

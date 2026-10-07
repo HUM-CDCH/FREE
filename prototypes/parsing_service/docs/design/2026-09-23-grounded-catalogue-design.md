@@ -1,9 +1,9 @@
 # Grounded numbered-catalogue segmentation and extraction: contract
 
 Date: 2026-09-23. Status: accepted for implementation (milestone M0 of
-[the execution plan](../../../../../docs/plans/2026-09-23-grounded-kie-opus-5.5.md)). Product decisions that
+the execution plan). Product decisions that
 still need the researcher-facing owner are tracked in the OpenSpec change
-[`grounded-numbered-catalogue`](../../../../../openspec/changes/grounded-numbered-catalogue/proposal.md); this
+`grounded-numbered-catalogue`; this
 document fixes what the code relies on. Revised the same day after a four-round review with Codex (gpt-6-astra);
 the agreed amendments are folded into §3–§8. It amends the
 [model/ingest design](2026-09-14-kie-model-and-ingest-design.md) where §9 says so and leaves the

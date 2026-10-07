@@ -208,7 +208,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   discovery (version 1). The extraction endpoint must count requests on vLLM's
   `/tokenize` and report its context size. Otherwise the request
   is refused before any call. See the
-  [grounded catalogue design](docs/superpowers/specs/2026-09-23-grounded-catalogue-design.md).
+  [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md).
 - `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, headings?,
   verification?}` runs the unified Catalog (`kie/extract/unified.py`,
   `discovery.py`): result version 3, no recipe and no character limits (a
@@ -236,7 +236,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership.
 For canonical file details see the
-[evidence specification](docs/superpowers/specs/2026-09-21-canonical-evidence-design.md).
+[evidence specification](docs/design/2026-09-21-canonical-evidence-design.md).
 The imported [job-backend study](docs/job-backend.md) records the worker-ownership
 experiments; it is historical rationale, not the FREE deployment runbook.
 
@@ -330,7 +330,7 @@ non-durable `extract` workflow, its artifact and progress routes and its stage
 files were removed (ADR 0017, durable-only amendment). Studio admits new durable
 Extractions directly. Admission commits the Extraction, its coordination head
 and its dispatch workflow together. The current follow-up must pass its own
-[release checks](../../openspec/changes/durable-only-extraction-review/tasks.md)
+release checks
 before deployment.
 
 The worker uses a separate pool of at most four short routine calls against

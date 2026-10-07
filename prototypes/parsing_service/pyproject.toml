@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "FREE document parsing, extraction, and durable job worker"
 readme = "README.md"
 authors = [
-    { name = "GennaroBaratta", email = "gennaro.baratta@gmail.com" }
+    { name = "Gennaro Baratta" }
 ]
 requires-python = ">=3.13"
 dependencies = [

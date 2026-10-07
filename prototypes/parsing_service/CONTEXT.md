@@ -8,7 +8,7 @@ The domain vocabulary of this project, and the evidence and ownership invariants
 protect. Read this before reading or writing anything under `src/kei_exp/kie/`.
 
 This file is vocabulary, not design. How a stage computes anything lives in
-[the KIE data model and stage 0 design](docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md)
+[the KIE data model and stage 0 design](docs/design/2026-09-14-kie-model-and-ingest-design.md)
 and in the current service implementation. The terms below name the ingest
 model and its artifacts.
 

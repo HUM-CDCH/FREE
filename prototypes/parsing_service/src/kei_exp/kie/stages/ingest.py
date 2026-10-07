@@ -1,6 +1,6 @@
 """Stage 0: the native raster of each spread, split into book-page images.
 
-Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md` section 4 (sections are cited as
+Contract: `docs/design/2026-09-14-kie-model-and-ingest-design.md` section 4 (sections are cited as
 "spec 4.3" below). Vocabulary: `CONTEXT.md`. The scan is already a 1-bit image inside the PDF, so nothing here
 renders a page: the embedded bitmap is taken as it is, thresholded once, sliced at the gutter and saved. That
 is also why unsupported input is refused (`IngestError`) instead of being rendered into something that looks

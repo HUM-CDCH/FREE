@@ -258,7 +258,7 @@ budget/no-evidence refusals; `stopped_after_support` retains unvisited units.
 The separately recorded `grounding_routing_version` participates in fingerprints.
 
 These methods are opt-in prototypes. Their controlled live comparison remains in
-the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md).
+the follow-up plan.
 They do not alter the running frozen R1/R2a/R3/R4 study.
 
 The shared decoder accepts literal control characters only inside strings and

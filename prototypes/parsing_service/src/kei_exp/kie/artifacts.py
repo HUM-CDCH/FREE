@@ -1,6 +1,6 @@
 """The ingest artifact's hashes, and reading it back with its page images.
 
-Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md` section 5. This is the ingest's own
+Contract: `docs/design/2026-09-14-kie-model-and-ingest-design.md` section 5. This is the ingest's own
 identity and proof: the fingerprint that decides whether the ingest can be skipped, the digest a downstream
 consumer binds to, and the loader that refuses a cache entry it cannot prove. The encoding those hashes are taken
 over is `kei_exp.canonical`, a leaf every layer can agree on without importing this package. It imports no runner

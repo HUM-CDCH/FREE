@@ -5,10 +5,10 @@ amendment of [ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md)
 the path/anchor Review Draft, its settlement reconciliation and the settled
 attempt's review authority were deleted with the non-durable execution path.
 Previously accepted; supersedes in part the Constraints of
-[the view-ordered streaming design](../superpowers/specs/2026-10-02-view-ordered-streaming-extraction-design.md)
+the view-ordered streaming design
 ("review, finalize and export read the settled attempt only") and its client
 plan's "the partial view offers no review controls". Spec:
-[2026-10-04-results-review-redesign-design.md](../superpowers/specs/2026-10-04-results-review-redesign-design.md)
+2026-10-04-results-review-redesign-design.md
 (§5).
 
 ## Context
