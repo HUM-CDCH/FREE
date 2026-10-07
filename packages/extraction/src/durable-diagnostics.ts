@@ -30,6 +30,10 @@ export type DiagnosticResult = {
 
 /** Compare exact saved inputs; hash source and prompts instead of disclosing them. */
 export function compareDiagnostics(current: ExtractionDiagnostic, previous: ExtractionDiagnostic) {
+  const changed = (field: 'sourceDigest' | 'systemDigest' | 'schemaDigest' | 'providerDigest' | 'optionsDigest') => {
+    const fingerprints = (report: ExtractionDiagnostic) => [...new Set(report.calls.map(call => call[field]))].sort()
+    return JSON.stringify(fingerprints(current)) !== JSON.stringify(fingerprints(previous))
+  }
   const pairs = current.calls.flatMap(call => {
     const before = previous.calls.find(other => other.key === call.key)
     return before ? [{ key: call.key, inputChanged: call.inputDigest !== before.inputDigest,
@@ -40,6 +44,10 @@ export function compareDiagnostics(current: ExtractionDiagnostic, previous: Extr
   })
   return { sourceChanged: current.source.revision !== previous.source.revision || current.source.generation !== previous.source.generation,
     schemaChanged: current.schemaDigest !== previous.schemaDigest, methodChanged: current.methodDigest !== previous.methodDigest,
+    sampledRequests: { currentCalls: current.calls.length, previousCalls: previous.calls.length,
+      complete: !current.sample.truncated && !previous.sample.truncated,
+      sourceChanged: changed('sourceDigest'), systemChanged: changed('systemDigest'), schemaChanged: changed('schemaDigest'),
+      providerChanged: changed('providerDigest'), optionsChanged: changed('optionsDigest') },
     matchedCalls: pairs, unmatchedCurrentCalls: current.calls.filter(call => !pairs.some(pair => pair.key === call.key)).map(call => call.key) }
 }
 

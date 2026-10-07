@@ -31,7 +31,10 @@ from the current attempt are visible too.
 
 Source, prompt, provider and option differences use SHA-256 fingerprints rather
 than text or URLs. Comparison pairs saved unit keys; unmatched sampled calls are
-listed. Samples default to three discovery calls. Use `--stage` and
+listed. `sampledRequests` also compares sets of request fingerprints when keys
+differ. Its `complete` flag says whether both samples cover their entire stage.
+Differences can reflect windowing and sampling as well as changed guidance;
+the pinned source comparison remains separate. Samples default to three discovery calls. Use `--stage` and
 `--limit 1..5` to select and bound the sample. `sample.truncated` distinguishes
 it from the full stage. Stdout is limited to 16 KiB; oversized metadata asks for
 a smaller limit.

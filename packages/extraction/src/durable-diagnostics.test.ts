@@ -34,6 +34,19 @@ test('comparison distinguishes changed prompt guidance while identifying the sam
   assert.deepEqual(difference.matchedCalls[0]!.places, { current: 0, previous: 205 })
 })
 
+test('different call keys still expose sampled request differences without inventing matched units', () => {
+  const previous = structuredClone(report)
+  previous.calls[0]!.key = 'different-frozen-unit'
+  previous.calls[0]!.systemDigest = 'without-guidance'
+  previous.sample.truncated = true
+  const difference = compareDiagnostics(report, previous)
+  assert.equal(difference.matchedCalls.length, 0)
+  assert.equal(difference.sampledRequests.systemChanged, true)
+  assert.equal(difference.sampledRequests.sourceChanged, false)
+  assert.equal(difference.sampledRequests.providerChanged, false)
+  assert.equal(difference.sampledRequests.complete, false)
+})
+
 test('output remains bounded and never implicitly includes payloads', async () => {
   let stdout = '', stderr = ''
   const exit = await runDiagnosticCli(['--owner', id, '--extraction', id], { DATABASE_URL: 'postgresql://fixture:secret@invalid/db' },

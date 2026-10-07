@@ -33,6 +33,13 @@ and #209. It closes their verification and operational gaps together:
   The integration test checks ownership on both compared extractions, deleted
   heads, bounded sampling, source/prompt differences, read-only transaction
   enforcement, private output and unchanged retained capture counts.
+- Live metadata acceptance on the incident's saved runs returned zero versus
+  205 retained records with the same pinned source, schema and method. Saved
+  call keys differ; the sampled fingerprint comparison exposes request text,
+  system prompt, reply-schema and option differences without pairing unrelated
+  units. The incomplete-sample flag remains explicit. Stdout was 4,211 bytes
+  with no source text or replies. Temporary diagnostic modules were removed
+  from the pinned running container after this read-only check.
 
 Reproduce using `pnpm test:unit:node`, `pnpm test:unit:python`, `pnpm test:ops`,
 and the Extraction package's `test`, `typecheck` and guarded `test:postgres`
