@@ -247,6 +247,11 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const keyboardRoot=useRef<HTMLDivElement>(null)
   const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
+  const [exportState,setExportState]=useState<
+    {status:'pending';format:'xlsx'|'csv'}|{status:'started'}|{status:'failed';message:string}|null
+  >(null)
+  const exportRequest=useRef<AbortController|null>(null)
+  useEffect(()=>()=>{exportRequest.current?.abort()},[])
   const [unfit,setUnfit]=useState(0)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
   const document=loaded&&loaded.state.sourceRevisionId!==documentRevisionId
@@ -419,7 +424,23 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     setError(null);setNotice('Review saved.')
     onReviewFinalized?.()
   }).catch(error=>setError(error.message))
-  const exportSaved=(format:'xlsx'|'csv')=>void readDurableHistory(id).then(history=>import('./durableExport').then(module=>module.downloadDurableExport({state,page,history},format))).catch(error=>setError(error.message))
+  const exportSaved=async(format:'xlsx'|'csv')=> {
+    if(exportRequest.current)return
+    const controller=new AbortController()
+    exportRequest.current=controller
+    setExportState({status:'pending',format})
+    try {
+      const history=await readDurableHistory(id,controller.signal)
+      controller.signal.throwIfAborted()
+      const module=await import('./durableExport')
+      await module.downloadDurableExport({state,page,history},format,controller.signal)
+      if(!controller.signal.aborted)setExportState({status:'started'})
+    } catch(error) {
+      if(!controller.signal.aborted)setExportState({status:'failed',message:error instanceof TypeError
+        ? 'Could not export: the connection was interrupted. Check your connection and try again.'
+        : `Could not export: ${error instanceof Error?error.message:'Unable to prepare the saved values.'} Try again.`})
+    } finally {exportRequest.current=null}
+  }
   const counts={...model.counts,...page.reviewCounts}
   const canSave=!readOnly&&!active&&!page.finalization&&page.total>0&&page.reviewCounts.toCheck===0
   const latest=loaded.page.snapshotVersion===page.snapshotVersion&&loaded.page.feedbackVersion===page.feedbackVersion
@@ -445,11 +466,18 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);openNext()}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {menuOpen&&<ResultsMenu items={[
-      {label:'Export XLSX',onSelect:()=>{setMenuOpen(false);exportSaved('xlsx')}},
-      {label:'Export CSV bundle',onSelect:()=>{setMenuOpen(false);exportSaved('csv')}},
+      {label:'Export XLSX',disabled:exportState?.status==='pending'?'Exporting…':null,onSelect:()=>{setMenuOpen(false);void exportSaved('xlsx')}},
+      {label:'Export CSV bundle',disabled:exportState?.status==='pending'?'Exporting…':null,onSelect:()=>{setMenuOpen(false);void exportSaved('csv')}},
       ...(!readOnly&&!terminal?[{label:'Change inputs',disabled:busy?'Saving…':null,
         onSelect:()=>{setMenuOpen(false);void command('editing').then(accepted=>{if(accepted)setEditing(true)})}}]:[]),
     ]}/>}
+    {exportState&&<div className="shrink-0 border-b border-line p-3 text-secondary">
+      {exportState.status==='failed'
+        ? <p role="alert" className="m-0 text-danger">{exportState.message}</p>
+        : <p role="status" aria-label="Export progress" aria-busy={exportState.status==='pending'} className="m-0">
+          {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV bundle'} export… Downloading saved history and values.`:'Download started. Check your browser’s downloads.'}
+        </p>}
+    </div>}
     {(detailsOpen||error||notice||state.pendingSelection||editing||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
       {detailsOpen&&<div className="space-y-1 text-secondary">
         <p className="m-0">Inputs version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}.</p>
