@@ -18,6 +18,7 @@ import { networkInterfaces } from 'node:os'
 import { relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseEnv } from 'node:util'
+import buildRevisionPaths from './build-revisions.json' with { type: 'json' }
 import { validateSharedStudioConfiguration } from 'studio-configuration'
 import {
   ensureDevelopmentSessionSecret as ensureSessionSecretFile,
@@ -628,10 +629,7 @@ export function renderNginxLocations(template, values) {
 // touching its build context, so an unchanged context keeps its image ID and
 // its containers are not recreated. Untracked files (the rendered nginx
 // include, operator notes) do not mark the inputs dirty.
-export const BUILD_REVISIONS = Object.freeze({
-  FREE_REVISION_STUDIO: ['.'],
-  FREE_REVISION_PARSING: ['prototypes/parsing_service'],
-})
+export const BUILD_REVISIONS = Object.freeze(buildRevisionPaths)
 
 export function buildRevision(paths, execute = run) {
   const git = (args) => execute('git', [...args, '--', ...paths], { capture: true, allowFailure: true })

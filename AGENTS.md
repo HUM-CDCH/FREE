@@ -14,3 +14,5 @@
   stale): `git worktree add .claude/worktrees/<name> -b <branch> origin/dev`.
 - `(spec, *Section*)` in code comments →
   `docs/plans/2026-09-24-unified-durable-execution.md`.
+- Shared Baratheon release tooling → `scripts/ops/README.md`.
+- Extraction diagnostics → `docs/operations/extraction-diagnostics.md`.
