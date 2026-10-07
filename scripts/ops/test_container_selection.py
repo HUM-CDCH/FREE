@@ -35,6 +35,7 @@ class ContainerSelectionTests(unittest.TestCase):
             return b''
         for p in (
             patch.object(deploy, 'capture', capture),
+            patch.object(deploy, 'compose_environment', return_value={'FREE_REVISION_STUDIO': 'a' * 40, 'FREE_REVISION_PARSING': 'b' * 40}),
             patch.object(deploy, 'containers', lambda: self.live),
             patch.object(deploy, 'source_digest', return_value='source'),
             patch.object(deploy, 'database_counts', return_value={'studio_active': 0, 'parsing_active': 0}),
@@ -90,6 +91,11 @@ class ContainerSelectionTests(unittest.TestCase):
         self.live.append(self.service('extraction_model'))
         with self.assertRaisesRegex(RuntimeError, 'unexpected extraction_model'):
             deploy.preflight()
+
+    def test_dry_run_receives_the_same_revision_environment_as_build_and_startup(self):
+        with patch.object(deploy.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as run:
+            deploy.preflight()
+        self.assertEqual(run.call_args.kwargs['env'], deploy.compose_environment())
 
 
 if __name__ == '__main__':

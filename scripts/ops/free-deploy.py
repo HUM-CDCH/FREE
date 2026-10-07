@@ -292,7 +292,7 @@ def preflight(recover=False):
         raise RuntimeError('The external NVFP4 server is not running.')
     hashes = dict(line.split(maxsplit=1) for line in capture([COMPOSE, 'config', '--hash', '*']).decode().splitlines())
     plan = subprocess.run([COMPOSE, '--dry-run', '--progress', 'plain', 'up', '--no-build',
-                           '--no-deps', '-d', *APPS], cwd=ROOT, capture_output=True, text=True)
+                           '--no-deps', '-d', *APPS], cwd=ROOT, env=compose_environment(), capture_output=True, text=True)
     if plan.returncode or re.search(r'\b(?:Network|Volume)\s', plan.stdout + plan.stderr):
         raise RuntimeError('The dry-run includes network/volume changes or failed; investigate before deploying.')
     diff = capture([*GIT, 'diff', '--binary', 'HEAD'])

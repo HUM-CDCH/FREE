@@ -26,7 +26,7 @@ and #209. It closes their verification and operational gaps together:
 - Existing fast Python suite: 1,440 passed, 72 skipped, 88 deselected.
 - Script checks: 80 passed, including rejection of failed, pending, mismatched
   and untrusted release evidence.
-- Shared helper checks: 42 passed, including real temporary Git repositories,
+- Shared helper checks: 43 passed, including real temporary Git repositories,
   container selection and rejection of unknown image revisions before stopping
   services.
 - Extraction diagnostics passed unit, TypeScript and real PostgreSQL checks.
