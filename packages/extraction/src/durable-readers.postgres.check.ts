@@ -22,7 +22,7 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   process.env.DATABASE_URL = target.url
   const { db, pool } = await import('db')
   closeDomainPool = async () => { await db.close(); await pool.end() }
-  const { initializeDurableExtraction, DURABLE_RECONCILE } = await import('./durable-repository.js')
+  const { createDurableRepository, initializeDurableExtraction, DURABLE_RECONCILE } = await import('./durable-repository.js')
   const { createResearcherExtractionPersistence } = await import('./postgres-persistence.js')
   // Public Extraction rows from before durable execution: published, reviewed and batch members, none with a head.
   const history = await seedPreMigrationHistory(admin)
@@ -124,6 +124,13 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   assert.equal(summaries.get(id)?.finalizedReview?.snapshotVersion,1)
   assert.equal(summaries.get(admitted!.extraction.extractionId)?.reviewable,true)
   assert.equal(summaries.get(admitted!.extraction.extractionId)?.review,null)
+  // History's list counts each snapshot's values without loading them; the audit's full history still holds them.
+  const durable=createDurableRepository(history.accountId,source)
+  const versions=await durable.historySummary(id)
+  assert.deepEqual(versions.snapshots.map(({version,valueCount})=>({version,valueCount})),[{version:1,valueCount:1},{version:2,valueCount:1}])
+  assert.equal(versions.finalizations.length,2)
+  assert.equal(Object.hasOwn(versions.snapshots[0],'values'),false)
+  assert.deepEqual((await durable.history(id)).snapshots[0].values,[{historical:'not summary metadata'}])
   assert.equal(summaries.get(batch!.batch.members[0].extractionId)?.review?.schemaRevisionId,history.revisions.article)
 
   // Completion comes from attempt history after Stop changes the visible acknowledgement.

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useMachine } from '@xstate/react'
-import type { DurablePage, DurableHistory } from 'extraction/durable-types'
+import type { DurablePage, DurableHistory, DurableHistorySummary } from 'extraction/durable-types'
 import { durableSchemaNodes, type ExportChoices, type ExportFormat } from 'extraction-result-export'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { decodeParsedDocument, type ParsedDocument } from 'extraction/parsed-document'
-import { durableRequest, durableRoot, readDurable, readDurableHistory, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
+import { durableRequest, durableRoot, readDurable, readDurableHistory, readDurableHistorySummary, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import { durableReviewMachine } from './durableReviewMachine'
 import Button from './ui/Button'
 import { DurableInputs } from './DurableInputs'
@@ -166,11 +166,53 @@ function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested
 
 const savedAt=(at:unknown)=>at?new Date(String(at)).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):null
 
+/** The full history for audit, read once it is opened: every call's exact request and output and every snapshot's
+ *  values, which grow with the run (tens of megabytes for a long Catalog). */
+function HistoryAudit({id}:{id:string}) {
+  const [history,setHistory]=useState<DurableHistory|null>(null),[error,setError]=useState<string|null>(null)
+  useEffect(()=> {
+    const controller=new AbortController()
+    void readDurableHistory(id,controller.signal).then(setHistory,e=>{if(!controller.signal.aborted)setError(e.message)})
+    return()=>controller.abort()
+  },[id])
+  if(!history)return <p role={error?'alert':'status'} className="pt-2 text-compact text-ink-muted">{error??'Loading…'}</p>
+  return <div className="space-y-3 pt-2">
+    {history.selections.map(selection=><details key={selection.id}>
+      <summary className="cursor-pointer">Input selection {selection.ordinal} · schema {selection.schemaRevisionId.slice(0,8)}</summary>
+      <ProducingMethod ordinal={selection.ordinal} requested={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
+      <details><summary className="cursor-pointer">Pinned schema and admission inputs</summary>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>
+      </details>
+    </details>)}
+    {history.captures?.map(capture=><details key={capture.id}>
+      <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
+      <p className="text-compact text-ink-muted">This call keeps its captured guidance even when a correction is later excluded or superseded.</p>
+      <p className="text-compact text-ink-muted">{capture.outputDigest?'Saved output':'No saved output'} · capture {capture.id}</p>
+      <details><summary className="cursor-pointer">{capture.invoked?'Consumed guidance and omitted candidates':'Captured guidance and omitted candidates'}</summary>
+        <p className="text-compact text-ink-muted">Omissions are evaluated for this call’s target and budget.</p>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({examples:capture.request?.examples??[],omissions:capture.request?.omissions??[],budget:capture.request?.budget??null,candidates:capture.candidates},null,2)}</pre>
+      </details>
+      <details><summary className="cursor-pointer">Exact producing request and output</summary><pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({descriptor:capture.descriptor,inputDigest:capture.inputDigest,request:capture.request,outputDigest:capture.outputDigest,output:capture.output},null,2)}</pre></details>
+    </details>)}
+    {history.snapshots.map(snapshot=><details key={snapshot.id}>
+      <summary className="cursor-pointer">Saved result snapshot {snapshot.version} · values and lineage</summary>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(snapshot.values.map((v:Value)=>({field:v.node.name,schema:v.schemaRevisionId,selection:v.selectionId,modelValue:v.modelValue,lineage:v.lineage})),null,2)}</pre>
+    </details>)}
+  </div>
+}
+
 /** Saved versions in plain words; the exact producing inputs and calls stay one disclosure away for audit. */
 function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(version:number,feedbackVersion?:number)=>void}) {
-  const [history,setHistory]=useState<DurableHistory|null>(null),[error,setError]=useState<string|null>(null),[open,setOpen]=useState(true)
-  // The full history (with every call's request) is read only once its tab is shown.
-  useEffect(()=>{if(shown&&open&&!history)void readDurableHistory(id).then(setHistory).catch(e=>setError(e.message))},[id,shown,open,history])
+  const [history,setHistory]=useState<DurableHistorySummary|null>(null),[error,setError]=useState<string|null>(null),[open,setOpen]=useState(true)
+  const [audit,setAudit]=useState(false)
+  // The saved versions are read once the tab is shown; a read it stops waiting for is abandoned, and tried again when
+  // it is shown again.
+  useEffect(()=> {
+    if(!shown||!open||history)return
+    const controller=new AbortController()
+    void readDurableHistorySummary(id,controller.signal).then(summary=>{setHistory(summary);setError(null)},e=>{if(!controller.signal.aborted)setError(e.message)})
+    return()=>controller.abort()
+  },[id,shown,open,history])
   return <details open={open} className="rounded-md border border-line bg-surface p-3" onToggle={event=>setOpen(event.currentTarget.open)}>
     <summary className="cursor-pointer text-secondary font-semibold">Saved versions</summary>
     {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
@@ -184,7 +226,7 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
       <section aria-label="Saved results"><h3 className="m-0 text-compact font-semibold">Results</h3>
         {history.snapshots.length===0?<p className="m-0 text-compact text-ink-muted">Nothing saved yet.</p>:
         <ul className="m-0 list-none space-y-1 p-0">{[...history.snapshots].reverse().map(snapshot=><li key={snapshot.id} className="flex items-center justify-between gap-2">
-          <span>Results {snapshot.version} <span className="text-ink-muted">· {snapshot.values.length} {snapshot.values.length===1?'value':'values'}</span></span>
+          <span>Results {snapshot.version} <span className="text-ink-muted">· {snapshot.valueCount} {snapshot.valueCount===1?'value':'values'}</span></span>
           <Button aria-label={`Open results ${snapshot.version}`} onClick={()=>onSnapshot(snapshot.version)}>Open</Button>
         </li>)}</ul>}
       </section>
@@ -196,30 +238,8 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
             {selection.ordinal===1?'First inputs':`Changed inputs (version ${selection.ordinal})`}
             <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}</span>
           </li>})}</ul></section>}
-      <details><summary className="cursor-pointer text-compact text-ink-muted">Technical details (for audit)</summary>
-        <div className="space-y-3 pt-2">
-          {history.selections.map(selection=><details key={selection.id}>
-            <summary className="cursor-pointer">Input selection {selection.ordinal} · schema {selection.schemaRevisionId.slice(0,8)}</summary>
-            <ProducingMethod ordinal={selection.ordinal} requested={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
-            <details><summary className="cursor-pointer">Pinned schema and admission inputs</summary>
-              <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>
-            </details>
-          </details>)}
-          {history.captures?.map(capture=><details key={capture.id}>
-            <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
-            <p className="text-compact text-ink-muted">This call keeps its captured guidance even when a correction is later excluded or superseded.</p>
-            <p className="text-compact text-ink-muted">{capture.outputDigest?'Saved output':'No saved output'} · capture {capture.id}</p>
-            <details><summary className="cursor-pointer">{capture.invoked?'Consumed guidance and omitted candidates':'Captured guidance and omitted candidates'}</summary>
-              <p className="text-compact text-ink-muted">Omissions are evaluated for this call’s target and budget.</p>
-              <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({examples:capture.request?.examples??[],omissions:capture.request?.omissions??[],budget:capture.request?.budget??null,candidates:capture.candidates},null,2)}</pre>
-            </details>
-            <details><summary className="cursor-pointer">Exact producing request and output</summary><pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({descriptor:capture.descriptor,inputDigest:capture.inputDigest,request:capture.request,outputDigest:capture.outputDigest,output:capture.output},null,2)}</pre></details>
-          </details>)}
-          {history.snapshots.map(snapshot=><details key={snapshot.id}>
-            <summary className="cursor-pointer">Saved result snapshot {snapshot.version} · values and lineage</summary>
-            <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(snapshot.values.map((v:Value)=>({field:v.node.name,schema:v.schemaRevisionId,selection:v.selectionId,modelValue:v.modelValue,lineage:v.lineage})),null,2)}</pre>
-          </details>)}
-        </div>
+      <details onToggle={event=>{if(event.currentTarget.open)setAudit(true)}}><summary className="cursor-pointer text-compact text-ink-muted">Technical details (for audit)</summary>
+        {audit&&<HistoryAudit id={id}/>}
       </details>
     </div>}
   </details>
@@ -386,11 +406,25 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   },[id])
   useEffect(()=> {
     const generations=readGenerations.current
+    return()=> {++generations.live;++generations.snapshot}
+  },[refresh])
+  // Polled at the run's pace only while it changes by itself, as the workspace's own monitor is; a resume asked for
+  // while it paused is started by the server, so that is still watched. A settled Extraction changes by a command, a
+  // saved decision or edit, or the workspace's read, each of which reads it again here; a decision saved in another
+  // session shows when the researcher comes back to the view, or within 30 s while it is visible.
+  const live=!state||ACTIVE.has(state.status)||state.pendingResume
+  useEffect(()=> {
+    if(!live) {
+      const reread=()=>void refresh().catch(()=>{})
+      const idle=setInterval(()=>{if(!window.document.hidden)reread()},30_000)
+      window.addEventListener('focus',reread)
+      return()=>{clearInterval(idle);window.removeEventListener('focus',reread)}
+    }
     const controller=new AbortController();let timer:ReturnType<typeof setTimeout>
     const poll=async()=> {try{await refresh(controller.signal)}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Unable to update saved results.')}
       if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
-    void poll();return()=> {++generations.live;++generations.snapshot;controller.abort();clearTimeout(timer)}
-  },[refresh])
+    void poll();return()=> {controller.abort();clearTimeout(timer)}
+  },[refresh,live])
   // The run button follows the workspace's own status reads; one that sees a change first (Pausing → Paused) is read
   // here at once, not at the next poll, so the status line agrees with the button.
   const workspaceStatus=attempt?.executionStatus

@@ -297,6 +297,16 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       failedCalls:(await client.query('SELECT f.* FROM extraction_runtime."callFailure" f JOIN extraction_runtime.capture c ON c.id=f."captureId" WHERE c."extractionId"=$1',[id])).rows,
       attempts:(await client.query('SELECT * FROM extraction_runtime.attempt WHERE "extractionId"=$1 ORDER BY fence',[id])).rows,
     }},'REPEATABLE READ') },
+    /** The History tab's list, small however long the run: each snapshot's value count, never its values or the
+     *  calls' requests; those are `history`'s, read for audit. */
+    historySummary(id: string) { return runtimeTransaction(source,async (client)=> {
+      await ownedHead(client,owner,id)
+      return {
+      selections:(await client.query('SELECT * FROM extraction_runtime.selection WHERE "extractionId"=$1 ORDER BY ordinal',[id])).rows,
+      snapshots:(await client.query('SELECT id,version,jsonb_array_length(values) AS "valueCount" FROM extraction_runtime.snapshot WHERE "extractionId"=$1 ORDER BY version',[id])).rows,
+      finalizations:(await client.query('SELECT * FROM extraction_runtime.finalization WHERE "extractionId"=$1 ORDER BY "createdAt"',[id])).rows,
+      effective:(await client.query('SELECT e.* FROM extraction_runtime.effective e JOIN extraction_runtime.selection s ON s.id=e.id WHERE s."extractionId"=$1',[id])).rows,
+    }},'REPEATABLE READ') },
     finalize(id: string, input: {snapshotVersion:number;feedbackVersion:number}) { return owned(id,async(client,head)=> {
       const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]
@@ -388,6 +398,7 @@ export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;ext
 export type DurableRead = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['read']>>
 export type DurablePage = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['page']>>
 export type DurableHistory = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['history']>>
+export type DurableHistorySummary = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['historySummary']>>
 
 export async function setFeedbackIncluded(owner:string,projectId:string,input:{id:string;expectedRevision:number;included:boolean},source:Pool=sharedPool) {
   const repository=createDurableRepository(owner,source)

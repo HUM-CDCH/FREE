@@ -7,9 +7,9 @@ import { decodeParsedDocument } from 'extraction/parsed-document'
 import rawDocument from './assets/parsed_document.v2.json'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { DurableResults } from './DurableResults'
-import { durableRequest, readDurable, readDurableHistory, readValues } from './durableExtractionApi'
+import { durableRequest, readDurable, readDurableHistory, readDurableHistorySummary, readValues } from './durableExtractionApi'
 
-vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),readValues:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
+vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),readDurableHistorySummary:vi.fn(),readValues:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks();window.history.replaceState(null,'','/')})
 /** The rail's History tab body, which Results renders guidance and saved versions into. */
 const historySlot=()=>document.body.appendChild(document.createElement('div'))
@@ -92,6 +92,9 @@ it('reads the run again at once when the run button already shows a newer status
     await act(async()=>{view.rerender(<DurableResults attempt={{...attempt,executionStatus:'PAUSED'}} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
     expect(screen.getByText('Paused')).toBeVisible()
     expect(readDurable).toHaveBeenCalledTimes(2)
+    // Settled, it is no longer read at the run's pace.
+    await act(async()=>{await vi.advanceTimersByTimeAsync(4500)})
+    expect(readDurable).toHaveBeenCalledTimes(2)
   } finally {vi.useRealTimers()}
 })
 
@@ -101,7 +104,7 @@ it('shows requested and effective methods with their producing selections, and n
     selection:{id:'pending',ordinal:3},pendingSelection:null,counts:{saved:0,inFlight:0}},page} as never)
   const provider=(key:string,model:string)=>({key,model,adapter:'gliformer',adapterVersion:1,
     nativeInfo:{protocol:3,model,identity:'native-model-v2',max_input_tokens:8192}})
-  vi.mocked(readDurableHistory).mockResolvedValue({
+  const history={
     selections:[
       {id:'first',ordinal:1,schemaRevisionId:'schema-first',schemaTree:{},method:{models:{fields:'requested-first'},settings:{article:{context:'bounded'}}},resolved:{}},
       {id:'second',ordinal:2,schemaRevisionId:'schema-second',schemaTree:{},method:{models:{fields:'requested-second'},settings:{article:{context:'full'}}},resolved:{}},
@@ -111,13 +114,17 @@ it('shows requested and effective methods with their producing selections, and n
       {id:'second',configuration:{models:{fields:provider('resolved-second','served-second'),reasoning:provider('reasoning-second','reasoner-second')},options:{article:{context:'full'}},planner:1,protocols:{calls:1,source:'document'}}},
       {id:'first',configuration:{models:{fields:provider('resolved-first','served-first'),reasoning:provider('reasoning-first','reasoner-first')},options:{article:{context:'bounded',context_tokens:8192}},planner:1,protocols:{calls:1,source:'document'}}},
     ],snapshots:[],finalizations:[],captures:[],
-  } as never)
+  }
+  vi.mocked(readDurableHistorySummary).mockResolvedValue(history as never)
+  vi.mocked(readDurableHistory).mockResolvedValue(history as never)
   vi.mocked(durableRequest).mockResolvedValue([])
   render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
   openDetails(await screen.findByText('Saved versions'))
   expect(await screen.findByText(/model served-second · schema changed/)).toBeVisible()
   expect(screen.getByText(/model not recorded yet · schema changed/)).toBeVisible()
   expect(screen.getByRole('region',{name:'Inputs'})).not.toHaveTextContent(/schema-|resolved-/)
+  // The full history, with every call's request, is read only for audit.
+  expect(readDurableHistory).not.toHaveBeenCalled()
   openDetails(screen.getByText('Technical details (for audit)'))
   await screen.findByText('Input selection 1 · schema schema-f')
   for (const ordinal of [1,2,3]) {
@@ -290,7 +297,7 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   const newPage={...oldPage,snapshotVersion:2,values:[{...base,selectionId:'numeric',schemaRevisionId:'schema-two',node:{...base.node,type:'number'},modelValue:42}]} as unknown as DurablePage
   vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,
     snapshotVersion:2,selection:{id:'numeric',ordinal:2},pendingSelection:null,counts:{saved:2,inFlight:0}},page:newPage} as never)
-  vi.mocked(readDurableHistory).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,values:oldPage.values},{id:'two',version:2,values:newPage.values}]} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,valueCount:1},{id:'two',version:2,valueCount:1}]} as never)
   vi.mocked(durableRequest).mockImplementation(async(url,body)=>body?{revision:1}:url.includes('feedback')?[]:newPage)
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?oldPage:newPage)
   const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
@@ -347,6 +354,7 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
   let excluded=false
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,selection:{id:'selection',ordinal:1},counts:{saved:0,inFlight:0}},page} as never)
   vi.mocked(durableRequest).mockImplementation(async(url,body)=>{if(body){excluded=true;return {}};return url.includes('feedback')?[{...row,included:!excluded}]:page})
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],snapshots:[],finalizations:[]} as never)
   vi.mocked(readDurableHistory).mockResolvedValue({selections:[{id:'selection',ordinal:1,schemaRevisionId:'schema',schemaTree:{},method:{},resolved:{}}],snapshots:[],finalizations:[],captures:[{
     id:'capture',selectionId:'selection',feedbackVersion:1,invoked:true,descriptor:{stage:'article'},inputDigest:'input',outputDigest:'output',output:{parsed:{title:'Result'}},candidates:[],
     request:{examples:[{id:'consumed',value:'Captured example'}],omissions:[{id:'oversized',reason:'budget'}],budget:{counted:200,context:256,reserve:56}},
@@ -381,7 +389,8 @@ it('warns in Results when pending inputs leave a saved correction unfit, and ope
   expect(within(slot).getByText('title:')).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:'See corrections'}))
   expect(onShowHistory).toHaveBeenCalledOnce()
-  // The full history is read only once its tab is shown.
+  // History is read only once its tab is shown.
+  expect(readDurableHistorySummary).not.toHaveBeenCalled()
   expect(readDurableHistory).not.toHaveBeenCalled()
 })
 
@@ -393,7 +402,7 @@ it('keeps the last explicitly selected snapshot when an older selection finishes
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}}
   let finishOld!:(page:DurablePage)=>void
   vi.mocked(readDurable).mockResolvedValue({state,page:latest} as never)
-  vi.mocked(readDurableHistory).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,values:[value]},{id:'two',version:2,values:[value]}]} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,valueCount:1},{id:'two',version:2,valueCount:1}]} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.includes('feedback')?[]:latest)
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?new Promise(resolve=>{finishOld=resolve}):latest)
   render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
@@ -413,6 +422,31 @@ const reviewPage=(snapshotVersion=1,feedbackVersion=0)=>({extractionId:'extracti
   total:3,next:null,coverage:{}} as unknown as DurablePage)
 const pausedState={extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
   selection:{id:'selection',ordinal:1},pendingSelection:null,counts:{saved:3,inFlight:0}}
+
+it('polls a paused run only while the server is to resume it, then reads it on return or every 30 s, and polls once it resumes',async()=> {
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,pendingResume:true},page:reviewPage()} as never)
+  const attempt={extractionId:'extraction',strategy:'ARTICLE',executionStatus:'PAUSED'} as ExtractionAttempt
+  const tick=()=>act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+  vi.useFakeTimers()
+  try {
+    let view!:ReturnType<typeof render>
+    await act(async()=>{view=render(<DurableResults attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
+    await tick()
+    expect(readDurable).toHaveBeenCalledTimes(2)
+    vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,pendingResume:false},page:reviewPage()} as never)
+    await tick();await tick();await tick()
+    expect(readDurable).toHaveBeenCalledTimes(3)
+    await act(async()=>{fireEvent.focus(window)})
+    expect(readDurable).toHaveBeenCalledTimes(4)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(30_000)})
+    expect(readDurable).toHaveBeenCalledTimes(5)
+    vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,status:'RUNNING',pendingResume:false},page:reviewPage()} as never)
+    await act(async()=>{view.rerender(<DurableResults attempt={{...attempt,executionStatus:'RUNNING'}} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
+    const resumed=vi.mocked(readDurable).mock.calls.length
+    await tick()
+    expect(readDurable).toHaveBeenCalledTimes(resumed+1)
+  } finally {vi.useRealTimers()}
+})
 
 it('moves to the next value once a decision is saved, and a late read never replaces a newer selection or its draft',async()=> {
   const page=reviewPage(),reload=Promise.withResolvers<{state:typeof pausedState;page:DurablePage}>()
@@ -448,8 +482,10 @@ it('saves the review of the latest results once nothing is left to check',async(
   vi.mocked(readValues).mockResolvedValue({...latest,finalization:{id:'final',snapshotVersion:1,feedbackVersion:2}} as never)
   render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
   expect(await screen.findByRole('button',{name:'Save review'})).toBeVisible()
-  // The live poll follows another session's correction; saving names the decisions shown.
-  expect(await screen.findByText('Correction from another session',undefined,{timeout:3500})).toBeVisible()
+  // A settled view is read again when the researcher comes back to it: another session's correction shows, and saving
+  // names the decisions shown.
+  await waitFor(()=>{fireEvent.focus(window);expect(readDurable).toHaveBeenCalledTimes(2)})
+  expect(await screen.findByText('Correction from another session')).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:'Save review'}))
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize',{snapshotVersion:1,feedbackVersion:2}))
   expect(await screen.findByText('Review saved.')).toBeVisible()
@@ -488,7 +524,7 @@ it('opens a settled catalogue at its first record to check and at the linked val
     counts:{saved:4,inFlight:0},records:null,reading:[]}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   window.history.replaceState(null,'','/?value=r3%3Atitle')
-  render(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
   const header=(record:number)=>within(screen.getByRole('region',{name:new RegExp(`^Record ${record},`)})).getAllByRole('button')[0]!
   await waitFor(()=>expect(header(4)).toHaveAttribute('aria-expanded','true'))
   expect(header(1)).toHaveAttribute('aria-expanded','false')
@@ -505,5 +541,6 @@ it('opens a settled catalogue at its first record to check and at the linked val
   expect(header(3)).toHaveAttribute('aria-expanded','true')
   // A retried run reads again, so its records open as they are read.
   vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'RUNNING',controlVersion:2},page} as never)
-  await waitFor(()=>expect(header(1)).toHaveAttribute('aria-expanded','true'),{timeout:3_000})
+  view.rerender(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG',executionStatus:'RUNNING'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  await waitFor(()=>expect(header(1)).toHaveAttribute('aria-expanded','true'))
 })
