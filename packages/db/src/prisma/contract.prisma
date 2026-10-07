@@ -523,9 +523,8 @@ model BatchSchemaSuggestionSource {
 }
 
 // One Extraction from admission through review (spec, *Background work*). Admission writes the pins, the requested
-// models and Catalog recipe, and the optional batch; `outcome` stays null until the one terminal write (success,
-// failure or cancellation), which only succeeds while it is null. Execution status is never stored: it is the
-// outcome, or else the `extract:<id>` workflow's DBOS status. A batch's pending rows are its intended selection.
+// models and Catalog recipe, and the optional batch. Status and outcome live in extraction_runtime (the coordination
+// head and its attempts, ADR 0017), not on this row. A batch's pending rows are its intended selection.
 model Extraction {
   id                             Uuid                         @id @default(uuid())
   sourceDocumentId               Uuid

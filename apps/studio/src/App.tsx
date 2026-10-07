@@ -971,8 +971,8 @@ export function DocumentWorkspace({
               schema, so it is left out entirely rather than shown disabled. */}
           {!fromSchemaBuilder && (
             <>
-              {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
-                  requested (then disabled). */}
+              {/* Run is the screen's one positive; while the latest Extraction can still continue, Pause, Resume or Retry
+                  takes its place with Stop beside it. */}
               {/* One fixed width for Run, Pause and Resume, so the strip never shifts; progress is the Results badge's, not the
                   button's (§2.4). */}
               {controlStatus ? (

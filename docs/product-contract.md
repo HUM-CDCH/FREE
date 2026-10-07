@@ -167,7 +167,8 @@ stopped, and there is no batch-wide review grid.
 The Parsing Service's
 [pipeline map](../apps/parsing_service/docs/extraction-experiments.md#pipeline-map)
 traces how an Extraction runs and lists every model call purpose; the
-[Studio README](../apps/studio/README.md) covers Schema Suggestion and editing.
+[Studio README](../apps/studio/README.md#schema-suggestion-and-editing) covers
+Schema Suggestion and editing.
 Neither model keys nor document content enter Studio's workflow inputs.
 
 Schemas pass different validation boundaries, not equivalent validators:

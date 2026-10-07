@@ -202,6 +202,15 @@ scalar is null with its conflict recorded. Nothing infers that two different
 items are one observation, so more contexts can mean more duplicate or
 contradictory candidates.
 
+Article inventories no identities: the result's `inventory` holds the one
+document identity. A long list is restated item by item, so the root's reply
+keeps at least 4,096 tokens, and a bounded context's at least as many as its
+request counts. A durable call fits whole correction examples above that reply
+floor, then gives the spare capacity to the reply. The captured request records
+its exact examples, the omitted ones and why, the tokenizer identity and the
+token budget (counted input, context ceiling, reply allowance); a guidance edit
+never recomposes a started call or a retry of an unchanged selection.
+
 With `options.article` set, `completion` separates processing, attempted source
 coverage, grounding, document fields and record recall (always `unmeasured`),
 and `complete` is false: successful calls and linked fields cannot establish
@@ -231,6 +240,17 @@ headings. It was developed on one supplied excavation-report excerpt. Its seven 
 blocks and complete line disposition are observations, not annotated block F1.
 It does not apply the German catalogue's field bindings or strip `Grav` from a
 printed identifier. Transfer to other grave reports is unmeasured.
+
+The unified Catalog (`options.unified`) gives every nonblank source line one
+ledger disposition: `entry`, `other`, `unresolved` or `withheld`. Its windows
+read the whole admitted text. A window that cannot be read leaves its range
+unresolved rather than clipped, and a request the server refuses for itself (a
+non-transient HTTP error) fails only its window, which is halved or left failed
+and visible. A record the supplied source ends inside, with no unread text
+after it, ends `source_end` and does not make boundaries incomplete. The
+internal result carries the execution record (pins and resolved budgets), the
+discovery record and each entry's work; retained snapshots keep the execution
+and discovery records as diagnostics.
 
 ## Research boundary
 

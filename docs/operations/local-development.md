@@ -38,7 +38,10 @@ with a 60-second grace period. It runs
 process overlaps its replacement. Failed builds
 leave the running application intact; a failed migration prevents startup.
 On the first run, building the Python image and, with a GPU, downloading the
-models can take several minutes. The model cache is persistent.
+models can take several minutes. The model cache is persistent. The model
+servers run only with the GPU overlay (`compose.gpu.yaml`); without it (no GPU,
+or `FREE_GPU=off`) only native PDFs parse. See the README's
+[Run](../../README.md#run) section.
 
 Open **https://localhost:8443/free**. Signing in runs the OIDC authorization
 code flow against the local `mock-oidc` service (see below); the local
@@ -59,7 +62,7 @@ rebuild the image (see the watch rules in `compose.override.yaml`).
 
 Running Studio on the host (`pnpm --filter studio dev`) needs PostgreSQL at
 startup, because DBOS launches with the server: start it first with
-`pnpm --filter db db:start`.
+`pnpm --filter db db:start` (see [Database operations](#database-operations)).
 
 Stop with Ctrl+C. Data lives in named Docker volumes and survives restarts;
 the parsing run volume and the source inbox are durable inputs to future
@@ -205,7 +208,11 @@ explicit `responses` capture.
 Host-run database checks and scripts reach the development PostgreSQL publish
 through `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/free`.
 The development overlay publishes the `db` service on `127.0.0.1:5432`, and
-`pnpm --filter db db:start` starts just that service.
+`pnpm --filter db db:start` starts just that service. It needs that
+`DATABASE_URL` (from the shell or `.env`) and a non-empty `FREE_SESSION_SECRET`
+in the shell, because Compose interpolates the whole development overlay;
+`db` itself does not use the secret. After a first `pnpm dev`, use the
+launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
 
 - `pnpm --filter db db:init` replays authored forward migrations against
   `DATABASE_URL`. It does not reset or seed data and may deliberately target a
@@ -247,7 +254,7 @@ deliberately according to their infrastructure and mutation boundaries:
 | `pnpm test:all` | Runs typecheck, lint, unit, safety, PostgreSQL integration, E2E, and `test:service` sequentially. The caller must provide the Docker/browser prerequisites and three fresh PostgreSQL targets (the two Studio targets must be migrated) required by `test:postgres`. |
 | `pnpm test:all:node` | Runs typecheck, lint, the Node unit tiers, safety, the `db` and `extraction` PostgreSQL integration tiers, and E2E sequentially: `test:all` without the Parsing Service tiers and `test:service`, so it needs no Python environment. The caller must provide the Docker/browser prerequisites and the two fresh, migrated Studio PostgreSQL targets (`PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL`). |
 | `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store` and `free_test_extraction` on PostgreSQL at `127.0.0.1:5432`. It also requires the fixed `free_test_parsing` URL unless `FREE_SKIP_PYTHON=1`; a parsing URL that is present is always validated. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both Studio targets (a migration failure stops the run), then runs each step of `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's `verify` job) and of `test:all` otherwise. A failing step does not stop the later ones; a PASS/FAIL summary follows and the command fails if any step failed. |
-| `pnpm test:live-model` | Studio's check requires a vLLM server at `FREE_LIVE_VLLM_URL` (default `http://127.0.0.1:8002/v1`) serving `FREE_LIVE_VLLM_MODEL` (default `Qwen/Qwen3.8-27B-FP8`); its NuExtract case runs only when `FREE_LIVE_NUEXTRACT_URL` (and `FREE_LIVE_NUEXTRACT_MODEL`) is set. The Parsing Service's checks run the real Docling conversion, which may download models into the local cache; its real-model cases run only when `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` (or the `KEI_*` test URLs) are set. |
+| `pnpm test:live-model` | Studio's check requires a vLLM server at `FREE_LIVE_VLLM_URL` (default `http://127.0.0.1:8002/v1`) serving `FREE_LIVE_VLLM_MODEL` (default `Qwen/Qwen3.8-27B-FP8`); its NuExtract case runs only when `FREE_LIVE_NUEXTRACT_URL` is set (`FREE_LIVE_NUEXTRACT_MODEL` defaults to `numind/NuExtract3-FP8`). The Parsing Service's checks run the real Docling conversion, which may download models into the local cache; its real-model cases run only when `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` (or the `KEI_*` test URLs) are set. |
 | `pnpm test:system` | Requires Docker and `mkcert` (or an existing local certificate pair). It builds an isolated Compose project with a disposable PostgreSQL volume and scripted external extraction-model responses, then checks authentication, upload, Schema Suggestion, durable Article admission/completion, saved values, whole-stack restart persistence, deletion and garbage collection over HTTPS. It does not assert producer Evidence or a correction write. It removes its own project and volume afterward; the development stack and its database are outside this test's scope. |
 | `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
 | `pnpm lint` | Runs ESLint over Studio without services or data mutation. |

@@ -8,8 +8,7 @@ UI.
 
 [CONTEXT.md](CONTEXT.md) defines the ingest and evidence vocabulary.
 [Extraction stages and controlled experiments](docs/extraction-experiments.md)
-covers extraction stage ownership, experimental method settings and
-reproducible ablation commands.
+covers extraction stage ownership, method settings and the study tooling.
 
 ## Runtime
 

@@ -183,7 +183,7 @@ export async function packageConversion(options: {
 }
 
 /** A failed kei conversion as Studio answers it: kei's deadline is a timeout, anything else a parse failure with
- *  kei's own reason (plan decision 10). */
+ *  kei's own reason. */
 export function conversionFailure(outcome: Extract<KeiOutcome<unknown>, { ok: false }>): {
   status: 422 | 504
   code: 'source_ingestion_failed' | 'source_ingestion_timeout'

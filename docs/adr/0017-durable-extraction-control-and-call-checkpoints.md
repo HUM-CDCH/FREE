@@ -33,6 +33,7 @@ establish which committed correction context a new call captured.
   schema-dependent work-window boundaries.
 - Review reads each value through its immutable producing schema, and an
   approval or rejection binds to the model version actually reviewed.
+- Article aggregation retains historical lineage and explicit scalar proposals.
 - Cleanup of a deleted graph's native history waits for the Parsing worker's
   boot boundary, so cancellation alone never proves quiescence.
 - **No legacy compatibility.** There is no legacy result reader or identity

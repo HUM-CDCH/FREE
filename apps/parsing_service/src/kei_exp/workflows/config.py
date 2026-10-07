@@ -20,7 +20,7 @@ CONVERT_LARGE, CONVERT_SMALL, EXTRACT, GC = "kei-convert-large", "kei-convert-sm
 # global limit alone is counted from PENDING rows, which a cancel changes at once (M0R 4, spec *Physical capacity*).
 QUEUES: dict[str, int] = {CONVERT_LARGE: 1, CONVERT_SMALL: 1, EXTRACT: 2, GC: 1}
 PRIORITY_INTERACTIVE, PRIORITY_BATCH = 1, 10  # kei-extract (durable attempts); dbos 3.1.0 orders by priority with no queue flag
-MAX_RECOVERY_ATTEMPTS = 5  # a PDF that kills the worker must not crash-loop every lane (plan decision 5)
+MAX_RECOVERY_ATTEMPTS = 5  # a PDF that kills the worker must not crash-loop every lane
 # Each Catalog chunk is a thread with one model request in flight. Compose sets the count to NuExtract's --max-num-seqs
 # (default 4); a value past this bound is a typo, and would open that many threads and connections per Catalog.
 MAX_CATALOG_CHUNKS = 64

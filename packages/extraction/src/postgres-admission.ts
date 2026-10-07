@@ -111,7 +111,7 @@ function selectionId(input: ScheduleBatchInput, method: ExtractionMethodIntent):
   const variant = (['8', '9', 'a', 'b'] as const)[parseInt(hash[16]!, 16) & 3]
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
 }
-/** A batch member's Extraction ID: a replayed batch admission reproduces its members (plan decision 8). */
+/** A batch member's Extraction ID: a replayed batch admission reproduces its members. */
 function batchMemberExtractionId(batchExtractionId: string, sourceDocumentId: string): string {
   return stableUuid('batch-member-extraction', stableJson([batchExtractionId, sourceDocumentId]))
 }
@@ -256,7 +256,7 @@ export async function admitInteractiveExtraction(
       // After the replay checks, so an identical repeat of an admitted ID still replays: a new Extraction runs only the
       // strategy its revision's record scope names, and a revision that declares none waits for that choice.
       refuseRecordScope(pins.recordScope, pins.strategy)
-      // After the replay checks: an identical repeat replays even when the account's settings changed since (design §7).
+      // After the replay checks: an identical repeat replays even when the account's settings changed since.
       if (!(await savedMethodStillCurrent(client, pins.owner, pins.strategy, pins.catalogRecipe,
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
@@ -359,7 +359,7 @@ export async function admitBatchExtraction(
         new Set(input.sourceDocumentIds).size !== input.sourceDocumentIds.length
       )
         return 'invalid' as const
-      // An equal selection already admitted replays before today's settings are consulted (design §7).
+      // An equal selection already admitted replays before today's settings are consulted.
       if (await orm.public.BatchExtraction.select('id').first({ id: batchExtractionId }))
         return 'existing' as const
       const schema =
@@ -435,7 +435,7 @@ export async function admitBatchExtraction(
         })
       }
       // An equal selection may have committed while this one waited for the document locks: it replays, and today's
-      // settings are not consulted (design §7), as in single admission.
+      // settings are not consulted, as in single admission.
       if (await orm.public.BatchExtraction.select('id').first({ id: batchExtractionId }))
         return 'existing' as const
       // Every Source Document row is locked (sorted) before the configuration row, as in single admission.

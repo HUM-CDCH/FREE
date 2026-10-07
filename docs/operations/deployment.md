@@ -217,6 +217,8 @@ are advisory: a failed model listing does not block **Apply**, and a model ID
 typed by hand is used as is. Only vLLM connections switch the model's thinking
 off and can run NuExtract's template protocol. A keyless Ollama connection is
 called anonymously even when the operator's environment sets `OLLAMA_API_KEY`.
+A stored key is bound to its connection's provider and API base and is never
+sent to a changed one.
 
 ## OCR result reuse
 

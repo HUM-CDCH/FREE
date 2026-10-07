@@ -63,8 +63,8 @@ def records_of(report: dict) -> list[PageRecord]:
 
 def replay(recorded: dict, pdf: Path, workdir: Path) -> Replay:
     params, report = recorded["params"], recorded["report"]
-    # An API run reads its private copy `input.pdf`, and the ingest digest covers the file's name (README): the
-    # replay ingests the fixture under that name, so the digest is the recorded one.
+    # An API run reads its private copy `input.pdf`, and the ingest digest covers the file's name (spec 3.7,
+    # `Source.pdf_name`): the replay ingests the fixture under that name, so the digest is the recorded one.
     pdf = Path(shutil.copyfile(pdf, workdir / "input.pdf"))
     execution = execution_of(params, pdf, workdir)
     source = Source.of(execution)

@@ -10,8 +10,9 @@ Run FREE from the repository root with `pnpm dev`, which serves Studio at
 <https://localhost:8443/free>. This folder has `pnpm dev`, `pnpm test`,
 `pnpm test:e2e`, `pnpm lint` and `pnpm build`. Its `pnpm dev` runs Vite alone
 at `http://127.0.0.1:5173` and needs PostgreSQL at startup; start it first with
-`pnpm --filter db db:start`. See
-[local development](../../docs/operations/local-development.md) for the rest.
+`pnpm --filter db db:start`, which needs `DATABASE_URL` and `FREE_SESSION_SECRET`
+([Database operations](../../docs/operations/local-development.md#database-operations)).
+See [local development](../../docs/operations/local-development.md) for the rest.
 
 ## Source Documents
 
@@ -54,8 +55,11 @@ removed per-entry fields in a real-model probe. Combining works level by level:
 the union of one source's windows, and in a Batch Schema Suggestion the
 intersection of the sources' suggestions. The DBOS patches
 `schema-suggestion-windows` and `batch-schema-suggestion-windows` gate these
-steps. A suggestion too large to combine in one request fails with
-`merge_input_too_large` rather than being left out; one stopped for length fails
-with `model_output_truncated`. Ollama connections get `truncate: false`, so an
-over-long prompt fails instead of being cut. Schema editing proposals come from
-the Interaction Route and never change the pinned Schema Revision.
+steps. Each step checkpoints the model's output, never the source text; a
+failed one checkpoints a stable code and FREE's own message, never the
+provider's error, body or headers. A suggestion too large to combine in one
+request fails with `merge_input_too_large` rather than being left out; one
+stopped for length fails with `model_output_truncated`. Ollama connections get
+`truncate: false`, so an over-long prompt fails instead of being cut. Schema
+editing proposals come from the Interaction Route and never change the pinned
+Schema Revision.
