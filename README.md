@@ -148,7 +148,6 @@ covers the rest of local setup.
 
 The repository also works with coding agents. [AGENTS.md](AGENTS.md) is the
 entry point for Codex, Claude Code and other agents (`CLAUDE.md` points to it).
-Project skills live in `.agents/`, `.claude/` and `.codex/`.
 
 ## Documentation
 
@@ -156,5 +155,5 @@ Project skills live in `.agents/`, `.claude/` and `.codex/`.
 - [docs/product-contract.md](docs/product-contract.md): product and safety contract
 - [docs/adr/](docs/adr/): architecture decisions
 - [docs/operations/](docs/operations/): local development, deployment, Entra sign-in
-- [prototypes/parsing_service/README.md](prototypes/parsing_service/README.md): Parsing Service
+- [apps/parsing_service/README.md](apps/parsing_service/README.md): Parsing Service
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute

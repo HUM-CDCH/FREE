@@ -30,9 +30,9 @@
 coverage
 artifacts
 packages/db/src/generated
-prototypes/studio/test-results
-prototypes/studio/.certs
-prototypes/studio/.playwright-stack-*/
+apps/studio/test-results
+apps/studio/.certs
+apps/studio/.playwright-stack-*/
 tools/slopo-benchmark/work
-prototypes/parsing_service/data
-prototypes/parsing_service/runs
+apps/parsing_service/data
+apps/parsing_service/runs

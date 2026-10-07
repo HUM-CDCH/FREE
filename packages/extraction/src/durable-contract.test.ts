@@ -19,7 +19,7 @@ test('retained model Evidence preserves leaf attribution and rejects a different
 })
 
 test('Python version-3 producer Evidence satisfies the durable producer contract', () => {
-  const fixture = JSON.parse(readFileSync(new URL('../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json', import.meta.url), 'utf8'))
+  const fixture = JSON.parse(readFileSync(new URL('../../../apps/parsing_service/tests/fixtures/contracts/extract.result.v3.json', import.meta.url), 'utf8'))
   assert.ok(fixture.artifact.evidence.length > 0)
   for (const link of fixture.artifact.evidence) {
     const producer = durableValueSchema.shape.evidence.element.shape.producer.parse(link)

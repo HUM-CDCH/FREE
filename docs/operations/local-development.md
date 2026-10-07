@@ -57,7 +57,7 @@ then creates the Parsing Service's database role, DBOS launches with the dev
 server, and the worker starts once Studio is healthy and migrates its own
 schema.
 
-Browser code under `prototypes/studio/src` syncs live and reloads in place.
+Browser code under `apps/studio/src` syncs live and reloads in place.
 Server code — Studio's `api/`, `server/` and `shared/`, and `packages/*` —
 syncs and restarts Studio, because DBOS runs inside Studio's process and
 launches once per process. Parsing Service source changes restart its API and
@@ -259,7 +259,7 @@ worker and model servers are private to the
 Compose network. For service commands use `docker compose exec
 parsing_service …` or `docker compose exec parsing_worker …`. Host-run
 service tooling is available through the `parsing-service` workspace package;
-see its [README](../../prototypes/parsing_service/README.md).
+see its [README](../../apps/parsing_service/README.md).
 
 Studio is not published directly by the host Compose topology; nginx is its
 only browser entry point.

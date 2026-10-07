@@ -16,9 +16,9 @@ const databaseUrl = process.env.EXTRACTION_TEST_DATABASE_URL
 if (!databaseUrl) throw new Error('Export EXTRACTION_TEST_DATABASE_URL naming a disposable free_test_* database.')
 validateDisposableTestDatabaseTarget(databaseUrl)
 
-const CONTRACTS = new URL('../../../prototypes/parsing_service/tests/fixtures/contracts/', import.meta.url)
+const CONTRACTS = new URL('../../../apps/parsing_service/tests/fixtures/contracts/', import.meta.url)
 const contract = (name: string) => JSON.parse(readFileSync(new URL(`${name}.json`, CONTRACTS), 'utf8'))
-const KEI_EXP = new URL('../../../prototypes/studio/test/fixtures/kei-exp/', import.meta.url)
+const KEI_EXP = new URL('../../../apps/studio/test/fixtures/kei-exp/', import.meta.url)
 const hex = randomBytes(4).toString('hex')
 const schema = `kei_dbos_t_${hex}`
 /** A kei schema no application ever launched: kei has not migrated it yet. */

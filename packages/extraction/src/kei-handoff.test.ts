@@ -4,7 +4,7 @@ import test from 'node:test'
 import { propagation } from '@opentelemetry/api'
 import * as handoff from './kei-handoff.js'
 
-const FIXTURES = new URL('../../../prototypes/parsing_service/tests/fixtures/contracts/', import.meta.url)
+const FIXTURES = new URL('../../../apps/parsing_service/tests/fixtures/contracts/', import.meta.url)
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`${name}.json`, FIXTURES), 'utf8'))
 
 type Client = Parameters<typeof handoff.createKeiHandoff>[0]

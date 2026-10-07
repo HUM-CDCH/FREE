@@ -3,7 +3,7 @@ import type { DBOSClient, StepConfig } from '@dbos-inc/dbos-sdk'
 import { context, propagation } from '@opentelemetry/api'
 import { z } from 'zod'
 
-/** kei's lanes, priorities and identities (prototypes/parsing_service/src/kei_exp/workflows/config.py and contracts.py;
+/** kei's lanes, priorities and identities (apps/parsing_service/src/kei_exp/workflows/config.py and contracts.py;
  *  pinned by tests/fixtures/contracts/). kei registers the queues; Studio only names one. */
 export const KEI_APPLICATION = 'kei'
 export const KEI_QUEUE = {

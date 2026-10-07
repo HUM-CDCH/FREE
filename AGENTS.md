@@ -6,9 +6,9 @@
 - Read `CONTEXT.md` before naming or changing domain concepts.
 - Read `CONTRIBUTING.md` when recording plans, unresolved work, or durable
   decisions.
-- For Parsing Service changes, read `prototypes/parsing_service/README.md` and
+- For Parsing Service changes, read `apps/parsing_service/README.md` and
   its local `CLAUDE.md`.
-- For Studio changes, read `prototypes/studio/CLAUDE.md`.
+- For Studio changes, read `apps/studio/CLAUDE.md`.
 - Code changes → a worktree from `origin/dev`, the PR base:
   `git worktree add .claude/worktrees/<name> -b <branch> origin/dev`.
 - `(spec, *Section*)` in code comments →

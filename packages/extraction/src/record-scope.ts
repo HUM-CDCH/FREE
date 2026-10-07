@@ -1,5 +1,5 @@
 /**
- * The record scope rules Studio enforces (contract: `prototypes/parsing_service/tests/fixtures/contracts/record-scope.json`):
+ * The record scope rules Studio enforces (contract: `apps/parsing_service/tests/fixtures/contracts/record-scope.json`):
  * admission runs a Schema Revision only under the strategy its declared scope names, and acceptance holds a
  * document-scope result to exactly one root record. The Parsing Service checks the same again when it runs.
  */

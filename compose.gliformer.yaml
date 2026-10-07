@@ -3,7 +3,7 @@ services:
   gliformer_model:
     build:
       context: .
-      dockerfile: prototypes/parsing_service/model_servers/gliformer/Dockerfile
+      dockerfile: apps/parsing_service/model_servers/gliformer/Dockerfile
       args:
         GLIFORMER_BASE_IMAGE: "${GLIFORMER_BASE_IMAGE:?Set a CUDA PyTorch image compatible with this host}"
     init: true

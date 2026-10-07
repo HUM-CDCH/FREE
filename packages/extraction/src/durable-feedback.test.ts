@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { adaptedCorrection, correctionSourceContext, correctionValueFits, fieldMeaning, selectFeedback } from './durable-feedback.js'
 import type { SchemaNode } from './schema.js'
-import sourceFixture from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with {type:'json'}
+import sourceFixture from '../../../apps/studio/src/assets/parsed_document.v2.json' with {type:'json'}
 import { decodeParsedDocument } from './parsed-document.js'
 import { durableValueSchema } from './durable-contract.js'
 

@@ -5,7 +5,7 @@ for each part of the grounding lab, the other options, and their effects. It
 also says which parts reached production and why the other parts must stay in
 the lab. The text follows ASD-STE100.
 
-Sources: `prototypes/grounding_lab` on branch `experiment/radical-context-prune`
+Sources: `apps/grounding_lab` on branch `experiment/radical-context-prune`
 (`AUDIT.md`, `HANDOFF.md`, `README.md`, `experiments/2026-09-05/EVALUATION.md`,
 `experiments/2026-09-05-bounded/RESULTS.md`), and the production code in
 `packages/extraction/src/grounding.ts` and `lexical.ts`. The lab code is not on

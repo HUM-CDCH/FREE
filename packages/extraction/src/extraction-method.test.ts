@@ -11,7 +11,7 @@ import {
 import { ExtractionError } from './errors.js'
 import { parseSchemaDefinition } from './schema.js'
 
-const FIXTURES = new URL('../../../prototypes/parsing_service/tests/fixtures/contracts/', import.meta.url)
+const FIXTURES = new URL('../../../apps/parsing_service/tests/fixtures/contracts/', import.meta.url)
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`${name}.json`, FIXTURES), 'utf8'))
 
 type Inventory = { context_tokens: number; identity_fields: string[]; factors: Record<string, unknown[]>; accepted: number; rejected: number; verdicts: string }

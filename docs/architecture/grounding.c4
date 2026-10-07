@@ -14,7 +14,7 @@ model {
     linking -> lexical_check 'Checks each proposed link against the same candidates'
   }
 
-  grounding_lab = system 'Grounding lab' 'Offline benchmark of evidence-linking policies (`prototypes/grounding_lab` on branch `experiment/radical-context-prune`). Nothing here runs in FREE.' {
+  grounding_lab = system 'Grounding lab' 'Offline benchmark of evidence-linking policies (`apps/grounding_lab` on branch `experiment/radical-context-prune`). Nothing here runs in FREE.' {
     anchor_dump = component 'Anchor dump' '`dump-anchors.mts` writes the canonical anchors in FREE reading order; table cells get their row and column headers as context.' 'TypeScript'
     claims = datastore 'Extractor claims with blind labels' '`claims_extracted.json`: one claim per leaf that the real extractor emitted, with the sibling values of its record; labeled by a person who did not see the pipeline.'
     lexical_tier = component 'Lexical tier' '`normalize` and `bounded_contains`. One hit links, zero hits abstain, several hits go to the scorer.' 'Python'

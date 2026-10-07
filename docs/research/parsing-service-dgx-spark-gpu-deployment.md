@@ -127,7 +127,7 @@ Do not use the Parsing Service `/status` response to verify GPU use: its
 2. [NVIDIA: Container Runtime for Docker on DGX Spark](https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html)
 3. [Docling: Accelerator options](https://docling-project.github.io/docling/reference/pipeline_options/#docling.datamodel.accelerator_options.AcceleratorOptions)
 4. [NVIDIA: DGX Spark system overview](https://docs.nvidia.com/dgx/dgx-spark/system-overview.html)
-5. [FREE Parsing Service lock](../../prototypes/parsing_service/uv.lock)
+5. [FREE Parsing Service lock](../../apps/parsing_service/uv.lock)
 6. [NVIDIA: DGX Spark release notes](https://docs.nvidia.com/dgx/dgx-spark/release-notes.html)
 7. FREE Docling adapter
 8. [FREE production launcher](../../scripts/free.mjs)

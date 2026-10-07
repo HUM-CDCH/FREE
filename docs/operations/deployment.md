@@ -32,7 +32,7 @@ touches the host nginx configuration outside the one include described below.
 Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
-The complete backend is built from `prototypes/parsing_service` in this
+The complete backend is built from `apps/parsing_service` in this
 checkout. Compose runs its read API and its DBOS worker, and with GPU access
 the vLLM model servers for OCR and extraction, beside Studio and the one
 PostgreSQL server both use. No separate kei-exp repository or host process is
@@ -428,7 +428,7 @@ value.
 Article and Catalog extraction, discovery, and grounding run in the included
 Python service. The former Catalog policy editor and `FREE_CATALOG_POLICY`
 configuration no longer apply. See the
-[service contract](../../prototypes/parsing_service/README.md) for supported
+[service contract](../../apps/parsing_service/README.md) for supported
 options and limitations.
 
 ## Network exposure and proxy trust
@@ -618,7 +618,7 @@ overlays when used. Tracing is part of the base topology.
    Python 3.1.0. Database URLs remain in the containers' environment.
 
    ```bash
-   docker compose -f compose.yaml -f compose.prod.yaml run --rm --no-deps -T --entrypoint node -w /workspace/prototypes/studio studio --input-type=module <<'JS'
+   docker compose -f compose.yaml -f compose.prod.yaml run --rm --no-deps -T --entrypoint node -w /workspace/apps/studio studio --input-type=module <<'JS'
    import { DBOSClient } from '@dbos-inc/dbos-sdk';
    const client = await DBOSClient.create({
      systemDatabaseUrl: process.env.DATABASE_URL,
@@ -763,7 +763,7 @@ Studio tabs after deployment so they use the matching durable API contract.
 
 Since `c0333c9b`, a parse of PDF bytes the Parsing Service already converted
 with the same effective settings reuses the earlier result instead of running
-OCR again (`prototypes/parsing_service/README.md`). The match is on the
+OCR again (`apps/parsing_service/README.md`). The match is on the
 recipe fingerprint. The OCR server's image (`eugr/spark-vllm:latest`) and
 its weights (`datalab-to/surya-ocr-2`) are not pinned, so the recipe cannot
 see a change to either.

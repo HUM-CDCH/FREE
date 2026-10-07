@@ -630,7 +630,7 @@ export function renderNginxLocations(template, values) {
 // include, operator notes) do not mark the inputs dirty.
 export const BUILD_REVISIONS = Object.freeze({
   FREE_REVISION_STUDIO: ['.'],
-  FREE_REVISION_PARSING: ['prototypes/parsing_service'],
+  FREE_REVISION_PARSING: ['apps/parsing_service'],
 })
 
 export function buildRevision(paths, execute = run) {

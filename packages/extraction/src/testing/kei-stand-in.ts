@@ -1,5 +1,5 @@
 /** A TypeScript kei for tests: a DBOS application named `kei` that plays kei's worker at the contract
- *  (prototypes/parsing_service/src/kei_exp/workflows/) and serves kei's read routes (kei_exp/api.py).
+ *  (apps/parsing_service/src/kei_exp/workflows/) and serves kei's read routes (kei_exp/api.py).
  *
  *  It registers kei's portable `convert` and `deleteRuns` workflows under kei's names, with kei's recovery limit, and
  *  kei's four lanes with kei's limits. Each workflow runs one step (`convert_run`, `delete_runs`, as kei names its own)
