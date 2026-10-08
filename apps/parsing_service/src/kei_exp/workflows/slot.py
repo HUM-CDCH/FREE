@@ -1,4 +1,4 @@
-"""One slot, one worker: the supervised exclusive ownership the spike settled on.
+"""One slot, one worker: supervised exclusive ownership.
 
 The lock is an `flock` held on a file for the process's lifetime, because that is the one claim a process cannot
 make on another's behalf and cannot keep after it dies: a merely stopped worker keeps it, so it never gets a

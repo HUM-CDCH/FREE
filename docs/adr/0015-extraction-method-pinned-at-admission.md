@@ -1,8 +1,9 @@
 # 0015: Extraction Method pinned at admission
 
 Date: 2026-09-29. Status: accepted; amends 0011 (the Extraction Model Choice is
-submitted with each start, not applied from the account per request).
-Plan: 2026-09-28-advanced-extraction-configuration.md.
+submitted with each start, not applied from the account per request); amended
+by [0017](0017-durable-extraction-control-and-call-checkpoints.md) (the pin
+applies to each durable input selection).
 
 ## Context
 
@@ -19,9 +20,10 @@ admitted with.
 - **Extraction Method Settings live in the account's configuration.** They are
   part of the one Model Configuration document, as a required
   `extractionSettings` member with one member per strategy (Article; generic and
-  recipe Catalog). `{}` means the Parsing Service's defaults. They are edited on
-  the page's Advanced tab through the same draft, Apply and Discard. They never
-  hold a key and never edit an Extraction Schema.
+  recipe Catalog, and the unified Catalog preference where
+  `FREE_CATALOG_METHOD=unified`). `{}` means the Parsing Service's defaults.
+  They are edited on the page's Advanced tab through the same draft, Apply and
+  Discard. They never hold a key and never edit an Extraction Schema.
 - **A start submits what it showed.** Every single, batch and suggested-batch
   start sends the Extraction Model Choice and the applicable settings it
   displayed ("Saved advanced settings"). Admission compares them with the
@@ -33,10 +35,11 @@ admitted with.
   today's settings are consulted; this includes a batch request that waited for
   an equal one.
 - **Execution reads only the pinned method.** The Extraction (and its Batch
-  Extraction) stores the admitted method as nullable JSON; NULL means "not
-  recorded" (runs admitted before this change). `runExtraction` builds the
-  Parsing Service request from that value alone, including after a restart.
-  Workflow inputs stay `[extractionId]`, and no step sequence changed.
+  Extraction) records the admitted method; each durable input selection pins
+  the method it was saved with, the first one the admitted method. The
+  Parsing Service captures the effective models, options and protocol
+  versions per selection, and call captures carry only that method, also
+  after a restart.
 - **Batch identity includes the active method.** Equal-selection reuse compares
   the pinned method for the batch's strategy. Settings for the other strategy
   do not affect it.
@@ -57,31 +60,9 @@ admitted with.
   only that Extraction.
 - Direct API clients must now send the `method` intent with every start.
 
-## Durable interactive Extraction amendment (2026-10-04)
+## Amendment (0017, 2026-10-05)
 
-[ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md) explicitly
-extends this decision for admission-disabled durable interactive Extractions.
-The pre-production candidate adds no historical extraction compatibility layer.
-Durable interactive execution keeps one
-visible Extraction across linked attempts, preserves immutable producing input
-selections and exact captured calls, and reviews saved typed values independently
-of execution completion or grounding. Compatible ungrounded corrections may be
-Project guidance with optional own-source Evidence. Fixed retained snapshots
-support partial/failed/stopped exports and explicit finalization; an approval or
-rejection cannot silently transfer to changed model output. The review redesign
-is reused where compatible; path/anchor reconciliation is not applied
-to durable correction history. Neither existing DBOS application versions nor
-existing workflow step sequences change. Release admissions remain disabled.
-
-## Durable-only method and admission amendment (2026-10-06)
-
-The [durable-only and admission amendments in ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md#durable-only-amendment)
-supersede the legacy `runExtraction`, nullable-method reader and
-admission-disabled clauses above. A producing input selection pins its
-requested method; the Parsing Service captures the effective models, options
-and protocol versions for that selection. Later immutable selections may be
-adopted at a paused boundary. Head-less historical rows are neither listed nor
-opened, and no reader for historical unrecorded methods is retained. Valid requests admit durable
-work directly. Exact-commit Spark acceptance in the
-recorded OpenSpec tasks
-is required before merge; deployment remains separate.
+The [durable-only amendment of ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md#durable-only-amendment)
+extends the pin from one admission to each linked input selection: each
+selection pins its requested method, and a later immutable selection may be
+adopted at a paused boundary. Valid requests admit durable work directly.

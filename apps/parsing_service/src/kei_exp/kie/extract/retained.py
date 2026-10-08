@@ -23,10 +23,15 @@ def reuse_record(router, scope, *, record=0):
 
 
 def discovering(router, found, lines):
-    """Discovery's record starts so far and the lines of the window it reads next, shown while the durable run
-    reads (None once discovery is done). A view only: nothing is retained."""
+    """Discovery's record starts so far and the lines of the window this thread asks for next, shown while the
+    durable run reads (None once discovery is done). A view only: nothing is retained."""
     if getattr(router,"runtime",None) is not None:
-        router.runtime.discovery = None if found is None else {"found": found, "lines": lines}
+        router.runtime.discovering(found, lines)
+
+
+def plan_execution(router, stage, execution):
+    if getattr(router,"runtime",None) is not None:
+        router.runtime.plan_execution(stage,execution)
 
 
 def plan_records(router, stage, scopes):

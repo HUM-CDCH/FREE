@@ -22,7 +22,8 @@ export function DurableInputs({attempt,state,currentSchema,onSaved,onEdited}:{
   const initialized=useRef<string|null>(null)
   const selection=state.pendingSelection??state.selection
   const used=selection.method
-  const unified=Boolean(used.settings&&'unified' in used.settings)
+  const pinned=used.settings&&'unified' in used.settings?used.settings.unified.defaults:undefined
+  const unified=pinned!==undefined
   const [schemaId,setSchemaId]=useState<string>(selection.schemaRevisionId)
   const [listing,setListing]=useState<ExtractionModelListing|null>(null)
   const [error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
@@ -58,7 +59,10 @@ export function DurableInputs({attempt,state,currentSchema,onSaved,onEdited}:{
     setBusy(true);setError(null)
     try {
       const latest=await durableRequest<DurableRead>(durableRoot(attempt.extractionId))
-      const method=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy,state.selection.resolved.catalogRecipe,unified)
+      const edited=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy,state.selection.resolved.catalogRecipe,unified)
+      // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under.
+      const method=pinned!==undefined&&'unified' in edited.settings
+        ?{...edited,settings:{unified:{...edited.settings.unified,defaults:pinned}}}:edited
       await durableRequest(`${durableRoot(attempt.extractionId)}/selection`,{expectedVersion:latest.controlVersion,schemaRevisionId:schemaId,method})
       onSaved()
     } catch(error){setError(error instanceof Error?error.message:'Unable to save pending inputs.')}
@@ -77,7 +81,7 @@ export function DurableInputs({attempt,state,currentSchema,onSaved,onEdited}:{
             defaultKey={listing?.defaults[role]} choices={listing?.models.filter(model=>model.roles.includes(role)).map(model=>({key:model.key,name:model.repo,serving:model.serving}))??null}
             unserved="Not serving" onChange={guard((key:string)=>editor.setExtractionModel(role,key))}/>
         </label>)}
-        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={fenced} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified}
+        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={fenced} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified} unifiedDefaults={pinned}
           extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'}/>
       </>}
       {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger">{issue.message}</p>)}

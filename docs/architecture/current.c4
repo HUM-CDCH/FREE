@@ -27,13 +27,13 @@ model {
   entra = external 'Microsoft Entra ID' 'Single-tenant OIDC identity provider and the source of application assignment.'
   mock_oidc = container 'Mock OIDC service' 'The sibling development identity service. Studio uses its server issuer while the browser follows the published loopback issuer.' 'mock-oauth2-server'
 
-  gateway = container 'Host nginx TLS gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
+  gateway = container 'Production nginx TLS gateway' 'The nginx on the deployment host, or the bundled nginx container (FREE_NGINX=container). Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
   local_gateway = container 'Container nginx TLS gateway' 'The default local Compose entry point. Terminates mkcert TLS on port 8443 and applies the same shared proxy include as host nginx.' 'Nginx'
 
   studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary; DBOS runs inside the same process.' {
-    ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence and the Model Configuration page.' 'React'
+    ui = container 'React UI' 'Source Document viewer, schema editor, Extraction Results, Evidence and the Model Configuration page.' 'React'
     key_store = component 'Browser key store' 'API keys in localStorage, per researcher account, connection and API base.' 'TypeScript, localStorage'
-    browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts` and `src/schemaRevisions.ts` send same-origin requests; `authenticatedFetch` resends keys when the Studio boot ID changes.' 'TypeScript'
+    browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts/transport.ts` and `src/schemaRevisions.ts` send same-origin requests; `authenticatedFetch` resends keys when the Studio boot ID changes.' 'TypeScript'
     handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
     authentication = component 'Authentication boundary' 'OIDC authorization-code transactions with PKCE and nonce validation, fixed token-expiry sessions, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript, MSAL Node'
     durable = component 'DBOS in Studio' '`server/dbos.ts` launches DBOS once per process (schema `dbos`): workflows, the `studio`, `suggest` and `gc` queues, the ten-minute `collectGarbage` schedule, and clients for admission and the kei handoff.' 'DBOS TypeScript'
@@ -83,13 +83,14 @@ model {
   studio.handlers -> studio.extraction_module 'Admits durable work and reopens Extractions; saves corrections and named finalizations; reads batches'
   studio.handlers -> studio.project_store 'Reads a snapshot; manages Project Contexts, Source Documents, schemas and model configuration'
   studio.handlers -> source_inbox 'Stages an uploaded PDF under its project and attempt'
-  studio.handlers -> package_store 'Reads the pdf, markdown and source entries; discards the packages a deletion left unreferenced'
+  studio.handlers -> package_store 'Reads the pdf, markdown and source entries'
   studio.durable -> project_db 'Checkpoints Studio workflows in dbos; enqueues kei work in kei_dbos'
   studio.durable -> studio.extraction_module 'Runs reconcileDurableExtractions'
   studio.durable -> studio.provider_registry 'Runs Schema Suggestion and edit proposals'
   studio.durable -> studio.garbage 'Runs collectGarbage every ten minutes'
   studio.durable -> parsing_service.http_api 'Reads converted manifests and pages'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
+  studio.project_store -> package_store 'Discards the packages a deletion left unreferenced'
   studio.extraction_module -> project_db 'Reads and writes the Extraction row, its coordination head, saved values, corrections and finalizations'
   studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
   studio.provider_registry -> studio.key_cache 'Reads a key inside each provider attempt'
@@ -111,10 +112,10 @@ views {
     title 'FREE — production runtime context'
     description '''
       Implemented production runtime boundaries only. The browser reaches the
-      deployment through the host nginx TLS boundary; the Hono Node host serves
-      the React client and same-origin API, authenticates each browser session
-      through Microsoft Entra ID, and scopes research state to its local
-      Researcher Account. Each Researcher Account owns its model configuration; keys stay in researchers' browsers and in Studio's memory.
+      deployment through the nginx TLS gateway, on the host or in the bundled
+      container; the Hono Node host serves the React client and same-origin
+      API, authenticates each browser session through Microsoft Entra ID, and
+      scopes research state to its local Researcher Account. Each Researcher Account owns its model configuration; keys stay in researchers' browsers and in Studio's memory.
 
       The Project Store is consumed. Studio reads its research state from
       PostgreSQL and creates, renames, and deletes Project Contexts, appends
@@ -157,13 +158,12 @@ views {
       create. Each write applies to the researcher's view only after the
       handler acknowledges it. The Project Store includes the authenticated
       Researcher Account in every ownership condition. Deletion removes the
-      whole owned relational graph through the database cascade, then removes
-      the canonical packages no remaining Source Representation references —
-      best effort, because the durable deletion has already succeeded.
-
-      Packages are content-addressed and shared, so each address is checked,
-      quarantined, then rechecked before unlinking. A concurrent publish restores
-      the package; an unreadable reference answer keeps it.
+      whole owned relational graph through the database cascade. It then
+      discards, best effort, each canonical package the deleted rows pinned
+      that no remaining Source Representation or durable Extraction head
+      references (quarantined, then checked before unlinking), and cancels the
+      live work of the deleted scope. collectGarbage later removes any
+      unreferenced package left over.
     '''
     researcher -> studio.ui 'Name a new Project Context in the rail'
     studio.ui -> studio.handlers 'POST /api/project-contexts'
@@ -178,11 +178,9 @@ views {
     studio.ui -> studio.handlers 'DELETE /api/project-contexts/:id'
     studio.handlers -> studio.project_store 'deleteProjectContext'
     studio.project_store -> project_db 'Delete the Project Context and its cascaded research state'
-    studio.project_store -> studio.handlers 'Return the pinned packages as removal candidates'
-    studio.handlers -> studio.project_store 'isPackageReferenced, per candidate address'
-    studio.handlers -> package_store 'Quarantine the unreferenced address'
-    package_store -> studio.project_store 'Recheck the address before unlinking it'
-    studio.handlers -> package_store 'Remove or restore the quarantined address, logging any failure'
+    studio.project_store -> package_store 'Quarantine each package the deleted rows pinned, then remove it, or restore it if still referenced'
+    studio.handlers -> studio.durable 'Cancel the live Studio and kei work of the deleted scope'
+    studio.handlers -> studio.ui 'Return 204'
   }
 
   dynamic view source_document_reopen {
@@ -207,14 +205,15 @@ views {
     title 'Add Source Documents — current'
     description '''
       The Project Context page submits selected PDFs one at a time. Studio
-      replays completed content from the project without parsing; otherwise it
-      stages the verified PDF and starts one ingestSource workflow per project
-      and content, which a second upload of the same content joins. The workflow
-      hands the conversion to the Parsing Service's small or large lane by page
-      count, with the owner's Ingestion Model Choice frozen into its input, then
-      retains the canonical package and publishes the Source Document and
-      revision 1. The request waits up to thirty minutes; a timeout detaches
-      without cancelling.
+      replays completed content from the project without parsing and answers
+      201 with the saved Source Document. Otherwise it stages the verified PDF,
+      starts one ingestSource workflow per project and content, which a second
+      upload of the same content joins, and answers 202 with the workflow ID.
+      The workflow hands the conversion to the Parsing Service's small or large
+      lane by page count, with the owner's Ingestion Model Choice frozen into
+      its input, then retains the canonical package and publishes the Source
+      Document and revision 1. The page polls the project's Source Ingestions
+      until the new one becomes a Source Document or fails.
     '''
     researcher -> studio.ui 'Add one or more PDFs'
     studio.ui -> studio.browser_http 'POST one PDF'
@@ -222,6 +221,7 @@ views {
     studio.handlers -> studio.project_store 'Replay completed content, if any'
     studio.handlers -> source_inbox 'Stage the verified PDF under its project and attempt'
     studio.handlers -> studio.durable 'Start ingestSource, or join the active one for this content'
+    studio.handlers -> studio.ui 'Return 202 with the workflow ID, or 201 with the replayed Source Document'
     studio.durable -> project_db 'Enqueue kei convert on the lane the page count picks'
     parsing_service.parser -> source_inbox 'Copy the staged PDF into a run'
     parsing_service.parser -> parsing_service.task_cache 'Publish the canonical pages'
@@ -229,7 +229,8 @@ views {
     studio.durable -> package_store 'Retain and validate the canonical package'
     studio.durable -> studio.project_store 'Create Source Document and revision 1'
     studio.project_store -> project_db 'Commit the durable ingestion result'
-    studio.handlers -> studio.ui 'Return the saved Source Document'
+    studio.browser_http -> studio.handlers 'Poll GET /api/project-contexts/:id/source-ingestions'
+    studio.handlers -> studio.ui 'Report queued, parsing, failed, or succeeded with the Source Document'
   }
 
   dynamic view schema_guided_extraction {
@@ -247,8 +248,8 @@ views {
       appends the next one against `expectedRevisionNumber`. A stale number
       returns a revision conflict rather than an overwrite.
     '''
-    researcher -> studio.ui 'Annotate the Source Document and choose Generate schema'
-    studio.ui -> studio.browser_http 'Prepare the Markdown and the browser Annotations'
+    researcher -> studio.ui 'Describe what to extract and choose Generate schema'
+    studio.ui -> studio.browser_http 'Send the pinned Source Representation and the instruction'
     studio.browser_http -> studio.handlers 'POST /api/generate_schema'
     studio.handlers -> studio.durable 'Start suggestSchema and wait for it'
     studio.durable -> studio.provider_registry 'Resolve the Schema Suggestion Route of the owner'
@@ -342,6 +343,10 @@ views {
       and deletes nothing when a read fails. Work cancelled in the running
       Studio or Parsing Service process is kept until that process restarts,
       because one of its steps may still write.
+
+      Packages are content-addressed and shared, so each address is checked,
+      quarantined, then rechecked before unlinking. A concurrent publish restores
+      the package; an unreadable reference answer keeps it.
     '''
     studio.durable -> studio.garbage 'Fire the schedule'
     studio.garbage -> project_db 'Cancel live work whose outcome is recorded or whose scope is gone, and kei children of stopped parents'

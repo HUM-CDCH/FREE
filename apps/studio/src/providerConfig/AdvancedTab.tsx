@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
   CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
-  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type CatalogSettings,
+  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
@@ -30,6 +30,8 @@ type Props = {
   unifiedCatalog?: boolean
   /** A pending input editor changes only the current Extraction's strategy. */
   extractionStrategy?: AdvancedStrategy
+  /** The unified defaults version shown: an Extraction's own, else the latest that new Extractions use. */
+  unifiedDefaults?: UnifiedCatalogSettings['defaults']
 }
 
 /** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
@@ -61,7 +63,8 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
-export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy }: Props) {
+export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy,
+  unifiedDefaults = UNIFIED_CATALOG_DEFAULTS_VERSION }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -151,7 +154,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
         {strategy === 'article'
           ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
           : unifiedView
-            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
+            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} unifiedDefaults={unifiedDefaults} />
             : <CatalogSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />}
       </section>
     </GuideProvider>
@@ -409,12 +412,13 @@ function retiredCatalog(catalog: CatalogSettings | undefined): string[] {
 
 /** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
  *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
-function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
+function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
+  & { unifiedDefaults: UnifiedCatalogSettings['defaults'] }) {
   const catalog = draft.extractionSettings.catalog
   const unified = catalog?.unified
   const custom = unified !== undefined
   const shown = unified ?? {}
-  const defaults = UNIFIED_CATALOG_DEFAULTS[UNIFIED_CATALOG_DEFAULTS_VERSION]
+  const defaults = UNIFIED_CATALOG_DEFAULTS[unifiedDefaults]
   const retired = retiredCatalog(catalog)
   const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
   const number = (key: 'input_tokens' | 'output_tokens' | 'overlap', unit: string, hint: string, placeholder: string) => {
@@ -430,7 +434,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'd
     </label>
   )
   const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
-  const method = { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...shown }
+  const method = { defaults: unifiedDefaults, ...shown }
   const changed = JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null)
   // One control per view, as for the other strategies: the dialog fits the viewport without an inner scroll area.
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
@@ -443,7 +447,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'd
   ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${UNIFIED_LABELS[key]}`, control }))
   return (
     <>
-      <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${UNIFIED_CATALOG_DEFAULTS_VERSION}`}</p>
+      <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${unifiedDefaults}`}</p>
       {retired.length > 0 && (
         <div role="note" className="rounded-md border border-line bg-surface-muted px-2.5 py-2 text-[11.5px] text-ink">
           <p className="font-semibold">Your Catalog settings still hold retired controls</p>

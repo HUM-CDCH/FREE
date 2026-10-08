@@ -1,4 +1,4 @@
-"""Serving code never imports the experiment or validation/report code (design §8, invariant 3)."""
+"""Serving code never imports the experiment code (docs/extraction-experiments.md, Ownership)."""
 import ast
 from pathlib import Path
 

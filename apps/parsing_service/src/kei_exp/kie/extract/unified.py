@@ -71,19 +71,27 @@ ENTRY_VERSION = 3
 # prints it as exactly one occurrence.
 DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
-# The versioned service defaults: engineering choices, none measured yet. Reserves are sized for replies that list
-# many boundaries or candidates; Auto input is the served context minus the stage's reserve; one unit of overlap;
-# heading context and verification on; a failed window is halved at most six times.
-DEFAULTS = {1: {"reserves": {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512,
-                             "document": 2048},
-                "overlap": 1, "headings": True, "verification": True, "splits": 6}}
+# The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
+# candidates; Auto input is the served context minus the stage's reserve; heading context and verification on; a failed
+# window is halved at most six times. 1: discovery windows cut by the budget alone, one unit of overlap. 2: discovery
+# windows never cross a printed page, ingestion's unit (`discovery.groups_of`), three units of overlap. Measured on one
+# scanned 3-page catalogue excerpt (29 numbered entries; Qwen3.8-27B and NuExtract3, 7 October 2026, two runs each):
+# version 1's single window read each entry's body as record-free, so no find type was extracted (0/29, value accuracy
+# 0.52); page windows 16/29 (0.65); windows at ingestion's column cuts 24/29 (0.72), but over the excerpt repeated five
+# times (145 entries) they missed 3 starts in a short column, page windows none. Moving to column windows is a new
+# version with `"windows": "column"`, once `experiments/extraction/discovery_windows.py --windows column` holds on more
+# than this one catalogue.
+_RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
+DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
+            2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
+                "windows": "page"}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1]
+    defaults: Literal[1, 2]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -169,6 +177,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
+            | {name: value for name, value in DEFAULTS[options.defaults].items() if name == "windows"}
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {}),
             "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
@@ -192,9 +201,9 @@ def _issue_json(issue: Issue) -> dict:
 
 
 def work_order(entries: list[dict], pages: dict[str, int], start_page: int | None) -> list[int]:
-    """Entry indices in the order they are read (design §4): by distance of each entry's first page from `start_page`,
-    an entry whose page is unknown last, ties in source order; without a start page, source order. Assembly keeps
-    source order whatever this returns, so the artifact is the same."""
+    """Entry indices in the order they are read (service README, start_page): by distance of each entry's first page
+    from `start_page`, an entry whose page is unknown last, ties in source order; without a start page, source order.
+    Assembly keeps source order whatever this returns, so the artifact is the same."""
     def distance(number: int) -> tuple[float, int]:
         ranges = entries[number].get("ranges") or []
         page = pages.get(ranges[0]["segment"]) if ranges else None
@@ -224,13 +233,16 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     execution_sha256 = digest(execution)
     effective = execution["effective"]
     budget = _Budget(chat, counters, effective["stages"], check)
-
-    from kei_exp.kie.extract.retained import discovering
+    from kei_exp.kie.extract.retained import discovering, plan_execution
+    # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose
+    # record changed (a deploy, a served context) adds a row instead of conflicting with the first.
+    plan_execution(chat, f"unified-execution:{execution_sha256[:16]}", execution)
 
     def discover() -> dict:
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
                                   partial(budget.ask, "discovery"), overlap=effective["overlap"],
-                                  splits=effective["splits"], progress=partial(discovering, chat))
+                                  splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
+                                  progress=partial(discovering, chat))
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
         return {"version": discovery.VERSION, "execution_sha256": execution_sha256, "entries": body["entries"],

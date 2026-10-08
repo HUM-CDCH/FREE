@@ -25,8 +25,8 @@ onProgressChange.mockClear();
 Under fake timers, advance them inside `act` (`await act(() => vi.advanceTimersByTimeAsync(ms))`)
 instead of `waitFor`, which waits on the frozen clock.
 
-Reference: 3dded2ee (PR #197) fixed `BatchExtractionsPanel.test.tsx` this way
-after it flaked in CI.
+Reference: `BatchExtractionsPanel.test.tsx`
+(`apps/studio/src/projectContexts/`) awaits `onProgressChange` this way.
 
 ## Read order in cleanup decisions
 

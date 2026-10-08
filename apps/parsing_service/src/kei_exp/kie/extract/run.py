@@ -52,7 +52,7 @@ class Options(BaseModel):
     unified: UnifiedOptions | None = None  # the unified Catalog method: result version 3
     # The page the researcher was reading when the run started, one-based: the order the unified Catalog reads its
     # entries and Article its bounded value contexts in (nearest first), never which of them are read. Excluded from
-    # `dumped()`, so the artifact and its fingerprint are those of the same request without it (design §4). Strict,
+    # `dumped()`, so the artifact and its fingerprint are those of the same request without it. Strict,
     # as UnifiedOptions is: "6" is no page. A page beyond the document orders the work from the document's end.
     start_page: int | None = Field(default=None, ge=1, strict=True)
 

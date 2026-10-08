@@ -6,16 +6,25 @@
       "headings": true,
       "verification": true,
       "splits": 6
+    },
+    "2": {
+      "reserves": {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048},
+      "overlap": 3,
+      "headings": true,
+      "verification": true,
+      "splits": 6,
+      "windows": "page"
     }
   },
   "valid": [
     {"defaults": 1},
+    {"defaults": 2},
     {"defaults": 1, "input_tokens": 512, "output_tokens": 64, "overlap": 0, "headings": false, "verification": false},
     {"defaults": 1, "input_tokens": 1048576, "output_tokens": 65536, "overlap": 4}
   ],
   "invalid": [
     {},
-    {"defaults": 2},
+    {"defaults": 3},
     {"defaults": 1, "input_tokens": 511},
     {"defaults": 1, "input_tokens": 1048577},
     {"defaults": 1, "output_tokens": 63},

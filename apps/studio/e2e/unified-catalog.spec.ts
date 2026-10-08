@@ -42,7 +42,7 @@ async function showPage(dialog: Locator, title: string): Promise<void> {
 test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found by keyboard; Apply saves it', async ({ page }) => {
   await signIn(page)
   const dialog = await openCatalogSettings(page)
-  await expect(dialog.getByText('Service defaults, version 1')).toBeVisible()
+  await expect(dialog.getByText('Service defaults, version 2')).toBeVisible()
   await expect(dialog.getByText('Generic Catalog')).toHaveCount(0)
   await expect(dialog.getByText('Recipe Catalog')).toHaveCount(0)
   await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Customize' }))

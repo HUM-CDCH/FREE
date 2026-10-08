@@ -1879,7 +1879,7 @@ describe('reopened Source Document workspace', () => {
       // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
       await waitFor(() => expect(extractionRequests).toHaveLength(2))
       for (const request of extractionRequests) {
-        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
+        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 2 } } } })
         expect(request).not.toHaveProperty('catalogRecipe')
       }
       expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()

@@ -1,7 +1,7 @@
 """A finished parse run's canonical result as the recipe stages and extraction see it: passages in reading order,
 named by identity. It imports neither.
 
-Extraction never reparses the PDF (plan B rule 4). It reads `result/result.json` and the page files through
+Extraction never reparses the PDF. It reads `result/result.json` and the page files through
 `pagefile.load_result`, which proves they belong together, and projects every readable segment into a `Passage`
 named `p{page}_s{index}`: the physical PDF page and the segment's position in that page file's `segments` list.
 That name is the evidence identity every extracted value points at; it holds for the generation it was read from

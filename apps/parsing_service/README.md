@@ -1,24 +1,23 @@
 # Parsing and extraction service
 
-For extraction stage ownership, experimental method settings and reproducible
-ablation commands, see [Extraction stages and controlled experiments](docs/extraction-experiments.md).
+This directory holds FREE's Python document-processing service, called *kei*
+in code (package `kei_exp`, settings `KEI_*`, worker `kei-worker`, database
+role `kei`). FREE Studio owns authentication, Project Contexts, Extraction Schemas
+and review. This internal service owns PDF parsing, canonical Evidence, Article
+and Catalog Extraction, and durable processing jobs. Studio is its only product
+UI.
 
-This directory owns FREE's Python document-processing service. Its implementation
-was imported from kei-exp commit `93b9435c2b9a01a5424758d917c058fc79bbc159`.
-The Python package remains `kei_exp`; neither deployment nor tests require the
-original repository. The obsolete `app/` Docling service has been replaced.
-
-FREE Studio owns authentication, Project Contexts, Extraction Schemas and review.
-This internal service owns PDF parsing, canonical Evidence, Article and Catalog
-Extraction, and durable processing jobs. Studio is its only product UI.
+[CONTEXT.md](CONTEXT.md) defines the ingest and evidence vocabulary.
+[Extraction stages and controlled experiments](docs/extraction-experiments.md)
+covers extraction stage ownership, method settings and the study tooling.
 
 ## Runtime
 
 Run the complete deployment with `pnpm dev` or `pnpm production` from the FREE
-root. Root Compose builds this directory once and uses that image for the API
-and the worker. The API listens on port 8001 inside the Compose network; Studio
-reaches it through `KEI_EXP_URL`. The API has no database: it serves the model
-listings and the files a run has published, and nothing else.
+root. Root Compose builds the API and the worker from this directory. The API
+listens on port 8001 inside the Compose network; Studio reaches it through
+`KEI_EXP_URL`. The API has no database: it serves the model listings and the
+files a run has published, and nothing else.
 
 The worker (`kei-worker worker`) is kei's DBOS application: name `kei`,
 application version `kei@1`, system schema `kei_dbos` in Studio's database
@@ -28,31 +27,48 @@ application version `kei@1`, system schema `kei_dbos` in Studio's database
 (`extractDurableV1`) with only their identities, on four lanes:
 `kei-convert-large`, `kei-convert-small` (a document of at most 30 pages),
 `kei-extract` (durable attempts, priority 1 interactive before 10 batch) and
-`kei-gc`. Each lane's worker limit equals its
-global limit, so a cancelled workflow whose native step is still running keeps
-its slot until the step returns.
+`kei-gc`. Each lane's worker limit equals its global limit, so a cancelled
+workflow whose native step is still running keeps its slot until the step
+returns.
 
 One worker per slot: it holds `KEI_RUNS/.worker-<slot>.lock` for its lifetime
 (a second one on the same slot exits at once), reads the database clock as its
 boot timestamp, then launches DBOS, which migrates `kei_dbos` and recovers the
-slot's pending work (executor `kei-<slot>`). A crash re-executes the step that
+slot's pending work (executor `kei-<slot>`). The lock is the fence: a stopped
+worker that resumes after its work was taken over overwrites published files,
+so a replacement starts only once the previous process has exited, and a
+stopped worker is the supervisor's to kill. A crash re-executes the step that
 was running and reuses every checkpointed one. A cancel or a deadline stops a
 conversion at its next check (before model work, between pages while cutting); a
 running native call finishes first. A durable attempt stops at its coordination
-boundaries. Studio's `collectGarbage` names the conversions whose runs no
-surviving revision and no durable head (tombstoned heads included) references,
-and the kei history that may go. `deleteRuns` (`gc.py`, `boot.py`) deletes each
-run only once its conversion can no longer write (not live, not stopped since
-this worker booted), then that conversion's history; it also deletes the other
-kei history Studio names. A deleted durable graph's history goes through
-`deleteDurableHistoryV1` once its native calls are quiescent. A run waits until nothing in it was written
-for 24 h. kei never reads Studio's schemas.
+boundaries.
 
-`KEI_RUNS` contains the runs' sources, canonical parse results and recipe
-segmentations; durable Extraction results live in the coordination schema. It is durable service data: later Extractions need the original parse
-generation. `KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only
-reads it. Model weights under `/models` are a separate cache. Debug files are
-never authoritative Evidence.
+Studio's `collectGarbage` names the conversions and other kei history that may
+go; `deleteRuns` (`gc.py`, `boot.py`) deletes a conversion's run only once the
+conversion can no longer write (not live, not stopped since this worker booted)
+and nothing in the run was written for 24 h, then the conversion's history.
+kei never reads Studio's schemas; the rules are in the spec's
+[Deletion and garbage collection](../../docs/design/unified-durable-execution.md#deletion-and-garbage-collection).
+
+The worker registers `convert`, `deleteRuns` and three durable Extraction
+workflows: Studio enqueues `extractDurableV1` on `kei-extract` and
+`deleteDurableHistoryV1` on `kei-gc`, and each attempt starts its
+`extractionCallV1` children directly (ID `kei-call:<attempt>:<capture>`),
+outside any lane limit. Attempts reach the coordination schema only through a
+pool of at most four short calls to allowlisted `extraction_runtime` routines,
+and no pooled connection or transaction spans a model call. After a crash,
+recovery waits up to 40 s for the previous process's 30-second lease to expire:
+a live owner keeps its epoch, stale attempts and other refusals fail at once,
+and operators never edit lease timestamps. `deleteDurableHistoryV1` deletes a
+deleted graph's history only once every linked attempt and call is quiescent by
+this worker's boot clock; cancellation alone never proves that.
+
+`KEI_RUNS` holds the runs' sources, canonical parse results and recipe
+segmentations; durable Extraction results live in the coordination schema. It is
+durable service data: later Extractions need the original parse generation.
+`KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only reads it. Model
+weights under `/models` are a separate cache. Debug files are never
+authoritative Evidence.
 
 A `convert` of PDF bytes another run already parsed with the same effective
 settings reuses that work (`reuse.py`): it adopts the other run's complete
@@ -84,20 +100,20 @@ run would lose its result.
 | `KEI_RUNS` | Shared source/result directory; `/app/runs` in the image |
 | `KEI_SOURCE_INBOX` | Staged source PDFs, written by Studio, read by the worker |
 | `KEI_SLOT` | The worker's slot: its lock file and its DBOS executor `kei-<slot>`. A deployment runs one slot: `deleteRuns` trusts its own process's boot timestamp, which says nothing about another slot's running steps |
+| `KEI_LOG_LEVEL` | Worker only: log level; default `INFO` |
 | `KEI_VLLM_URL` | OCR chat-completions endpoint, normally the `ocr_model` service |
 | `KEI_OCR_MODEL` | Default OCR model of a parse that names none (default `surya`) |
-| `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in every served parse's recipe; change it when they change, so earlier output is not reused |
+| `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in the recipe of every parse that runs an OCR model; change it when they change, so earlier output is not reused |
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: chunks a durable attempt plans a Catalog's entries in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
-| `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, and how many unified Catalog discovery windows it asks at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
-Root Compose owns model processes. The standalone `kei-dev` UI launcher and
-CLI `--start-server` option are intentionally absent. A configured model server
-is required for scanned OCR and Extraction; native parsing uses Docling locally.
+Root Compose runs the model servers. A configured model server is required for
+scanned OCR and Extraction; native parsing uses Docling locally.
 
 ## HTTP and evidence contract
 
@@ -109,164 +125,119 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   `ingest` (two-page spreads), whose optional `ingest` object carries splitter
   settings such as gutter overrides; both are recorded in the parse recipe. It
   returns `{ok: true, run_id, generation, page_count, source_sha256,
-  page_source}`; the run ID derives from the workflow ID. Every workflow fails
-  as `{ok: false, code, reason, retryable}`.
+  page_source}`; the run ID derives from the workflow ID. `convert` and
+  `deleteRuns` fail as `{ok: false, code, reason, retryable}`;
+  `extractDurableV1` acknowledges its outcome through the coordination schema,
+  and `deleteDurableHistoryV1` returns `{removed}`.
 - A completed parse exposes `/result` and `/pages/{page}` below `/api/runs/{id}`.
   The canonical result is version 5: a manifest plus hashed page files bound to
   one generation. Native Docling tables retain cells with row/column spans, raw
-  parent-text offsets, and measured page boxes when available. Scan tables
-  remain coarse until cell geometry has been independently evaluated.
-- Extraction runs only as durable attempts (`extractDurableV1`, below): the
-  attempt reads its pinned selection and source from the coordination schema,
-  and its saved values are retained there, never published beside the run or
-  served by this API. A request may name
-  `start_page`, the page the researcher is reading: the unified Catalog reads
-  the records nearest it first and Article its bounded value contexts, the
-  admitted source range unchanged.
-  Changing the schema reruns Extraction without rerunning OCR.
-- Extraction calls take one of two roles. `fields` reads values off the source
-  (document, record and grounded entry calls); `reasoning` decides over labelled
-  text (discovery, grounding, arbitration). `GET /api/extraction-models` lists
-  the deployment's models (`instruct`, and `nuextract` when configured), the
-  roles each may take, whether its server serves it now, and the default per
-  role: NuExtract fills fields, the instruction model reasons.
-  `options.models = {fields?, reasoning?}` chooses per run; a model that cannot
-  take a role (NuExtract cannot reason) is refused before any call. NuExtract
-  receives the reply schema as its template and the instructions only through
-  the chat template's kwargs.
+  parent-text offsets, and measured page boxes when available. Tables read by
+  OCR stay coarse, without cells.
+- A PDF with text on every selected nonblank page parses natively; substantial
+  textless artwork on such pages is OCR'd as crops placed in the page's reading
+  order, where a crop's `order` is its reading rank and its `crop` ordinal is
+  discovery order. Page-sized scans with a text overlay, mixed native/scanned
+  documents and rotated textless artwork take the scan path, cut as
+  [ingest-cuts.md](docs/ingest-cuts.md) describes. A native table with no
+  readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
+  and the conversion incomplete.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
   is `serving` only while the OCR server has it loaded, which is what the
   listing observed, not a promise. Layout detectors run inside this service and
-  are always selectable. Native parsing is used when the PDF has text on every
-  selected nonblank page and no substantial textless embedded artwork. When all
-  selected nonblank pages have native text, substantial textless images or vector
-  forms are OCR'd as crops while the surrounding prose stays native. Overlapping
-  artwork becomes one crop; native captions outside it remain native. The result
-  keeps both the native blocks and OCR crop transforms in page reading order:
-  each crop reads before the next native block below it in its column (or
-  after the last above it, and after any earlier column), and its crop's
-  `order` is its rank in that reading order (its `crop` ordinal is discovery
-  order, not reading order). Running headers and footers stay in the page file
-  where Docling put them but never place a crop, and the page's Markdown drops
-  them as Docling's native export does.
-  Page-sized scans with a text overlay, mixed native/scanned documents and rotated
-  textless artwork retain the scan path. A native table with no readable cells
-  outside an OCR crop makes conversion incomplete; an incomplete OCR crop also
-  makes its page and conversion incomplete.
-  Automatic crops split only at gaps confirmed free of ink. A proposed boundary
-  crossing printed content keeps its adjacent blocks together; other safe cuts remain. A page with only
-  headers/footers accounting for at least 90% of its ink is transcribed whole, including its furniture.
-- Extraction Evidence names canonical segments `p{page}_s{index}`. Page numbers
-  are physical, one-based PDF pages; segment indexes are zero-based. Geometry
-  uses PDF points measured from the top-left. Native Docling items retain their
-  own boxes; coarse input boxes are marked explicitly.
-- Results preserve the parse generation/digest, schema, options, model (the
-  fields model), `models` per role, prompt version, fingerprint, records,
-  Evidence and diagnostics. Ungrounded values
-  remain explicit. `calls` lists every model call; a generic Catalog record
-  call that looped on whitespace and was read on its one bounded-grammar retry
-  is kept, failed, with `recovered: true`, and does not by itself make the
-  result incomplete. Document-level fields are currently listed as `unverified`;
-  `complete` applies to record values.
-- The task scope is the schema's `recordScope` (`document` for Article, `records`
-  for a Catalog; `tests/fixtures/contracts/record-scope.json`). A declared scope
-  must match `options.strategy`; an undeclared one (CLI, harness) is the
-  strategy's. A `document` result that is not exactly one record fails as
-  `extraction_failed` (`record_scope_violation: ...`) and is never published;
-  so does an Article whose root no value context answered
-  (`article_root_unanswered: ...`) rather than publish an all-null root.
-- Article extracts the document as one object (which may contain arrays): no
-  identity inventory; the fields model reads every record field from the complete
-  source (or, bounded, from each value context, whose answers are assembled with
-  every array item kept, cross-context repeats flagged `possible_repeated_items`
-  and disagreeing scalars null with a conflict). Its `inventory` holds the one
-  document identity. Grounding sees the full source plus the root's fields, and
-  never accepts an Article value solely because its string occurs once.
-  `/tokenize` must report the serving context for both roles: each request
-  reserves output tokens, and oversized input is reported rather than clipped.
-  The root's reply may use the served context its counted input leaves (at
-  least 4,096 tokens), since a long list is restated item by item; a bounded
-  context keeps as many reply tokens as its request counts.
-  Durable calls fit whole correction examples above that required reply floor,
-  then allocate spare capacity to the reply. The captured request records its
-  exact examples, tokenizer identity, effective ceiling and reply allowance;
-  guidance edits never recompose a started call or unchanged-selection retry.
-  `record_chars` and `discovery_chars` apply only to generic Catalog. Array-item
-  recall and semantic correctness still need evaluation; `complete` is not a
-  recall score.
-  Field instructions include allowed labels explicitly: constrained decoding
+  are always selectable. `GET /api/models` lists the OCR model records; Compose
+  probes it as the API's health check.
+- Extraction Evidence names canonical segments `p{page}_s{index}`: the
+  physical, one-based PDF page and the zero-based segment position. Geometry
+  uses PDF points measured from the top-left; coarse input boxes are marked
+  explicitly.
+- Extraction runs only as durable attempts: the attempt reads its pinned
+  selection and source from the coordination schema, and its saved values are
+  retained there, never published beside the run or served by this API. A
+  request may name `start_page`, the page the researcher is reading: the unified
+  Catalog reads the records nearest it first and Article its bounded value
+  contexts, the admitted source range unchanged. Changing the schema reruns
+  Extraction without rerunning OCR.
+- Extraction calls take one of two roles. `fields` reads values off the source
+  (document, record and grounded entry calls); `reasoning` decides over labelled
+  text (discovery, grounding, arbitration). `GET /api/extraction-models` lists
+  the deployment's models (`instruct`; `nuextract` when `KEI_NUEXTRACT_URL` is
+  set; `gliformer`, fields only and never a default, when `KEI_GLIFORMER_URL`
+  is set), the roles each may take, whether its server serves it now, and the
+  default per role: NuExtract fills fields when configured, the instruction
+  model reasons. `options.models = {fields?, reasoning?}` chooses per run; a
+  model that cannot take a role (NuExtract cannot reason) is refused before any
+  call.
+- A result keeps ungrounded values explicit, and its `calls` lists every model
+  call: a generic Catalog record call that looped on whitespace and was read on
+  its one bounded-grammar retry is kept, failed, with `recovered: true`, and
+  does not by itself make the result incomplete.
+- The task scope is the schema's `recordScope` (`document` for Article,
+  `records` for a Catalog; `tests/fixtures/contracts/record-scope.json`). A
+  declared scope must match `options.strategy`; an undeclared one (CLI,
+  harness) is the strategy's. A `document` result that is not exactly one
+  record fails (`record_scope_violation: ...`) and is never retained; so does an
+  Article whose root no value context answered (`article_root_unanswered: ...`)
+  rather than retain an all-null root.
+- Article extracts the document as one object, which may contain arrays;
+  `options.article` holds its research settings. A Catalog without
+  `options.catalog` or `options.unified` runs generic discovery (result
+  version 1). `options.catalog = {recipe, input_tokens?, output_tokens?,
+  factors?}` selects a recipe such as `numbered-catalogue-de@1`: result version
+  2, with structural segmentation and code-verified span Evidence (see the
+  [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
+  `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
+  headings?, verification?}` runs the unified Catalog: result version 3, no
+  recipe and no character limits (a request naming either is refused). New
+  admissions use it only where Studio's `FREE_CATALOG_METHOD=unified` gate is
+  on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  each method's calls.
+
+Limitations:
+
+- Counted requests need each role's server to count them before the call:
+  vLLM's `/tokenize` and its reported context size, or, for GLiFormer fields,
+  the service's own `/tokenize` and the input ceiling its `/info` reports;
+  otherwise the request is refused before any call. Oversized input is
+  reported, never clipped. Only generic Catalog uses character budgets instead
+  (`record_chars`, `discovery_chars`), naming any source text a budget cut in a
+  `text_truncated` issue.
+- `complete` applies to record values and is not a recall score: array-item
+  recall and semantic correctness still need evaluation. Document-level fields
+  are listed as `unverified`.
+- Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
-- `options.catalog = {recipe, input_tokens?, output_tokens?}` on a Catalog
-  request selects a recipe, such as `numbered-catalogue-de@1`. It returns
-  result version 2: structural segmentation with a coverage ledger, one bounded
-  call per entry, and code-verified candidates (accepted, proposed, rejected)
-  with code-point span Evidence. The worker runs its entries in
-  `KEI_CATALOG_CHUNKS` chunks at once; the result records the count used as
-  `chunks`, outside the fingerprint. Without a recipe, Catalog runs generic
-  discovery (version 1). The extraction endpoint must count requests on vLLM's
-  `/tokenize` and report its context size. Otherwise the request
-  is refused before any call. See the
-  [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md).
-- `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, headings?,
-  verification?}` runs the unified Catalog (`kie/extract/unified.py`,
-  `discovery.py`): result version 3, no recipe and no character limits (a
-  request naming either is refused). Every nonblank source line is accounted
-  for in a ledger (`entry`, `other`, `unresolved`, `withheld`); discovery,
-  entries, document fields, verification and arbitration all run in counted
-  windows that read the whole admitted text, and a window that cannot be read
-  leaves its range unresolved rather than clipped. Candidates are verified by a
-  separate reasoning request; unverified, partial or conflicting values stay
-  proposals. The internal result carries the execution record (pins and resolved
-  budgets), the discovery record and each entry's work; nothing is written
-  beside the run, and durable execution resumes only from its committed call
-  outputs. A request the server refuses
-  for itself (a non-transient HTTP error) fails only its window, which is halved
-  or left failed and visible. A record the supplied source ends inside, with no
-  unread text after it, ends `source_end` and does not make boundaries
-  incomplete. A value printed in another cell of the table row whose cell the
-  quote names is located in its own cell. Retained snapshots preserve the
-  execution and discovery records as diagnostics, with each saved value's
-  producing selection and source Evidence. Studio reads those snapshots
-  through the durable repository; there is no extraction-artifact HTTP handoff.
-  New admissions use it only where
-  Studio's `FREE_CATALOG_METHOD=unified` gate is on.
 
 The API is an internal processor and provides no researcher authentication.
-Only Studio exposes researcher-facing operations and enforces ownership.
-For canonical file details see the
+Only Studio exposes researcher-facing operations and enforces ownership. For
+canonical file details see the
 [evidence specification](docs/design/2026-09-21-canonical-evidence-design.md).
-The imported [job-backend study](docs/job-backend.md) records the worker-ownership
-experiments; it is historical rationale, not the FREE deployment runbook.
 
 ## Code organization
 
 `api.py` exposes the read-only HTTP operations; `runs.py` is a run's layout on
 disk. `workflows/` is kei's DBOS application: its configuration and lanes
-(`config.py`), the portable contracts (`contracts.py`), `convert`, the durable
-Extraction workflows (`durable_extract.py`, `coordination.py`), `deleteRuns` with the boot boundary (`gc.py`, `boot.py`), the slot lock
-(`slot.py`) and the `kei-worker` CLI (`cli.py`); `failures.py` classifies what a
-step raised into a retry or a portable failure code. The OCR runner
-lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in `transcription/`.
-`models.py` holds lightweight OCR records for the API; `transcription/specs.py`
-owns their Docling specifications. `kie/runner.py` orchestrates ingest and OCR;
+(`config.py`), the portable contracts (`contracts.py`), the registration of
+every workflow (`registered.py`), `convert` and its cooperative cancellation
+checks (`cancel.py`), the durable Extraction workflows (`durable_extract.py`,
+`coordination.py`), `deleteRuns` with the boot boundary (`gc.py`, `boot.py`),
+the slot lock (`slot.py`) and the `kei-worker` CLI (`cli.py`); `failures.py`
+classifies what a step raised into a retry or a portable failure code. The OCR
+runner lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in
+`transcription/` and the layout cut in `cut.py`. `models.py` holds lightweight
+OCR records for the API; `transcription/specs.py` owns their Docling
+specifications. `kie/runner.py` orchestrates ingest and OCR;
 `kie/ingest_cache.py` owns ingest generation reuse, recovery and publication;
 `reuse.py` finds another run's result and ingest of the same recipe.
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
 their identities and hashes. `kie/passages.py` reads those artifacts as the
 `Evidence`/`Passage` view shared by the recipe stages and extraction; it imports
 neither. `kie/extract/` performs record discovery, structured extraction,
-grounding and result publication. Its strategies and stages build their own
-prompts and interpret their own replies; every model call they make goes through
-`kie/extract/calls.py`, which routes it to its role's model, invokes the
-`llm.py` adapter and records its `Call`. When supplied a counter (as in Article),
-it also admits the request against the served context. Generic Catalog uses
-character budgets and names the source text a budget cut from a call in a
-`text_truncated` issue; recipe Catalog owns input-budget admission in
-`grounded._Run.call`. The
-[pipeline map](docs/extraction-experiments.md#pipeline-map) names the owner of
-each step from the pinned request to the result Studio accepts.
+grounding and result publication; its
+[ownership table](docs/extraction-experiments.md#ownership) names each
+module's responsibility.
 The recipe path is split across these files:
 - `kie/recipe.py` and `kie/recipes/` hold the recipes;
 - `kie/stages/{layout,route,segment}.py` produce lines, roles and blocks;
@@ -277,7 +248,9 @@ The recipe path is split across these files:
 - `kie/boundaries.py` handles boundary labels and block-F1
   (`python -m kei_exp.kie.boundaries report|prefill|score RUN_DIR`, read-only
   on the run).
-The specifications under `docs/` retain the imported internal model contracts.
+
+The designs under `docs/design/` are the contracts that code cites as
+`spec N.N` or `design §N`.
 
 ## Verification
 
@@ -298,16 +271,18 @@ The account must be able to create databases. The guard runs before connecting;
 tests never fall back to a runtime database URL. Tests create fresh databases
 per case, launch a DBOS worker in the test process on each (the recovery and
 service tiers spawn `kei-worker` processes instead), and remove only those
-databases in cleanup.
+databases in cleanup. The opt-in database outage test also needs
+`PARSING_TEST_POSTGRES_CONTAINER`, naming an isolated container labelled
+`free.test=parsing`; it skips without it.
 
 Most PDF inputs are generated within the test temporary directory. The golden
 and replay cases run over the committed synthetic eight-page A4 text PDF
 `tests/fixtures/synthetic-main.pdf`, whose sha256 the recorded run and the
 goldens pin; it cannot be regenerated byte for byte, so replacing it means
 updating those hashes. A few catalogue-layout cases need a scanned catalogue
-spread; they skip unless `PARSING_FIXTURE_DIR` supplies one as `scan.pdf`. The service smoke uses the
-generated eight-page native PDF by default, or `KEI_SMOKE_PDF` for a supplied
-native document.
+spread; they skip unless `PARSING_FIXTURE_DIR` supplies one as `scan.pdf`. The
+service smoke uses the generated eight-page native PDF by default, or
+`KEI_SMOKE_PDF` for a supplied native document.
 
 For direct diagnostics, with the run directory and source inbox configured:
 
@@ -318,44 +293,7 @@ pnpm --filter parsing-service serve
 
 There is no migration command: `DBOS.launch()` migrates `kei_dbos`.
 
-The database-free conversion and extraction CLIs remain available through
+The database-free conversion and extraction CLIs are
 `uv run --no-sync kei-exp --help` and
-`uv run --no-sync python -m kei_exp.kie.extract.run --help` in this directory.
-
-## Durable interactive extraction candidate
-
-Protocol 1's explicitly named `extractDurableV1`, `extractionCallV1` and
-`deleteDurableHistoryV1` workflows run on the kei-extract and kei-gc lanes; with
-`convert` and `deleteRuns` they are everything the worker registers. The
-non-durable `extract` workflow, its artifact and progress routes and its stage
-files were removed (ADR 0017, durable-only amendment). Studio admits new durable
-Extractions directly. Admission commits the Extraction, its coordination head
-and its dispatch workflow together. The current follow-up must pass its own
-release checks
-before deployment.
-
-The worker uses a separate pool of at most four short routine calls against
-`extraction_runtime`, through an explicit allowlist. Its restricted role cannot
-read application or Studio DBOS tables, directly access coordination tables, or
-invoke internal definer helpers. No pooled connection or transaction spans a
-provider call. The pool closes at worker shutdown. After a process crash, native
-recovery waits up to 40 seconds for the previous process's 30-second lease to
-expire. A live owner keeps its epoch; stale attempts and non-lease refusals fail
-immediately. Recovery does not require operators to edit lease timestamps.
-
-Calls capture effective models/settings, tokenizer/composer versions, complete
-request bodies and guidance revisions before native execution. Successful
-outputs are immutable reusable checkpoints; failed responses remain immutable
-attempt-specific history and an unchanged-selection Retry uses the exact saved
-request. Pause and Stop refuse new admissions while allowing reserved calls to
-save. Fixed retained snapshots preserve producing inputs and correction history.
-Historical Article contributions retain lineage; incompatible scalar contributions
-remain explicit proposals for review.
-
-Public deletion fences the runtime graph in the same transaction as the public
-cascade. `deleteDurableHistoryV1` obtains only the fenced deleted graph through a
-restricted routine, checks every linked attempt/call using the existing worker
-boot clock, and deletes native histories only at quiescence. Studio releases the
-retained graph and source references only after that proof. Cancellation alone
-never establishes native quiescence; a cancelled call from this process retains
-its references until it ends or a subsequent worker boot proves it cannot write.
+`uv run --no-sync python -m kei_exp.kie.extract.run --help`, run in this
+directory.

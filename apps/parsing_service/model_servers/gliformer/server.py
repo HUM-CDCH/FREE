@@ -1,4 +1,5 @@
-"""Private, stateless GLiFormer model server. The Parsing Service owns jobs and artifacts."""
+"""Private, stateless GLiFormer model server. The Parsing Service owns durable execution; results are retained
+snapshots."""
 import json
 import os
 import threading

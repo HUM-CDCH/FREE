@@ -65,9 +65,17 @@ class CapturePlanner:
         self.pending = {}
         self.historical = lease.call("historical_coverage")
         self.scopes = {}
-        self.discovery = None  # discovery's progress while its next window is called (retained.discovering)
+        self.discovery = None  # discovery's progress while its windows are called (retained.discovering)
+        self._lines = threading.local()  # the lines of the window this thread asks for next
         self._ordinals = {}
         self._lock = threading.Lock()
+
+    def discovering(self, found, lines):
+        """The record starts the earlier rounds found, and the lines of the window this thread asks for next: each
+        discovery capture yielded is shown with its own window's lines, since every window labels its lines from L1."""
+        with self._lock:
+            self.discovery = None if found is None else {"found": found, "windows": (self.discovery or {}).get("windows", {})}
+        self._lines.value = lines
 
     def plan_records(self, stage, scopes):
         self.scopes.update({index: scope for index,scope in enumerate(scopes)})
@@ -77,6 +85,16 @@ class CapturePlanner:
                     "coverage":{"primaryScopes":scopes,"historicalSnapshot":self.historical.get("manifest",{}).get("coverage",{}).get("snapshotId")}}
         if self.lease.call("publish_plan",str(uuid4()),stage,manifest) is None:
             raise Boundary()
+
+    def plan_execution(self, stage, execution):
+        """A method's execution record (its effective settings, discovery windows included) kept as the attempt's
+        plan for `stage`, with no units: a record of how the run reads, never a gate. `stage` names the record's
+        digest, so a changed record is another plan, never a publication conflict. While the attempt does not run it
+        is left for the next planning round to publish."""
+        manifest = {"plannerVersion": 1, "selectionId": self.selection["id"],
+                    "sourceGeneration": self.lease.state["source"]["generation"], "units": [], "coverage": {},
+                    "execution": execution}
+        self.lease.call("publish_plan", str(uuid4()), stage, manifest)
 
     def filter_evidence(self, evidence):
         """Subtract fixed historical primary coverage without moving offsets.
@@ -176,6 +194,8 @@ class CapturePlanner:
             self.lease.call("finalize_input", capture["id"], finalized)
         with self._lock:
             self.pending[capture["id"]] = key
+            if stage == "discovery" and self.discovery is not None:
+                self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
     def _fallback(self, parent, parent_key):
@@ -198,7 +218,10 @@ class CapturePlanner:
             request=deepcopy(parent["input"]["request"])
             request["body"]["httpRequest"].pop("response_format")
             self.lease.call("finalize_input",capture["id"],request)
-        self.pending[capture["id"]]=key
+        with self._lock:
+            self.pending[capture["id"]]=key
+            if parent["descriptor"].get("stage") == "discovery" and self.discovery is not None:
+                self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
     def structure(self, backend, *, record, text, schema, identity, counted, context):

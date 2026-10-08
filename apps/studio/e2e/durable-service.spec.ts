@@ -11,6 +11,8 @@ import {admit,settle} from './sourceIngestion.js'
 const siteNodes:SchemaNode[]=[{id:'site',name:'site',type:'verbatim-string'},{id:'finds',name:'finds',type:'verbatim-string'},{id:'year',name:'year',type:'integer'}]
 const methods=['article','generic','recipe','unified'] as const
 type Method=typeof methods[number]
+/** A readable CSV header names a field's column after it, or flattens the field into path columns under it (`sites.0.site`). */
+const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
   options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'}}={}) {
@@ -28,7 +30,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-  const settings={[method]:method==='unified'?{defaults:1}:method==='article'&&options.articleContext
+  const settings={[method]:method==='unified'?{defaults:2}:method==='article'&&options.articleContext
     ?{context:options.articleContext,context_tokens:8192}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.
@@ -111,7 +113,7 @@ for(const method of methods) {
       const downloading=page.waitForEvent('download')
       await page.getByRole('button',{name:'CSV',exact:true}).click()
       const csv=await readFile((await (await downloading).path())!,'utf8')
-      expect(csv.split('\r\n')[0]!.split(',')).toContain(value.node.name)
+      expect(hasColumn(csv.split('\r\n')[0]!,value.node.name),csv).toBe(true)
       if(typeof corrected==='string')expect(csv).toContain(corrected)
       // Saved model output stays in History, read through its own API, never through the export.
       expect(after.captures.some((capture:{outputDigest:unknown})=>capture.outputDigest)).toBe(true)
@@ -221,7 +223,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const download=page.waitForEvent('download')
     await page.getByRole('button',{name:'CSV',exact:true}).click()
     const rows=(await readFile((await (await download).path())!,'utf8')).split('\r\n')
-    expect(rows[0]!.split(',')).toContain(value.node.name)
+    expect(hasColumn(rows[0]!,value.node.name),rows[0]).toBe(true)
     // The producing request stays in History, read through its own API; the research table never carries it.
     await writeFile(info.outputPath('guidance-history.json'),JSON.stringify(finished,null,2))
     await page.locator('#rail-tab-history').click()
@@ -341,7 +343,7 @@ for(const method of ['article','unified'] as const) {
       await page.getByRole('button',{name:'CSV',exact:true}).click()
       const rows=(await readFile((await (await download).path())!,'utf8')).split('\r\n')
       expect(rows.length).toBeGreaterThan(1)
-      expect(rows[0]!.split(',')).toEqual(expect.arrayContaining(saved.values.filter((value:{processing:string})=>value.processing==='saved').map((value:{node:{name:string}})=>value.node.name)))
+      expect(saved.values.filter((value:{processing:string;node:{name:string}})=>value.processing==='saved'&&!hasColumn(rows[0]!,value.node.name)).map((value:{node:{name:string}})=>value.node.name),rows[0]).toEqual([])
       await page.screenshot({path:info.outputPath(`live-${method}-retained.png`),fullPage:true})
     } finally {await service.close()}
   })
