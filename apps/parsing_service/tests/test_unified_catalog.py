@@ -281,7 +281,7 @@ def test_a_middle_window_continuation_the_next_window_denies_stays_unresolved():
     def denying(user):
         answer = model.discover(user)
         return {**answer, "begins_inside_record": False} if answer["begins_inside_record"] else answer
-    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=520, output_tokens=64)
+    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=542, output_tokens=64)
     ends = [entry["end"] for entry in result["discovery"]["entries"]]
     assert "unresolved" in ends and "source_end" not in ends and ends[-1] == "validated"
     assert result["completeness"]["boundaries"] is False and result["complete"] is False
@@ -337,6 +337,34 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 9)]
     assert result["processing"]["discovery"]["failed"] == 0
     assert any(call["stage"] == "discovery" and not call["ok"] for call in result["calls"])
+
+
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+def test_a_record_continues_across_columns_and_page_furniture(by):
+    source = replace(evidence(""), passages=(
+        passage("p1_s0", "Index: running header", label="PageHeader"),
+        replace(passage("p1_s1", "1. Ort. Body A had"), crop=1),
+        replace(passage("p1_s2", "short hair and"), crop=2),
+        passage("p1_s3", "Index: running footer", label="PageFooter"),
+        passage("p2_s0", "38", label="PageHeader"),  # a page of furniture alone
+        passage("p3_s0", "Index: running header", label="PageHeader"),
+        passage("p3_s1", "Material: Stein."),
+        passage("p3_s2", "Kreis Süd", label="SectionHeader"),
+        passage("p3_s3", "2. Dorf. Material: Holz."),
+    ))
+    model = Model(replace(source, passages=tuple(each for each in source.passages
+                                                 if each.label not in ("PageHeader", "PageFooter"))))
+
+    def ask(record, system, user, schema, calls, issues):
+        assert "running" not in user and "38" not in user
+        return model.discover(user)
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=3, splits=0, by=by)
+    first, second = result["entries"]
+    assert [row["segment"] for row in first["ranges"]] == ["p1_s1", "p1_s2", "p3_s1"] and first["end"] == "validated"
+    assert [row["segment"] for row in second["context"]] == ["p3_s2"]
+    assert {row["segment"] for row in result["ledger"] if row["disposition"] == "other"} == {
+        "p1_s0", "p1_s3", "p2_s0", "p3_s0", "p3_s2"}
+    assert_accounted(source, {"discovery": result})
 
 
 def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
@@ -396,7 +424,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 3
+    assert result["prompt_version"] == 4
     assert_accounted(source, result)
 
 
