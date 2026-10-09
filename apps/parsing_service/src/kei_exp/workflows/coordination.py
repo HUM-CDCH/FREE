@@ -13,6 +13,7 @@ from uuid import uuid4
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+from kei_exp.workflows.storage_text import encode_storage, decode_storage
 
 ROUTINES = frozenset({"capabilities", "claim", "heartbeat", "publish_plan", "capture_unit", "finalize_input",
                      "begin_call", "commit_output", "fail_call", "publish_snapshot", "acknowledge",
@@ -41,10 +42,10 @@ class CoordinationPool:
                     connection.execute("SET LOCAL TRANSACTION ISOLATION LEVEL READ COMMITTED")
                     connection.execute("SET LOCAL lock_timeout = '5s'")
                     connection.execute("SET LOCAL statement_timeout = '10s'")
-                    values = tuple(Jsonb(value) if isinstance(value, (dict, list)) else value for value in arguments)
+                    values = tuple(Jsonb(encode_storage(value)) if isinstance(value, (dict, list)) else value for value in arguments)
                     placeholders = ",".join("%s" for _ in arguments)
                     row = connection.execute(f"SELECT extraction_runtime.{routine}({placeholders}) AS value", values).fetchone()
-                    return row["value"]
+                    return decode_storage(row["value"])
             except BaseException:
                 connection.close()
                 raise

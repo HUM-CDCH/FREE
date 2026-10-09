@@ -1,3 +1,4 @@
+import { encodeStorage } from './storage-text.js'
 import assert from 'node:assert/strict'
 import { randomBytes,randomUUID } from 'node:crypto'
 import { test } from 'node:test'
@@ -95,17 +96,20 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   const claim=(await admin.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
   await admin.query('SELECT extraction_runtime.acknowledge($1,$2,$3,false,NULL)',[id,head.attemptId,claim.epoch])
   const node=ARTICLE_TREE.schemaNodes[0]
-  const values=Array.from({length:503},(_,index)=>({id:`v${index}`,recordId:`record${index}`,fieldId:node.id,path:['records',index,node.name],selectionId:head.selectionId,schemaRevisionId:fixture.revisions.article,node,modelValue:`title ${index}`,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}))
-  await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,'{}')`,[randomUUID(),id,head.selectionId,'a'.repeat(64),JSON.stringify(values)])
+  const values=Array.from({length:503},(_,index)=>({id:`v${index}`,recordId:`record${index}`,fieldId:node.id,path:['records',index,node.name],selectionId:head.selectionId,schemaRevisionId:fixture.revisions.article,node,modelValue:`title ${index}\0 λ`,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}))
+  await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,'{}')`,[randomUUID(),id,head.selectionId,'a'.repeat(64),JSON.stringify(encodeStorage(values))])
   await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=1 WHERE id=$1',[id])
-  const correction={expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'corrected ungrounded',included:true,evidence:[]}
+  const correction={expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'corrected ungrounded\0 λ',included:true,evidence:[]}
   const raced=await Promise.allSettled([repository.saveCorrection(id,'v0',correction,async()=>{}),repository.saveCorrection(id,'v0',{...correction,value:'another correction'},async()=>{})])
   assert.equal(raced.filter(r=>r.status==='fulfilled').length,1)
   assert.equal(raced.filter(r=>r.status==='rejected'&&r.reason instanceof DurableConflict).length,1)
   const first=await repository.page(id,{limit:500})
   assert.equal(first.total,503);assert.equal(first.values[0].correction.revision,1)
-  await repository.saveCorrection(id,'v0',{...correction,expectedRevision:1,value:'later correction'},async()=>{})
-  await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,2,$3,$4,$5,'{}')`,[randomUUID(),id,head.selectionId,'b'.repeat(64),JSON.stringify([...values,{...values[0],id:'v503',recordId:'extra'}])])
+  await repository.saveCorrection(id,'v0',{...correction,expectedRevision:1,value:'later correction\0 λ'},async()=>{})
+  assert.equal((await repository.page(id)).values[0].correction.decision.value,'later correction\0 λ')
+  assert.equal((await repository.history(id)).snapshots[0].values[0].modelValue,'title 0\0 λ')
+  assert.equal((await repository.history(id)).corrections.at(-1).candidate.value,'later correction\0 λ')
+  await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,2,$3,$4,$5,'{}')`,[randomUUID(),id,head.selectionId,'b'.repeat(64),JSON.stringify(encodeStorage([...values,{...values[0],id:'v503',recordId:'extra'}]))])
   await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=2 WHERE id=$1',[id])
   const last=await repository.page(id,first.next!)
   assert.equal(last.snapshotVersion,1);assert.equal(last.feedbackVersion,1);assert.equal(last.values.length,3)
@@ -123,7 +127,7 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   await assert.rejects(createDurableRepository(randomUUID(),source).feedback(fixture.projectContextId,id,pending.selectionId),DurableNotFound)
   await repository.adoptSelection(id,{expectedVersion:pending.controlVersion,selectionId:pending.selectionId,reprocessValueIds:[]})
   const preserved=await repository.page(id)
-  assert.equal(preserved.values[0].modelValue,'title 0')
+  assert.equal(preserved.values[0].modelValue,'title 0\0 λ')
   assert.equal(preserved.values[0].selectionId,head.selectionId)
   assert.equal(preserved.values[0].correction.revision,2)
   assert.equal(preserved.values[0].historicalCorrection,null)
@@ -134,9 +138,9 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=3 WHERE id=$1',[id])
   await repository.saveCorrection(id,'v0',{...correction,expectedRevision:2,snapshotVersion:3,value:43},async()=>{})
   const oldText=await repository.page(id,{snapshotVersion:1})
-  assert.equal(oldText.values[0].modelValue,'title 0');assert.equal(oldText.values[0].correction,null)
+  assert.equal(oldText.values[0].modelValue,'title 0\0 λ');assert.equal(oldText.values[0].correction,null)
   assert.equal(oldText.values[0].historicalCorrection.decision.value,43)
-  assert.equal((await repository.page(id,{snapshotVersion:1,feedbackVersion:2})).values[0].correction.decision.value,'later correction')
+  assert.equal((await repository.page(id,{snapshotVersion:1,feedbackVersion:2})).values[0].correction.decision.value,'later correction\0 λ')
   await repository.saveCorrection(id,'v0',{...correction,expectedRevision:3,snapshotVersion:3,action:'APPROVED'},async()=>{})
   await repository.finalize(id,{snapshotVersion:3,feedbackVersion:4})
   const finalized=await repository.page(id,{snapshotVersion:3,feedbackVersion:4})

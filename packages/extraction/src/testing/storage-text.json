@@ -1,0 +1,117 @@
+[
+  {
+    "original": {
+      "provider": {
+        "model": "stub"
+      },
+      "composer": 1,
+      "tokenizer": {},
+      "budget": {},
+      "examples": [
+        {
+          "id": "example",
+          "value": "λ\u0000β"
+        }
+      ],
+      "omissions": [],
+      "body": {
+        "record": 0,
+        "user": "cm\u0000 1; literal \\u0000; λ⁻¹",
+        "system": "instructions",
+        "httpRequest": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "cm\u0000 1"
+            }
+          ]
+        }
+      }
+    },
+    "stored": {
+      "provider": {
+        "model": "stub"
+      },
+      "composer": 1,
+      "tokenizer": {
+        "_freeJsonbStrings": {
+          "version": 1,
+          "strings": [
+            [
+              "user"
+            ],
+            [
+              "httpRequest",
+              "messages",
+              0,
+              "content"
+            ]
+          ],
+          "keys": []
+        }
+      },
+      "budget": {},
+      "examples": [
+        {
+          "id": "example",
+          "value": "\"λ\\u0000β\"",
+          "_freeJsonbStrings": {
+            "version": 1,
+            "strings": [
+              [
+                "value"
+              ]
+            ],
+            "keys": []
+          }
+        }
+      ],
+      "omissions": [],
+      "body": {
+        "record": 0,
+        "user": "\"cm\\u0000 1; literal \\\\u0000; λ⁻¹\"",
+        "system": "instructions",
+        "httpRequest": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "\"cm\\u0000 1\""
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "original": {
+      "modelValue": {
+        "\u0000": "λ\u0000β",
+        "\"\\u0000\"": "literal key",
+        "__proto__": "original"
+      },
+      "enum": "~free-jsonb-string-v1~\"literal\""
+    },
+    "stored": {
+      "modelValue": {
+        "\"\\u0000\"": "\"λ\\u0000β\"",
+        "\"\\\"\\\\u0000\\\"\"": "literal key",
+        "\"__proto__\"": "original"
+      },
+      "enum": "~free-jsonb-string-v1~\"literal\"",
+      "_freeJsonbStrings": {
+        "version": 1,
+        "strings": [
+          [
+            "modelValue",
+            "\"\\u0000\""
+          ]
+        ],
+        "keys": [
+          [
+            "modelValue"
+          ]
+        ]
+      }
+    }
+  }
+]

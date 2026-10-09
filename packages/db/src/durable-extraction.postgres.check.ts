@@ -1,3 +1,4 @@
+import { encodeStorage, decodeStorage } from '../../extraction/src/storage-text.js'
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
@@ -96,27 +97,31 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const provider={key:'stub',model:'stub',adapter:'instruct',adapterVersion:1,url:'http://stub/v1/chat/completions',timeout:60,maxTokens:100}
   await invoke('resolve_selection',[extraction,attempt,epoch,{models:{fields:provider,reasoning:provider},options:{},planner:1,protocols:{calls:1,source:'document'}}])
   const body={provider,composer:1,tokenizer:{model:'stub'},budget:{counted:10,context:1000,reserve:100},examples:[],omissions:[],
-    body:{stage:'record',record:0,system:'instructions',user:'exact original',schema:{type:'object'},max_tokens:100,max_whitespace:null,
-      httpRequest:{model:'stub',messages:[{role:'user',content:'exact original'}],max_tokens:100}}}
-  await assert.rejects(invoke('finalize_input',[extraction,attempt,epoch,unit,{...body,provider:{...provider,password:'must not persist'}}]),(e:{code?:string})=>e.code==='22023')
-  const input=await invoke('finalize_input',[extraction,attempt,epoch,unit,body])
+    body:{stage:'record',record:0,system:'instructions',user:'cm\0 1; literal \\u0000; λ⁻¹',schema:{type:'object'},max_tokens:100,max_whitespace:null,
+      httpRequest:{model:'stub',messages:[{role:'user',content:'cm\0 1; literal \\u0000; λ⁻¹'}],max_tokens:100}}}
+  await assert.rejects(invoke('finalize_input',[extraction,attempt,epoch,unit,encodeStorage({...body,provider:{...provider,password:'must not persist'}})]),(e:{code?:string})=>e.code==='22023')
+  await assert.rejects(invoke('finalize_input',[extraction,attempt,epoch,unit,body]),(e:{code?:string})=>e.code==='22P05')
+  const input=await invoke('finalize_input',[extraction,attempt,epoch,unit,encodeStorage(body)])
+  assert.deepEqual(decodeStorage(input).request,body)
+  assert.deepEqual(decodeStorage(await invoke('finalize_input',[extraction,attempt,epoch,unit,encodeStorage(body)])),decodeStorage(input))
   assert.equal(await invoke('begin_call',[extraction,attempt,epoch,unit]),true)
   await owner.query("UPDATE extraction_runtime.head SET intent='PAUSE' WHERE id=$1",[extraction])
   assert.equal(await invoke('capture_unit',[extraction,attempt,epoch,randomUUID(),'record-2',{...descriptor,ordinal:1}]),null)
   await assert.rejects(invoke('acknowledge',[extraction,attempt,epoch,false,null]),(e:{code?:string})=>e.code==='55000')
-  const output=await invoke('commit_output',[extraction,attempt,epoch,unit,input.digest,{parsed:{title:'saved'}}])
-  assert.deepEqual(await invoke('commit_output',[extraction,attempt,epoch,unit,input.digest,{parsed:{title:'saved'}}]),output)
+  const output=await invoke('commit_output',[extraction,attempt,epoch,unit,input.digest,encodeStorage({parsed:{title:'saved\0 λ'}})])
+  assert.deepEqual(await invoke('commit_output',[extraction,attempt,epoch,unit,input.digest,encodeStorage({parsed:{title:'saved\0 λ'}})]),output)
   const value={id:'value-flag',recordId:'document',fieldId:'flag',path:['records',0,'flag'],selectionId:selection,
-    schemaRevisionId:history.revisions.article,node:flagNode,modelValue:false,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+    schemaRevisionId:history.revisions.article,node:flagNode,modelValue:false,evidence:[{anchorId:'a_test',occurrenceIds:[],producer:{quote:'cm\0 1'}}],grounding:'ungrounded',processing:'saved',lineage:[]}
   const coverage={sourceGeneration:'g1',completedScopes:{},processingComplete:false}
   for(const invalid of [{...value,selectionId:null},{...value,grounding:'made-up'},{...value,modelValue:'yes'}])
-    await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([invalid]),coverage]),(e:{code?:string})=>e.code==='22023')
+    await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify(encodeStorage([invalid])),coverage]),(e:{code?:string})=>e.code==='22023')
   const snapshotId=randomUUID()
-  const snapshot=await invoke('publish_snapshot',[extraction,attempt,epoch,snapshotId,selection,JSON.stringify([value]),coverage])
+  const snapshot=await invoke('publish_snapshot',[extraction,attempt,epoch,snapshotId,selection,JSON.stringify(encodeStorage([value])),coverage])
   assert.equal(snapshot.values[0].modelValue,false)
-  assert.deepEqual(await invoke('publish_snapshot',[extraction,attempt,epoch,snapshotId,selection,JSON.stringify([value]),coverage]),snapshot)
+  assert.deepEqual(decodeStorage(snapshot).values[0].evidence,value.evidence)
+  assert.deepEqual(await invoke('publish_snapshot',[extraction,attempt,epoch,snapshotId,selection,JSON.stringify(encodeStorage([value])),coverage]),snapshot)
   const arrayValue={...value,id:'value-items',fieldId:'items',node:arrayNode,path:['records',0,'items'],modelValue:[1,2]}
-  const next=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([arrayValue]),coverage])
+  const next=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify(encodeStorage([arrayValue])),coverage])
   assert.equal(next.values.length,2)
   await assert.rejects(invoke('heartbeat',[extraction,attempt,null]),(e:{code?:string})=>e.code==='40001')
   assert.equal(await invoke('acknowledge',[extraction,attempt,epoch,false,null]),'PAUSED')
@@ -134,7 +139,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   await owner.query("UPDATE extraction_runtime.head SET intent='RUN' WHERE id=$1",[extraction])
   const failedId=randomUUID()
   await invoke('capture_unit',[extraction,attempt,second.epoch,failedId,'record-2',{...descriptor,ordinal:1}])
-  const failedInput=await invoke('finalize_input',[extraction,attempt,second.epoch,failedId,body])
+  const failedInput=await invoke('finalize_input',[extraction,attempt,second.epoch,failedId,encodeStorage(body)])
   assert.equal(await invoke('begin_call',[extraction,attempt,second.epoch,failedId]),true)
   const failure={parsed:null,calls:[{ok:false,recovered:false,error:'invalid JSON'}]}
   await invoke('commit_output',[extraction,attempt,second.epoch,failedId,failedInput.digest,failure])
@@ -150,7 +155,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const retryLease=await invoke('claim',[extraction,retry,randomUUID()])
   const retained=await invoke('read_call',[extraction,retry,retryLease.epoch,failedId])
   assert.equal(retained.checkpoint,null)
-  assert.deepEqual(retained.input.request,body)
+  assert.deepEqual(decodeStorage(retained).input.request,body)
   assert.equal(retained.capture.originalAttemptId,attempt)
   assert.equal(await invoke('begin_call',[extraction,retry,retryLease.epoch,failedId]),true)
   await invoke('commit_output',[extraction,retry,retryLease.epoch,failedId,retained.input.digest,{parsed:{flag:false},calls:[{ok:true}]}])
@@ -181,7 +186,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
       {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])
     await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',{...descriptor,planDigest:savedPlan.digest}])
-    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,body])
+    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,encodeStorage(body)])
     assert.equal(await invoke('begin_call',[id,active,lease.epoch,captureId]),true)
     await owner.query('UPDATE extraction_runtime.head SET intent=$2 WHERE id=$1',[id,policy.intent])
     const output={parsed:null,recoverable:true,calls:[{ok:false,stage:policy.stage,finish:policy.finish},

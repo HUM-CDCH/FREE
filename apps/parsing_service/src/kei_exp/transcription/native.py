@@ -61,6 +61,11 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
                         if objects:
                             return None
                         continue
+                    # An embedded font can render a symbol while its Unicode map
+                    # exposes only a control code. Read the visible page through
+                    # the established OCR path; never guess a scientific symbol.
+                    if _has_unmapped_glyph(textpage):
+                        return None
                     width, height = page.get_size()
                     x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
                     page_regions: list[OcrRegion] = []
@@ -94,6 +99,16 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
             finally:
                 page.close()
         return tuple(regions) if found_text else None
+
+
+def _has_unmapped_glyph(textpage: pdfium.PdfTextPage) -> bool:
+    for index in range(textpage.count_chars()):
+        code = pdfium.raw.FPDFText_GetUnicode(textpage, index)
+        if code < 32 and code not in (9, 10, 13) \
+                and not pdfium.raw.FPDFText_IsGenerated(textpage, index) \
+                and not pdfium.raw.FPDFText_IsHyphen(textpage, index):
+            return True
+    return False
 
 
 def _canvas_bounds(obj: pdfium.PdfObject) -> tuple[float, float, float, float]:
