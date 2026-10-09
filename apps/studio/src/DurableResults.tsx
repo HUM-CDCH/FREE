@@ -365,7 +365,8 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     onMarksChange?.({describe,selected:review?.value.id??null,selectableKeys:new Set(rows.map(row=>row.key)),savedLinks})
   },[model,page,onMarksChange,review,document,found])
   useEffect(()=>()=>{onMarksChange?.(null);onFocusEvidence?.(null);onResultPathChange?.(null)},[onMarksChange,onFocusEvidence,onResultPathChange])
-  useEffect(()=>{onResultPathChange?.(review?review.value.path.map(String):[])},[review,onResultPathChange])
+  // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone (§7.2).
+  useEffect(()=>{onResultPathChange?.([])},[onResultPathChange])
   const currentLink=review?.value.links[0]??null
   const followKey=focus&&review&&document?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
   useEffect(()=>{
