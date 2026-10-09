@@ -138,7 +138,7 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
   discovery order. Page-sized scans with a text overlay, mixed native/scanned
-  documents, native fonts exposing undecodable control characters, and rotated
+  documents, native text with undecodable font glyphs, and rotated
   textless artwork take the scan path, cut as
   [ingest-cuts.md](docs/ingest-cuts.md) describes. A native table with no
   readable cells outside an OCR crop, or an incomplete OCR crop, makes its page

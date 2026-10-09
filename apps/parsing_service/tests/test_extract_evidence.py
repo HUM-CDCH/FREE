@@ -153,3 +153,25 @@ def test_reading_order_disagreeing_with_the_cut_order_is_reported():
     assert order_issues(hybrid) == []
     assert order_issues([passage(0, 0, 2, 1), passage(1, 0, None, None), passage(2, 0, 1, 0)]) == [
         "p1_s2 (unit 0, crop order 0) follows p1_s0 (unit 0, crop order 1) in the page file"]
+
+
+def test_an_undecodable_glyph_reads_as_the_stored_replacement_character(digital_pdf, tmp_path, monkeypatch):
+    """Requests and model quotes are stored with U+FFFD for NUL, so the source extraction matches them against does too."""
+    from kei_exp import pagefile
+    from kei_exp.kie import passages
+    from kei_exp.pagefile import PageTable, TableCell
+    run_dir = hand_built_complete(digital_pdf, tmp_path)
+    loaded = load_result(run_dir / "result")
+    number = min(loaded.pages)
+    page = loaded.pages[number]
+    index = next(i for i, segment in enumerate(page.segments) if segment.status == "ok" and segment.text.strip())
+    cell = TableCell(cell_id="r0_c0", row=0, column=0, rowspan=1, colspan=1, role="data", text="cm\x00 1", start=0, end=5,
+                     bbox_pt=None)
+    broken = page.segments[index].model_copy(update={"text": "cm\x00 1", "table": PageTable(rows=1, columns=1, cells=[cell],
+                                                                                          producer="test")})
+    segments = [*page.segments[:index], broken, *page.segments[index + 1:]]
+    pages = {**loaded.pages, number: page.model_copy(update={"segments": segments})}
+    monkeypatch.setattr(passages, "load_result", lambda *_, **__: dataclasses.replace(loaded, pages=pages))
+    passage = load(run_dir).by_id(pagefile.segment_id(number, index))
+    assert passage.text == "cm� 1"
+    assert [(c.text, c.start, c.end) for c in passage.table.cells] == [("cm� 1", 0, 5)]

@@ -4,7 +4,7 @@ import pytest
 from uuid import uuid4
 from psycopg.types.json import Jsonb
 
-from kei_exp.workflows.coordination import CoordinationPool
+from kei_exp.workflows.coordination import CoordinationPool, _storable
 
 pytestmark = pytest.mark.postgres
 
@@ -31,10 +31,10 @@ def test_real_worker_bootstrap_keeps_runtime_permissions_and_checks_protocol(dat
         pool.close()
 
 
-def test_nul_text_survives_actual_capture_checkpoint_and_snapshot_routines(database, coordination_database):
+def test_nul_text_is_stored_as_replacement_character_by_capture_checkpoint_and_snapshot_routines(database, coordination_database):
     extraction, project, selection, attempt, revision, capture = [str(uuid4()) for _ in range(6)]
     node = {"id": "content", "name": "content", "type": "string"}
-    text = 'cm\x00 1; literal \\u0000; λ⁻¹; ~free-jsonb-string-v1~"literal"'
+    text = "cm\x00 1; literal \\u0000; λ⁻¹"
     with psycopg.connect(database, autocommit=True) as owner:
         owner.execute('''INSERT INTO extraction_runtime.head
           (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"attemptId",fence,
@@ -72,19 +72,20 @@ def test_nul_text_survives_actual_capture_checkpoint_and_snapshot_routines(datab
         with psycopg.connect(database, autocommit=True) as owner, pytest.raises(psycopg.errors.UntranslatableCharacter):
             owner.execute("SELECT %s::jsonb", (Jsonb(request),))
         frozen = invoke("finalize_input", capture, request)
-        assert frozen["request"] == request
+        assert frozen["request"] == _storable(request)
+        assert frozen["request"]["body"]["user"] == "cm\ufffd 1; literal \\u0000; λ⁻¹"
         assert invoke("finalize_input", capture, request) == frozen
-        assert invoke("read_call", capture)["input"]["request"] == request
+        assert invoke("read_call", capture)["input"]["request"] == _storable(request)
         assert invoke("begin_call", capture)
         output = {"parsed": {"content": text}, "calls": [{"ok": True, "raw": text}]}
-        assert invoke("commit_output", capture, frozen["digest"], output)["output"] == output
-        assert invoke("read_call", capture)["checkpoint"]["output"] == output
+        assert invoke("commit_output", capture, frozen["digest"], output)["output"] == _storable(output)
+        assert invoke("read_call", capture)["checkpoint"]["output"] == _storable(output)
         value = {"id": "value", "recordId": "document", "fieldId": "content", "path": ["records", 0, "content"],
                  "selectionId": selection, "schemaRevisionId": revision, "node": node, "modelValue": text,
                  "evidence": [{"anchorId": "a_fixture", "occurrenceIds": [], "producer": {"quote": text}}],
                  "grounding": "ungrounded", "processing": "saved", "lineage": []}
         snapshot = invoke("publish_snapshot", str(uuid4()), selection, [value], {"completedScopes": {}})
-        assert snapshot["values"] == [value]
-        assert invoke("read_latest_snapshot")["values"] == [value]
+        assert snapshot["values"] == [_storable(value)]
+        assert invoke("read_latest_snapshot")["values"] == [_storable(value)]
     finally:
         pool.close()

@@ -1,5 +1,4 @@
 import { randomUUID, createHash } from 'node:crypto'
-import { decodeStorage, encodeStorage } from './storage-text.js'
 import type { Pool, PoolClient } from 'pg'
 import { pool as sharedPool, stableJson, withPoolClientTransaction } from 'db'
 import { extractionMethod, keiMethodOptions, canonicalIntent } from './extraction-method.js'
@@ -199,7 +198,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         if (!['PAUSED','FAILED','COMPLETED'].includes(head.acknowledgement) || head.intent === 'STOP' || head.pendingSelectionId !== input.selectionId || input.selectionId === head.selectionId)
           throw new DurableConflict('Apply changes at the saved idle boundary.')
         const historical = (await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,head.snapshotVersion])).rows[0]
-        const values = historical ? durableValueSchema.array().parse(decodeStorage(historical.values)) : []
+        const values = historical ? durableValueSchema.array().parse(historical.values) : []
         if (input.reprocessValueIds.some(v => !values.some(saved => saved.id === v))) throw new DurableInvalid('The reprocessing selection contains an unknown saved value.')
         await client.query(`UPDATE extraction_runtime.head SET "selectionId"=$2,"pendingSelectionId"=NULL,generation=generation+1,
           "pendingResume"=false,acknowledgement='PAUSED',intent='PAUSE',"controlVersion"="controlVersion"+1 WHERE id=$1`, [id,input.selectionId])
@@ -222,9 +221,9 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           !Number.isInteger(feedbackVersion) || feedbackVersion < 0 || feedbackVersion > latestFeedback)
           throw new DurableInvalid('Choose a committed result and review snapshot.')
         const corrections = (await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
-          WHERE "extractionId"=$1 AND "feedbackVersion" <= $2 ORDER BY "valueId",revision DESC`, [id,feedbackVersion])).rows.map(decodeStorage)
+          WHERE "extractionId"=$1 AND "feedbackVersion" <= $2 ORDER BY "valueId",revision DESC`, [id,feedbackVersion])).rows
         const correctionsByValue = new Map(corrections.map(correction=>[correction.valueId,correction]))
-        const allValues = snapshot ? durableValueSchema.array().parse(decodeStorage(snapshot.values)) : []
+        const allValues = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
         const values=input.valueId?allValues.filter(v=>v.id===input.valueId):allValues
         const offset = input.offset ?? 0, limit = Math.min(input.limit ?? 100,500)
         if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) throw new DurableInvalid('Invalid result page.')
@@ -246,7 +245,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const reviewCounts={required:saved.length,approved:count('APPROVED'),edited:count('EDITED'),rejected:count('REJECTED'),
           toCheck:saved.filter(value=>!value.correction||value.correction.decision.action==='PENDING').length}
         const selected=input.valueId?projected.filter(value=>value.id===input.valueId):projected
-        return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:decodeStorage(snapshot?.coverage??null),
+        return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
           total:values.length,values:selected.slice(offset,offset+limit),
           next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
@@ -255,7 +254,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const input = durableCorrectionSchema.parse(raw)
       const validated = await owned(id,async(client,head)=> {
         const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
-        const value=snapshot?durableValueSchema.array().parse(decodeStorage(snapshot.values)).find(v=>v.id===valueId):null
+        const value=snapshot?durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId):null
         if(!value) throw new DurableInvalid('Choose a saved value.')
         return {value,sourceRevisionId:head.sourceRevisionId}
       })
@@ -267,7 +266,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
         const head = await ownedHead(client,owner,id,true)
         const snapshot = (await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,input.snapshotVersion])).rows[0]
-        const value = snapshot ? durableValueSchema.array().parse(decodeStorage(snapshot.values)).find(v=>v.id===valueId) : null
+        const value = snapshot ? durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId) : null
         if (!value || value.processing !== 'saved') throw new DurableInvalid('Choose a structurally valid saved value.')
         if (input.action === 'EDITED' && !correctionValueFits(value.node,input.value)) throw new DurableInvalid('The correction does not fit its producing field.')
         const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
@@ -278,14 +277,14 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const included = input.included && input.action === 'EDITED'
         await client.query(`INSERT INTO extraction_runtime.correction
           (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,encodeStorage(input),encodeStorage(candidate),included])
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,input,candidate,included])
         await client.query('UPDATE extraction_runtime."feedbackHead" SET version=$2 WHERE id=$1', [head.projectId,feedbackVersion])
         return { id:correctionId,revision:revision+1,feedbackVersion,included }
       })
     },
     history(id: string) { return runtimeTransaction(source,async (client)=> {
       await ownedHead(client,owner,id)
-      return decodeStorage({
+      return {
       capturedAt:(await client.query('SELECT transaction_timestamp() AS at')).rows[0].at.toISOString(),
       selections:(await client.query('SELECT * FROM extraction_runtime.selection WHERE "extractionId"=$1 ORDER BY ordinal',[id])).rows,
       snapshots:(await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 ORDER BY version',[id])).rows,
@@ -297,7 +296,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         LEFT JOIN extraction_runtime.input i ON i.id=c.id LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1 ORDER BY c.generation,c."unitKey"`,[id])).rows,
       failedCalls:(await client.query('SELECT f.* FROM extraction_runtime."callFailure" f JOIN extraction_runtime.capture c ON c.id=f."captureId" WHERE c."extractionId"=$1',[id])).rows,
       attempts:(await client.query('SELECT * FROM extraction_runtime.attempt WHERE "extractionId"=$1 ORDER BY fence',[id])).rows,
-    })},'REPEATABLE READ') },
+    }},'REPEATABLE READ') },
     /** The History tab's list, small however long the run: each snapshot's value count, never its values or the
      *  calls' requests; those are `history`'s, read for audit. */
     historySummary(id: string) { return runtimeTransaction(source,async (client)=> {
@@ -313,8 +312,8 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]
       if(!snapshot || !Number.isInteger(input.feedbackVersion) || input.feedbackVersion<0 || input.feedbackVersion>feedback.version) throw new DurableInvalid('Choose a committed review snapshot.')
       const decisions=(await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
-        WHERE "extractionId"=$1 AND "feedbackVersion"<=$2 ORDER BY "valueId",revision DESC`,[id,input.feedbackVersion])).rows.map(decodeStorage)
-      const reviewable=durableValueSchema.array().parse(decodeStorage(snapshot.values)).filter(v=>v.processing==='saved')
+        WHERE "extractionId"=$1 AND "feedbackVersion"<=$2 ORDER BY "valueId",revision DESC`,[id,input.feedbackVersion])).rows
+      const reviewable=durableValueSchema.array().parse(snapshot.values).filter(v=>v.processing==='saved')
       if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v))))
         throw new DurableInvalid('Review each saved value in this snapshot before finalizing.')
       const decisionDigest=hash(decisions)
@@ -326,7 +325,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const owns = await client.query('SELECT id FROM public."projectContext" WHERE id=$1 AND "researcherAccountId"=$2', [projectId,owner])
       if (!owns.rowCount) throw new DurableNotFound('That Project was not found.')
       const rows=(await client.query(`SELECT c.*,e."sourceDocumentId" FROM extraction_runtime.correction c
-        JOIN public.extraction e ON e.id=c."extractionId" WHERE c."projectId"=$1 ORDER BY c."feedbackVersion" DESC`,[projectId])).rows.map(decodeStorage)
+        JOIN public.extraction e ON e.id=c."extractionId" WHERE c."projectId"=$1 ORDER BY c."feedbackVersion" DESC`,[projectId])).rows
       const target=targetId?await ownedHead(client,owner,targetId):null
       if(target && target.projectId!==projectId) throw new DurableNotFound('That target was not found in this Project.')
       if(selectionId&&!target)throw new DurableInvalid('Choose an Extraction for this input selection.')

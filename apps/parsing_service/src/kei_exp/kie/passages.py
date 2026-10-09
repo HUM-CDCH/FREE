@@ -97,11 +97,16 @@ def load(run_dir: Path) -> Evidence:
             if segment.status == "ok" and not segment.text.strip():
                 continue
             crop = crops[segment.crop] if segment.crop is not None else None
-            passage = Passage(id=segment_id(number, index), page=number, index=index, text=segment.text,
+            text, table = segment.text, segment.table
+            if "\x00" in text:  # an undecodable font glyph; stored as U+FFFD, so quotes of it must match that
+                text = text.replace("\x00", "\ufffd")
+                table = table and table.model_copy(update={"cells": [
+                    cell.model_copy(update={"text": cell.text.replace("\x00", "\ufffd")}) for cell in table.cells]})
+            passage = Passage(id=segment_id(number, index), page=number, index=index, text=text,
                               label=segment.label, bbox_pt=tuple(segment.bbox_pt), extent=segment.extent,
                               unit=segment.unit, crop=segment.crop, crop_order=crop.order if crop else None,
                               crop_bbox_pt=tuple(crop.bbox_pt) if crop else None, status=segment.status,
-                              table=segment.table)
+                              table=table)
             (passages if segment.status == "ok" else withheld).append(passage)
     manifest = loaded.manifest
     return Evidence(run_id=run_dir.name, generation=manifest.generation, digest=manifest.digest,

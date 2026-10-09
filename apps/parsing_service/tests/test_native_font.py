@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pypdfium2 as pdfium
 
-from kei_exp.transcription.native import native_regions, _has_unmapped_glyph
+from kei_exp.transcription.native import native_regions, _has_undecodable_glyph
 from kei_exp.kie.stages.ocr import resolve
 from kei_exp.transcription.types import RunParams
 
@@ -22,21 +22,35 @@ def _pdf(path, broken):
         offsets.append(len(content))
         content += str(index).encode() + b" 0 obj\n" + obj + b"\nendobj\n"
     xref = len(content)
-    content += b"xref\n0 7\n0000000000 65535 f \n" + b"".join(f"{offset:010} 00000 n \n".encode() for offset in offsets[1:])
-    content += b"trailer << /Size 7 /Root 1 0 R >>\nstartxref\n" + str(xref).encode() + b"\n%%EOF\n"
+    size = str(len(objects) + 1).encode()
+    content += b"xref\n0 " + size + b"\n0000000000 65535 f \n" + b"".join(f"{offset:010} 00000 n \n".encode() for offset in offsets[1:])
+    content += b"trailer << /Size " + size + b" /Root 1 0 R >>\nstartxref\n" + str(xref).encode() + b"\n%%EOF\n"
     path.write_bytes(content)
 
 
-def test_invalid_font_mapping_selects_visual_ocr_and_reliable_text_stays_native(tmp_path):
+def _pdfs(tmp_path):
     broken, clean = tmp_path / "broken.pdf", tmp_path / "clean.pdf"
     _pdf(broken, True)
     _pdf(clean, False)
+    return broken, clean
+
+
+def test_undecodable_font_glyph_refuses_native_text_and_readable_text_stays_native(tmp_path):
+    broken, clean = _pdfs(tmp_path)
     assert native_regions(clean) == ()
     assert native_regions(broken) is None
+
+
+def test_undecodable_font_glyph_routes_to_the_selected_ocr_model(tmp_path):
+    broken, clean = _pdfs(tmp_path)
     execution = resolve(RunParams(pdf=broken, model="surya"))
     assert execution.transcriber == "surya"
     assert execution.model == "surya"
     assert resolve(RunParams(pdf=clean, model="surya")).transcriber == "native"
+
+
+def test_undecodable_font_glyph_is_judged_per_selected_page_range(tmp_path):
+    broken, clean = _pdfs(tmp_path)
     with pdfium.PdfDocument.new() as combined, pdfium.PdfDocument(clean) as a, pdfium.PdfDocument(broken) as b:
         combined.import_pages(a)
         combined.import_pages(b)
@@ -52,8 +66,8 @@ def test_pdfium_generated_layout_and_discretionary_hyphen_controls_are_not_glyph
     with patch("pypdfium2.raw.FPDFText_GetUnicode", return_value=2), \
          patch("pypdfium2.raw.FPDFText_IsGenerated", return_value=0), \
          patch("pypdfium2.raw.FPDFText_IsHyphen", return_value=1):
-        assert not _has_unmapped_glyph(TextPage())
+        assert not _has_undecodable_glyph(TextPage())
     with patch("pypdfium2.raw.FPDFText_GetUnicode", return_value=0), \
          patch("pypdfium2.raw.FPDFText_IsGenerated", return_value=1), \
          patch("pypdfium2.raw.FPDFText_IsHyphen", return_value=0):
-        assert not _has_unmapped_glyph(TextPage())
+        assert not _has_undecodable_glyph(TextPage())
