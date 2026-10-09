@@ -3,12 +3,13 @@ from dataclasses import replace
 from unittest.mock import Mock, patch
 
 import pypdfium2 as pdfium
+import pytest
 
 from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import resolve, undecodable_blocks
 from kei_exp.pagefile import read_manifest, read_page
 from kei_exp.transcription.native import _has_undecodable_glyph, native_regions, undecodable_glyphs
-from kei_exp.transcription.types import OcrRegion, RunParams, Transcription
+from kei_exp.transcription.types import IncompleteConversionError, OcrRegion, RunParams, Transcription
 from tests.test_hybrid import block, record
 
 
@@ -87,7 +88,7 @@ def test_only_body_blocks_keeping_a_control_code_leave_native_text_one_region_pe
     kept, regions, anchors = undecodable_blocks(native)
     assert [[b["html"] for b in r.payload.get("blocks", [])] for r in kept.pages] == [
         ["<p>Journal \x00 head</p>", "<p>Before</p>", "<p>After</p>"], [], ["<p>Clean</p>"]]
-    assert "blocks" not in kept.pages[1].payload and kept.pages[2] is native.pages[2]
+    assert kept.pages[1].payload["blocks"] == [] and kept.pages[2] is native.pages[2]
     assert regions == [OcrRegion(1, (10, 20, 140, 60)), OcrRegion(1, (160, 20, 290, 40)), OcrRegion(2, (10, 20, 290, 40))]
     assert anchors == [2, 2, 0]
 
@@ -130,3 +131,26 @@ def test_a_screened_glyph_that_docling_decodes_needs_no_ocr(tmp_path, monkeypatc
     monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", Mock(side_effect=AssertionError("no OCR input")))
     assert "Units: cm - 1" in ocr.run(execution, lambda _: None)
     assert read_manifest(execution.result_dir).status == "success"
+
+
+def _only_block_read_by(tmp_path, monkeypatch, ocr_text):
+    broken, _ = _pdfs(tmp_path)
+    execution = resolve(RunParams(pdf=broken, model="surya", result_dir=tmp_path / "result"))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", Mock(return_value=Transcription({}, [
+        record(1, [block("Units: cm \x00 1", (40, 90, 200, 110))], source_page=1)])))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", lambda request, crops, emit: Transcription({}, [
+        record(1, [block(ocr_text, (0, 0, image.width, image.height))] if ocr_text else [], image=image)
+        for _, _, image in crops]))
+    return execution
+
+
+def test_a_page_whose_only_block_is_read_by_ocr_publishes_it_once(tmp_path, monkeypatch):
+    execution = _only_block_read_by(tmp_path, monkeypatch, TEXT)
+    ocr.run(execution, lambda _: None)
+    page = read_page(execution.result_dir, 1, read_manifest(execution.result_dir))
+    assert [(segment.text, segment.extent) for segment in page.segments] == [(TEXT, "block")]
+
+
+def test_ocr_returning_no_text_for_a_native_block_is_incomplete(tmp_path, monkeypatch):
+    with pytest.raises(IncompleteConversionError, match="native text crop 1 returned no text"):
+        ocr.run(_only_block_read_by(tmp_path, monkeypatch, None), lambda _: None)

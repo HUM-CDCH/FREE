@@ -135,7 +135,7 @@ class PageRecord:
 @dataclass(frozen=True)
 class OcrRecord:
     """One image-only OCR input and its unchanged backend outcome, attached to its native page."""
-    ordinal: int                   # the crop: its position in Execution.ocr_regions, 1-based
+    ordinal: int                   # the crop: its position in the run's OCR regions (artwork, then text), 1-based
     crop: Crop
     record: PageRecord
     anchor: int                    # reads before this index of the native page's blocks (len: after the last)

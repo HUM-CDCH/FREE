@@ -48,6 +48,9 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
             reasons.append(f"page {page.source_page}: native evidence has no located blocks")
         if unreadable:
             reasons.append(f"page {page.source_page}: hybrid HTML export failed: {unreadable}")
+        # Artwork may hold no text; a native block read by OCR always did.
+        reasons += [f"page {page.source_page}: OCR of native text crop {s.ordinal} returned no text"
+                    for s in supplements if s.crop[1].kind == "text" and not _has_text(s.record)]
         merged.append(replace(page, ocr=supplements, markdown=markdown, text=text,
                               incomplete="; ".join(reasons) or None,
                               input_tokens=_sum(s.record.input_tokens for s in supplements),
@@ -55,6 +58,12 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
                               capped=any(s.record.capped for s in supplements)))
     unattributed = "; ".join(reason for reason in (native.unattributed, recognized.unattributed) if reason)
     return Transcription({**native.header, "ocr": recognized.header}, merged, unattributed or None)
+
+
+def _has_text(record: PageRecord) -> bool:
+    blocks = record.payload.get("blocks") or []
+    return any(part.strip() for part in [record.text, record.markdown,
+                                         *(html_to_text(b["html"]) for b in blocks if not b.get("skipped"))])
 
 
 def _sum(values) -> int | None:

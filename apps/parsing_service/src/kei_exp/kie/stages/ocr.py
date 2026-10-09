@@ -161,11 +161,9 @@ def undecodable_blocks(native: Transcription) -> tuple[Transcription, list[OcrRe
             for box in block.get("boxes", [block["bbox"]]):
                 regions.append(OcrRegion(record.source_page, tuple(box)))
                 anchors.append(len(kept))
-        if len(kept) == len(record.payload.get("blocks", [])):
-            records.append(record)
-        else:
-            payload = {key: value for key, value in record.payload.items() if key != "blocks"}
-            records.append(replace(record, payload={**payload, "blocks": kept} if kept else payload))
+        # An empty list, not a missing one: without blocks a page file publishes the record as one coarse segment.
+        records.append(record if len(kept) == len(record.payload.get("blocks", []))
+                       else replace(record, payload={**record.payload, "blocks": kept}))
     return replace(native, pages=records), regions, anchors
 
 
