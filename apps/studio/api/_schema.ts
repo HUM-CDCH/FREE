@@ -40,7 +40,7 @@ export function schemaPrompt(instruction: string): string {
 
 Represent repeating values as a JSON array containing their item type, for example "references": ["verbatim-string"], and repeating objects as [{"name":"string"}]. Do not use the bare type labels "array" or "object"; specify their contents.
 
-Place the actual requested field names directly inside "template", for example {"template":{"_description":"One numbered entry, including its listed items.","entry_number":"verbatim-string","items":["verbatim-string"]}}. Never return a "fields" list of name/type/description descriptors. Use the researcher's requested fields and record scope when supplied.
+Place the actual requested field names directly inside "template". Never return a "fields" list of name/type/description descriptors. Use the researcher's requested fields and record scope when supplied.
 
 When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.`
 }
