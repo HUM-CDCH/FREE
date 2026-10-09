@@ -289,6 +289,16 @@ describe('mark precision, focus and navigation ownership', () => {
     rerender({ attempt: { ...attempt }, marks })
     expect(document.activeElement).toBe(container.querySelector('button.evidence-mark'))
   })
+  it('clears the focus when the selection closes, and keeps one painted with nothing selected', () => {
+    const { result, rerender, attempt, marks, key, container, anchor } = fixture()
+    act(() => result.current(anchor))
+    rerender({ attempt, marks: { ...marks } })
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+    rerender({ attempt, marks: { ...marks, selected: key } })
+    rerender({ attempt, marks: { ...marks, selected: null } })
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
+    expect(container.querySelectorAll('.evidence-mark')).toHaveLength(anchor.producer_observations.length)
+  })
   it('does not navigate the PDF when marks repaint after selecting a value', () => {
     const { rerender, attempt, marks, key, viewer } = fixture()
     viewer.scrollPageIntoView.mockClear()

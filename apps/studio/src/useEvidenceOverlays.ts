@@ -181,6 +181,18 @@ export function useEvidenceOverlays({
   marks?: RailMarks | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
+  // Closing the rail's selection returns the page to every mark: its focus goes with it. Only that transition clears,
+  // so the Evidence tab's focus, painted with nothing selected, survives the marks repainting.
+  const selected = marks?.selected ?? null
+  const previousSelected = useRef(selected)
+  useEffect(() => {
+    if (previousSelected.current !== null && selected === null) {
+      stopFocusedPaint.current?.()
+      stopFocusedPaint.current = null
+      removeOverlays(containerRef.current, 'parsed-evidence-focus')
+    }
+    previousSelected.current = selected
+  }, [containerRef, selected])
   useEffect(() => {
     const container = containerRef.current
     const viewer = viewerRef.current
