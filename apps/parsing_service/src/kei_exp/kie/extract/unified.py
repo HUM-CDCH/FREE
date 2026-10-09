@@ -58,8 +58,7 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 4  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line; 4: a line
-# continuing a record across a column or page break is not a place
+PROMPT_VERSION = 3  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.

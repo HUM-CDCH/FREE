@@ -281,7 +281,7 @@ def test_a_middle_window_continuation_the_next_window_denies_stays_unresolved():
     def denying(user):
         answer = model.discover(user)
         return {**answer, "begins_inside_record": False} if answer["begins_inside_record"] else answer
-    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=542, output_tokens=64)
+    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=520, output_tokens=64)
     ends = [entry["end"] for entry in result["discovery"]["entries"]]
     assert "unresolved" in ends and "source_end" not in ends and ends[-1] == "validated"
     assert result["completeness"]["boundaries"] is False and result["complete"] is False
@@ -424,7 +424,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 4
+    assert result["prompt_version"] == 3
     assert_accounted(source, result)
 
 
