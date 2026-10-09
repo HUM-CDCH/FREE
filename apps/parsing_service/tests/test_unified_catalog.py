@@ -367,6 +367,37 @@ def test_a_record_continues_across_columns_and_page_furniture(by):
     assert_accounted(source, {"discovery": result})
 
 
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+@pytest.mark.parametrize(("place", "flags", "entries"), [
+    (["L1", "other", None], {}, [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]]),
+    (["L1", "record", None], {}, [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]]),
+    (["L1", "record", "Stein"], {}, [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]]),
+    (["L1", "other", None], {"begins_inside_record": False}, [["p1_s0", "p1_s1"], ["p2_s1"]]),
+])
+def test_both_edge_flags_outrank_an_unlabelled_place_at_the_page_top(by, place, flags, entries):
+    source = replace(evidence(""), passages=(
+        replace(passage("p1_s0", "1. Ort. Body A had"), crop=1),
+        replace(passage("p1_s1", "short hair and"), crop=2),
+        passage("p2_s0", "Material: Stein."),
+        passage("p2_s1", "2. Dorf. Material: Holz."),
+    ))
+    model = Model(source)
+
+    def ask(record, system, user, schema, calls, issues):
+        answer = model.discover(user)
+        if not section(user, "WINDOW").startswith("[L1] Material"):
+            return answer
+        assert answer["begins_inside_record"] is True
+        return {**answer, "places": [place, *answer["places"]], **flags}
+
+    def page_top(system, user, schema):  # every mode cuts a window at the page top
+        return not ("hair" in section(user, "WINDOW") and "Stein" in section(user, "WINDOW"))
+    result = discovery.discover(source, "entry", page_top, ask, overlap=3, splits=0, by=by)
+    assert result["windows"][-1]["primary"][0]["segment"] == "p2_s0"
+    assert [[row["segment"] for row in entry["ranges"]] for entry in result["entries"]] == entries
+    assert_accounted(source, {"discovery": result})
+
+
 def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
     passages = [replace(passage("p1_s0", "a"), crop=1), replace(passage("p1_s1", "b"), crop=1),
                 replace(passage("p1_s2", "c"), crop=2), passage("p2_s0", "d"), passage("p2_s1", "e")]
