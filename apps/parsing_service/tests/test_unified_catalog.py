@@ -339,6 +339,34 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     assert any(call["stage"] == "discovery" and not call["ok"] for call in result["calls"])
 
 
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+def test_a_record_continues_across_columns_and_page_furniture(by):
+    source = replace(evidence(""), passages=(
+        passage("p1_s0", "Index: running header", label="PageHeader"),
+        replace(passage("p1_s1", "1. Ort. Body A had"), crop=1),
+        replace(passage("p1_s2", "short hair and"), crop=2),
+        passage("p1_s3", "Index: running footer", label="PageFooter"),
+        passage("p2_s0", "38", label="PageHeader"),  # a page of furniture alone
+        passage("p3_s0", "Index: running header", label="PageHeader"),
+        passage("p3_s1", "Material: Stein."),
+        passage("p3_s2", "Kreis Süd", label="SectionHeader"),
+        passage("p3_s3", "2. Dorf. Material: Holz."),
+    ))
+    model = Model(replace(source, passages=tuple(each for each in source.passages
+                                                 if each.label not in ("PageHeader", "PageFooter"))))
+
+    def ask(record, system, user, schema, calls, issues):
+        assert "running" not in user and "38" not in user
+        return model.discover(user)
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=3, splits=0, by=by)
+    first, second = result["entries"]
+    assert [row["segment"] for row in first["ranges"]] == ["p1_s1", "p1_s2", "p3_s1"] and first["end"] == "validated"
+    assert [row["segment"] for row in second["context"]] == ["p3_s2"]
+    assert {row["segment"] for row in result["ledger"] if row["disposition"] == "other"} == {
+        "p1_s0", "p1_s3", "p2_s0", "p3_s0", "p3_s2"}
+    assert_accounted(source, {"discovery": result})
+
+
 def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
     passages = [replace(passage("p1_s0", "a"), crop=1), replace(passage("p1_s1", "b"), crop=1),
                 replace(passage("p1_s2", "c"), crop=2), passage("p2_s0", "d"), passage("p2_s1", "e")]

@@ -1,7 +1,8 @@
 """The unified Catalog's source units, counted windows and general record discovery with its source ledger.
 
 The admitted canonical text is cut into units: its nonblank source lines, as raw code-point ranges of their segments
-(only Unicode White_Space is blank). `plan` groups consecutive units into windows whose rendered request fits a
+(only Unicode White_Space is blank); page furniture (a running head or folio) is left out, so it never ends a record,
+and is ledgered `other`. `plan` groups consecutive units into windows whose rendered request fits a
 stage's budget, with disjoint primary text and up to `overlap` units of context on each side; a unit too long for any
 window is cut at whitespace, then at code points (`windows.windows_of`), keeping its raw offsets. Supplementary
 context that does not fit is dropped and named, never primary text. `split` halves a window whose reply failed.
@@ -30,13 +31,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from itertools import groupby
 
+from kei_exp.kie.extract.contexts import FURNITURE
 from kei_exp.kie.extract.locate import normalise
 from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 3  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
-# withheld text follows it, where it may continue: then its end is unresolved
+VERSION = 4  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+# withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
+# windows, so a record continues past a running head or folio
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -265,7 +268,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     def fits(window: Window) -> bool:
         user, labels = _render(window, texts)
         return fits_budget(system, user, _reply(labels))
-    units, windows, at = units_of(evidence.passages), [], 0
+    units, windows, at = units_of([each for each in evidence.passages if each.label not in FURNITURE]), [], 0
     for group in groups_of(units, evidence.passages, by):
         planned = plan(group, texts, fits, overlap=overlap, lead=units[max(0, at - overlap):at],
                        trail=units[at + len(group):at + len(group) + overlap])
@@ -447,6 +450,8 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
                 ledger[-1]["end"] = piece.end  # the same region's next line of one segment: only White_Space between
             else:
                 ledger.append(row)
+    ledger += [{**row, "disposition": "other", "entry": None}
+               for row in ranges_json(units_of([each for each in evidence.passages if each.label in FURNITURE]))]
     ledger += [{"segment": unit.segment, "start": unit.start, "end": unit.end, "disposition": "withheld", "entry": None}
                for unit in units_of(evidence.withheld)]
     return {"entries": entries, "ledger": ledger}
