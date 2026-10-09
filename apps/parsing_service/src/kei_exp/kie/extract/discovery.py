@@ -11,8 +11,10 @@ Each discovery reply names, by line label and the exact text where it starts, ev
 text where a record or record-free text ("other": front matter, headings, an index) begins, and says whether the
 window begins and ends inside a record. A place counts only where that text occurs exactly once in the named line;
 a line with a place that cannot be located stays unresolved up to the next place. A record continues across a window
-boundary only when the earlier window says it ends inside a record and the later one says it begins inside one:
-silence, disagreement or a failed window leaves the affected text unresolved, never the preceding record's. A record
+boundary only when the earlier window says it ends inside a record and the later one says it begins inside one; then
+an unlabelled place (`other`, or a `record` without a located label) at the start of the later window is ignored and
+the record continues there. Silence, disagreement or a failed window leaves the affected text unresolved, never the
+preceding record's. A record
 the last window says continues after it is cut by the end of the supplied source (an excerpt): its end is
 `source_end`, as settled as a `validated` one, when no nonblank withheld text follows it in reading order, since then
 nothing after it was left unread; when withheld text does follow, the record may continue there and its end is
@@ -38,9 +40,10 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 4  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 5  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
-# windows, so a record continues past a running head or folio
+# windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
+# when both edge flags say the record continues
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -462,9 +465,12 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
             open_entry, previous = None, each
             continue
         closed_cleanly = previous is not None and previous.ok and previous.ends is False
+        joins = (previous is not None and previous.ok and previous.ends is True and each.begins is True
+                 and open_entry is not None)
+        if (joins and places and places[0][0] == start
+                and (places[0][1] == "other" or places[0][1:] == ("record", None))):
+            places = places[1:]  # both flags say the record continues: an unlabelled place at the start does not end it
         if not places or places[0][0] != start:  # the head: text before the window's first place
-            joins = (previous is not None and previous.ok and previous.ends is True and each.begins is True
-                     and open_entry is not None)
             if not joins:
                 close("validated" if closed_cleanly else "unresolved")
                 head = "other" if each.begins is False and (previous is None or closed_cleanly) else "unresolved"
