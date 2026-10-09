@@ -91,6 +91,7 @@ class Execution:
     source_name: str | None = None
     ingest: dict | None = None               # the requested IngestConfig settings; None for defaults and native runs
     ocr_regions: tuple[OcrRegion, ...] = ()   # hybrid only: native text plus these image/form crops
+    ocr_text: bool = False                    # hybrid only: also OCR native blocks with undecodable glyphs
 
 
 class ConversionError(RuntimeError):

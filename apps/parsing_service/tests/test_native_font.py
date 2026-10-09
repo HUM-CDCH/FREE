@@ -1,11 +1,15 @@
-"""A rendered minus with an unusable Unicode map must be read from the page image."""
-from unittest.mock import patch
+"""A rendered minus with an unusable Unicode map must be read from the page image, block by block."""
+from dataclasses import replace
+from unittest.mock import Mock, patch
 
 import pypdfium2 as pdfium
 
-from kei_exp.transcription.native import native_regions, _has_undecodable_glyph
-from kei_exp.kie.stages.ocr import resolve
-from kei_exp.transcription.types import RunParams
+from kei_exp.kie.stages import ocr
+from kei_exp.kie.stages.ocr import resolve, undecodable_blocks
+from kei_exp.pagefile import read_manifest, read_page
+from kei_exp.transcription.native import _has_undecodable_glyph, native_regions, undecodable_glyphs
+from kei_exp.transcription.types import OcrRegion, RunParams, Transcription
+from tests.test_hybrid import block, record
 
 
 def _pdf(path, broken):
@@ -35,17 +39,17 @@ def _pdfs(tmp_path):
     return broken, clean
 
 
-def test_undecodable_font_glyph_refuses_native_text_and_readable_text_stays_native(tmp_path):
+def test_undecodable_font_glyph_is_screened_and_readable_text_is_not(tmp_path):
     broken, clean = _pdfs(tmp_path)
-    assert native_regions(clean) == ()
-    assert native_regions(broken) is None
+    assert native_regions(broken) == native_regions(clean) == ()
+    assert undecodable_glyphs(broken) and not undecodable_glyphs(clean)
 
 
-def test_undecodable_font_glyph_routes_to_the_selected_ocr_model(tmp_path):
+def test_undecodable_font_glyph_keeps_native_text_with_the_selected_model_for_its_blocks(tmp_path):
     broken, clean = _pdfs(tmp_path)
     execution = resolve(RunParams(pdf=broken, model="surya"))
-    assert execution.transcriber == "surya"
-    assert execution.model == "surya"
+    assert (execution.transcriber, execution.model, execution.cut) == ("hybrid", "surya", "none")
+    assert execution.ocr_text and execution.ocr_regions == ()
     assert resolve(RunParams(pdf=clean, model="surya")).transcriber == "native"
 
 
@@ -56,8 +60,8 @@ def test_undecodable_font_glyph_is_judged_per_selected_page_range(tmp_path):
         combined.import_pages(b)
         path = tmp_path / "mixed.pdf"
         combined.save(path)
-    assert native_regions(path, (1, 1)) == ()
-    assert native_regions(path, (2, 2)) is None
+    assert not undecodable_glyphs(path, (1, 1))
+    assert undecodable_glyphs(path, (2, 2))
 
 
 def test_pdfium_generated_layout_and_discretionary_hyphen_controls_are_not_glyph_errors():
@@ -71,3 +75,58 @@ def test_pdfium_generated_layout_and_discretionary_hyphen_controls_are_not_glyph
          patch("pypdfium2.raw.FPDFText_IsGenerated", return_value=1), \
          patch("pypdfium2.raw.FPDFText_IsHyphen", return_value=0):
         assert not _has_undecodable_glyph(TextPage())
+
+
+def test_only_body_blocks_keeping_a_control_code_leave_native_text_one_region_per_box():
+    head = block("Journal \x00 head", (10, 5, 290, 15), label="PageHeader")
+    merged = {**block("cm \x00 1 continues", (10, 20, 140, 60)), "boxes": [[10, 20, 140, 60], [160, 20, 290, 40]]}
+    native = Transcription({}, [record(1, [head, block("Before", (10, 70, 290, 80)), merged,
+                                           block("After", (10, 90, 290, 100))], source_page=1),
+                                record(2, [block("only \x0e C", (10, 20, 290, 40))], source_page=2),
+                                record(3, [block("Clean", (10, 20, 290, 40))], source_page=3)])
+    kept, regions, anchors = undecodable_blocks(native)
+    assert [[b["html"] for b in r.payload.get("blocks", [])] for r in kept.pages] == [
+        ["<p>Journal \x00 head</p>", "<p>Before</p>", "<p>After</p>"], [], ["<p>Clean</p>"]]
+    assert "blocks" not in kept.pages[1].payload and kept.pages[2] is native.pages[2]
+    assert regions == [OcrRegion(1, (10, 20, 140, 60)), OcrRegion(1, (160, 20, 290, 40)), OcrRegion(2, (10, 20, 290, 40))]
+    assert anchors == [2, 2, 0]
+
+
+# Long enough that an undeclared encoding was guessed wrong, as on a real page.
+TEXT = "1651 cm⁻¹ and 1649 cm⁻¹, respectively, indicating the presence of amide I groups of proteins."
+
+
+def test_an_undecodable_block_is_read_by_ocr_in_its_place_and_published_without_the_control_code(tmp_path, monkeypatch):
+    broken, _ = _pdfs(tmp_path)
+    execution = resolve(RunParams(pdf=broken, model="surya", result_dir=tmp_path / "result"))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", Mock(return_value=Transcription({}, [
+        record(1, [block("Native above", (40, 20, 260, 40)), block("Units: cm \x00 1", (40, 90, 200, 110)),
+                   block("Native below", (40, 150, 260, 170))], source_page=1)])))
+    seen = []
+
+    def recognize(request, crops, emit):
+        seen.extend(crops)
+        (_, region, image), = crops
+        assert (region.kind, region.bbox) == ("text", (40, 90, 200, 110))
+        return Transcription({}, [record(1, [block(TEXT, (0, 0, image.width, image.height))], image=image)])
+
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", recognize)
+    markdown = ocr.run(execution, lambda _: None)
+    assert len(seen) == 1 and "\x00" not in markdown
+    assert markdown.index("Native above") < markdown.index(TEXT) < markdown.index("Native below")
+    manifest = read_manifest(execution.result_dir)
+    assert manifest.status == "success" and manifest.recipe["ocr_text"] is True
+    page = read_page(execution.result_dir, 1, manifest)
+    assert [segment.text for segment in page.segments] == ["Native above", TEXT, "Native below"]
+    crop, = page.units[0].crops
+    assert (crop.kind, crop.bbox_pt) == ("text", (40, 90, 200, 110))
+
+
+def test_a_screened_glyph_that_docling_decodes_needs_no_ocr(tmp_path, monkeypatch):
+    broken, _ = _pdfs(tmp_path)
+    execution = resolve(RunParams(pdf=broken, model="surya", result_dir=tmp_path / "result"))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", Mock(return_value=Transcription({}, [
+        replace(record(1, [block("Units: cm - 1", (40, 90, 200, 110))], source_page=1), markdown="Units: cm - 1")])))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", Mock(side_effect=AssertionError("no OCR input")))
+    assert "Units: cm - 1" in ocr.run(execution, lambda _: None)
+    assert read_manifest(execution.result_dir).status == "success"

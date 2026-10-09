@@ -44,7 +44,7 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
             continue
         markdown, text, unreadable = _export(converter, page, supplements)
         reasons = [p.incomplete for p in [page, *(s.record for s in supplements)] if p.incomplete]
-        if not page.payload.get("blocks"):
+        if not page.payload.get("blocks") and all(s.crop[1].kind != "text" for s in supplements):
             reasons.append(f"page {page.source_page}: native evidence has no located blocks")
         if unreadable:
             reasons.append(f"page {page.source_page}: hybrid HTML export failed: {unreadable}")

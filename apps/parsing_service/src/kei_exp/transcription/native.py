@@ -61,11 +61,6 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
                         if objects:
                             return None
                         continue
-                    # An embedded font can render a symbol while its Unicode map
-                    # exposes only a control code. Read the visible page through
-                    # the established OCR path; never guess a scientific symbol.
-                    if _has_undecodable_glyph(textpage):
-                        return None
                     width, height = page.get_size()
                     x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
                     page_regions: list[OcrRegion] = []
@@ -102,6 +97,30 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
 
 
 _TEXT_CONTROLS = frozenset(map(ord, "\t\n\r"))  # the C0 controls that are real text
+
+
+def undecodable_glyphs(path: Path, pages: tuple[int, int] | None = None) -> bool:
+    """Whether a selected page's embedded font renders a symbol (a minus, a degree sign) whose Unicode map exposes
+    only a control code. Native text would lose it, so the blocks carrying one are read by OCR (`undecodable`)."""
+    with pdfium_lock, pdfium.PdfDocument(str(path)) as document:
+        first, last = pages or (1, len(document))
+        for index in range(first - 1, last):
+            page = document[index]
+            try:
+                textpage = page.get_textpage()
+                try:
+                    if _has_undecodable_glyph(textpage):
+                        return True
+                finally:
+                    textpage.close()
+            finally:
+                page.close()
+    return False
+
+
+def undecodable(text: str) -> bool:
+    """Native text where Docling kept an undecodable glyph's control code; never guess the symbol it renders."""
+    return any(ord(char) < 32 and ord(char) not in _TEXT_CONTROLS for char in text)
 
 
 def _has_undecodable_glyph(textpage: pdfium.PdfTextPage) -> bool:

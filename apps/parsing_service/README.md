@@ -134,12 +134,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
-- A PDF with readable text on every selected nonblank page parses natively; substantial
+- A PDF with text on every selected nonblank page parses natively; substantial
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
-  discovery order. Page-sized scans with a text overlay, mixed native/scanned
-  documents, native text with undecodable font glyphs, and rotated
-  textless artwork take the scan path, cut as
+  discovery order. A native block whose text keeps an undecodable font glyph's
+  control code (a minus or degree sign the font cannot map) is replaced the same
+  way: its box is OCR'd as a `text` crop read in the block's place. A table so
+  replaced loses its cells. Page-sized scans with a text overlay, mixed
+  native/scanned documents and rotated textless artwork take the scan path, cut as
   [ingest-cuts.md](docs/ingest-cuts.md) describes. A native table with no
   readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
   and the conversion incomplete.
