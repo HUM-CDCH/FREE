@@ -634,11 +634,25 @@ queue.
     to a 4-slot server. vLLM queues the rest in arrival order, so a small
     extraction's request waits behind those already queued, about one round.
   - **Unified Catalog** (`FREE_CATALOG_METHOD=unified`) uses
-    `KEI_CATALOG_CHUNKS` without contiguous chunks. Discovery asks its windows
-    that many at a time, so a planning round yields at most that many
-    discovery calls.
-    Entries then run that many at a time, nearest the start page first, and
-    are assembled in source order.
+    `KEI_CATALOG_CHUNKS` without contiguous chunks: it bounds how many of its
+    calls wait at once. Entries are read nearest the start page first and
+    assembled in source order.
+    - **Defaults 1 and 2.** Discovery asks its windows that many at a time,
+      so a planning round yields at most that many discovery calls; the
+      entries are read once discovery has ended.
+    - **Defaults 3 (pipelined).** Discovery keeps that many windows asked, a
+      failed window's halves at once. Meanwhile each round reads the entries
+      that the windows already read decide, lists them under
+      `unified-prefix:<attempt>:<count>` and shows their candidates;
+      verification waits until discovery has ended, so the reasoning model
+      reads discovery's windows first.
+    - **Durable planning reads in turn.** A planning round never waits on a
+      model: each call replays its saved reply or is captured and raises
+      `NeedsCall`. So the round reads windows and entries one after another
+      and stops once that many of them wait; the workflow runs the captured
+      calls, up to that many per role at once. A run that is not durable
+      waits on every call, so it reads that many windows and entries at once
+      on threads.
 - **Read API.** Five routes, with their path confinement and manifest, page
   and hash checks. Saved Extraction values are never served here.
   - `GET /api/models` (Compose health);

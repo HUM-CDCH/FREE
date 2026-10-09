@@ -616,7 +616,7 @@ def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks
     assert any("discovery" in each["planned"].values() and 0 in each["saved"] for each in rounds)
     assert all(sum(ROLE[stage]==role for stage in each["planned"].values())<=chunks
                for each in rounds for role in ("fields","reasoning"))
-    # however the planning threads interleave, discovery keeps `chunks` windows asked until none is left to ask
+    # discovery keeps `chunks` windows asked until none is left to ask
     assert all(list(each["planned"].values()).count("discovery")==min(chunks,12-each["answered"].count("discovery"))
                for each in rounds if each["answered"].count("discovery")<12)
     plain=run.dispatch(None,source,request,CountingChat(Model(source)),counter=Counter(),chunks=chunks)

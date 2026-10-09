@@ -405,7 +405,7 @@ def test_a_read_prefix_of_windows_yields_its_final_entries_and_nothing_raised():
                 raise Unanswered()
             return model.discover(user)
         body = discovery.discover(source, "entry", lambda *_: True, ask, overlap=3, splits=6, by="page", workers=2,
-                                  unanswered=(Unanswered,))
+                                  frontier=True, unanswered=(Unanswered,))
         assert len(unanswered) <= 2
         return body
     whole = read(len(pages))

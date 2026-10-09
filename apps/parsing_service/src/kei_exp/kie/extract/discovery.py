@@ -249,46 +249,9 @@ def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> li
     return [list(run) for _, run in groupby(units, key=lambda unit: where[unit.segment])]
 
 
-class Gate:
-    """Admits work in its turn order while fewer than `size` admitted items are running or yielded: an item that
-    finishes without yielding gives its place back, one that yielded (its call is not answered yet) keeps it. Once
-    every place is held by a yielded item, or `close` is called, nothing later is admitted, so what yields is the first
-    `size` unanswered items in order, however the threads interleave. Turns are the order items were handed to the
-    pool, which a pool takes them in."""
-
-    def __init__(self, size: int) -> None:
-        self.size, self.running, self.yielded, self.closed, self.turn = max(1, size), 0, 0, False, 0
-        self._cond = threading.Condition()
-
-    def enter(self, turn: int) -> bool:
-        with self._cond:
-            while self.turn != turn or not self.closed and self.running + self.yielded >= self.size:
-                if self.turn == turn and self.running == 0:
-                    self.closed = True
-                else:
-                    self._cond.wait()
-            self.turn += 1
-            self._cond.notify_all()
-            if self.closed:
-                return False
-            self.running += 1
-            return True
-
-    def leave(self, yielded: bool) -> None:
-        with self._cond:
-            self.running -= 1
-            self.yielded += yielded
-            self._cond.notify_all()
-
-    def close(self) -> None:
-        with self._cond:
-            self.closed = True
-            self._cond.notify_all()
-
-
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
-             progress: Callable[[list[dict], list[dict]], None] | None = None,
+             progress: Callable[[list[dict], list[dict]], None] | None = None, frontier: bool = False,
              unanswered: tuple[type[BaseException], ...] = ()) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
@@ -299,11 +262,13 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
     labels: a view of the run while it reads, never an input to discovery.
 
-    With `unanswered` (the exceptions an `ask` raises for a call whose reply is not there yet), windows are read as a
-    sliding frontier instead: no slices, a failed window's halves asked as soon as it fails, at most `workers`
-    unanswered windows at a time (`Gate`), and nothing of `unanswered` raised. The body then also says whether it is
-    `complete`; until it is, it holds only the windows of the read prefix (the windows before the first one not yet
-    read whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`)."""
+    With `frontier`, windows are read as a sliding frontier instead: no slices, a failed window's halves asked as soon
+    as it fails, and the body also says whether it is `complete`. `unanswered` are the exceptions an `ask` raises for a
+    call whose reply is not there yet, a durable planning round's: such an `ask` never waits on a model, so windows are
+    read in turn, without threads, until `workers` are unanswered, and nothing of `unanswered` is raised. Until the
+    body is complete, it holds only the windows of the read prefix (the windows before the first one not yet read
+    whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`). Without
+    `unanswered`, every window is answered: `workers` are asked at once, and the first error stops the rest."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
@@ -382,27 +347,31 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
             return record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
                                                                 each.window.primary[0].start)))
 
-    def frontier(turn: int, window: Window) -> list | None:
-        if not gate.enter(turn):
-            return None
-        readings = None
-        try:
-            readings = resolve(window, 0)
-            return readings
-        except BaseException:
-            gate.close()
-            raise
-        finally:
-            gate.leave(readings is None)
+    if frontier:
+        lock, resolved, waiting = threading.Lock(), [], 0
+        if unanswered:
+            for window in windows:
+                resolved.append(each := resolve(window, 0))
+                waiting += each is None
+                if waiting == max(1, workers):
+                    break
+        else:
+            halt = threading.Event()
 
-    if unanswered:
-        lock, gate = threading.Lock(), Gate(workers)
-        with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="discovery") as pool:
-            futures = [pool.submit(frontier, turn, window) for turn, window in enumerate(windows)]
-        for future in futures:  # the first error in source order, once every window has stopped
-            if (error := future.exception()) is not None:
-                raise error
-        resolved = [future.result() for future in futures]
+            def turn(window: Window) -> list:
+                if halt.is_set():
+                    return []
+                try:
+                    return resolve(window, 0)
+                except BaseException:
+                    halt.set()
+                    raise
+            with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="discovery") as pool:
+                futures = [pool.submit(turn, window) for window in windows]
+            for future in futures:  # the first error in source order, once every window has stopped
+                if (error := future.exception()) is not None:
+                    raise error
+            resolved = [future.result() for future in futures]
         complete = None not in resolved
         readings = [item for each in resolved[:None if complete else resolved.index(None)] for item in each]
     else:
@@ -411,7 +380,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     return {**_assemble(seen, evidence, texts, prefix=not complete), "windows": [_window_json(each) for each in seen],
             "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
                        *(issue for _, _, issues in readings for issue in issues)],
-            "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if unanswered else {})
+            "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if frontier else {})
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:

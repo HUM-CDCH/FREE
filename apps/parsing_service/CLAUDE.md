@@ -13,3 +13,8 @@ diagnostics. Keep database-backed and model-backed tests out of the fast test
 command. Test databases must pass the explicit disposable-target guard before
 connecting. A change to a workflow's steps goes behind `DBOS.patch()`
 (`enable_patching` is on); `kei@1` changes only after draining.
+
+Durable planning reads in turn, on one thread: a planning round never waits on
+a model (each call replays its saved reply or is captured and raises
+`NeedsCall`), and the workflow runs the captured calls in parallel. The threads
+left in recipe chunks and discovery slices predate this (#233).

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 import unicodedata
 from collections.abc import Callable
@@ -246,6 +247,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     # record changed (a deploy, a served context) adds a row instead of conflicting with the first.
     plan_execution(chat, f"unified-execution:{execution_sha256[:16]}", execution)
     pipelined = effective.get("pipelined", False)
+    # Durable planning never waits on a model: an `ask` replays a saved reply or captures the call and raises
+    # `NeedsCall`, so it reads in turn, without threads; the calls run in their own workflows (durable_extract).
+    durable = getattr(chat, "runtime", None) is not None
     stopped: list[Boundary] = []
 
     def ask(*args) -> dict | None:
@@ -263,7 +267,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
                                   ask, overlap=effective["overlap"],
                                   splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
-                                  progress=partial(discovering, chat), unanswered=(NeedsCall,) if pipelined else ())
+                                  progress=partial(discovering, chat), frontier=pipelined,
+                                  unanswered=(NeedsCall,) if durable else ())
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
         return {"version": discovery.VERSION, "execution_sha256": execution_sha256, "entries": body["entries"],
@@ -277,39 +282,55 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     pages = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
 
     def read(entries: list[dict]) -> list:
-        """Every entry's work, nearest the start page first, `chunks` entries waiting on a call at a time (`Gate`): an
-        entry whose calls are all answered gives its place to the next. Until discovery is complete, its verification
-        waits, so that the reasoning model reads discovery's windows; its candidates are shown meanwhile."""
-        gate = discovery.Gate(chunks)
+        """Every entry's work, nearest the start page first; the first failure in entry order is raised, and an entry
+        never read is None. Durable planning reads them in turn until `chunks` entries wait on a call (`NeedsCall`, or
+        `Boundary` when no call may start): an entry whose calls are all answered lets the next one in. A run that is
+        not durable reads `chunks` entries at once, and its first failure stops the rest. Until discovery is complete,
+        verification waits, so that the reasoning model reads discovery's windows; candidates are shown meanwhile."""
+        def one(number: int) -> _Work:
+            entry = entries[number]
+            work = run.entry(number, entry, verify=complete,
+                             unit=f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None)
+            if not work.failed and not work.undecided:
+                # A finished entry's accepted values are verified: their links are the final artifact's, so the
+                # researcher sees them on the source while the other entries are still read.
+                saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
+                             links=[_link(each, number, passages) for each in work.found if each.kind == "accepted"])
+            return work
+        order, works = work_order(entries, pages, request.options.start_page), [None] * len(entries)
+        raised: dict[int, BaseException] = {}
+        if durable:
+            for number in order:
+                try:
+                    works[number] = one(number)
+                except (NeedsCall, Boundary) as waiting:  # the entries after it are still compiled
+                    raised[number] = waiting
+                    if len(raised) == max(1, chunks):
+                        break
+                except BaseException as error:  # noqa: BLE001 - raised below, the first in entry order
+                    raised[number] = error
+                    break
+        else:
+            halt = threading.Event()
 
-        def one(turn: int, number: int) -> _Work | None:
-            if not gate.enter(turn):
-                return None
-            entry, work = entries[number], None
-            try:
-                work = run.entry(number, entry, verify=complete,
-                                 unit=f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None)
-                if not work.failed and not work.undecided:
-                    # A finished entry's accepted values are verified: their links are the final artifact's, so the
-                    # researcher sees them on the source while the other entries are still read.
-                    saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
-                                 links=[_link(each, number, passages) for each in work.found if each.kind == "accepted"])
-                return work
-            except (NeedsCall, Boundary):  # not answered, or may not start: the entries after it are still compiled
-                raise
-            except BaseException:
-                gate.close()
-                raise
-            finally:
-                gate.leave(work is None)
-        with ThreadPoolExecutor(max_workers=max(1, chunks), thread_name_prefix="catalog-entry") as pool:
-            futures: list = [None] * len(entries)
-            for turn, number in enumerate(work_order(entries, pages, request.options.start_page)):
-                futures[number] = pool.submit(one, turn, number)
-        for future in futures:  # the first failure in entry order, once every entry has stopped
-            if (error := future.exception()) is not None:
-                raise error
-        return [future.result() for future in futures]
+            def guarded(number: int) -> _Work | None:
+                if halt.is_set():
+                    return None
+                try:
+                    return one(number)
+                except BaseException:
+                    halt.set()
+                    raise
+            with ThreadPoolExecutor(max_workers=max(1, chunks), thread_name_prefix="catalog-entry") as pool:
+                futures = {number: pool.submit(guarded, number) for number in order}
+            for number, future in futures.items():
+                if (error := future.exception()) is not None:
+                    raised[number] = error
+                else:
+                    works[number] = future.result()
+        if raised:
+            raise raised[min(raised)]
+        return works
     if not complete:
         # Each entry of the windows read so far is final, so its number is: it is read and listed now.
         try:
