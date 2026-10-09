@@ -200,3 +200,82 @@ def test_a_server_that_ignores_the_stream_is_read_as_the_unstreamed_reply(monkey
     pieces = []
     reply = captured_provider.CapturedChat({"url": "http://model", "timeout": 5, "model": "m"}, {}, on_text=pieces.append).complete()
     assert (reply.text, reply.finish, reply.input_tokens, pieces) == (REPLY, "stop", 120, [])
+
+
+class Calls:
+    """Durable calls run by a fake scheduler: the earliest started call ends first; `fails` end unsaved."""
+
+    def __init__(self, roles, *, fails=(), boundary=lambda calls: False):
+        self.roles, self.fails, self.boundary = roles, set(fails), boundary
+        self.left, self.running, self.ended, self.peak, self.events = list(roles), [], {}, {}, []
+        self.started = None
+
+    def plan(self, extraction, attempt):
+        self.events.append(("plan", len(self.running)))
+        if self.boundary(self):
+            return {"boundary": True}
+        if not self.left:
+            return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": {}}
+        return {"pending": list(self.left), "roles": {capture: self.roles[capture] for capture in self.left}}
+
+    def start(self, workflow, extraction, attempt, capture):
+        assert self.started == f"kei-call:{attempt}:{capture}"
+        self.running.append(capture)
+        role = self.roles[capture]
+        self.peak[role] = max(self.peak.get(role, 0), sum(self.roles[each] == role for each in self.running))
+        return SimpleNamespace(workflow_id=self.started)
+
+    def wait_first(self, handles, polling_interval_sec):
+        capture = self.running.pop(0)
+        self.ended[f"kei-call:a:{capture}"] = capture not in self.fails
+        if capture not in self.fails:
+            self.left.remove(capture)
+        return next(handle for handle in handles if handle.workflow_id == f"kei-call:a:{capture}")
+
+
+def run_loop(monkeypatch, calls, chunks=2):
+    from contextlib import contextmanager
+
+    @contextmanager
+    def named(workflow_id):
+        calls.started = workflow_id
+        yield
+    monkeypatch.setattr(worker.config, "CATALOG_CHUNKS", chunks)
+    monkeypatch.setattr(worker.DBOS, "patch", lambda name: name == "extract-wait-first")
+    monkeypatch.setattr(worker.DBOS, "start_workflow", calls.start)
+    monkeypatch.setattr(worker.DBOS, "wait_first", calls.wait_first)
+    monkeypatch.setattr(worker, "SetWorkflowID", named)
+    monkeypatch.setattr(worker, "settled", lambda ids: {each: calls.ended[each] for each in ids if each in calls.ended})
+    monkeypatch.setattr(worker, "plan_next", calls.plan)
+    monkeypatch.setattr(worker, "publish_result", lambda *_: calls.events.append(("publish", len(calls.running))))
+    monkeypatch.setattr(worker, "acknowledge", lambda e, a, complete, failure:
+                        calls.events.append(("ack", len(calls.running), complete, failure)) or "ACK")
+    return inspect.unwrap(worker.extract_workflow)({"protocol": 1, "extraction_id": "x", "attempt_id": "a"})
+
+
+def test_a_call_is_started_as_soon_as_another_of_its_role_ends_and_never_more_than_chunks_at_once(monkeypatch):
+    roles = {**{f"d{n}": "reasoning" for n in range(5)}, **{f"e{n}": "fields" for n in range(4)}}
+    calls = Calls(roles)
+    assert run_loop(monkeypatch, calls) == {"status": "ACK"}
+    assert calls.peak == {"reasoning": 2, "fields": 2}
+    plans = [event for event in calls.events if event[0] == "plan"]
+    assert len(plans) == len(roles) + 1 and all(running == 3 for _, running in plans[1:-3])  # one ended per round
+    assert calls.events[-2:] == [("publish", 0), ("ack", 0, True, None)]
+
+
+@pytest.mark.parametrize("ending,failure", [("boundary", None), ("failure", {"code": "capture_failed"})])
+def test_a_pause_or_a_failed_call_is_acknowledged_once_every_started_call_has_ended(monkeypatch, ending, failure):
+    roles = {f"d{n}": "reasoning" for n in range(4)}
+    calls = Calls(roles, fails={"d0"} if ending == "failure" else (),
+                  boundary=lambda calls: ending == "boundary" and len(calls.ended) == 1)
+    run_loop(monkeypatch, calls)
+    assert calls.events[-2:] == [("plan", 0), ("ack", 0, False, failure)]  # drained, compiled, then acknowledged
+    assert len(calls.ended) == 2  # the call running beside the first was awaited; nothing new started
+
+
+def test_a_capture_planned_again_after_its_call_ended_stops_the_attempt(monkeypatch):
+    calls = Calls({"d0": "reasoning"})
+    calls.wait_first = lambda handles, polling_interval_sec: (calls.running.pop(0), calls.ended.update(
+        {"kei-call:a:d0": True}), handles[0])[-1]  # it ended without saving an output
+    assert run_loop(monkeypatch, calls) == {"status": "ACK"}
+    assert calls.events[-1] == ("ack", 0, False, {"code": "capture_replanned"})

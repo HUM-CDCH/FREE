@@ -15,7 +15,7 @@ type Method=typeof methods[number]
 const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'}}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:2|3}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -30,7 +30,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-  const settings={[method]:method==='unified'?{defaults:2}:method==='article'&&options.articleContext
+  const settings={[method]:method==='unified'?{defaults:options.defaults??2}:method==='article'&&options.articleContext
     ?{context:options.articleContext,context_tokens:8192}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.
@@ -121,6 +121,56 @@ for(const method of methods) {
     } finally {service.releaseExtraction();await service.close()}
   })
 }
+
+test('native unified defaults 3: a Pause while discovery still reads keeps and shows every entry already read',async({page},info)=>{
+  test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'The pause needs the counted provider hold.')
+  const service=await startRealService(info.outputPath('durable-worker.log'))
+  try {
+    await loginResearcher(page,randomUUID())
+    const project=(await (await page.request.post('/api/project-contexts',{headers:{Origin:E2E_ORIGIN},data:{name:'Pipelined pause'}})).json()).projectContext.projectContextId as string
+    const pages=[1,3,5].map(n=>[`${n}. Hill: pottery dated ${1800+n}.`,`${n+1}. Valley: flint dated ${1801+n}.`])
+    const ingestion=await settle(page,project,await admit(page,project,textPdf(pages),'pipelined.pdf'),180_000)
+    if(ingestion.status!=='succeeded')throw new Error(`The disposable source was not published: ${JSON.stringify(ingestion)}`)
+    const sourceId=ingestion.sourceDocumentId
+    // The last page's discovery call is held (its window labels entry 5): the entries before it are read meanwhile.
+    service.holdExtractionMatching(/^\[L\d+\] 5\. /m)
+    const id=await seedNative(page,project,sourceId,'unified',{defaults:3})
+    await service.reconcileDurable()
+    const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()
+    const shown=async()=>new Set(((await (await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()).values as {path:unknown[];modelValue:unknown}[])
+      .filter(value=>value.modelValue!==null).map(value=>value.path[1]))
+    await expect.poll(async()=>service.extractionHeld()&&(await shown()).size>0,{timeout:120_000}).toBe(true)
+    expect((await state()).recordsFinal).toBe(false)
+    await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+    await page.getByRole('button',{name:'❚❚ Pause extraction',exact:true}).click()
+    await expect(rail.getByText('Pausing',{exact:true})).toBeVisible()
+    service.releaseExtraction()
+    await expect.poll(async()=>{
+      const head=await state()
+      if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+      return head.status
+    },{timeout:60_000}).toBe('PAUSED')
+    // Every entry whose read was saved is shown, though discovery had not finished when the Pause won.
+    const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
+    const read=new Set((history.captures as {descriptor:{stage:string};request:{body:{record:number}}|null;output:unknown}[])
+      .filter(capture=>capture.descriptor.stage==='entry'&&capture.output!==null).map(capture=>capture.request!.body.record))
+    const paused=await shown()
+    expect(read.size).toBeGreaterThan(0)
+    expect([...paused].sort()).toEqual([...read].sort())
+    await expect(rail.getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
+    await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
+    await expect.poll(async()=>{
+      const head=await state()
+      if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+      return head.status
+    },{timeout:120_000}).toBe('COMPLETED')
+    expect((await state()).recordsFinal).toBe(true)
+    expect((await shown()).size).toBe(6)
+    await page.screenshot({path:info.outputPath('pipelined-paused-resumed.png'),fullPage:true})
+  } finally {service.releaseExtraction();await service.close()}
+})
 
 for(const context of ['full','bounded'] as const) {
 test(`native ${context} Article: an ungrounded UI correction guides a later worker with immutable captured attribution`,async({page},info)=>{
@@ -359,7 +409,8 @@ function liveCataloguePages(): string[][] {
 
 // ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
 // saw and what the model received.
-test('native unified live results: discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume',async({page},info)=>{
+// Defaults 2 reads every entry after discovery; 3 reads them while discovery still asks later windows.
+for(const defaults of [2,3] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
   const service=await startRealService(info.outputPath('live-results-worker.log'))
@@ -372,7 +423,7 @@ test('native unified live results: discovery progress, then each record and its 
     if(ingestion.status!=='succeeded')throw new Error(`Live source was not published: ${JSON.stringify(ingestion)}`)
     const sourceId=ingestion.sourceDocumentId
     // The reasoning server also reads the fields: its values carry verification links, so Evidence is highlighted.
-    const id=await seedNative(page,project,sourceId,'unified',{models:{fields:'instruct',reasoning:'instruct'}})
+    const id=await seedNative(page,project,sourceId,'unified',{models:{fields:'instruct',reasoning:'instruct'},defaults})
     await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
     await page.locator('#rail-tab-results').click()
     const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})

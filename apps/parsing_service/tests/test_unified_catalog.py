@@ -409,6 +409,41 @@ def test_once_a_slice_of_discovery_windows_raises_no_later_window_is_asked_and_t
     assert raised.value.args == ("[L1] 1. Ort1.",)
 
 
+def test_a_read_prefix_of_windows_yields_its_final_entries_and_nothing_raised():
+    """Read as a frontier, discovery holds the entries of the windows read so far from the start, each as the whole
+    read will have it; the entry still open at the prefix's end, and a failed window whose halves are unanswered, wait.
+    At most `workers` windows are unanswered at a time."""
+    class Unanswered(BaseException):
+        pass
+    pages = ["1. Adorf. Material: Holz.\n2. Bdorf.", "Material: Stein.\n3. Cdorf. Material: Glas.", "Index Adorf.",
+             "4. Ddorf.\nMaterial: Eisen.", "5. Edorf. Material: Gold."]
+    source = evidence(*pages)
+    model = Model(source)
+
+    def read(answered: int, failed: str | None = None):
+        unanswered = []
+
+        def ask(record, system, user, schema, calls, issues):
+            window = section(user, "WINDOW")
+            page = next(n for n, text in enumerate(pages) if text.split("\n")[0] in window)
+            if window.count("[L") > 1 and failed and failed in window:
+                return None
+            if page >= answered or failed and failed in window:
+                unanswered.append(page)
+                raise Unanswered()
+            return model.discover(user)
+        body = discovery.discover(source, "entry", lambda *_: True, ask, overlap=3, splits=6, by="page", workers=2,
+                                  frontier=True, unanswered=(Unanswered,))
+        assert len(unanswered) <= 2
+        return body
+    whole = read(len(pages))
+    assert whole["complete"] and [entry["label"] for entry in whole["entries"]] == ["1.", "2.", "3.", "4.", "5."]
+    for answered, final in ((0, 0), (1, 1), (2, 2), (3, 3), (4, 3)):
+        body = read(answered)
+        assert not body["complete"] and body["entries"] == whole["entries"][:final], answered
+    assert read(3, failed="Material: Stein.")["entries"] == whole["entries"][:1]  # page 2's halves still unanswered
+
+
 def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     """A place is its line's id, kind and label on one line; start text is copied only for a place inside a line."""
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz. 2. Bdorf. Material: Stein.")

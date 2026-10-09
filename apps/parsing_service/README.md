@@ -54,7 +54,11 @@ The worker registers `convert`, `deleteRuns` and three durable Extraction
 workflows: Studio enqueues `extractDurableV1` on `kei-extract` and
 `deleteDurableHistoryV1` on `kei-gc`, and each attempt starts its
 `extractionCallV1` children directly (ID `kei-call:<attempt>:<capture>`),
-outside any lane limit. Attempts reach the coordination schema only through a
+outside any lane limit. Each planned call starts at once, up to
+`KEI_CATALOG_CHUNKS` per role, and the attempt is planned again as soon as one
+ends; a Pause, Stop or failure is acknowledged only once every call it started
+has ended (`DBOS.patch` `extract-wait-first`; attempts started before it await
+each round's calls together). Attempts reach the coordination schema only through a
 pool of at most four short calls to allowlisted `extraction_runtime` routines,
 and no pooled connection or transaction spans a model call. After a crash,
 recovery waits up to 40 s for the previous process's 30-second lease to expire:
@@ -108,7 +112,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, and how many unified Catalog discovery windows it asks at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -190,9 +194,13 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
   headings?, verification?}` runs the unified Catalog: result version 3, no
-  recipe and no character limits (a request naming either is refused). New
-  admissions use it only where Studio's `FREE_CATALOG_METHOD=unified` gate is
-  on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  recipe and no character limits (a request naming either is refused). From
+  `defaults` 3 a durable run reads the entries the windows already read decide
+  while discovery asks the rest, lists them under its `unified-prefix:<attempt>:<count>`
+  plans and shows their candidates, and verifies them once discovery has ended;
+  an entry's calls are captured by where it starts and what it covers, not by
+  its number. New admissions use it only where Studio's
+  `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
 Limitations:

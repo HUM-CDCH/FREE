@@ -247,7 +247,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
         except NeedsCall:
             if planner.discovery is not None:
                 show("discovery", discovery_event(planner.discovery))
-            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
+            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles}
         except Boundary:
             return {"boundary": True}
         return {"result": result, "scopes": planner.scopes}
@@ -262,12 +262,84 @@ def acknowledge(extraction: str, attempt: str, complete: bool, failure: dict | N
         return lease.call("acknowledge", complete, failure)
 
 
+@DBOS.step(name="settledExtractionCallsV1")
+def settled(workflow_ids: list[str]) -> dict:
+    """The listed call workflows that have ended, each with whether planning may go on after it: not after a call that
+    failed (it paused the attempt) or a call workflow that did not return."""
+    return {status.workflow_id: status.status == "SUCCESS" and bool((status.output or {}).get("ok"))
+            for status in DBOS.list_workflows(workflow_ids=workflow_ids, load_input=False)
+            if status.status not in ("PENDING", "ENQUEUED", "DELAYED")}
+
+
 @DBOS.workflow(name="extractDurableV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
                serialization_type=WorkflowSerializationFormat.PORTABLE)
 def extract_workflow(request: dict) -> dict:
     if set(request) != {"protocol", "extraction_id", "attempt_id"} or request["protocol"] != 1:
         return {"ok": False, "reason": "invalid durable attempt"}
     extraction, attempt = request["extraction_id"], request["attempt_id"]
+    if not DBOS.patch("extract-wait-first"):
+        return wait_all(extraction, attempt)
+    # Each call runs as soon as it is planned, up to CATALOG_CHUNKS per role at once, and the attempt is planned again
+    # as soon as one ends: a slow call holds up no other. Nothing is acknowledged while a call it started still runs,
+    # so a Pause or a failure keeps every output already admitted.
+    running: dict = {}  # capture -> (role, handle), in start order
+    ended: set[str] = set()
+
+    def wait() -> bool:
+        """Until a running call ends; whether every call that ended meanwhile lets planning go on."""
+        DBOS.wait_first([handle for _, handle in running.values()], polling_interval_sec=0.2)
+        outcomes = settled([handle.workflow_id for _, handle in running.values()])
+        ok = True
+        for capture, (_, handle) in list(running.items()):
+            if handle.workflow_id in outcomes:
+                ok = ok and outcomes[handle.workflow_id]
+                ended.add(capture)
+                del running[capture]
+        return ok
+
+    def stop(complete: bool, failure: dict | None, compile_saved: bool = True) -> dict:
+        while running:
+            wait()
+        if compile_saved:  # the drained calls' outputs, compiled while admission is halted
+            try:
+                plan_next(extraction, attempt)
+            except Exception:
+                pass
+        return {"status": acknowledge(extraction, attempt, complete, failure)}
+    while True:
+        try:
+            work = plan_next(extraction, attempt)
+        except Exception as error:
+            return stop(False, {"code": type(error).__name__}, compile_saved=False)
+        if work.get("boundary"):
+            return stop(False, None, compile_saved=bool(running))
+        if work.get("historicalOnly"):
+            publish_result(extraction, attempt, {"records": [], "completeness": {"processing": True}}, {})
+            return {"status": acknowledge(extraction,attempt,True,None)}
+        if "result" in work:
+            while running:
+                wait()
+            publish_result(extraction, attempt, work["result"], work["scopes"])
+            from kei_exp.kie.extract.retained import processing_complete
+            processing = processing_complete(work["result"])
+            return {"status": acknowledge(extraction, attempt,processing,None if processing else {"code":"incomplete_processing"})}
+        for capture in work["pending"]:
+            role = work["roles"][capture]
+            if capture in running:
+                continue
+            if capture in ended:  # its call ended without saving an output: planning it again would never end
+                return stop(False, {"code": "capture_replanned"})
+            if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
+                with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
+                    running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture))
+        if not running:  # a method that yields must have planned a call
+            return stop(False, {"code": "nothing_planned"}, compile_saved=False)
+        if not wait():
+            return stop(False, {"code": "capture_failed"})
+
+
+def wait_all(extraction: str, attempt: str) -> dict:
+    """An attempt started before `extract-wait-first`: every round's calls run, then all are awaited."""
     while True:
         try:
             work = plan_next(extraction, attempt)

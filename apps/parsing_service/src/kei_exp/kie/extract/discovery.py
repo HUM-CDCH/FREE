@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -253,7 +254,8 @@ def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> li
 
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
-             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict | None:
+             progress: Callable[[list[dict], list[dict]], None] | None = None, frontier: bool = False,
+             unanswered: tuple[type[BaseException], ...] = ()) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
@@ -261,7 +263,15 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
     raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
     call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
-    labels: a view of the run while it reads, never an input to discovery."""
+    labels: a view of the run while it reads, never an input to discovery.
+
+    With `frontier`, windows are read as a sliding frontier instead: no slices, a failed window's halves asked as soon
+    as it fails, and the body also says whether it is `complete`. `unanswered` are the exceptions an `ask` raises for a
+    call whose reply is not there yet, a durable planning round's: such an `ask` never waits on a model, so windows are
+    read in turn, without threads, until `workers` are unanswered, and nothing of `unanswered` is raised. Until the
+    body is complete, it holds only the windows of the read prefix (the windows before the first one not yet read
+    whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`). Without
+    `unanswered`, every window is answered: `workers` are asked at once, and the first error stops the rest."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
@@ -313,12 +323,67 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
                 issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
             readings.append([(observed or _Seen(window, False, []), calls, issues)])
         return readings
-    readings = [item for each in read(windows, 0) for item in each]
+
+    def resolve(window: Window, depth: int) -> list | None:
+        """The window's reading, then its halves' when it failed and may still be halved, each half once the one
+        before it is read; None once one of them is unanswered."""
+        try:
+            observed, calls, issues = one(window, sorted_starts())
+        except unanswered:
+            return None
+        if observed is not None:
+            with lock:
+                done.append(observed)
+        elif len(window.primary) > 1 and depth < splits:
+            readings = [(None, calls, issues)]
+            for half in split(window, texts, fits, overlap=overlap):
+                if (more := resolve(half, depth + 1)) is None:
+                    return None
+                readings += more
+            return readings
+        else:
+            issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
+        return [(observed or _Seen(window, False, []), calls, issues)]
+
+    def sorted_starts() -> list[dict]:
+        with lock:
+            return record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
+                                                                each.window.primary[0].start)))
+
+    if frontier:
+        lock, resolved, waiting = threading.Lock(), [], 0
+        if unanswered:
+            for window in windows:
+                resolved.append(each := resolve(window, 0))
+                waiting += each is None
+                if waiting == max(1, workers):
+                    break
+        else:
+            halt = threading.Event()
+
+            def turn(window: Window) -> list:
+                if halt.is_set():
+                    return []
+                try:
+                    return resolve(window, 0)
+                except BaseException:
+                    halt.set()
+                    raise
+            with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="discovery") as pool:
+                futures = [pool.submit(turn, window) for window in windows]
+            for future in futures:  # the first error in source order, once every window has stopped
+                if (error := future.exception()) is not None:
+                    raise error
+            resolved = [future.result() for future in futures]
+        complete = None not in resolved
+        readings = [item for each in resolved[:None if complete else resolved.index(None)] for item in each]
+    else:
+        readings, complete = [item for each in read(windows, 0) for item in each], True
     seen = [observed for observed, _, _ in readings if observed is not None]
-    return {**_assemble(seen, evidence, texts), "windows": [_window_json(each) for each in seen],
+    return {**_assemble(seen, evidence, texts, prefix=not complete), "windows": [_window_json(each) for each in seen],
             "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
                        *(issue for _, _, issues in readings for issue in issues)],
-            "calls": [call for _, calls, _ in readings for call in calls]}
+            "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if frontier else {})
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:
@@ -369,8 +434,12 @@ def _window_json(seen: _Seen) -> dict:
             "context_omitted": [{"kind": kind, **ranges_json([unit])[0]} for kind, unit in seen.window.omitted]}
 
 
-def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str]) -> dict:
-    """Regions from the windows' places and their explicit continuation observations; then entries and the ledger."""
+def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, prefix: bool = False) -> dict:
+    """Regions from the windows' places and their explicit continuation observations; then entries and the ledger.
+
+    A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
+    so every entry here is final (number, ranges, context, end) except the one still open at the prefix's end, whose
+    end the next window decides; it is left out."""
     units: list[Unit] = [unit for each in seen for unit in each.window.primary]
     regions: list[list] = []  # [kind, entry index or None, (unit index, offset)]
     entries: list[dict] = []
@@ -413,6 +482,9 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str]) -> d
                 open_entry = len(entries) - 1
             regions.append([kind, open_entry, position])
         previous = each
+    if prefix:
+        body = _ledger(regions, units, entries, evidence, texts)
+        return body if open_entry is None else {**body, "entries": entries[:open_entry]}
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])

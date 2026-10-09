@@ -115,19 +115,26 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         count(*) FILTER (WHERE o.id IS NULL)::int AS pending FROM extraction_runtime.capture c
         LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1`, [id])).rows[0]
       // The Catalog records the current selection reads, once discovery has found them, and those with a model call
-      // still unanswered: the rail lists each as queued, reading or read while the run goes on.
+      // still unanswered: the rail lists each as queued, reading or read while the run goes on. A pipelined unified
+      // Catalog (defaults 3) lists the records of the windows its attempt has read so far, each final, before
+      // discovery ends: `recordsFinal` says whether the list is whole.
+      type Listed = {units:{ordinal:number;scope:unknown}[]}
       const plan = (await client.query(`SELECT manifest FROM extraction_runtime.plan WHERE "extractionId"=$1
         AND stage IN ('unified-records','generic-records','recipe-records') AND manifest->>'selectionId'=$2
-        ORDER BY generation DESC LIMIT 1`, [id, head.selectionId])).rows[0]?.manifest as {units:{ordinal:number;scope:unknown}[]} | undefined
+        ORDER BY generation DESC LIMIT 1`, [id, head.selectionId])).rows[0]?.manifest as Listed | undefined
+      const partial = plan || !head.attemptId ? undefined : (await client.query(`SELECT manifest FROM extraction_runtime.plan
+        WHERE "extractionId"=$1 AND stage LIKE $2 AND manifest->>'selectionId'=$3
+        ORDER BY jsonb_array_length(manifest->'units') DESC LIMIT 1`, [id, `unified-prefix:${head.attemptId}:%`, head.selectionId])).rows[0]?.manifest as Listed | undefined
       const reading = (await client.query(`SELECT DISTINCT (i.request->'body'->>'record')::int AS record FROM extraction_runtime.capture c
         JOIN extraction_runtime.input i ON i.id=c.id LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id
         WHERE c."extractionId"=$1 AND c."selectionId"=$2 AND o.id IS NULL AND jsonb_typeof(i.request->'body'->'record')='number'`,
         [id, head.selectionId])).rows.map(row => row.record as number)
-      const records = plan ? plan.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
+      const listed = plan ?? partial
+      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
       const feedbackVersion = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0]?.version as number ?? 0
       return { protocol:1 as const, projectId:head.projectId, extractionId:id, strategy:head.strategy, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, source:head.sourcePin,
-        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,feedbackVersion,counts,failure,records,reading,
+        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,feedbackVersion,counts,failure,records,recordsFinal:plan!==undefined,reading,
         attempt:attempt?{id:attempt.id,workflowId:attempt.workflowId}:null }
     }) },
     command(id: string, raw: unknown) {

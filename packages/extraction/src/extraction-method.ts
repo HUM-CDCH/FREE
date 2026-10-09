@@ -96,8 +96,9 @@ export type RecipeCatalogSettings = z.output<typeof recipeCatalogSettingsSchema>
 
 /** The unified Catalog's versioned service defaults (`unified.py` `DEFAULTS`), pinned to it by the shared contract
  *  fixture: reply reserves per stage, overlap in source lines, heading context, verification, window halvings and
- *  what discovery windows never cross (2: a printed page). Auto input is the served context minus the
- *  stage's reserve. New admissions use the latest version; an Extraction keeps the one it was admitted under. */
+ *  what discovery windows never cross (2: a printed page), and whether a durable run reads entries while discovery
+ *  still reads later windows (3). Auto input is the served context minus the stage's reserve. New admissions use the
+ *  latest version; an Extraction keeps the one it was admitted under. */
 const UNIFIED_BASE = {
   reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
   headings: true, verification: true, splits: 6,
@@ -105,8 +106,9 @@ const UNIFIED_BASE = {
 export const UNIFIED_CATALOG_DEFAULTS = {
   1: { ...UNIFIED_BASE, overlap: 1 },
   2: { ...UNIFIED_BASE, overlap: 3, windows: 'page' },
+  3: { ...UNIFIED_BASE, overlap: 3, windows: 'page', pipelined: true },
 } as const
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 2 as const
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 3 as const
 
 /** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
@@ -120,7 +122,7 @@ export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceS
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
  *  and the overrides, so it stays identifiable when every control is left to the defaults. */
 export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.extend({
-  defaults: z.union([z.literal(1), z.literal(2)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
+  defaults: z.union([z.literal(1), z.literal(2), z.literal(3)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
 const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'headings', 'verification'] as const
