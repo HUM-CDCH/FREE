@@ -73,6 +73,7 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
   let calls = 0
   const requests: unknown[] = []
   let holdNext = false
+  let holdPattern: RegExp | null = null
   let releaseHeld: (() => void) | null = null
   let held: Promise<void> | null = null
   const server = createServer(async (request, response) => {
@@ -92,14 +93,15 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
         return
       }
       requests.push(body)
-      if (holdNext) {
+      const prompt: string = body.messages.at(-1).content
+      if (holdNext || holdPattern?.test(prompt)) {
         holdNext = false
+        holdPattern = null
         held = new Promise<void>((resolve) => { releaseHeld = resolve })
         await held
         held = null
         releaseHeld = null
       }
-      const prompt: string = body.messages.at(-1).content
       const system: string = body.messages.find((message: { role: string }) => message.role === 'system')?.content ?? ''
       const properties = body.response_format.json_schema.schema.properties
       const candidates = Object.values(properties).some((field) =>
@@ -177,8 +179,10 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
     count: () => calls,
     requests: () => structuredClone(requests),
     holdNextExtraction: () => { holdNext = true },
+    /** Holds the next extraction request whose prompt matches, instead of the next one. */
+    holdExtractionMatching: (pattern: RegExp) => { holdPattern = pattern },
     extractionHeld: () => held !== null,
-    releaseExtraction: () => { releaseHeld?.(); holdNext = false },
+    releaseExtraction: () => { releaseHeld?.(); holdNext = false; holdPattern = null },
     close: () => { releaseHeld?.(); return new Promise<void>((resolveClosed, reject) =>
       server.close(error => error ? reject(error) : resolveClosed())) },
   }
@@ -317,6 +321,7 @@ export async function startRealService(logFile: string,
     modelCalls: () => fixture?.count() ?? null,
     modelRequests: () => fixture?.requests() ?? [],
     holdNextExtraction: () => fixture?.holdNextExtraction(),
+    holdExtractionMatching: (pattern: RegExp) => fixture?.holdExtractionMatching(pattern),
     extractionHeld: () => fixture?.extractionHeld() ?? false,
     releaseExtraction: () => fixture?.releaseExtraction(),
     conversionHeld: async () => conversionBarrier !== null &&
