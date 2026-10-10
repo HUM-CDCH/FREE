@@ -68,14 +68,17 @@ class MemoryLease:
                 if self.intent != "RUN":
                     return None
                 self.units[key]={"id":identity,"descriptor":descriptor,"candidates":deepcopy(self.candidates),
-                                 "input":None,"checkpoint":None}
+                                 "input":None,"checkpoint":None,"failures":{}}
                 if descriptor.get("derivedFrom"):
                     parent=next(u for u in self.units.values() if u["id"]==descriptor["derivedFrom"])
                     self.units[key]["candidates"]=deepcopy(parent["candidates"])
             unit=self.units[key]
-            if self.intent != "RUN" and unit["checkpoint"] is None:
+            # A failed reply is attempt-local, except a whitespace failure that its bounded recovery continues.
+            saved=unit["checkpoint"] or unit["failures"].get(self.attempt) or next(
+                (failure for failure in unit["failures"].values() if failure.get("recovery")=="whitespace"),None)
+            if self.intent != "RUN" and saved is None:
                 return None
-            return deepcopy(unit)
+            return deepcopy({**unit,"checkpoint":saved})
         if name == "finalize_input":
             identity,request=args
             unit=next(u for u in self.units.values() if u["id"]==identity)
@@ -464,6 +467,92 @@ def test_format_fallback_is_a_separate_capture_with_the_original_input():
     before["body"]["httpRequest"].pop("response_format")
     assert fallback["input"]["request"]==before
     assert fallback["descriptor"]["derivedFrom"]==parent["id"]
+
+
+@pytest.mark.parametrize("recovery_ok", [True, False])
+def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_inputs(monkeypatch, recovery_ok):
+    from kei_exp.kie.extract import captured_provider, llm
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import extract_record
+    from tests.test_extract_llm import response
+
+    tree = {"recordDescription": "An article", "recordScope": "document",
+            "schemaNodes": [{"id": "year", "name": "year", "type": "integer"}]}
+    lease = MemoryLease(tree)
+    chat = llm.OpenAIChat(model="fake/extractor")
+    counter = Counter()
+    posted = []
+    loop = '{"year":' + ' \r' * 64
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
+
+    def plan():
+        planner = CapturePlanner(lease, {"fields": counter})
+        return extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
+            Router(chat, chat, planner), budget=48000, record=0, counter=counter, document=True)
+
+    def execute(unit, text, finish):
+        request = unit["input"]["request"]
+        def post(url, **kwargs):
+            posted.append(deepcopy(kwargs["json"]))
+            return response(200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
+                                  "usage": {"prompt_tokens": request["budget"]["counted"], "completion_tokens": 130}})
+        monkeypatch.setattr(captured_provider.requests, "post", post)
+        body = dict(request["body"])
+        body.pop("max_whitespace")
+        transport = captured_provider.CapturedChat({"url": "http://model", "model": chat.model, "timeout": 1},
+                                                   body.pop("httpRequest"))
+        parsed, attempts = calls.complete(transport, **body, counter=worker.PinnedCounter(request["budget"]))
+        output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
+        if all(call.ok for call in attempts):
+            unit["checkpoint"] = {"outputDigest": digest(output), "output": output}
+            return
+        unit["failures"][lease.attempt] = {"outputDigest": digest(output), "output": output,
+                                           "recoverable": request["body"]["max_whitespace"] is None,
+                                           "recovery": "whitespace" if request["body"]["max_whitespace"] is None else None}
+
+    with pytest.raises(NeedsCall):
+        plan()
+    parent = next(iter(lease.units.values()))
+    execute(parent, loop, "length")
+    assert not parent["failures"][lease.attempt]["output"]["calls"][0]["ok"]
+    frozen = deepcopy(parent)
+    lease.candidates = [{"id": "a correction made after the failed call"}]
+    with pytest.raises(NeedsCall):
+        plan()
+    recovery = list(lease.units.values())[1]
+    expected = deepcopy(parent["input"]["request"])
+    expected["body"]["max_whitespace"] = 16
+    expected["body"]["httpRequest"].pop("response_format")
+    expected["body"]["httpRequest"]["structured_outputs"] = {"grammar": "GRAMMAR 16"}
+    assert recovery["input"]["request"] == expected
+    assert recovery["descriptor"]["derivedFrom"] == parent["id"]
+    assert recovery["candidates"] == parent["candidates"]
+    execute(recovery, '{"year":2020}' if recovery_ok else loop, "stop" if recovery_ok else "length")
+    fields, attempts, issues = plan()
+    assert fields == {"year": 2020 if recovery_ok else None}
+    assert len(attempts) == len(posted) == len(lease.units) == 2
+    assert attempts[0].recovered is recovery_ok
+    assert attempts[1].ok is recovery_ok
+    assert bool(issues) is not recovery_ok
+    assert parent == frozen
+    assert plan()[0] == fields
+    assert len(posted) == len(lease.units) == 2
+
+    # Retry/Resume: a new attempt continues the recovery and never repeats the unbounded original.
+    plans = deepcopy(lease.plans)
+    lease.attempt = str(uuid4())
+    if recovery_ok:
+        assert plan()[0] == fields
+    else:
+        planner = CapturePlanner(lease, {"fields": counter})
+        with pytest.raises(NeedsCall):
+            extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
+                           Router(chat, chat, planner), budget=48000, record=0, counter=counter, document=True)
+        assert list(planner.pending) == [recovery["id"]]
+        execute(recovery, '{"year":2020}', "stop")
+        assert plan()[0] == {"year": 2020}
+    assert len(posted) == (2 if recovery_ok else 3)
+    assert len(lease.units) == 2 and lease.plans == plans and parent == frozen
 
 
 def test_native_input_captures_schema_guidance_without_adding_source_facts(monkeypatch):

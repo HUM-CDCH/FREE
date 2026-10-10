@@ -27,5 +27,7 @@ test('the durable expansion preserves the complete public contract and advances 
   assert.equal(goldRows.from,recovery.to)
   const evaluationRounds=JSON.parse(readFileSync(resolve(root,'20261006T0837_iterative_evaluation_rounds/migration.json'),'utf8'))
   assert.equal(evaluationRounds.from,goldRows.to)
-  assert.equal(ref.hash,evaluationRounds.to)
+  const whitespaceRecovery=JSON.parse(readFileSync(resolve(root,'20261010T0842_durable_whitespace_recovery/migration.json'),'utf8'))
+  assert.equal(whitespaceRecovery.from,evaluationRounds.to)
+  assert.equal(ref.hash,whitespaceRecovery.to)
 })

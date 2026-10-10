@@ -96,7 +96,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const provider={key:'stub',model:'stub',adapter:'instruct',adapterVersion:1,url:'http://stub/v1/chat/completions',timeout:60,maxTokens:100}
   await invoke('resolve_selection',[extraction,attempt,epoch,{models:{fields:provider,reasoning:provider},options:{},planner:1,protocols:{calls:1,source:'document'}}])
   const body={provider,composer:1,tokenizer:{model:'stub'},budget:{counted:10,context:1000,reserve:100},examples:[],omissions:[],
-    body:{stage:'record',record:0,system:'instructions',user:'exact original',schema:{type:'object'},max_tokens:100,max_whitespace:null,
+    body:{stage:'record',record:0,system:'instructions',user:'exact original',schema:{type:'object'},max_tokens:100,max_whitespace:null as number|null,
       httpRequest:{model:'stub',messages:[{role:'user',content:'exact original'}],max_tokens:100}}}
   await assert.rejects(invoke('finalize_input',[extraction,attempt,epoch,unit,{...body,provider:{...provider,password:'must not persist'}}]),(e:{code?:string})=>e.code==='22023')
   const input=await invoke('finalize_input',[extraction,attempt,epoch,unit,body])
@@ -166,6 +166,14 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     {unified:true,stage:'discovery',finish:'stop',intent:'RUN',recoverable:false},
     {unified:true,stage:'discovery',finish:null,intent:'RUN',recoverable:false},
     {unified:true,stage:'discovery',finish:'length',intent:'RUN',recoverable:false,mixed:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:true,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'PAUSE',recoverable:true,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'STOP',recoverable:true,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false},
+    {unified:false,stage:'record',finish:'stop',intent:'RUN',recoverable:false,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,bounded:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,promptOnly:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,mixed:true},
   ]) {
     const id=randomUUID(),selected=randomUUID(),active=randomUUID(),captureId=randomUUID()
     await owner.query(`INSERT INTO extraction_runtime.head
@@ -181,19 +189,90 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
       {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])
     await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',{...descriptor,planDigest:savedPlan.digest}])
-    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,body])
+    const policyBody=structuredClone(body)
+    if(policy.whitespace)Object.assign(policyBody.body.httpRequest,
+      {response_format:{type:'json_schema',json_schema:{name:'reply',schema:{type:'object'},strict:true}}})
+    if(policy.bounded){
+      policyBody.body.max_whitespace=16
+      delete (policyBody.body.httpRequest as Record<string,unknown>).response_format
+      Object.assign(policyBody.body.httpRequest,{structured_outputs:{grammar:'root ::= "{}"'}})
+    }
+    if(policy.promptOnly)delete (policyBody.body.httpRequest as Record<string,unknown>).response_format
+    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,policyBody])
     assert.equal(await invoke('begin_call',[id,active,lease.epoch,captureId]),true)
     await owner.query('UPDATE extraction_runtime.head SET intent=$2 WHERE id=$1',[id,policy.intent])
-    const output={parsed:null,recoverable:true,calls:[{ok:false,stage:policy.stage,finish:policy.finish},
+    const output={parsed:null,recoverable:true,calls:[{ok:false,stage:policy.stage,finish:policy.finish,
+      ...(policy.whitespace?{error:'the reply ran into a whitespace loop (128 of 136 characters trailing whitespace; finish_reason length)'}:{})},
       ...(policy.mixed?[{ok:false,stage:'discovery',finish:'stop'}]:[])]}
     const committed=await invoke('commit_output',[id,active,lease.epoch,captureId,frozen.digest,output])
     assert.equal(committed.recoverable,policy.recoverable,JSON.stringify(policy))
+    assert.equal(committed.recovery,policy.whitespace&&policy.recoverable?'whitespace':null)
     assert.deepEqual(await invoke('commit_output',[id,active,lease.epoch,captureId,frozen.digest,output]),committed)
     assert.equal((await invoke('read_call',[id,active,lease.epoch,captureId])).checkpoint.recoverable,policy.recoverable)
     assert.equal((await owner.query('SELECT intent FROM extraction_runtime.head WHERE id=$1',[id])).rows[0].intent,
       policy.recoverable?policy.intent:policy.intent==='STOP'?'STOP':'PAUSE')
     assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.checkpoint WHERE id=$1',[captureId])).rows[0].n,0)
     await assert.rejects(owner.query('UPDATE extraction_runtime."callFailure" SET recoverable=false WHERE "captureId"=$1',[captureId]),(e:{code?:string})=>e.code==='55000')
+    const derivedId=randomUUID()
+    const derivedManifest={plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'bounded'}],coverage:{dependency:committed.outputDigest}}
+    if(policy.intent==='RUN'){
+      const derivedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'bounded',derivedManifest])
+      if(policy.whitespace&&policy.recoverable){
+        const derived=await invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
+          {...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+        const original=await invoke('read_call',[id,active,lease.epoch,captureId])
+        assert.equal(derived.feedbackVersion,original.capture.feedbackVersion)
+        assert.deepEqual(derived.candidates,original.capture.candidates)
+      }else if(policy.recoverable){
+        await assert.rejects(invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
+          {...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),(e:{code?:string})=>e.code==='22023')
+      }
+    }
+    // Retry/Resume continues the bounded recovery: the original whitespace failure stays visible to later
+    // attempts, so its recovery plan and capture keep their identity and the original is never called again.
+    if(policy.whitespace&&policy.recoverable&&policy.intent!=='STOP'){
+      const boundedBody=structuredClone(policyBody)
+      boundedBody.body.max_whitespace=16
+      delete (boundedBody.body.httpRequest as Record<string,unknown>).response_format
+      Object.assign(boundedBody.body.httpRequest,{structured_outputs:{grammar:'root ::= "{}"'}})
+      let attempt=active,epoch=lease.epoch
+      if(policy.intent==='RUN'){
+        const bounded=await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
+        assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
+        const failed=await invoke('commit_output',[id,attempt,epoch,derivedId,bounded.digest,{parsed:null,calls:[{ok:false,stage:'record',finish:'length',
+          error:'the reply ran into a whitespace loop (16 of 20 characters trailing whitespace; finish_reason length)'}]}])
+        assert.equal(failed.recoverable,false)
+      }else{
+        // A pause between the recovery's plan and its capture: Resume must reuse that plan.
+        await owner.query(`UPDATE extraction_runtime.head SET intent='RUN' WHERE id=$1`,[id])
+        const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
+        await owner.query(`UPDATE extraction_runtime.head SET intent='PAUSE' WHERE id=$1`,[id])
+        assert.equal(await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),null)
+      }
+      for(const fence of [2,3]){
+        attempt=randomUUID()
+        await owner.query('INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,$4,$5)',[attempt,id,selected,fence,`test:${attempt}`])
+        await owner.query(`UPDATE extraction_runtime.head SET "attemptId"=$2,fence=$3,intent='RUN',acknowledgement='QUEUED',"leaseOwner"=NULL,"leaseUntil"=NULL WHERE id=$1`,[id,attempt,fence])
+        epoch=(await invoke('claim',[id,attempt,randomUUID()])).epoch
+        const original=await invoke('capture_unit',[id,attempt,epoch,randomUUID(),'policy',{...descriptor,planDigest:savedPlan.digest}])
+        assert.equal(original.id,captureId)
+        assert.equal(original.checkpoint.outputDigest,committed.outputDigest)
+        assert.equal(original.checkpoint.recovery,'whitespace')
+        const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
+        const derived=await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+        assert.equal(derived.id,derivedId)
+        if(fence===3){
+          assert.deepEqual(derived.checkpoint.output.parsed,{flag:true})
+          break
+        }
+        assert.equal(derived.checkpoint,null)
+        const input=derived.input??await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
+        assert.deepEqual(input.request,boundedBody)
+        assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
+        await invoke('commit_output',[id,attempt,epoch,derivedId,input.digest,{parsed:{flag:true},calls:[{ok:true}]}])
+      }
+      assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime."callFailure" WHERE "captureId"=$1',[captureId])).rows[0].n,1)
+    }
   }
   const denied = await owner.query(`SELECT has_schema_privilege('free_extraction_runtime', 'public', 'USAGE') AS allowed`)
   assert.equal(denied.rows[0].allowed, false)
