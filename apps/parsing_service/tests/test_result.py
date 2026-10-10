@@ -355,7 +355,7 @@ def test_the_native_text_rules_are_part_of_what_a_native_run_was_asked(digital_p
     assert made["text_rules"] == TEXT_RULES["native"]
     with patch.dict(TEXT_RULES, {"native": TEXT_RULES["native"] + 1}):
         assert fingerprint(recipe(native, "ab" * 32, None)) != fingerprint(made)
-    assert "text_rules" not in recipe(execution(digital_pdf, tmp_path), "ab" * 32, None)  # Surya's recipe unchanged
+    assert recipe(execution(digital_pdf, tmp_path), "ab" * 32, None)["text_rules"] == TEXT_RULES["surya"]
 
 
 def test_a_version_4_manifest_is_refused(written):

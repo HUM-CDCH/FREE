@@ -25,7 +25,9 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # native 3: a block merged across a column break publishes every box it is printed in (`PageSegment.boxes_pt`).
 # hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
 # publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 1}
+# hybrid 2: native blocks with undecodable font glyphs read by OCR in place; OCR HTML exported as UTF-8 (was guessed).
+# surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
+TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 2, "surya": 1}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
