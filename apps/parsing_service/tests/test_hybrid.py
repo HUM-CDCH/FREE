@@ -273,7 +273,9 @@ def test_real_native_and_selected_ocr_backends_preserve_the_illustrated_pdf(tmp_
     assert manifest.status == "success"
     pages = [read_page(execution.result_dir, n, manifest) for n in manifest.pages]
     assert len(pages) == manifest.page_count
-    assert sum(len(unit.crops) for page in pages for unit in page.units) == len(execution.ocr_regions)
+    # Native blocks with undecodable glyphs add text crops of their own (`execution.ocr_text`).
+    assert sum(crop.kind == "figure" for page in pages for unit in page.units for crop in unit.crops) \
+        == len(execution.ocr_regions)
     assert any(segment.crop is None and segment.text for page in pages for segment in page.segments)
 
 
