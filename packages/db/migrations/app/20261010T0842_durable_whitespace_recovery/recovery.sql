@@ -67,7 +67,6 @@ BEGIN
   RETURN to_jsonb(o);
 END $$;
 
-
 CREATE OR REPLACE FUNCTION extraction_runtime.capture_unit(p_extraction uuid, p_attempt uuid, epoch integer,
   identity uuid, unit_key text, descriptor jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog
@@ -123,4 +122,3 @@ BEGIN
     p_attempt, v, examples, descriptor, p_attempt, epoch, false, false) RETURNING * INTO c;
   RETURN to_jsonb(c) || jsonb_build_object('input', NULL, 'checkpoint', NULL);
 END $$;
-
