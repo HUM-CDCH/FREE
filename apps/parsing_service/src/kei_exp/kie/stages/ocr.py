@@ -20,12 +20,13 @@ from kei_exp.regions import Crop, anchor
 from kei_exp.report import write_report
 from kei_exp.result import Input, Inventory, Source, assemble_pages, fingerprint, page_markdown, recipe, write_result
 from kei_exp.transcription import hybrid
-from kei_exp.transcription.native import NativeText, native_regions
+from kei_exp.transcription.native import NativeText, native_regions, undecodable, undecodable_glyphs
 from kei_exp.transcription.surya import SuryaOcr
 from kei_exp.transcription.types import (
     ConversionError,
     Execution,
     IncompleteConversionError,
+    OcrRegion,
     RunParams,
     Transcriber,
     Transcription,
@@ -73,8 +74,9 @@ def check_ingest(page_source: str, ingest: dict | None) -> None:
 def resolve(params: RunParams) -> Execution:
     """The execution choice for params, made once per run.
 
-    Embedded text on every selected nonblank page runs natively; substantial textless artwork supplements it
-    with image-only OCR by the record's transcriber, whose knobs apply (`supplement`). A fully native run needs
+    Embedded text on every selected nonblank page runs natively; substantial textless artwork, and native blocks
+    whose font glyphs are undecodable, supplement it with OCR of their crops by the record's transcriber, whose
+    knobs apply (`supplement`). A fully native run needs
     no model or server. Otherwise scanned/mixed documents use the record's transcriber and the request's
     settings. ValueError: knobs set that the transcriber does not honour. ConversionError: the page range lies
     outside the PDF.
@@ -83,7 +85,8 @@ def resolve(params: RunParams) -> Execution:
         raise ValueError(f"page_source must be pdf or ingest, not {params.page_source!r}")
     check_ingest(params.page_source, params.ingest)
     regions = native_regions(params.pdf, params.pages)
-    if regions == ():
+    glyphs = regions is not None and undecodable_glyphs(params.pdf, params.pages)
+    if regions == () and not glyphs:
         return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=NativeText.kind,
                          model=None, repo=None, url=None, cut="none",
                          layout_model=None, crop_dpi=None, max_image_size=None, max_output_tokens=None,
@@ -97,7 +100,7 @@ def resolve(params: RunParams) -> Execution:
                          crop_dpi=params.crop_dpi, max_image_size=params.max_image_size,
                          max_output_tokens=params.max_output_tokens, stream=params.stream, pages=params.pages,
                          debug_dir=params.debug_dir, result_dir=params.result_dir, page_source="pdf", ingest_dir=None,
-                         ocr_regions=regions)
+                         ocr_regions=regions, ocr_text=glyphs)
     return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=record.kind,
                      model=params.model, repo=record.repo, url=params.url,
                      cut=params.cut, layout_model=params.layout_model if params.cut == "auto" else None,
@@ -145,32 +148,65 @@ def announce(emit: Emit, crop: Crop, ordinal: int, book: BookPages | None) -> No
           "width": image.width, "height": image.height, "ink": round(region.ink, 3)})
 
 
+def undecodable_blocks(native: Transcription) -> tuple[Transcription, list[OcrRegion], list[int]]:
+    """Native's records without their body blocks whose text keeps an undecodable glyph, and one region per box of
+    each (its caption's first, for a table), with the block's index among its page's native blocks. Running heads
+    and feet stay native."""
+    records, regions, positions = [], [], []
+    for record in native.pages:
+        kept = []
+        for index, block in enumerate(record.payload.get("blocks", [])):
+            if block["label"] in hybrid.FURNITURE or not undecodable(block["html"]):
+                kept.append(block)
+                continue
+            for box in [*block.get("caption_boxes", []), *block.get("boxes", [block["bbox"]])]:  # as its HTML reads
+                regions.append(OcrRegion(record.source_page, tuple(box)))
+                positions.append(index)
+        # An empty list, not a missing one: without blocks a page file publishes the record as one coarse segment.
+        records.append(record if len(kept) == len(record.payload.get("blocks", []))
+                       else replace(record, payload={**record.payload, "blocks": kept}))
+    return replace(native, pages=records), regions, positions
+
+
 def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcription:
     """A hybrid execution: the native transcriber on the selected pages, then the record's transcriber on one
-    crop per region of textless artwork, merged by `kei_exp.transcription.hybrid`.
+    crop per region of textless artwork and, with `ocr_text`, per native block with an undecodable glyph (which
+    leaves the native blocks and reads at its place), merged by `kei_exp.transcription.hybrid`.
 
     Each region reads at one anchor among its page's native blocks (`kei_exp.regions.anchor`, running heads and
     feet kept in place but never placing it), computed here once for both the Markdown and the page file; its
     crop's order is its rank among its page's regions in that reading order, so a page file's crops read in their
-    cut order. Crop n is `execution.ocr_regions[n - 1]`.
+    cut order. Crop n is `execution.ocr_regions[n - 1]`, then the undecodable blocks' in page and reading order.
     """
-    assert execution.ocr_regions and execution.model is not None and execution.crop_dpi is not None
-    emit({"type": "log", "text": f"Preserving native PDF text; OCR only on {len(execution.ocr_regions)} embedded regions."})
+    assert (execution.ocr_regions or execution.ocr_text) and execution.model is not None and execution.crop_dpi is not None
     native = TRANSCRIBERS[NativeText.kind].transcribe(execution, None, page_events(emit, inputs))
     blocks = {record.source_page: record.payload.get("blocks", []) for record in native.pages}
-    regions = execution.ocr_regions
-    anchors = [anchor([tuple(block["bbox"]) for block in blocks.get(region.page, [])], region.bbox,
-                      {n for n, block in enumerate(blocks.get(region.page, [])) if block["label"] in hybrid.FURNITURE})
-               for region in regions]
+    native, text_regions, positions = undecodable_blocks(native) if execution.ocr_text else (native, [], [])
+    regions = [*execution.ocr_regions, *text_regions]
+    kinds = ["figure"] * len(execution.ocr_regions) + ["text"] * len(text_regions)
+    # Each region's place in the native reading before any block was removed: artwork just before the block it
+    # anchors at, a replaced block at its own. Placed among the blocks kept, two can share an anchor; this keeps
+    # them in the order they were printed.
+    places = [anchor([tuple(block["bbox"]) for block in blocks.get(region.page, [])], region.bbox,
+                     {n for n, block in enumerate(blocks.get(region.page, [])) if block["label"] in hybrid.FURNITURE})
+              - 0.5 for region in execution.ocr_regions] + positions
+    removed: dict[int, set[int]] = {}
+    for region, position in zip(text_regions, positions):
+        removed.setdefault(region.page, set()).add(position)
+    anchors = [sum(1 for i in range(len(blocks.get(region.page, []))) if i < place and i not in removed.get(region.page, ()))
+               for region, place in zip(regions, places)]
+    if not regions:  # the screen saw an undecodable glyph that Docling's text does not keep
+        return native
+    emit({"type": "log", "text": f"Preserving native PDF text; OCR only on {len(regions)} regions."})
     orders: dict[int, int] = {}
     counts: dict[int, int] = {}
-    for n in sorted(range(len(regions)), key=lambda n: (regions[n].page, anchors[n], n)):
+    for n in sorted(range(len(regions)), key=lambda n: (regions[n].page, places[n], n)):
         orders[n] = counts.get(regions[n].page, 0)
         counts[regions[n].page] = orders[n] + 1
     crops: list[Crop] = []
     try:
         with PdfPages(execution.pdf) as pages:
-            for crop in artwork_crops(pages, ((region.page, region.bbox, orders[n])
+            for crop in artwork_crops(pages, ((region.page, region.bbox, orders[n], kinds[n])
                                               for n, region in enumerate(regions)), execution.crop_dpi):
                 crops.append(crop)
                 announce(emit, crop, len(crops), None)

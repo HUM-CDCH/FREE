@@ -19,6 +19,18 @@ ROUTINES = frozenset({"capabilities", "claim", "heartbeat", "publish_plan", "cap
                      "resolve_selection", "read_call", "historical_coverage", "read_latest_snapshot", "read_attempt_outcome", "read_deleted_graph"})
 
 
+def _storable(value):
+    """PostgreSQL text cannot hold NUL (22P05). A native PDF exposes it for an unmapped glyph, so it is stored as
+    U+FFFD: one code point either way, so character offsets into the source still hold."""
+    if isinstance(value, str):
+        return value.replace("\x00", "\ufffd")
+    if isinstance(value, (list, tuple)):
+        return [_storable(item) for item in value]
+    if isinstance(value, dict):
+        return {_storable(key): _storable(item) for key, item in value.items()}
+    return value
+
+
 class CoordinationPool:
     def __init__(self, url: str, maximum: int = 4):
         if not 1 <= maximum <= 4:
@@ -41,7 +53,7 @@ class CoordinationPool:
                     connection.execute("SET LOCAL TRANSACTION ISOLATION LEVEL READ COMMITTED")
                     connection.execute("SET LOCAL lock_timeout = '5s'")
                     connection.execute("SET LOCAL statement_timeout = '10s'")
-                    values = tuple(Jsonb(value) if isinstance(value, (dict, list)) else value for value in arguments)
+                    values = tuple(Jsonb(_storable(value)) if isinstance(value, (dict, list)) else _storable(value) for value in arguments)
                     placeholders = ",".join("%s" for _ in arguments)
                     row = connection.execute(f"SELECT extraction_runtime.{routine}({placeholders}) AS value", values).fetchone()
                     return row["value"]

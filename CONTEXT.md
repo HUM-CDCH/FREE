@@ -175,7 +175,7 @@ The versioned Catalog method a deployment can enable for new single and batch Ca
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:
-A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, and a role left unchosen uses the deployment's default.
+A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, except that its textless artwork and its blocks with undecodable font glyphs are read by the OCR model, and a role left unchosen uses the deployment's default.
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:

@@ -96,6 +96,43 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
         return tuple(regions) if found_text else None
 
 
+_TEXT_CONTROLS = frozenset(map(ord, "\t\n\r"))  # the C0 controls that are real text
+
+
+def undecodable_glyphs(path: Path, pages: tuple[int, int] | None = None) -> bool:
+    """Whether a selected page's embedded font renders a symbol (a minus, a degree sign) whose Unicode map exposes
+    only a control code. Native text would lose it, so the blocks carrying one are read by OCR (`undecodable`)."""
+    with pdfium_lock, pdfium.PdfDocument(str(path)) as document:
+        first, last = pages or (1, len(document))
+        for index in range(first - 1, last):
+            page = document[index]
+            try:
+                textpage = page.get_textpage()
+                try:
+                    if _has_undecodable_glyph(textpage):
+                        return True
+                finally:
+                    textpage.close()
+            finally:
+                page.close()
+    return False
+
+
+def undecodable(text: str) -> bool:
+    """Native text where Docling kept an undecodable glyph's control code; never guess the symbol it renders."""
+    return any(ord(char) < 32 and ord(char) not in _TEXT_CONTROLS for char in text)
+
+
+def _has_undecodable_glyph(textpage: pdfium.PdfTextPage) -> bool:
+    for index in range(textpage.count_chars()):
+        code = pdfium.raw.FPDFText_GetUnicode(textpage, index)
+        if code < 32 and code not in _TEXT_CONTROLS \
+                and not pdfium.raw.FPDFText_IsGenerated(textpage, index) \
+                and not pdfium.raw.FPDFText_IsHyphen(textpage, index):
+            return True
+    return False
+
+
 def _canvas_bounds(obj: pdfium.PdfObject) -> tuple[float, float, float, float]:
     """An object's bounds on the page canvas. PDFium bounds an object inside a Form XObject in that form's own
     space; the forms around it place it on the page. Recursing still matters: a page-sized scan or a textless
@@ -225,6 +262,12 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
             block["boxes"] = boxes
         if isinstance(item, TableItem):
             block["table"] = _table_of(item, document, page_no, html)
+            # Where the caption its HTML carries is printed: OCR read in the table's place must read it too.
+            captions = [[box.l, box.t, box.r, box.b] for reference in item.captions
+                        for prov in getattr(reference.resolve(document), "prov", []) if prov.page_no == page_no
+                        for box in [prov.bbox.to_top_left_origin(page.size.height)]]
+            if captions:
+                block["caption_boxes"] = captions
         blocks.append(block)
     return blocks
 

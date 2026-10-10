@@ -338,7 +338,8 @@ def test_the_execution_carries_the_requests_effective_settings(fake, scanned):
 
 def test_native_text_is_an_execution_of_its_own():
     # Native text is an execution of its own: no model, server, cut or knobs, whatever the request asked for.
-    with patch("kei_exp.kie.stages.ocr.native_regions", return_value=()):
+    with patch("kei_exp.kie.stages.ocr.native_regions", return_value=()), \
+            patch("kei_exp.kie.stages.ocr.undecodable_glyphs", return_value=False):
         execution = resolve(RunParams(pdf=Path("input.pdf"), model="fake", stream=True, max_image_size=1,
                                       crop_dpi=300, pages=(1, 1), debug_dir=Path("debug")))
     assert execution == Execution(pdf=Path("input.pdf"), transcriber="native", model=None, repo=None, url=None,
@@ -543,5 +544,6 @@ def test_the_recorded_layout_is_what_the_worker_resolves(tmp_path, monkeypatch):
     assert runs.execution_for(directory, {"model": "surya", "layout_model": "layout_heron_101",
                                           "page_source": "ingest"}).ingest is None
     monkeypatch.setattr(ocr_stage, "native_regions", lambda *_args, **_kwargs: ())
+    monkeypatch.setattr(ocr_stage, "undecodable_glyphs", lambda *_args, **_kwargs: False)
     native = runs.execution_for(directory, params)
     assert (native.page_source, native.ingest) == ("pdf", None)
