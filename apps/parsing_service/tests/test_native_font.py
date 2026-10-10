@@ -130,6 +130,22 @@ def test_an_undecodable_block_is_read_by_ocr_in_its_place_and_published_without_
     assert (crop.kind, crop.bbox_pt) == ("text", (40, 90, 200, 110))
 
 
+def test_artwork_printed_after_a_replaced_block_reads_after_it(tmp_path, monkeypatch):
+    """Both anchor before "Native below" among the blocks kept; the page's printed order breaks the tie."""
+    broken, _ = _pdfs(tmp_path)
+    execution = replace(resolve(RunParams(pdf=broken, model="surya", result_dir=tmp_path / "result")),
+                        ocr_regions=(OcrRegion(1, (40, 120, 260, 140)),))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", Mock(return_value=Transcription({}, [
+        record(1, [block("Native above", (40, 20, 260, 40)), block("Units: cm \x00 1", (40, 90, 200, 110)),
+                   block("Native below", (40, 150, 260, 170))], source_page=1)])))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", lambda request, crops, emit: Transcription({}, [
+        record(n, [block(TEXT if region.kind == "text" else "Artwork words", (0, 0, image.width, image.height))],
+               image=image) for n, (_, region, image) in enumerate(crops, 1)]))
+    ocr.run(execution, lambda _: None)
+    page = read_page(execution.result_dir, 1, read_manifest(execution.result_dir))
+    assert [segment.text for segment in page.segments] == ["Native above", TEXT, "Artwork words", "Native below"]
+
+
 def test_a_screened_glyph_that_docling_decodes_needs_no_ocr(tmp_path, monkeypatch):
     broken, _ = _pdfs(tmp_path)
     execution = resolve(RunParams(pdf=broken, model="surya", result_dir=tmp_path / "result"))

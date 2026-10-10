@@ -150,21 +150,22 @@ def announce(emit: Emit, crop: Crop, ordinal: int, book: BookPages | None) -> No
 
 def undecodable_blocks(native: Transcription) -> tuple[Transcription, list[OcrRegion], list[int]]:
     """Native's records without their body blocks whose text keeps an undecodable glyph, and one region per box of
-    each, anchored where the block read among the blocks kept. Running heads and feet stay native."""
-    records, regions, anchors = [], [], []
+    each (its caption's first, for a table), with the block's index among its page's native blocks. Running heads
+    and feet stay native."""
+    records, regions, positions = [], [], []
     for record in native.pages:
         kept = []
-        for block in record.payload.get("blocks", []):
+        for index, block in enumerate(record.payload.get("blocks", [])):
             if block["label"] in hybrid.FURNITURE or not undecodable(block["html"]):
                 kept.append(block)
                 continue
             for box in [*block.get("caption_boxes", []), *block.get("boxes", [block["bbox"]])]:  # as its HTML reads
                 regions.append(OcrRegion(record.source_page, tuple(box)))
-                anchors.append(len(kept))
+                positions.append(index)
         # An empty list, not a missing one: without blocks a page file publishes the record as one coarse segment.
         records.append(record if len(kept) == len(record.payload.get("blocks", []))
                        else replace(record, payload={**record.payload, "blocks": kept}))
-    return replace(native, pages=records), regions, anchors
+    return replace(native, pages=records), regions, positions
 
 
 def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcription:
@@ -179,19 +180,27 @@ def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcrip
     """
     assert (execution.ocr_regions or execution.ocr_text) and execution.model is not None and execution.crop_dpi is not None
     native = TRANSCRIBERS[NativeText.kind].transcribe(execution, None, page_events(emit, inputs))
-    native, text_regions, text_anchors = undecodable_blocks(native) if execution.ocr_text else (native, [], [])
     blocks = {record.source_page: record.payload.get("blocks", []) for record in native.pages}
+    native, text_regions, positions = undecodable_blocks(native) if execution.ocr_text else (native, [], [])
     regions = [*execution.ocr_regions, *text_regions]
     kinds = ["figure"] * len(execution.ocr_regions) + ["text"] * len(text_regions)
-    anchors = [anchor([tuple(block["bbox"]) for block in blocks.get(region.page, [])], region.bbox,
-                      {n for n, block in enumerate(blocks.get(region.page, [])) if block["label"] in hybrid.FURNITURE})
-               for region in execution.ocr_regions] + text_anchors
+    # Each region's place in the native reading before any block was removed: artwork just before the block it
+    # anchors at, a replaced block at its own. Placed among the blocks kept, two can share an anchor; this keeps
+    # them in the order they were printed.
+    places = [anchor([tuple(block["bbox"]) for block in blocks.get(region.page, [])], region.bbox,
+                     {n for n, block in enumerate(blocks.get(region.page, [])) if block["label"] in hybrid.FURNITURE})
+              - 0.5 for region in execution.ocr_regions] + positions
+    removed: dict[int, set[int]] = {}
+    for region, position in zip(text_regions, positions):
+        removed.setdefault(region.page, set()).add(position)
+    anchors = [sum(1 for i in range(len(blocks.get(region.page, []))) if i < place and i not in removed.get(region.page, ()))
+               for region, place in zip(regions, places)]
     if not regions:  # the screen saw an undecodable glyph that Docling's text does not keep
         return native
     emit({"type": "log", "text": f"Preserving native PDF text; OCR only on {len(regions)} regions."})
     orders: dict[int, int] = {}
     counts: dict[int, int] = {}
-    for n in sorted(range(len(regions)), key=lambda n: (regions[n].page, anchors[n], n)):
+    for n in sorted(range(len(regions)), key=lambda n: (regions[n].page, places[n], n)):
         orders[n] = counts.get(regions[n].page, 0)
         counts[regions[n].page] = orders[n] + 1
     crops: list[Crop] = []
