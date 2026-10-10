@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs';
 import type { Contract as End } from './end-contract';
 import endContract from './end-contract.json' with { type: 'json' };
-import type { Contract as Start } from './start-contract';
-import startContract from './start-contract.json' with { type: 'json' };
+import type { Contract as Start } from '../20261006T0837_iterative_evaluation_rounds/end-contract';
+import startContract from '../20261006T0837_iterative_evaluation_rounds/end-contract.json' with { type: 'json' };
 import { Migration, MigrationCLI, col } from '@prisma-next/postgres/migration';
 
 export default class M extends Migration<Start, End> {
