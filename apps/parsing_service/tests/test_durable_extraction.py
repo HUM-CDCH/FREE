@@ -68,14 +68,17 @@ class MemoryLease:
                 if self.intent != "RUN":
                     return None
                 self.units[key]={"id":identity,"descriptor":descriptor,"candidates":deepcopy(self.candidates),
-                                 "input":None,"checkpoint":None}
+                                 "input":None,"checkpoint":None,"failures":{}}
                 if descriptor.get("derivedFrom"):
                     parent=next(u for u in self.units.values() if u["id"]==descriptor["derivedFrom"])
                     self.units[key]["candidates"]=deepcopy(parent["candidates"])
             unit=self.units[key]
-            if self.intent != "RUN" and unit["checkpoint"] is None:
+            # A failed reply is attempt-local, except a whitespace failure that its bounded recovery continues.
+            saved=unit["checkpoint"] or unit["failures"].get(self.attempt) or next(
+                (failure for failure in unit["failures"].values() if failure.get("recovery")=="whitespace"),None)
+            if self.intent != "RUN" and saved is None:
                 return None
-            return deepcopy(unit)
+            return deepcopy({**unit,"checkpoint":saved})
         if name == "finalize_input":
             identity,request=args
             unit=next(u for u in self.units.values() if u["id"]==identity)
@@ -500,15 +503,18 @@ def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_input
                                                    body.pop("httpRequest"))
         parsed, attempts = calls.complete(transport, **body, counter=worker.PinnedCounter(request["budget"]))
         output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
-        unit["checkpoint"] = {"outputDigest": digest(output), "output": output,
-                              "recoverable": request["body"]["max_whitespace"] is None,
-                              "recovery": "whitespace" if request["body"]["max_whitespace"] is None else None}
+        if all(call.ok for call in attempts):
+            unit["checkpoint"] = {"outputDigest": digest(output), "output": output}
+            return
+        unit["failures"][lease.attempt] = {"outputDigest": digest(output), "output": output,
+                                           "recoverable": request["body"]["max_whitespace"] is None,
+                                           "recovery": "whitespace" if request["body"]["max_whitespace"] is None else None}
 
     with pytest.raises(NeedsCall):
         plan()
     parent = next(iter(lease.units.values()))
     execute(parent, loop, "length")
-    assert not parent["checkpoint"]["output"]["calls"][0]["ok"]
+    assert not parent["failures"][lease.attempt]["output"]["calls"][0]["ok"]
     frozen = deepcopy(parent)
     lease.candidates = [{"id": "a correction made after the failed call"}]
     with pytest.raises(NeedsCall):
@@ -531,6 +537,22 @@ def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_input
     assert parent == frozen
     assert plan()[0] == fields
     assert len(posted) == len(lease.units) == 2
+
+    # Retry/Resume: a new attempt continues the recovery and never repeats the unbounded original.
+    plans = deepcopy(lease.plans)
+    lease.attempt = str(uuid4())
+    if recovery_ok:
+        assert plan()[0] == fields
+    else:
+        planner = CapturePlanner(lease, {"fields": counter})
+        with pytest.raises(NeedsCall):
+            extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
+                           Router(chat, chat, planner), budget=48000, record=0, counter=counter, document=True)
+        assert list(planner.pending) == [recovery["id"]]
+        execute(recovery, '{"year":2020}', "stop")
+        assert plan()[0] == {"year": 2020}
+    assert len(posted) == (2 if recovery_ok else 3)
+    assert len(lease.units) == 2 and lease.plans == plans and parent == frozen
 
 
 def test_native_input_captures_schema_guidance_without_adding_source_facts(monkeypatch):

@@ -72,7 +72,7 @@ CREATE OR REPLACE FUNCTION extraction_runtime.capture_unit(p_extraction uuid, p_
   identity uuid, unit_key text, descriptor jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog
 AS $$
-DECLARE h extraction_runtime.head; c extraction_runtime.capture; project uuid; v integer; examples jsonb; parent extraction_runtime.capture;
+DECLARE h extraction_runtime.head; c extraction_runtime.capture; project uuid; v integer; examples jsonb; parent extraction_runtime.capture; saved jsonb;
 BEGIN
   -- Lock order: project feedback before p_extraction control, including replays.
   SELECT "projectId" INTO project FROM extraction_runtime.head WHERE id = p_extraction;
@@ -82,11 +82,17 @@ BEGIN
     AND generation = h.generation AND "unitKey" = unit_key;
   IF FOUND THEN
     IF c.descriptor IS DISTINCT FROM descriptor THEN RAISE EXCEPTION 'unit identity conflict' USING ERRCODE = '23505'; END IF;
-    IF h.intent <> 'RUN' AND NOT EXISTS (SELECT FROM extraction_runtime.checkpoint WHERE id=c.id) AND NOT EXISTS (SELECT FROM extraction_runtime."callFailure" WHERE "captureId"=c.id AND "attemptId"=p_attempt) THEN RETURN NULL; END IF;
+    -- A whitespace failure stays visible to later attempts, so Retry/Resume continues
+    -- its bounded recovery instead of calling the unbounded original again.
+    saved := coalesce((SELECT to_jsonb(o) FROM extraction_runtime.checkpoint o WHERE o.id = c.id),
+      (SELECT to_jsonb(f) FROM extraction_runtime."callFailure" f WHERE f."captureId"=c.id AND f."attemptId"=p_attempt),
+      (SELECT to_jsonb(f) FROM extraction_runtime."callFailure" f WHERE f."captureId"=c.id AND f.recovery='whitespace'
+        ORDER BY f."attemptId" LIMIT 1));
+    IF h.intent <> 'RUN' AND saved IS NULL THEN RETURN NULL; END IF;
     UPDATE extraction_runtime.capture SET "reservationAttemptId" = p_attempt, "reservationEpoch" = epoch WHERE id = c.id;
     c."reservationAttemptId" := p_attempt; c."reservationEpoch" := epoch;
     RETURN to_jsonb(c) || jsonb_build_object('input', (SELECT to_jsonb(i) FROM extraction_runtime.input i WHERE i.id = c.id),
-      'checkpoint', coalesce((SELECT to_jsonb(o) FROM extraction_runtime.checkpoint o WHERE o.id = c.id), (SELECT to_jsonb(f) FROM extraction_runtime."callFailure" f WHERE f."captureId"=c.id AND f."attemptId"=p_attempt)));
+      'checkpoint', saved);
   END IF;
   IF h.intent <> 'RUN' THEN RETURN NULL; END IF;
   IF v IS NULL OR length(unit_key) NOT BETWEEN 1 AND 256 OR jsonb_typeof(descriptor) <> 'object'
@@ -109,7 +115,7 @@ BEGIN
       AND origin."extractionId"=p_extraction AND origin.generation=h.generation AND origin."selectionId"=h."selectionId"
       AND (EXISTS (SELECT FROM extraction_runtime.checkpoint o WHERE o.id=origin.id AND o.output->>'formatRefused'='true')
         OR EXISTS (SELECT FROM extraction_runtime."callFailure" f WHERE f."captureId"=origin.id
-          AND f."attemptId"=p_attempt AND f.recoverable AND f.recovery='whitespace'));
+          AND f.recoverable AND f.recovery='whitespace'));
     IF NOT FOUND THEN RAISE EXCEPTION 'invalid fallback dependency' USING ERRCODE='22023'; END IF;
     v:=parent."feedbackVersion"; examples:=parent.candidates;
   END IF;

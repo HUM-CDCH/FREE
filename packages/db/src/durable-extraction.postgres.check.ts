@@ -213,10 +213,10 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
       policy.recoverable?policy.intent:policy.intent==='STOP'?'STOP':'PAUSE')
     assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.checkpoint WHERE id=$1',[captureId])).rows[0].n,0)
     await assert.rejects(owner.query('UPDATE extraction_runtime."callFailure" SET recoverable=false WHERE "captureId"=$1',[captureId]),(e:{code?:string})=>e.code==='55000')
+    const derivedId=randomUUID()
+    const derivedManifest={plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'bounded'}],coverage:{dependency:committed.outputDigest}}
     if(policy.intent==='RUN'){
-      const derivedId=randomUUID()
-      const derivedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'bounded',
-        {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'bounded'}],coverage:{dependency:committed.outputDigest}}])
+      const derivedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'bounded',derivedManifest])
       if(policy.whitespace&&policy.recoverable){
         const derived=await invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
           {...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
@@ -227,6 +227,51 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
         await assert.rejects(invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
           {...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),(e:{code?:string})=>e.code==='22023')
       }
+    }
+    // Retry/Resume continues the bounded recovery: the original whitespace failure stays visible to later
+    // attempts, so its recovery plan and capture keep their identity and the original is never called again.
+    if(policy.whitespace&&policy.recoverable&&policy.intent!=='STOP'){
+      const boundedBody=structuredClone(policyBody)
+      boundedBody.body.max_whitespace=16
+      delete (boundedBody.body.httpRequest as Record<string,unknown>).response_format
+      Object.assign(boundedBody.body.httpRequest,{structured_outputs:{grammar:'root ::= "{}"'}})
+      let attempt=active,epoch=lease.epoch
+      if(policy.intent==='RUN'){
+        const bounded=await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
+        assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
+        const failed=await invoke('commit_output',[id,attempt,epoch,derivedId,bounded.digest,{parsed:null,calls:[{ok:false,stage:'record',finish:'length',
+          error:'the reply ran into a whitespace loop (16 of 20 characters trailing whitespace; finish_reason length)'}]}])
+        assert.equal(failed.recoverable,false)
+      }else{
+        // A pause between the recovery's plan and its capture: Resume must reuse that plan.
+        await owner.query(`UPDATE extraction_runtime.head SET intent='RUN' WHERE id=$1`,[id])
+        const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
+        await owner.query(`UPDATE extraction_runtime.head SET intent='PAUSE' WHERE id=$1`,[id])
+        assert.equal(await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),null)
+      }
+      for(const fence of [2,3]){
+        attempt=randomUUID()
+        await owner.query('INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,$4,$5)',[attempt,id,selected,fence,`test:${attempt}`])
+        await owner.query(`UPDATE extraction_runtime.head SET "attemptId"=$2,fence=$3,intent='RUN',acknowledgement='QUEUED',"leaseOwner"=NULL,"leaseUntil"=NULL WHERE id=$1`,[id,attempt,fence])
+        epoch=(await invoke('claim',[id,attempt,randomUUID()])).epoch
+        const original=await invoke('capture_unit',[id,attempt,epoch,randomUUID(),'policy',{...descriptor,planDigest:savedPlan.digest}])
+        assert.equal(original.id,captureId)
+        assert.equal(original.checkpoint.outputDigest,committed.outputDigest)
+        assert.equal(original.checkpoint.recovery,'whitespace')
+        const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
+        const derived=await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+        assert.equal(derived.id,derivedId)
+        if(fence===3){
+          assert.deepEqual(derived.checkpoint.output.parsed,{flag:true})
+          break
+        }
+        assert.equal(derived.checkpoint,null)
+        const input=derived.input??await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
+        assert.deepEqual(input.request,boundedBody)
+        assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
+        await invoke('commit_output',[id,attempt,epoch,derivedId,input.digest,{parsed:{flag:true},calls:[{ok:true}]}])
+      }
+      assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime."callFailure" WHERE "captureId"=$1',[captureId])).rows[0].n,1)
     }
   }
   const denied = await owner.query(`SELECT has_schema_privilege('free_extraction_runtime', 'public', 'USAGE') AS allowed`)

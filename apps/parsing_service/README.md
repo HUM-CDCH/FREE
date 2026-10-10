@@ -70,7 +70,8 @@ this worker's boot clock; cancellation alone never proves that.
 A schema-constrained instruction-model record reply that loops on whitespace
 gets one separate durable recovery call with at most 16 whitespace characters
 between JSON tokens. It keeps the original source, guidance and token budget;
-both attempts stay in History. A failed bounded reply still halts the attempt.
+both attempts stay in History. A failed bounded reply still halts the attempt;
+Retry/Resume continues the bounded recovery and never repeats the original.
 
 `KEI_RUNS` holds the runs' sources, canonical parse results and recipe
 segmentations; durable Extraction results live in the coordination schema. It is
