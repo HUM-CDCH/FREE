@@ -26,9 +26,9 @@ from kei_exp.geometry import PointBox
 from kei_exp.pages import PageSource, RenderablePage
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
 
-# Surya reads no block in text cut flush to its glyphs: a native block's crop gets this much white around it. What
-# matters is the margin's own size (about 13 pt at 250 dpi); a share of the crop gives a short word almost none
-# (15% of the long side left 10 of 594 test crops empty, 24 pt 1; measured on real crops in #239).
+# Surya reads no block in text cut flush to its glyphs: a native block's crop gets this much white around it, whatever
+# its size. On 594 real crops at 250 dpi (#239) a read with 13 pt of margin or more came back empty only for one crop
+# no margin made readable; 15% of the long side gave a short word or number almost none (10 empty).
 TEXT_MARGIN = 24          # pt
 LAYOUT_DPI = 100          # The layout detector resizes to 640 px; 100 dpi keeps the ink profile usable.
 # ponytail: fixed thresholds tuned on the Bauer scan (9 pt column gaps, 90 pt gutter);

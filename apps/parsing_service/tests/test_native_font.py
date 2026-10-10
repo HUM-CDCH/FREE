@@ -187,11 +187,11 @@ def test_ocr_returning_no_text_for_a_native_block_is_incomplete(tmp_path, monkey
         ocr.run(_only_block_read_by(tmp_path, monkeypatch, None, read), lambda _: None)
 
 
-def test_a_text_crop_gets_a_white_margin_and_its_pixels_still_map_to_the_block(tmp_path):
+@pytest.mark.parametrize("bbox", [(50.0, 60.0, 250.0, 100.0), (50.0, 60.0, 70.0, 72.0)], ids=["line", "short word"])
+def test_a_text_crop_gets_a_white_margin_and_its_pixels_still_map_to_the_block(tmp_path, bbox):
     from kei_exp.cut import artwork_crops
     from kei_exp.pages import PdfPages
     pdf, _ = _pdfs(tmp_path)
-    bbox = (50.0, 60.0, 250.0, 100.0)
     with PdfPages(pdf) as pages:
         (_, figure, plain), (_, text, image) = artwork_crops(pages, [(1, bbox, 0, "figure"), (1, bbox, 1, "text")], 144)
     pad = (image.width - plain.width) // 2
