@@ -61,8 +61,9 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
 
 
 def _has_text(record: PageRecord) -> bool:
+    # Not the Markdown: Docling exports Surya's bare `<img/>` (a table it read as a picture) as `<!-- image -->`.
     blocks = record.payload.get("blocks") or []
-    return any(part.strip() for part in [record.text, record.markdown,
+    return any(part.strip() for part in [record.text,
                                          *(html_to_text(b["html"]) for b in blocks if not b.get("skipped"))])
 
 

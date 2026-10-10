@@ -156,12 +156,13 @@ def test_a_screened_glyph_that_docling_decodes_needs_no_ocr(tmp_path, monkeypatc
     assert read_manifest(execution.result_dir).status == "success"
 
 
-def _only_block_read_by(tmp_path, monkeypatch, ocr_text):
+def _only_block_read_by(tmp_path, monkeypatch, ocr_text, read=None):
     broken, _ = _pdfs(tmp_path)
     execution = resolve(RunParams(pdf=broken, model="surya", result_dir=tmp_path / "result"))
     monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", Mock(return_value=Transcription({}, [
         record(1, [block("Units: cm \x00 1", (40, 90, 200, 110))], source_page=1)])))
     monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", lambda request, crops, emit: Transcription({}, [
+        read(image) if read else
         record(1, [block(ocr_text, (0, 0, image.width, image.height))] if ocr_text else [], image=image)
         for _, _, image in crops]))
     return execution
@@ -174,9 +175,16 @@ def test_a_page_whose_only_block_is_read_by_ocr_publishes_it_once(tmp_path, monk
     assert [(segment.text, segment.extent) for segment in page.segments] == [(TEXT, "block")]
 
 
-def test_ocr_returning_no_text_for_a_native_block_is_incomplete(tmp_path, monkeypatch):
+def _picture(image):
+    """Surya reading a crop as a bare picture, as its adapter records it: Docling exports `<img/>` as a placeholder."""
+    return replace(record(1, [{**block("", (0, 0, image.width, image.height), "Table"), "html": "<img/>"}],
+                          image=image), markdown="<!-- image -->")
+
+
+@pytest.mark.parametrize("read", [None, _picture], ids=["no block", "a picture"])
+def test_ocr_returning_no_text_for_a_native_block_is_incomplete(tmp_path, monkeypatch, read):
     with pytest.raises(IncompleteConversionError, match="native text crop 1 returned no text"):
-        ocr.run(_only_block_read_by(tmp_path, monkeypatch, None), lambda _: None)
+        ocr.run(_only_block_read_by(tmp_path, monkeypatch, None, read), lambda _: None)
 
 
 def test_a_text_crop_gets_a_white_margin_and_its_pixels_still_map_to_the_block(tmp_path):
@@ -187,7 +195,7 @@ def test_a_text_crop_gets_a_white_margin_and_its_pixels_still_map_to_the_block(t
     with PdfPages(pdf) as pages:
         (_, figure, plain), (_, text, image) = artwork_crops(pages, [(1, bbox, 0, "figure"), (1, bbox, 1, "text")], 144)
     pad = (image.width - plain.width) // 2
-    assert pad == round(0.15 * max(plain.size)) and image.height == plain.height + 2 * pad
+    assert pad == 48 and image.height == plain.height + 2 * pad  # 24 pt at 144 dpi, whatever the block's size
     assert image.getpixel((0, 0)) == image.getpixel((image.width - 1, image.height - 1)) == 255
     assert text.transform.to_unit_points((pad, pad, pad + plain.width, pad + plain.height)) == pytest.approx(
         figure.transform.to_unit_points((0, 0, plain.width, plain.height)))

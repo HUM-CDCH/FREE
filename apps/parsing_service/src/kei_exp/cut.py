@@ -26,9 +26,10 @@ from kei_exp.geometry import PointBox
 from kei_exp.pages import PageSource, RenderablePage
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
 
-# Surya's layout finds no block in text cut flush to its glyphs: a native block's crop gets this share of its long
-# side as white margin (5% still lost a one-word line; measured on real crops).
-TEXT_MARGIN = 0.15
+# Surya reads no block in text cut flush to its glyphs: a native block's crop gets this much white around it. What
+# matters is the margin's own size (about 13 pt at 250 dpi); a share of the crop gives a short word almost none
+# (15% of the long side left 10 of 594 test crops empty, 24 pt 1; measured on real crops in #239).
+TEXT_MARGIN = 24          # pt
 LAYOUT_DPI = 100          # The layout detector resizes to 640 px; 100 dpi keeps the ink profile usable.
 # ponytail: fixed thresholds tuned on the Bauer scan (9 pt column gaps, 90 pt gutter);
 # derive them from the document's median line pitch if another corpus fails the checks.
@@ -348,9 +349,9 @@ def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int,
 def _margined(image: Image.Image, region: Region) -> tuple[Image.Image, Region]:
     """White around the crop, not more of the page, which would read neighbouring text twice; the transform moves
     its origin out by the margin so the crop's pixels still map to page points."""
-    pad = round(TEXT_MARGIN * max(image.size))
     transform = region.transform
     assert transform is not None and transform.source_px is None  # a pdfium crop: no native raster rectangle
+    pad = round(TEXT_MARGIN / transform.pt_per_px_x)
     return ImageOps.expand(image, pad, fill="white"), replace(region, transform=transform._replace(
         origin_x=transform.origin_x - pad * transform.pt_per_px_x,
         origin_y=transform.origin_y - pad * transform.pt_per_px_y))

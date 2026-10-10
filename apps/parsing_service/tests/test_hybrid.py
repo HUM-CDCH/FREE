@@ -524,7 +524,7 @@ def test_a_hybrid_recipe_changes_with_native_text_rules_and_others_keep_their_fi
     native = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
     with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None):
         scan = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
-    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 2, "native": 3, "surya": 1}
+    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 3, "native": 3, "surya": 1}
     assert recipe(native, "0" * 64, None)["text_rules"] == 3
     assert recipe(scan, "0" * 64, None)["text_rules"] == 1
     before = {name: fingerprint(recipe(e, "0" * 64, None)) for name, e in
