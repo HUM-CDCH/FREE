@@ -218,6 +218,18 @@ in the shell, because Compose interpolates the whole development overlay;
 `db` itself does not use the secret. After a first `pnpm dev`, use the
 launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
 
+- After `pnpm db:generate`, plan a migration with
+  `pnpm --filter db db:migration plan --name <slug>`. Prisma Next 0.16 copies
+  the predecessor's end contract into each new migration as `start-contract.*`;
+  the script replaces that copy with imports of the existing `end-contract.*`.
+  It also shares copies after `migration new`. Other migration subcommands pass
+  through without editing files; without arguments it only shares copies already
+  on disk. Historical snapshots stay intact; `pnpm --filter db test` rejects a
+  shareable start copy in a new migration.
+  Upgrading to Prisma Next 0.17's snapshot store also changes contract and
+  migration hashes. Its layout migrator recognizes only `./start-contract`
+  imports, so restore those import paths before that upgrade; the migrator
+  reconstructs missing start snapshots from preceding end snapshots.
 - `pnpm --filter db db:init` replays authored forward migrations against
   `DATABASE_URL`. It does not reset or seed data and may deliberately target a
   deployment database.

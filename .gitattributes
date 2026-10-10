@@ -1,0 +1,5 @@
+# Collapse generated migration snapshots in GitHub diffs.
+packages/db/migrations/app/*/start-contract.json linguist-generated=true
+packages/db/migrations/app/*/end-contract.json linguist-generated=true
+packages/db/migrations/app/*/start-contract.d.ts linguist-generated=true
+packages/db/migrations/app/*/end-contract.d.ts linguist-generated=true
