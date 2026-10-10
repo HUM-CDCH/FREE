@@ -33,13 +33,13 @@ export async function provisionDatabase(baseUrl: string, name: string) {
   return { url, drop: () => admin(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`) }
 }
 
-/** The real migration runner (`prisma-next migrate`), to `to` or to the head. */
-export async function migrate(url: string, to?: string): Promise<{ applied: string[] }> {
+/** The real migration runner (`prisma-next migrate`), to `to` or to the head of `packageDirectory`'s migrations. */
+export async function migrate(url: string, to?: string, packageDirectory = packageRoot): Promise<{ applied: string[] }> {
   validateDisposableTestDatabaseTarget(url)
   const { stdout } = await promisify(execFile)(
     resolve(packageRoot, 'node_modules/.bin/prisma-next'),
     ['migrate', '--yes', '--json', '--no-color', '--db', url, ...(to ? ['--to', to] : [])],
-    { cwd: packageRoot, env: { ...process.env, DATABASE_URL: url }, maxBuffer: 16 * 1024 * 1024 },
+    { cwd: packageDirectory, env: { ...process.env, DATABASE_URL: url }, maxBuffer: 16 * 1024 * 1024 },
   )
   const report = JSON.parse(stdout) as { ok: boolean; applied: Array<{ dirName: string; operationsExecuted: number }> }
   if (!report.ok) throw new Error(`prisma-next migrate failed: ${stdout}`)
