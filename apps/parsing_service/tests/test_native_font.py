@@ -93,6 +93,13 @@ def test_only_body_blocks_keeping_a_control_code_leave_native_text_one_region_pe
     assert anchors == [2, 2, 0]
 
 
+def test_a_table_read_by_ocr_reads_its_caption_too():
+    """A table's HTML carries its caption, printed outside the table's box."""
+    table = {**block("Location (cm \x00 1) 1696", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]]}
+    _, regions, anchors = undecodable_blocks(Transcription({}, [record(1, [table], source_page=1)]))
+    assert regions == [OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))] and anchors == [0, 0]
+
+
 # Long enough that an undeclared encoding was guessed wrong, as on a real page.
 TEXT = "1651 cm⁻¹ and 1649 cm⁻¹, respectively, indicating the presence of amide I groups of proteins."
 
@@ -154,3 +161,17 @@ def test_a_page_whose_only_block_is_read_by_ocr_publishes_it_once(tmp_path, monk
 def test_ocr_returning_no_text_for_a_native_block_is_incomplete(tmp_path, monkeypatch):
     with pytest.raises(IncompleteConversionError, match="native text crop 1 returned no text"):
         ocr.run(_only_block_read_by(tmp_path, monkeypatch, None), lambda _: None)
+
+
+def test_a_text_crop_gets_a_white_margin_and_its_pixels_still_map_to_the_block(tmp_path):
+    from kei_exp.cut import artwork_crops
+    from kei_exp.pages import PdfPages
+    pdf, _ = _pdfs(tmp_path)
+    bbox = (50.0, 60.0, 250.0, 100.0)
+    with PdfPages(pdf) as pages:
+        (_, figure, plain), (_, text, image) = artwork_crops(pages, [(1, bbox, 0, "figure"), (1, bbox, 1, "text")], 144)
+    pad = (image.width - plain.width) // 2
+    assert pad == round(0.15 * max(plain.size)) and image.height == plain.height + 2 * pad
+    assert image.getpixel((0, 0)) == image.getpixel((image.width - 1, image.height - 1)) == 255
+    assert text.transform.to_unit_points((pad, pad, pad + plain.width, pad + plain.height)) == pytest.approx(
+        figure.transform.to_unit_points((0, 0, plain.width, plain.height)))

@@ -262,6 +262,12 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
             block["boxes"] = boxes
         if isinstance(item, TableItem):
             block["table"] = _table_of(item, document, page_no, html)
+            # Where the caption its HTML carries is printed: OCR read in the table's place must read it too.
+            captions = [[box.l, box.t, box.r, box.b] for reference in item.captions
+                        for prov in getattr(reference.resolve(document), "prov", []) if prov.page_no == page_no
+                        for box in [prov.bbox.to_top_left_origin(page.size.height)]]
+            if captions:
+                block["caption_boxes"] = captions
         blocks.append(block)
     return blocks
 

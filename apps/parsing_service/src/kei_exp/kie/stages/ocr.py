@@ -158,7 +158,7 @@ def undecodable_blocks(native: Transcription) -> tuple[Transcription, list[OcrRe
             if block["label"] in hybrid.FURNITURE or not undecodable(block["html"]):
                 kept.append(block)
                 continue
-            for box in block.get("boxes", [block["bbox"]]):
+            for box in [*block.get("caption_boxes", []), *block.get("boxes", [block["bbox"]])]:  # as its HTML reads
                 regions.append(OcrRegion(record.source_page, tuple(box)))
                 anchors.append(len(kept))
         # An empty list, not a missing one: without blocks a page file publishes the record as one coarse segment.
