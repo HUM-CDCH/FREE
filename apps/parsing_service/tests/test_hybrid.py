@@ -273,7 +273,9 @@ def test_real_native_and_selected_ocr_backends_preserve_the_illustrated_pdf(tmp_
     assert manifest.status == "success"
     pages = [read_page(execution.result_dir, n, manifest) for n in manifest.pages]
     assert len(pages) == manifest.page_count
-    assert sum(len(unit.crops) for page in pages for unit in page.units) == len(execution.ocr_regions)
+    # Native blocks with undecodable glyphs add text crops of their own (`execution.ocr_text`).
+    assert sum(crop.kind == "figure" for page in pages for unit in page.units for crop in unit.crops) \
+        == len(execution.ocr_regions)
     assert any(segment.crop is None and segment.text for page in pages for segment in page.segments)
 
 
@@ -524,7 +526,7 @@ def test_a_hybrid_recipe_changes_with_native_text_rules_and_others_keep_their_fi
     native = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
     with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None):
         scan = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
-    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 2, "native": 3, "surya": 1}
+    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 3, "native": 3, "surya": 1}
     assert recipe(native, "0" * 64, None)["text_rules"] == 3
     assert recipe(scan, "0" * 64, None)["text_rules"] == 1
     before = {name: fingerprint(recipe(e, "0" * 64, None)) for name, e in
