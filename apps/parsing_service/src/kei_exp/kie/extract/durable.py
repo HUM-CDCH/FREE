@@ -10,9 +10,10 @@ import hashlib
 import json
 import threading
 from copy import deepcopy
+from dataclasses import replace
 from uuid import uuid4
 
-from kei_exp.kie.extract.calls import Call
+from kei_exp.kie.extract.calls import Call, looped
 from kei_exp.kie.extract.models import ROLE
 from kei_exp.kie.extract.tokens import counter_for
 
@@ -164,6 +165,10 @@ class CapturePlanner:
             output = capture["checkpoint"]["output"]
             if output.get("formatRefused"):
                 return self._fallback(capture,key)
+            if (capture["checkpoint"].get("recovery") == "whitespace" and stage == "record"
+                    and output.get("calls") and looped(Call(**output["calls"][-1]))
+                    and "response_format" in capture["input"]["request"]["body"].get("httpRequest", {})):
+                return self._fallback(capture, key, max_whitespace=16)
             return output["parsed"], [Call(**call) for call in output["calls"]]
         if capture["input"] is None:
             counter = counter or self.counters.get(ROLE[stage]) or counter_for(chat)
@@ -206,8 +211,10 @@ class CapturePlanner:
                 self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
-    def _fallback(self, parent, parent_key):
-        key=digest([parent_key,"format-fallback",1])
+    def _fallback(self, parent, parent_key, *, max_whitespace=None):
+        """A separately captured recovery, preserving the parent's source, guidance and request budget."""
+        kind = "format-fallback" if max_whitespace is None else "whitespace-recovery"
+        key=digest([parent_key,kind,1])
         manifest={"plannerVersion":1,"selectionId":self.selection["id"],
                   "sourceGeneration":self.lease.state["source"]["generation"],
                   "units":[{"key":key}],"coverage":{"dependency":parent["checkpoint"]["outputDigest"]}}
@@ -221,10 +228,18 @@ class CapturePlanner:
         refused=[Call(**call) for call in parent["checkpoint"]["output"]["calls"]]
         if capture["checkpoint"] is not None:
             output=capture["checkpoint"]["output"]
-            return output["parsed"],[*refused,*[Call(**call) for call in output["calls"]]]
+            attempts = [Call(**call) for call in output["calls"]]
+            if max_whitespace is not None and all(call.ok or call.recovered for call in attempts):
+                refused = [replace(call, recovered=True) for call in refused]
+            return output["parsed"],[*refused,*attempts]
         if capture["input"] is None:
             request=deepcopy(parent["input"]["request"])
-            request["body"]["httpRequest"].pop("response_format")
+            formatting = request["body"]["httpRequest"].pop("response_format")
+            if max_whitespace is not None:
+                from kei_exp.kie.extract.llm import bounded_grammar
+                request["body"]["max_whitespace"] = max_whitespace
+                request["body"]["httpRequest"]["structured_outputs"] = {
+                    "grammar": bounded_grammar(formatting["json_schema"]["schema"], max_whitespace)}
             self.lease.call("finalize_input",capture["id"],request)
         with self._lock:
             self.pending[capture["id"]]=key

@@ -466,6 +466,73 @@ def test_format_fallback_is_a_separate_capture_with_the_original_input():
     assert fallback["descriptor"]["derivedFrom"]==parent["id"]
 
 
+@pytest.mark.parametrize("recovery_ok", [True, False])
+def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_inputs(monkeypatch, recovery_ok):
+    from kei_exp.kie.extract import captured_provider, llm
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import extract_record
+    from tests.test_extract_llm import response
+
+    tree = {"recordDescription": "An article", "recordScope": "document",
+            "schemaNodes": [{"id": "year", "name": "year", "type": "integer"}]}
+    lease = MemoryLease(tree)
+    chat = llm.OpenAIChat(model="fake/extractor")
+    counter = Counter()
+    posted = []
+    loop = '{"year":' + ' \r' * 64
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
+
+    def plan():
+        planner = CapturePlanner(lease, {"fields": counter})
+        return extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
+            Router(chat, chat, planner), budget=48000, record=0, counter=counter, document=True)
+
+    def execute(unit, text, finish):
+        request = unit["input"]["request"]
+        def post(url, **kwargs):
+            posted.append(deepcopy(kwargs["json"]))
+            return response(200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
+                                  "usage": {"prompt_tokens": request["budget"]["counted"], "completion_tokens": 130}})
+        monkeypatch.setattr(captured_provider.requests, "post", post)
+        body = dict(request["body"])
+        body.pop("max_whitespace")
+        transport = captured_provider.CapturedChat({"url": "http://model", "model": chat.model, "timeout": 1},
+                                                   body.pop("httpRequest"))
+        parsed, attempts = calls.complete(transport, **body, counter=worker.PinnedCounter(request["budget"]))
+        output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
+        unit["checkpoint"] = {"outputDigest": digest(output), "output": output,
+                              "recoverable": request["body"]["max_whitespace"] is None,
+                              "recovery": "whitespace" if request["body"]["max_whitespace"] is None else None}
+
+    with pytest.raises(NeedsCall):
+        plan()
+    parent = next(iter(lease.units.values()))
+    execute(parent, loop, "length")
+    assert not parent["checkpoint"]["output"]["calls"][0]["ok"]
+    frozen = deepcopy(parent)
+    lease.candidates = [{"id": "a correction made after the failed call"}]
+    with pytest.raises(NeedsCall):
+        plan()
+    recovery = list(lease.units.values())[1]
+    expected = deepcopy(parent["input"]["request"])
+    expected["body"]["max_whitespace"] = 16
+    expected["body"]["httpRequest"].pop("response_format")
+    expected["body"]["httpRequest"]["structured_outputs"] = {"grammar": "GRAMMAR 16"}
+    assert recovery["input"]["request"] == expected
+    assert recovery["descriptor"]["derivedFrom"] == parent["id"]
+    assert recovery["candidates"] == parent["candidates"]
+    execute(recovery, '{"year":2020}' if recovery_ok else loop, "stop" if recovery_ok else "length")
+    fields, attempts, issues = plan()
+    assert fields == {"year": 2020 if recovery_ok else None}
+    assert len(attempts) == len(posted) == len(lease.units) == 2
+    assert attempts[0].recovered is recovery_ok
+    assert attempts[1].ok is recovery_ok
+    assert bool(issues) is not recovery_ok
+    assert parent == frozen
+    assert plan()[0] == fields
+    assert len(posted) == len(lease.units) == 2
+
+
 def test_native_input_captures_schema_guidance_without_adding_source_facts(monkeypatch):
     from kei_exp.kie.extract.gliformer import GLiFormerFields, NativeCounter
     node={"id":"field","name":"title","type":"string"}

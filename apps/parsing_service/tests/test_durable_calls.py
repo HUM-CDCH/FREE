@@ -91,9 +91,11 @@ def test_returned_output_is_retried_then_halts_admission_without_claiming_saved(
 
 
 @pytest.mark.parametrize("checkpoint", [False, True])
-def test_truncated_discovery_response_allows_the_planner_to_split_its_window(monkeypatch, checkpoint):
-    call = Call("discovery", None, 20395, 4096, 0.1, "length", False,
-                "the reply was cut off (finish_reason length)")
+@pytest.mark.parametrize("stage", ["discovery", "record"])
+def test_recoverable_reply_allows_the_planner_to_continue(monkeypatch, checkpoint, stage):
+    call = Call(stage, None, 20395, 4096, 0.1, "length", False,
+                "the reply was cut off (finish_reason length)" if stage == "discovery" else
+                "the reply ran into a whitespace loop (finish_reason length)")
     output = {"parsed": None, "calls": [asdict(call)]}
     events = []
     class Lease:
@@ -106,7 +108,7 @@ def test_truncated_discovery_response_allows_the_planner_to_split_its_window(mon
                 return {"checkpoint": {"output": output, "recoverable": True} if checkpoint else None, "intent": "RUN",
                         "input": {"digest": "fixed", "request": {"composer": 1, "provider": {},
                                   "budget": {"context": 32768, "counted": 20395},
-                                  "body": {"stage": "discovery", "record": None, "httpRequest": {}}}}}
+                                  "body": {"stage": stage, "record": None, "httpRequest": {}}}}}
             if routine == "begin_call": return True
             if routine == "commit_output": return {"output": output, "recoverable": True}
     monkeypatch.setattr(worker, "Lease", Lease)

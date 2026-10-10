@@ -67,6 +67,11 @@ and operators never edit lease timestamps. `deleteDurableHistoryV1` deletes a
 deleted graph's history only once every linked attempt and call is quiescent by
 this worker's boot clock; cancellation alone never proves that.
 
+A schema-constrained instruction-model record reply that loops on whitespace
+gets one separate durable recovery call with at most 16 whitespace characters
+between JSON tokens. It keeps the original source, guidance and token budget;
+both attempts stay in History. A failed bounded reply still halts the attempt.
+
 `KEI_RUNS` holds the runs' sources, canonical parse results and recipe
 segmentations; durable Extraction results live in the coordination schema. It is
 durable service data: later Extractions need the original parse generation.

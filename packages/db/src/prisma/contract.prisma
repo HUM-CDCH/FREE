@@ -183,6 +183,8 @@ namespace extraction_runtime {
     // A bounded planner fallback may consume this reply within its attempt.
     // Historical failures keep their existing terminal policy.
     recoverable  Boolean @default(false)
+    // A whitespace recovery derives one bounded request from this failed input.
+    recovery     String?
     capture      Capture @relation(fields:[captureId], references:[id], onDelete: Cascade)
 
     @@id([captureId, attemptId])
