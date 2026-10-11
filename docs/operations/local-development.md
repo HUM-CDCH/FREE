@@ -230,6 +230,16 @@ launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
   migration hashes. Its layout migrator recognizes only `./start-contract`
   imports, so restore those import paths before that upgrade; the migrator
   reconstructs missing start snapshots from preceding end snapshots.
+- A data-only migration with an unchanged contract is a self-edge (`from === to`)
+  whose data operation provides an `invariantId`; keep that invariant in
+  `migrations/app/refs/db.json`. `db:init` targets `--to db` so it applies the
+  invariant even when the contract hash is already current. `prisma-next ref set`,
+  `migrate --advance-ref`, and `db init`/`db update` without `--db` write
+  `invariants: []`: restore the invariants after running them. The migration
+  chain guard test names any missing invariant. While the self-edge is the tip,
+  `migration new` and a snapshot-based `migration plan` need `--from <hash>`;
+  otherwise `findLeaf` throws `MIGRATION.NO_TARGET`, as does migrate's
+  marker-mismatch branch. The next ordinary contract migration clears this.
 - `pnpm --filter db db:init` replays authored forward migrations against
   `DATABASE_URL`. It does not reset or seed data and may deliberately target a
   deployment database.

@@ -1,3 +1,4 @@
+import { rowText } from './reviewVocabulary'
 import { expect, it } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
 import { durableRailModel, durableRailRow, type RetainedValue } from './durableRailModel'
@@ -66,4 +67,19 @@ it('lists the records discovery found as queued or reading until their values ar
   expect(model.records[1]!.rows.map(row=>[row.name,row.kind])).toEqual([['flag','reading'],['note','reading']])
   expect(model.records[2]!.rows).toEqual([])
   expect(model.counts).toMatchObject({toCheck:1,required:1,notReviewable:0})
+})
+
+it('keeps disagreements to check with their readings, and shows a chosen reading as approved',()=> {
+  const saved=value({modelValue:null,disagreement:[{path:[],alternatives:[{value:false,segments:['p3_s0']},{value:true,segments:['p3_s0']}]}]})
+  const row=durableRailRow(saved,null)
+  expect(row.kind).toBe('to-check')
+  expect(row.chip?.text).toBe('readings differ')
+  expect(row.disagreement).toEqual([{part:'',path:[],alternatives:[{value:false,pages:'p. 3'},{value:true,pages:'p. 3'}]}])
+  expect(rowText(row)).toBe('false or true')
+  const approved={...saved,correction:{decision:{action:'APPROVED',value:false,choices:[{path:[],value:false}]}} as RetainedValue['correction']}
+  const chosen=durableRailRow(approved,null)
+  expect(chosen.kind).toBe('approved')
+  expect(chosen.value).toBe(false)
+  expect(durableRailModel({values:[approved]} as DurablePage,null).counts).toMatchObject({toCheck:0,approved:1,required:1})
+  expect(rowText(durableRailRow({...saved,correction:{decision:{action:'REJECTED'}} as RetainedValue['correction']},null))).toBe('false or true')
 })

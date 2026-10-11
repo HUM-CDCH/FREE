@@ -749,3 +749,48 @@ test('feedback-only lag names the older pair before browser finalization',async(
     expect(live.values[0].correction.decision.value).toBe('Newer decision')
   } finally {await fixture.close()}
 })
+
+test('Value Disagreements require explicit choices, survive reload, and export their undecided alternatives',async({page})=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const alternatives=['Article title','Cited title'].map(value=>({value,segments:['p3_s0']}))
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],[null],'COMPLETED',{disagreement:{title:[{path:[],alternatives}]}})
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByText('read in p. 3 · not checked')).toHaveCount(2)
+    await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0)
+    const headers={Origin:new URL(page.url()).origin},root=`/api/extractions/${id}/durable`
+    expect((await page.request.post(`${root}/finalize`,{headers,data:{snapshotVersion:1,feedbackVersion:0}})).status()).toBe(422)
+    expect((await page.request.post(`${root}/values/title`,{headers,data:{snapshotVersion:1,expectedRevision:0,action:'APPROVED'}})).status()).toBe(422)
+    await page.getByRole('button',{name:'More result actions'}).click();await page.getByRole('menuitem',{name:'Export…'}).click()
+    const download=page.waitForEvent('download');await page.getByRole('button',{name:'CSV',exact:true}).click()
+    const csv=await readFile((await (await download).path())!,'utf8')
+    expect(csv).toContain('title,title (review),title (alternatives)\r\n,Readings differ,')
+    expect(csv).toContain('Article title');expect(csv).toContain('Cited title')
+    await page.getByRole('button',{name:'Review from here'}).click()
+    await page.getByRole('heading',{name:'Article title or Cited title'}).press('a')
+    expect((await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(1)
+    await page.getByRole('button',{name:'Use Article title'}).click()
+    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(0)
+    await page.reload();await page.locator('#rail-tab-results').click();await page.getByRole('button',{name:'All',exact:true}).click()
+    await page.getByRole('button',{name:/Approved title Article title/}).click()
+    // A decided value changes through Undo, which returns it to To check with every decision offered again.
+    await expect(page.getByRole('button',{name:'Use Cited title'})).toHaveCount(0)
+    const decision=async()=>(await (await page.request.get(`${root}/values`)).json()).values[0].correction?.decision
+    await page.getByRole('button',{name:'Undo',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await page.getByRole('button',{name:'Use Cited title'}).click()
+    await expect.poll(async()=>(await decision())?.value).toBe('Cited title')
+    await page.getByRole('button',{name:/Approved title Cited title/}).click()
+    await page.getByRole('button',{name:'Undo',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await expect(page.getByRole('button',{name:'Edit',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Reject',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('REJECTED')
+    await page.getByRole('button',{name:'Save review',exact:true}).click()
+    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+  } finally {await fixture.close()}
+})

@@ -79,7 +79,11 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
     send({type:'save',action})
   }
-  const common={quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
+  const onChoose=(choices:{path:string[];value:unknown}[])=> {
+    send({type:'edit',draft:{...state.context.draft,choices}})
+    send({type:'save',action:'APPROVED'})
+  }
+  const common={onChoose,quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
     onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
@@ -87,7 +91,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     const keys=(event:KeyboardEvent)=> {
       if(event.defaultPrevented||root.closest('[hidden]')||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
       const action=keyAction(event,{readable:true,saving:busy,editing:editing&&!exportOpen,dialog:exportOpen,drawer:detailsOpen,menu:menuOpen,
-        oneByOne:focus,canUndo:row.kind!=='to-check',current:row.kind==='to-check'?'open':'decided'})
+        oneByOne:focus,approvable:!row.disagreement,canUndo:row.kind!=='to-check',current:row.kind==='to-check'?'open':'decided'})
       if(!action)return
       event.preventDefault();event.stopPropagation()
       if(action==='cancel-edit')setEditing(false)
@@ -199,7 +203,7 @@ function HistoryAudit({id}:{id:string}) {
     </details>)}
     {history.snapshots.map(snapshot=><details key={snapshot.id}>
       <summary className="cursor-pointer">Saved result snapshot {snapshot.version} · values and lineage</summary>
-      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(snapshot.values.map((v:Value)=>({field:v.node.name,schema:v.schemaRevisionId,selection:v.selectionId,modelValue:v.modelValue,lineage:v.lineage})),null,2)}</pre>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(snapshot.values.map((v:Value)=>({field:v.node.name,schema:v.schemaRevisionId,selection:v.selectionId,modelValue:v.modelValue,disagreement:v.disagreement,lineage:v.lineage})),null,2)}</pre>
     </details>)}
   </div>
 }
@@ -249,7 +253,10 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
 }
 
 /** Whether the results shown hold the same version of a value as the open review's. */
+/** A Value Disagreement's readings at each place, in no particular order, as a decision binds to them. */
+const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,d.alternatives.map(a=>JSON.stringify(a.value)).sort()])).sort()
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
+  &&JSON.stringify(readings(a))===JSON.stringify(readings(b))
 
 /** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's

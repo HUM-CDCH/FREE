@@ -185,3 +185,24 @@ describe('durable exports', () => {
     expect((await csv.text()).split('\r\n')[0]).toBe('Source Document,Source Document ID,Batch Extraction ID,title,site,year,gilded,names,finds.0.name,finds.0.count,finds.1.name,finds.1.count,catalogue,year (string)')
   })
 })
+
+it('CSV and XLSX keep disagreements explicit, including typed choices and batch alternatives',async()=> {
+  const selectionId='11111111-1111-4111-8111-111111111111'
+  const disputed=value(0,year,null,{selectionId,disagreement:[{path:[],alternatives:[1827,1828].map(reading=>({value:reading,segments:['p3_s0']}))}]})
+  const csv=await durableExportBlob(fixed,[disputed],'csv',root)
+  expect(await csv.text()).toContain('year,year (review),year (alternatives)\r\n,Readings differ,')
+  const book=await workbook(await durableExportBlob(fixed,[disputed],'xlsx',root))
+  expect(book.worksheets.map(sheet=>sheet.name)).toEqual(['Results','Extraction','Evidence','Disagreements'])
+  expect(cells(book.getWorksheet('Disagreements')!)).toEqual([
+    ['Record','Field','Part','Value','Read in','Evidence','Review'],
+    [1,'year',null,1827,'p. 3','Not checked','Readings differ'],[1,'year',null,1828,'p. 3','Not checked','Readings differ'],
+  ])
+  const chosen={...disputed,correction:{revision:1,decision:{action:'APPROVED',value:1827,choices:[{path:[],value:1827}],evidence:[],included:true}}}
+  const chosenBook=await workbook(await durableExportBlob(fixed,[chosen],'xlsx',root))
+  expect(cells(chosenBook.getWorksheet('Results')!)[1].slice(0,2)).toEqual([1827,'Chosen'])
+  expect(cells(chosenBook.getWorksheet('Evidence')!)[1][4]).toBe(1827)
+  const member={extractionId:'one',sourceDocumentId:'one',sourceDocumentName:'one.pdf',sourceRevisionId:'one',status:'COMPLETED'}
+  const batch=await workbook(await durableBatchExportBlob({batchExtractionId:'batch'},[member],[{fixed,member,values:[disputed]}],'xlsx',root))
+  expect(cells(batch.getWorksheet('Disagreements')!)[0][0]).toBe('Source Document')
+  expect(cells(batch.getWorksheet('Disagreements')!)[1]).toEqual(['one.pdf',1,'year',null,1827,'p. 3','Not checked','Readings differ'])
+})

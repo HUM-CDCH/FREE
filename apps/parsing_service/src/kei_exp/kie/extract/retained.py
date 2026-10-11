@@ -11,9 +11,9 @@ def record_identity(source_revision: str, scope) -> str:
     return digest(["record", source_revision, scope])
 
 
-def saved_record(router, fields: dict, scope, *, record: int = 0, links=(), primary=()):
+def saved_record(router, fields: dict, scope, *, record: int = 0, links=(), primary=(), disagreements=()):
     if getattr(router,"runtime",None) is not None:
-        router.runtime.saved_record(fields, scope, record=record, links=links, primary=primary)
+        router.runtime.saved_record(fields, scope, record=record, links=links, primary=primary, disagreements=disagreements)
 
 
 def reuse_record(router, scope, *, record=0):
@@ -39,22 +39,51 @@ def plan_records(router, stage, scopes, *, partial=False):
         router.runtime.plan_records(stage,scopes,partial=partial)
 
 
-def merge_contribution(node, earlier, later, conflicts, path=()):
+def merge_contribution(node, earlier, later, conflicts, held=None, path=()):
+    if held and path in held:  # a carried Value Disagreement keeps its place empty
+        if later is not None and later not in held[path]:
+            conflicts.append({"path": list(path), "historical": None, "proposed": later})
+        return None
     if later is None or later == earlier:
         return earlier
     if earlier is None:
         return later
     if node["type"] == "object":
         return {child["name"]: merge_contribution(child, earlier.get(child["name"]), later.get(child["name"]),
-                    conflicts, (*path,child["id"])) for child in node.get("children", [])}
+                    conflicts, held, (*path,child["id"])) for child in node.get("children", [])}
     if node["type"] == "array":
         return [*earlier, *later]
     conflicts.append({"path":list(path),"historical":earlier,"proposed":later})
     return earlier
 
 
+def _at(node, value, path):
+    """The value at a disagreeing place, by child IDs through objects."""
+    for child_id in path:
+        node = next(child for child in node["children"] if child["id"] == child_id)
+        value = value.get(node["name"]) if isinstance(value, dict) else None
+    return value
+
+
+def adopted(node, earlier, carried, later, fresh):
+    """An adopted document value, its disagreement and its historical proposals: a carried Value Disagreement stays as
+    it is until reprocessed and a fresh one fills only an empty place; any other new reading is proposed, as for any
+    value."""
+    held = {tuple(entry["path"]): [a["value"] for a in entry["alternatives"]] for entry in carried}
+    conflicts, kept = [], []
+    for entry in fresh:
+        place = tuple(entry["path"])
+        previous = None if place in held else _at(node, earlier, entry["path"])
+        if place not in held and previous is None:
+            kept.append(entry)
+        else:
+            conflicts += [{"path": entry["path"], "historical": previous, "proposed": a["value"]}
+                          for a in entry["alternatives"] if a["value"] not in held.get(place, [previous])]
+    return merge_contribution(node, earlier, later, conflicts, held), [*carried, *kept], conflicts
+
+
 def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=False, primary=(), field_ids=None, metadata=None,
-                   historical=None):
+                   historical=None, disagreements=()):
     selection = lease.state["selection"]
     raw = selection["schemaTree"]
     schema = Schema.model_validate(raw)
@@ -71,21 +100,24 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
         if field_ids is not None and node["id"] not in field_ids:
             continue
         value = fields.get(node["name"])
+        disagreement = [{"path": entry["path"][1:], "alternatives": entry["alternatives"]} for entry in disagreements
+                        if entry["path"][0] == node["id"]]
         old = prior.get(node["id"])
         lineage = []
         if old and old["id"] not in reprocess:
-            # Empty remaining-source output never erases a saved contribution.
+            # Empty remaining-source output never erases a saved contribution; a fresh disagreement is saved.
             # Identical carried values retain their original selection too.
-            if value is None or (value == old["modelValue"] and not (isinstance(value,list) and scope == "document")):
+            if not disagreement and (value is None or (value == old["modelValue"] and not (isinstance(value,list) and scope == "document"))):
                 continue
             from kei_exp.kie.extract.durable import field_meaning, adapt_value
             if field_meaning(old["node"]) == field_meaning(node):
                 conflicts = []
                 if scope == "document":
-                    value = merge_contribution(node,adapt_value(old["node"],node,old["modelValue"]),value,conflicts)
+                    value, disagreement, conflicts = adopted(node, adapt_value(old["node"], node, old["modelValue"]),
+                                                             old.get("disagreement", []), value, disagreement)
                 if conflicts:
                     proposals[old["id"]] = {"selectionId":selection["id"],"historicalSnapshotId":old_snapshot["id"],"conflicts":conflicts}
-                if value == old["modelValue"]:
+                if value == old["modelValue"] and disagreement == old.get("disagreement", []):
                     continue
                 lineage = [old_snapshot["id"] + ":" + old["id"]]
         evidence = []
@@ -102,7 +134,8 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
                        "path": ["records", record, node["name"]], "selectionId": selection["id"],
                        "schemaRevisionId": selection["schemaRevisionId"], "node": node, "modelValue": value,
                        "evidence": evidence, "grounding": ("grounded" if grounded else "ungrounded") if complete else "provisional",
-                       "processing": "saved" if value is not None else "absent" if complete or node["name"] in produced else "unprocessed", "lineage": lineage})
+                       "processing": "saved" if value is not None or disagreement else "absent" if complete or node["name"] in produced else "unprocessed", "lineage": lineage,
+                       **({"disagreement": disagreement} if disagreement else {})})
     publication = digest([selection["id"], scope, values, complete, primary, metadata, proposals])
     identity = str(UUID(publication[:32], version=5))
     coverage = {"sourceGeneration": lease.state["source"]["generation"], "primaryScope": scope,
@@ -151,7 +184,7 @@ def publish_final(lease, result):
             scope = "document"
         if scope is None:
             raise ValueError("record has no canonical source scope")
-        publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata)
+        publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata, disagreements=result.get("disagreements", ()))
     publish_completion(lease, processing_complete(result))
 
 

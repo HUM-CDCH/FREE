@@ -3,7 +3,8 @@
 Date: 2026-10-04. Status: accepted; amends
 [0012](0012-one-durable-execution-layer.md) (Extraction status authority) and
 [0015](0015-extraction-method-pinned-at-admission.md) (method pins per input
-selection).
+selection); amended by [0018](0018-value-disagreements-stay-saved.md)
+(Article scalar readings, review coverage).
 
 ## Context
 

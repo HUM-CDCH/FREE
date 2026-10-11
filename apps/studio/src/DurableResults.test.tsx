@@ -563,3 +563,52 @@ it('opens a settled catalogue at its first record to check and at the linked val
   view.rerender(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG',executionStatus:'RUNNING'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
   await waitFor(()=>expect(header(1)).toHaveAttribute('aria-expanded','true'))
 })
+
+const disagreementSelection='11111111-1111-4111-8111-111111111111'
+const disagreementAlternatives=['Article title','Cited title'].map(value=>({value,segments:['p3_s0']}))
+const disagreementPage=()=>({...reviewPage(),total:1,values:[{...reviewValue('title',''),selectionId:disagreementSelection,modelValue:null,
+  disagreement:[{path:[],alternatives:disagreementAlternatives}],correctionCompatibility:'compatible'}],reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0}} as DurablePage)
+it('shows both unselected readings, offers no Approve, ignores A, and saves the chosen reading',async()=> {
+  const page=disagreementPage()
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  vi.mocked(durableRequest).mockResolvedValue({revision:1})
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check title Article title or Cited title/}))
+  expect(screen.getByText('Readings differ',{exact:true})).toBeVisible()
+  expect(screen.getAllByText('read in p. 3 · not checked')).toHaveLength(2)
+  expect(screen.queryByRole('button',{name:'Approve'})).toBeNull()
+  expect(screen.getByRole('button',{name:'Edit'})).toBeVisible()
+  expect(screen.getByRole('button',{name:'Reject'})).toBeVisible()
+  expect(screen.getByRole('button',{name:'Use Article title'})).toHaveAttribute('aria-pressed','false')
+  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  fireEvent.keyDown(screen.getByRole('heading',{name:'Article title or Cited title'}),{key:'a'})
+  expect(durableRequest).not.toHaveBeenCalledWith(expect.stringContaining('/values/'),expect.anything())
+  fireEvent.click(screen.getByRole('button',{name:'Use Article title'}))
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'APPROVED',choices:[{path:[],value:'Article title'}]})))
+})
+it('waits for a pick at every nested part and keeps the selected buttons visible',async()=> {
+  const page=disagreementPage()
+  page.values[0]={...page.values[0],node:{id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]},
+    modelValue:{title:null,year:null},disagreement:[{path:['t'],alternatives:disagreementAlternatives},{path:['y'],alternatives:disagreementAlternatives.map((a,i)=>({...a,value:1827+i}))}]}
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  vi.mocked(durableRequest).mockResolvedValue({revision:1})
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check work/}))
+  fireEvent.click(screen.getByRole('button',{name:'Use Cited title'}))
+  expect(screen.getByRole('button',{name:'Use Cited title'})).toHaveAttribute('aria-pressed','true')
+  expect(durableRequest).not.toHaveBeenCalledWith(expect.stringContaining('/values/'),expect.anything())
+  fireEvent.click(screen.getByRole('button',{name:'Use 1827'}))
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'APPROVED',choices:[{path:['t'],value:'Cited title'},{path:['y'],value:1827}]})))
+})
+it('changes a chosen reading only through Undo, which returns the value to To check',async()=> {
+  const page=disagreementPage()
+  page.values[0]={...page.values[0],correction:{revision:1,decision:{action:'APPROVED',value:'Article title',choices:[{path:[],value:'Article title'}],evidence:[],included:false}}}
+  page.reviewCounts={required:1,toCheck:0,approved:1,edited:0,rejected:0}
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  vi.mocked(durableRequest).mockImplementation((async(path:string)=>path.endsWith('/history')?{corrections:[]}:{revision:2}) as never)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/Approved title Article title/}))
+  expect(screen.queryByRole('button',{name:'Use Cited title'})).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:'Undo'}))
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'PENDING',expectedRevision:1})))
+})

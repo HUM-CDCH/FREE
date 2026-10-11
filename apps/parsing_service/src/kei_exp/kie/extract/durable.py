@@ -324,12 +324,14 @@ class CapturePlanner:
             examples = proposed
         return examples, omissions
 
-    def saved_record(self, fields, scope, *, record=0, links=(), primary=()):
+    def saved_record(self, fields, scope, *, record=0, links=(), primary=(), disagreements=()):
         from kei_exp.kie.extract.retained import publish_values
         self.scopes[record] = scope
         return publish_values(self.lease, fields, scope, record=record, links=links, primary=primary,
-                              historical=self.historical)
+                              historical=self.historical, disagreements=disagreements)
 
+    # shortcut: already-affected Extractions stay absent because completed contexts are masked, upgrade with an
+    # explicit backfill; today reprocessing a saved sibling unmasks the whole Article record and restores them.
     def reuse_record(self, scope, *, record=0):
         from kei_exp.kie.extract.retained import record_identity
         snapshot = self.historical.get("snapshot")

@@ -363,13 +363,14 @@
   }
  ],
  "grounding": {
-  "claims": 14,
+  "claims": 15,
   "excluded": 1,
-  "eligible": 13,
+  "eligible": 14,
   "supported": 8,
   "unsupported": 1,
-  "not_completed": 4,
+  "not_completed": 5,
   "reasons": {
+   "conflicting_values": 1,
    "grounding_exceeds_budget": 4
   },
   "excluded_policies": {

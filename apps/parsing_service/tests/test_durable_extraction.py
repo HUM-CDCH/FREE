@@ -727,3 +727,129 @@ def test_version_3_entry_calls_keep_their_captures_when_an_earlier_record_moves_
     for defaults in (3,2):
         one,two=entry_keys(defaults,"1. Site1. Material: m1."),entry_keys(defaults,"1. Site1. Material: m1.\n2. Site2. Material: m2.")
         assert (one<=two)==(defaults==3), defaults  # version 2 numbers entries 3 and 4 anew: their calls are new
+
+
+def reading_disagreements(path, values):
+    return [{"path": path, "names": [], "alternatives": [{"value": value, "segments": [f"p{index+1}_s0"]}
+                                                         for index, value in enumerate(values)]}]
+
+
+TITLE = {"id": "title", "name": "title", "type": "string"}
+WORK = {"id": "work", "name": "work", "type": "object", "children": [
+    {"id": "t", "name": "title", "type": "string"}, {"id": "y", "name": "year", "type": "integer"}]}
+
+
+@pytest.mark.parametrize("node,path,old,carried,fresh,readings,published,proposed", [
+    # A carried disagreement stays as it is; another reading of its place is proposed.
+    (TITLE, [], None, ["A", "C"], None, ["A", "D"], None, [(None, "D")]),
+    (TITLE, [], None, ["A", "C"], "D", None, None, [(None, "D")]),
+    (TITLE, [], None, ["A", "C"], "A", None, None, []),
+    (TITLE, [], None, ["A", "C"], None, ["C", "A"], None, []),
+    (WORK, ["y"], {"title": "A", "year": None}, [1827, 1828], {"title": "A", "year": 1829}, None, None, [(None, 1829)]),
+    (WORK, ["t"], {"title": None, "year": None}, ["A", "C"], {"title": None, "year": 1827}, None,
+     ({"title": None, "year": 1827}, ["A", "C"]), []),
+    # A fresh disagreement fills an empty place; a saved value keeps its place and the other readings are proposed.
+    (TITLE, [], None, None, None, ["A", "C"], (None, ["A", "C"]), []),
+    (WORK, ["y"], {"title": "A", "year": None}, None, {"title": "A", "year": None}, [1827, 1828],
+     ({"title": "A", "year": None}, [1827, 1828]), []),
+    (TITLE, [], "A", None, None, ["A", "C"], None, [("A", "C")]),
+    (WORK, ["t"], {"title": "A", "year": None}, None, {"title": None, "year": 1827}, ["A", "C"],
+     ({"title": "A", "year": 1827}, None), [("A", "C")]),
+])
+def test_adoption_keeps_a_carried_disagreement_and_proposes_other_readings(node, path, old, carried, fresh, readings,
+                                                                           published, proposed):
+    lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [node]})
+    saved = publish_values(lease, {node["name"]: old}, "document", complete=True,
+                           disagreements=reading_disagreements([node["id"], *path], carried) if carried else ())["values"][0]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [saved]},
+                        "manifest": {"coverage": {"reprocessValueIds": []}}}
+    lease.state["selection"]["id"] = str(uuid4())
+    result = publish_values(lease, {node["name"]: fresh}, "document", complete=True,
+                            disagreements=reading_disagreements([node["id"], *path], readings) if readings else ())
+    assert [(c["historical"], c["proposed"]) for c in result["coverage"]["historicalProposals"].get(saved["id"], {
+        "conflicts": []})["conflicts"]] == proposed
+    assert all(c["path"] == path for c in result["coverage"]["historicalProposals"].get(saved["id"], {"conflicts": []})["conflicts"])
+    if published is None:
+        assert result["values"] == []
+    else:
+        value = result["values"][0]
+        assert value["lineage"] == [f"old-snapshot:{saved['id']}"]
+        assert (value["modelValue"], [a["value"] for a in value["disagreement"][0]["alternatives"]]
+                if "disagreement" in value else None) == published
+
+
+def test_reprocessing_replaces_a_carried_disagreement():
+    lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [TITLE]})
+    saved = publish_values(lease, {"title": None}, "document", complete=True,
+                           disagreements=reading_disagreements(["title"], ["A", "C"]))["values"][0]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [saved]},
+                        "manifest": {"coverage": {"reprocessValueIds": [saved["id"]]}}}
+    lease.state["selection"]["id"] = str(uuid4())
+    value = publish_values(lease, {"title": "D"}, "document", complete=True)["values"][0]
+    assert value["modelValue"] == "D" and "disagreement" not in value
+
+
+def test_a_null_read_never_erases_a_saved_value_after_its_field_changes_meaning():
+    """Apply changes with an edited description, then a context reads nothing: the saved value stays."""
+    node = {"id": "title", "name": "title", "type": "string"}
+    lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [node]})
+    old = publish_values(lease, {"title": "A"}, "document", complete=True)["values"][0]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [old]}, "manifest": {"coverage": {"reprocessValueIds": []}}}
+    lease.state["selection"] = {**lease.state["selection"], "id": str(uuid4()), "schemaTree": {
+        "recordDescription": "An Article", "schemaNodes": [{**node, "description": "The article's own title"}]}}
+    assert publish_values(lease, {"title": None}, "document", complete=True)["values"] == []
+    assert publish_values(lease, {"title": "B"}, "document", complete=True)["values"][0]["modelValue"] == "B"
+
+
+def test_article_disagreement_survives_every_publication_and_replay():
+    from tests.test_record_scope import disagreement_article_input, disagreement_article_reply
+    request, source = disagreement_article_input(grounding="quoted")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = CountingChat(disagreement_article_reply)
+    extract = lambda router, counter: run.dispatch(None, source, request, router,
+        counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert len(result["value_contexts"][0]) == 3
+    publications = list(lease.publications.values())
+    finished = next(saved for saved in reversed(publications) if saved["coverage"].get("processingComplete"))
+    expected = {v["fieldId"]: v["disagreement"] for v in finished["values"] if "disagreement" in v}
+    assert set(expected) == {"title-id", "year-id"}
+    assert publications[-1]["coverage"]["finalizedAttempt"]["complete"] is True
+    assert any(value["evidence"] for publication in publications for value in publication["values"])
+
+    def carried():
+        """Once a publication saves a disagreement, every later one that saves its field carries it. A publication
+        repeated with the same identity is the same snapshot, so each counts once, where it was first saved."""
+        seen = False
+        for identity, publication in lease.publications.items():
+            for value in publication["values"]:
+                if value["fieldId"] in expected and "disagreement" in value:
+                    seen = True
+                    assert value["disagreement"] == expected[value["fieldId"]] and value["processing"] == "saved"
+                elif seen and value["fieldId"] in expected:
+                    pytest.fail(f"{identity} dropped a saved disagreement")
+        return seen
+    assert carried()
+    count = len(chat.calls)
+    finish(lease, chat, extract)
+    assert len(chat.calls) == count  # a replay reads every reply from its checkpoint
+    assert carried()
+
+
+def test_a_disagreements_retained_values_do_not_depend_on_start_page():
+    from tests.test_record_scope import disagreement_article_input, disagreement_article_reply
+    request, _ = disagreement_article_input(grounding="quoted")
+    baseline = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    finals = []
+    for page in (None, 1, 3):
+        request, source = disagreement_article_input(page, grounding="quoted")
+        lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+        lease.state, lease.attempt = deepcopy(baseline.state), baseline.attempt
+        chat = CountingChat(disagreement_article_reply)
+        result = finish(lease, chat, lambda router, counter: run.dispatch(None, source, request, router,
+            counter={"fields": counter, "reasoning": counter}))
+        assert len(result["value_contexts"][0]) == 3
+        finals.append(next(saved["values"] for saved in reversed(lease.publications.values())
+            if saved["coverage"].get("processingComplete")))
+    assert any("disagreement" in value for value in finals[0])
+    assert all(each == finals[0] for each in finals)

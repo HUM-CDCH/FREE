@@ -1,8 +1,9 @@
+import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceQuote } from './evidenceQuote'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, groundingDetail, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -42,7 +43,7 @@ function ProgressRow({ row }: { row: RailRow }) {
       <span className="min-w-0">
         <span className="block truncate font-mono text-compact text-ink-faint">{row.name}</span>
         {row.kind === 'checking'
-          ? <span className="line-clamp-2 text-content font-medium text-ink-faint italic" title="Candidate · being checked against the source">{shownValue(row.value)}</span>
+          ? <span className="line-clamp-2 text-content font-medium text-ink-faint italic" title="Candidate · being checked against the source">{rowText(row)}</span>
           : <span role="img" aria-label={row.kind === 'reading' ? 'Reading' : 'Queued'} className="mt-1 block h-3 w-24 rounded-sm bg-line motion-safe:animate-pulse" />}
       </span>
       {row.kind === 'checking' ? <span className="h-5.5 text-compact font-medium text-ink-muted">checking</span> : <span />}
@@ -63,6 +64,7 @@ export type ReviewRowProps = {
   editing: boolean
   node: SchemaNode | null
   onDecide: (action: ReviewAction, value?: unknown) => void
+  onChoose?: (choices: { path: string[]; value: unknown }[]) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
@@ -72,7 +74,7 @@ export type ReviewRowProps = {
 
 /** One value (results review redesign §3.2), and when selected its expansion (§3.3): one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
-  onDecide, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -86,12 +88,12 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
-        aria-label={`${stateLabel(row)} ${row.name} ${shownValue(row.value)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
+        aria-label={`${stateLabel(row)} ${row.name} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
           <span className="block truncate font-mono text-compact text-ink-faint">{row.name}</span>
-          <span className="line-clamp-2 text-content font-medium text-ink" title={shownValue(row.value)}>{shownValue(row.value)}</span>
+          <span className="line-clamp-2 text-content font-medium text-ink" title={rowText(row)}>{rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
         </span>
@@ -103,7 +105,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
       </button>
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
-          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{shownValue(row.extracted)}</s></p>}
+          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>
               <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
@@ -125,6 +127,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
             </>
           )}
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
+          {!editing && canDecide && row.kind === 'to-check' && row.disagreement && onChoose && <DisagreementChoice parts={row.disagreement} onChoose={onChoose}/>}
           {editing ? (
             <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
               onTypedSave={onTypedEdit}
@@ -132,8 +135,8 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
               <div role="group" aria-label={`Decision for ${row.name}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">
-                <button type="button" onClick={() => onDecide('APPROVED')} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
-                  <ApprovedGlyph />Approve</button>
+                {!row.disagreement && <button type="button" onClick={() => onDecide('APPROVED')} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
+                  <ApprovedGlyph />Approve</button>}
                 <button type="button" onClick={onEdit} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
                   <EditedGlyph />Edit</button>
                 <button type="button" onClick={() => onDecide('REJECTED')} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">

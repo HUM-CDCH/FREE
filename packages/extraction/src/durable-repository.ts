@@ -6,9 +6,10 @@ import { parseExtractionSchema, type SchemaNode } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
   durableSelectionSchema, durableStatus, durableValueSchema, type DurableHead, type DurableValue } from './durable-contract.js'
-import { correctionValueFits, fieldMeaning, adaptedCorrection } from './durable-feedback.js'
+import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
+import { segmentPage } from './parsed-document.js'
 import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 export class DurableConflict extends Error {
@@ -17,7 +18,6 @@ export class DurableConflict extends Error {
 export class DurableNotFound extends Error {}
 export class DurableInvalid extends Error {}
 const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
-const modelDigest = (value: DurableValue) => hash([value.selectionId,value.node,value.modelValue])
 function reviewFits(correction: {candidate:{meaning:string;node:SchemaNode;modelDigest:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue): boolean {
   if(correction.candidate.meaning!==fieldMeaning(value.node)) return false
   if(correction.decision.action==='EDITED') return adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
@@ -34,8 +34,7 @@ export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
 /** The page a planned record starts on: its first source range's segment (`p{page}_s{n}`). */
 function firstPage(scope: unknown): number | null {
   const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
-  const page = typeof segment === 'string' ? /^p(\d+)_s\d+$/.exec(segment)?.[1] : undefined
-  return page === undefined ? null : Number(page)
+  return segmentPage(segment)
 }
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
@@ -279,12 +278,16 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
         if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
         const feedbackVersion = feedback.version+1, correctionId = randomUUID()
-        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:input.value ?? null,
+        // Approving a Value Disagreement saves the reading chosen at each place and the value they make.
+        const choosing = input.action === 'APPROVED' && (input.choices !== undefined || value.disagreement !== undefined)
+        const decision = choosing ? {...input,value:resolvedValue(value,input.choices ?? [])} : input
+        if (choosing && decision.value === undefined) throw new DurableInvalid('Choose one reading for each part of this value whose readings disagree.')
+        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:decision.value ?? null,
           sourceContext:stableJson({...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
         const included = input.included && input.action === 'EDITED'
         await client.query(`INSERT INTO extraction_runtime.correction
           (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,input,candidate,included])
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,decision,candidate,included])
         await client.query('UPDATE extraction_runtime."feedbackHead" SET version=$2 WHERE id=$1', [head.projectId,feedbackVersion])
         return { id:correctionId,revision:revision+1,feedbackVersion,included }
       })

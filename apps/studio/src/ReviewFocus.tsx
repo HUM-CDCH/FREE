@@ -1,9 +1,10 @@
+import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, rowText, stateLabel, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -30,7 +31,7 @@ export type EndCard =
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card (§4.5).
  */
 export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
-  headingRef, onDecide, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
+  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
   article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
@@ -44,6 +45,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   end: EndCard | null
   headingRef: Ref<HTMLHeadingElement>
   onDecide: (action: ReviewAction, value?: unknown) => void
+  onChoose?: (choices: { path: string[]; value: unknown }[]) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
@@ -102,10 +104,10 @@ export default function ReviewFocus({ article, items, position, current, recordL
             onTypedSave={onTypedEdit}
             saveLabel="Save edit and next" onSave={(value) => onDecide('EDITED', value)} />
         ) : (
-          <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{shownValue(current.value)}</h2>
+          <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{rowText(current)}</h2>
         )}
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
-        {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{shownValue(current.extracted)}</s></p>}
+        {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
       <figure className="m-0">
         <figcaption className="mb-1.5 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</figcaption>
@@ -120,11 +122,12 @@ export default function ReviewFocus({ article, items, position, current, recordL
           <DoubtGlyph /><span><b>Doubtful link.</b> {current.doubt}. Check that this is the right passage.</span>
         </div>
       )}
+      {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
       {!decided && !editing && (
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
+          {!current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
             <ApprovedGlyph className="text-current" />Approve and next <Kbd>A</Kbd>
-          </Button>
+          </Button>}
           <Button size="md" className="h-11 @max-[264px]:col-span-1" onClick={onEdit}><EditedGlyph className="text-current" />Edit <Kbd>E</Kbd></Button>
           <Button variant="outline-danger" size="md" className="h-11" onClick={() => onDecide('REJECTED')}><RejectedGlyph className="text-current" />Reject <Kbd>R</Kbd></Button>
         </div>
@@ -144,7 +147,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         <Overline as="p" className="m-0 mb-1 block">Up next</Overline>
         {upNext.length === 0 ? <p className="m-0 text-secondary text-ink-muted">Nothing else to check after this one.</p> : upNext.map((item) => (
           <div key={item.key} className="flex items-baseline justify-between gap-2 py-0.5 text-secondary">
-            <span className="min-w-0 truncate" title={shownValue(item.row.value)}><span className="font-mono text-ink-faint">{item.row.name}</span> · {shownValue(item.row.value)}</span>
+            <span className="min-w-0 truncate" title={rowText(item.row)}><span className="font-mono text-ink-faint">{item.row.name}</span> · {rowText(item.row)}</span>
             <span className="shrink-0 text-ink-muted">{item.row.doubt ? 'doubtful link' : item.row.chip?.style === 'rule' ? 'linked by rule' : item.row.page === null ? '' : `p.${item.row.page}`}</span>
           </div>
         ))}

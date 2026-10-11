@@ -1,5 +1,6 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import { evidenceCheck, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
 
@@ -23,29 +24,30 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   const link = value.links[0] ?? null
   const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
   const page = anchor?.producer_observations[0]?.page_number ?? null
+  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments)}))}))
   const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
   const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
   const origin = link ? linkOrigin(link) : null
   // A linked scalar keeps the shared row's own words ("p.{n} · Verifier-supported"), also while the run goes on.
-  const source = link ? value.node.type === 'array' || value.node.type === 'object' ? 'Evidence links parts of this value' : undefined
+  const source = disagreement ? 'Readings differ · not checked' : link ? value.node.type === 'array' || value.node.type === 'object' ? 'Evidence links parts of this value' : undefined
     : value.grounding === 'provisional' ? 'Evidence is still being checked' : 'No Evidence linked'
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
-    value: action === 'EDITED' ? correction.value : value.modelValue, extracted: value.modelValue,
+    value: reviewedValue(value), extracted: value.modelValue,
     kind, link, decision: value.processing === 'saved' ? {
       resultPath: value.path, evidenceAnchorId: link?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
       action: action && action !== 'PENDING' ? action : 'APPROVED',
       reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
     // A missing value has no Evidence to check, during the run or after it (§1 Missing).
-    chip: {text: value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
+    chip: {text: disagreement ? 'readings differ' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
       : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · doubtful' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
-    evidence: !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
+    evidence: disagreement ? {label:'Readings differ',detail:'Choose one, edit or reject it.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
       detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'
         : value.processing === 'absent' ? 'No value was extracted.' : 'It can be reviewed once the run saves it.'} : null,
-    doubt, changed: false, page,
+    doubt, changed: false, disagreement, page,
     retained: {reviewable: value.processing === 'saved', source,
       attribution: value.historicalCorrection ? 'An earlier correction does not fit this value; it stays saved.' : undefined},
   }

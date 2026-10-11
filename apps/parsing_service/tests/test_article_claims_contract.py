@@ -1,7 +1,7 @@
 """A scripted Article extraction whose claims end in every verifier state, pinned for the TypeScript accounting.
 
 The fixture is the artifact `run.dispatch` returns (records, evidence, ungrounded, issues, grounding_eligibility,
-grounding) for: a currency the two contexts disagree on (contested: no claim is made of it), an item description
+grounding) for: a currency the two contexts disagree on (a Value Disagreement: claimed, never checked), an item description
 printed nowhere (unsupported), an item whose own fields cannot fit any request (not completed, refused per context),
 and a `notes` field whose schema policy is `unverified` (excluded). `packages/extraction` derives the same dict
 from the persisted evidence, ungrounded paths, issues and skipped paths; this file is the consistency rule.

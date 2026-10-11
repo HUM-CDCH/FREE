@@ -15,6 +15,7 @@ export type KeyContext = {
   /** One-by-one is on. */
   oneByOne: boolean
   canUndo: boolean
+  approvable: boolean
   /** The current one-by-one value: undecided, decided, or none (an end card). */
   current: 'open' | 'decided' | null
 }
@@ -45,5 +46,5 @@ export function keyAction(event: Pick<KeyboardEvent, 'key' | 'repeat' | 'altKey'
   if (key === 'j') return 'next'
   if (key === 'k') return context.current ? 'previous' : null
   if (context.current !== 'open') return null
-  return key === 'a' ? 'approve' : key === 'e' ? 'edit' : key === 'r' ? 'reject' : null
+  return key === 'a' ? context.approvable ? 'approve' : null : key === 'e' ? 'edit' : key === 'r' ? 'reject' : null
 }

@@ -9,6 +9,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from kei_exp.kie.extract.stages import occurrences
+from kei_exp.kie.extract.schema import Node
+from kei_exp.kie.extract.durable import canonical
 from kei_exp.kie.passages import Passage
 
 GROUPING_VERSION = 1
@@ -212,3 +214,28 @@ def assemble_document(values: Sequence[dict],
         return None
 
     return combine(list(enumerate(values)), []) or {}, conflicts, repeats, joined
+
+
+def value_disagreements(readings: Sequence[dict], conflicts: Sequence[dict], nodes: Sequence[Node]) -> list[dict]:
+    """Each nulled scalar's distinct readings (already typed, `article._typed_reading`), by child IDs and reading
+    indices; never enter lists."""
+    found = []
+    for conflict in conflicts:
+        node, ids, children = None, [], nodes
+        for name in conflict["path"]:
+            node = next((n for n in children if n.name == name), None)
+            if node is None:
+                break
+            ids.append(node.id)
+            children = node.children or []
+        if node is None or node.type in ("object", "array"):
+            continue
+        groups = {}
+        for index, reading in enumerate(readings):
+            value = reading
+            for name in conflict["path"]:
+                value = value.get(name) if isinstance(value, dict) else None
+            if value is not None:
+                groups.setdefault(canonical(value), {"value": value, "readings": []})["readings"].append(index)
+        found.append({"path": ids, "names": conflict["path"], "alternatives": list(groups.values())})
+    return found
