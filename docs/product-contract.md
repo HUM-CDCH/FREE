@@ -38,8 +38,9 @@ FREE's normative product and safety contract is:
    result snapshot and decision version, never by saving a correction, and
    finalizing never freezes the Extraction. Readings that disagree within
    one source stay saved as a Value Disagreement: shown side by side, marked
-   not checked, with no winner; it is approved only by choosing one, and
-   never exported as an unmarked blank or as a reading nobody chose.
+   not checked, with no winner; it is approved only by choosing one, a choice
+   or rejection holds only while the value and its readings stay the same, and
+   it is never exported as an unmarked blank or as a reading nobody chose.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema revisions, extractions, and review decisions
    survive ordinary restarts. One Extraction record carries a run from admission

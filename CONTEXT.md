@@ -122,9 +122,8 @@ place: the field itself or a value nested in its objects, never inside a list.
 FREE leaves that place empty and keeps each distinct reading as an alternative,
 with where it was read; it picks none and marks them not checked. Approving it
 means choosing one alternative per place; an edit or a rejection also decides
-it. A decision acknowledges the alternatives it saw: when a later snapshot of
-the same input selection adds one, the decision stays shown, flagged "New
-reading – review needed", until it is kept, changed or replaced.
+it. A choice or a rejection holds while the value and its readings stay the
+same; when they change, the value is to be checked again.
 _Avoid_: conflict, contested value, merge conflict, candidate, unresolved
 
 **Decision Version**:
@@ -141,10 +140,9 @@ _Avoid_: feedback set, correction set
 A researcher's explicit finalization of one named pair: an Extraction's result
 snapshot version and its Project's Decision Version. It is refused until every
 saved value of that snapshot has an approve, edit or reject decision as of that
-Decision Version that still fits the value and, for a Value Disagreement, was
-saved against its current alternatives. It never finalizes implicitly, never
-freezes later work, and a deliberately older pair may be finalized when it is
-clearly named. "Latest reviewed" opens the most recently finalized pair.
+Decision Version. It never finalizes implicitly, never freezes later work, and
+a deliberately older pair may be finalized when it is clearly named. "Latest
+reviewed" opens the most recently finalized pair.
 _Avoid_: saved review, accepted result
 
 **Evidence**:
