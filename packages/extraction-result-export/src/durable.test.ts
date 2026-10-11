@@ -184,14 +184,14 @@ test('a draft disagreement export leaves typed cells empty and names the undecid
   assert.equal(table.rows[0].year,null);
   assert.equal(buildDurableEvidenceTable(values).rows[0].Evidence,'Not checked');
 });
-test('chosen values stay typed and exported with review status, including new readings and decision precedence',()=> {
+test('chosen values stay typed and exported with their review status',()=> {
   const value=disputed(year);
   for(const [action,expected] of [['APPROVED','Chosen'],['EDITED','Edited'],['REJECTED','Rejected']] as const) {
-    const decided={...value,correction:{decision:{action,value:1827,alternativeIds:action==='APPROVED'?['a'.repeat(64)]:undefined}}};
+    const decided={...value,correction:{decision:{action,value:1827,choices:action==='APPROVED'?[{path:[],value:1827}]:undefined}}};
     const table=buildDurableExportTable([decided],root);
     assert.equal(table.rows[0].year,action==='REJECTED'?null:1827);
     assert.equal(table.rows[0]['year (review)'],expected);
-    assert.equal(buildDurableExportTable([{...decided,correctionCompatibility:'new-reading'}],root).rows[0]['year (review)'],`${expected} · new reading – review needed`);
+    assert.equal(buildDurableEvidenceTable([decided]).rows[0]['Reviewed value'],action==='REJECTED'?null:1827);
   }
 });
 test('generated review columns never overwrite actual field names, even across a batch registry',()=> {

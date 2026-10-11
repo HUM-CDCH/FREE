@@ -305,7 +305,7 @@ test('deleted durable graphs retain their pins until fenced worker history remov
   await runtime.close()
 })
 
-test('Value Disagreement choices cover current alternatives, preserve older finalizations, and Keep covers new readings',async t=> {
+test('a Value Disagreement decision binds to its readings: choices apply until the readings change',async t=> {
   const base=process.env.EXTRACTION_TEST_DATABASE_URL!
   const target=await provisionDatabase(base,`free_test_disagreement_review_${randomBytes(5).toString('hex')}`)
   const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
@@ -319,46 +319,52 @@ test('Value Disagreement choices cover current alternatives, preserve older fina
   try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  const read=(segment:string)=>[{selectionId:head.selectionId,generation:'g1',primary:[{segment,start:0,end:50}],overlap:[]}]
+  const readings=(values:unknown[],segment='p3_s0')=>values.map((reading,index)=>({id:String(index+1).repeat(64),value:reading,origins:read(segment)}))
+  const saved={recordId:'record',selectionId:head.selectionId,schemaRevisionId:fixture.revisions.article,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
   const node=ARTICLE_TREE.schemaNodes[0]
-  const value={id:'title-value',recordId:'record',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,
-    schemaRevisionId:fixture.revisions.article,node,modelValue:null,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[],
-    disagreement:[{path:[],alternatives:['a','c'].map(letter=>({id:letter.repeat(64),value:letter.toUpperCase(),origins:[{selectionId:head.selectionId,generation:'g1',primary:[{segment:'p3_s0',start:0,end:50}],overlap:[]}]}))}]}
-  const publish=async(version:number,body:unknown)=> {
-    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,$3,$4,$5,$6,'{}')`,[randomUUID(),id,version,head.selectionId,'a'.repeat(64),JSON.stringify([body])])
+  const title=(values:unknown[],segment?:string)=>({...saved,id:'title-value',fieldId:node.id,path:['records',0,node.name],node,modelValue:null,
+    disagreement:[{path:[],alternatives:readings(values,segment)}]})
+  const workNode={id:'work',name:'work',type:'object' as const,children:[{id:'t',name:'title',type:'string' as const},{id:'y',name:'year',type:'integer' as const}]}
+  const work=(years?:number[])=>({...saved,id:'work-value',fieldId:'work',path:['records',0,'work'],node:workNode,
+    modelValue:{title:'Article title',year:years?null:1827},...years?{disagreement:[{path:['y'],alternatives:readings(years)}]}:{}})
+  const plain={...saved,id:'plain-value',fieldId:node.id,path:['records',0,node.name],node,modelValue:'Plain'}
+  const publish=async(version:number,values:unknown[])=> {
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,$3,$4,$5,$6,'{}')`,[randomUUID(),id,version,head.selectionId,'a'.repeat(64),JSON.stringify(values)])
     await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=$2 WHERE id=$1',[id,version])
   }
-  await publish(1,value)
-  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:1,approved:0,edited:0,rejected:0,toCheck:1})
-  await assert.rejects(repository.finalize(id,{snapshotVersion:1,feedbackVersion:0}),/Review each saved value/)
-  await assert.rejects(repository.saveCorrection(id,value.id,{snapshotVersion:1,expectedRevision:0,action:'APPROVED'},async()=>{}),
-    /Choose one reading for each part of this value whose readings disagree\./)
-  await repository.saveCorrection(id,value.id,{snapshotVersion:1,expectedRevision:0,action:'APPROVED',alternativeIds:['a'.repeat(64)],value:'untrusted'},async()=>{})
-  let page=await repository.page(id,{})
-  assert.equal(page.values[0].correction.decision.value,'A')
-  assert.deepEqual(page.values[0].correction.decision.alternativeIds,['a'.repeat(64)])
-  assert.deepEqual(page.reviewCounts,{required:1,approved:1,edited:0,rejected:0,toCheck:0})
-  const original=await repository.finalize(id,{snapshotVersion:1,feedbackVersion:1})
-  const newer={...value,disagreement:[{path:[],alternatives:[...value.disagreement[0].alternatives,{...value.disagreement[0].alternatives[0],id:'d'.repeat(64),value:'D'}]}]}
-  await publish(2,newer)
-  page=await repository.page(id,{})
-  assert.equal(page.values[0].correctionCompatibility,'new-reading')
-  assert.equal(page.values[0].correction.decision.value,'A')
-  assert.equal(page.values[0].historicalCorrection,null)
-  assert.deepEqual(page.reviewCounts,{required:1,approved:0,edited:0,rejected:0,toCheck:1})
-  await assert.rejects(repository.finalize(id,{snapshotVersion:2,feedbackVersion:1}),/Review each saved value/)
-  assert.deepEqual(await repository.finalize(id,{snapshotVersion:1,feedbackVersion:1}),original)
-  await repository.saveCorrection(id,value.id,{snapshotVersion:2,expectedRevision:1,action:'APPROVED',alternativeIds:page.values[0].correction.decision.alternativeIds},async()=>{})
-  assert.equal((await repository.page(id,{})).reviewCounts.toCheck,0)
-  await repository.finalize(id,{snapshotVersion:2,feedbackVersion:2})
-  await repository.saveCorrection(id,value.id,{snapshotVersion:2,expectedRevision:2,action:'EDITED',value:'Researcher title'},async()=>({source:{scope:'document',text:'Article and bibliography'}}))
-  const history=await repository.history(id)
-  const edit=history.corrections.at(-1)!
-  assert.deepEqual(JSON.parse(edit.candidate.sourceContext).disagreement,[{path:[],values:['A','C','D']}])
-  assert.ok(edit.candidate.disagreementDigest)
-  // Plain values must discard stale choice IDs and use today's model value.
-  const {disagreement: _disagreement,...plain}=value
-  await publish(3,{...plain,modelValue:'A'})
-  page=await repository.page(id,{feedbackVersion:2})
-  assert.equal(page.values[0].correction.decision.alternativeIds,undefined)
-  assert.equal(page.values[0].modelValue,'A')
+  const decide=(valueId:string,snapshotVersion:number,expectedRevision:number,decision:Record<string,unknown>)=>
+    repository.saveCorrection(id,valueId,{snapshotVersion,expectedRevision,...decision},async()=>{})
+  const byId=async(feedbackVersion?:number)=>new Map((await repository.page(id,{feedbackVersion})).values.map(value=>[value.id,value]))
+  await publish(1,[title(['A','C']),work(),plain])
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:3,approved:0,edited:0,rejected:0,toCheck:3})
+  const unchosen=/Choose one reading for each part of this value whose readings disagree\./
+  await assert.rejects(decide('title-value',1,0,{action:'APPROVED'}),unchosen)
+  await assert.rejects(decide('title-value',1,0,{action:'APPROVED',choices:[{path:[],value:'D'}]}),unchosen)
+  await assert.rejects(decide('plain-value',1,0,{action:'APPROVED',choices:[{path:[],value:'Plain'}]}),unchosen)
+  await decide('title-value',1,0,{action:'APPROVED',choices:[{path:[],value:'A'}],value:'untrusted'})
+  await decide('work-value',1,0,{action:'REJECTED'})
+  await decide('plain-value',1,0,{action:'APPROVED'})
+  let values=await byId()
+  assert.deepEqual(values.get('title-value')!.correction.decision.choices,[{path:[],value:'A'}])
+  assert.equal(values.get('title-value')!.correction.decision.value,'A')
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:3,approved:2,edited:0,rejected:1,toCheck:0})
+  const original=await repository.finalize(id,{snapshotVersion:1,feedbackVersion:3})
+  // The same readings found in more places keep the choice; a second part of the rejected object comes to disagree.
+  await publish(2,[title(['C','A'],'p9_s0'),work([1827,1828])])
+  values=await byId()
+  assert.equal(values.get('title-value')!.correction.decision.value,'A')
+  assert.equal(values.get('work-value')!.correction,null)
+  assert.equal(values.get('work-value')!.historicalCorrection.decision.action,'REJECTED')
+  assert.equal(values.get('work-value')!.correctionCompatibility,'incompatible')
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:2,approved:1,edited:0,rejected:0,toCheck:1})
+  await assert.rejects(repository.finalize(id,{snapshotVersion:2,feedbackVersion:3}),/Review each saved value/)
+  assert.ok((await repository.history(id)).corrections.some(correction=>correction.valueId==='work-value' && correction.decision.action==='REJECTED'))
+  assert.deepEqual(await repository.finalize(id,{snapshotVersion:1,feedbackVersion:3}),original)
+  // Another reading moves the choice to history too.
+  await publish(3,[title(['A','C','D']),work([1827,1828])])
+  values=await byId()
+  assert.equal(values.get('title-value')!.correction,null)
+  assert.deepEqual(values.get('title-value')!.historicalCorrection.decision.choices,[{path:[],value:'A'}])
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:2,approved:0,edited:0,rejected:0,toCheck:2})
 })

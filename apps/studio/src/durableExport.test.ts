@@ -199,7 +199,7 @@ it('CSV and XLSX keep disagreements explicit, including typed choices and batch 
     ['Record','Field','Part','Value','Read in','Evidence','Review'],
     [1,'year',null,1827,'p. 3','Not checked','Readings differ'],[1,'year',null,1828,'p. 3','Not checked','Readings differ'],
   ])
-  const chosen={...disputed,...decided('APPROVED',1827)}
+  const chosen={...disputed,correction:{revision:1,decision:{action:'APPROVED',value:1827,choices:[{path:[],value:1827}],evidence:[],included:true}}}
   const chosenBook=await workbook(await durableExportBlob(fixed,[chosen],'xlsx',root))
   expect(cells(chosenBook.getWorksheet('Results')!)[1].slice(0,2)).toEqual([1827,'Chosen'])
   expect(cells(chosenBook.getWorksheet('Evidence')!)[1][4]).toBe(1827)

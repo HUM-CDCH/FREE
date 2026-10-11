@@ -2,11 +2,11 @@ import { randomUUID, createHash } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import { pool as sharedPool, stableJson, withPoolClientTransaction } from 'db'
 import { extractionMethod, keiMethodOptions, canonicalIntent } from './extraction-method.js'
-import { parseExtractionSchema } from './schema.js'
+import { parseExtractionSchema, type SchemaNode } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
   durableSelectionSchema, durableStatus, durableValueSchema, type DurableHead, type DurableValue } from './durable-contract.js'
-import { correctionFit, decidedAlternatives, decidedCandidate, resolvedValue, settled, chosen, correctionValueFits, fieldMeaning, adaptedCorrection } from './durable-feedback.js'
+import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import { segmentPage } from './parsed-document.js'
@@ -18,6 +18,11 @@ export class DurableConflict extends Error {
 export class DurableNotFound extends Error {}
 export class DurableInvalid extends Error {}
 const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
+function reviewFits(correction: {candidate:{meaning:string;node:SchemaNode;modelDigest:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue): boolean {
+  if(correction.candidate.meaning!==fieldMeaning(value.node)) return false
+  if(correction.decision.action==='EDITED') return adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
+  return correction.candidate.modelDigest===modelDigest(value)
+}
 function executionDefinition(raw:unknown) {
   if(raw && typeof raw==='object' && !Array.isArray(raw)) {
     const {recordScope: _scope,...definition}=raw as Record<string,unknown>
@@ -232,28 +237,19 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"=$3`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
         const projected = allValues.map(value => {
             const historicalCorrection = correctionsByValue.get(value.id) ?? null
-            const fit=historicalCorrection===null ? 'compatible' : correctionFit(historicalCorrection,value)
+            const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
             const links=value.evidence.map(({anchorId,producer}) => {
               if ('provenance' in producer) return groundedEvidenceLink(producer,anchorId)
               if ('support' in producer) return unifiedEvidenceLink(producer,anchorId)
               return plainEvidenceLink(producer,anchorId)
             })
-            let correction=null
-            if(historicalCorrection && fit!=='incompatible') {
-              const {alternativeIds: _oldIds,...decision}=historicalCorrection.decision
-              const ids=chosen(historicalCorrection,value)?decidedAlternatives(historicalCorrection,value):undefined
-              correction={...historicalCorrection,decision:{...decision,
-                ...(decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,decision.value)}:{}),
-                ...(ids?{alternativeIds:ids,value:resolvedValue(value,ids)}:{}),
-              }}
-            }
-            return {...value,links,correction,historicalCorrection:fit==='incompatible'?historicalCorrection:null,correctionCompatibility:fit}
+            return {...value,links,correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,historicalCorrection:compatible ? null : historicalCorrection,
+              correctionCompatibility:compatible ? 'compatible' : 'incompatible'}
           })
         const saved=projected.filter(value=>value.processing==='saved')
-        const reviewed=saved.filter(value=>settled(value.correction,value))
-        const count=(action:string)=>reviewed.filter(value=>value.correction?.decision.action===action).length
+        const count=(action:string)=>saved.filter(value=>value.correction?.decision.action===action).length
         const reviewCounts={required:saved.length,approved:count('APPROVED'),edited:count('EDITED'),rejected:count('REJECTED'),
-          toCheck:saved.length-reviewed.length}
+          toCheck:saved.filter(value=>!value.correction||value.correction.decision.action==='PENDING').length}
         const selected=input.valueId?projected.filter(value=>value.id===input.valueId):projected
         return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
           total:values.length,values:selected.slice(offset,offset+limit),
@@ -282,14 +278,16 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
         if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
         const feedbackVersion = feedback.version+1, correctionId = randomUUID()
-        const decided=decidedCandidate(value,input,{...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId})
-        if(!decided) throw new DurableInvalid('Choose one reading for each part of this value whose readings disagree.')
-        const candidate = {id:correctionId,fieldId:value.fieldId,...decided,
-          value:input.action==='APPROVED' && value.disagreement?resolvedValue(value,input.alternativeIds):input.value??null,grounded:input.evidence.length>0}
+        // Approving a Value Disagreement saves the reading chosen at each place and the value they make.
+        const choosing = input.action === 'APPROVED' && (input.choices !== undefined || value.disagreement !== undefined)
+        const decision = choosing ? {...input,value:resolvedValue(value,input.choices ?? [])} : input
+        if (choosing && decision.value === undefined) throw new DurableInvalid('Choose one reading for each part of this value whose readings disagree.')
+        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:decision.value ?? null,
+          sourceContext:stableJson({...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
         const included = input.included && input.action === 'EDITED'
         await client.query(`INSERT INTO extraction_runtime.correction
           (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,input,candidate,included])
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,decision,candidate,included])
         await client.query('UPDATE extraction_runtime."feedbackHead" SET version=$2 WHERE id=$1', [head.projectId,feedbackVersion])
         return { id:correctionId,revision:revision+1,feedbackVersion,included }
       })
@@ -326,7 +324,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const decisions=(await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
         WHERE "extractionId"=$1 AND "feedbackVersion"<=$2 ORDER BY "valueId",revision DESC`,[id,input.feedbackVersion])).rows
       const reviewable=durableValueSchema.array().parse(snapshot.values).filter(v=>v.processing==='saved')
-      if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && settled(c,v))))
+      if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v))))
         throw new DurableInvalid('Review each saved value in this snapshot before finalizing.')
       const decisionDigest=hash(decisions)
       await client.query(`INSERT INTO extraction_runtime.finalization (id,"extractionId","snapshotVersion","feedbackVersion","decisionDigest")

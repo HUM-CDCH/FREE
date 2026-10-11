@@ -1,6 +1,6 @@
 import type { SchemaNode } from "extraction/schema";
 import type { DurableValue } from "extraction/durable-contract";
-import { originPages, partName } from "extraction/value-disagreement";
+import { originPages, partName, reviewedValue } from "extraction/value-disagreement";
 import { buildExportTable, type CellValue, type ExportChoices, type Table } from "./table.js";
 
 /**
@@ -19,9 +19,8 @@ export interface DurableExportValue {
   readonly grounding: "grounded" | "ungrounded" | "provisional";
   readonly links?: readonly { readonly evidenceAnchorId: string }[];
   readonly disagreement?: DurableValue["disagreement"];
-  readonly correctionCompatibility?: "compatible" | "new-reading" | "incompatible";
   readonly correction?: {
-    readonly decision: { readonly action: "APPROVED" | "EDITED" | "REJECTED" | "PENDING"; readonly value?: unknown; readonly alternativeIds?: readonly string[] };
+    readonly decision: { readonly action: "APPROVED" | "EDITED" | "REJECTED" | "PENDING"; readonly value?: unknown; readonly choices?: readonly unknown[] };
   } | null;
   /** A saved correction that no longer fits this value's producing type: shown, never applied. */
   readonly historicalCorrection?: unknown;
@@ -35,10 +34,8 @@ export const DISAGREEMENTS_SHEET = "Disagreements";
 /** The value a researcher sees and exports: the edit when edited, nothing when rejected or never saved. */
 export function exportedValue(value: DurableExportValue): unknown {
   if (value.processing !== "saved") return undefined;
-  const action = value.correction?.decision.action;
-  if (action === "EDITED" || (action === "APPROVED" && value.disagreement)) return value.correction!.decision.value;
-  if (action === "REJECTED") return null;
-  return value.modelValue;
+  if (value.correction?.decision.action === "REJECTED") return null;
+  return reviewedValue(value);
 }
 
 /** The shape of a field's producing type, without ids or descriptions: two revisions that declare the same shape share a column. */
@@ -205,15 +202,15 @@ export function buildDurableExportTable(values: readonly DurableExportValue[], c
   return buildExportTable(registry.columns, records.map((record) => record.fields), choices);
 }
 
-export function decisionWords(value: DurableExportValue): string {
-  // Plain values keep their existing export words and bytes.
-  if (value.processing !== "saved") return value.disagreement || value.processing === "absent" ? "No value" : value.processing === "failed" ? "Failed" : "Not read";
-  const action = value.correction?.decision.action;
-  const word = action === "EDITED" ? "Edited" : action === "REJECTED" ? "Rejected"
-    : action === "APPROVED" ? value.disagreement ? "Chosen" : "Approved"
-      : value.disagreement ? "Readings differ" : "To check";
-  return value.correctionCompatibility === "new-reading" ? `${word} · new reading – review needed` : word;
-}
+const decisionWords = (value: DurableExportValue): string => {
+  if (value.processing !== "saved") return value.processing === "absent" ? "No value" : value.processing === "failed" ? "Failed" : "Not read";
+  switch (value.correction?.decision.action) {
+    case "APPROVED": return value.disagreement ? "Chosen" : "Approved";
+    case "EDITED": return "Edited";
+    case "REJECTED": return "Rejected";
+    default: return value.disagreement ? "Readings differ" : "To check";
+  }
+};
 
 const evidenceWords = (value: DurableExportValue): string =>
   value.disagreement ? "Not checked" : value.links?.length ? "Evidence linked" : value.grounding === "provisional" ? "Evidence still being checked" : "No Evidence linked";
@@ -245,13 +242,12 @@ export function buildDurableEvidenceTable(values: readonly DurableExportValue[],
     columns: ["Record", "Field", "Extracted value", "Decision", "Reviewed value", "Evidence", "Evidence anchors", "Schema revision", "Note"],
     rows: values.map((value) => {
       const ordinal = value.node.valueSource ? null : ordinals.get(value.recordId) ?? null;
-      const action = value.correction?.decision.action;
       return {
         Record: ordinal === null ? DOCUMENT_RECORD : ordinal + 1,
         Field: registry.column(value.node).name,
         "Extracted value": value.processing === "saved" ? scalarCell(value.modelValue) : null,
         Decision: decisionWords(value),
-        "Reviewed value": action === "EDITED" || (action === "APPROVED" && value.disagreement) ? scalarCell(value.correction!.decision.value) : null,
+        "Reviewed value": scalarCell(reviewedValue(value, null)),
         Evidence: evidenceWords(value),
         "Evidence anchors": value.links?.length ? value.links.map((link) => link.evidenceAnchorId).join(", ") : null,
         "Schema revision": value.schemaRevisionId,

@@ -38,9 +38,10 @@ export type RailRow = {
   /** A not reviewable value's label and detail (§1). */
   evidence: { label: string; detail: string } | null
   doubt: string | null
-  /** A displayed decision has not acknowledged the current alternatives. */
-  newReading: boolean
-  disagreement?: {part: string; alternatives: {id: string; value: unknown; pages: string | null}[]}[]
+  /** The run-time decision was not kept at settlement (§5.3). */
+  changed: boolean
+  /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
+  disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
   page: number | null
   /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
   retained?: { reviewable: boolean; source?: string; attribution?: string }

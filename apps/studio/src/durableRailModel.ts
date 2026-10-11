@@ -1,6 +1,6 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
-import { originPages, partName } from 'extraction/value-disagreement'
+import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import { evidenceCheck, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
 
@@ -24,10 +24,9 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   const link = value.links[0] ?? null
   const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
   const page = anchor?.producer_observations[0]?.page_number ?? null
-  const newReading=value.correctionCompatibility==='new-reading'
-  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),alternatives:entry.alternatives.map(a=>({id:a.id,value:a.value,pages:originPages(a.origins)}))}))
+  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.origins)}))}))
   const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
-    : newReading ? 'to-check' : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
+    : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
   const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
   const origin = link ? linkOrigin(link) : null
   // A linked scalar keeps the shared row's own words ("p.{n} · Verifier-supported"), also while the run goes on.
@@ -35,7 +34,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     : value.grounding === 'provisional' ? 'Evidence is still being checked' : 'No Evidence linked'
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
-    value: action === 'EDITED' || (action === 'APPROVED' && disagreement) ? correction.value : value.modelValue, extracted: value.modelValue,
+    value: reviewedValue(value), extracted: value.modelValue,
     kind, link, decision: value.processing === 'saved' ? {
       resultPath: value.path, evidenceAnchorId: link?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
       action: action && action !== 'PENDING' ? action : 'APPROVED',
@@ -48,7 +47,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     evidence: disagreement ? {label:'Readings differ',detail:'Choose one, edit or reject it.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
       detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'
         : value.processing === 'absent' ? 'No value was extracted.' : 'It can be reviewed once the run saves it.'} : null,
-    doubt, newReading, disagreement, page,
+    doubt, changed: false, disagreement, page,
     retained: {reviewable: value.processing === 'saved', source,
       attribution: value.historicalCorrection ? 'An earlier correction does not fit this value; it stays saved.' : undefined},
   }
@@ -57,7 +56,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
 /** A field of a record still being read: a placeholder, never a value. */
 const placeholder = (ordinal: number, name: string): RailRow => ({
   key: `reading:${ordinal}:${name}`, resultPath: ['records', ordinal, name], name, value: null, extracted: null, kind: 'reading',
-  link: null, decision: null, chip: null, evidence: null, doubt: null, newReading: false, page: null,
+  link: null, decision: null, chip: null, evidence: null, doubt: null, changed: false, page: null,
 })
 
 export function durableRailModel(page: DurablePage, document: ParsedDocument | null, progress: RunProgress | null = null): RailModel {

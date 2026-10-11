@@ -66,10 +66,10 @@ export const durableCorrectionSchema = z.object({
   action: z.enum(['APPROVED', 'EDITED', 'REJECTED', 'PENDING']), value: z.unknown().optional(),
   evidence: z.array(z.object({ anchorId: z.string().min(1), occurrenceIds: z.array(z.string()).min(1) }).strict()).default([]),
   included: z.boolean().default(true),
-  alternativeIds: z.array(z.string().min(1)).min(1).optional(),
+  choices: z.array(z.object({ path: z.array(z.string()), value: z.unknown() }).strict()).min(1).optional(),
 }).strict().superRefine((value,context)=> {
-  if(value.alternativeIds && value.action!=='APPROVED')
-    context.addIssue({code:'custom',path:['alternativeIds'],message:'Only an approval can choose alternatives.'})
+  if(value.choices && value.action!=='APPROVED')
+    context.addIssue({code:'custom',path:['choices'],message:'Only an approval can choose readings.'})
 })
 export const durableStatusSchema = z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'FAILED', 'COMPLETED'])
 export type DurableStatus = z.infer<typeof durableStatusSchema>

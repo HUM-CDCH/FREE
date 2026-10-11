@@ -64,8 +64,7 @@ export type ReviewRowProps = {
   editing: boolean
   node: SchemaNode | null
   onDecide: (action: ReviewAction, value?: unknown) => void
-  onChoose?: (ids: string[]) => void
-  onKeep?: () => void
+  onChoose?: (choices: { path: string[]; value: unknown }[]) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
@@ -75,7 +74,7 @@ export type ReviewRowProps = {
 
 /** One value (results review redesign §3.2), and when selected its expansion (§3.3): one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
-  onDecide, onChoose, onKeep, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -89,14 +88,14 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
-        aria-label={`${stateLabel(row)} ${row.name} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.newReading ? ', New reading – review needed' : ''}`}
+        aria-label={`${stateLabel(row)} ${row.name} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
           <span className="block truncate font-mono text-compact text-ink-faint">{row.name}</span>
           <span className="line-clamp-2 text-content font-medium text-ink" title={rowText(row)}>{rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
-          {row.newReading && <span className="block text-compact text-stale-ink">New reading – review needed</span>}
+          {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
         </span>
         {row.chip && (
           <span className={`inline-flex h-5.5 items-center gap-1 rounded border px-1.5 text-compact whitespace-nowrap ${chipStyles[style]}`}>
@@ -129,7 +128,6 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
           )}
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
           {!editing && canDecide && row.disagreement && onChoose && <DisagreementChoice parts={row.disagreement} onChoose={onChoose}/>}
-          {!editing && canDecide && row.newReading && onKeep && <Button onClick={onKeep}>Keep</Button>}
           {editing ? (
             <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
               onTypedSave={onTypedEdit}

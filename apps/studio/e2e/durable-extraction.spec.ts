@@ -782,7 +782,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).values[0].correction.decision.value).toBe('Cited title')
     await page.getByRole('button',{name:/Approved title Cited title/}).click()
     await page.getByRole('button',{name:'Undo',exact:true}).click()
-    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).values[0].correction.decision.alternativeIds).toEqual(['a'.repeat(64)])
+    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).values[0].correction.decision.choices).toEqual([{path:[],value:'Article title'}])
     await page.getByRole('button',{name:'Save review',exact:true}).click()
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
   } finally {await fixture.close()}

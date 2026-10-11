@@ -31,7 +31,7 @@ export type EndCard =
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card (§4.5).
  */
 export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
-  headingRef, onDecide, onChoose, onKeep, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
+  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
   article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
@@ -45,8 +45,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   end: EndCard | null
   headingRef: Ref<HTMLHeadingElement>
   onDecide: (action: ReviewAction, value?: unknown) => void
-  onChoose?: (ids: string[]) => void
-  onKeep?: () => void
+  onChoose?: (choices: { path: string[]; value: unknown }[]) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
@@ -107,7 +106,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         ) : (
           <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{rowText(current)}</h2>
         )}
-        {current.newReading && <p className="m-0 mt-1 text-secondary text-stale-ink">New reading – review needed</p>}
+        {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{shownValue(current.extracted)}</s></p>}
       </div>
       <figure className="m-0">
@@ -124,7 +123,6 @@ export default function ReviewFocus({ article, items, position, current, recordL
         </div>
       )}
       {!editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
-      {!editing && current.newReading && onKeep && <Button onClick={onKeep}>Keep</Button>}
       {!decided && !editing && (
         <div className="grid grid-cols-2 gap-2">
           {!current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>

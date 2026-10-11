@@ -1,14 +1,14 @@
 import { assign, fromPromise, setup } from 'xstate'
 import type { DurablePage,DurableHistory } from 'extraction/durable-types'
+import { reviewedValue } from 'extraction/value-disagreement'
 import { durableRequest, durableRoot } from './durableExtractionApi'
 
 type Value=DurablePage['values'][number]
-type Draft={alternativeIds?:string[];value:unknown;included:boolean;evidence:{anchorId:string;occurrenceIds:string[]}[]}
+type Draft={choices?:{path:string[];value:unknown}[];value:unknown;included:boolean;evidence:{anchorId:string;occurrenceIds:string[]}[]}
 type Action='APPROVED'|'EDITED'|'REJECTED'|'PENDING'
 export function reviewDraft(value:Value):Draft {
   const decision=value.correction?.decision
-  return {value:decision?.action==='EDITED' || (decision?.action==='APPROVED' && value.disagreement)?decision.value:value.modelValue,
-    ...(value.disagreement && decision?.alternativeIds?{alternativeIds:decision.alternativeIds}:{}),
+  return {value:reviewedValue(value),...(decision?.choices?{choices:decision.choices}:{}),
     included:decision?.included??true,evidence:decision?.evidence??[]}
 }
 /** Polling changes the view; it never replaces a researcher's open draft. */
@@ -35,7 +35,7 @@ export const durableReviewMachine=setup({
     viewing:{on:{edit:{target:'editing',actions:assign({draft:({event})=>event.draft,error:null})},save:{target:'saving',actions:'chooseAction'},undo:{target:'undoing'}}},
     editing:{on:{edit:{actions:assign({draft:({event})=>event.draft})},save:{target:'saving',actions:'chooseAction'},undo:{target:'undoing'},refresh:{target:'reloading'},cancel:{target:'viewing',actions:assign({error:null})}}},
     undoing:{invoke:{src:'loadPrevious',input:({context})=>({extractionId:context.extractionId,value:context.value,snapshotVersion:context.snapshotVersion}),onDone:{target:'saving',actions:assign({draft:({event})=>event.output.draft,action:({event})=>event.output.action})},onError:{target:'editing',actions:assign({error:({event})=>event.error instanceof Error?event.error.message:'Unable to load the previous decision.'})}}},
-    saving:{invoke:{src:'save',input:({context})=>({extractionId:context.extractionId,valueId:context.value.id,body:{expectedRevision:context.value.correction?.revision??context.value.historicalCorrection?.revision??0,snapshotVersion:context.snapshotVersion,action:context.action,value:context.draft.value,included:context.draft.included,evidence:context.draft.evidence,...(context.action==='APPROVED' && context.draft.alternativeIds?{alternativeIds:context.draft.alternativeIds}:{})}}),onDone:{target:'saved'},onError:{target:'editing',actions:assign({error:({event})=>event.error instanceof Error?event.error.message:'Unable to save. Your draft is still here.'})}}},
+    saving:{invoke:{src:'save',input:({context})=>({extractionId:context.extractionId,valueId:context.value.id,body:{expectedRevision:context.value.correction?.revision??context.value.historicalCorrection?.revision??0,snapshotVersion:context.snapshotVersion,action:context.action,value:context.draft.value,included:context.draft.included,evidence:context.draft.evidence,...(context.action==='APPROVED' && context.draft.choices?{choices:context.draft.choices}:{})}}),onDone:{target:'saved'},onError:{target:'editing',actions:assign({error:({event})=>event.error instanceof Error?event.error.message:'Unable to save. Your draft is still here.'})}}},
     reloading:{invoke:{src:'loadSaved',input:({context})=>({extractionId:context.extractionId,valueId:context.value.id,snapshotVersion:context.snapshotVersion}),onDone:{target:'editing',actions:assign({value:({event,context})=>event.output.values[0]??context.value,comparing:true,error:null})},onError:{target:'editing',actions:assign({error:'Unable to reload the saved decision. Your draft is still here.'})}}},
     saved:{type:'final'},
   },

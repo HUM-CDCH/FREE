@@ -25,7 +25,6 @@ export {
   buildDurableEvidenceTable,
   buildDurableDisagreementsTable,
   DISAGREEMENTS_SHEET,
-  decisionWords,
   unusedColumn,
   buildDurableExportTable,
   buildIdentityTable,

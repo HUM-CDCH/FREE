@@ -835,31 +835,6 @@ def test_article_disagreement_survives_every_publication_and_replay():
                             for value in publication["values"] if value["fieldId"] in expected)
 
 
-def test_edited_disagreement_guidance_keeps_the_readings_and_acknowledged_digest_in_the_prompt():
-    from kei_exp.kie.extract.durable import canonical, field_meaning
-    from kei_exp.kie.extract.schema import Schema
-    from kei_exp.kie.extract.stages import extract_record
-    node={"id":"title","name":"title","type":"string"}
-    tree={"recordDescription":"The whole document","schemaNodes":[node]}
-    lease=MemoryLease(tree)
-    candidate={"id":"correction","fieldId":"title","meaning":field_meaning(node),"node":node,
-        "value":"Researcher title","grounded":False,"disagreementDigest":"d"*64,
-        "sourceContext":canonical({"modelValue":None,"disagreement":[{"path":[],"values":["Article title","Cited title"]}]})}
-    lease.candidates=[{"id":"correction","candidate":candidate}]
-    counter=Counter()
-    chat=CountingChat(lambda *_:{"title":"target source"})
-    with pytest.raises(NeedsCall):
-        extract_record(passages(["target source"]),Schema.model_validate(tree),
-            Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
-            budget=48000,counter=counter,document=True)
-    request=next(iter(lease.units.values()))["input"]["request"]
-    assert request["examples"] == [candidate]
-    assert canonical([candidate]) in request["body"]["system"]
-    assert "Article title" in request["body"]["system"] and "Cited title" in request["body"]["system"]
-    assert "d"*64 in request["body"]["system"]
-    assert not chat.calls
-
-
 def test_a_disagreements_retained_values_do_not_depend_on_start_page():
     from tests.test_record_scope import disagreement_article_input, disagreement_article_reply
     request, _ = disagreement_article_input(grounding="quoted")

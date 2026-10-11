@@ -17,3 +17,11 @@ export function originPages(origins: readonly {primary: readonly {segment: strin
   }
   return `${pages.length===1?'p.':'pp.'} ${ranges.join(', ')}`
 }
+
+/** The value a researcher's decision gives its field: an edit, or the readings chosen at a Value Disagreement;
+ *  otherwise `model`, the model's own value by default. */
+export function reviewedValue(value: {readonly modelValue: unknown; readonly correction?: {readonly decision: {readonly action: string; readonly value?: unknown; readonly choices?: unknown}} | null},
+  model: unknown = value.modelValue): unknown {
+  const decision = value.correction?.decision
+  return decision?.action === 'EDITED' || decision?.choices ? decision.value : model
+}

@@ -79,17 +79,11 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
     send({type:'save',action})
   }
-  const onChoose=(alternativeIds:string[])=> {
-    send({type:'edit',draft:{...state.context.draft,alternativeIds}})
+  const onChoose=(choices:{path:string[];value:unknown}[])=> {
+    send({type:'edit',draft:{...state.context.draft,choices}})
     send({type:'save',action:'APPROVED'})
   }
-  const onKeep=()=> {
-    const decision=state.context.value.correction?.decision
-    if(!decision || decision.action==='PENDING')return
-    if(decision.action==='APPROVED')onChoose(decision.alternativeIds??[])
-    else decide(decision.action,decision.value)
-  }
-  const common={onChoose,onKeep,quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
+  const common={onChoose,quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
     onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
@@ -260,7 +254,7 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
 
 /** Whether the results shown hold the same version of a value as the open review's. */
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
-  &&JSON.stringify(a.disagreement?.map(d=>[d.path,d.alternatives.map(a=>a.id)]))===JSON.stringify(b.disagreement?.map(d=>[d.path,d.alternatives.map(a=>a.id)]))
+  &&JSON.stringify(a.disagreement?.map(d=>[d.path,d.alternatives.map(a=>a.value)]))===JSON.stringify(b.disagreement?.map(d=>[d.path,d.alternatives.map(a=>a.value)]))
 
 /** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's

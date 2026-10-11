@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { modelDigest, disagreementDigest, resolvedValue, decidedAlternatives, decidedCandidate, correctionFit, settled, adaptedCorrection, correctionSourceContext, correctionValueFits, fieldMeaning, selectFeedback } from './durable-feedback.js'
+import { adaptedCorrection, correctionSourceContext, correctionValueFits, fieldMeaning, modelDigest, resolvedValue, selectFeedback } from './durable-feedback.js'
 import type { SchemaNode } from './schema.js'
 import sourceFixture from '../../../apps/studio/src/assets/parsed_document.v2.json' with {type:'json'}
 import { decodeParsedDocument } from './parsed-document.js'
@@ -91,79 +91,29 @@ test('child ordering uses the same UTF-8 order as the Python planner',()=> {
 })
 
 const origins=[{selectionId:saved.selectionId,generation:'1',primary:[{segment:'p3_s0',start:0,end:12}],overlap:[]}]
-const alternative=(value:string,id:string)=>({id:id.repeat(64),value,origins})
-const disputed=durableValueSchema.parse({...saved,modelValue:null,disagreement:[{path:[],alternatives:[alternative('A','a'),alternative('C','c')]}]})
-const decision=(value:typeof saved,action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',ids?:string[],edit?:unknown)=> {
-  const input={action,alternativeIds:ids,value:edit}
-  const candidate=decidedCandidate(value,input,{sourceRevisionId:'source',recordId:value.recordId})
-  assert.ok(candidate)
-  return {candidate,decision:input}
-}
-test('a disagreement requires exactly one named alternative per place, never a plain approval',()=> {
-  assert.equal(decidedCandidate(disputed,{action:'APPROVED'},{}),undefined)
-  assert.equal(resolvedValue(disputed,[]),undefined)
-  assert.equal(resolvedValue(disputed,['unknown']),undefined)
-  assert.equal(resolvedValue(disputed,['a'.repeat(64),'c'.repeat(64)]),undefined)
-  const choice=decision(disputed,'APPROVED',['c'.repeat(64)])
-  assert.equal(resolvedValue(disputed,decidedAlternatives(choice,disputed)!),'C')
-  assert.equal(correctionFit(choice,disputed),'compatible')
-  assert.equal(settled(choice,disputed),true)
-  assert.equal(JSON.parse(choice.candidate.sourceContext).modelValue,'C')
-  assert.deepEqual(JSON.parse(choice.candidate.sourceContext).disagreement,[{path:[],values:['A','C']}])
-})
-test('a new reading keeps a chosen decision shown but requires Keep before finalizing the newer cut',()=> {
-  const choice=decision(disputed,'APPROVED',['a'.repeat(64)])
-  const newer={...disputed,disagreement:[{path:[],alternatives:[...disputed.disagreement![0].alternatives,alternative('D','d')]}]}
-  assert.equal(correctionFit(choice,newer),'new-reading')
-  assert.deepEqual(decidedAlternatives(choice,newer),['a'.repeat(64)])
-  assert.equal(settled(choice,newer),false)
-  assert.equal(settled(choice,disputed),true)
-  assert.equal(settled(decision(newer,'APPROVED',['a'.repeat(64)]),newer),true)
-})
-test('approval and rejection before a disagreement apply to the earlier reading and need coverage',()=> {
-  for(const action of ['APPROVED','REJECTED'] as const) {
-    const earlier=decision({...saved,modelValue:'A'},action)
-    assert.equal(correctionFit(earlier,disputed),'new-reading')
-    assert.deepEqual(decidedAlternatives(earlier,disputed),['a'.repeat(64)])
-    assert.equal(correctionFit(decision({...saved,modelValue:null},action),disputed),action==='REJECTED'?'new-reading':'incompatible')
-  }
-})
-test('an edited value stays shown after new readings, while new origins and Evidence do not need review',()=> {
-  const edit=decision(disputed,'EDITED',undefined,'Researcher title')
-  const newer={...disputed,disagreement:[{path:[],alternatives:[...disputed.disagreement![0].alternatives,alternative('D','d')]}]}
-  assert.equal(correctionFit(edit,newer),'new-reading')
-  assert.equal(settled(decision(newer,'EDITED',undefined,'Researcher title'),newer),true)
-  const relinked={...disputed,grounding:'provisional' as const,disagreement:disputed.disagreement!.map(entry=>({...entry,alternatives:entry.alternatives.map(a=>({...a,origins:[...a.origins,{...origins[0],primary:[{segment:'p9_s0',start:0,end:20}]}]}))}))}
-  assert.equal(disagreementDigest(relinked),disagreementDigest(disputed))
-  assert.equal(settled(edit,relinked),true)
-})
-test('a choice made before a second part disagrees projects alternatives for every part',()=> {
-  const node:SchemaNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
-  const first={...saved,node,modelValue:{title:null,year:1827},disagreement:[{path:['t'],alternatives:disputed.disagreement![0].alternatives}]}
-  const choice=decision(first,'APPROVED',['a'.repeat(64)])
-  const later={...first,modelValue:{title:null,year:null},disagreement:[...first.disagreement,{path:['y'],alternatives:[{...alternative('','b'),value:1827},{...alternative('','d'),value:1828}]}]}
-  assert.equal(correctionFit(choice,later),'new-reading')
-  assert.deepEqual(decidedAlternatives(choice,later),['a'.repeat(64),'b'.repeat(64)])
-  assert.deepEqual(resolvedValue(later,decidedAlternatives(choice,later)!),{title:'A',year:1827})
-})
-test('PENDING never needs Keep and adoption that grows a disagreement invalidates a choice but retains an edit',()=> {
-  const pending=decision(disputed,'PENDING')
-  const adopted={...disputed,selectionId:'33333333-3333-4333-8333-333333333333'}
-  assert.equal(correctionFit(pending,disputed),'compatible')
-  assert.equal(settled(pending,disputed),false)
-  assert.equal(correctionFit(pending,adopted),'incompatible')
-  assert.equal(correctionFit(decision(disputed,'APPROVED',['a'.repeat(64)]),adopted),'incompatible')
-  assert.equal(correctionFit(decision(disputed,'REJECTED'),adopted),'incompatible')
-  assert.equal(correctionFit(decision(disputed,'EDITED',undefined,'Edit'),adopted),'compatible')
-})
-
-test('plain values retain the original model digest and sourceContext bytes without optional keys',()=> {
+const alternative=(value:unknown,id:string)=>({id:id.repeat(64),value,origins})
+const work:SchemaNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
+const titles={path:['t'],alternatives:[alternative('A','a'),alternative('C','c')]}
+const years={path:['y'],alternatives:[alternative(1827,'b'),alternative(1828,'d')]}
+const disputed=durableValueSchema.parse({...saved,node:work,modelValue:{title:null,year:1827},disagreement:[titles]})
+test('a decision binds to the model value and each place\'s readings, never to where they were read',()=> {
   assert.equal(modelDigest(saved),'a5595d6633f64f2f08efa0c946b3ec6f94e9a9e5f28958669582fce245c21113')
-  const candidate=decidedCandidate(saved,{action:'APPROVED'},{recordId:'record',sourceRevisionId:'source'})!
-  assert.equal(candidate.modelDigest,modelDigest(saved))
-  assert.equal(candidate.sourceContext,'{"modelValue":"Original interpretation","recordId":"record","sourceRevisionId":"source"}')
-  assert.equal(Object.hasOwn(candidate,'disagreementDigest'),false)
-  assert.equal(settled(decision(saved,'APPROVED'),saved),true)
-  assert.equal(settled(decision(saved,'REJECTED'),saved),true)
-  assert.equal(settled(decision(saved,'PENDING'),saved),false)
+  const relocated={...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives].reverse()
+    .map(a=>({...a,origins:[...a.origins,{...origins[0],primary:[{segment:'p9_s0',start:0,end:20}]}]}))}]}
+  assert.equal(modelDigest(relocated),modelDigest(disputed))
+  assert.notEqual(modelDigest({...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives,alternative('D','e')]}]}),modelDigest(disputed))
+  // A second part that comes to disagree changes what a decision on the whole value reviewed.
+  assert.notEqual(modelDigest({...disputed,modelValue:{title:null,year:null},disagreement:[titles,years]}),modelDigest(disputed))
+})
+test('approving a disagreement takes exactly one of its own readings per place, never one by order',()=> {
+  const both=durableValueSchema.parse({...disputed,modelValue:{title:null,year:null},disagreement:[titles,years]})
+  assert.equal(resolvedValue(both,[]),undefined)
+  assert.equal(resolvedValue(both,[{path:['t'],value:'A'}]),undefined)
+  assert.equal(resolvedValue(both,[{path:['t'],value:'D'},{path:['y'],value:1827}]),undefined)
+  assert.equal(resolvedValue(both,[{path:['t'],value:'A'},{path:['t'],value:'C'}]),undefined)
+  assert.equal(resolvedValue(saved,[{path:[],value:'Original interpretation'}]),undefined)
+  assert.deepEqual(resolvedValue(both,[{path:['y'],value:1828},{path:['t'],value:'C'}]),{title:'C',year:1828})
+  assert.deepEqual(both.modelValue,{title:null,year:null})
+  const title=durableValueSchema.parse({...saved,modelValue:null,disagreement:[{path:[],alternatives:titles.alternatives}]})
+  assert.equal(resolvedValue(title,[{path:[],value:'A'}]),'A')
 })

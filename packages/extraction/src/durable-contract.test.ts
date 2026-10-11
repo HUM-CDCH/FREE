@@ -48,11 +48,13 @@ test('Value Disagreements retain typed alternatives at null places addressed by 
   ]) assert.equal(durableValueSchema.safeParse(invalid).success,false,JSON.stringify(invalid))
 })
 
-test('alternative choices are optional and only allowed on approvals', async()=> {
+test('chosen readings are optional and only allowed on approvals', async()=> {
   const {durableCorrectionSchema}=await import('./durable-contract.js')
   const plain={expectedRevision:0,snapshotVersion:1,action:'APPROVED',evidence:[],included:true}
+  const choices=[{path:['title-id'],value:'Cited title'}]
   assert.deepEqual(durableCorrectionSchema.parse(plain),plain)
-  assert.deepEqual(durableCorrectionSchema.parse({...plain,alternativeIds:['a']}),{...plain,alternativeIds:['a']})
+  assert.deepEqual(durableCorrectionSchema.parse({...plain,choices}),{...plain,choices})
+  assert.equal(durableCorrectionSchema.safeParse({...plain,choices:[{...choices[0],id:'a'}]}).success,false)
   for(const action of ['EDITED','REJECTED','PENDING'])
-    assert.equal(durableCorrectionSchema.safeParse({...plain,action,alternativeIds:['a']}).success,false)
+    assert.equal(durableCorrectionSchema.safeParse({...plain,action,choices}).success,false)
 })
