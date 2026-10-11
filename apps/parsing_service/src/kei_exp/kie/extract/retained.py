@@ -51,37 +51,14 @@ def _walk(node, value, path):
 def _retained(value_id, node, entry, origin):
     path = entry["path"][1:]
     leaf, _ = _walk(node, None, path)
-    alternatives = []
-    for alternative in entry["alternatives"]:
-        value = alternative["value"]
-        if type(value) is float and value.is_integer():
-            value = int(value)
-        alternatives.append({"id": digest([value_id, path, field_meaning(leaf), canonical(value)]), "value": value,
-            "origins": [{**origin, **context} for context in alternative["contexts"]]})
-    return {"path": path, "alternatives": alternatives}
-
-
-def joined(*disagreements):
-    """Canonical paths, IDs and origins make replay and adoption independent of reading order."""
-    entries = {}
-    for group in disagreements:
-        for entry in group:
-            path = canonical(entry["path"])
-            saved = entries.setdefault(path, {"path": entry["path"], "alternatives": {}})
-            for alternative in entry["alternatives"]:
-                item = saved["alternatives"].setdefault(alternative["id"], {**alternative, "origins": {}})
-                for origin in alternative["origins"]:
-                    item["origins"][canonical(origin)] = origin
-    return [{"path": entry["path"], "alternatives": [
-        {**alternative, "origins": [origin for _, origin in sorted(alternative["origins"].items())]}
-        for _, alternative in sorted(entry["alternatives"].items())]} for _, entry in sorted(entries.items())]
+    return {"path": path, "alternatives": sorted(({"id": digest([value_id, path, field_meaning(leaf), canonical(a["value"])]),
+        "value": a["value"], "origins": [{**origin, **context} for context in a["contexts"]]} for a in entry["alternatives"]),
+        key=lambda a: a["id"])}
 
 
 def merge_contribution(node, earlier, later, conflicts, held=None, path=()):
-    if held and path in held:
-        # shortcut: a new plain reading on adoption becomes an unreviewable historical proposal, upgrade when
-        # reading contexts are available here and historicalProposals have their own review path.
-        if later is not None and canonical(later) not in held[path]:
+    if held and path in held:  # a carried Value Disagreement keeps its place empty
+        if later is not None and later not in held[path]:
             conflicts.append({"path": list(path), "historical": None, "proposed": later})
         return None
     if later is None or later == earlier:
@@ -95,6 +72,23 @@ def merge_contribution(node, earlier, later, conflicts, held=None, path=()):
         return [*earlier, *later]
     conflicts.append({"path":list(path),"historical":earlier,"proposed":later})
     return earlier
+
+
+def adopted(node, earlier, carried, later, fresh):
+    """An adopted document value, its disagreement and its historical proposals: a carried Value Disagreement stays as
+    it is until reprocessed and a fresh one fills only an empty place; any other new reading is proposed, as for any
+    value."""
+    held = {tuple(entry["path"]): [a["value"] for a in entry["alternatives"]] for entry in carried}
+    conflicts, kept = [], []
+    for entry in fresh:
+        place = tuple(entry["path"])
+        previous = None if place in held else _walk(node, earlier, entry["path"])[1]
+        if place not in held and previous is None:
+            kept.append(entry)
+        else:
+            conflicts += [{"path": entry["path"], "historical": previous, "proposed": a["value"]}
+                          for a in entry["alternatives"] if a["value"] not in held.get(place, [previous])]
+    return merge_contribution(node, earlier, later, conflicts, held), [*carried, *kept], conflicts
 
 
 def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=False, primary=(), field_ids=None, metadata=None,
@@ -117,8 +111,7 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
         value = fields.get(node["name"])
         value_id = digest([record_id, node["id"]])
         origin = {"selectionId": selection["id"], "generation": lease.state["source"]["generation"]}
-        disagreement = joined([_retained(value_id, node, entry, origin) for entry in disagreements
-                               if entry["path"][0] == node["id"]])
+        disagreement = [_retained(value_id, node, entry, origin) for entry in disagreements if entry["path"][0] == node["id"]]
         old = prior.get(node["id"])
         lineage = []
         if old and old["id"] not in reprocess:
@@ -129,28 +122,12 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
             if field_meaning(old["node"]) == field_meaning(node):
                 conflicts = []
                 if scope == "document":
-                    earlier = adapt_value(old["node"], node, old["modelValue"])
-                    carried = old.get("disagreement", [])
-                    held = {tuple(entry["path"]): {canonical(a["value"]) for a in entry["alternatives"]} for entry in carried}
-                    remaining = []
-                    for entry in disagreement:
-                        _, previous = _walk(node, earlier, entry["path"])
-                        if previous is None:
-                            remaining.append(entry)
-                        else:
-                            conflicts.extend({"path": entry["path"], "historical": previous, "proposed": a["value"]}
-                                for a in entry["alternatives"] if canonical(a["value"]) != canonical(previous))
-                    value = merge_contribution(node, earlier, value, conflicts, held)
-                    disagreement = joined([entry for entry in carried if _walk(node, value, entry["path"])[1] is None], remaining)
+                    value, disagreement, conflicts = adopted(node, adapt_value(old["node"], node, old["modelValue"]),
+                                                             old.get("disagreement", []), value, disagreement)
                 if conflicts:
                     proposals[old["id"]] = {"selectionId":selection["id"],"historicalSnapshotId":old_snapshot["id"],"conflicts":conflicts}
-                ids = lambda entries: sorted(a["id"] for entry in entries for a in entry["alternatives"])
-                # shortcut: unchanged carried disagreements do not record this selection's origins, upgrade when
-                # origins can be appended without restamping the model version a decision reviewed.
-                if value == old["modelValue"] and ids(disagreement) == ids(old.get("disagreement", [])):
+                if value == old["modelValue"] and disagreement == old.get("disagreement", []):
                     continue
-                # shortcut: a growing disagreement republishes under this selection, so choices/rejections must be
-                # made again (edits stay shown), upgrade when modelDigest can bind independently of input selection.
                 lineage = [old_snapshot["id"] + ":" + old["id"]]
         evidence = []
         for link in links:

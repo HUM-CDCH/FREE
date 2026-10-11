@@ -735,63 +735,58 @@ def reading_disagreements(path, values):
         for index, value in enumerate(values)]}]
 
 
-@pytest.mark.parametrize("case", ["union", "absent", "resolved", "plain-new", "plain-held", "sibling",
-    "nested-year", "nested-resolved", "reprocess", "new-origins", "changed-meaning"])
-def test_adoption_never_collapses_a_carried_disagreement(case):
-    from kei_exp.kie.extract.durable import canonical, field_meaning
-    nested = case in ("sibling", "nested-year", "nested-resolved")
-    node = {"id": "work", "name": "work", "type": "object", "children": [
-        {"id": "t", "name": "title", "type": "string"}, {"id": "y", "name": "year", "type": "integer"}]} if nested else {
-        "id": "title", "name": "title", "type": "string"}
+TITLE = {"id": "title", "name": "title", "type": "string"}
+WORK = {"id": "work", "name": "work", "type": "object", "children": [
+    {"id": "t", "name": "title", "type": "string"}, {"id": "y", "name": "year", "type": "integer"}]}
+
+
+@pytest.mark.parametrize("node,path,old,carried,fresh,readings,published,proposed", [
+    # A carried disagreement stays as it is; another reading of its place is proposed.
+    (TITLE, [], None, ["A", "C"], None, ["A", "D"], None, [(None, "D")]),
+    (TITLE, [], None, ["A", "C"], "D", None, None, [(None, "D")]),
+    (TITLE, [], None, ["A", "C"], "A", None, None, []),
+    (TITLE, [], None, ["A", "C"], None, ["C", "A"], None, []),
+    (WORK, ["y"], {"title": "A", "year": None}, [1827, 1828], {"title": "A", "year": 1829}, None, None, [(None, 1829)]),
+    (WORK, ["t"], {"title": None, "year": None}, ["A", "C"], {"title": None, "year": 1827}, None,
+     {"title": None, "year": 1827}, []),
+    # A fresh disagreement fills an empty place; a saved value keeps its place and the other readings are proposed.
+    (TITLE, [], None, None, None, ["A", "C"], None, []),
+    (TITLE, [], "A", None, None, ["A", "C"], None, [("A", "C")]),
+    (WORK, ["t"], {"title": "A", "year": None}, None, {"title": None, "year": 1827}, ["A", "C"],
+     {"title": "A", "year": 1827}, [("A", "C")]),
+])
+def test_adoption_keeps_a_carried_disagreement_and_proposes_other_readings(node, path, old, carried, fresh, readings,
+                                                                           published, proposed):
     lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [node]})
-    old_value = {"title": "A" if case in ("nested-year", "nested-resolved") else None, "year": None} if nested else "A" if case == "resolved" else None
-    old = publish_values(lease, {node["name"]: old_value}, "document", complete=True)["values"][0]
-    old_selection = lease.state["selection"]["id"]
-    path = ["y"] if case == "nested-year" else ["t"] if nested else []
-    leaf = node["children"][1 if case == "nested-year" else 0] if nested else node
-    carried = [1827, 1828] if case == "nested-year" else ["A", "C"]
-    if case not in ("absent", "resolved", "nested-resolved"):
-        old["processing"] = "saved"
-        old["disagreement"] = [{"path": path, "alternatives": sorted([{
-            "id": digest([old["id"], path, field_meaning(leaf), canonical(value)]), "value": value,
-            "origins": [{"selectionId": old_selection, "generation": "g1", "primary": [{"segment": "p1_s0", "start": 0, "end": 20}], "overlap": []}]}
-            for value in carried], key=lambda a: a["id"])}]
-    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [old]}, "manifest": {"coverage": {
-        "reprocessValueIds": [old["id"]] if case == "reprocess" else []}}}
+    saved = publish_values(lease, {node["name"]: old}, "document", complete=True,
+                           disagreements=reading_disagreements([node["id"], *path], carried) if carried else ())["values"][0]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [saved]},
+                        "manifest": {"coverage": {"reprocessValueIds": []}}}
     lease.state["selection"]["id"] = str(uuid4())
-    if case == "changed-meaning":
-        node["description"] = "A different field meaning"
-        # The old snapshot is immutable even while the live selection changes.
-        lease.historical["snapshot"]["values"][0]["node"] = {key: value for key, value in node.items() if key != "description"}
-    fresh = {"title": "A", "year": 1829} if case == "nested-year" else {"title": None, "year": 1827} if nested else (
-        "D" if case in ("plain-new", "reprocess") else "A" if case == "plain-held" else None)
-    kwargs = {}
-    if case in ("union", "absent", "resolved", "nested-resolved", "new-origins"):
-        kwargs["disagreements"] = reading_disagreements([node["id"], *path], ["A", "D"] if case == "union" else ["A", "C"])
-    result = publish_values(lease, {node["name"]: fresh}, "document", complete=True, **kwargs)
-    proposals = result["coverage"]["historicalProposals"]
-    if case in ("plain-new", "plain-held", "resolved", "nested-year", "new-origins", "changed-meaning"):
+    result = publish_values(lease, {node["name"]: fresh}, "document", complete=True,
+                            disagreements=reading_disagreements([node["id"], *path], readings) if readings else ())
+    assert [(c["historical"], c["proposed"]) for c in result["coverage"]["historicalProposals"].get(saved["id"], {
+        "conflicts": []})["conflicts"]] == proposed
+    assert all(c["path"] == path for c in result["coverage"]["historicalProposals"].get(saved["id"], {"conflicts": []})["conflicts"])
+    if old is None and carried is None:  # an empty place takes the fresh disagreement
+        assert result["values"][0]["lineage"] == [f"old-snapshot:{saved['id']}"]
+        assert sorted(a["value"] for a in result["values"][0]["disagreement"][0]["alternatives"]) == ["A", "C"]
+    elif published is None:
         assert result["values"] == []
-    if case in ("plain-held", "new-origins"):
-        assert proposals == {}
-    if case in ("plain-new", "resolved", "nested-year", "nested-resolved"):
-        assert proposals[old["id"]]["conflicts"] == [{"path": path, "historical": "A" if case in ("resolved", "nested-resolved") else None,
-            "proposed": "C" if case in ("resolved", "nested-resolved") else 1829 if case == "nested-year" else "D"}]
-    if case in ("union", "absent", "sibling"):
-        saved = result["values"][0]
-        assert saved["processing"] == "saved"
-        assert saved["modelValue"] == ({"title": None, "year": 1827} if nested else None)
-        alternatives = saved["disagreement"][0]["alternatives"]
-        assert {a["value"] for a in alternatives} == ({"A", "C", "D"} if case == "union" else {"A", "C"})
-        assert [a["id"] for a in alternatives] == sorted(a["id"] for a in alternatives)
-        if case == "union":
-            assert saved["selectionId"] != old["selectionId"]
-            assert {a["id"] for a in old["disagreement"][0]["alternatives"]} <= {a["id"] for a in alternatives}
-            assert len(next(a for a in alternatives if a["value"] == "A")["origins"]) == 2
-    if case in ("reprocess", "nested-resolved"):
-        saved = result["values"][0]
-        assert "disagreement" not in saved
-        assert saved["modelValue"] == ("D" if case == "reprocess" else {"title": "A", "year": 1827} if nested else None)
+    else:
+        assert result["values"][0]["modelValue"] == published
+        assert result["values"][0].get("disagreement") == saved.get("disagreement")
+
+
+def test_reprocessing_replaces_a_carried_disagreement():
+    lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [TITLE]})
+    saved = publish_values(lease, {"title": None}, "document", complete=True,
+                           disagreements=reading_disagreements(["title"], ["A", "C"]))["values"][0]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [saved]},
+                        "manifest": {"coverage": {"reprocessValueIds": [saved["id"]]}}}
+    lease.state["selection"]["id"] = str(uuid4())
+    value = publish_values(lease, {"title": "D"}, "document", complete=True)["values"][0]
+    assert value["modelValue"] == "D" and "disagreement" not in value
 
 
 def test_a_null_read_never_erases_a_saved_value_after_its_field_changes_meaning():
@@ -898,18 +893,3 @@ def test_a_disagreements_retained_values_and_publication_identity_do_not_depend_
     assert all(canonical(each) == canonical(published[0]) for each in published)
     assert all(canonical(each) == canonical(finals[0]) for each in finals)
     assert all(canonical(each) == canonical(completions[0]) for each in completions)
-
-
-def test_disagreement_origins_are_canonical_and_repeated_typed_readings_share_their_identity():
-    node={"id":"year","name":"year","type":"integer"}
-    lease=MemoryLease({"recordDescription":"An article","schemaNodes":[node]})
-    readings=reading_disagreements(["year"],[1827.0,1828,1827])
-    first=publish_values(lease,{"year":None},"document",disagreements=readings)
-    reversed_readings=deepcopy(readings)
-    reversed_readings[0]["alternatives"].reverse()
-    again=publish_values(lease,{"year":None},"document",disagreements=reversed_readings)
-    assert first == again and len(lease.publications) == 1
-    alternatives=first["values"][0]["disagreement"][0]["alternatives"]
-    assert len(alternatives) == 2
-    earlier=next(a for a in alternatives if a["value"] == 1827)
-    assert type(earlier["value"]) is int and len(earlier["origins"]) == 2
