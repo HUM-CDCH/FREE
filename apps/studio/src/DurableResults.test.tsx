@@ -598,3 +598,17 @@ it('waits for a pick at every nested part and keeps the selected buttons visible
   fireEvent.click(screen.getByRole('button',{name:'Use 1827'}))
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'APPROVED',choices:[{path:['t'],value:'Cited title'},{path:['y'],value:1827}]})))
 })
+it('starts from the saved choice, so switching one part saves the whole choice',async()=> {
+  const page=disagreementPage()
+  page.values[0]={...page.values[0],node:{id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]},
+    modelValue:{title:null,year:null},disagreement:[{path:['t'],alternatives:disagreementAlternatives},{path:['y'],alternatives:disagreementAlternatives.map((a,i)=>({...a,value:1827+i}))}],
+    correction:{revision:1,decision:{action:'APPROVED',value:{title:'Cited title',year:1828},choices:[{path:['t'],value:'Cited title'},{path:['y'],value:1828}],evidence:[],included:true}}}
+  page.reviewCounts={required:1,toCheck:0,approved:1,edited:0,rejected:0}
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  vi.mocked(durableRequest).mockResolvedValue({revision:2})
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/Approved work/}))
+  expect(screen.getByRole('button',{name:'Use Cited title'})).toHaveAttribute('aria-pressed','true')
+  fireEvent.click(screen.getByRole('button',{name:'Use 1827'}))
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'APPROVED',expectedRevision:1,choices:[{path:['t'],value:'Cited title'},{path:['y'],value:1827}]})))
+})

@@ -253,8 +253,10 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
 }
 
 /** Whether the results shown hold the same version of a value as the open review's. */
+/** A Value Disagreement's readings at each place, in no particular order, as a decision binds to them. */
+const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,d.alternatives.map(a=>JSON.stringify(a.value)).sort()])).sort()
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
-  &&JSON.stringify(a.disagreement?.map(d=>[d.path,d.alternatives.map(a=>a.value)]))===JSON.stringify(b.disagreement?.map(d=>[d.path,d.alternatives.map(a=>a.value)]))
+  &&JSON.stringify(readings(a))===JSON.stringify(readings(b))
 
 /** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's

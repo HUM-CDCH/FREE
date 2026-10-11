@@ -24,7 +24,9 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   const link = value.links[0] ?? null
   const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
   const page = anchor?.producer_observations[0]?.page_number ?? null
-  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments)}))}))
+  const chosen=(path:string[],reading:unknown)=>correction?.choices?.some((choice:{path:string[];value:unknown})=>JSON.stringify([choice.path,choice.value])===JSON.stringify([path,reading]))===true
+  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,
+    alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments),chosen:chosen(entry.path,a.value)}))}))
   const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
   const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null

@@ -4,7 +4,7 @@ import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, rowText, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, rowText, stateLabel, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -107,7 +107,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
           <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{rowText(current)}</h2>
         )}
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
-        {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{shownValue(current.extracted)}</s></p>}
+        {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
       <figure className="m-0">
         <figcaption className="mb-1.5 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</figcaption>

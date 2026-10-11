@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { shownValue, type RailRow } from './reviewVocabulary'
 import { Button } from './ui'
 
-/** A choice is explicit at every disagreeing place; nothing starts selected. */
+/** A choice is explicit at every disagreeing place; only a saved choice starts selected. */
 export default function DisagreementChoice({parts,onChoose}:{parts:NonNullable<RailRow['disagreement']>;onChoose:(choices:{path:string[];value:unknown}[])=>void}) {
-  const [picks,setPicks]=useState<Record<number,number>>({})
+  const [picks,setPicks]=useState<Record<number,number>>(()=>Object.fromEntries(parts.flatMap((part,index)=> {
+    const saved=part.alternatives.findIndex(alternative=>alternative.chosen)
+    return saved<0?[]:[[index,saved]]
+  })))
   const choose=(part:number,alternative:number)=> {
     const next={...picks,[part]:alternative}
     setPicks(next)

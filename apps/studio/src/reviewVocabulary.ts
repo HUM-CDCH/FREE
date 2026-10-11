@@ -41,7 +41,7 @@ export type RailRow = {
   /** The run-time decision was not kept at settlement (§5.3). */
   changed: boolean
   /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
-  disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
+  disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null; chosen: boolean}[]}[]
   page: number | null
   /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
   retained?: { reviewable: boolean; source?: string; attribution?: string }

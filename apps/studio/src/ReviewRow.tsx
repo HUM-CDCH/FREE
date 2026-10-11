@@ -3,7 +3,7 @@ import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceQuote } from './evidenceQuote'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -105,7 +105,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
       </button>
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
-          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{shownValue(row.extracted)}</s></p>}
+          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>
               <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
