@@ -121,35 +121,37 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
                                if entry["path"][0] == node["id"]])
         old = prior.get(node["id"])
         lineage = []
-        if old and old["id"] not in reprocess and field_meaning(old["node"]) == field_meaning(node):
+        if old and old["id"] not in reprocess:
             # Empty remaining-source output never erases a saved contribution; a fresh disagreement is saved.
+            # Identical carried values retain their original selection too.
             if not disagreement and (value is None or (value == old["modelValue"] and not (isinstance(value,list) and scope == "document"))):
                 continue
-            conflicts = []
-            if scope == "document":
-                earlier = adapt_value(old["node"], node, old["modelValue"])
-                carried = old.get("disagreement", [])
-                held = {tuple(entry["path"]): {canonical(a["value"]) for a in entry["alternatives"]} for entry in carried}
-                remaining = []
-                for entry in disagreement:
-                    _, previous = _walk(node, earlier, entry["path"])
-                    if previous is None:
-                        remaining.append(entry)
-                    else:
-                        conflicts.extend({"path": entry["path"], "historical": previous, "proposed": a["value"]}
-                            for a in entry["alternatives"] if canonical(a["value"]) != canonical(previous))
-                value = merge_contribution(node, earlier, value, conflicts, held)
-                disagreement = joined([entry for entry in carried if _walk(node, value, entry["path"])[1] is None], remaining)
-            if conflicts:
-                proposals[old["id"]] = {"selectionId":selection["id"],"historicalSnapshotId":old_snapshot["id"],"conflicts":conflicts}
-            ids = lambda entries: sorted(a["id"] for entry in entries for a in entry["alternatives"])
-            # shortcut: unchanged carried disagreements do not record this selection's origins, upgrade when
-            # origins can be appended without restamping the model version a decision reviewed.
-            if value == old["modelValue"] and ids(disagreement) == ids(old.get("disagreement", [])):
-                continue
-            # shortcut: a growing disagreement republishes under this selection, so choices/rejections must be
-            # made again (edits stay shown), upgrade when modelDigest can bind independently of input selection.
-            lineage = [old_snapshot["id"] + ":" + old["id"]]
+            if field_meaning(old["node"]) == field_meaning(node):
+                conflicts = []
+                if scope == "document":
+                    earlier = adapt_value(old["node"], node, old["modelValue"])
+                    carried = old.get("disagreement", [])
+                    held = {tuple(entry["path"]): {canonical(a["value"]) for a in entry["alternatives"]} for entry in carried}
+                    remaining = []
+                    for entry in disagreement:
+                        _, previous = _walk(node, earlier, entry["path"])
+                        if previous is None:
+                            remaining.append(entry)
+                        else:
+                            conflicts.extend({"path": entry["path"], "historical": previous, "proposed": a["value"]}
+                                for a in entry["alternatives"] if canonical(a["value"]) != canonical(previous))
+                    value = merge_contribution(node, earlier, value, conflicts, held)
+                    disagreement = joined([entry for entry in carried if _walk(node, value, entry["path"])[1] is None], remaining)
+                if conflicts:
+                    proposals[old["id"]] = {"selectionId":selection["id"],"historicalSnapshotId":old_snapshot["id"],"conflicts":conflicts}
+                ids = lambda entries: sorted(a["id"] for entry in entries for a in entry["alternatives"])
+                # shortcut: unchanged carried disagreements do not record this selection's origins, upgrade when
+                # origins can be appended without restamping the model version a decision reviewed.
+                if value == old["modelValue"] and ids(disagreement) == ids(old.get("disagreement", [])):
+                    continue
+                # shortcut: a growing disagreement republishes under this selection, so choices/rejections must be
+                # made again (edits stay shown), upgrade when modelDigest can bind independently of input selection.
+                lineage = [old_snapshot["id"] + ":" + old["id"]]
         evidence = []
         for link in links:
             path = link.get("path", [])

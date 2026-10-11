@@ -770,7 +770,7 @@ def test_adoption_never_collapses_a_carried_disagreement(case):
         kwargs["disagreements"] = reading_disagreements([node["id"], *path], ["A", "D"] if case == "union" else ["A", "C"])
     result = publish_values(lease, {node["name"]: fresh}, "document", complete=True, **kwargs)
     proposals = result["coverage"]["historicalProposals"]
-    if case in ("plain-new", "plain-held", "resolved", "nested-year", "new-origins"):
+    if case in ("plain-new", "plain-held", "resolved", "nested-year", "new-origins", "changed-meaning"):
         assert result["values"] == []
     if case in ("plain-held", "new-origins"):
         assert proposals == {}
@@ -788,10 +788,22 @@ def test_adoption_never_collapses_a_carried_disagreement(case):
             assert saved["selectionId"] != old["selectionId"]
             assert {a["id"] for a in old["disagreement"][0]["alternatives"]} <= {a["id"] for a in alternatives}
             assert len(next(a for a in alternatives if a["value"] == "A")["origins"]) == 2
-    if case in ("reprocess", "changed-meaning", "nested-resolved"):
+    if case in ("reprocess", "nested-resolved"):
         saved = result["values"][0]
         assert "disagreement" not in saved
         assert saved["modelValue"] == ("D" if case == "reprocess" else {"title": "A", "year": 1827} if nested else None)
+
+
+def test_a_null_read_never_erases_a_saved_value_after_its_field_changes_meaning():
+    """Apply changes with an edited description, then a context reads nothing: the saved value stays."""
+    node = {"id": "title", "name": "title", "type": "string"}
+    lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [node]})
+    old = publish_values(lease, {"title": "A"}, "document", complete=True)["values"][0]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [old]}, "manifest": {"coverage": {"reprocessValueIds": []}}}
+    lease.state["selection"] = {**lease.state["selection"], "id": str(uuid4()), "schemaTree": {
+        "recordDescription": "An Article", "schemaNodes": [{**node, "description": "The article's own title"}]}}
+    assert publish_values(lease, {"title": None}, "document", complete=True)["values"] == []
+    assert publish_values(lease, {"title": "B"}, "document", complete=True)["values"][0]["modelValue"] == "B"
 
 
 def test_article_disagreement_survives_every_publication_and_replays_identically():
