@@ -42,8 +42,9 @@ needs and the source of its bugs.
   and the value is to be checked again before its snapshot can be finalized.
   An edit still applies while it fits its field, as for any value.
 - **Adoption carries it unchanged.** A carried disagreement stays as it is
-  until the value is reprocessed; any other new reading is a historical
-  proposal, as for any value.
+  until the value is reprocessed, or its field changes meaning and a new
+  reading replaces it; any other new reading is a historical proposal, as for
+  any value.
 - **Every publication carries it.** The disagreement lives in the retained
   value itself, not in snapshot diagnostics, so live, grounding-batch, final,
   completion-only and replayed publications keep it; the database validates
