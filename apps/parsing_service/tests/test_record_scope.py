@@ -319,10 +319,17 @@ def test_an_article_with_a_disagreement_never_reports_grounding_complete():
     ("integer", 1827, True), ("integer", 1827.0, False), ("integer", True, False),
     ("number", 1.5, True), ("number", float("inf"), False), ("number", float("nan"), False),
     ("boolean", False, True), ("boolean", 0, False), ("date", "1827", True), ("string", None, False),
+    ("integer", 10**400, True),
 ])
 def test_typed_reads_a_scalar_as_valid_value_does(kind, value, valid):
     from kei_exp.kie.extract.schema import Node, typed
     assert typed(value, Node(id="value", name="value", type=kind)) is valid
+
+
+def test_typed_reads_a_label_only_from_its_allowed_values():
+    from kei_exp.kie.extract.schema import Node, typed
+    labelled = Node(id="sex", name="sex", type="string", allowedValues=["mand", "kvinde"])
+    assert typed("mand", labelled) and not typed("female", labelled)
 
 
 @pytest.mark.parametrize("middle,cited,title,invalid", [

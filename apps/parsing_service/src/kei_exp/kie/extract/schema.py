@@ -224,5 +224,5 @@ def typed(value, node: Node) -> bool:
     types = {"string": (str,), "verbatim-string": (str,), "date": (str,), "integer": (int,),
              "number": (int, float), "boolean": (bool,)}.get(node.type, ())
     return not (type(value) not in types or (isinstance(value, str) and not value.strip()) or (
-        type(value) in (int, float) and not math.isfinite(value)) or (
+        type(value) is float and not math.isfinite(value)) or (
         node.allowed_values is not None and value not in node.allowed_values))

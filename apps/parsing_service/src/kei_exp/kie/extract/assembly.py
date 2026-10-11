@@ -54,7 +54,8 @@ PROMPT_VERSION = 15
 # and an Article no value context answered fails rather than publishing an all-null root (`article.RootUnanswered`).
 # 8: a list item's claim prints its own row in the table context when no offered cell lies in the item's own row
 # and the item is located to one row, so section headers can be placed.
-# 9: a disagreeing scalar is kept as a Value Disagreement and counted as an unverified claim.
+# 9: a disagreeing scalar is kept as a Value Disagreement and counted as an unverified claim; a reading not of its
+# field's type is null with an `invalid_value` issue.
 ARTICLE_VERSION = 9
 
 
