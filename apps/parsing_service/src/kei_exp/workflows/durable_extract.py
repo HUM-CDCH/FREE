@@ -14,7 +14,7 @@ from kei_exp.kie.extract.discovery import StreamedPlaces
 from kei_exp import runs
 from kei_exp.kie.extract import calls
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall
-from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat
+from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat, composed_order
 from kei_exp.kie.extract.gliformer import GLiFormerFields
 from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
@@ -169,7 +169,7 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
         if request["composer"] != 1:
             raise ValueError("unsupported captured composer")
         client = chat_for(request["provider"])
-        body = dict(request["body"])
+        body = composed_order(request["body"])
         native=body.pop("kind",None)=="native"
         http_request=body.pop("httpRequest",None)
         if not native:
