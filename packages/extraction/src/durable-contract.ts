@@ -40,8 +40,7 @@ export const durableValueSchema = z.object({
     if(value.disagreement!.some((other,i)=>i!==index &&
       entry.path.length<=other.path.length && entry.path.every((id,j)=>id===other.path[j])))
       issue('Disagreeing paths must be distinct and cannot overlap.')
-    if(new Set(entry.alternatives.map(alternative=>JSON.stringify(alternative.value))).size!==entry.alternatives.length)
-      issue('Alternative values must be distinct.')
+    // Distinct readings are the publisher's check: integers beyond 2^53 that it tells apart are equal here.
     if(entry.alternatives.some(alternative=>alternative.value===null || alternative.value===undefined))
       issue('Alternatives must be non-null.')
   })

@@ -40,12 +40,13 @@ test('Value Disagreements retain typed alternatives at null places addressed by 
     {...value,modelValue:{title:'A',year:1827}}, {...value,disagreement:[entry,entry]},
     {...value,disagreement:[{...entry,path:['title']}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0]]}]},
-    {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],value:'Observed article'}]}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],segments:[]}]}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],value:null}]}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],verdict:'supported'}]}]},
     {...value,node:{...value.node,type:'array'},modelValue:[{title:null,year:1827}]},
   ]) assert.equal(durableValueSchema.safeParse(invalid).success,false,JSON.stringify(invalid))
+  const years=JSON.parse('[{"value":9007199254740993,"segments":["p1_s0"]},{"value":9007199254740992,"segments":["p3_s0"]}]')
+  assert.equal(durableValueSchema.safeParse({...value,modelValue:{title:'A',year:null},disagreement:[{path:['year-id'],alternatives:years}]}).success,true)
 })
 
 test('chosen readings are optional and only allowed on approvals', async()=> {
