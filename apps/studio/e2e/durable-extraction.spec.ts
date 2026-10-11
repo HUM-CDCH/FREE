@@ -775,13 +775,21 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(0)
     await page.reload();await page.locator('#rail-tab-results').click();await page.getByRole('button',{name:'All',exact:true}).click()
     await page.getByRole('button',{name:/Approved title Article title/}).click()
-    await expect(page.getByRole('button',{name:'Use Cited title'})).toBeVisible()
-    // Switching is another revision, without undoing first.
+    // A decided value changes through Undo, which returns it to To check with every decision offered again.
+    await expect(page.getByRole('button',{name:'Use Cited title'})).toHaveCount(0)
+    const decision=async()=>(await (await page.request.get(`${root}/values`)).json()).values[0].correction?.decision
+    await page.getByRole('button',{name:'Undo',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
     await page.getByRole('button',{name:'Use Cited title'}).click()
-    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).values[0].correction.decision.value).toBe('Cited title')
+    await expect.poll(async()=>(await decision())?.value).toBe('Cited title')
     await page.getByRole('button',{name:/Approved title Cited title/}).click()
     await page.getByRole('button',{name:'Undo',exact:true}).click()
-    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).values[0].correction.decision.choices).toEqual([{path:[],value:'Article title'}])
+    await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await expect(page.getByRole('button',{name:'Edit',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Reject',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('REJECTED')
     await page.getByRole('button',{name:'Save review',exact:true}).click()
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
   } finally {await fixture.close()}

@@ -127,7 +127,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
             </>
           )}
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
-          {!editing && canDecide && row.disagreement && onChoose && <DisagreementChoice parts={row.disagreement} onChoose={onChoose}/>}
+          {!editing && canDecide && row.kind === 'to-check' && row.disagreement && onChoose && <DisagreementChoice parts={row.disagreement} onChoose={onChoose}/>}
           {editing ? (
             <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
               onTypedSave={onTypedEdit}

@@ -122,7 +122,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
           <DoubtGlyph /><span><b>Doubtful link.</b> {current.doubt}. Check that this is the right passage.</span>
         </div>
       )}
-      {!editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
+      {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
       {!decided && !editing && (
         <div className="grid grid-cols-2 gap-2">
           {!current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
