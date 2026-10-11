@@ -56,7 +56,9 @@ PROMPT_VERSION = 15
 # and the item is located to one row, so section headers can be placed.
 # 9: a disagreeing scalar is kept as a Value Disagreement and counted as an unverified claim; a reading not of its
 # field's type is null with an `invalid_value` issue.
-ARTICLE_VERSION = 9
+# 10: a document too long for one root call under the full default is read in bounded parts of the served context
+# (`context_fallback`) instead of failing.
+ARTICLE_VERSION = 10
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
