@@ -1,6 +1,6 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
-import { originPages, partName } from 'extraction-result-export'
+import { originPages, partName } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import { evidenceCheck, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
 

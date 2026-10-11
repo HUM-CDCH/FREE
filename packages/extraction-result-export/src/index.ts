@@ -26,8 +26,6 @@ export {
   buildDurableDisagreementsTable,
   DISAGREEMENTS_SHEET,
   decisionWords,
-  partName,
-  originPages,
   unusedColumn,
   buildDurableExportTable,
   buildIdentityTable,
