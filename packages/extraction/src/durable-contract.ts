@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { schemaNodeSchema } from './schema.js'
+import { schemaNodeSchema, schemaPathNames, isRecord } from './schema.js'
 import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-evidence.js'
 
 export const DURABLE_EXTRACTION_PROTOCOL = 1 as const
@@ -14,6 +14,19 @@ export const durableAdoptSchema = z.object({
   expectedVersion: z.number().int().nonnegative(), selectionId: z.uuid(),
   reprocessValueIds: z.array(z.string().min(1)).max(10000).default([]),
 }).strict()
+const disagreementRangeSchema = z.object({
+  segment: z.string().min(1), start: z.number().int().nonnegative(), end: z.number().int().nonnegative(),
+}).strict()
+export const valueDisagreementSchema = z.array(z.object({
+  path: z.array(z.string()),
+  alternatives: z.array(z.object({
+    id: z.string().regex(/^[a-f0-9]{64}$/), value: z.unknown(),
+    origins: z.array(z.object({
+      selectionId: z.uuid(), generation: z.string().min(1),
+      primary: z.array(disagreementRangeSchema), overlap: z.array(disagreementRangeSchema),
+    }).strict()).min(1),
+  }).strict()).min(2),
+}).strict()).min(1)
 export const durableValueSchema = z.object({
   id: z.string().min(1), recordId: z.string().min(1), fieldId: z.string().min(1),
   path: z.array(z.union([z.string(), z.number().int().nonnegative()])),
@@ -24,8 +37,23 @@ export const durableValueSchema = z.object({
   }).strict()),
   grounding: z.enum(['grounded', 'ungrounded', 'provisional']),
   processing: z.enum(['saved', 'absent', 'unprocessed', 'failed']),
-  lineage: z.array(z.string()),
+  lineage: z.array(z.string()), disagreement: valueDisagreementSchema.optional(),
 }).strict().superRefine((value,context)=> {
+  value.disagreement?.forEach((entry,index)=> {
+    const issue=(message:string)=>context.addIssue({code:'custom',path:['disagreement',index],message})
+    if(value.processing!=='saved') issue('A Value Disagreement must be saved.')
+    const names=schemaPathNames(value.node,entry.path)
+    let at=value.modelValue
+    for(const name of names??[]) at=isRecord(at)?at[name]:undefined
+    if(!names || at!==null) issue('A disagreeing place must be null and addressed by object child IDs.')
+    if(value.disagreement!.some((other,i)=>i!==index &&
+      entry.path.length<=other.path.length && entry.path.every((id,j)=>id===other.path[j])))
+      issue('Disagreeing paths must be distinct and cannot overlap.')
+    if(new Set(entry.alternatives.map(alternative=>alternative.id)).size!==entry.alternatives.length)
+      issue('Alternative IDs must be distinct.')
+    if(entry.alternatives.some(alternative=>alternative.value===null || alternative.value===undefined))
+      issue('Alternatives must be non-null.')
+  })
   value.evidence.forEach((evidence,index)=> {
     if(evidence.anchorId!==evidenceAnchorIdOf(evidence.producer) ||
       !value.path.every((step,at)=>evidence.producer.path[at]===step))
@@ -38,7 +66,11 @@ export const durableCorrectionSchema = z.object({
   action: z.enum(['APPROVED', 'EDITED', 'REJECTED', 'PENDING']), value: z.unknown().optional(),
   evidence: z.array(z.object({ anchorId: z.string().min(1), occurrenceIds: z.array(z.string()).min(1) }).strict()).default([]),
   included: z.boolean().default(true),
-}).strict()
+  alternativeIds: z.array(z.string().min(1)).min(1).optional(),
+}).strict().superRefine((value,context)=> {
+  if(value.alternativeIds && value.action!=='APPROVED')
+    context.addIssue({code:'custom',path:['alternativeIds'],message:'Only an approval can choose alternatives.'})
+})
 export const durableStatusSchema = z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'FAILED', 'COMPLETED'])
 export type DurableStatus = z.infer<typeof durableStatusSchema>
 export const durableHeadSchema = z.object({

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { stableJson } from 'db'
-import { schemaNodesToZod, type SchemaNode } from './schema.js'
+import { schemaNodesToZod, schemaPathNames, isRecord, type SchemaNode } from './schema.js'
 import { blockForAnchor, tableForAnchor, type ParsedDocument } from './parsed-document.js'
 import type { DurableValue } from './durable-contract.js'
 
@@ -80,4 +80,84 @@ export function selectFeedback(input: {
     examples.push(candidate)
   }
   return { examples, omissions }
+}
+
+const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
+export const modelDigest = (value: DurableValue) => hash([value.selectionId,value.node,value.modelValue])
+export function disagreementDigest(value: DurableValue): string | undefined {
+  return value.disagreement ? hash(value.disagreement.flatMap(entry=>entry.alternatives.map(a=>a.id)).sort()) : undefined
+}
+type Decision = {action:string;value?:unknown;alternativeIds?:string[]}
+type Correction = {
+  candidate:{meaning:string;node:SchemaNode;modelDigest:string;sourceContext?:string;disagreementDigest?:string}
+  decision:Decision
+}
+
+/** Exactly one named reading per place. Never infer a winner from order. */
+export function resolvedValue(value: DurableValue, alternativeIds: readonly string[] = []): unknown {
+  if(!value.disagreement) return alternativeIds.length ? undefined : value.modelValue
+  if(alternativeIds.length!==value.disagreement.length || new Set(alternativeIds).size!==alternativeIds.length) return undefined
+  let resolved=structuredClone(value.modelValue)
+  for(const entry of value.disagreement) {
+    const selected=entry.alternatives.filter(a=>alternativeIds.includes(a.id))
+    const names=schemaPathNames(value.node,entry.path)
+    if(selected.length!==1 || !names) return undefined
+    if(!names.length) { resolved=selected[0].value; continue }
+    let parent=resolved
+    for(const name of names.slice(0,-1)) parent=isRecord(parent)?parent[name]:undefined
+    if(!isRecord(parent)) return undefined
+    parent[names.at(-1)!]=selected[0].value
+  }
+  return resolved
+}
+
+/** The server-saved decided value also recovers choices made before a place disagreed. */
+export function decidedAlternatives(correction: Correction, value: DurableValue): string[] | undefined {
+  if(!value.disagreement || correction.decision.action==='EDITED' || correction.decision.action==='PENDING') return undefined
+  let context:unknown
+  try { context=JSON.parse(correction.candidate.sourceContext??'') } catch { return undefined }
+  if(!isRecord(context) || !Object.hasOwn(context,'modelValue')) return undefined
+  const ids:string[]=[]
+  for(const entry of value.disagreement) {
+    const names=schemaPathNames(value.node,entry.path)
+    if(!names) return undefined
+    let decided=context.modelValue
+    for(const name of names) decided=isRecord(decided)?decided[name]:undefined
+    if(decided===undefined) return undefined
+    const alternative=entry.alternatives.find(a=>stableJson(a.value)===stableJson(decided))
+    if(!alternative) return undefined
+    ids.push(alternative.id)
+  }
+  const resolved=resolvedValue(value,ids)
+  return resolved!==undefined && modelDigest({...value,modelValue:resolved})===correction.candidate.modelDigest ? ids : undefined
+}
+
+export function decidedCandidate(value: DurableValue, input: Decision, context: Record<string,unknown>) {
+  const resolved=input.action==='APPROVED'?resolvedValue(value,input.alternativeIds):value.modelValue
+  if(resolved===undefined) return undefined
+  return {meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest({...value,modelValue:resolved}),
+    sourceContext:stableJson({...context,modelValue:resolved,...(value.disagreement?{
+      disagreement:value.disagreement.map(entry=>({path:entry.path,values:entry.alternatives.map(a=>a.value)})),
+    }:{})}),
+    ...(value.disagreement?{disagreementDigest:disagreementDigest(value)}:{}),
+  }
+}
+
+export function correctionFit(correction: Correction, value: DurableValue): 'compatible' | 'new-reading' | 'incompatible' {
+  if(correction.candidate.meaning!==fieldMeaning(value.node)) return 'incompatible'
+  const action=correction.decision.action
+  const raw=correction.candidate.modelDigest===modelDigest(value)
+  const applies=action==='EDITED'
+    ? adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
+    : action==='APPROVED' && value.disagreement ? decidedAlternatives(correction,value)!==undefined
+    : raw || (action==='REJECTED' && decidedAlternatives(correction,value)!==undefined)
+  if(!applies) return 'incompatible'
+  return action!=='PENDING' && value.disagreement && correction.candidate.disagreementDigest!==disagreementDigest(value)
+    ? 'new-reading' : 'compatible'
+}
+export function settled(correction: Correction | null | undefined, value: DurableValue): boolean {
+  return !!correction && correction.decision.action!=='PENDING' && correctionFit(correction,value)==='compatible'
+}
+export function chosen(correction: Correction | null | undefined, value: DurableValue): boolean {
+  return correction?.decision.action==='APPROVED' && !!value.disagreement
 }

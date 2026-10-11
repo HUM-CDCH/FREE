@@ -425,3 +425,16 @@ export function compileInstructions(root: string, recordDescription: string, nod
   visit(nodes, root)
   return lines.join('\n')
 }
+
+/** Resolve a Value Disagreement's child IDs, only through object fields. */
+export function schemaPathNames(node: SchemaNode, ids: readonly string[]): string[] | undefined {
+  const names: string[] = []
+  for (const id of ids) {
+    if (node.type !== 'object') return undefined
+    const child = node.children?.find(each => each.id === id)
+    if (!child) return undefined
+    names.push(child.name)
+    node = child
+  }
+  return names
+}
