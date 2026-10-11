@@ -36,7 +36,10 @@ FREE's normative product and safety contract is:
    concurrent write reports a conflict instead of overwriting a newer
    decision. Review is finalized only by an explicit action on one named
    result snapshot and decision version, never by saving a correction, and
-   finalizing never freezes the Extraction.
+   finalizing never freezes the Extraction. Readings that disagree within
+   one source stay saved as a Value Disagreement: shown side by side, marked
+   not checked, with no winner; it is approved only by choosing one, and
+   never exported as an unmarked blank or as a reading nobody chose.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema revisions, extractions, and review decisions
    survive ordinary restarts. One Extraction record carries a run from admission
@@ -164,7 +167,10 @@ stays saved but never enters the consuming target's context, and FREE
 classifies no guidance conflicts automatically. Each Batch Extraction member
 is its own Extraction, with its own result snapshots and finalized reviews;
 it stays openable and exportable when paused, failed or stopped, and there is
-no batch-wide review grid.
+no batch-wide review grid. An export follows each field that has a Value
+Disagreement with a review column and an alternatives column; XLSX also lists
+each alternative and where it was read on a Disagreements sheet. Typed columns
+stay typed.
 
 ## Pipeline reference
 

@@ -53,7 +53,7 @@ How FREE applies an Extraction Schema to Source Context: Article or Catalog. The
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context; values read in separate parts of the source are combined into that one object without dropping list items.
+An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context; values read in separate parts of the source are combined into that one object without dropping list items, and scalars read differently stay a Value Disagreement.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:
@@ -116,6 +116,17 @@ value, bound to that value's stable identity and producing type, and saved in a
 numbered Decision Version of its Project.
 _Avoid_: status, vote, review draft
 
+**Value Disagreement**:
+A saved value whose readings in separate parts of the source differ at one
+place: the field itself or a value nested in its objects, never inside a list.
+FREE leaves that place empty and keeps each distinct reading as an alternative,
+with where it was read; it picks none and marks them not checked. Approving it
+means choosing one alternative per place; an edit or a rejection also decides
+it. A decision acknowledges the alternatives it saw: when a later snapshot of
+the same input selection adds one, the decision stays shown, flagged "New
+reading – review needed", until it is kept, changed or replaced.
+_Avoid_: conflict, contested value, merge conflict, candidate, unresolved
+
 **Decision Version**:
 The numbered version of a Project's corrections: saving a correction raises it
 by one, and earlier corrections stay. A Finalized Review names one beside a
@@ -130,9 +141,10 @@ _Avoid_: feedback set, correction set
 A researcher's explicit finalization of one named pair: an Extraction's result
 snapshot version and its Project's Decision Version. It is refused until every
 saved value of that snapshot has an approve, edit or reject decision as of that
-Decision Version. It never finalizes implicitly, never freezes later work, and
-a deliberately older pair may be finalized when it is clearly named. "Latest
-reviewed" opens the most recently finalized pair.
+Decision Version that still fits the value and, for a Value Disagreement, was
+saved against its current alternatives. It never finalizes implicitly, never
+freezes later work, and a deliberately older pair may be finalized when it is
+clearly named. "Latest reviewed" opens the most recently finalized pair.
 _Avoid_: saved review, accepted result
 
 **Evidence**:
