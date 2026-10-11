@@ -9,7 +9,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from kei_exp.kie.extract.stages import occurrences
-from kei_exp.kie.extract.schema import Node, typed
+from kei_exp.kie.extract.schema import Node
 from kei_exp.kie.extract.durable import canonical
 from kei_exp.kie.passages import Passage
 
@@ -217,7 +217,8 @@ def assemble_document(values: Sequence[dict],
 
 
 def value_disagreements(readings: Sequence[dict], conflicts: Sequence[dict], nodes: Sequence[Node]) -> list[dict]:
-    """Each nulled scalar's distinct typed readings, by child IDs and reading indices; never enter lists."""
+    """Each nulled scalar's distinct readings (already typed, `article._typed_reading`), by child IDs and reading
+    indices; never enter lists."""
     found = []
     for conflict in conflicts:
         node, ids, children = None, [], nodes
@@ -234,12 +235,7 @@ def value_disagreements(readings: Sequence[dict], conflicts: Sequence[dict], nod
             value = reading
             for name in conflict["path"]:
                 value = value.get(name) if isinstance(value, dict) else None
-            if type(value) is float and value.is_integer():
-                value = int(value)
-            if value is not None and typed(value, node):
+            if value is not None:
                 groups.setdefault(canonical(value), {"value": value, "readings": []})["readings"].append(index)
-        # shortcut: fewer than two typed readings leave the place null, upgrade when format-fallback invalid types
-        # have an explicit disposition; never promote a lone valid reading from a conflicting answer.
-        if len(groups) > 1:
-            found.append({"path": ids, "names": conflict["path"], "alternatives": list(groups.values())})
+        found.append({"path": ids, "names": conflict["path"], "alternatives": list(groups.values())})
     return found

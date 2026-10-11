@@ -70,6 +70,29 @@ def _read_in(found, groups):
         for index in alternative["readings"]]} for alternative in entry["alternatives"]]} for entry in found]
 
 
+def _typed_reading(answer: dict, nodes) -> tuple[dict, list[Issue]]:
+    """One context's answer with each scalar outside a list of its declared type (a whole-number float an integer)
+    and any other null, with its `invalid_value` issue: an invalid reading never conflicts with a valid one."""
+    issues = []
+
+    def typed_fields(value, nodes, path):
+        fields = dict(value)
+        for node in nodes:
+            item = value.get(node.name)
+            if node.type == "object" and isinstance(item, dict):
+                fields[node.name] = typed_fields(item, node.children or [], [*path, node.name])
+            elif node.type not in ("object", "array") and item is not None:
+                if type(item) is float and item.is_integer():
+                    item = int(item)
+                if not typed(item, node):
+                    issues.append(Issue("invalid_value", json.dumps({"path": [*path, node.name], "value": item},
+                                                                    ensure_ascii=False), 0))
+                    item = None
+                fields[node.name] = item
+        return fields
+    return typed_fields(answer, nodes, []), issues
+
+
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter: dict | None = None,
             chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
@@ -208,7 +231,8 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
 
     The whole document is the object: no identity is inventoried or bound, and every record field is asked of every
     value context under `stages.DOCUMENT`. With bounded contexts the source is partitioned (with its overlap) to fit
-    that request, and `selection` sees every passage as the identity's support. Several contexts' answers are
+    that request, and `selection` sees every passage as the identity's support. A scalar not of its field's type is
+    null in its context's answer (`_typed_reading`). Several contexts' answers are
     assembled by `contexts.assemble_document`: every array item kept in context order, an equal item that contexts
     sharing an overlap passage both returned joined once (an `overlap_items_joined` issue), equal items from other
     contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict. With
@@ -243,7 +267,8 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
             counter=counters["fields"], structured=structured, document=True,
             bounded_document=method.context == "bounded")
-        candidates[index], answered[index] = fields, (attempts, problems)
+        fields, invalid = _typed_reading(fields, schema.record_nodes)
+        candidates[index], answered[index] = fields, (attempts, problems + invalid)
         if on_context is not None:
             done = [number for number, each in enumerate(answered) if each is not None]  # source order
             so_far, conflicts, _, _ = (assemble_document([candidates[number] for number in done],

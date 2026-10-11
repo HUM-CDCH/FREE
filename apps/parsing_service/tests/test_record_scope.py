@@ -325,16 +325,25 @@ def test_typed_reads_a_scalar_as_valid_value_does(kind, value, valid):
     assert typed(value, Node(id="value", name="value", type=kind)) is valid
 
 
-def test_value_disagreements_filter_invalid_types_and_normalize_whole_number_floats():
-    schema = Schema.model_validate({"recordDescription": "An article", "schemaNodes": [
-        {"id": "t", "name": "title", "type": "string"}, {"id": "y", "name": "year", "type": "integer"}]})
-    for values, expected in [(["A", ["x"], "C"], ["A", "C"]), (["A", 5], [])]:
-        readings = [{"title": value} for value in values]
-        _, conflicts, _, _ = contexts.assemble_document(readings)
-        found = contexts.value_disagreements(readings, conflicts, schema.nodes)
-        assert ([a["value"] for a in found[0]["alternatives"]] if found else []) == expected
-    readings = [{"year": 1827.0}, {"year": 1828}, {"year": 1827}]
-    _, conflicts, _, _ = contexts.assemble_document(readings)
-    found = contexts.value_disagreements(readings, conflicts, schema.nodes)
-    assert found[0]["alternatives"] == [{"value": 1827, "readings": [0, 2]}, {"value": 1828, "readings": [1]}]
-    assert type(found[0]["alternatives"][0]["value"]) is int
+@pytest.mark.parametrize("middle,cited,title,invalid", [
+    ({}, {"title": 5}, "The observed article", [{"path": ["title"], "value": 5}]),
+    ({"title": ["x"]}, {}, None, [{"path": ["title"], "value": ["x"]}]),
+    ({"year": 1827.0}, {}, None, []),
+])
+def test_a_reading_not_of_its_type_is_null_before_assembly(middle, cited, title, invalid):
+    """A valid reading and an invalid one make the valid value, the invalid one an issue; a whole-number float is the
+    integer it reads as."""
+    def reply(system, user, schema):
+        answer = disagreement_article_reply(system, user, schema)
+        if "title" in schema["properties"]:
+            answer.update(cited if "Bibliography:" in user else middle if "No title" in user else {})
+        return answer
+    request, source = disagreement_article_input()
+    result = run.dispatch(None, source, request, CountingChat(reply),
+                          counter={role: WordCounter() for role in ("fields", "reasoning")})
+    assert result["records"][0]["title"] == title
+    alternatives = {tuple(d["names"]): [a["value"] for a in d["alternatives"]] for d in result["disagreements"]}
+    assert alternatives == {**({} if title else {("title",): ["The observed article", "The cited title"]}),
+                            ("year",): [1827, 1828]}
+    assert [type(value) for value in alternatives[("year",)]] == [int, int]
+    assert [json.loads(issue["detail"]) for issue in result["issues"] if issue["code"] == "invalid_value"] == invalid
