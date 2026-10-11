@@ -77,12 +77,14 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   // Calls admitted before PAUSE drain; newly captured calls are refused.
   const extraction = history.extractions.article.inFlight, selection = randomUUID(), attempt = randomUUID(), process = randomUUID()
   const flagNode={id:'flag',name:'flag',type:'boolean'},arrayNode={id:'items',name:'items',type:'array',itemType:'integer'}
+  const workNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
+  const titleNode={id:'title',name:'title',type:'string'}
   await owner.query(`INSERT INTO extraction_runtime.head
     (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
     VALUES ($1,$2,$3,$4,'ARTICLE',$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
     [extraction,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selection,attempt])
   await owner.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
-    VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`, [selection,extraction,history.revisions.article,'a'.repeat(64),{recordDescription:'document',schemaNodes:[flagNode,arrayNode]}])
+    VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`, [selection,extraction,history.revisions.article,'a'.repeat(64),{recordDescription:'document',schemaNodes:[flagNode,arrayNode,workNode,titleNode]}])
   await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,
     [attempt,extraction,selection,`test:${attempt}`])
   await owner.query('INSERT INTO extraction_runtime."feedbackHead" (id,version) VALUES ($1,0)', [history.projectContextId])
@@ -118,6 +120,49 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const arrayValue={...value,id:'value-items',fieldId:'items',node:arrayNode,path:['records',0,'items'],modelValue:[1,2]}
   const next=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([arrayValue]),coverage])
   assert.equal(next.values.length,2)
+  const origins=[{selectionId:selection,generation:'g1',primary:[{segment:'p3_s0',start:0,end:812}],overlap:[]}]
+  const alternatives=[{id:'a'.repeat(64),value:'Article title',origins},{id:'c'.repeat(64),value:'Cited title',origins}]
+  const disagreement=[{path:['t'],alternatives}]
+  const workValue={...value,id:'value-work',fieldId:'work',node:workNode,path:['records',0,'work'],modelValue:{title:null,year:1827},disagreement}
+  const cases: [string,unknown][]=[
+    ['null envelope',{...workValue,disagreement:null}],
+    ['empty envelope',{...workValue,disagreement:[]}],
+    ['object envelope',{...workValue,disagreement:{}}],
+    ['not saved',{...workValue,processing:'absent'}],
+    ['extra entry key',{...workValue,disagreement:[{...disagreement[0],verdict:'supported'}]}],
+    ['name instead of child id',{...workValue,disagreement:[{...disagreement[0],path:['title']}]}],
+    ['non-null place',{...workValue,modelValue:{title:'Winner',year:1827}}],
+    ['one alternative',{...workValue,disagreement:[{path:['t'],alternatives:alternatives.slice(0,1)}]}],
+    ['null alternative',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],value:null}]}]}],
+    ['wrong leaf type',{...workValue,disagreement:[{path:['y'],alternatives}],modelValue:{title:null,year:null}}],
+    ['duplicate ids',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],id:alternatives[0].id}]}]}],
+    ['unsorted ids',{...workValue,disagreement:[{path:['t'],alternatives:[...alternatives].reverse()}]}],
+    ['duplicate paths',{...workValue,disagreement:[...disagreement,...disagreement]}],
+    ['array traversal',{...arrayValue,modelValue:[null],disagreement:[{path:['0'],alternatives}]}],
+  ]
+  for(const [name,invalid] of cases)
+    await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([invalid]),coverage]),(e:{code?:string})=>e.code==='22023',name)
+  for(const invalid of [
+    {...alternatives[1],id:'not-a-digest'}, {...alternatives[1],verdict:'supported'}, {...alternatives[1],origins:[]},
+    {...alternatives[1],origins:[{...origins[0],selectionId:'selection'}]},
+    {...alternatives[1],origins:[{...origins[0],generation:''}]},
+    {...alternatives[1],origins:[{...origins[0],extra:true}]},
+    ...[{segment:'',start:0,end:1},{segment:'p1_s0',start:-1,end:1},{segment:'p1_s0',start:0.5,end:1},{segment:'p1_s0',start:0,end:1,extra:true}]
+      .map(range=>({...alternatives[1],origins:[{...origins[0],primary:[range]}]})),
+  ]) await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],invalid]}]}]),coverage]),(e:{code?:string})=>e.code==='22023')
+  const publication=randomUUID()
+  const published=await invoke('publish_snapshot',[extraction,attempt,epoch,publication,selection,JSON.stringify([workValue]),coverage])
+  assert.deepEqual(published.values.find((v:{id:string})=>v.id===workValue.id),workValue)
+  assert.deepEqual(await invoke('publish_snapshot',[extraction,attempt,epoch,publication,selection,JSON.stringify([workValue]),coverage]),published)
+  const titleValue={...value,id:'value-title',fieldId:'title',node:titleNode,path:['records',0,'title'],modelValue:null,disagreement:[{path:[],alternatives}]}
+  await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([titleValue]),coverage])
+  // commit_output above drained the only capture: final publication proof must be tested with no in-flight call.
+  assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.capture WHERE "extractionId"=$1 AND "inFlight"',[extraction])).rows[0].n,0)
+  const finalCoverage={...coverage,finalizedAttempt:{attemptId:attempt,selectionId:selection,generation:1,complete:true}}
+  await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([workValue]),finalCoverage])
+  const completed=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,'[]',finalCoverage])
+  assert.deepEqual(completed.values.find((v:{id:string})=>v.id===workValue.id),workValue)
+  assert.deepEqual(completed.values.find((v:{id:string})=>v.id===titleValue.id),titleValue)
   await assert.rejects(invoke('heartbeat',[extraction,attempt,null]),(e:{code?:string})=>e.code==='40001')
   assert.equal(await invoke('acknowledge',[extraction,attempt,epoch,false,null]),'PAUSED')
   await assert.rejects(invoke('heartbeat',[extraction,attempt,epoch]),(e:{code?:string})=>e.code==='40001')

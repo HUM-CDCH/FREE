@@ -1,0 +1,9 @@
+{
+  "from": "sha256:81bf3ec3d60cc2962b34f8f95f164938cee8eb90602da5a463ba78bd5b0ec038",
+  "to": "sha256:81bf3ec3d60cc2962b34f8f95f164938cee8eb90602da5a463ba78bd5b0ec038",
+  "providedInvariants": [
+    "extraction-runtime.value-disagreement"
+  ],
+  "createdAt": "2026-10-11T00:34:35.044Z",
+  "migrationHash": "sha256:1a01119e70136eb625f26d1f5582fc3b4f056a36a3ee2df6fd357c771a649151"
+}

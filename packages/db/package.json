@@ -17,8 +17,8 @@
     "contract:emit": "prisma-next contract emit",
     "db:migration": "tsx src/migration-command.ts",
     "db:start": "tsx src/start-development-database.ts",
-    "db:reset": "tsx src/reset-database.ts && prisma-next migrate --yes",
-    "db:init": "prisma-next migrate --yes",
+    "db:reset": "tsx src/reset-database.ts && prisma-next migrate --yes --to db",
+    "db:init": "prisma-next migrate --yes --to db",
     "db:verify": "tsx src/verify-database.ts",
     "db:kei-role": "tsx src/ensure-kei-role.ts"
   },

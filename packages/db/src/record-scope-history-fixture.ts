@@ -38,7 +38,7 @@ export async function migrate(url: string, to?: string, packageDirectory = packa
   validateDisposableTestDatabaseTarget(url)
   const { stdout } = await promisify(execFile)(
     resolve(packageRoot, 'node_modules/.bin/prisma-next'),
-    ['migrate', '--yes', '--json', '--no-color', '--db', url, ...(to ? ['--to', to] : [])],
+    ['migrate', '--yes', '--json', '--no-color', '--db', url, '--to', to ?? 'db'],
     { cwd: packageDirectory, env: { ...process.env, DATABASE_URL: url }, maxBuffer: 16 * 1024 * 1024 },
   )
   const report = JSON.parse(stdout) as { ok: boolean; applied: Array<{ dirName: string; operationsExecuted: number }> }
