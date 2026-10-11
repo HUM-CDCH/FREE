@@ -176,10 +176,7 @@ def publish_completion(lease, complete):
 
 def publish_final(lease, result):
     records = result["records"]
-    # Replanning must republish byte-identical disagreements. Wall-clock diagnostics belong to the artifact,
-    # not this saved cut's identity; plain publications retain their existing bytes.
-    excluded = {"records", "started", "seconds"} if result.get("disagreements") else {"records"}
-    metadata = {key: value for key, value in result.items() if key not in excluded}
+    metadata = {key: value for key, value in result.items() if key != "records"}
     raw_nodes = lease.state["selection"]["schemaTree"]["schemaNodes"]
     document_ids = {node["id"] for node in raw_nodes if node.get("valueSource") is not None}
     if records and document_ids:
