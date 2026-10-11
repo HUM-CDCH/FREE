@@ -747,12 +747,14 @@ WORK = {"id": "work", "name": "work", "type": "object", "children": [
     (TITLE, [], None, ["A", "C"], None, ["C", "A"], None, []),
     (WORK, ["y"], {"title": "A", "year": None}, [1827, 1828], {"title": "A", "year": 1829}, None, None, [(None, 1829)]),
     (WORK, ["t"], {"title": None, "year": None}, ["A", "C"], {"title": None, "year": 1827}, None,
-     {"title": None, "year": 1827}, []),
+     ({"title": None, "year": 1827}, ["A", "C"]), []),
     # A fresh disagreement fills an empty place; a saved value keeps its place and the other readings are proposed.
-    (TITLE, [], None, None, None, ["A", "C"], None, []),
+    (TITLE, [], None, None, None, ["A", "C"], (None, ["A", "C"]), []),
+    (WORK, ["y"], {"title": "A", "year": None}, None, {"title": "A", "year": None}, [1827, 1828],
+     ({"title": "A", "year": None}, [1827, 1828]), []),
     (TITLE, [], "A", None, None, ["A", "C"], None, [("A", "C")]),
     (WORK, ["t"], {"title": "A", "year": None}, None, {"title": None, "year": 1827}, ["A", "C"],
-     {"title": "A", "year": 1827}, [("A", "C")]),
+     ({"title": "A", "year": 1827}, None), [("A", "C")]),
 ])
 def test_adoption_keeps_a_carried_disagreement_and_proposes_other_readings(node, path, old, carried, fresh, readings,
                                                                            published, proposed):
@@ -767,14 +769,13 @@ def test_adoption_keeps_a_carried_disagreement_and_proposes_other_readings(node,
     assert [(c["historical"], c["proposed"]) for c in result["coverage"]["historicalProposals"].get(saved["id"], {
         "conflicts": []})["conflicts"]] == proposed
     assert all(c["path"] == path for c in result["coverage"]["historicalProposals"].get(saved["id"], {"conflicts": []})["conflicts"])
-    if old is None and carried is None:  # an empty place takes the fresh disagreement
-        assert result["values"][0]["lineage"] == [f"old-snapshot:{saved['id']}"]
-        assert [a["value"] for a in result["values"][0]["disagreement"][0]["alternatives"]] == ["A", "C"]
-    elif published is None:
+    if published is None:
         assert result["values"] == []
     else:
-        assert result["values"][0]["modelValue"] == published
-        assert result["values"][0].get("disagreement") == saved.get("disagreement")
+        value = result["values"][0]
+        assert value["lineage"] == [f"old-snapshot:{saved['id']}"]
+        assert (value["modelValue"], [a["value"] for a in value["disagreement"][0]["alternatives"]]
+                if "disagreement" in value else None) == published
 
 
 def test_reprocessing_replaces_a_carried_disagreement():
@@ -809,29 +810,30 @@ def test_article_disagreement_survives_every_publication_and_replay():
         counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)
     assert len(result["value_contexts"][0]) == 3
-    publications = list(lease.publications.items())
-    finished = next(saved for _, saved in reversed(publications) if saved["coverage"].get("processingComplete"))
+    publications = list(lease.publications.values())
+    finished = next(saved for saved in reversed(publications) if saved["coverage"].get("processingComplete"))
     expected = {v["fieldId"]: v["disagreement"] for v in finished["values"] if "disagreement" in v}
     assert set(expected) == {"title-id", "year-id"}
-    seen = False
-    links = False
-    for identity, publication in publications:
-        for value in publication["values"]:
-            if value["fieldId"] in expected and "disagreement" in value:
-                seen = True
-                assert value["disagreement"] == expected[value["fieldId"]]
-                assert value["processing"] == "saved"
-            elif seen and value["fieldId"] in expected:
-                pytest.fail(f"{identity} dropped a saved disagreement")
-        links |= any(value["evidence"] for value in publication["values"])
-    assert seen and links
-    assert publications[-1][1]["coverage"]["finalizedAttempt"]["complete"] is True
-    before, count = len(publications), len(chat.calls)
+    assert publications[-1]["coverage"]["finalizedAttempt"]["complete"] is True
+    assert any(value["evidence"] for publication in publications for value in publication["values"])
+
+    def carried():
+        """Once a publication saves a disagreement, every later one that saves its field carries it. A publication
+        repeated with the same identity is the same snapshot, so each counts once, where it was first saved."""
+        seen = False
+        for identity, publication in lease.publications.items():
+            for value in publication["values"]:
+                if value["fieldId"] in expected and "disagreement" in value:
+                    seen = True
+                    assert value["disagreement"] == expected[value["fieldId"]] and value["processing"] == "saved"
+                elif seen and value["fieldId"] in expected:
+                    pytest.fail(f"{identity} dropped a saved disagreement")
+        return seen
+    assert carried()
+    count = len(chat.calls)
     finish(lease, chat, extract)
     assert len(chat.calls) == count  # a replay reads every reply from its checkpoint
-    replayed = list(lease.publications.values())[before:]
-    assert replayed and all(value["disagreement"] == expected[value["fieldId"]] for publication in replayed
-                            for value in publication["values"] if value["fieldId"] in expected)
+    assert carried()
 
 
 def test_a_disagreements_retained_values_do_not_depend_on_start_page():

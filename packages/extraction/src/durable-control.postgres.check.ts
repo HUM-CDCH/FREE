@@ -326,7 +326,7 @@ test('a Value Disagreement decision binds to its readings: choices apply until t
     disagreement:[{path:[],alternatives:readings(values,segment)}]})
   const workNode={id:'work',name:'work',type:'object' as const,children:[{id:'t',name:'title',type:'string' as const},{id:'y',name:'year',type:'integer' as const}]}
   const work=(years?:number[])=>({...saved,id:'work-value',fieldId:'work',path:['records',0,'work'],node:workNode,
-    modelValue:{title:'Article title',year:years?null:1827},...years?{disagreement:[{path:['y'],alternatives:readings(years)}]}:{}})
+    modelValue:{title:'Article title',year:null},...years?{disagreement:[{path:['y'],alternatives:readings(years)}]}:{}})
   const plain={...saved,id:'plain-value',fieldId:node.id,path:['records',0,node.name],node,modelValue:'Plain'}
   const publish=async(version:number,values:unknown[])=> {
     await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,$3,$4,$5,$6,'{}')`,[randomUUID(),id,version,head.selectionId,'a'.repeat(64),JSON.stringify(values)])
