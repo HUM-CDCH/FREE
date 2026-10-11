@@ -166,3 +166,37 @@ test("the Evidence sheet keeps one row per field with its decision, reviewed val
   ]);
   assert.equal(table.rows.every((row) => row["Schema revision"] === "revision-1"), true);
 });
+
+const disputed = (node: SchemaNode = title): DurableExportValue => saved(0,node,null,{
+  disagreement:[{path:[],alternatives:[{id:'a'.repeat(64),value:node.type==='integer'?1827:'Article title'},
+    {id:'c'.repeat(64),value:node.type==='integer'?1828:'Cited title'}].map(alternative=>({...alternative,
+      origins:[{selectionId:'11111111-1111-4111-8111-111111111111',generation:'1',primary:[{segment:'p3_s0',start:0,end:100},{segment:'p4_s0',start:0,end:100}],overlap:[{segment:'p9_s1',start:0,end:20}]}]}))}],
+});
+test('a draft disagreement export leaves typed cells empty and names the undecided readings beside them',()=> {
+  const values=[disputed(),disputed(year),saved(0,gilded,false)];
+  const registry=createFieldRegistry(values);
+  assert.deepEqual(registry.schemaNodes.map(node=>node.name),['title','year','gilded']);
+  const table=buildDurableExportTable(values,root);
+  assert.deepEqual(table.columns,['title','title (review)','title (alternatives)','year','year (review)','year (alternatives)','gilded']);
+  assert.equal(table.rows[0].title,null);
+  assert.equal(table.rows[0]['title (review)'],'Readings differ');
+  assert.deepEqual(JSON.parse(String(table.rows[0]['title (alternatives)'])),[{part:'',values:['Article title','Cited title']}]);
+  assert.equal(table.rows[0].year,null);
+  assert.equal(buildDurableEvidenceTable(values).rows[0].Evidence,'Not checked');
+});
+test('chosen values stay typed and exported with review status, including new readings and decision precedence',()=> {
+  const value=disputed(year);
+  for(const [action,expected] of [['APPROVED','Chosen'],['EDITED','Edited'],['REJECTED','Rejected']] as const) {
+    const decided={...value,correction:{decision:{action,value:1827,alternativeIds:action==='APPROVED'?['a'.repeat(64)]:undefined}}};
+    const table=buildDurableExportTable([decided],root);
+    assert.equal(table.rows[0].year,action==='REJECTED'?null:1827);
+    assert.equal(table.rows[0]['year (review)'],expected);
+    assert.equal(buildDurableExportTable([{...decided,correctionCompatibility:'new-reading'}],root).rows[0]['year (review)'],`${expected} · new reading – review needed`);
+  }
+});
+test('generated review columns never overwrite actual field names, even across a batch registry',()=> {
+  const values=[disputed(),saved(1,{id:'actual',name:'title (review)',type:'string'},'Actual field')];
+  const table=buildDurableExportTable(values,root);
+  assert.deepEqual(table.columns,['title','title (review) (2)','title (alternatives)','title (review)']);
+  assert.equal(table.rows[1]['title (review)'],'Actual field');
+});

@@ -38,8 +38,9 @@ export type RailRow = {
   /** A not reviewable value's label and detail (§1). */
   evidence: { label: string; detail: string } | null
   doubt: string | null
-  /** The run-time decision was not kept at settlement (§5.3). */
-  changed: boolean
+  /** A displayed decision has not acknowledged the current alternatives. */
+  newReading: boolean
+  disagreement?: {part: string; alternatives: {id: string; value: unknown; pages: string | null}[]}[]
   page: number | null
   /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
   retained?: { reviewable: boolean; source?: string; attribution?: string }
@@ -83,6 +84,12 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
 export const shownValue = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'No value'
     : typeof value === 'object' ? JSON.stringify(value) : String(value)
+
+export function rowText(row: Pick<RailRow, 'value' | 'disagreement'>): string {
+  const root = row.disagreement?.find(entry => entry.part === '')
+  return root && (row.value === null || row.value === undefined)
+    ? root.alternatives.map(alternative => shownValue(alternative.value)).join(' or ') : shownValue(row.value)
+}
 
 export const isDecidable = (kind: RowKind) => kind === 'to-check' || kind === 'approved' || kind === 'edited' || kind === 'rejected'
 export const isNotReviewable = (kind: RowKind) => kind === 'not-reviewable' || kind === 'missing' || kind === 'contested'

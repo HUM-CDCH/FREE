@@ -120,3 +120,9 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
 
 export function tableForAnchor(document: ParsedDocument, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return document.tables.find((table) => table.table_id === anchor.logical_table_id) }
 export function blockForAnchor(document: ParsedDocument, anchor: TextEvidenceAnchor): ParsedContentBlock | undefined { return document.content_stream.find((block) => block.block_id === anchor.block_id) }
+
+/** Producer source segments name their physical page as p{page}_s{n}. */
+export function segmentPage(segment: unknown): number | null {
+  const page = typeof segment === 'string' ? /^p(\d+)_s\d+$/.exec(segment)?.[1] : undefined
+  return page === undefined ? null : Number(page)
+}

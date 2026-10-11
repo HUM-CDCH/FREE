@@ -4,7 +4,7 @@ import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './rev
 
 const row = (record: number, name: string, kind: RowKind = 'to-check', doubt: string | null = null): RailRow => ({
   key: `${record}.${name}`, resultPath: ['records', record, name], name, value: name, extracted: name, kind, link: null,
-  decision: null, chip: null, evidence: null, doubt, changed: false, page: null,
+  decision: null, chip: null, evidence: null, doubt, newReading: false, page: null,
 })
 const record = (index: number, rows: RailRow[], state: RailRecord['state'] = 'finished'): RailRecord =>
   ({ index, label: `Grav ${index}`, page: 1, state, rows, toCheck: rows.filter((each) => each.kind === 'to-check').length })
