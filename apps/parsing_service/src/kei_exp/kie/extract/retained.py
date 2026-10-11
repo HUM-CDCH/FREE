@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from kei_exp.kie.extract.durable import adapt_value, canonical, digest, field_meaning
+from kei_exp.kie.extract.durable import digest
 from kei_exp.kie.extract.schema import Schema, conform
 
 
@@ -39,23 +39,6 @@ def plan_records(router, stage, scopes, *, partial=False):
         router.runtime.plan_records(stage,scopes,partial=partial)
 
 
-def _walk(node, value, path):
-    for child_id in path:
-        if node is None or node["type"] != "object":
-            return None, None
-        node = next((child for child in node.get("children", []) if child["id"] == child_id), None)
-        value = value.get(node["name"]) if node is not None and isinstance(value, dict) else None
-    return node, value
-
-
-def _retained(value_id, node, entry, origin):
-    path = entry["path"][1:]
-    leaf, _ = _walk(node, None, path)
-    return {"path": path, "alternatives": sorted(({"id": digest([value_id, path, field_meaning(leaf), canonical(a["value"])]),
-        "value": a["value"], "origins": [{**origin, **context} for context in a["contexts"]]} for a in entry["alternatives"]),
-        key=lambda a: a["id"])}
-
-
 def merge_contribution(node, earlier, later, conflicts, held=None, path=()):
     if held and path in held:  # a carried Value Disagreement keeps its place empty
         if later is not None and later not in held[path]:
@@ -74,6 +57,14 @@ def merge_contribution(node, earlier, later, conflicts, held=None, path=()):
     return earlier
 
 
+def _at(node, value, path):
+    """The value at a disagreeing place, by child IDs through objects."""
+    for child_id in path:
+        node = next(child for child in node["children"] if child["id"] == child_id)
+        value = value.get(node["name"]) if isinstance(value, dict) else None
+    return value
+
+
 def adopted(node, earlier, carried, later, fresh):
     """An adopted document value, its disagreement and its historical proposals: a carried Value Disagreement stays as
     it is until reprocessed and a fresh one fills only an empty place; any other new reading is proposed, as for any
@@ -82,7 +73,7 @@ def adopted(node, earlier, carried, later, fresh):
     conflicts, kept = [], []
     for entry in fresh:
         place = tuple(entry["path"])
-        previous = None if place in held else _walk(node, earlier, entry["path"])[1]
+        previous = None if place in held else _at(node, earlier, entry["path"])
         if place not in held and previous is None:
             kept.append(entry)
         else:
@@ -109,9 +100,8 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
         if field_ids is not None and node["id"] not in field_ids:
             continue
         value = fields.get(node["name"])
-        value_id = digest([record_id, node["id"]])
-        origin = {"selectionId": selection["id"], "generation": lease.state["source"]["generation"]}
-        disagreement = [_retained(value_id, node, entry, origin) for entry in disagreements if entry["path"][0] == node["id"]]
+        disagreement = [{"path": entry["path"][1:], "alternatives": entry["alternatives"]} for entry in disagreements
+                        if entry["path"][0] == node["id"]]
         old = prior.get(node["id"])
         lineage = []
         if old and old["id"] not in reprocess:
@@ -119,6 +109,7 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
             # Identical carried values retain their original selection too.
             if not disagreement and (value is None or (value == old["modelValue"] and not (isinstance(value,list) and scope == "document"))):
                 continue
+            from kei_exp.kie.extract.durable import field_meaning, adapt_value
             if field_meaning(old["node"]) == field_meaning(node):
                 conflicts = []
                 if scope == "document":
@@ -139,7 +130,7 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
         # grounded. A value published before the run completes stays
         # provisional even with its Evidence shown: adoption re-reads its record.
         grounded = bool(evidence) and node["type"] not in ("object", "array")
-        values.append({"id": value_id, "recordId": record_id, "fieldId": node["id"],
+        values.append({"id": digest([record_id, node["id"]]), "recordId": record_id, "fieldId": node["id"],
                        "path": ["records", record, node["name"]], "selectionId": selection["id"],
                        "schemaRevisionId": selection["schemaRevisionId"], "node": node, "modelValue": value,
                        "evidence": evidence, "grounding": ("grounded" if grounded else "ungrounded") if complete else "provisional",
@@ -189,12 +180,11 @@ def publish_final(lease, result):
         scope = scopes.get(str(index), scopes.get(index))
         if isinstance(scope,dict) and scope.get("historical") is True:
             continue
-        disagreements = ()
         if result["strategy"] == "article":
-            scope, disagreements = "document", result.get("disagreements", ())
+            scope = "document"
         if scope is None:
             raise ValueError("record has no canonical source scope")
-        publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata, disagreements=disagreements)
+        publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata, disagreements=result.get("disagreements", ()))
     publish_completion(lease, processing_complete(result))
 
 
@@ -212,6 +202,7 @@ def document_inputs(router, schema):
     runtime=getattr(router,"runtime",None)
     if runtime is None:
         return schema, {}
+    from kei_exp.kie.extract.durable import field_meaning, adapt_value
     source=runtime.lease.state["source"]["sourceRevisionId"]
     identity=record_identity(source,"document-fields")
     historical=runtime.historical.get("snapshot") or {}

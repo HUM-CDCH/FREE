@@ -283,7 +283,7 @@ def test_value_disagreements_keep_each_reading_of_the_observed_article_and_cited
         ("title-id",): ["The observed article", "The cited title"], ("year-id",): [1827, 1828]}
     for entry in result["disagreements"]:
         assert entry["names"] in (["title"], ["year"])
-        assert [a["contexts"][0]["primary"][0]["segment"] for a in entry["alternatives"]] == ["p1_s0", "p3_s0"]
+        assert [a["segments"] for a in entry["alternatives"]] == [["p1_s0"], ["p3_s0"]]
 
 
 def test_a_disagreement_is_the_same_whatever_page_the_run_starts_at():

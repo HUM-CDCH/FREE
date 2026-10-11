@@ -168,9 +168,8 @@ test("the Evidence sheet keeps one row per field with its decision, reviewed val
 });
 
 const disputed = (node: SchemaNode = title): DurableExportValue => saved(0,node,null,{
-  disagreement:[{path:[],alternatives:[{id:'a'.repeat(64),value:node.type==='integer'?1827:'Article title'},
-    {id:'c'.repeat(64),value:node.type==='integer'?1828:'Cited title'}].map(alternative=>({...alternative,
-      origins:[{selectionId:'11111111-1111-4111-8111-111111111111',generation:'1',primary:[{segment:'p3_s0',start:0,end:100},{segment:'p4_s0',start:0,end:100}],overlap:[{segment:'p9_s1',start:0,end:20}]}]}))}],
+  disagreement:[{path:[],alternatives:(node.type==='integer'?[1827,1828]:['Article title','Cited title'])
+    .map(value=>({value,segments:['p3_s0','p4_s0','p9_s1']}))}],
 });
 test('a draft disagreement export leaves typed cells empty and names the undecided readings beside them',()=> {
   const values=[disputed(),disputed(year),saved(0,gilded,false)];

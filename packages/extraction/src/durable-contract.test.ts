@@ -29,10 +29,9 @@ test('Python version-3 producer Evidence satisfies the durable producer contract
 })
 
 test('Value Disagreements retain typed alternatives at null places addressed by child id',()=> {
-  const origins=[{selectionId:'11111111-1111-4111-8111-111111111111',generation:'1',primary:[{segment:'p3_s0',start:0,end:12}],overlap:[]}]
-  const entry={path:['title-id'],alternatives:[{id:'a'.repeat(64),value:'Observed article',origins},{id:'c'.repeat(64),value:'Cited title',origins}]}
+  const entry={path:['title-id'],alternatives:[{value:'Observed article',segments:['p3_s0']},{value:'Cited title',segments:['p9_s0']}]}
   const value={id:'work-value',recordId:'record',fieldId:'work',path:['records',0,'work'],
-    selectionId:origins[0].selectionId,schemaRevisionId:'22222222-2222-4222-8222-222222222222',
+    selectionId:'11111111-1111-4111-8111-111111111111',schemaRevisionId:'22222222-2222-4222-8222-222222222222',
     node:{id:'work',name:'work',type:'object',children:[{id:'title-id',name:'title',type:'string'},{id:'year-id',name:'year',type:'integer'}]},
     modelValue:{title:null,year:1827},evidence:[],grounding:'ungrounded',processing:'saved',lineage:[],disagreement:[entry]}
   assert.deepEqual(durableValueSchema.parse(value),value)
@@ -41,7 +40,8 @@ test('Value Disagreements retain typed alternatives at null places addressed by 
     {...value,modelValue:{title:'A',year:1827}}, {...value,disagreement:[entry,entry]},
     {...value,disagreement:[{...entry,path:['title']}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0]]}]},
-    {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],entry.alternatives[0]]}]},
+    {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],value:'Observed article'}]}]},
+    {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],segments:[]}]}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],value:null}]}]},
     {...value,disagreement:[{...entry,alternatives:[entry.alternatives[0],{...entry.alternatives[1],verdict:'supported'}]}]},
     {...value,node:{...value.node,type:'array'},modelValue:[{title:null,year:1827}]},

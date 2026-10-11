@@ -2,9 +2,8 @@
 CREATE FUNCTION extraction_runtime.valid_disagreement(node jsonb, value jsonb, disagreement jsonb) RETURNS boolean
 LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog
 AS $$
-DECLARE entry jsonb; leaf jsonb; at_value jsonb; child_id jsonb; child jsonb;
-  alternative jsonb; origin jsonb; source_range jsonb;
-  seen_paths jsonb := '[]'::jsonb; previous_id text; alternative_id text;
+DECLARE entry jsonb; leaf jsonb; at_value jsonb; child_id jsonb; child jsonb; alternative jsonb;
+  seen_paths jsonb := '[]'::jsonb;
 BEGIN
   IF jsonb_typeof(disagreement) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
   IF jsonb_array_length(disagreement)=0 THEN RETURN false; END IF;
@@ -24,44 +23,20 @@ BEGIN
       IF child IS NULL THEN RETURN false; END IF;
       at_value := at_value->(child->>'name'); leaf := child;
     END LOOP;
-    IF at_value IS DISTINCT FROM 'null'::jsonb OR jsonb_array_length(entry->'alternatives')<2 THEN RETURN false; END IF;
-    previous_id := NULL;
+    IF at_value IS DISTINCT FROM 'null'::jsonb OR jsonb_array_length(entry->'alternatives')<2
+      OR (SELECT count(DISTINCT a->'value') FROM jsonb_array_elements(entry->'alternatives') a)<>jsonb_array_length(entry->'alternatives')
+      THEN RETURN false; END IF;
     FOR alternative IN SELECT * FROM jsonb_array_elements(entry->'alternatives') LOOP
       IF jsonb_typeof(alternative) IS DISTINCT FROM 'object' THEN RETURN false; END IF;
-      IF NOT (alternative ?& ARRAY['id','value','origins']) OR alternative-ARRAY['id','value','origins']<>'{}'::jsonb
-        OR jsonb_typeof(alternative->'id') IS DISTINCT FROM 'string'
+      IF NOT (alternative ?& ARRAY['value','segments']) OR alternative-ARRAY['value','segments']<>'{}'::jsonb
         OR alternative->'value' IS NOT DISTINCT FROM 'null'::jsonb
         OR NOT coalesce(extraction_runtime.valid_value(leaf,alternative->'value'),false)
-        OR jsonb_typeof(alternative->'origins') IS DISTINCT FROM 'array' THEN RETURN false; END IF;
-      alternative_id := alternative->>'id';
-      IF alternative_id !~ '^[a-f0-9]{64}$' OR (previous_id IS NOT NULL AND alternative_id COLLATE "C" <= previous_id COLLATE "C")
-        OR jsonb_array_length(alternative->'origins')=0 THEN RETURN false; END IF;
-      previous_id := alternative_id;
-      FOR origin IN SELECT * FROM jsonb_array_elements(alternative->'origins') LOOP
-        IF jsonb_typeof(origin) IS DISTINCT FROM 'object' THEN RETURN false; END IF;
-        IF NOT (origin ?& ARRAY['selectionId','generation','primary','overlap'])
-          OR origin-ARRAY['selectionId','generation','primary','overlap']<>'{}'::jsonb
-          OR jsonb_typeof(origin->'selectionId') IS DISTINCT FROM 'string'
-          OR NOT coalesce(origin->>'selectionId' ~ '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',false)
-          OR jsonb_typeof(origin->'generation') IS DISTINCT FROM 'string' OR origin->>'generation'=''
-          OR jsonb_typeof(origin->'primary') IS DISTINCT FROM 'array'
-          OR jsonb_typeof(origin->'overlap') IS DISTINCT FROM 'array' THEN RETURN false; END IF;
-        FOR source_range IN SELECT * FROM jsonb_array_elements((origin->'primary')||(origin->'overlap')) LOOP
-          IF jsonb_typeof(source_range) IS DISTINCT FROM 'object' THEN RETURN false; END IF;
-          IF NOT (source_range ?& ARRAY['segment','start','end']) OR source_range-ARRAY['segment','start','end']<>'{}'::jsonb
-            OR jsonb_typeof(source_range->'segment') IS DISTINCT FROM 'string' OR source_range->>'segment'=''
-            OR jsonb_typeof(source_range->'start') IS DISTINCT FROM 'number'
-            OR jsonb_typeof(source_range->'end') IS DISTINCT FROM 'number' THEN RETURN false; END IF;
-          -- Match the reader's z.number().int(): integer offsets must survive JSON's number representation.
-          IF (source_range->>'start')::numeric NOT BETWEEN 0 AND 9007199254740991
-            OR (source_range->>'end')::numeric NOT BETWEEN 0 AND 9007199254740991
-            OR trunc((source_range->>'start')::numeric)<>(source_range->>'start')::numeric
-            OR trunc((source_range->>'end')::numeric)<>(source_range->>'end')::numeric THEN RETURN false; END IF;
-        END LOOP;
-      END LOOP;
+        OR jsonb_typeof(alternative->'segments') IS DISTINCT FROM 'array' THEN RETURN false; END IF;
+      IF jsonb_array_length(alternative->'segments')=0 OR EXISTS (SELECT FROM jsonb_array_elements(alternative->'segments') segment
+        WHERE jsonb_typeof(segment) IS DISTINCT FROM 'string' OR segment #>> '{}'='') THEN RETURN false; END IF;
     END LOOP;
   END LOOP;
-  RETURN coalesce(true,false);
+  RETURN true;
 END $$;
 ALTER FUNCTION extraction_runtime.valid_disagreement(jsonb,jsonb,jsonb) OWNER TO free_extraction_runtime;
 REVOKE ALL ON FUNCTION extraction_runtime.valid_disagreement(jsonb,jsonb,jsonb) FROM PUBLIC;

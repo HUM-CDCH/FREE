@@ -120,8 +120,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const arrayValue={...value,id:'value-items',fieldId:'items',node:arrayNode,path:['records',0,'items'],modelValue:[1,2]}
   const next=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([arrayValue]),coverage])
   assert.equal(next.values.length,2)
-  const origins=[{selectionId:selection,generation:'g1',primary:[{segment:'p3_s0',start:0,end:812}],overlap:[]}]
-  const alternatives=[{id:'a'.repeat(64),value:'Article title',origins},{id:'c'.repeat(64),value:'Cited title',origins}]
+  const alternatives=[{value:'Article title',segments:['p1_s0']},{value:'Cited title',segments:['p3_s0','p3_s1']}]
   const disagreement=[{path:['t'],alternatives}]
   const workValue={...value,id:'value-work',fieldId:'work',node:workNode,path:['records',0,'work'],modelValue:{title:null,year:1827},disagreement}
   const cases: [string,unknown][]=[
@@ -135,20 +134,15 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     ['one alternative',{...workValue,disagreement:[{path:['t'],alternatives:alternatives.slice(0,1)}]}],
     ['null alternative',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],value:null}]}]}],
     ['wrong leaf type',{...workValue,disagreement:[{path:['y'],alternatives}],modelValue:{title:null,year:null}}],
-    ['duplicate ids',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],id:alternatives[0].id}]}]}],
-    ['unsorted ids',{...workValue,disagreement:[{path:['t'],alternatives:[...alternatives].reverse()}]}],
+    ['duplicate values',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],value:alternatives[0].value}]}]}],
     ['duplicate paths',{...workValue,disagreement:[...disagreement,...disagreement]}],
     ['array traversal',{...arrayValue,modelValue:[null],disagreement:[{path:['0'],alternatives}]}],
   ]
   for(const [name,invalid] of cases)
     await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([invalid]),coverage]),(e:{code?:string})=>e.code==='22023',name)
   for(const invalid of [
-    {...alternatives[1],id:'not-a-digest'}, {...alternatives[1],verdict:'supported'}, {...alternatives[1],origins:[]},
-    {...alternatives[1],origins:[{...origins[0],selectionId:'selection'}]},
-    {...alternatives[1],origins:[{...origins[0],generation:''}]},
-    {...alternatives[1],origins:[{...origins[0],extra:true}]},
-    ...[{segment:'',start:0,end:1},{segment:'p1_s0',start:-1,end:1},{segment:'p1_s0',start:0.5,end:1},{segment:'p1_s0',start:0,end:1,extra:true}]
-      .map(range=>({...alternatives[1],origins:[{...origins[0],primary:[range]}]})),
+    {...alternatives[1],verdict:'supported'}, {value:'Cited title'}, {...alternatives[1],segments:[]},
+    {...alternatives[1],segments:'p3_s0'}, {...alternatives[1],segments:['']}, {...alternatives[1],segments:[3]},
   ]) await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],invalid]}]}]),coverage]),(e:{code?:string})=>e.code==='22023')
   const publication=randomUUID()
   const published=await invoke('publish_snapshot',[extraction,attempt,epoch,publication,selection,JSON.stringify([workValue]),coverage])

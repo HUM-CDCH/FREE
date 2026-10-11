@@ -730,9 +730,8 @@ def test_version_3_entry_calls_keep_their_captures_when_an_earlier_record_moves_
 
 
 def reading_disagreements(path, values):
-    return [{"path": path, "names": [], "alternatives": [{"value": value, "contexts": [
-        {"primary": [{"segment": f"p{index+1}_s0", "start": 0, "end": 20}], "overlap": []}]}
-        for index, value in enumerate(values)]}]
+    return [{"path": path, "names": [], "alternatives": [{"value": value, "segments": [f"p{index+1}_s0"]}
+                                                         for index, value in enumerate(values)]}]
 
 
 TITLE = {"id": "title", "name": "title", "type": "string"}
@@ -770,7 +769,7 @@ def test_adoption_keeps_a_carried_disagreement_and_proposes_other_readings(node,
     assert all(c["path"] == path for c in result["coverage"]["historicalProposals"].get(saved["id"], {"conflicts": []})["conflicts"])
     if old is None and carried is None:  # an empty place takes the fresh disagreement
         assert result["values"][0]["lineage"] == [f"old-snapshot:{saved['id']}"]
-        assert sorted(a["value"] for a in result["values"][0]["disagreement"][0]["alternatives"]) == ["A", "C"]
+        assert [a["value"] for a in result["values"][0]["disagreement"][0]["alternatives"]] == ["A", "C"]
     elif published is None:
         assert result["values"] == []
     else:

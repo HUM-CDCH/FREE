@@ -14,18 +14,9 @@ export const durableAdoptSchema = z.object({
   expectedVersion: z.number().int().nonnegative(), selectionId: z.uuid(),
   reprocessValueIds: z.array(z.string().min(1)).max(10000).default([]),
 }).strict()
-const disagreementRangeSchema = z.object({
-  segment: z.string().min(1), start: z.number().int().nonnegative(), end: z.number().int().nonnegative(),
-}).strict()
 export const valueDisagreementSchema = z.array(z.object({
   path: z.array(z.string()),
-  alternatives: z.array(z.object({
-    id: z.string().regex(/^[a-f0-9]{64}$/), value: z.unknown(),
-    origins: z.array(z.object({
-      selectionId: z.uuid(), generation: z.string().min(1),
-      primary: z.array(disagreementRangeSchema), overlap: z.array(disagreementRangeSchema),
-    }).strict()).min(1),
-  }).strict()).min(2),
+  alternatives: z.array(z.object({ value: z.unknown(), segments: z.array(z.string().min(1)).min(1) }).strict()).min(2),
 }).strict()).min(1)
 export const durableValueSchema = z.object({
   id: z.string().min(1), recordId: z.string().min(1), fieldId: z.string().min(1),
@@ -49,8 +40,8 @@ export const durableValueSchema = z.object({
     if(value.disagreement!.some((other,i)=>i!==index &&
       entry.path.length<=other.path.length && entry.path.every((id,j)=>id===other.path[j])))
       issue('Disagreeing paths must be distinct and cannot overlap.')
-    if(new Set(entry.alternatives.map(alternative=>alternative.id)).size!==entry.alternatives.length)
-      issue('Alternative IDs must be distinct.')
+    if(new Set(entry.alternatives.map(alternative=>JSON.stringify(alternative.value))).size!==entry.alternatives.length)
+      issue('Alternative values must be distinct.')
     if(entry.alternatives.some(alternative=>alternative.value===null || alternative.value===undefined))
       issue('Alternatives must be non-null.')
   })

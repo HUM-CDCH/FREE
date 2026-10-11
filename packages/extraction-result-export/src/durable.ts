@@ -228,7 +228,7 @@ export function buildDurableDisagreementsTable(values: readonly DurableExportVal
     const ordinal=value.node.valueSource?null:ordinals.get(value.recordId)??null;
     return value.disagreement?.flatMap(entry=>entry.alternatives.map(alternative=>({
       Record:ordinal===null?DOCUMENT_RECORD:ordinal+1, Field:registry.column(value.node).name,
-      Part:partName(value.node,entry.path), Value:scalarCell(alternative.value), "Read in":originPages(alternative.origins),
+      Part:partName(value.node,entry.path), Value:scalarCell(alternative.value), "Read in":originPages(alternative.segments),
       Evidence:"Not checked", Review:decisionWords(value),
     })))??[];
   })};

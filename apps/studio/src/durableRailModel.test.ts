@@ -70,8 +70,7 @@ it('lists the records discovery found as queued or reading until their values ar
 })
 
 it('keeps disagreements to check with their readings, and shows a chosen reading as approved',()=> {
-  const origins=[{selectionId:'11111111-1111-4111-8111-111111111111',generation:'1',primary:[{segment:'p3_s0',start:0,end:10}],overlap:[]}]
-  const saved=value({selectionId:origins[0].selectionId,modelValue:null,disagreement:[{path:[],alternatives:[{id:'a'.repeat(64),value:false,origins},{id:'c'.repeat(64),value:true,origins}]}]})
+  const saved=value({modelValue:null,disagreement:[{path:[],alternatives:[{value:false,segments:['p3_s0']},{value:true,segments:['p3_s0']}]}]})
   const row=durableRailRow(saved,null)
   expect(row.kind).toBe('to-check')
   expect(row.chip?.text).toBe('readings differ')

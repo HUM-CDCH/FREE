@@ -565,8 +565,7 @@ it('opens a settled catalogue at its first record to check and at the linked val
 })
 
 const disagreementSelection='11111111-1111-4111-8111-111111111111'
-const disagreementAlternatives=['Article title','Cited title'].map((value,index)=>({id:(index?'c':'a').repeat(64),value,
-  origins:[{selectionId:disagreementSelection,generation:'1',primary:[{segment:'p3_s0',start:0,end:40}],overlap:[]}]}))
+const disagreementAlternatives=['Article title','Cited title'].map(value=>({value,segments:['p3_s0']}))
 const disagreementPage=()=>({...reviewPage(),total:1,values:[{...reviewValue('title',''),selectionId:disagreementSelection,modelValue:null,
   disagreement:[{path:[],alternatives:disagreementAlternatives}],correctionCompatibility:'compatible'}],reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0}} as DurablePage)
 it('shows both unselected readings, offers no Approve, ignores A, and saves the chosen reading',async()=> {
@@ -588,7 +587,7 @@ it('shows both unselected readings, offers no Approve, ignores A, and saves the 
 it('waits for a pick at every nested part and keeps the selected buttons visible',async()=> {
   const page=disagreementPage()
   page.values[0]={...page.values[0],node:{id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]},
-    modelValue:{title:null,year:null},disagreement:[{path:['t'],alternatives:disagreementAlternatives},{path:['y'],alternatives:disagreementAlternatives.map((a,i)=>({...a,id:(i?'e':'b').repeat(64),value:1827+i}))}]}
+    modelValue:{title:null,year:null},disagreement:[{path:['t'],alternatives:disagreementAlternatives},{path:['y'],alternatives:disagreementAlternatives.map((a,i)=>({...a,value:1827+i}))}]}
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
   vi.mocked(durableRequest).mockResolvedValue({revision:1})
   render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)

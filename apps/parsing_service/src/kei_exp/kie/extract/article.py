@@ -60,14 +60,11 @@ class Records:
     disagreements: list[dict] = field(default_factory=list)
 
 
-def _ranges(passages):
-    return [{"segment": p.id, "start": 0, "end": len(p.text)} for p in passages]
-
-
 def _read_in(found, groups):
-    return [{**entry, "alternatives": [{"value": alternative["value"], "contexts": [
-        {"primary": _ranges(groups[index].primary), "overlap": _ranges(groups[index].overlap)}
-        for index in alternative["readings"]]} for alternative in entry["alternatives"]]} for entry in found]
+    """Each alternative's value and the segments of every context that read it, in source order."""
+    return [{**entry, "alternatives": [{"value": alternative["value"], "segments": list(dict.fromkeys(
+        p.id for index in alternative["readings"] for p in (*groups[index].overlap, *groups[index].primary)))}
+        for alternative in entry["alternatives"]]} for entry in found]
 
 
 def _typed_reading(answer: dict, nodes) -> tuple[dict, list[Issue]]:
@@ -129,7 +126,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         index, total, answered, failed, group, fields, root, disagreements, ok, context_calls = args
         if ok:
             from kei_exp.kie.extract.retained import saved_record
-            saved_record(chat, root, "document", primary=_ranges(group.primary), disagreements=disagreements)
+            saved_record(chat, root, "document", primary=[{"segment": p.id, "start": 0, "end": len(p.text)}
+                                                         for p in group.primary], disagreements=disagreements)
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
                               record_chars=options.record_chars, check=check, method=method, contexts=contexts,
                               start_page=options.start_page,

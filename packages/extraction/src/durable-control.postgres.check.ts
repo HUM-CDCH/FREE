@@ -319,8 +319,7 @@ test('a Value Disagreement decision binds to its readings: choices apply until t
   try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
-  const read=(segment:string)=>[{selectionId:head.selectionId,generation:'g1',primary:[{segment,start:0,end:50}],overlap:[]}]
-  const readings=(values:unknown[],segment='p3_s0')=>values.map((reading,index)=>({id:String(index+1).repeat(64),value:reading,origins:read(segment)}))
+  const readings=(values:unknown[],segment='p3_s0')=>values.map(reading=>({value:reading,segments:[segment]}))
   const saved={recordId:'record',selectionId:head.selectionId,schemaRevisionId:fixture.revisions.article,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
   const node=ARTICLE_TREE.schemaNodes[0]
   const title=(values:unknown[],segment?:string)=>({...saved,id:'title-value',fieldId:node.id,path:['records',0,node.name],node,modelValue:null,

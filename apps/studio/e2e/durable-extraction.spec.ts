@@ -753,8 +753,7 @@ test('feedback-only lag names the older pair before browser finalization',async(
 test('Value Disagreements require explicit choices, survive reload, and export their undecided alternatives',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
-    const alternatives=['Article title','Cited title'].map((value,index)=>({id:(index?'c':'a').repeat(64),value,
-      origins:[{selectionId:randomUUID(),generation:'g1',primary:[{segment:'p3_s0',start:0,end:40}],overlap:[]}]}))
+    const alternatives=['Article title','Cited title'].map(value=>({value,segments:['p3_s0']}))
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],[null],'COMPLETED',{disagreement:{title:[{path:[],alternatives}]}})
     await fixture.open();await page.locator('#rail-tab-results').click()
     await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()

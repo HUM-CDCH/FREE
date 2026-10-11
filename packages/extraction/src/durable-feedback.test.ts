@@ -90,18 +90,17 @@ test('child ordering uses the same UTF-8 order as the Python planner',()=> {
   assert.equal(fieldMeaning(node),'f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626')
 })
 
-const origins=[{selectionId:saved.selectionId,generation:'1',primary:[{segment:'p3_s0',start:0,end:12}],overlap:[]}]
-const alternative=(value:unknown,id:string)=>({id:id.repeat(64),value,origins})
+const alternative=(value:unknown)=>({value,segments:['p3_s0']})
 const work:SchemaNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
-const titles={path:['t'],alternatives:[alternative('A','a'),alternative('C','c')]}
-const years={path:['y'],alternatives:[alternative(1827,'b'),alternative(1828,'d')]}
+const titles={path:['t'],alternatives:[alternative('A'),alternative('C')]}
+const years={path:['y'],alternatives:[alternative(1827),alternative(1828)]}
 const disputed=durableValueSchema.parse({...saved,node:work,modelValue:{title:null,year:1827},disagreement:[titles]})
 test('a decision binds to the model value and each place\'s readings, never to where they were read',()=> {
   assert.equal(modelDigest(saved),'a5595d6633f64f2f08efa0c946b3ec6f94e9a9e5f28958669582fce245c21113')
   const relocated={...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives].reverse()
-    .map(a=>({...a,origins:[...a.origins,{...origins[0],primary:[{segment:'p9_s0',start:0,end:20}]}]}))}]}
+    .map(a=>({...a,segments:[...a.segments,'p9_s0']}))}]}
   assert.equal(modelDigest(relocated),modelDigest(disputed))
-  assert.notEqual(modelDigest({...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives,alternative('D','e')]}]}),modelDigest(disputed))
+  assert.notEqual(modelDigest({...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives,alternative('D')]}]}),modelDigest(disputed))
   // A second part that comes to disagree changes what a decision on the whole value reviewed.
   assert.notEqual(modelDigest({...disputed,modelValue:{title:null,year:null},disagreement:[titles,years]}),modelDigest(disputed))
 })

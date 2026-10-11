@@ -188,9 +188,7 @@ describe('durable exports', () => {
 
 it('CSV and XLSX keep disagreements explicit, including typed choices and batch alternatives',async()=> {
   const selectionId='11111111-1111-4111-8111-111111111111'
-  const disputed=value(0,year,null,{selectionId,disagreement:[{path:[],alternatives:[1827,1828].map((reading,index)=>({
-    id:(index?'c':'a').repeat(64),value:reading,origins:[{selectionId,generation:'1',primary:[{segment:'p3_s0',start:0,end:30}],overlap:[]}],
-  }))}]})
+  const disputed=value(0,year,null,{selectionId,disagreement:[{path:[],alternatives:[1827,1828].map(reading=>({value:reading,segments:['p3_s0']}))}]})
   const csv=await durableExportBlob(fixed,[disputed],'csv',root)
   expect(await csv.text()).toContain('year,year (review),year (alternatives)\r\n,Readings differ,')
   const book=await workbook(await durableExportBlob(fixed,[disputed],'xlsx',root))
