@@ -54,7 +54,8 @@ PROMPT_VERSION = 15
 # and an Article no value context answered fails rather than publishing an all-null root (`article.RootUnanswered`).
 # 8: a list item's claim prints its own row in the table context when no offered cell lies in the item's own row
 # and the item is located to one row, so section headers can be placed.
-ARTICLE_VERSION = 8
+# 9: a disagreeing scalar is kept as a Value Disagreement and counted as an unverified claim.
+ARTICLE_VERSION = 9
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -188,14 +189,17 @@ _UNFINISHED = {"grounding_exceeds_budget", "call_failed", "missing_claim", "unkn
 
 
 def grounding_accounting(claims: set[tuple], linked: set[tuple], issues: Sequence[Issue], *,
-                         excluded: dict[tuple, str] | None = None, disabled: bool = False) -> dict:
+                         excluded: dict[tuple, str] | None = None, disabled: bool = False, disagreeing: frozenset | set = frozenset()) -> dict:
     """Every claim (populated leaf) once: excluded by an evidence policy (counted apart, by policy), or eligible and
     then supported (linked), not completed (some routed check never finished: its distinct reasons, one count per
     claim) or unsupported (every check finished and none supported it). A disabled grounding completes nothing."""
+    claims = claims | disagreeing
+    # shortcut: disagreeing places under derived/unverified policies are eligible, upgrade when skipped policies
+    # cover unpopulated leaves too; today's support.skipped describes only populated leaves.
     excluded = excluded or {}
     eligible = claims - excluded.keys()
     supported = linked & eligible
-    reasons: dict[tuple, set[str]] = {}
+    reasons: dict[tuple, set[str]] = {path: {"conflicting_values"} for path in disagreeing & eligible}
     for issue in issues:
         if issue.path in eligible - supported and issue.code in _UNFINISHED:
             reasons.setdefault(issue.path, set()).add(issue.code)

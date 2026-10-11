@@ -727,3 +727,177 @@ def test_version_3_entry_calls_keep_their_captures_when_an_earlier_record_moves_
     for defaults in (3,2):
         one,two=entry_keys(defaults,"1. Site1. Material: m1."),entry_keys(defaults,"1. Site1. Material: m1.\n2. Site2. Material: m2.")
         assert (one<=two)==(defaults==3), defaults  # version 2 numbers entries 3 and 4 anew: their calls are new
+
+
+def reading_disagreements(path, values):
+    return [{"path": path, "names": [], "alternatives": [{"value": value, "contexts": [
+        {"primary": [{"segment": f"p{index+1}_s0", "start": 0, "end": 20}], "overlap": []}]}
+        for index, value in enumerate(values)]}]
+
+
+@pytest.mark.parametrize("case", ["union", "absent", "resolved", "plain-new", "plain-held", "sibling",
+    "nested-year", "nested-resolved", "reprocess", "new-origins", "changed-meaning"])
+def test_adoption_never_collapses_a_carried_disagreement(case):
+    from kei_exp.kie.extract.durable import canonical, field_meaning
+    nested = case in ("sibling", "nested-year", "nested-resolved")
+    node = {"id": "work", "name": "work", "type": "object", "children": [
+        {"id": "t", "name": "title", "type": "string"}, {"id": "y", "name": "year", "type": "integer"}]} if nested else {
+        "id": "title", "name": "title", "type": "string"}
+    lease = MemoryLease({"recordDescription": "An Article", "schemaNodes": [node]})
+    old_value = {"title": "A" if case in ("nested-year", "nested-resolved") else None, "year": None} if nested else "A" if case == "resolved" else None
+    old = publish_values(lease, {node["name"]: old_value}, "document", complete=True)["values"][0]
+    old_selection = lease.state["selection"]["id"]
+    path = ["y"] if case == "nested-year" else ["t"] if nested else []
+    leaf = node["children"][1 if case == "nested-year" else 0] if nested else node
+    carried = [1827, 1828] if case == "nested-year" else ["A", "C"]
+    if case not in ("absent", "resolved", "nested-resolved"):
+        old["processing"] = "saved"
+        old["disagreement"] = [{"path": path, "alternatives": sorted([{
+            "id": digest([old["id"], path, field_meaning(leaf), canonical(value)]), "value": value,
+            "origins": [{"selectionId": old_selection, "generation": "g1", "primary": [{"segment": "p1_s0", "start": 0, "end": 20}], "overlap": []}]}
+            for value in carried], key=lambda a: a["id"])}]
+    lease.historical = {"snapshot": {"id": "old-snapshot", "values": [old]}, "manifest": {"coverage": {
+        "reprocessValueIds": [old["id"]] if case == "reprocess" else []}}}
+    lease.state["selection"]["id"] = str(uuid4())
+    if case == "changed-meaning":
+        node["description"] = "A different field meaning"
+        # The old snapshot is immutable even while the live selection changes.
+        lease.historical["snapshot"]["values"][0]["node"] = {key: value for key, value in node.items() if key != "description"}
+    fresh = {"title": "A", "year": 1829} if case == "nested-year" else {"title": None, "year": 1827} if nested else (
+        "D" if case in ("plain-new", "reprocess") else "A" if case == "plain-held" else None)
+    kwargs = {}
+    if case in ("union", "absent", "resolved", "nested-resolved", "new-origins"):
+        kwargs["disagreements"] = reading_disagreements([node["id"], *path], ["A", "D"] if case == "union" else ["A", "C"])
+    result = publish_values(lease, {node["name"]: fresh}, "document", complete=True, **kwargs)
+    proposals = result["coverage"]["historicalProposals"]
+    if case in ("plain-new", "plain-held", "resolved", "nested-year", "new-origins"):
+        assert result["values"] == []
+    if case in ("plain-held", "new-origins"):
+        assert proposals == {}
+    if case in ("plain-new", "resolved", "nested-year", "nested-resolved"):
+        assert proposals[old["id"]]["conflicts"] == [{"path": path, "historical": "A" if case in ("resolved", "nested-resolved") else None,
+            "proposed": "C" if case in ("resolved", "nested-resolved") else 1829 if case == "nested-year" else "D"}]
+    if case in ("union", "absent", "sibling"):
+        saved = result["values"][0]
+        assert saved["processing"] == "saved"
+        assert saved["modelValue"] == ({"title": None, "year": 1827} if nested else None)
+        alternatives = saved["disagreement"][0]["alternatives"]
+        assert {a["value"] for a in alternatives} == ({"A", "C", "D"} if case == "union" else {"A", "C"})
+        assert [a["id"] for a in alternatives] == sorted(a["id"] for a in alternatives)
+        if case == "union":
+            assert saved["selectionId"] != old["selectionId"]
+            assert {a["id"] for a in old["disagreement"][0]["alternatives"]} <= {a["id"] for a in alternatives}
+            assert len(next(a for a in alternatives if a["value"] == "A")["origins"]) == 2
+    if case in ("reprocess", "changed-meaning", "nested-resolved"):
+        saved = result["values"][0]
+        assert "disagreement" not in saved
+        assert saved["modelValue"] == ("D" if case == "reprocess" else {"title": "A", "year": 1827} if nested else None)
+
+
+def test_article_disagreement_survives_every_publication_and_replays_identically():
+    from kei_exp.kie.extract.durable import canonical
+    from tests.test_record_scope import disagreement_article_input, disagreement_article_reply
+    request, source = disagreement_article_input(grounding="quoted")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = CountingChat(disagreement_article_reply)
+    extract = lambda router, counter: run.dispatch(None, source, request, router,
+        counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert len(result["value_contexts"][0]) == 3
+    publications = list(lease.publications.items())
+    finished = next(saved for _, saved in reversed(publications) if saved["coverage"].get("processingComplete"))
+    expected = {v["fieldId"]: v["disagreement"] for v in finished["values"] if "disagreement" in v}
+    assert set(expected) == {"title-id", "year-id"}
+    seen = False
+    links = False
+    for identity, publication in publications:
+        for value in publication["values"]:
+            if value["fieldId"] in expected and "disagreement" in value:
+                seen = True
+                assert value["disagreement"] == expected[value["fieldId"]]
+                assert value["processing"] == "saved"
+            elif seen and value["fieldId"] in expected:
+                pytest.fail(f"{identity} dropped a saved disagreement")
+        links |= any(value["evidence"] for value in publication["values"])
+    assert seen and links
+    assert publications[-1][1]["coverage"]["finalizedAttempt"]["complete"] is True
+    before = canonical(lease.publications)
+    count = len(chat.calls)
+    replayed = finish(lease, chat, extract)
+    assert len(chat.calls) == count
+    assert replayed["disagreements"] == result["disagreements"]
+    assert canonical(lease.publications) == before
+
+
+def test_edited_disagreement_guidance_keeps_the_readings_and_acknowledged_digest_in_the_prompt():
+    from kei_exp.kie.extract.durable import canonical, field_meaning
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import extract_record
+    node={"id":"title","name":"title","type":"string"}
+    tree={"recordDescription":"The whole document","schemaNodes":[node]}
+    lease=MemoryLease(tree)
+    candidate={"id":"correction","fieldId":"title","meaning":field_meaning(node),"node":node,
+        "value":"Researcher title","grounded":False,"disagreementDigest":"d"*64,
+        "sourceContext":canonical({"modelValue":None,"disagreement":[{"path":[],"values":["Article title","Cited title"]}]})}
+    lease.candidates=[{"id":"correction","candidate":candidate}]
+    counter=Counter()
+    chat=CountingChat(lambda *_:{"title":"target source"})
+    with pytest.raises(NeedsCall):
+        extract_record(passages(["target source"]),Schema.model_validate(tree),
+            Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
+            budget=48000,counter=counter,document=True)
+    request=next(iter(lease.units.values()))["input"]["request"]
+    assert request["examples"] == [candidate]
+    assert canonical([candidate]) in request["body"]["system"]
+    assert "Article title" in request["body"]["system"] and "Cited title" in request["body"]["system"]
+    assert "d"*64 in request["body"]["system"]
+    assert not chat.calls
+
+
+def test_a_disagreements_retained_values_and_publication_identity_do_not_depend_on_start_page():
+    from kei_exp.kie.extract.durable import canonical
+    from tests.test_record_scope import disagreement_article_input, disagreement_article_reply
+    request, _ = disagreement_article_input(grounding="quoted")
+    baseline = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    published = []
+    finals = []
+    completions = []
+    for page in (None, 1, 3):
+        request, source = disagreement_article_input(page, grounding="quoted")
+        lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+        lease.state, lease.attempt = deepcopy(baseline.state), baseline.attempt
+        chat = CountingChat(disagreement_article_reply)
+        result = finish(lease, chat, lambda router, counter: run.dispatch(None, source, request, router,
+            counter={"fields": counter, "reasoning": counter}))
+        assert len(result["value_contexts"][0]) == 3
+        # The same retained-value publication has the same identity. The final artifact's diagnostic options
+        # still record the requested start_page, so final diagnostic cuts represent different inputs.
+        published.append(next((identity, saved) for identity, saved in reversed(lease.publications.items())
+            if saved["coverage"].get("processingComplete") is False
+            and not saved["coverage"]["completedScopes"] and any(v["evidence"] for v in saved["values"])))
+        finals.append(next(saved["values"] for saved in reversed(lease.publications.values())
+            if saved["coverage"].get("processingComplete")))
+        # Completion is the latest snapshot: its identity and coverage are independent of scheduling,
+        # and PostgreSQL carries the identical final retained values into this empty-body publication.
+        completion = next(reversed(lease.publications.items()))
+        assert completion[1]["values"] == []
+        assert completion[1]["coverage"]["finalizedAttempt"]["complete"] is True
+        completions.append(completion)
+    assert all(canonical(each) == canonical(published[0]) for each in published)
+    assert all(canonical(each) == canonical(finals[0]) for each in finals)
+    assert all(canonical(each) == canonical(completions[0]) for each in completions)
+
+
+def test_disagreement_origins_are_canonical_and_repeated_typed_readings_share_their_identity():
+    node={"id":"year","name":"year","type":"integer"}
+    lease=MemoryLease({"recordDescription":"An article","schemaNodes":[node]})
+    readings=reading_disagreements(["year"],[1827.0,1828,1827])
+    first=publish_values(lease,{"year":None},"document",disagreements=readings)
+    reversed_readings=deepcopy(readings)
+    reversed_readings[0]["alternatives"].reverse()
+    again=publish_values(lease,{"year":None},"document",disagreements=reversed_readings)
+    assert first == again and len(lease.publications) == 1
+    alternatives=first["values"][0]["disagreement"][0]["alternatives"]
+    assert len(alternatives) == 2
+    earlier=next(a for a in alternatives if a["value"] == 1827)
+    assert type(earlier["value"]) is int and len(earlier["origins"]) == 2

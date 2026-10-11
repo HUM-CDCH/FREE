@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs'
 import {randomUUID} from 'node:crypto'
 import {readFile,writeFile} from 'node:fs/promises'
 import {expect,test,type Page} from '@playwright/test'
@@ -519,5 +520,79 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
     expect(events.some(event=>event.key==='places')).toBe(true)
     expect(found,'discovery progress reached Studio while discovery ran').toBeGreaterThan(0)
     expect(final.values.filter((value:{links:unknown[]})=>value.links.length>0).length).toBeGreaterThan(0)
+  } finally {await service.close()}
+})
+
+test('a real bounded Article retains two title readings through worker publication, choice, reload and exports',async({page},testInfo)=> {
+  test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'This case scripts distinct bounded readings at the model boundary.')
+  page.setDefaultTimeout(30_000)
+  const service=await startRealService(testInfo.outputPath('value-disagreement-worker.log'),{articleReading:prompt=>({
+    title:prompt.includes('ARTICLE TITLE:')?'Ecology of Rivers':prompt.includes('CITED TITLE:')?'A History of Clocks':null,
+  })})
+  try {
+    await loginResearcher(page,randomUUID())
+    const headers={Origin:E2E_ORIGIN}
+    const created=await page.request.post('/api/project-contexts',{headers,data:{name:'Bounded title readings'}})
+    expect(created.status()).toBe(201)
+    const project=(await created.json()).projectContext.projectContextId as string
+    // Native, redistributable text that really exceeds one 8192-token value context (including reply reserve).
+    // Distinct numbered lines also keep the native parser from treating repeated filler as page furniture.
+    const source=Array.from({length:16},(_,p)=>Array.from({length:32},(_,line)=>
+      p===0&&line===0?'ARTICLE TITLE: Ecology of Rivers':p===15&&line===31?'CITED TITLE: A History of Clocks'
+        :`Section ${p+1} line ${line+1} records water stone soil samples over many seasons.`))
+    const ingestion=await settle(page,project,await admit(page,project,textPdf(source,{fontSize:10,lineHeight:18}),'bounded-readings.pdf'),240_000)
+    expect(ingestion.status,JSON.stringify(ingestion)).toBe('succeeded')
+    if(ingestion.status!=='succeeded')throw new Error('The native source was not published.')
+    const id=await seedNative(page,project,ingestion.sourceDocumentId,'article',{articleContext:'bounded',nodes:[{id:'title',name:'title',type:'string'}]})
+    await service.reconcileDurable()
+    const root=`/api/extractions/${id}/durable`
+    await expect.poll(async()=> {
+      const state=await (await page.request.get(root)).json()
+      if(state.status==='FAILED')throw new Error(JSON.stringify(state.failure))
+      return state.status
+    },{timeout:180_000}).toBe('COMPLETED')
+    const history=await (await page.request.get(`${root}/history`)).json()
+    const valueCalls=history.captures.filter((capture:{descriptor:{stage:string};output:unknown})=>capture.descriptor.stage==='record'&&capture.output!==null)
+    expect(valueCalls.length).toBeGreaterThanOrEqual(2)
+    const saved=await (await page.request.get(`${root}/values`)).json()
+    expect(saved.values[0].disagreement[0].alternatives.map((a:{value:string})=>a.value).sort()).toEqual(['A History of Clocks','Ecology of Rivers'])
+    await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title/}).click()
+    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:'Use Ecology of Rivers'})).toBeVisible()
+    await expect(page.getByRole('button',{name:'Use A History of Clocks'})).toBeVisible()
+    await expect(page.getByText(/read in .*not checked/)).toHaveCount(2)
+    await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0)
+    expect((await page.request.post(`${root}/finalize`,{headers,data:{snapshotVersion:saved.snapshotVersion,feedbackVersion:saved.feedbackVersion}})).status()).toBe(422)
+    const download=async(format:'CSV'|'XLSX')=> {
+      await page.getByRole('button',{name:'More result actions'}).click()
+      await page.getByRole('menuitem',{name:'Export…'}).click()
+      const pending=page.waitForEvent('download')
+      await page.getByRole('button',{name:format==='XLSX'?'Excel':format,exact:true}).click()
+      return readFile((await (await pending).path())!)
+    }
+    const csv=(await download('CSV')).toString('utf8')
+    expect(csv).toContain('title,title (review),title (alternatives)\r\n,Readings differ,')
+    expect(csv).toContain('Ecology of Rivers');expect(csv).toContain('A History of Clocks')
+    const workbook=new ExcelJS.Workbook()
+    await workbook.xlsx.load(new Uint8Array(await download('XLSX')).buffer)
+    const results=workbook.getWorksheet('Results')!,alternatives=workbook.getWorksheet('Disagreements')!
+    expect(results.getCell('A2').value).toBeNull()
+    expect(results.getCell('B2').value).toBe('Readings differ')
+    expect(alternatives.rowCount).toBe(3)
+    expect([alternatives.getCell('D2').value,alternatives.getCell('D3').value].sort()).toEqual(['A History of Clocks','Ecology of Rivers'])
+    expect(alternatives.getCell('F2').value).toBe('Not checked')
+    expect(alternatives.getCell('F3').value).toBe('Not checked')
+    await page.getByRole('button',{name:'Use Ecology of Rivers'}).click()
+    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(0)
+    await page.reload();await page.locator('#rail-tab-results').click();await page.getByRole('button',{name:'All',exact:true}).click()
+    await expect(page.getByRole('button',{name:/Approved title Ecology of Rivers/})).toBeVisible()
+    await page.getByRole('button',{name:'Save review',exact:true}).click()
+    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+    expect((await download('CSV')).toString('utf8')).toContain('\r\nEcology of Rivers,Chosen,')
+    const chosen=new ExcelJS.Workbook();await chosen.xlsx.load(new Uint8Array(await download('XLSX')).buffer)
+    expect(chosen.getWorksheet('Results')!.getCell('A2').value).toBe('Ecology of Rivers')
+    expect(chosen.getWorksheet('Results')!.getCell('B2').value).toBe('Chosen')
   } finally {await service.close()}
 })

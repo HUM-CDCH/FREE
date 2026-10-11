@@ -7,6 +7,8 @@ notes a prompt lists for described fields, and `conform`, which restricts a mode
 """
 from __future__ import annotations
 
+import math
+
 from collections.abc import Iterator, Sequence
 from typing import Any, Literal, Self
 
@@ -215,3 +217,12 @@ def _conform_field(value: Any, node: Node) -> Any:
     if node.type == "object":
         return conform(value, node.children or []) if isinstance(value, dict) else None
     return value
+
+
+def typed(value, node: Node) -> bool:
+    """A non-null scalar of its declared type, without coercion."""
+    types = {"string": (str,), "verbatim-string": (str,), "date": (str,), "integer": (int,),
+             "number": (int, float), "boolean": (bool,)}.get(node.type, ())
+    return not (type(value) not in types or (isinstance(value, str) and not value.strip()) or (
+        type(value) in (int, float) and not math.isfinite(value)) or (
+        node.allowed_values is not None and value not in node.allowed_values))

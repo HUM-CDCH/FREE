@@ -242,3 +242,99 @@ def test_a_records_scope_request_with_options_unified_is_the_unified_catalogs():
     assert result["extraction_version"] == 3 and result["schema"]["recordScope"] == "records"
     assert [record["finds"] for record in result["records"]] == [
         [{"name": "Axe", "count": 1}, {"name": "Pin", "count": 2}], [{"name": "Axe", "count": 1}]]
+
+
+def disagreement_article_input(start_page=None, grounding="off"):
+    """Three independent bounded readings of an Article and its bibliography: A / null / C."""
+    nodes = [{"id": "title-id", "name": "title", "type": "string"},
+             {"id": "year-id", "name": "year", "type": "integer"},
+             {"id": "authors-id", "name": "authors", "type": "array", "itemType": "string"}]
+    request = run.ExtractRequest.model_validate({"schema": {"recordDescription": "The observed article.",
+        "recordScope": "document", "schemaNodes": nodes}, "options": {"strategy": "article", "start_page": start_page,
+        "article": {"context": "bounded", "context_tokens": 8192, "grounding": grounding}}})
+    source = sum((passages([text + " filler" * 3000], page=index+1) for index, text in enumerate([
+        "Observed article: The observed article. Year 1827. Author A.",
+        "No title or year here. Author B.", "Bibliography: The cited title. Year 1828. Author C."])), [])
+    return request, evidence(source)
+
+
+def disagreement_article_reply(system, user, schema):
+    if "title" in schema["properties"]:
+        if "Observed article:" in user:
+            return {"title": "The observed article", "year": 1827, "authors": ["A"]}
+        if "Bibliography:" in user:
+            return {"title": "The cited title", "year": 1828, "authors": ["C"]}
+        return {"title": None, "year": None, "authors": ["B"]}
+    from tests.test_article_claims_contract import quoting
+    return quoting(system, user, schema)
+
+
+def disagreement_article(start_page=None, grounding="off"):
+    request, source = disagreement_article_input(start_page, grounding)
+    return run.dispatch(None, source, request, CountingChat(disagreement_article_reply),
+                        counter={role: WordCounter() for role in ("fields", "reasoning")})
+
+
+def test_value_disagreements_keep_each_reading_of_the_observed_article_and_cited_title():
+    result = disagreement_article()
+    assert len(result["value_contexts"][0]) == 3
+    assert result["records"] == [{"title": None, "year": None, "authors": ["A", "B", "C"]}]
+    assert {tuple(d["path"]): [a["value"] for a in d["alternatives"]] for d in result["disagreements"]} == {
+        ("title-id",): ["The observed article", "The cited title"], ("year-id",): [1827, 1828]}
+    for entry in result["disagreements"]:
+        assert entry["names"] in (["title"], ["year"])
+        assert [a["contexts"][0]["primary"][0]["segment"] for a in entry["alternatives"]] == ["p1_s0", "p3_s0"]
+
+
+def test_a_disagreement_is_the_same_whatever_page_the_run_starts_at():
+    results = [disagreement_article(page) for page in (None, 1, 3)]
+    assert all(result["disagreements"] == results[0]["disagreements"] for result in results)
+    assert all(result["records"] == results[0]["records"] for result in results)
+
+
+def test_value_disagreements_name_a_nested_child_by_id_and_never_enter_lists():
+    schema = Schema.model_validate({"recordDescription": "An article", "schemaNodes": [
+        {"id": "work-id", "name": "work", "type": "object", "children": [
+            {"id": "title-id", "name": "title", "type": "string"}, {"id": "year-id", "name": "year", "type": "integer"}]},
+        {"id": "items-id", "name": "items", "type": "array", "itemType": "string"}]})
+    readings = [{"work": {"title": "A", "year": 1827}, "items": ["A"]},
+                {"work": {"title": "C", "year": 1827}, "items": ["C"]}]
+    root, conflicts, _, _ = contexts.assemble_document(readings)
+    found = contexts.value_disagreements(readings, conflicts, schema.nodes)
+    assert root == {"work": {"title": None, "year": 1827}, "items": ["A", "C"]}
+    assert found == [{"path": ["work-id", "title-id"], "names": ["work", "title"],
+        "alternatives": [{"value": "A", "readings": [0]}, {"value": "C", "readings": [1]}]}]
+
+
+def test_an_article_with_a_disagreement_never_reports_grounding_complete():
+    result = disagreement_article(grounding="quoted")
+    assert result["completion"]["grounding"] == "partial"
+    assert result["grounding"]["reasons"]["conflicting_values"] == 2
+    assert result["grounding"]["claims"] == 5
+    assert all("verdict" not in a for d in result["disagreements"] for a in d["alternatives"])
+
+
+@pytest.mark.parametrize("kind,value,valid", [
+    ("string", "A", True), ("string", 5, False), ("string", ["x"], False), ("string", " ", False),
+    ("integer", 1827, True), ("integer", 1827.0, False), ("integer", True, False),
+    ("number", 1.5, True), ("number", float("inf"), False), ("number", float("nan"), False),
+    ("boolean", False, True), ("boolean", 0, False), ("date", "1827", True), ("string", None, False),
+])
+def test_typed_reads_a_scalar_as_valid_value_does(kind, value, valid):
+    from kei_exp.kie.extract.schema import Node, typed
+    assert typed(value, Node(id="value", name="value", type=kind)) is valid
+
+
+def test_value_disagreements_filter_invalid_types_and_normalize_whole_number_floats():
+    schema = Schema.model_validate({"recordDescription": "An article", "schemaNodes": [
+        {"id": "t", "name": "title", "type": "string"}, {"id": "y", "name": "year", "type": "integer"}]})
+    for values, expected in [(["A", ["x"], "C"], ["A", "C"]), (["A", 5], [])]:
+        readings = [{"title": value} for value in values]
+        _, conflicts, _, _ = contexts.assemble_document(readings)
+        found = contexts.value_disagreements(readings, conflicts, schema.nodes)
+        assert ([a["value"] for a in found[0]["alternatives"]] if found else []) == expected
+    readings = [{"year": 1827.0}, {"year": 1828}, {"year": 1827}]
+    _, conflicts, _, _ = contexts.assemble_document(readings)
+    found = contexts.value_disagreements(readings, conflicts, schema.nodes)
+    assert found[0]["alternatives"] == [{"value": 1827, "readings": [0, 2]}, {"value": 1828, "readings": [1]}]
+    assert type(found[0]["alternatives"][0]["value"]) is int
