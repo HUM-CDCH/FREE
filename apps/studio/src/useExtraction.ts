@@ -130,7 +130,8 @@ export function useExtraction({
   const [unansweredAdmission, setUnansweredAdmission] = useState(false)
   const [monitorError, setMonitorError] = useState<string | null>(null)
   const monitorRef = useRef<Monitor | null>(null)
-  /** The run this page started, so either observer's terminal report says whether it was a re-run. */
+  /** The run this page started, so either observer's terminal report says whether it was a re-run. Only the page that
+   *  started a run knows, so a restored run, or one started elsewhere, is not called one. */
   const startedRef = useRef<{ extractionId: string; isRerun: boolean } | null>(null)
   const onTerminalRef = useRef(onTerminal)
   useEffect(() => { onTerminalRef.current = onTerminal })
@@ -213,7 +214,7 @@ export function useExtraction({
     stopMonitor()
     const monitor: Monitor = {
       extractionId: attempt!.extractionId,
-      isRerun: startedRef.current?.extractionId === attempt!.extractionId ? startedRef.current.isRerun : true,
+      isRerun: startedRef.current?.extractionId === attempt!.extractionId && startedRef.current.isRerun,
       paused: false,
       controller: new AbortController(),
     }
@@ -249,7 +250,7 @@ export function useExtraction({
       monitorRef.current = null
       setMonitorError(null)
     }
-    acceptAttempt(next, startedRef.current?.extractionId === extractionId ? startedRef.current.isRerun : true)
+    acceptAttempt(next, startedRef.current?.extractionId === extractionId && startedRef.current.isRerun)
   }, [acceptAttempt])
 
   // A new Extraction starts from no Extraction or from one that can no longer continue; any other is controlled with

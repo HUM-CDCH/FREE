@@ -409,8 +409,12 @@ describe('reopened Source Document workspace', () => {
   })
 
   // Decision 04: a run started here that succeeds says so in one toast with "Review now"; a run this page only reopened
-  // (restored while running) says it finished, with nothing offered.
-  it.each(['started here', 'restored while running'] as const)('a run %s that completes while monitored ends in one completion toast', async (origin) => {
+  // (restored while running) says it finished, with nothing offered. Only a re-run started here is called one.
+  it.each([
+    ['started here', '✓ Extraction complete — review it in the Results tab'],
+    ['re-run here', '↻ Re-run complete — review it in the Results tab'],
+    ['restored while running', '✓ Extraction complete — review it in the Results tab'],
+  ] as const)('a run %s that completes while monitored ends in one completion toast', async (origin, message) => {
     // A run started here carries the identity the page made for it.
     let extractionId = '51000000-0000-4000-8006-000000000042'
     const completed = () => ({ ...runningAttempt(extractionId), executionStatus: 'COMPLETED' })
@@ -429,13 +433,16 @@ describe('reopened Source Document workspace', () => {
       return Promise.resolve(new Response('pdf'))
     }))
     render(<DocumentWorkspace {...reopened}
-      persistedExtraction={origin === 'started here' ? null : { ...reopened.persistedExtraction!, ...runningAttempt(extractionId) } as DocumentWorkspaceProps['persistedExtraction']} />)
+      persistedExtraction={{ 'started here': null, 're-run here': reopened.persistedExtraction,
+        'restored while running': { ...reopened.persistedExtraction!, ...runningAttempt(extractionId) } as DocumentWorkspaceProps['persistedExtraction'] }[origin]} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    if (origin === 'started here') {
+    if (origin !== 'restored while running') {
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
     }
-    expect(await screen.findByText(/complete — review it in the Results tab$/, undefined, { timeout: 4_000 })).toBeVisible()
+    expect(await screen.findByText(message, undefined, { timeout: 4_000 })).toBeVisible()
+    // One toast: hydrating a reopened completed Extraction says nothing.
+    expect(shownToasts.filter(shown => shown.includes('complete —'))).toEqual([message])
     expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
     if (origin === 'restored while running') {
       expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
@@ -513,6 +520,18 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: { PAUSED: '▶ Resume extraction', FAILED: '↻ Retry extraction', PAUSING: 'Pausing…', STOPPING: 'Stopping…' }[status] })).toBeInTheDocument()
     expect(posts).toEqual([])
+  })
+
+  it.each(['PAUSING', 'STOPPING'] as const)('locks the Record Scope and offers no Boundaries while latest is %s', async (status) => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      return Promise.resolve(durableRead(url, status) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
+    }))
+    render(<DocumentWorkspace {...reopened} extractionSchema={{ ...reopened.extractionSchema!, recordScope: 'records' }}
+      persistedExtraction={{ ...reopened.persistedExtraction!, executionStatus: status }} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Record scope')).toBeDisabled()
+    expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
   })
 
   it('pauses the latest Extraction from the run button and offers Resume once its calls are saved', async () => {
