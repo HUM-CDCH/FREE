@@ -219,7 +219,7 @@ describe('dimming in one-by-one (results review redesign §7.3)', () => {
 })
 
 describe('marks select their values (results review redesign §7.2)', () => {
-  it('paints one button per occurrence, named by its values, current when selected; a click hands over every value of the passage', () => {
+  it('paints one button per occurrence, named by its values, current when selected; a click hands over every value of the passage and no record start', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
     const container = document.createElement('div')
@@ -238,7 +238,9 @@ describe('marks select their values (results review redesign §7.2)', () => {
       containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
       attempt: { extractionId: 'x' },
       resultPath: [], active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect,
-        savedLinks: links.map((link) => ({ key: JSON.stringify(link.resultPath), link })) },
+        // Discovery's record start in the same passage has no value to select.
+        savedLinks: [{ key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: anchor.anchor_id } },
+          ...links.map((link) => ({ key: JSON.stringify(link.resultPath), link }))] },
     }))
     const marks = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
     expect(marks).toHaveLength(anchor.producer_observations.length)

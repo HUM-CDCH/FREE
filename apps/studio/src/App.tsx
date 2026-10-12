@@ -765,6 +765,11 @@ export function DocumentWorkspace({
     active: effectiveRailOpen && railTab === 'results',
     dimLink: focusedEvidence,
   })
+  // A passage's choice lasts while its values are still marked and its mark is still rendered. A mark goes as a render
+  // commits or the overlays above repaint, so it is checked after both; a read that keeps them keeps it.
+  const choiceHolds = (choice: NonNullable<typeof markChoice>) => choice.mark.isConnected && choice.keys.every((key) => railMarks?.describe.has(key))
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- after every commit
+  useEffect(() => { if (markChoice && !choiceHolds(markChoice)) setMarkChoice(null) })
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
    *  run over the whole document: what admission pins is what was saved at the click (§2). A `method_changed` refusal
@@ -1095,7 +1100,7 @@ export function DocumentWorkspace({
                 <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
-                {markChoice && railMarks && (
+                {markChoice && railMarks && choiceHolds(markChoice) && (
                   <MarkPopover keys={markChoice.keys} describe={railMarks.describe} mark={markChoice.mark}
                     onChoose={(key) => { setMarkChoice(null); selectValueRef.current?.(key) }} onClose={() => setMarkChoice(null)} />
                 )}

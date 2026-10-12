@@ -27,6 +27,19 @@ describe('the Markdown view (results review redesign §7.4)', () => {
     expect(onSelect).toHaveBeenCalledWith([key], mark)
   })
 
+  it('marks a record start discovery found without selecting it, and a passage it shares with a value selects the value', () => {
+    const onSelect = vi.fn()
+    const found = { key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: 'a1' } }
+    const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect, savedLinks: [found] }} />)
+    expect(screen.getByText('NE–SW')).toHaveClass('evidence-mark')
+    expect(screen.queryByRole('button')).toBeNull()
+    const value = { key, link: { resultPath: ['records', 0, 'orientation'], evidenceAnchorId: 'a1' } }
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect, savedLinks: [value, found] }} />)
+    const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([key], mark)
+  })
+
   it('says when there is no Markdown', () => {
     render(<DocumentMarkdown markdown={null} document={null} marks={null} />)
     expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()
