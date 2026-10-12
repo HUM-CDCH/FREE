@@ -8,7 +8,7 @@ import { accountMethod, REFERENCE_ARTICLE } from './extraction-method.js'
 import type { ExtractionExecution } from './dependencies.js'
 import type { RunSingleInput, ScheduleBatchInput } from './types.js'
 
-test('admission commits only durable work, replays it, and rolls back a failed enqueue', async t => {
+test('admission commits only durable work, replays it, rolls back a failed enqueue, and waits for an unfinished run', async t => {
   const base = process.env.EXTRACTION_TEST_DATABASE_URL
   if (!base) throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
   const target = await provisionDatabase(base, `free_test_durable_admission_${randomBytes(5).toString('hex')}`)
@@ -32,12 +32,14 @@ test('admission commits only durable work, replays it, and rolls back a failed e
   await admin.query('INSERT INTO public."researcherAccount" (id,"tenantId","objectId","displayName","updatedAt") VALUES ($1,$2,$3,\'Admission test\',now())', [owner, randomUUID(), randomUUID()])
   await admin.query('INSERT INTO public."projectContext" (id,name,"researcherAccountId") VALUES ($1,\'Admission test\',$2)', [projectId, owner])
   const documents: { id: string; revisionId: string }[] = []
-  for (let index = 0; index < 2; index++) {
+  for (let index = 0; index < 3; index++) {
     const id = randomUUID(), sourceRevisionId = randomUUID(), hash = randomBytes(32).toString('hex')
     await admin.query('INSERT INTO public."sourceDocument" (id,"projectContextId","contentSha256","mediaType","originalName") VALUES ($1,$2,$3,\'application/pdf\',$4)', [id, projectId, hash, `source-${index}.pdf`])
     await admin.query('INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion") VALUES ($1,$2,1,$3,$3,\'parsed_document.v2\',$4,\'fixture\',\'1\')', [sourceRevisionId, id, hash, `kei-exp:admission-${index}:g1`])
     documents.push({ id, revisionId: sourceRevisionId })
   }
+  // In no batch below, so a single run on it waits for no unfinished Extraction (ADR 0020) until this test makes one.
+  const spare = documents.pop()!
   await admin.query('INSERT INTO public."extractionSchema" (id,"projectContextId",name) VALUES ($1,$2,\'Admission test\')', [schemaId, projectId])
   await admin.query('INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") VALUES ($1,$2,1,\'RESEARCHER_EDIT\',$3,\'document\')', [revisionId, schemaId, { recordDescription: 'One document.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }] }])
   // A transactional queue probe proves the enqueue boundary without calling a model or starting a worker.
@@ -126,7 +128,7 @@ test('admission commits only durable work, replays it, and rolls back a failed e
   const committed = { extractions: 5, batches: 2, heads: 5, dispatches: 5, queued: 5 }
   assert.deepEqual(await counts(), committed)
 
-  await assert.rejects(failing.scheduleExtraction({ ...single, extractionId: randomUUID() }), /Queue commit refused/)
+  await assert.rejects(failing.scheduleExtraction({ ...single, extractionId: randomUUID(), sourceRepresentationRevisionId: spare.revisionId }), /Queue commit refused/)
   await assert.rejects(failing.scheduleBatch(batch), /Queue commit refused/)
   assert.deepEqual(await counts(), committed)
 
@@ -205,4 +207,37 @@ test('admission commits only durable work, replays it, and rolls back a failed e
   assert.equal(changedBatch?.disposition,'created')
   assert.notEqual(changedBatch?.batch.batchExtractionId,nativeBatch?.batch.batchExtractionId)
   assert.equal(changedBatch?.batch.members.length,documents.length)
+
+  // ADR 0020: a single run waits while the newest Extraction on its revision, a batch member included, is neither
+  // Completed nor Stopped, and the refusal names it. An admitted identity still replays.
+  const spareRun={...single,sourceRepresentationRevisionId:spare.revisionId,method:changedMethod}
+  const settle=(id:string,intent:string,acknowledgement:string)=>
+    admin.query('UPDATE extraction_runtime.head SET intent=$2,acknowledgement=$3 WHERE id=$1',[id,intent,acknowledgement])
+  const first={...spareRun,extractionId:randomUUID()}
+  assert.equal((await persistence.scheduleExtraction(first))?.disposition,'created')
+  const beforeUnfinished=await counts()
+  for(const [intent,acknowledgement] of [['RUN','QUEUED'],['RUN','RUNNING'],['PAUSE','RUNNING'],['PAUSE','PAUSED'],['RUN','FAILED'],['STOP','RUNNING']]) {
+    await settle(first.extractionId,intent,acknowledgement)
+    await assert.rejects(persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()}),
+      {code:'extraction_in_progress',extractionId:first.extractionId})
+  }
+  assert.deepEqual(await counts(),beforeUnfinished)
+  await settle(first.extractionId,'RUN','COMPLETED')
+  const member=(await persistence.scheduleBatch({...batch,method:changedMethod,sourceDocumentIds:[spare.id]}))!.batch.members[0]!.extractionId
+  await assert.rejects(persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()}),{code:'extraction_in_progress',extractionId:member})
+  assert.equal((await persistence.scheduleExtraction(first))?.disposition,'replayed')
+
+  // Both runs wait on the document lock before either reads, so the one admitted is the newest the other is refused for.
+  await settle(member,'STOP','STOPPED')
+  const waiting=async()=>(await admin.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database()
+    AND wait_event_type='Lock' AND query ILIKE '%UPDATE%"sourceDocument"%'`)).rows[0].n as number
+  const raced=await withHeldSourceDocumentLock(target.url,spare.id,
+    ()=>Promise.allSettled([randomUUID(),randomUUID()].map(extractionId=>persistence.scheduleExtraction({...spareRun,extractionId}))),
+    async()=>{for(const deadline=Date.now()+10_000;await waiting()<2 && Date.now()<deadline;) await new Promise(resolve=>setTimeout(resolve,10))})
+  const created=raced.flatMap(result=>result.status==='fulfilled' ? [result.value?.extraction.extractionId] : [])
+  const refused=raced.flatMap(result=>result.status==='rejected' ? [result.reason] : [])
+  assert.equal(created.length,1)
+  assert.deepEqual(refused.map(error=>[error.code,error.extractionId]),[['extraction_in_progress',created[0]]])
+  await settle(created[0]!,'RUN','COMPLETED')
+  assert.equal((await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()}))?.disposition,'created')
 })

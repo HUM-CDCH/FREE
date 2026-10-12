@@ -678,6 +678,8 @@ export function DocumentWorkspace({
     onMethodChanged: (message, code) => {
       refusalRef.current = { message, code }
     },
+    onInProgress: (message, extractionId) =>
+      showToast(message, { durationMs: 8000, action: { label: 'Open it', onAction: () => onOpenExtraction(extractionId) } }),
     onAdmissionUncertain: (extractionId) => {
       pendingReportRef.current = extractionId
       showToast(ADMISSION_UNCERTAIN, { durationMs: 6000 })

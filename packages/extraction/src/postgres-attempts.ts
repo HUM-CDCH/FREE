@@ -163,18 +163,28 @@ async function loadAttempts(
   return attempts
 }
 
+/** Every durable Extraction of the document, interactive or a batch member, in any lifecycle state, newest first, with
+ *  the heads. The first on the current Source Representation is the one the document opens on, and admission refuses
+ *  a single run while it is unfinished (ADR 0020). */
+export async function documentAttempts(orm: DatabaseOrm, sourceDocumentId: string): Promise<{
+  heads: ReadonlyMap<string, DurableHead>
+  candidates: { id: string; sourceRepresentationRevisionId: string; createdAt: Date }[]
+}> {
+  const rows = await orm.public.Extraction.where({ sourceDocumentId })
+    .select('id', 'sourceRepresentationRevisionId', 'createdAt')
+    .all()
+  const heads = await readRuntimeHeads(orm, rows.map(row => row.id))
+  const candidates = rows.filter(row => heads.has(row.id))
+    .sort((left, right) =>
+      right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id))
+  return { heads, candidates }
+}
+
 export async function loadDocumentExtractions(
   orm: DatabaseOrm,
   input: ReadDocumentExtractionsInput,
 ): Promise<DocumentExtractionsSnapshot | null> {
-  const rows = await orm.public.Extraction.where({ sourceDocumentId: input.sourceDocumentId })
-    .select('id', 'sourceRepresentationRevisionId', 'createdAt')
-    .all()
-  const heads = await readRuntimeHeads(orm, rows.map(row => row.id))
-  // Every durable Extraction of the document, interactive or a batch member, in any lifecycle state.
-  const candidates = rows.filter(row => heads.has(row.id))
-    .sort((left, right) =>
-      right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id))
+  const { heads, candidates } = await documentAttempts(orm, input.sourceDocumentId)
   const currentRepresentationId = (await orm.public.SourceRepresentationRevision.where({
     sourceDocumentId: input.sourceDocumentId,
   }).select('id').orderBy([

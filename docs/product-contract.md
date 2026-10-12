@@ -150,9 +150,13 @@ Admission pins the method the start view showed
 nothing and answers 409 for a method the account has changed since
 (`method_changed`), a Schema Revision with no Record Scope
 (`record_scope_required`), or a strategy that contradicts it
-(`record_scope_mismatch`). A repeated request replays what it admitted; the
-same identity with a different request is a conflict. The Parsing Service
-refuses a document-scope result that is not exactly one record.
+(`record_scope_mismatch`). A single start is also refused while the newest
+Extraction on its Source Representation, a Batch Extraction member included,
+is neither Completed nor Stopped (`extraction_in_progress`, naming it;
+[ADR 0020](adr/0020-one-unfinished-extraction-per-source-representation.md)).
+A repeated request replays what it admitted; the same identity with a
+different request is a conflict. The Parsing Service refuses a document-scope
+result that is not exactly one record.
 
 Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry

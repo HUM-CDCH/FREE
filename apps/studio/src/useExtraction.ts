@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import { ApiRequestError, readExtraction, requestExtraction } from './api'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import { isRecord } from '../shared/template'
 
 /** Shown when a status read fails; the last known state stays on screen. */
 export const MONITOR_DISCONNECTED =
@@ -42,6 +43,9 @@ type UseExtractionOptions = {
   /** Admission refused the run (`code`: a changed saved method, a pending migration or a record-scope refusal):
    *  nothing started. The caller re-reads the saved method on `METHOD_CHANGED`. */
   onMethodChanged?: (message: string, code: string) => void
+  /** Admission refused the run while the document's latest Extraction, `extractionId`, is unfinished (ADR 0020): nothing
+   *  started, so `onError` is not called. */
+  onInProgress?: (message: string, extractionId: string) => void
   /** The POST may have committed; its identity stays reserved until the monitor reconciles it. */
   onAdmissionUncertain?: (extractionId: string) => void
   initialAttempt?: ExtractionAttempt | null
@@ -78,6 +82,8 @@ function definiteRejection(error: unknown): error is ApiRequestError {
 
 /** PR #140: a run on a Source Representation that reprocessing replaced is refused before anything starts. */
 const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
+/** ADR 0020: canRun's rule, enforced by admission against what this page may not have seen; it names the Extraction. */
+const EXTRACTION_IN_PROGRESS = 'extraction_in_progress'
 export const METHOD_CHANGED = 'method_changed'
 /** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
 const MIGRATION_REQUIRED = 'catalog_migration_required'
@@ -118,6 +124,7 @@ export function useExtraction({
   onError,
   onSuperseded,
   onMethodChanged,
+  onInProgress,
   onAdmissionUncertain,
   initialAttempt = null,
   reviewTarget = null,
@@ -300,7 +307,9 @@ export function useExtraction({
         monitorRef.current = null
         setAdmitting(false)
         setUnansweredAdmission(false)
+        const unfinished = error.code === EXTRACTION_IN_PROGRESS && isRecord(error.details) ? error.details.extractionId : null
         if (error.code === SOURCE_REPRESENTATION_SUPERSEDED) onSuperseded?.()
+        else if (typeof unfinished === 'string' && onInProgress) onInProgress(serverMessage(error), unfinished)
         else if (ADMISSION_REFUSALS.has(error.code ?? '') && !originalRetry) onMethodChanged?.(serverMessage(error), error.code!)
         else onError(serverMessage(error))
         return null
