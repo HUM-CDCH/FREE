@@ -188,6 +188,23 @@ def _plain(schema: Any) -> Any:
     return schema
 
 
+def composed_order(value: Any) -> Any:
+    """`value` with every object schema's `properties` back in its `required` order. A captured request is stored as
+    PostgreSQL jsonb, which sorts object keys (shortest first) but keeps array order, and under constrained decoding a
+    schema's property order is the reply's generation order: replayed unsorted, a reply would fill `year` before
+    `title`. `schema.json_schema` requires every field in field order; an object whose `required` does not name exactly
+    its properties is left as it is."""
+    if isinstance(value, list):
+        return [composed_order(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    restored = {key: composed_order(item) for key, item in value.items()}
+    properties, required = restored.get("properties"), restored.get("required")
+    if isinstance(properties, dict) and isinstance(required, list) and sorted(required) == sorted(properties):
+        restored["properties"] = {name: properties[name] for name in required}
+    return restored
+
+
 def nuextract_template(schema: dict) -> Any:
     """The NuExtract template with the shape of a reply `schema` built by `schema.json_schema` or the grounded
     candidate schema: an object maps its properties, an array wraps its item's template in a list, an enum is the

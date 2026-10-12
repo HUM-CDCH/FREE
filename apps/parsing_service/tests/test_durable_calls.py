@@ -120,6 +120,54 @@ def test_recoverable_reply_allows_the_planner_to_continue(monkeypatch, checkpoin
     assert events == (["read_call"] if checkpoint else ["read_call", "begin_call", "commit_output"])
 
 
+def jsonb(value):
+    """`value` as PostgreSQL jsonb returns it: object keys sorted shortest first, then bytewise; arrays kept."""
+    if isinstance(value, dict):
+        return {key: jsonb(value[key]) for key in sorted(value, key=lambda key: (len(key.encode()), key.encode()))}
+    return [jsonb(item) for item in value] if isinstance(value, list) else value
+
+
+def test_a_replayed_capture_sends_its_schema_in_field_order_not_jsonb_order(monkeypatch):
+    from kei_exp.kie.extract.llm import OpenAIChat
+    from kei_exp.kie.extract.schema import Node, json_schema
+    schema = json_schema([Node.model_validate(node) for node in [
+        {"id": "r", "name": "reference_number", "type": "integer"},
+        {"id": "a", "name": "authors", "type": "array", "itemType": "string"},
+        {"id": "m", "name": "methods", "type": "array", "children": [
+            {"id": "n", "name": "method", "type": "string"}, {"id": "t", "name": "td", "type": "number"}]},
+        {"id": "y", "name": "year", "type": "integer"}]])
+    composed = OpenAIChat(url="http://model", model="m").request_body(system="s", user="u", schema=schema,
+                                                                      max_tokens=4096)
+    body = {"stage": "record", "record": 0, "system": "s", "user": "u", "schema": schema, "max_tokens": 4096,
+            "max_whitespace": None, "httpRequest": composed}
+    assert list(jsonb(composed)["response_format"]["json_schema"]["schema"]["properties"])[0] == "year"
+    sent = []
+    class Lease:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            if routine == "read_call":
+                return {"checkpoint": None, "intent": "RUN", "input": {"digest": "fixed", "request": jsonb(
+                    {"composer": 1, "provider": {}, "budget": {"context": 32768, "counted": 120}, "body": body})}}
+            if routine == "begin_call": return True
+            if routine == "commit_output": return {"output": args[2]}
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
+    def complete(client, **logical):
+        sent.append((client.payload, logical["schema"]))
+        return None, [Call("record", 0, 120, 4, 0.1, "stop", True, None)]
+    monkeypatch.setattr(worker.calls, "complete", complete)
+    inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    payload, logical = sent[0]
+    replayed = payload["response_format"]["json_schema"]["schema"]
+    assert payload == composed  # same content; dict equality ignores the key order checked below
+    assert list(replayed["properties"]) == ["reference_number", "authors", "methods", "year"]
+    assert list(replayed["properties"]["methods"]["items"]["properties"]) == ["method", "td"]
+    assert list(logical["properties"]) == list(schema["properties"])
+
+
 class Streamed:
     """A provider's server-sent reply: one data line per piece, then the finish, the usage and [DONE]."""
     status_code = 200

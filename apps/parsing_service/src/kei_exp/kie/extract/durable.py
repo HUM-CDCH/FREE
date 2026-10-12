@@ -236,10 +236,10 @@ class CapturePlanner:
             request=deepcopy(parent["input"]["request"])
             formatting = request["body"]["httpRequest"].pop("response_format")
             if max_whitespace is not None:
-                from kei_exp.kie.extract.llm import bounded_grammar
+                from kei_exp.kie.extract.llm import bounded_grammar, composed_order
                 request["body"]["max_whitespace"] = max_whitespace
                 request["body"]["httpRequest"]["structured_outputs"] = {
-                    "grammar": bounded_grammar(formatting["json_schema"]["schema"], max_whitespace)}
+                    "grammar": bounded_grammar(composed_order(formatting["json_schema"]["schema"]), max_whitespace)}
             self.lease.call("finalize_input",capture["id"],request)
         with self._lock:
             self.pending[capture["id"]]=key
