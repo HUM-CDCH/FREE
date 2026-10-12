@@ -70,6 +70,10 @@ export function ProjectRoutes() {
     () => actor.send({ type: 'REFRESH' }),
     [actor],
   )
+  const onRefreshReviewed = useCallback(
+    () => actor.send({ type: 'REFRESH_REVIEWED' }),
+    [actor],
+  )
 
   useEffect(() => {
     if (route.kind !== 'document' || routedDocumentContained === null) return
@@ -101,6 +105,7 @@ export function ProjectRoutes() {
       onRetry={() => actor.send({ type: 'RETRY' })}
       onInitialResourceLoadFailure={onInitialResourceLoadFailure}
       onRefreshDocument={onRefreshDocument}
+      onRefreshReviewed={onRefreshReviewed}
     />
   )
 }

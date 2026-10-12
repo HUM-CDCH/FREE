@@ -48,6 +48,8 @@ type AppFrameProps = {
   onInitialResourceLoadFailure: () => void
   /** Reads the open Source Document again and swaps it in only once that read succeeds. */
   onRefreshDocument: () => void
+  /** Reads "Latest reviewed" again and swaps in only that, once the read succeeds. */
+  onRefreshReviewed: () => void
 }
 
 const DocumentWorkspace = lazy(() => import('./App'))
@@ -144,6 +146,7 @@ export default function AppFrame({
   onRetry,
   onInitialResourceLoadFailure,
   onRefreshDocument,
+  onRefreshReviewed,
 }: AppFrameProps) {
   const [navOpen, setNavOpen] = useState(true)
   const [narrowNavOpen, setNarrowNavOpen] = useState(false)
@@ -347,7 +350,7 @@ export default function AppFrame({
   const backToBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
   const [reviewRevision,setReviewRevision]=useState(0)
-  const reviewFinalized=useCallback(()=>{void refreshProjects();setReviewRevision(revision=>revision+1)},[refreshProjects])
+  const reviewFinalized=useCallback(()=>{void refreshProjects();onRefreshReviewed();setReviewRevision(revision=>revision+1)},[refreshProjects,onRefreshReviewed])
   const pilotRoundProgress = usePilotRoundProgress(
     route.kind === 'document' ? route.projectContextId : null,
     backToBatchExtractionId,
