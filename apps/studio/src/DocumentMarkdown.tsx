@@ -35,12 +35,15 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
   for (const span of spans) {
     if (span.end > bytes.length) break
     parts.push(decode(at, span.start))
-    const infos = span.keys.map((key) => marks!.describe.get(key)!)
-    const selected = marks!.selected !== null && span.keys.includes(marks!.selected)
-    parts.push(!marksShown && !selected ? decode(span.start, span.end) : (
+    // A record start discovery found has no value to select: filled as on the page, with no underline or pointer.
+    const keys = span.keys.filter((key) => marks!.describe.has(key))
+    const infos = keys.map((key) => marks!.describe.get(key)!)
+    const selected = marks!.selected !== null && keys.includes(marks!.selected)
+    parts.push(!marksShown && !selected ? decode(span.start, span.end)
+      : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{decode(span.start, span.end)}</span> : (
       <button key={span.start} type="button" className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
         aria-label={infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; ')} aria-current={selected || undefined}
-        onClick={(event) => marks!.onSelect(span.keys, event.currentTarget)}>{decode(span.start, span.end)}</button>
+        onClick={(event) => marks!.onSelect(keys, event.currentTarget)}>{decode(span.start, span.end)}</button>
     ))
     at = span.end
   }

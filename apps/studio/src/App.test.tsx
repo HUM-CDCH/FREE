@@ -1031,6 +1031,46 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText('Markdown unavailable')).not.toBeInTheDocument()
   })
 
+  it('keeps a passage\'s list of values through a read that keeps them, and closes it for good once one is gone or its mark leaves the page', async () => {
+    const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id, name: id, type: 'string' }, modelValue, evidence: [], links: [{ resultPath: ['records', 0, id], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null })
+    // Each save is a newer snapshot, which the settled rail reads when the window regains focus.
+    let cut = { snapshotVersion: 1, values: [linked('place', 'Harlow'), linked('parish', 'Elmbrooke')] }
+    const saveAndRead = (values: typeof cut.values) => { cut = { snapshotVersion: cut.snapshotVersion + 1, values }; fireEvent.focus(window) }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: cut.snapshotVersion, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 2, toCheck: 2, approved: 0, edited: 0, rejected: 0 }, values: cut.values, total: cut.values.length, next: null, coverage: {} }))
+      // The fixture's one text anchor is bytes 21–27 of the parsed Markdown: "Harlow".
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: cut.snapshotVersion, feedbackVersion: 0 })
+        ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    const view = within(screen.getByRole('group', { name: 'Document view' }))
+    fireEvent.click(view.getByRole('button', { name: 'Markdown' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'place: Harlow; parish: Elmbrooke' }))
+    const list = screen.getByRole('dialog', { name: 'Values in this passage' })
+
+    saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
+    expect(await within(list).findByRole('button', { name: 'parish · Elmbrook' })).toBeVisible()
+
+    saveAndRead([linked('place', 'Harlow')])
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument())
+    saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
+    const mark = await screen.findByRole('button', { name: 'place: Harlow; parish: Elmbrook' })
+    expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
+
+    fireEvent.click(mark)
+    expect(screen.getByRole('dialog', { name: 'Values in this passage' })).toBeVisible()
+    fireEvent.click(view.getByRole('button', { name: 'PDF' }))
+    expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
+  })
+
   it('persists a generated first schema and enables its history', async () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000011'

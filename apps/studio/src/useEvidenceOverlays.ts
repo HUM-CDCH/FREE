@@ -262,7 +262,7 @@ export function useEvidenceOverlays({
           resultPath,
           ...(marks && infos.length > 0 ? { mark: {
             label: infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; '),
-            current, onClick: (element: HTMLElement) => marks.onSelect(keys, element),
+            current, onClick: (element: HTMLElement) => marks.onSelect(keys.filter((key) => marks.describe.has(key)), element),
           } } : {}),
         })
       }
