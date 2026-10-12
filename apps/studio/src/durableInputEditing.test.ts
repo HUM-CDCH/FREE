@@ -7,7 +7,8 @@ afterEach(()=>vi.resetAllMocks())
 
 it('reads the current control version and waits for the editing acknowledgement before changing local inputs',async()=> {
   let acknowledge!:(value:unknown)=>void
-  vi.mocked(durableRequest).mockResolvedValueOnce({controlVersion:9})
+  const read={controlVersion:9}
+  vi.mocked(durableRequest).mockResolvedValueOnce(read)
     .mockImplementationOnce(()=>new Promise(resolve=>{acknowledge=resolve}))
   const localChange=vi.fn()
   const edit=beginDurableInputEdit('same-extraction').then(localChange)
@@ -18,7 +19,8 @@ it('reads the current control version and waits for the editing acknowledgement 
   expect(localChange).not.toHaveBeenCalled()
   acknowledge({controlVersion:10,pendingResume:false})
   await edit
-  expect(localChange).toHaveBeenCalledOnce()
+  // The edit session's baseline: the receipt's version fences Save, and the draft starts from the acknowledged read.
+  expect(localChange).toHaveBeenCalledExactlyOnceWith({controlVersion:10,read})
 })
 
 it('leaves local inputs unchanged when a competing command conflicts',async()=> {

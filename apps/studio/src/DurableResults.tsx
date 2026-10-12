@@ -304,7 +304,8 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     }).catch(error=>{if(!controller.signal.aborted)setError(error.message)})
     return()=>{controller.abort();onPinnedDocument?.(id,null)}
   },[id,sourceRevisionId,documentRevisionId,onPinnedDocument])
-  const [editing,setEditing]=useState(false),[review,setReview]=useState<{value:Value;version:number;feedbackVersion:number}|null>(null)
+  // While the inputs editor is open: the version of the editing acknowledgement that opened it, which fences its Save.
+  const [editing,setEditing]=useState<number|null>(null),[review,setReview]=useState<{value:Value;version:number;feedbackVersion:number}|null>(null)
   const [reprocess,setReprocess]=useState<Set<string>>(()=>new Set()),[notice,setNotice]=useState<string|null>(null)
   const [filter,setFilter]=useState<ValueFilter>('all')
   const [focus,setFocus]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[menuOpen,setMenuOpen]=useState(false)
@@ -450,8 +451,8 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const idle=['PAUSED','FAILED','COMPLETED'].includes(state.status)
   const command=async(action:string)=> {
     setBusy(true);setError(null)
-    try {await durableRequest(`${durableRoot(id)}/control`,{id:crypto.randomUUID(),expectedVersion:state.controlVersion,action});await refresh();return true}
-    catch(e){setError(e instanceof Error?e.message:'Unable to save control.');return false}
+    try {const receipt=await durableRequest<{controlVersion:number}>(`${durableRoot(id)}/control`,{id:crypto.randomUUID(),expectedVersion:state.controlVersion,action});await refresh();return receipt}
+    catch(e){setError(e instanceof Error?e.message:'Unable to save control.');return null}
     finally{setBusy(false)}
   }
   const selectPage=async(query:Record<string,number>)=> {
@@ -466,7 +467,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   // A saved decision moves one-by-one to the next value at once (§4.3); the saved results and counts follow.
   const saved=()=> {
     const next=focus?nextToCheck(queue,review?.value.id??null):null
-    setReview(null);setEditing(false)
+    setReview(null);setEditing(null)
     if(pinnedRef.current)void selectPage({snapshotVersion:page.snapshotVersion})
     void refresh()
     if(next)selectValue(next)
@@ -527,8 +528,9 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       onOneByOne={()=>{setFocus(true);openNext()}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {menuOpen&&<ResultsMenu items={[
       {label:'Export…',disabled:exportState?.status==='pending'?'Exporting…':page.total===0?'Nothing saved to export yet':null,onSelect:()=>{setMenuOpen(false);setExportOpen(true)}},
-      ...(!readOnly&&!terminal?[{label:'Change inputs',disabled:busy?'Saving…':null,
-        onSelect:()=>{setMenuOpen(false);void command('editing').then(accepted=>{if(accepted)setEditing(true)})}}]:[]),
+      // Offered once per edit session: another acknowledgement would move the open draft's fence.
+      ...(!readOnly&&!terminal&&editing===null?[{label:'Change inputs',disabled:busy?'Saving…':null,
+        onSelect:()=>{setMenuOpen(false);void command('editing').then(receipt=>{if(receipt)setEditing(receipt.controlVersion)})}}]:[]),
     ]}/>}
     <ExtractionResultExportControl open={exportOpen} schemaNodes={exportFields} returnFocusRef={menuButton} onDismiss={()=>setExportOpen(false)}
       onExport={(format,choices)=>{setExportOpen(false);void exportSaved(format,choices)}}/>
@@ -539,7 +541,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
           {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV'} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
         </p>}
     </div>}
-    {(detailsOpen||error||notice||state.pendingSelection||editing||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
+    {(detailsOpen||error||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
       {detailsOpen&&<div className="space-y-1 text-secondary">
         <p className="m-0">Inputs version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}.</p>
         {state.failure&&<p className="m-0">Processing failure: {state.failure.code}</p>}
@@ -551,7 +553,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       </div><details><summary className="cursor-pointer">Reprocess completed values (optional)</summary><p className="text-compact text-ink-muted">Selected values receive new model versions. Earlier versions and corrections remain saved.</p>
         {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/>{v.node.name} · {v.recordId.slice(0,8)}</label>)}
       </details></div>}
-      {editing&&<DurableInputs attempt={attempt} state={state} currentSchema={currentSchema} onSaved={saved} onEdited={async()=>{await refresh()}}/>}
+      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema} onSaved={saved} onEdited={async()=>{await refresh()}}/>}
       {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       {state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
