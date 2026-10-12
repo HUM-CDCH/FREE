@@ -185,11 +185,17 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
     [id,head.attemptId,finalClaim.epoch,randomUUID(),head.selectionId,JSON.stringify([]),{finalizedAttempt:{...proof,attemptId:randomUUID()}}]))
   await admin.query('SELECT extraction_runtime.publish_snapshot($1,$2,$3,$4,$5,$6,$7)',
     [id,head.attemptId,finalClaim.epoch,randomUUID(),head.selectionId,JSON.stringify([]),finalCoverage])
-  await repository.command(id,{id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'pause'})
+  const pausing={id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'pause'},paused=await repository.command(id,pausing)
   await admin.query('UPDATE extraction_runtime.head SET "leaseUntil"=clock_timestamp()-interval \'1 second\' WHERE id=$1',[id])
   await reconcileDurableAttempts(async()=>{},source,async ids=>new Map(ids.map(id=>[id,'ERROR'])))
   assert.equal((await repository.read(id)).status,'COMPLETED')
+  // Completion keeps the control version, so a Stop or Pause read before it still matches.
+  for(const action of ['stop','pause'])
+    await assert.rejects(repository.command(id,{id:randomUUID(),expectedVersion:paused.controlVersion,action}),
+      error=>error instanceof DurableConflict&&error.message==='The Extraction is complete.')
+  assert.deepEqual(await repository.command(id,pausing),paused)
   state=await repository.read(id)
+  assert.equal(state.status,'COMPLETED');assert.equal(state.controlVersion,paused.controlVersion)
   const afterCompletion=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article:null}}})
   await repository.adoptSelection(id,{expectedVersion:afterCompletion.controlVersion,selectionId:afterCompletion.selectionId,reprocessValueIds:[]})
   await repository.command(id,{id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'resume'})

@@ -146,6 +146,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         }
         version(head,command.expectedVersion)
         if (head.intent === 'STOP') throw new DurableConflict('Stopped Extractions cannot resume or retry.')
+        if (head.acknowledgement === 'COMPLETED' && (command.action === 'pause' || command.action === 'stop')) throw new DurableConflict('The Extraction is complete.')
         const idle = ['PAUSED','FAILED','COMPLETED'].includes(head.acknowledgement)
         if (command.action === 'resume' || command.action === 'retry') {
           if (head.pendingSelectionId) throw new DurableConflict('Changes pending — apply or discard, then resume.')
