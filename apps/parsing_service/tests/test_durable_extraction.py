@@ -119,6 +119,51 @@ def finish(lease, chat, extract):
     raise AssertionError("method never completed")
 
 
+@pytest.mark.parametrize("oversized", [False, True])
+def test_article_retry_keeps_the_pre_fallback_plan_and_reuses_completed_calls(oversized):
+    from kei_exp.kie.extract.article import document_root
+    from kei_exp.kie.extract.contexts import Context
+
+    request = run.ExtractRequest.model_validate({"schema": {
+        "recordDescription": "The whole document",
+        "schemaNodes": [{"id": "title", "name": "title", "type": "string"}]},
+        "options": {"strategy": "article", "article": {"grounding": "off"}}})
+    source = evidence(passages(["Title: Target. " + "word " * (14000 if oversized else 10)] * 3))
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = CountingChat(lambda *_: {"title": "Target"})
+    planner = CapturePlanner(lease)
+    planner.plan_records("article-contexts", [Context(source.passages).dumped()])
+    old_plan = deepcopy(lease.plans["article-contexts"])
+    if oversized:
+        # Before fallback existed, the one-part plan was saved before the root failed admission.
+        counter = Counter()
+        with pytest.raises(ValueError, match="required source and reply budget exceed"):
+            document_root(source.passages, request.schema_, Router(chat, chat, planner),
+                          counters={"fields": counter, "reasoning": counter}, record_chars=48000,
+                          check=lambda: None, method=request.options.article)
+        assert not chat.calls
+    old_units = deepcopy(lease.units)
+    lease.attempt = str(uuid4())
+    extract = lambda router, counter: run.dispatch(None, source, request, router,
+        counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert result["records"] == [{"title": "Target"}]
+    assert (len(result["value_contexts"][0]) > 1) is oversized
+    assert any(issue["code"] == "context_fallback" for issue in result["issues"]) is oversized
+    assert lease.plans["article-contexts"] == old_plan
+    assert all(lease.units[key] == unit for key, unit in old_units.items())
+    assert lease.state["generation"] == 1
+    assert all(unit["input"]["request"]["budget"]["counted"] +
+               unit["input"]["request"]["budget"]["reserve"] <=
+               unit["input"]["request"]["budget"]["context"]
+               for unit in lease.units.values() if unit["input"] is not None)
+    count, units, plans = len(chat.calls), deepcopy(lease.units), deepcopy(lease.plans)
+    lease.attempt = str(uuid4())
+    assert finish(lease, chat, extract)["records"] == result["records"]
+    assert len(chat.calls) == count
+    assert lease.units == units and lease.plans == plans
+
+
 @pytest.mark.parametrize("method",["article","generic","recipe","unified"])
 def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path,method):
     if method == "unified":

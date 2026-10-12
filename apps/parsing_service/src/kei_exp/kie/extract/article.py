@@ -131,7 +131,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
         contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
     from kei_exp.kie.extract.retained import plan_records
-    plan_records(chat,"article-contexts",[context.dumped() for context in contexts])
+    # Retry keeps its generation: a pre-fallback attempt may already have saved the one-part plan before failing
+    # admission. Keep that plan immutable and publish fallback scopes separately; call captures still reuse their
+    # unchanged inputs, independently of this context listing.
+    context_stage = "article-contexts:fallback" if fallback is not None else "article-contexts"
+    plan_records(chat, context_stage, [context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
         budget=options.record_chars, check=check, counter=counter["fields"],
         structured=method.rendering == "structured")
