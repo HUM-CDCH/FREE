@@ -413,6 +413,27 @@ it('warns in Results when pending inputs leave a saved correction unfit, and ope
   expect(readDurableHistory).not.toHaveBeenCalled()
 })
 
+it('acknowledges editing once per inputs edit session and saves the draft under that acknowledgement',async()=>{
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}}
+  const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema='newer' onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'More result actions'}))
+  vi.mocked(readDurable).mockResolvedValue({state:{...state,controlVersion:5,pendingSelection:selection},page} as never)
+  fireEvent.click(screen.getByRole('menuitem',{name:'Change inputs'}))
+  const schema=await screen.findByRole('combobox',{name:/Schema to use next/})
+  for(const value of ['newer','schema','newer'])fireEvent.change(schema,{target:{value}})
+  fireEvent.click(screen.getByRole('button',{name:'More result actions'}))
+  expect(screen.queryByRole('menuitem',{name:'Change inputs'})).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:'Save pending inputs'}))
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/selection',
+    {expectedVersion:5,schemaRevisionId:'newer',method:{models:null,settings:{article:null}}}))
+  expect(vi.mocked(durableRequest).mock.calls.filter(([url])=>url.endsWith('/control'))).toEqual([
+    ['/api/extractions/extraction/durable/control',{id:expect.any(String),expectedVersion:4,action:'editing'}]])
+})
+
 it('keeps the last explicitly selected snapshot when an older selection finishes late',async()=> {
   const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
     node:{id:'title',name:'title',type:'string'},modelValue:'New version',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
