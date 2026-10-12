@@ -1,4 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch'
+import { ApiRequestError } from './api'
 import type { DurableRead, DurablePage, DurableHistory, DurableHistorySummary } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
 export type PinnedExtractionSource={document:ParsedDocument;markdown:string}
@@ -24,16 +25,21 @@ function waitForReadRetry(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** Retry interrupted reads, including a body cut off after successful headers. Writes, HTTP errors and invalid
- * JSON are terminal; replaying a correction or a control command could apply it twice. */
+ * JSON are terminal; replaying a correction or a control command could apply it twice. An HTTP error keeps its status
+ * and code, whatever its body. */
 export async function durableRequest<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<T> {
   for (let attempt = 0; ; attempt += 1) {
     signal?.throwIfAborted()
     let response: Response | undefined
     try {
       response=await authenticatedFetch(url,{signal,...(body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})})
-      const result=await response.json()
-      if(!response.ok) throw new Error(result.error?.message ?? 'Unable to save. Your draft is still here.')
-      return result as T
+      if(!response.ok) {
+        // A gateway's error page is no JSON.
+        const failure=await response.json().catch(()=>null) as {error?:{message?:string;code?:string;details?:unknown}}|null
+        throw new ApiRequestError(failure?.error?.message ?? (body===undefined?`Request failed (HTTP ${response.status}).`:'Unable to save. Your draft is still here.'),
+          response.status,failure?.error?.code ?? null,failure?.error?.details)
+      }
+      return await response.json() as T
     } catch (error) {
       if (body !== undefined || signal?.aborted || response?.ok === false ||
         !(error instanceof TypeError) || attempt === READ_RETRY_DELAYS.length) throw error
@@ -52,14 +58,20 @@ export async function readValues(id:string,query:Record<string,string|number>,si
   }
   return page
 }
-/** The Extraction's state and every value of its latest results. A poll reads the values again only once new
- *  results or decisions are saved (`previous` is the last read). */
-export async function readDurable(id:string,signal?:AbortSignal,previous?:{page:DurablePage}|null) {
-  const state=await durableRequest<DurableState>(durableRoot(id),undefined,signal)
-  if(previous&&previous.page.snapshotVersion===state.snapshotVersion&&previous.page.feedbackVersion===state.feedbackVersion)
-    return {state,page:previous.page}
+/** The Extraction's state and, with `pages`, every value of its latest results. A poll reads the values again only
+ *  once new results or decisions are saved (`previous` is the last read). A failed values read keeps `previous` and
+ *  says why (`pageError`), so the state read before it is not lost. */
+export async function readDurable(id:string,signal?:AbortSignal,previous:DurablePage|null=null,pages=true,onState?:(state:DurableState)=>void):Promise<{state:DurableState;page:DurablePage|null;pageError?:unknown}> {
+  const state=await durableRequest<DurableState|null>(durableRoot(id),undefined,signal)
+  // A body that names no status and versions is no state: reading it again cannot help.
+  if(typeof state?.status!=='string'||![state.controlVersion,state.snapshotVersion,state.feedbackVersion].every(Number.isInteger))
+    throw new Error('The saved results could not be read.')
+  onState?.(state)
+  if(!pages||previous&&previous.snapshotVersion===state.snapshotVersion&&previous.feedbackVersion===state.feedbackVersion)
+    return {state,page:previous}
   // ponytail: the whole cut is read again on each change; read only the changed values if catalogues outgrow this.
-  return {state,page:await readValues(id,{snapshotVersion:state.snapshotVersion},signal)}
+  try {return {state,page:await readValues(id,{snapshotVersion:state.snapshotVersion},signal)}}
+  catch(pageError) {if(signal?.aborted)throw pageError;return {state,page:previous,pageError}}
 }
 export const readDurableHistory=(id:string,signal?:AbortSignal)=>durableRequest<DurableHistory>(`${durableRoot(id)}/history`,undefined,signal)
 /** History's saved versions without their values or any call's request: small however long the run. */

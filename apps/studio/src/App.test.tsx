@@ -291,9 +291,10 @@ function appendRevision(
   }, { status: 201 })
 }
 
-/** Answers the durable results reader (`/api/extractions/{id}/durable…`) with one saved value at `cut`, in `status`. */
+/** Answers the durable results reader (`/api/extractions/{id}/durable…`) with one saved value at `cut`, in `status`, at
+ *  `controlVersion`. */
 function durableRead(url: string, status: ExtractionAttempt['executionStatus'] = 'COMPLETED',
-  cut: { snapshotVersion: number; feedbackVersion: number } = { snapshotVersion: 1, feedbackVersion: 0 }): Response | null {
+  cut: { snapshotVersion: number; feedbackVersion: number } = { snapshotVersion: 1, feedbackVersion: 0 }, controlVersion = 1): Response | null {
   if (/^\/api\/extractions\/[^/?]+\/durable\/source$/.test(url)) return Response.json({ document: parsedDocument, markdown: '# Beretning' })
   const match = /^\/api\/extractions\/([^/?]+)\/durable(\/values)?(?:\?(.*))?$/.exec(url)
   if (!match) return null
@@ -307,7 +308,7 @@ function durableRead(url: string, status: ExtractionAttempt['executionStatus'] =
     grounding: 'ungrounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null }
   if (values) return Response.json({ extractionId, snapshotVersion, feedbackVersion, status, finalization: null,
     reviewCounts: { required: 1, toCheck: 1, approved: 0, edited: 0, rejected: 0 }, values: [value], total: 1, next: null, coverage: {} })
-  return Response.json({ protocol: 1, projectId: reopened.projectContextId, extractionId, status, controlVersion: 1, pendingResume: false,
+  return Response.json({ protocol: 1, projectId: reopened.projectContextId, extractionId, status, controlVersion, pendingResume: false,
     selection: { id: value.selectionId, ordinal: 1 }, pendingSelection: null, source: {}, sourceRevisionId: reopened.sourceRepresentationId,
     snapshotVersion: cut.snapshotVersion, feedbackVersion: cut.feedbackVersion, counts: { saved: 1, inFlight: 0, pending: 0 }, failure: null,
     records: null, reading: [] })
@@ -384,7 +385,7 @@ describe('reopened Source Document workspace', () => {
     saved.refresh.mockImplementation(async () => { order.push('refresh'); return saved.state.status === 'ready' ? saved.state : null })
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
       const url = String(input)
-      const durable = durableRead(url)
+      const durable = durableRead(url, 'RUNNING')
       if (durable) return Promise.resolve(durable)
       if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
       if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
@@ -495,7 +496,8 @@ describe('reopened Source Document workspace', () => {
       expect(reviewNow).toBeVisible()
       fireEvent.click(reviewNow)
       expect(await screen.findByRole('combobox', { name: 'Extraction snapshot' })).toHaveValue(extractionId)
-      expect(reads).toEqual([extractionId])
+      // The workspace's reader of the latest saw it complete; the Extraction itself is never polled.
+      expect(reads).toEqual([])
     }
     expect(shownToasts.filter(message => message.includes('complete —'))).toHaveLength(1)
     expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
@@ -546,7 +548,8 @@ describe('reopened Source Document workspace', () => {
         return Promise.resolve(Response.json({ controlVersion: 2, status, pendingResume: false }))
       }
       if (url === `/api/extractions/${latest.extractionId}`) return Promise.resolve(Response.json({ extraction: { ...latest, executionStatus: status } }))
-      return Promise.resolve(durableRead(url, status) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
+      // Each command moves the control version.
+      return Promise.resolve(durableRead(url, status, undefined, 1 + commands.length) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={latest} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
@@ -710,7 +713,7 @@ describe('reopened Source Document workspace', () => {
     const posts: unknown[] = []
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
-      const durable = durableRead(url)
+      const durable = durableRead(url, 'RUNNING')
       if (durable) return Promise.resolve(durable)
       if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
       if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))

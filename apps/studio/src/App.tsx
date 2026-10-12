@@ -23,10 +23,11 @@ import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
+import { createDurableReader, useKeyedController, type ControlReceipt } from './durableReader'
 import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
-import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { Button, SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
@@ -721,6 +722,16 @@ export function DocumentWorkspace({
     ? latestReviewedExtraction
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
+  // One reader per Extraction: the latest one's, and the inspected one's while that is another.
+  const latestReader = useKeyedController(latestAttempt?.extractionId ?? null, () => createDurableReader(latestAttempt!))
+  const inspectedId = inspectedAttempt && inspectedAttempt.extractionId !== latestAttempt?.extractionId ? inspectedAttempt.extractionId : null
+  const inspectedReader = useKeyedController(inspectedId, () => createDurableReader(inspectedAttempt!))
+  const { acceptDurableStatus } = extraction
+  // The run button's status comes from the latest reader; useExtraction stays its sink, which announces the end once.
+  useEffect(() => latestReader?.subscribe(() => {
+    const { state } = latestReader.snapshot()
+    if (state) acceptDurableStatus(latestReader.extractionId, state.status)
+  }), [latestReader, acceptDurableStatus])
   useEffect(() => {
     railOnResultsRef.current = railOpen && railTab === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
   }, [railOpen, railTab, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
@@ -843,20 +854,21 @@ export function DocumentWorkspace({
   }
 
   /** Pause, Resume, Retry or Stop the latest Extraction from the run button's place (results review redesign §2.4). The
-   *  command names the control version it was read at; the monitor follows the work it resumes. */
+   *  command names the control version it was read at; the latest reader takes its answer and follows the work. */
   async function controlExtraction(action: 'pause' | 'resume' | 'retry' | 'stop') {
     const id = latestAttempt?.extractionId
+    const reader = latestReader
     if (!id || controlling) return
     setControlling(true)
     try {
       const { controlVersion } = await durableRequest<{ controlVersion: number }>(durableRoot(id))
-      const { status } = await durableRequest<{ status: ExtractionAttempt['executionStatus'] }>(`${durableRoot(id)}/control`,
-        { id: crypto.randomUUID(), expectedVersion: controlVersion, action })
-      extraction.acceptDurableStatus(id, status)
+      reader?.acceptReceipt(await durableRequest<ControlReceipt>(`${durableRoot(id)}/control`,
+        { id: crypto.randomUUID(), expectedVersion: controlVersion, action }))
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'The Extraction could not be changed.', { durationMs: 6000 })
     } finally {
       setControlling(false)
+      void reader?.refresh()
     }
   }
 
@@ -1161,7 +1173,9 @@ export function DocumentWorkspace({
                 cut: inspectionCut,
                 readOnly: inspectionReadOnly,
                 parsedDocument:inspectionDocument,
+                reader: inspectedId ? inspectedReader : latestReader,
               }}
+              latestReader={latestReader}
               currentSchemaRevision={currentSchemaRevision}
               runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
