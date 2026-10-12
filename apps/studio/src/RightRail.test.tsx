@@ -8,6 +8,7 @@ import { DurableResults } from './DurableResults'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionInspection, RailTab } from './RightRail'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { DurableReader } from './durableReader'
 import {
   createSchemaEditorController,
   localSchemaPersistence,
@@ -38,6 +39,7 @@ const defaultInspection: ExtractionInspection = {
   cut: null,
   readOnly: false,
   parsedDocument: null,
+  reader: null,
 }
 
 const attempt = {
@@ -65,11 +67,13 @@ function renderRail({
   tab = 'schema',
   inspection = defaultInspection,
   extraction = defaultController,
+  latestReader = null,
 }: {
   open?: boolean
   tab?: RailTab
   inspection?: ExtractionInspection
   extraction?: ExtractionController
+  latestReader?: DurableReader | null
 } = {}) {
   return render(
     <RightRail
@@ -81,6 +85,7 @@ function renderRail({
       onClearDraft={vi.fn()}
       extraction={extraction}
       inspection={inspection}
+      latestReader={latestReader}
       currentSchemaRevision={null}
       sourceDocumentName="test.pdf"
       sourceRepresentationId="source-representation"
@@ -121,6 +126,22 @@ describe('RightRail Results', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
     expect(reconnect).toHaveBeenCalledOnce()
     expect(DurableResults).not.toHaveBeenCalled()
+  })
+
+  it('sends Reconnect to the error\'s owner: admission while it is uncertain, else the latest reader', () => {
+    const refresh = vi.fn(async () => {}), reconnect = vi.fn()
+    const reading = { error: 'Extraction status is unavailable.' }
+    const latestReader = { subscribe: () => () => {}, snapshot: () => reading, refresh } as unknown as DurableReader
+    renderRail({ extraction: { ...defaultController, attempt, reconnect }, latestReader })
+    expect(screen.getByRole('alert')).toHaveTextContent('Extraction status is unavailable.')
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+    expect(refresh).toHaveBeenCalledOnce()
+    cleanup()
+    renderRail({ extraction: { ...defaultController, attempt, reconnect, monitorError: 'Unable to update status.' }, latestReader })
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to update status.')
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+    expect(reconnect).toHaveBeenCalledOnce()
+    expect(refresh).toHaveBeenCalledOnce()
   })
 
   it('names the shown Extraction\'s lifecycle in a badge that stays on one line', () => {

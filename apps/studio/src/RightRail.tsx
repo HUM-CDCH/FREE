@@ -10,6 +10,7 @@ import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
+import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -24,6 +25,8 @@ export type ExtractionInspection = {
   readOnly: boolean
   /** The inspected Extraction's pinned parsed document, or the open one while it is unknown. */
   parsedDocument: ParsedDocument | null
+  /** The workspace's reader of `attempt`, which outlives the Results view; null until it is made. */
+  reader: DurableReader | null
 }
 
 type RightRailProps = {
@@ -36,6 +39,8 @@ type RightRailProps = {
   onClearDraft: () => void | Promise<void>
   extraction: ExtractionController
   inspection: ExtractionInspection
+  /** The latest Extraction's reader: the banner reports its connection once admission is settled. */
+  latestReader?: DurableReader | null
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
   /** Why the tab strip's Run cannot start now (its disabled title); Results' empty state says it. */
@@ -92,6 +97,7 @@ function RightRail({
   onClearDraft,
   extraction,
   inspection,
+  latestReader = null,
   currentSchemaRevision,
   runUnavailableReason = null,
   sourceDocumentName,
@@ -119,6 +125,9 @@ function RightRail({
     else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
   },[parsedDocument,onSelectEvidence])
   const showDeveloperUi = isDeveloperUiEnabled()
+  // An uncertain admission is reconnected by admission; once settled, the latest reader reads again.
+  const latestReading = useDurableReading(latestReader)
+  const statusError = extraction.monitorError ?? latestReading?.error ?? null
 
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
@@ -222,10 +231,10 @@ function RightRail({
       </div>
 
       {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. */}
-      {extraction.monitorError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
-        <p role="alert" className="m-0 text-compact text-danger">{extraction.monitorError}</p>
+      {statusError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
+        <p role="alert" className="m-0 text-compact text-danger">{statusError}</p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={extraction.reconnect}>Reconnect</Button>
+          <Button onClick={extraction.monitorError ? extraction.reconnect : () => void latestReader?.refresh()}>Reconnect</Button>
           {extraction.retryAdmission&&<Button onClick={()=>void extraction.retryAdmission?.()}>Retry original request</Button>}
         </div>
       </div>}
@@ -253,6 +262,8 @@ function RightRail({
         {shown ? <DurableResults
           key={`${shown.extractionId}:${inspection.cut ? `${inspection.cut.snapshotVersion}:${inspection.cut.feedbackVersion}` : 'live'}`}
           attempt={shown}
+          reader={inspection.reader}
+          connectionShown={inspection.reader === latestReader}
           initialCut={inspection.cut}
           document={parsedDocument}
           documentRevisionId={sourceRepresentationId}
@@ -265,7 +276,6 @@ function RightRail({
           onMarksChange={onMarksChange}
           selectValueRef={selectValueRef}
           headerExtras={resultsHeaderExtras}
-          onStatusChange={extraction.acceptDurableStatus}
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}

@@ -5,7 +5,8 @@ import type { DurablePage, DurableHistory, DurableHistorySummary } from 'extract
 import { durableSchemaNodes, type ExportChoices, type ExportFormat } from 'extraction-result-export'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { decodeParsedDocument, type ParsedDocument } from 'extraction/parsed-document'
-import { durableRequest, durableRoot, readDurable, readDurableHistory, readDurableHistorySummary, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
+import { durableRequest, durableRoot, readDurableHistory, readDurableHistorySummary, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
+import { transientReadError, useDurableReading, type DurableReader } from './durableReader'
 import { durableReviewMachine } from './durableReviewMachine'
 import Button from './ui/Button'
 import { DurableInputs } from './DurableInputs'
@@ -261,7 +262,11 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+  /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
+  reader:DurableReader|null;
+  /** The rail's banner already reports this reader's connection. */
+  connectionShown?:boolean;
   /** The explicit result/decision cut this view opens on, e.g. a finalized
    * review or a saved-correction link; null follows the latest saved results. */
   initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;
@@ -270,7 +275,6 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   onResultPathChange?:(path:string[]|null)=>void;onFocusEvidence?:(link:EvidenceLink|null)=>void;
   onMarksChange?:(marks:RailMarkState|null)=>void;
   selectValueRef?:RefObject<((key:string)=>void)|null>;headerExtras?:React.ReactNode;
-  onStatusChange?:(id:string,status:ExtractionAttempt['executionStatus'])=>void;
   onPinnedDocument?:(id:string,source:PinnedExtractionSource|null)=>void;
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
   onReviewFinalized?:()=>void;
@@ -280,8 +284,17 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const id=attempt?.extractionId
   const article=attempt?.strategy==='ARTICLE'
   const keyboardRoot=useRef<HTMLDivElement>(null)
-  const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
-  const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
+  const reading=useDurableReading(reader),state=reading?.state,latestPage=reading?.latestPage??null
+  // Mounted, Results wants the latest values, also while it shows an explicitly opened cut ("Show the latest results").
+  useEffect(()=>reader?.wantPages(),[reader])
+  // The explicitly opened cut; otherwise the view follows the latest results.
+  const [cutPage,setCutPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
+  const [errorsBefore,setErrorsBefore]=useState(state)
+  // A stopped reader reads again only when asked, so it is shown first, with its Reconnect; the rail's banner does this
+  // for the latest one.
+  const failed=!connectionShown&&reading?.connection==='failed'
+  const shownError=(failed?reading?.error:null)??error??reading?.pageError??(connectionShown?null:reading?.error)??null
+  const reconnect=failed?<Button onClick={()=>void reader?.refresh()}>Reconnect</Button>:null
   const [exportState,setExportState]=useState<
     {status:'pending';format:ExportFormat}|{status:'started'}|{status:'failed';message:string}|null
   >(null)
@@ -291,9 +304,9 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   useEffect(()=>()=>{exportRequest.current?.abort()},[])
   const [unfit,setUnfit]=useState(0)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
-  const document=loaded&&loaded.state.sourceRevisionId!==documentRevisionId
-    ? pinnedDocument?.revision===loaded.state.sourceRevisionId?pinnedDocument.document:null : currentDocument
-  const sourceRevisionId=loaded?.state.sourceRevisionId
+  const document=state&&state.sourceRevisionId!==documentRevisionId
+    ? pinnedDocument?.revision===state.sourceRevisionId?pinnedDocument.document:null : currentDocument
+  const sourceRevisionId=state?.sourceRevisionId
   useEffect(()=> {
     if(!id||!sourceRevisionId||sourceRevisionId===documentRevisionId)return
     const controller=new AbortController(),revision=sourceRevisionId
@@ -318,7 +331,10 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const [pinned,setPinned]=useState(initialCut!==null)
   const pinnedRef=useRef(pinned)
   const pin=(value:boolean)=>{pinnedRef.current=value;setPinned(value)}
-  const state=loaded?.state
+  const page=pinned?cutPage:latestPage
+  // Every accepted state clears the view's command, snapshot and value errors, as every accepted read did; an opened
+  // cut that could not be read stays said until it is.
+  if(errorsBefore!==state){setErrorsBefore(state);if(page)setError(null)}
   const progress=useMemo<RunProgress|null>(()=>state?{records:state.records,reading:new Set(state.status==='RUNNING'?state.reading:[]),
     fields:(state.selection?.schemaTree?.schemaNodes??[]).filter((node:{valueSource?:unknown})=>!node.valueSource).map((node:{name:string})=>node.name),
     startPage:state.selection?.resolved?.startPage??null}:null,[state])
@@ -387,89 +403,61 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     selectionFromMark.current=null
     if(followKey&&link&&!fromMark)onEvidence(link.evidenceAnchorId,undefined,link.precision)
   },[followKey])
-  const executionStatus=state?.status
-  useEffect(()=>{if(id&&executionStatus)onStatusChange?.(id,executionStatus)},[id,executionStatus,onStatusChange])
   useEffect(()=> {
     if(id&&page)onReviewProgress?.({extractionId:id,snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion,
       required:page.reviewCounts.required,toCheck:page.reviewCounts.toCheck,finalized:Boolean(page.finalization)})
   },[id,page,onReviewProgress])
   useEffect(()=>()=>onReviewProgress?.(null),[onReviewProgress])
-  const readGenerations=useRef({live:0,snapshot:0})
-  const acceptedRead=useRef<Awaited<ReturnType<typeof readDurable>>|null>(null)
-  const refresh=useCallback(async(signal?:AbortSignal)=> {
-    if(!id) return null
-    const generation=++readGenerations.current.live
-    let next:Awaited<ReturnType<typeof readDurable>>
-    try {next=await readDurable(id,signal,acceptedRead.current)}
-    catch(error){if(signal?.aborted||generation!==readGenerations.current.live)return null;throw error}
-    let initialPage=next.page
-    if(!acceptedRead.current&&linkedCut.current) {
-      const cut=linkedCut.current
-      initialPage=await readValues(id,{snapshotVersion:cut.snapshotVersion,feedbackVersion:cut.feedbackVersion},signal)
-    }
-    if(signal?.aborted||generation!==readGenerations.current.live) return null
-    const previous=acceptedRead.current
-    if(previous && (next.state.controlVersion<previous.state.controlVersion ||
-      next.state.controlVersion===previous.state.controlVersion && (next.state.snapshotVersion<previous.state.snapshotVersion ||
-        next.state.snapshotVersion===previous.state.snapshotVersion && next.page.feedbackVersion<previous.page.feedbackVersion))) return previous.page
-    acceptedRead.current=next
-    setLoaded(next);setPage(previous=>pinnedRef.current?previous??initialPage:initialPage);setError(null)
-    return next.page
-  },[id])
+  const readGenerations=useRef({snapshot:0})
   useEffect(()=> {
     const generations=readGenerations.current
-    return()=> {++generations.live;++generations.snapshot}
-  },[refresh])
-  // Polled at the run's pace only while it changes by itself, as the workspace's own monitor is; a resume asked for
-  // while it paused is started by the server, so that is still watched. A settled Extraction changes by a command, a
-  // saved decision or edit, or the workspace's read, each of which reads it again here; a decision saved in another
-  // session shows when the researcher comes back to the view, or within 30 s while it is visible.
-  const live=!state||ACTIVE.has(state.status)||state.pendingResume
+    return()=>{++generations.snapshot}
+  },[])
+  // An explicitly opened cut is read here, again after a failure that may pass; the latest results are the reader's.
   useEffect(()=> {
-    if(!live) {
-      const reread=()=>void refresh().catch(()=>{})
-      const idle=setInterval(()=>{if(!window.document.hidden)reread()},30_000)
-      window.addEventListener('focus',reread)
-      return()=>{clearInterval(idle);window.removeEventListener('focus',reread)}
-    }
-    const controller=new AbortController();let timer:ReturnType<typeof setTimeout>
-    const poll=async()=> {try{await refresh(controller.signal)}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Unable to update saved results.')}
-      if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
-    void poll();return()=> {controller.abort();clearTimeout(timer)}
-  },[refresh,live])
-  // The run button follows the workspace's own status reads; one that sees a change first (Pausing → Paused) is read
-  // here at once, not at the next poll, so the status line agrees with the button.
-  const workspaceStatus=attempt?.executionStatus
-  useEffect(()=> {
-    const shown=acceptedRead.current?.state.status
-    if(workspaceStatus&&shown&&shown!==workspaceStatus)void refresh().catch(()=>{})
-  },[workspaceStatus,refresh])
-  if(!loaded||!page||!attempt||!id||!model||!state) return <><p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
-    {historySlot&&createPortal(<p className="p-3 text-secondary">{error??'Loading…'}</p>,historySlot)}</>
+    const cut=linkedCut.current
+    if(!id||!cut)return
+    const controller=new AbortController(),generation=readGenerations.current.snapshot
+    let retry:ReturnType<typeof setTimeout>|undefined
+    const read=()=>void readValues(id,{snapshotVersion:cut.snapshotVersion,feedbackVersion:cut.feedbackVersion},controller.signal).then(next=> {
+      if(generation===readGenerations.current.snapshot){setCutPage(next);setError(null)}
+    },error=> {
+      if(controller.signal.aborted)return
+      setError(error instanceof Error?error.message:'Unable to load the saved snapshot.')
+      if(transientReadError(error))retry=setTimeout(read,1500)
+    })
+    read()
+    return()=>{controller.abort();clearTimeout(retry)}
+  },[id])
+  if(!state||!latestPage||!page||!attempt||!id||!model||!reader) return <><p role={shownError?'alert':'status'} className="p-3 text-secondary">{shownError??'Loading saved extraction results…'}</p>
+    {reconnect&&<div className="px-3 pb-3">{reconnect}</div>}
+    {historySlot&&createPortal(<p className="p-3 text-secondary">{shownError??'Loading…'}</p>,historySlot)}</>
   const terminal=state.status==='STOPPED'||state.status==='STOPPING'
   const active=ACTIVE.has(state.status)
   const idle=['PAUSED','FAILED','COMPLETED'].includes(state.status)
   const command=async(action:string)=> {
     setBusy(true);setError(null)
-    try {const receipt=await durableRequest<{controlVersion:number}>(`${durableRoot(id)}/control`,{id:crypto.randomUUID(),expectedVersion:state.controlVersion,action});await refresh();return receipt}
+    try {const receipt=await durableRequest<{controlVersion:number}>(`${durableRoot(id)}/control`,{id:crypto.randomUUID(),expectedVersion:state.controlVersion,action});await reader.refresh();return receipt}
     catch(e){setError(e instanceof Error?e.message:'Unable to save control.');return null}
     finally{setBusy(false)}
   }
   const selectPage=async(query:Record<string,number>)=> {
+    // The results shown stay until the cut arrives.
+    if(!pinnedRef.current)setCutPage(page)
     pin(true)
     ++selectedGeneration.current
     const generation=++readGenerations.current.snapshot
-    try {const next=await readValues(id,query);if(generation===readGenerations.current.snapshot){setPage(next);return next}
+    try {const next=await readValues(id,query);if(generation===readGenerations.current.snapshot){setCutPage(next);return next}
       return null}
     catch(error){if(generation===readGenerations.current.snapshot)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.');return null}
   }
-  const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}
+  const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current}
   // A saved decision moves one-by-one to the next value at once (§4.3); the saved results and counts follow.
   const saved=()=> {
     const next=focus?nextToCheck(queue,review?.value.id??null):null
     setReview(null);setEditing(null)
     if(pinnedRef.current)void selectPage({snapshotVersion:page.snapshotVersion})
-    void refresh()
+    void reader.refresh()
     if(next)selectValue(next)
   }
   const closeReview=()=>{++selectedGeneration.current;setReview(null);setFocus(false)}
@@ -479,7 +467,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     const generation=readGenerations.current.snapshot
     void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
       if(generation===readGenerations.current.snapshot)await selectPage({snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
-      else void refresh()
+      else void reader.refresh()
       setError(null);setNotice('Review saved.')
       onReviewFinalized?.()
     }).catch(error=>setError(error.message))
@@ -504,7 +492,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   }
   const counts={...model.counts,...page.reviewCounts}
   const canSave=!readOnly&&!active&&!page.finalization&&page.total>0&&page.reviewCounts.toCheck===0
-  const latest=loaded.page.snapshotVersion===page.snapshotVersion&&loaded.page.feedbackVersion===page.feedbackVersion
+  const latest=latestPage.snapshotVersion===page.snapshotVersion&&latestPage.feedbackVersion===page.feedbackVersion
   const recordOf=(key:string)=>model.records.find(record=>record.rows.some(row=>row.key===key))?.label??'Document'
   // The open review stays in its row while newer results arrive (moving it would lose an open edit); only a value the
   // results shown do not hold opens above the list.
@@ -541,7 +529,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
           {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV'} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
         </p>}
     </div>}
-    {(detailsOpen||error||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
+    {(detailsOpen||shownError||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
       {detailsOpen&&<div className="space-y-1 text-secondary">
         <p className="m-0">Inputs version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}.</p>
         {state.failure&&<p className="m-0">Processing failure: {state.failure.code}</p>}
@@ -553,8 +541,9 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       </div><details><summary className="cursor-pointer">Reprocess completed values (optional)</summary><p className="text-compact text-ink-muted">Selected values receive new model versions. Earlier versions and corrections remain saved.</p>
         {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/>{v.node.name} · {v.recordId.slice(0,8)}</label>)}
       </details></div>}
-      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema} onSaved={saved} onEdited={async()=>{await refresh()}}/>}
-      {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema} onSaved={saved} onEdited={reader.refresh}/>}
+      {shownError&&<p role="alert" className="text-secondary text-danger">{shownError}</p>}
+      {reconnect}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       {state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
       {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{page.finalization?' · a saved review':''}.{' '}
@@ -564,7 +553,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
         {onShowHistory&&<button type="button" className={linkClass} onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
-        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/>
+        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${latestPage.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/>
         <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}

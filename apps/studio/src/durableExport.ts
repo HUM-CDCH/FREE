@@ -69,7 +69,9 @@ export async function downloadDurableExport(fixed:Fixed,format:ExportFormat,choi
 export async function downloadDurableBatch(batch:{batchExtractionId:string;name:string},members:readonly BatchExportMember[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,signal?:AbortSignal):Promise<boolean> {
   const snapshots:BatchExportSnapshot[]=[]
   for(const member of members) {
-    const fixed=await readDurable(member.extractionId,signal)
+    const {state,page,pageError}=await readDurable(member.extractionId,signal)
+    if(!page)throw pageError
+    const fixed={state,page}
     snapshots.push({fixed,values:await fixedDurableValues(fixed,signal),member})
   }
   if(!snapshots.length)return false

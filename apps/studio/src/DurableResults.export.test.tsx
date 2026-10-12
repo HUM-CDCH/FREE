@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DurableResults } from './DurableResults'
+import { createDurableReader } from './durableReader'
 import { durableRequest, readDurable, readDurableHistory } from './durableExtractionApi'
 import { downloadDurableExport } from './durableExport'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -13,6 +15,13 @@ vi.mock('./durableExtractionApi', () => ({
 }))
 vi.mock('./durableExport', () => ({ downloadDurableExport: vi.fn() }))
 afterEach(() => { cleanup(); vi.resetAllMocks() })
+
+/** Results with the workspace's reader of its attempt (the real reader over the mocked reads). */
+function Results(props: Omit<ComponentProps<typeof DurableResults>, 'reader'>) {
+  const [reader] = useState(() => createDurableReader(props.attempt!))
+  useEffect(() => () => reader.dispose(), [reader])
+  return <DurableResults {...props} reader={reader} />
+}
 
 const title = { id: 'title', recordId: 'record', fieldId: 'title', path: ['records', 0, 'title'], selectionId: 'selection', schemaRevisionId: 'schema',
   node: { id: 'title', name: 'title', type: 'string' }, modelValue: 'Grave 8', evidence: [], links: [], grounding: 'ungrounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null }
@@ -28,7 +37,7 @@ function renderResults(values: unknown[] = [title, finds]) {
     pendingSelection: null, counts: { saved: values.length, inFlight: 0 }, records: null, reading: [] }
   vi.mocked(readDurable).mockResolvedValue({ state, page } as never)
   vi.mocked(durableRequest).mockResolvedValue([])
-  return render(<DurableResults attempt={{ extractionId: 'extraction', strategy: 'CATALOG' } as ExtractionAttempt}
+  return render(<Results attempt={{ extractionId: 'extraction', strategy: 'CATALOG' } as ExtractionAttempt}
     document={null} currentSchema={null} sourceDocumentName="Beretning.pdf" onEvidence={() => {}} />)
 }
 
