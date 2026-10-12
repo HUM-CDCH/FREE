@@ -23,7 +23,7 @@ import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
-import { ADMISSION_UNCERTAIN, METHOD_CHANGED, useExtraction } from './useExtraction'
+import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
@@ -1163,9 +1163,9 @@ export function DocumentWorkspace({
               onReviewProgress={setDurableReviewProgress}
               onReviewFinalized={onReviewFinalized}
               schemaName={schemaName}
-              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: running || savingForRun }}
+              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
               boundaries={
-                !running && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
+                !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
                   ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
                   : null
               }

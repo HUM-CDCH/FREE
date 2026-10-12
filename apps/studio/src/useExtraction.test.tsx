@@ -214,4 +214,12 @@ describe('durable status ownership', () => {
     await waitFor(() => expect(result.current.attempt?.executionStatus).toBe('PAUSED'), { timeout: 3_000 })
     expect(reads).toEqual([reopened.extractionId])
   }, 5_000)
+
+  it('does not call a reopened active Extraction a re-run when it completes', async () => {
+    const reopened = attempt('51000000-0000-4000-8006-000000000004', 'RUNNING')
+    server({ post: () => { throw new Error('No admission') }, read: (id) => Response.json({ extraction: attempt(id, 'COMPLETED') }) })
+    const { onTerminal } = render({ initialAttempt: reopened })
+    await waitFor(() => expect(onTerminal).toHaveBeenCalledOnce(), { timeout: 3_000 })
+    expect(onTerminal).toHaveBeenCalledWith(expect.objectContaining({ extractionId: reopened.extractionId, executionStatus: 'COMPLETED' }), false)
+  }, 5_000)
 })
