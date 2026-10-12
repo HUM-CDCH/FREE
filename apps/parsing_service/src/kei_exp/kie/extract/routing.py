@@ -20,14 +20,17 @@ VERSION = 2
 
 
 def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
-                  identity_passages: Sequence[str], *, strict: bool = True) -> list[dict]:
-    """Map reconciled leaves back to reply paths under exact array-union semantics.
+                  identity_passages: Sequence[str], *, strict: bool = True,
+                  item_sources: dict[tuple, list[dict]] | None = None) -> list[dict]:
+    """Map assembled leaves to their actual reply occurrences, or legacy exact-union origins without `item_sources`.
 
     A scalar at another field never counts. A merged array item must equal the
     entire original item, not merely contain the same leaf value. Bound identity
     fields were supplied to value calls, so retain their inventory citations instead.
     Unless `strict`, a value no reply returned as such (`conform` coerced it) has no
     sources, and routing orders its contexts by value match and relevance alone.
+    An assembled whole item's nested leaves keep its original indices; equal items
+    at other positions are not origins of this occurrence.
     """
     def locate(value, candidate, path, candidate_path=()):
         if not path:
@@ -45,14 +48,33 @@ def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
         return [found for index in indexes
                 for found in locate(value[step], candidate[index], rest, (*candidate_path, index))]
 
+    def assembled_sources(path):
+        depth = next((index for index, step in enumerate(path) if isinstance(step, int)), None)
+        if item_sources is None or depth is None:
+            return None
+        prefix, suffix = path[:depth + 1], path[depth + 1:]
+        item = merged
+        for step in prefix:
+            item = item[step]
+        sources = []
+        for source in item_sources.get(prefix, []):
+            original = candidates[source["unit"]]
+            for step in source["path"]:
+                original = original[step]
+            if original == item:
+                sources.append({"unit": source["unit"], "path": [*source["path"], *suffix]})
+        return sources
+
     origins = []
     for path, _ in leaves(merged):
         if path[0] in identity:
             origins.append({"path": list(path), "kind": "inventory", "passages": list(identity_passages)})
         else:
-            sources = [{"unit": unit, "path": original}
-                       for unit, candidate in enumerate(candidates)
-                       for original in locate(merged, candidate, path)]
+            sources = assembled_sources(path)
+            if sources is None:
+                sources = [{"unit": unit, "path": original}
+                           for unit, candidate in enumerate(candidates)
+                           for original in locate(merged, candidate, path)]
             if not sources and strict:
                 raise ValueError(f"reconciled value has no extraction origin: {path!r}")
             origins.append({"path": list(path), "kind": "value", "sources": sources})
