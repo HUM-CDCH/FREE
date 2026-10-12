@@ -156,10 +156,10 @@ refuses a document-scope result that is not exactly one record.
 
 Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry
-continues a failed Extraction with its saved work. Revised inputs are saved as
-a separate selection and adopted only at a drained boundary. A Resume
-requested while the Extraction is pausing runs once it has drained, unless a
-later edit cancels it.
+continues a failed Extraction with its saved work. Pause and Stop are refused
+once an Extraction is complete. Revised inputs are saved as a separate
+selection and adopted only at a drained boundary. A Resume requested while the
+Extraction is pausing runs once it has drained, unless a later edit cancels it.
 
 A researcher's active edits can guide the Project's later admitted calls other
 than record-boundary discovery, wherever their field keeps its meaning, with
