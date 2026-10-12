@@ -512,6 +512,29 @@ it('saves the review of the latest results once nothing is left to check',async(
   expect(screen.queryByRole('button',{name:'Save review'})).toBeNull()
 })
 
+it('keeps a cut the researcher opens while the review is being saved',async()=> {
+  const page={...reviewPage(2,1),reviewCounts:{required:3,toCheck:0,approved:3,edited:0,rejected:0}} as DurablePage
+  const finalized=Promise.withResolvers<unknown>(),onReviewFinalized=vi.fn()
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:2},page} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,valueCount:3},{id:'two',version:2,valueCount:3}]} as never)
+  vi.mocked(durableRequest).mockImplementation((async(url:string)=>url.endsWith('/finalize')?finalized.promise:[]) as never)
+  vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?reviewPage(1,1):{...page,finalization:{id:'final',snapshotVersion:2,feedbackVersion:1}} as never)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}
+    onReviewFinalized={onReviewFinalized} historySlot={historySlot()} historyShown/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Save review'}))
+  openDetails(await screen.findByText('Saved versions'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
+  expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
+  const reads=vi.mocked(readDurable).mock.calls.length
+  await act(async()=>finalized.resolve({}))
+  expect(await screen.findByText('Review saved.')).toBeVisible()
+  expect(onReviewFinalized).toHaveBeenCalledOnce()
+  expect(screen.getByText(/Showing saved results 1/)).toBeVisible()
+  expect(readValues).toHaveBeenCalledOnce()
+  // The finalized latest is read again, so "Save review" doesn't come back with it.
+  await waitFor(()=>expect(vi.mocked(readDurable).mock.calls.length).toBeGreaterThan(reads))
+})
+
 it('opens an explicit finalized cut and names the later live work beside it',async()=> {
   const current={...reviewPage(3,4)},historical={...reviewPage(1,2),finalization:{id:'final',snapshotVersion:1,feedbackVersion:2,createdAt:'2026-10-05T09:00:00.000Z'}}
   vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:3},page:current} as never)

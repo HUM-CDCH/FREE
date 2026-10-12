@@ -52,8 +52,10 @@ vi.mock('./App', () => ({
     sourceRepresentationCurrent,
     extractionSchema,
     persistedExtraction,
+    latestReviewedExtraction,
     onInitialResourceLoadFailure,
     onSourceSuperseded,
+    onReviewFinalized,
   }: DocumentWorkspaceProps) => (
     <>
       <p>
@@ -78,11 +80,17 @@ vi.mock('./App', () => ({
       <p data-testid="workspace-result">
         {JSON.stringify(persistedExtraction?.extractionId ?? null)}
       </p>
+      <p data-testid="workspace-reviewed">
+        {JSON.stringify(latestReviewedExtraction?.extractionId ?? null)}
+      </p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
         Fail retained artifact
       </button>
       <button type="button" onClick={onSourceSuperseded}>
         Refuse a run as superseded
+      </button>
+      <button type="button" onClick={onReviewFinalized}>
+        Finalize a review
       </button>
     </>
   ),
@@ -2426,6 +2434,39 @@ describe('routed Source Document reopening', () => {
     expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^superseded$/)
     expect(screen.getByTestId('workspace-result')).toHaveTextContent('51000000-0000-4000-8006-000000000001')
     expect(screen.queryByRole('heading', { name: /could not be opened|cannot be reopened/ })).not.toBeInTheDocument()
+  })
+
+  it('re-reads only "Latest reviewed" once a review is finalized, and keeps the shown Extraction', async () => {
+    const reopened = hydratedSnapshot()
+    const shown = reopened.latestAttempt.extractionId
+    const reopens: string[] = []
+    const rest = studioFetch()
+    history.replaceState(null, '', documentPath())
+    renderRoutes(
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (!url.includes('/reopen')) return rest(input)
+        reopens.push(url)
+        if (reopens.length === 1) return Response.json(reopened)
+        // The shown Extraction is now reviewed; the plain read's latest attempt is a newer one (a batch member, say).
+        return Response.json({
+          ...reopened,
+          latestAttempt: { ...reopened.latestAttempt, extractionId: '51000000-0000-4000-8006-000000000002' },
+          latestReviewed: {
+            ...reopened.latestAttempt,
+            finalizedReview: { snapshotVersion: 1, feedbackVersion: 2, createdAt: '2026-07-31T12:04:00.000Z' },
+          },
+        })
+      }),
+    )
+    expect(await screen.findByTestId('workspace-reviewed')).toHaveTextContent('null')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finalize a review' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-reviewed')).toHaveTextContent(shown))
+    expect(screen.getByTestId('workspace-result')).toHaveTextContent(shown)
+    // The same reopen read that opened it, for the same route.
+    expect(reopens).toEqual([reopens[0], reopens[0]])
   })
 
   it('moves a plain route to the reprocessed head when a superseded refusal re-reads it', async () => {

@@ -83,6 +83,8 @@ type Event =
   | { type: 'SOURCE_REPROCESSED' }
   /** The open document's Source Representation may be stale (a run was refused as superseded): read it again. */
   | { type: 'REFRESH' }
+  /** A review was finalized: read "Latest reviewed" again, and nothing else. */
+  | { type: 'REFRESH_REVIEWED' }
   | { type: 'RESOURCE_FAILED' }
   | { type: 'DOCUMENT_CONTAINED' }
   | { type: 'DOCUMENT_NOT_CONTAINED' }
@@ -324,6 +326,7 @@ export const navigationMachine = setup({
       on: {
         RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
         REFRESH: { target: 'refreshing' },
+        REFRESH_REVIEWED: { target: 'refreshingReviewed' },
       },
     },
     // The open workspace stays on screen while its document is read again; only a successful read replaces it,
@@ -340,6 +343,28 @@ export const navigationMachine = setup({
       },
       on: {
         RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
+      },
+    },
+    // Only "Latest reviewed" is taken from the read: the rest would reseed the workspace, and could swap the shown
+    // Extraction for a newer batch member.
+    refreshingReviewed: {
+      invoke: {
+        src: 'reopenDocument',
+        input: reopenInput,
+        onDone: {
+          target: 'open',
+          actions: [
+            assign({
+              snapshot: ({ context, event }) =>
+                context.snapshot && { ...context.snapshot, latestReviewed: event.output.latestReviewed },
+            }),
+          ],
+        },
+        onError: { target: 'open' },
+      },
+      on: {
+        RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
+        REFRESH: { target: 'refreshing' },
       },
     },
     failed: { on: { RETRY: { target: 'opening' } } },

@@ -473,11 +473,16 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   }
   const closeReview=()=>{++selectedGeneration.current;setReview(null);setFocus(false)}
   const openNext=()=> {const next=nextToCheck(queue,review?.value.id??null);if(next)selectValue(next);else setReview(null)}
-  const finalize=()=>void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
-    await selectPage({snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
-    setError(null);setNotice('Review saved.')
-    onReviewFinalized?.()
-  }).catch(error=>setError(error.message))
+  const finalize=()=> {
+    // A cut opened while the review is being saved (History's Open, Show the latest results) stays shown.
+    const generation=readGenerations.current.snapshot
+    void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
+      if(generation===readGenerations.current.snapshot)await selectPage({snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
+      else void refresh()
+      setError(null);setNotice('Review saved.')
+      onReviewFinalized?.()
+    }).catch(error=>setError(error.message))
+  }
   // The ordinary research table of the cut shown: built from the values already read, so a long run's saved history
   // is never downloaded for it (History stays one tab away for audit).
   const exportSaved=async(format:ExportFormat,choices:ExportChoices)=> {
