@@ -33,16 +33,21 @@ export type ExtractionErrorCode =
   | 'record_scope_required'
   /** The requested Extraction Strategy is not the one the pinned Schema Revision's record scope names. */
   | 'record_scope_mismatch'
+  /** The newest Extraction on the Source Representation is unfinished, so a single run waits for it (ADR 0020). */
+  | 'extraction_in_progress'
 
 export class ExtractionError extends Error {
   readonly code: ExtractionErrorCode
   readonly cause?: unknown
+  /** The Extraction a refusal names: for `extraction_in_progress`, the unfinished one. */
+  readonly extractionId?: string
 
-  constructor(code: ExtractionErrorCode, message: string, options?: { cause?: unknown }) {
+  constructor(code: ExtractionErrorCode, message: string, options?: { cause?: unknown; extractionId?: string }) {
     super(message)
     this.name = 'ExtractionError'
     this.code = code
     this.cause = options?.cause
+    this.extractionId = options?.extractionId
   }
 }
 

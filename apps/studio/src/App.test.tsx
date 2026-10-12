@@ -2416,6 +2416,40 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction/ })).not.toBeInTheDocument()
     })
 
+    it('a refusal beside an unfinished Extraction says so and opens the one it names', async () => {
+      const message = "This document's latest Extraction is unfinished. No new Extraction was started."
+      const unfinished = '51000000-0000-4000-8006-000000000009'
+      const posts: unknown[] = []
+      vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        const durable = durableRead(url)
+        if (durable) return Promise.resolve(durable)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+          posts.push(JSON.parse(String(init.body)))
+          return Promise.resolve(Response.json(
+            { error: { code: 'extraction_in_progress', message, details: { extractionId: unfinished } } },
+            { status: 409 },
+          ))
+        }
+        return Promise.resolve(new Response('pdf'))
+      }))
+      const onOpenExtraction = vi.fn()
+      render(<DocumentWorkspace {...reopened} onOpenExtraction={onOpenExtraction} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(await screen.findByText(message)).toBeVisible()
+      // A definite refusal: no identity is left reserved, so Run stays offered.
+      expect(posts).toHaveLength(1)
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+      fireEvent.click(screen.getByRole('button', { name: 'Open it' }))
+      expect(onOpenExtraction).toHaveBeenCalledWith(unfinished)
+      expect(screen.queryByText(message)).not.toBeInTheDocument()
+    })
+
     it.each([
       [{ status: 'loading' } as const],
       [{ status: 'error', message: 'Unavailable.' } as const],

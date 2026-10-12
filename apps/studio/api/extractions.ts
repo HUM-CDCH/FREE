@@ -50,6 +50,9 @@ function asTransportError(error: unknown): unknown {
     case 'invalid_extraction_pins':
     case 'source_representation_superseded':
       return new ApiError(409, error.code, error.message, { cause: error })
+    // Names the unfinished Extraction, so Studio can open it (ADR 0020).
+    case 'extraction_in_progress':
+      return new ApiError(409, error.code, error.message, { details: { extractionId: error.extractionId }, cause: error })
     case 'invalid_request':
       return new ApiError(422, error.code, error.message, { cause: error })
     default:

@@ -45,11 +45,11 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
   return { ...(data as Omit<SchemaDone, 'sourceCoverage'>), sourceCoverage: sourceCoverage.data }
 }
 
-async function readError(response: Response): Promise<{ code: string; message: string } | null> {
+async function readError(response: Response): Promise<{ code: string; message: string; details: unknown } | null> {
   const body = await response.json().catch(() => null)
   const error = isRecord(body) && isRecord(body.error) ? body.error : null
   return error && typeof error.code === 'string' && typeof error.message === 'string'
-    ? { code: error.code, message: error.message }
+    ? { code: error.code, message: error.message, details: error.details }
     : null
 }
 
@@ -190,12 +190,15 @@ export class ApiRequestError extends Error {
   readonly status: number
   /** The server's error code (`{ error: { code } }`), when it sent one. */
   readonly code: string | null
+  /** The server's `{ error: { details } }`, unvalidated. */
+  readonly details: unknown
 
-  constructor(message: string, status: number, code: string | null = null) {
+  constructor(message: string, status: number, code: string | null = null, details?: unknown) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -217,6 +220,7 @@ async function requestJson(
       error ? `${error.code}: ${error.message}` : `Request to ${path} failed (HTTP ${response.status})`,
       response.status,
       error?.code ?? null,
+      error?.details,
     )
   }
   return response.json()

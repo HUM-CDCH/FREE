@@ -91,6 +91,22 @@ describe('durable Extraction admission', () => {
     expect(result.current.attempt).toBeNull()
   })
 
+  it('names the unfinished Extraction a refused run waits for, and without one reports the server\'s words', async () => {
+    const unfinished = '51000000-0000-4000-8006-000000000009'
+    let details: unknown = { extractionId: unfinished }
+    server({ post: () => Response.json({ error: { code: 'extraction_in_progress', message: 'Unfinished.', details } }, { status: 409 }) })
+    const onInProgress = vi.fn()
+    const { result, onError } = render({ onInProgress })
+    await act(async () => { await result.current.runExtraction(method, target) })
+    expect(onInProgress).toHaveBeenCalledWith('Unfinished.', unfinished)
+    expect(onError).not.toHaveBeenCalled()
+    expect(result.current.canRun).toBe(true)
+    details = undefined
+    await act(async () => { await result.current.runExtraction(method, target) })
+    expect(onError).toHaveBeenCalledWith('Unfinished.')
+    expect(onInProgress).toHaveBeenCalledOnce()
+  })
+
   it('reconciles an uncertain admission by reading the same identity, never by posting again', async () => {
     let readable = false
     const { posts, reads } = server({

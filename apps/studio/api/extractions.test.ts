@@ -288,6 +288,14 @@ describe('/api/extractions transport', () => {
     )
     const superseded = await handle(request(fresh))
     expect(superseded.status).toBe(409)
+    vi.mocked(module.runSingle).mockRejectedValueOnce(
+      new ExtractionError('extraction_in_progress', 'Unfinished.', { extractionId: EXTRACTION }),
+    )
+    const inProgress = await handle(request(fresh))
+    expect(inProgress.status).toBe(409)
+    expect(await inProgress.json()).toEqual({
+      error: { code: 'extraction_in_progress', message: 'Unfinished.', details: { extractionId: EXTRACTION } },
+    })
     vi.mocked(module.runSingle).mockRejectedValueOnce(new ExtractionError('invalid_source_representation', 'Unavailable.'))
     const unavailable = await handle(request(fresh))
     expect(unavailable.status).toBe(503)

@@ -21,7 +21,7 @@ import {
   type DatabaseTransaction,
 } from 'db'
 import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT } from './batch.js'
-import { DURABLE_EXTRACTION_PROTOCOL } from './durable-contract.js'
+import { DURABLE_EXTRACTION_PROTOCOL, durableStatus } from './durable-contract.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
@@ -35,6 +35,7 @@ import {
   type ActiveSettings,
   type ExtractionMethodIntent,
 } from './extraction-method.js'
+import { documentAttempts } from './postgres-attempts.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
 import { refuseRecordScope, storedRecordScope } from './record-scope.js'
@@ -262,6 +263,14 @@ export async function admitInteractiveExtraction(
         return 'method-changed'
       refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
       refuseIncompatibleGliformer({ models: pins.requestedModels, settings: pins.requestedSettings }, pins.schemaTree)
+      // ADR 0020, as Studio's Run: a single run waits while the newest Extraction on this revision, a batch member
+      // included, is unfinished. Read under the document lock, so of two concurrent runs one is refused.
+      const { heads, candidates } = await documentAttempts(transaction.orm, pins.sourceDocumentId)
+      const newest = candidates.find((candidate) => candidate.sourceRepresentationRevisionId === current.id)
+      const status = newest && durableStatus(heads.get(newest.id)!)
+      if (newest && status !== 'COMPLETED' && status !== 'STOPPED')
+        throw new ExtractionError('extraction_in_progress',
+          'This document\'s latest Extraction is unfinished. No new Extraction was started.', { extractionId: newest.id })
       await transaction.orm.public.Extraction.create({
         id: input.extractionId,
         sourceDocumentId: pins.sourceDocumentId,
