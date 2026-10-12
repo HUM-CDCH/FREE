@@ -27,8 +27,8 @@ export type EndCard =
   | { kind: 'saved'; line: string }
 
 /**
- * One by one (results review redesign §4.3): the same rail as a card for the current value, its record's queue,
- * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card (§4.5).
+ * One by one: the same rail as a card for the current value, its record's queue,
+ * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card.
  */
 export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
   headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {

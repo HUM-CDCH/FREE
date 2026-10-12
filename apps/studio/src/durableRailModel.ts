@@ -40,7 +40,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
       action: action && action !== 'PENDING' ? action : 'APPROVED',
       reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
-    // A missing value has no Evidence to check, during the run or after it (§1 Missing).
+    // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'readings differ' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
       : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · doubtful' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},

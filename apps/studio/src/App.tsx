@@ -144,7 +144,7 @@ export type DocumentWorkspaceProps = {
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
-  /** The active document tab's ring slot (results review redesign §2.4). */
+  /** The active document tab's ring slot. */
   tabRingSlot?: HTMLElement | null
   /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
       ahead (default 20 s; tests shorten it). */
@@ -612,10 +612,10 @@ export function DocumentWorkspace({
   //   templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
   const effectiveRailOpen = railOpen
-  // The one-by-one value's link: the page dims around it (results review redesign §7.3).
+  // The one-by-one value's link: the page dims around it.
   const [focusedEvidence, setFocusedEvidence] = useState<EvidenceLink | null>(null)
   const railOnResultsRef = useRef(false)
-  // The document pane shows the PDF or the parsed Markdown (results review redesign §7.4).
+  // The document pane shows the PDF or the parsed Markdown.
   const [documentView, setDocumentView] = useState<'pdf' | 'markdown'>('pdf')
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
@@ -751,12 +751,12 @@ export function DocumentWorkspace({
   const inspectionSource=retainedSource?.id===inspectedAttempt?.extractionId?retainedSource?.source:null
   const inspectionDocument=inspectionSource?.document??parsedDocument
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover (§7.2).
+  // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover.
   const [railMarks, setRailMarks] = useState<RailMarkState | null>(null)
   const selectValueRef = useRef<((key: string) => void) | null>(null)
   const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
   const [marksShown, setMarksShown] = useState(true)
-  // A link to a value (`?value={resultPathKey}`) selects it once the attempt's values are listed (§7.2).
+  // A link to a value (`?value={resultPathKey}`) selects it once the attempt's values are listed.
   const linkedValue = useRef(new URLSearchParams(window.location.search).get('value'))
   useEffect(() => {
     const key = linkedValue.current
@@ -785,7 +785,7 @@ export function DocumentWorkspace({
   useEffect(() => { if (markChoice && !choiceHolds(markChoice)) setMarkChoice(null) })
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
-   *  run over the whole document: what admission pins is what was saved at the click (§2). A `method_changed` refusal
+   *  run over the whole document: what admission pins is what was saved at the click (ADR 0015). A `method_changed` refusal
    *  re-reads once and retries; a second refusal starts nothing. A failed admission leaves the revision saved. */
   async function runExtraction() {
     if (savingForRun || !extraction.canRun || !sourceRepresentationCurrent) return
@@ -853,7 +853,7 @@ export function DocumentWorkspace({
     }
   }
 
-  /** Pause, Resume, Retry or Stop the latest Extraction from the run button's place (results review redesign §2.4). The
+  /** Pause, Resume, Retry or Stop the latest Extraction from the run button's place. The
    *  command names the control version it was read at; the latest reader takes its answer and follows the work. */
   async function controlExtraction(action: 'pause' | 'resume' | 'retry' | 'stop') {
     const id = latestAttempt?.extractionId
@@ -967,7 +967,7 @@ export function DocumentWorkspace({
     >
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
-      {/* The open document's tab carries the review's progress as a ring, and says it (§2.4). */}
+      {/* The open document's tab carries the review's progress as a ring, and says it. */}
       {tabRingSlot && inspectedAttempt && createPortal((() => {
         const progress=durableReviewProgress?.extractionId===inspectedAttempt.extractionId?durableReviewProgress:null
         const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
@@ -993,7 +993,7 @@ export function DocumentWorkspace({
               {/* Run is the screen's one positive; while the latest Extraction can still continue, Pause, Resume or Retry
                   takes its place with Stop beside it. */}
               {/* One fixed width for Run, Pause and Resume, so the strip never shifts; progress is the Results badge's, not the
-                  button's (§2.4). */}
+                  button's. */}
               {controlStatus ? (
                 <>
                   {controlStatus !== 'STOPPING' && (

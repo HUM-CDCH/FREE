@@ -8,7 +8,7 @@ const linkButton = 'cursor-pointer rounded px-1 text-accent outline-none hover:u
 
 export type StatusMark = 'spinner' | 'stopped' | 'failed' | 'completed' | 'incomplete' | 'saved'
 
-/** The status line (results review redesign §2.1): a mark, a bold word and a muted rest, by state. */
+/** The status line: a mark, a bold word and a muted rest, by state. */
 export type StatusLine = {
   mark: StatusMark
   word: string
@@ -44,8 +44,8 @@ export type HeaderActions = {
 }
 
 /**
- * The rail's one header, the same in every phase (results review redesign §2): the status line, a transient alert
- * line, the count block and the filter chips (a select at 264px, §9).
+ * The rail's one header, the same in every phase: the status line, a transient alert
+ * line, the count block and the filter chips (a select at 264px).
  */
 export default function ResultsHeader({
   status, extras, schemaNote, alert, counts, running, readOnlyNote, actions, breakdown, chips, filter, onFilter,
@@ -98,7 +98,7 @@ export default function ResultsHeader({
           {status.schemaRevision !== undefined && <button type="button" className={`${linkButton} @max-[344px]:hidden`} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
-        {/* Snapshot, export and revision controls take a second row when the status would be squeezed (§9). */}
+        {/* Snapshot, export and revision controls take a second row when the status would be squeezed. */}
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 empty:hidden @max-[344px]:order-last @max-[344px]:w-full [&>select]:min-w-0 [&>select]:max-w-full">
           {schemaNote && <Pill tone="stale" outline>Rev {schemaNote.revision} · current is {schemaNote.current}</Pill>}
           {extras}

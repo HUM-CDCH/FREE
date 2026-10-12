@@ -247,7 +247,7 @@
   color: var(--editor-toolbar-hover-fg-color);
 }
 
-/* Evidence marks (results review redesign §7.2): one Evidence colour; dotted for a rule link, dashed for a doubtful
+/* Evidence marks: one Evidence colour; dotted for a rule link, dashed for a doubtful
    one; a decided value keeps its fill with a 1px border, so every used passage stays visible; the selected value an
    ev-soft fill and an accent outline. */
 .evidence-mark {

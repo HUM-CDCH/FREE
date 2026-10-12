@@ -35,7 +35,7 @@ const markStyles = { link: 'border-solid', rule: 'border-dotted', doubtful: 'bor
 
 const grid = 'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 rounded-md px-2 py-1.5 text-left'
 
-/** A row while the run reads (§3.2, §5.2): the review row's height, a placeholder or a muted candidate, never a value. */
+/** A row while the run reads: the review row's height, a placeholder or a muted candidate, never a value. */
 function ProgressRow({ row }: { row: RailRow }) {
   return (
     <div className={`${grid} animate-fadeup`}>
@@ -72,7 +72,7 @@ export type ReviewRowProps = {
   onTypedEdit?: (value: unknown) => void
 }
 
-/** One value (results review redesign §3.2), and when selected its expansion (§3.3): one tinted surface, no card. */
+/** One value, and when selected its expansion: one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
   onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />

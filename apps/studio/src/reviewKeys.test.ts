@@ -6,7 +6,7 @@ const base: KeyContext = { readable: true, approvable: true, saving: false, edit
 const press = (key: string, context: Partial<KeyContext> = {}, extra: Partial<KeyboardEvent> = {}, target: Element = document.body) =>
   keyAction({ key, repeat: false, altKey: false, ctrlKey: false, metaKey: false, ...extra, target }, { ...base, ...context })
 
-describe('the rail keyboard model (results review redesign §4.4)', () => {
+describe('the rail keyboard model', () => {
   it('A E R decide the current undecided value; J skips; K steps back; Z undoes', () => {
     expect(['a', 'E', 'r', 'j', 'k', 'z'].map((key) => press(key))).toEqual(['approve', 'edit', 'reject', 'next', 'previous', 'undo'])
     expect(press('a', { current: 'decided' })).toBeNull()

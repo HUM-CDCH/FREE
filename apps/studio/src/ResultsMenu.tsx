@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export type MenuItem = { label: string; onSelect: () => void; disabled?: string | null }
 
-/** "More result actions" (results review redesign §8): a menu under ⋯; arrow keys move, Escape (the rail's) closes. */
+/** "More result actions": a menu under ⋯; arrow keys move, Escape (the rail's) closes. */
 export default function ResultsMenu({ items }: { items: readonly MenuItem[] }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => { ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus() }, [])

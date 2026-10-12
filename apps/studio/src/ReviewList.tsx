@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
 
-/** A record header's right-hand state (§3.1), as text and as the section's accessible name. */
+/** A record header's right-hand state, as text and as the section's accessible name. */
 function recordState(record: RailRecord): { text: string; busy: boolean; done: boolean } {
   if (record.state === 'queued') return { text: 'Queued', busy: false, done: false }
   if (record.state === 'reading') return { text: 'Reading…', busy: true, done: false }
@@ -18,7 +18,7 @@ const section = 'overflow-hidden rounded-lg border border-line bg-surface'
 const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">Nothing in this record for this filter.</p>
 
 /**
- * The list (results review redesign §3): one component for both phases, records keyed by their index so settlement
+ * The list: one component for both phases, records keyed by their index so settlement
  * moves nothing; a document's fields once above them; an Article's one record flat. The caller renders each row.
  */
 export default function ReviewList({ model, article, finding, filter, selectedKey, isOpen, onToggle, renderRow }: {

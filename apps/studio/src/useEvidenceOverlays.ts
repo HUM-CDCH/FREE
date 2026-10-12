@@ -12,7 +12,7 @@ import {
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 
-/** What the rail says about one value, for its mark on the page (results review redesign §7.2). */
+/** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision'] }
 
 /** The rail also reports unlinked keys so a copied value link can restore every row's selection. */
@@ -87,7 +87,7 @@ function appendOverlay(
   return overlay
 }
 
-/** Dims the page of a passage's first occurrence around each of its occurrences there (results review redesign §7.3):
+/** Dims the page of a passage's first occurrence around each of its occurrences there:
  *  canvas-coloured rectangles at 45% outside every bbox grown by 24pt, so the page reads through at .55 and the
  *  passage stays clear, both places of a paragraph continued in the next column included; they take no pointer hits. */
 function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, occurrences: readonly EvidenceOccurrence[]) {
@@ -233,7 +233,7 @@ export function useEvidenceOverlays({
     const paint = () => {
       const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
         .map((element) => [element.dataset.occurrenceId!, element]))
-      // One mark per occurrence, carrying every value its passage supports (§7.2: several open a popover).
+      // One mark per occurrence, carrying every value its passage supports (several open a popover).
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue

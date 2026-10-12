@@ -2,7 +2,7 @@ export type KeyAction =
   | 'cancel-edit' | 'close-dialog' | 'close-drawer' | 'close-menu' | 'leave'
   | 'save-edit' | 'undo' | 'approve' | 'edit' | 'reject' | 'next' | 'previous'
 
-/** What the rail knows when a key arrives (results review redesign §4.4). */
+/** What the rail knows when a key arrives. */
 export type KeyContext = {
   /** A record is readable: before that only Escape is handled. */
   readable: boolean

@@ -55,9 +55,9 @@ type RightRailProps = {
   resultsHeaderExtras?: ReactNode
   onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
   onResultPathChange: (path: string[] | null) => void
-  /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
+  /** The one-by-one value's Evidence link, for the document's dimming. */
   onFocusEvidence?: (link: EvidenceLink | null) => void
-  /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
+  /** The rail's values for the document's marks, and the handle a mark selects a value through. */
   onMarksChange?: (marks: RailMarkState | null) => void
   selectValueRef?: RefObject<((key: string) => void) | null>
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
