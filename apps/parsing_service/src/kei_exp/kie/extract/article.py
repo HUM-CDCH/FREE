@@ -1,10 +1,10 @@
 """Article: the document-scope extraction, one document-level object that may contain arrays.
 
 `extract` is the Article implementation: the document's one root read in each of its value contexts (the complete
-source by default, bounded parts with `options.article.context`), assembled across them by
-`contexts.assemble_document`, verified in every source context, and the artifact assembled in `assembly.py`, as the
-version 1 Catalog's is (`document_root`). No identity is inventoried: the artifact's `inventory` holds the one document
-identity, every passage its support. The inventory of noncontiguous records (`inventory_request`, `inventory`,
+source by default, bounded parts with `options.article.context` or when the whole source does not fit one call),
+assembled across them by `contexts.assemble_document`, verified in every source context, and the artifact assembled in
+`assembly.py`, as the version 1 Catalog's is (`document_root`). No identity is inventoried: the artifact's `inventory`
+holds the one document identity, every passage its support. The inventory of noncontiguous records (`inventory_request`, `inventory`,
 `reconcile_identities`, `extract_records`) stays for the research replays that read captured version 1 studies; the
 service path does not call it. Every model call goes through `calls.complete`; the shared value prompts live in
 `stages.py` and grounding in `grounding.py`.
@@ -114,14 +114,33 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     for role in ("fields", "reasoning"):
         if type(counter[role].context_tokens) is not int or counter[role].context_tokens <= 0:
             raise BudgetUnavailable(f"Article requires the {role} endpoint's context size")
+    fallback = None
+    if method.context == "full":
+        source = (structured_source(evidence.passages) if method.rendering == "structured"
+                  else text_of(evidence.passages))
+        counted = counter["fields"].request_tokens(*record_request(source, schema, None, None, document=True))
+        served = counter["fields"].context_tokens
+        if counted + REPLY_TOKENS > served:
+            # A document too long for one root call is read in bounded parts of the served context instead of failing.
+            method = method.model_copy(update={"context": "bounded", "grouping": None,
+                                               "context_tokens": min(served, counter["reasoning"].context_tokens)})
+            fallback = Issue("context_fallback", f"the whole document's root request counts {counted} tokens, more "
+                             f"than its {served}-token context leaves beside a {REPLY_TOKENS}-token reply; it is read "
+                             f"in bounded parts of {method.context_tokens} tokens")
     if method.context == "bounded":
         counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
         contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
     from kei_exp.kie.extract.retained import plan_records
-    plan_records(chat,"article-contexts",[context.dumped() for context in contexts])
+    # Retry keeps its generation: a pre-fallback attempt may already have saved the one-part plan before failing
+    # admission. Keep that plan immutable and publish fallback scopes separately; call captures still reuse their
+    # unchanged inputs, independently of this context listing.
+    context_stage = "article-contexts:fallback" if fallback is not None else "article-contexts"
+    plan_records(chat, context_stage, [context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
         budget=options.record_chars, check=check, counter=counter["fields"],
         structured=method.rendering == "structured")
+    if fallback is not None:
+        issues.append(fallback)
     def retained_context(*args):
         index, total, answered, failed, group, fields, root, disagreements, ok, context_calls = args
         if ok:
