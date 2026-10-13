@@ -44,10 +44,13 @@ class ExtractModel:
 
 
 def registry(environ: Mapping[str, str]) -> dict[str, ExtractModel]:
-    """The instruction model always; optional fields backends only where the deployment names their server."""
+    """The instruction model always; optional backends only where the deployment names their server."""
     models = {"instruct": ExtractModel("instruct", environ.get("KEI_EXTRACT_MODEL", llm.EXTRACT_MODEL),
                                        environ.get("KEI_EXTRACT_URL", llm.EXTRACT_URL), "instruct",
                                        frozenset(ROLES))}
+    if environ.get("KEI_MINICPM_URL"):
+        models["minicpm"] = ExtractModel("minicpm", environ.get("KEI_MINICPM_MODEL", "openbmb/MiniCPM-V-4.7-35B-A3B-FP8"),
+                                         environ["KEI_MINICPM_URL"], "instruct", frozenset(ROLES))
     if environ.get("KEI_NUEXTRACT_URL"):
         models["nuextract"] = ExtractModel("nuextract", environ.get("KEI_NUEXTRACT_MODEL", llm.NUEXTRACT_MODEL),
                                            environ["KEI_NUEXTRACT_URL"], "nuextract", frozenset({"fields"}))
