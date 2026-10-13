@@ -48,6 +48,9 @@ it('enables the owned OCR model only with Docker GPU access', () => {
   assert.deepEqual(parsingGpuComposeArguments({ FREE_GPU: 'off' }, () => {
     assert.fail('Disabled GPU access must skip the probe')
   }), [])
+  assert.deepEqual(parsingGpuComposeArguments({ FREE_GPU: 'shared' }, () => {
+    assert.fail('Shared model servers must skip the probe')
+  }), ['-f', 'compose.use-models.yaml'])
   assert.throws(() => parsingGpuComposeArguments({ FREE_GPU: 'maybe' }), /FREE_GPU must be/)
   const gpu = parsingGpuComposeArguments({}, (command, args, options) => {
     assert.equal(command, 'docker')

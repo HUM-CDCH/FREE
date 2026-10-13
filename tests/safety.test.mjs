@@ -13,6 +13,7 @@ import {
   developmentComposeEnvironment,
   deriveDevProfile,
   parseDevOptions,
+  parsingGpuComposeArguments,
   productionComposeArguments,
   renderNginxLocations,
   validateProductionEnvironment,
@@ -35,8 +36,8 @@ function resetDatabase(databaseUrl) {
   )
 }
 
-function renderDevelopmentCompose(profile, entraEnvironment = null, environment = process.env) {
-  const launchArguments = developmentComposeArguments(profile)
+function renderDevelopmentCompose(profile, entraEnvironment = null, environment = process.env, gpuArguments = []) {
+  const launchArguments = developmentComposeArguments(profile, gpuArguments)
   const result = spawnSync(
     'docker',
     [
@@ -61,12 +62,9 @@ function renderDevelopmentCompose(profile, entraEnvironment = null, environment 
   return JSON.parse(result.stdout)
 }
 
-function renderProductionCompose(environment, gpu = false) {
+function renderProductionCompose(environment, gpuArguments = []) {
   const composeEnvironment = { ...process.env, ...environment, COMPOSE_DISABLE_ENV_FILE: '1' }
-  const launchArguments = productionComposeArguments(
-    composeEnvironment,
-    gpu ? ['-f', 'compose.gpu.yaml'] : [],
-  )
+  const launchArguments = productionComposeArguments(composeEnvironment, gpuArguments)
   const result = spawnSync('docker', [
     ...launchArguments.slice(0, launchArguments.indexOf('up')),
     'config', '--format', 'json',
@@ -214,7 +212,7 @@ for (const nginx of ['host', 'container']) {
           FREE_TLS_CERT_PATH: certificate,
           FREE_TLS_KEY_PATH: certificate,
           FREE_TRACE_CAPTURE: capture,
-        }, gpu)
+        }, gpu ? ['-f', 'compose.gpu.yaml'] : [])
         assertPhoenixTracing(config, capture)
         assertOwnedParsingTopology(config, gpu)
         assert.equal(config.services['mock-oidc'], undefined)
@@ -245,6 +243,57 @@ test('development tracing: enabled by default with optional LLM input and output
   assertPhoenixTracing(config, 'prompts,responses')
   assert.equal(config.services.studio.environment.NODE_ENV, 'development')
   assert.ok(config.services['mock-oidc'])
+})
+
+test('development never renders as the production project, and a second stack moves its host-wide resources', () => {
+  const { COMPOSE_PROJECT_NAME: _, ...environment } = process.env
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  assert.equal(renderDevelopmentCompose(profile, null, environment).name, 'free-dev')
+  assert.notEqual(renderProductionCompose(completeProductionEnvironment('/tmp/free-test-client.pem')).name, 'free-dev')
+
+  const moved = { FREE_PHOENIX_PORT: '16006', FREE_PROXY_SUBNET_PREFIX: '172.31.252' }
+  const development = renderDevelopmentCompose(profile, null, { ...environment, ...moved })
+  for (const nginx of ['host', 'container']) {
+    const production = renderProductionCompose({
+      ...completeProductionEnvironment('/tmp/free-test-client.pem'), ...moved,
+      FREE_NGINX: nginx, FREE_TLS_CERT_PATH: '/tmp/free-test-client.pem', FREE_TLS_KEY_PATH: '/tmp/free-test-client.pem',
+    })
+    assert.equal(production.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS,
+      nginx === 'container' ? '172.31.252.10' : '172.31.252.1')
+    if (nginx === 'container') assert.equal(production.services.nginx.networks.proxy.ipv4_address, '172.31.252.10')
+    for (const config of [development, production]) {
+      assert.deepEqual(config.networks.proxy.ipam.config, [{ subnet: '172.31.252.0/24' }])
+      assert.equal(String(config.services.phoenix.ports[0].published), '16006')
+    }
+  }
+  assert.equal(development.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS, '172.31.252.0/24')
+})
+
+test('a stack can use another stack\'s model servers, which share nothing else with it', () => {
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  const provider = renderDevelopmentCompose(profile, null, process.env,
+    ['-f', 'compose.gpu.yaml', '-f', 'compose.provide-models.yaml'])
+  const user = renderDevelopmentCompose(profile, null, process.env, parsingGpuComposeArguments({ FREE_GPU: 'shared' }))
+  const onModels = (config) => Object.keys(config.services).filter((name) => 'models' in config.services[name].networks).sort()
+  assert.deepEqual(onModels(provider), ['extraction_model', 'nuextract_model', 'ocr_model'])
+  assert.deepEqual(onModels(user), ['parsing_service', 'parsing_worker', 'studio'])
+  for (const { networks } of [provider, user]) assert.deepEqual([networks.models.name, networks.models.external], ['free-models', true])
+  // The using stack runs no model server, and its clients reach the provider's exactly as compose.gpu.yaml's do.
+  for (const name of onModels(provider)) assert.equal(user.services[name], undefined)
+  for (const name of onModels(user))
+    assert.deepEqual(user.services[name].environment, provider.services[name].environment)
+
+  // In production the proxy network stays Studio's gateway, so its trusted proxy address holds.
+  for (const nginx of ['host', 'container']) {
+    const production = renderProductionCompose({
+      ...completeProductionEnvironment('/tmp/free-test-client.pem'),
+      FREE_NGINX: nginx, FREE_TLS_CERT_PATH: '/tmp/free-test-client.pem', FREE_TLS_KEY_PATH: '/tmp/free-test-client.pem',
+    }, parsingGpuComposeArguments({ FREE_GPU: 'shared' }))
+    assert.deepEqual(onModels(production), ['parsing_service', 'parsing_worker', 'studio'])
+    assert.equal(production.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS,
+      nginx === 'container' ? '172.30.0.10' : '172.30.0.1')
+    assert.equal(production.services.studio.networks.models?.gw_priority, undefined)
+  }
 })
 
 function assertOwnedParsingTopology(config, gpu) {
