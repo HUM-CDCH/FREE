@@ -379,7 +379,7 @@ describe('reopened Source Document workspace', () => {
     else expect(posts[0]).not.toHaveProperty('startPage')
   })
 
-  it('a run re-reads the saved method before posting and hands the admitted Extraction to its controls', async () => {
+  it.each(['schema', 'collapsed'] as const)('a run opens Results from %s after re-reading the saved method and hands the admitted Extraction to its controls', async (panel) => {
     const extractionResponse = Promise.withResolvers<Response>()
     const order: string[] = []
     saved.refresh.mockImplementation(async () => { order.push('refresh'); return saved.state.status === 'ready' ? saved.state : null })
@@ -400,20 +400,24 @@ describe('reopened Source Document workspace', () => {
     // While Run can start, Results' empty state points at it.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByText('Press ▶ Run extraction above.')).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    if (panel === 'collapsed') fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }))
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
     expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Collapse panel' })).toBeVisible()
     // An admitted Extraction is paused or stopped where it was run; Pause is not the screen's positive.
     expect(screen.getByRole('button', { name: '❚❚ Pause extraction' }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
     expect(screen.getByRole('button', { name: '■ Stop' })).toBeEnabled()
   })
 
-  // Decision 04: a run started here that succeeds says so in one toast with "Review now"; a run this page only reopened
-  // (restored while running) says it finished, with nothing offered. Only a re-run started here is called one.
+  // Starting opens Results, so completion names its saved values. A run restored on Schema announces completion there.
   it.each([
-    ['started here', '✓ Extraction complete — review it in the Results tab'],
-    ['re-run here', '↻ Re-run complete — review it in the Results tab'],
+    ['started here', 'Extraction complete — saved values are ready to review.'],
+    ['re-run here', 'Extraction complete — saved values are ready to review.'],
     ['restored while running', '✓ Extraction complete — review it in the Results tab'],
   ] as const)('a run %s that completes while monitored ends in one completion toast', async (origin, message) => {
     // A run started here carries the identity the page made for it.
@@ -449,8 +453,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
       return
     }
-    expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Review now' }))
+    expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -1816,7 +1819,7 @@ describe('reopened Source Document workspace', () => {
       createdAt: '2026-08-10T00:00:00.000Z' }))
     expect(
       await screen.findByText(
-        '↻ Re-run complete — review it in the Results tab',
+        'Extraction complete — saved values are ready to review.',
       ),
     ).toBeVisible()
     expect(extractionRequests).toHaveLength(1)
@@ -2057,8 +2060,8 @@ describe('reopened Source Document workspace', () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
-      // Its completion is a toast with Review now, not a dialog to dismiss (decision 04).
-      expect(await screen.findByRole('button', { name: 'Review now' })).toBeInTheDocument()
+      // Results is already open when the run completes.
+      expect(await screen.findByText('Extraction complete — saved values are ready to review.')).toBeVisible()
       expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
 
       expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')

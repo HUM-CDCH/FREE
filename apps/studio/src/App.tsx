@@ -790,6 +790,8 @@ export function DocumentWorkspace({
   async function runExtraction() {
     if (savingForRun || !extraction.canRun || !sourceRepresentationCurrent) return
     setSavingForRun(true)
+    setRailOpen(true)
+    setRailTab('results')
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
