@@ -47,6 +47,9 @@ export type Route =
       /** The explicit result/decision cut to open the routed Extraction on (a
        *  finalized review or saved-correction link); absent opens its live cut. */
       reviewCut?: SavedReviewCut
+      /** A value link's value (`?value=`), selected once when it arrives. `href`
+       *  never writes it, so a navigation in Studio drops it and a reload keeps it. */
+      value?: string
       /** The Batch Extraction whose members list opened this document, so the
        *  document view can offer a direct way back to it. Pure navigation
        *  metadata — never affects which document snapshot is fetched. */
@@ -140,6 +143,7 @@ export function parseRoute(pathname: string, search = ''): Route {
     const [, projectContextId, sourceDocumentId] = document
     const params = new URLSearchParams(search || inlineSearch)
     const extractionId = params.get('extractionId')
+    const value = params.get('value')
     const fromBatchExtractionId = params.get('fromBatchExtractionId')
     const fromSchemaBuilder = params.get('fromSchemaBuilder') === '1'
     const reviewCut = extractionId ? savedReviewCut(params.toString()) : null
@@ -154,6 +158,7 @@ export function parseRoute(pathname: string, search = ''): Route {
           sourceDocumentId,
           ...(extractionId ? { extractionId } : {}),
           ...(reviewCut ? { reviewCut } : {}),
+          ...(value ? { value } : {}),
           ...(fromBatchExtractionId ? { fromBatchExtractionId } : {}),
           ...(fromSchemaBuilder ? { fromSchemaBuilder: true } : {}),
         }

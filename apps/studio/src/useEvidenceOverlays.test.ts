@@ -29,7 +29,7 @@ describe('focused Evidence navigation', () => {
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
     const { result, rerender } = renderHook(({ document }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument: document, attempt: null,
-      resultPath: null, active: false,
+      active: false,
     }), { initialProps: { document: parsedDocument as typeof parsedDocument | null } })
 
     act(() => result.current(anchor))
@@ -63,8 +63,6 @@ describe('focused Evidence navigation', () => {
       viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
       parsedDocument,
       attempt: null,
-
-      resultPath: null,
       active: false,
     }))
 
@@ -98,7 +96,7 @@ describe('saved Evidence marks across reads', () => {
     const { container, containerRef, viewerRef } = viewerWithPage(anchor)
     const { result, rerender } = renderHook(({ attempt }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument, attempt,
-      resultPath: ['records'], active: true,
+      active: true,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'] } })
     act(() => result.current(anchor))
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
@@ -141,7 +139,7 @@ describe('saved Evidence marks across reads', () => {
       savedLinks: evidenceLinks.map((link) => ({ key: JSON.stringify(link.resultPath), link })) })
     const { result, rerender } = renderHook(({ attempt, marks }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument: source, attempt, marks,
-      resultPath: ['records'], active: true,
+      active: true,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'], marks: marks(null) } })
 
     act(() => result.current(secondAnchor))
@@ -173,7 +171,7 @@ describe('dimming in one-by-one', () => {
     const dimLink: EvidenceLink = { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, ...(precision ? { precision } : {}) }
     const { rerender } = renderHook(({ link }) => useEvidenceOverlays({
       containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
-      parsedDocument, attempt: null, resultPath: null, active: true, dimLink: link,
+      parsedDocument, attempt: null, active: true, dimLink: link,
     }), { initialProps: { link: dimLink as EvidenceLink | null } })
     const shades = container.querySelectorAll<HTMLElement>('.evidence-dim')
     expect(shades).toHaveLength(rectangles)
@@ -199,7 +197,7 @@ describe('dimming in one-by-one', () => {
     document.body.append(container)
     renderHook(() => useEvidenceOverlays({
       containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
-      parsedDocument, attempt: null, resultPath: null, active: true,
+      parsedDocument, attempt: null, active: true,
       dimLink: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision: 'segment' },
     }))
     // In percent of the 612 x 792 pt page: each place grown by 24pt.
@@ -237,7 +235,7 @@ describe('marks select their values', () => {
     renderHook(() => useEvidenceOverlays({
       containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
       attempt: { extractionId: 'x' },
-      resultPath: [], active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect,
+      active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect,
         // Discovery's record start in the same passage has no value to select.
         savedLinks: [{ key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: anchor.anchor_id } },
           ...links.map((link) => ({ key: JSON.stringify(link.resultPath), link }))] },
@@ -271,7 +269,7 @@ describe('mark precision, focus and navigation ownership', () => {
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
     type Props = { attempt: typeof attempt; marks: typeof marks; active?: boolean }
     const hook = renderHook(({ attempt, marks, active = true }: Props) => useEvidenceOverlays({
-      containerRef, viewerRef, parsedDocument, attempt, resultPath: [], active, marks,
+      containerRef, viewerRef, parsedDocument, attempt, active, marks,
     }), { initialProps: { attempt, marks } as Props })
     return { ...hook, attempt, marks, key, container, viewer, anchor }
   }

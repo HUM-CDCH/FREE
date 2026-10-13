@@ -5,6 +5,7 @@ import { useEffect, useState, type ComponentProps } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DurableResults } from './DurableResults'
 import { createDurableReader } from './durableReader'
+import { createSelectionChannel } from './selectionChannel'
 import { durableRequest, readDurable, readDurableHistory } from './durableExtractionApi'
 import { downloadDurableExport } from './durableExport'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -16,11 +17,12 @@ vi.mock('./durableExtractionApi', () => ({
 vi.mock('./durableExport', () => ({ downloadDurableExport: vi.fn() }))
 afterEach(() => { cleanup(); vi.resetAllMocks() })
 
-/** Results with the workspace's reader of its attempt (the real reader over the mocked reads). */
-function Results(props: Omit<ComponentProps<typeof DurableResults>, 'reader'>) {
+/** Results with the workspace's reader of its attempt (the real reader over the mocked reads) and its channel. */
+function Results(props: Omit<ComponentProps<typeof DurableResults>, 'reader' | 'selection'>) {
   const [reader] = useState(() => createDurableReader(props.attempt!))
+  const [selection] = useState(createSelectionChannel)
   useEffect(() => () => reader.dispose(), [reader])
-  return <DurableResults {...props} reader={reader} />
+  return <DurableResults {...props} reader={reader} selection={selection} />
 }
 
 const title = { id: 'title', recordId: 'record', fieldId: 'title', path: ['records', 0, 'title'], selectionId: 'selection', schemaRevisionId: 'schema',

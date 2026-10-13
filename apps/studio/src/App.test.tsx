@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
@@ -890,6 +890,37 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByTitle('Expand panel'))
 
     expect(rail.className).toContain(mobileDrawerWidth)
+  })
+
+  it('opens a value link\'s value once on Results, and a snapshot switch neither opens it again nor errors', async () => {
+    const reviewed = { ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000074',
+      finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }
+    await renderReopened({ latestReviewedExtraction: reviewed, routedValue: { extractionId: reopened.persistedExtraction!.extractionId, key: 'place' } })
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('region', { name: 'Review place' })).toBeVisible()
+    for (const extractionId of [reviewed.extractionId, reopened.persistedExtraction!.extractionId]) {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: extractionId } })
+      expect(await screen.findByText('Elmbrooke')).toBeVisible()
+      expect(screen.queryByRole('region', { name: 'Review place' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    }
+  })
+
+  it('drops a value link\'s request once the route leaves it before the values are read', async () => {
+    const values = Promise.withResolvers<void>()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) await values.promise
+      return durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning'))
+    }))
+    const linked = { ...reopened, routedValue: { extractionId: reopened.persistedExtraction!.extractionId, key: 'place' } }
+    const { rerender } = render(<DocumentWorkspace {...linked} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    // Another value whose Extraction is not known yet: nothing is asked for until it is.
+    rerender(<DocumentWorkspace {...linked} routedValue={{ extractionId: null, key: 'parish' }} />)
+    await act(async () => values.resolve())
+    expect(await screen.findByText('Elmbrooke')).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Review place' })).not.toBeInTheDocument()
   })
 
   it('keeps one-by-one and the document tab\'s review progress while the rail is collapsed', async () => {
