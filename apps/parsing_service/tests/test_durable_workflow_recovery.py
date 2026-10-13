@@ -34,6 +34,9 @@ from kei_exp.workflows import boot,config,durable_extract
 from kei_exp.workflows.cli import _redact_dbos_logs
 from kei_exp.workflows.cli import redacted
 from kei_exp.workflows.coordination import CoordinationPool
+# The first process represents a worker that still recorded the patch marker;
+# its replacement uses deprecate_patch and must keep the saved step positions.
+if os.environ.get('FAULT'):DBOS.deprecate_patch=DBOS.patch
 key=next(key for key,model in EXTRACT_MODELS.items() if model.adapter=='instruct')
 EXTRACT_MODELS[key]=replace(EXTRACT_MODELS[key],url=os.environ['MODEL_URL'])
 DEFAULTS.update(fields=key,reasoning=key)
@@ -143,6 +146,7 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
         before=len(requests)
         with psycopg.connect(**fields) as admin:
             saved=admin.execute('SELECT count(*) FROM extraction_runtime.checkpoint WHERE id IN (SELECT id FROM extraction_runtime.capture WHERE "extractionId"=%s)',[case['id']]).fetchone()[0]
+            assert admin.execute("SELECT count(*) FROM kei_dbos.operation_outputs WHERE workflow_uuid=%s AND function_name='DBOS.patch-extract-wait-first'",[case['workflow']]).fetchone()[0]==1
             # Exercise a real restart while the crashed process's lease still
             # owns the committed-output/DBOS-ack gap. Other fault cases shorten
             # the lease only to keep the rest of the matrix fast.

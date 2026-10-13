@@ -291,7 +291,7 @@ def run_loop(monkeypatch, calls, chunks=2):
         calls.started = workflow_id
         yield
     monkeypatch.setattr(worker.config, "CATALOG_CHUNKS", chunks)
-    monkeypatch.setattr(worker.DBOS, "patch", lambda name: name == "extract-wait-first")
+    monkeypatch.setattr(worker.DBOS, "deprecate_patch", lambda name: name == "extract-wait-first")
     monkeypatch.setattr(worker.DBOS, "start_workflow", calls.start)
     monkeypatch.setattr(worker.DBOS, "wait_first", calls.wait_first)
     monkeypatch.setattr(worker, "SetWorkflowID", named)

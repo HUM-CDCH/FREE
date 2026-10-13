@@ -277,8 +277,8 @@ def extract_workflow(request: dict) -> dict:
     if set(request) != {"protocol", "extraction_id", "attempt_id"} or request["protocol"] != 1:
         return {"ok": False, "reason": "invalid durable attempt"}
     extraction, attempt = request["extraction_id"], request["attempt_id"]
-    if not DBOS.patch("extract-wait-first"):
-        return wait_all(extraction, attempt)
+    # Pre-patch attempts have ended. Consume an existing marker on replay without adding one to new attempts.
+    DBOS.deprecate_patch("extract-wait-first")
     # Each call runs as soon as it is planned, up to CATALOG_CHUNKS per role at once, and the attempt is planned again
     # as soon as one ends: a slow call holds up no other. Nothing is acknowledged while a call it started still runs,
     # so a Pause or a failure keeps every output already admitted.
@@ -336,45 +336,6 @@ def extract_workflow(request: dict) -> dict:
             return stop(False, {"code": "nothing_planned"}, compile_saved=False)
         if not wait():
             return stop(False, {"code": "capture_failed"})
-
-
-def wait_all(extraction: str, attempt: str) -> dict:
-    """An attempt started before `extract-wait-first`: every round's calls run, then all are awaited."""
-    while True:
-        try:
-            work = plan_next(extraction, attempt)
-        except Exception as error:
-            return {"status": acknowledge(extraction, attempt, False, {"code": type(error).__name__})}
-        if work.get("boundary"):
-            return {"status": acknowledge(extraction, attempt, False, None)}
-        if work.get("historicalOnly"):
-            publish_result(extraction, attempt, {"records": [], "completeness": {"processing": True}}, {})
-            return {"status": acknowledge(extraction,attempt,True,None)}
-        if "result" in work:
-            # Result validation/publication is completed by the retained-result
-            # producer before a complete acknowledgement (see publish_result).
-            publish_result(extraction, attempt, work["result"], work["scopes"])
-            from kei_exp.kie.extract.retained import processing_complete
-            processing = processing_complete(work["result"])
-            return {"status": acknowledge(extraction, attempt,processing,None if processing else {"code":"incomplete_processing"})}
-        handles = []
-        for capture in work["pending"]:
-            with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
-                handles.append(DBOS.start_workflow(call_workflow,extraction,attempt,capture))
-        outcomes = []
-        for handle in handles:
-            try:
-                outcomes.append(handle.get_result())
-            except Exception:
-                outcomes.append({"ok": False, "reason": "capture_failed"})
-        if any(not item["ok"] for item in outcomes):
-            # Compile committed responses while admission is halted, so successful
-            # siblings remain visible even when a later native call failed.
-            try:
-                plan_next(extraction,attempt)
-            except Exception:
-                pass
-            return {"status": acknowledge(extraction, attempt, False, {"code": "capture_failed"})}
 
 
 @DBOS.step(name="publishExtractionResultV1")

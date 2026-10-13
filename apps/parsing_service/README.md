@@ -57,8 +57,8 @@ workflows: Studio enqueues `extractDurableV1` on `kei-extract` and
 outside any lane limit. Each planned call starts at once, up to
 `KEI_CATALOG_CHUNKS` per role, and the attempt is planned again as soon as one
 ends; a Pause, Stop or failure is acknowledged only once every call it started
-has ended (`DBOS.patch` `extract-wait-first`; attempts started before it await
-each round's calls together). Attempts reach the coordination schema only through a
+has ended. The retired `extract-wait-first` patch consumes existing markers on
+replay without adding markers to new attempts. Attempts reach the coordination schema only through a
 pool of at most four short calls to allowlisted `extraction_runtime` routines,
 and no pooled connection or transaction spans a model call. After a crash,
 recovery waits up to 40 s for the previous process's 30-second lease to expire:
