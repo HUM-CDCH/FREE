@@ -16,9 +16,9 @@ This module owns only what every call shares:
 - accounting: every attempt, in order, as a `Call`, the artifact's record of a model call. A failed call's `error`
   may quote the start of the server's refusal or of the unreadable reply; it never carries the request.
 
-It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The version 1
-Catalog's one recovery of a record call that looped on whitespace (`looped`) is its caller's (`catalog.py`), made as a
-second `complete`.
+It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The Catalog
+methods' recovery of a record or entry call that looped on whitespace (`looped`) is their caller's, made as a second
+`complete`; durable execution captures that recovery separately.
 
 Each call is also a trace span (Phoenix, docs/operations/local-development.md) under the extraction's DBOS step, with
 its model, tokens, outcome and refused attempts; each request it sends is a child span when the worker instruments
@@ -60,16 +60,32 @@ class Call:
 
 _TRACER = trace.get_tracer("kei")
 WHITESPACE_LOOP = "the reply ran into a whitespace loop"
+# The measured recovery bound: normal calls keep their original decoding policy.
+MAX_WHITESPACE = 16
 CAPTURE = set(os.environ.get("FREE_TRACE_CAPTURE", "").split(","))
 
 
 def _cut_off(text: str) -> str:
-    """A reply the server cut at max_tokens: a whitespace loop when at least half of it is trailing whitespace (constrained
-    decoding admits unlimited whitespace between JSON tokens, and a looping model spends the whole allowance on it)."""
+    """Name whitespace-dominated truncation between JSON tokens, including before a later token.
+    Whitespace inside copied strings is source content, never evidence of a decoding loop."""
+    whitespace, quoted, escaped = 0, False, False
+    for char in text:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif char in " \t\r\n":
+            whitespace += 1
     trailing = len(text) - len(text.rstrip())
-    if text and trailing * 2 >= len(text):
-        return (f"{WHITESPACE_LOOP} ({trailing} of {len(text)} characters trailing whitespace; "
-                "finish_reason length)")
+    if text and whitespace * 2 >= len(text):
+        detail = (f"{trailing} of {len(text)} characters trailing whitespace" if trailing * 2 >= len(text) else
+                  f"{whitespace} of {len(text)} characters whitespace outside JSON strings")
+        return f"{WHITESPACE_LOOP} ({detail}; finish_reason length)"
     return "the reply was cut off (finish_reason length)"
 
 

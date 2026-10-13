@@ -216,6 +216,18 @@ def test_a_reply_that_loops_on_whitespace_is_named_as_such():
     assert "whitespace loop" in (call.error or "") and "finish_reason length" in (call.error or "")
 
 
+def test_a_whitespace_loop_before_another_json_token_is_named_as_such():
+    from kei_exp.kie.extract.calls import _cut_off
+    text = '{"volume":{"value":' + " \r" * 100 + '"quote":'
+    assert "whitespace loop" in _cut_off(text)
+
+
+def test_whitespace_copied_inside_a_quoted_value_is_not_a_decoding_loop():
+    from kei_exp.kie.extract.calls import _cut_off
+    text = '{"quote":"escaped \\\"' + " " * 500 + '\\ntext","value":'
+    assert "whitespace loop" not in _cut_off(text)
+
+
 def test_a_generic_record_call_is_capped_at_2048_tokens():
     chat = FakeChat(lambda s, u, schema: {"entry_no": "31"})
     extract_record(passages()[1:3], SCHEMA, chat, budget=24_000)

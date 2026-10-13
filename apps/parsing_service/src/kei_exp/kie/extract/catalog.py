@@ -24,7 +24,7 @@ import requests
 
 from kei_exp.failures import should_retry
 from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
-from kei_exp.kie.extract.calls import Call, complete, looped
+from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.llm import Chat, bounded
 from kei_exp.kie.extract.models import Router
@@ -60,7 +60,6 @@ Output: {"starts":["B2","B4"],"end":"B6"}
 # 3 October 2026 live calls: a looping record read 3/3 under xgrammar's grammar admitting 16 whitespace characters
 # between JSON tokens, where the same schema through response_format looped 2/2. A server-wide limit changed other
 # records' values, so the bound applies only to a call that already looped.
-MAX_WHITESPACE = 16
 
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,

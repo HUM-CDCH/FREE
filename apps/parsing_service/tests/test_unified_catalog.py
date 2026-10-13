@@ -972,6 +972,148 @@ def test_a_transient_backend_error_ends_the_extraction_for_the_step_retry():
 
 # --- options, records and recovery ---------------------------------------------------------------------------------
 
+
+@pytest.mark.parametrize("recovery_ok", [True, False])
+@pytest.mark.parametrize("internal", [True, False])
+def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, recovery_ok, internal):
+    from json import dumps
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+
+    source = evidence("1. Hill.", "2. Valley.")
+    schema = {"recordDescription": "One numbered place.", "schemaNodes": [
+        {"id": "site", "name": "site", "type": "string"}]}
+    def entry(record, *_):
+        site = record.split()[1].rstrip(".")
+        return {"site": candidate(site, site)}
+    model = Model(source, entry=entry)
+    counter, posted = WordCounter(), []
+    loop = '{"site":{"value":' + " \r" * 100 + ('"quote":' if internal else "")
+    schemas = {}
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
+
+    def post(url, *, json, **kwargs):
+        posted.append(json)
+        system, user = [message["content"] for message in json["messages"]]
+        bounded = "structured_outputs" in json
+        if not bounded:
+            schemas[system] = json["response_format"]["json_schema"]["schema"]
+        is_loop = system.startswith("You extract structured data from one record") and "1. Hill." in section(user, "RECORD")
+        failed = is_loop and (not bounded or not recovery_ok)
+        text = loop if failed else dumps(model(system, user, schemas[system]))
+        return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length" if failed else "stop"}],
+            "usage": {"prompt_tokens": counter.request_tokens(system, user), "completion_tokens": json["max_tokens"] if failed else 20}})
+
+    monkeypatch.setattr(llm.requests, "post", post)
+    result = unified.extract(None, source, request(schema), as_router(llm.OpenAIChat(model="fake/extractor")), counter=counter)
+    entry_calls = [call for call in result["calls"] if call["stage"] == "entry"]
+    assert [(call["ok"], call["recovered"]) for call in entry_calls] == [
+        (False, recovery_ok), (recovery_ok, False), (True, False)]
+    assert result["completeness"]["processing"] is recovery_ok
+    assert result["records"] == [{"site": "Hill" if recovery_ok else None}, {"site": "Valley"}]
+    entry_requests = [body for body in posted if body["messages"][0]["content"].startswith("You extract structured data from one record")]
+    assert len(entry_requests) == 3
+    assert entry_requests[1]["structured_outputs"] == {"grammar": "GRAMMAR 16"}
+    assert "response_format" not in entry_requests[1]
+    assert entry_requests[1]["messages"] == entry_requests[0]["messages"]
+    assert entry_requests[1]["max_tokens"] == entry_requests[0]["max_tokens"] == 4096
+    assert "response_format" in entry_requests[2]
+
+
+@pytest.mark.parametrize("stage, text", [
+    ("entry", '{"site":"cut'),
+    ("discovery", '{"places":' + " " * 100),
+    ("document", '{"title":' + " " * 100),
+])
+def test_only_an_entry_whitespace_loop_gets_a_recovery(monkeypatch, stage, text):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        posted.append(kwargs["json"])
+        return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    monkeypatch.setattr(llm.requests, "post", post)
+    budget = unified._Budget(as_router(llm.OpenAIChat()), dict.fromkeys(("fields", "reasoning"), WordCounter()),
+                             {stage: {"output_tokens": 4096}}, lambda: None)
+    calls, issues = [], []
+    assert budget.ask(stage, 0, "Read", "Source", {"type": "object"}, calls, issues) is None
+    assert len(posted) == len(calls) == 1 and not calls[0].recovered
+
+
+@pytest.mark.parametrize("status", [400, 503])
+def test_recovery_refusal_preserves_the_first_call_or_propagates_a_transient_error(monkeypatch, status):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        body = kwargs["json"]
+        posted.append(body)
+        if "structured_outputs" in body:
+            refused = requests.Response()
+            refused.status_code, refused._content = status, b'{"error":"grammar refused"}'
+            return refused
+        return response(200, {"choices": [{"message": {"content": '{"site":' + " " * 100},
+                                           "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    monkeypatch.setattr(llm.requests, "post", post)
+    monkeypatch.setattr(llm, "bounded_grammar", lambda *_: "GRAMMAR")
+    budget = unified._Budget(as_router(llm.OpenAIChat()), {"fields": WordCounter()},
+                             {"entry": {"output_tokens": 4096}}, lambda: None)
+    calls, issues = [], []
+    if status == 503:
+        with pytest.raises(requests.HTTPError):
+            budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues)
+    else:
+        assert budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues) is None
+        assert len(calls) == 2 and calls[1].error == "HTTPError: HTTP 400"
+        assert all(not call.ok and not call.recovered for call in calls)
+    assert len(posted) == 2
+
+
+def test_cancellation_is_checked_before_an_entry_recovery(monkeypatch):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        posted.append(kwargs["json"])
+        return response(200, {"choices": [{"message": {"content": '{"site":' + " " * 100},
+                                           "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    def check():
+        if posted:
+            raise RuntimeError("cancelled before recovery")
+    monkeypatch.setattr(llm.requests, "post", post)
+    budget = unified._Budget(as_router(llm.OpenAIChat()), {"fields": WordCounter()},
+                             {"entry": {"output_tokens": 4096}}, check)
+    with pytest.raises(RuntimeError, match="cancelled before recovery"):
+        budget.ask("entry", 0, "Read", "Source", {"type": "object"}, [], [])
+    assert len(posted) == 1
+
+
+@pytest.mark.parametrize("mode", ["bounded", "prompt-only"])
+def test_an_already_bounded_or_prompt_only_entry_is_not_recovered(monkeypatch, mode):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        body = kwargs["json"]
+        posted.append(body)
+        if mode == "prompt-only" and "response_format" in body:
+            return response(400, text="response_format json_schema is not supported")
+        return response(200, {"choices": [{"message": {"content": '{"site":' + " " * 100},
+                                           "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    monkeypatch.setattr(llm.requests, "post", post)
+    monkeypatch.setattr(llm, "bounded_grammar", lambda *_: "GRAMMAR")
+    chat = llm.OpenAIChat(max_whitespace=16 if mode == "bounded" else None)
+    budget = unified._Budget(as_router(chat), {"fields": WordCounter()},
+                             {"entry": {"output_tokens": 4096}}, lambda: None)
+    calls, issues = [], []
+    assert budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues) is None
+    assert len(posted) == len(calls) == (1 if mode == "bounded" else 2)
+    assert all(not call.recovered for call in calls)
+
 def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
     with pytest.raises(ValueError, match="character limits"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
