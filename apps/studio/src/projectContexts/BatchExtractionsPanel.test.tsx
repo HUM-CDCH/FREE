@@ -2881,3 +2881,74 @@ describe('BatchExtractionsPanel', () => {
 
 
 })
+
+const pilotSummary = (overrides: Record<string, unknown> = {}) => ({
+  phase: 'validate' as const,
+  extractionCount: 2,
+  extractedSourceDocumentCount: 2,
+  reviewedSourceDocumentCount: 1,
+  staleSourceDocumentCount: 0,
+  schemaDraftCount: 0,
+  schemaStabilised: false,
+  lastActivityAt: '2026-08-14T11:00:00.000Z',
+  runningBatch: null,
+  ...overrides,
+})
+
+const reviewed = { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-08-14T11:00:00.000Z', schemaRevisionId }
+
+it('offers approving a reviewed pilot\'s schema from the history even when the whole project fits in a pilot', async () => {
+  const requests: string[] = []
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?')) return response({
+      batchExtractions: [{ ...batch, members: batch.members.map((member) => publishedMember(member, { currentReview: reviewed })) }],
+    })
+    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+    if (url === '/api/stabilise_schema_revision') {
+      requests.push(String(init?.body))
+      return response({ schemaRevisionId, stabilisedAt: '2026-08-14T12:00:00.000Z' })
+    }
+    const schema = chosenSchemaRead(url); if (schema) return schema
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  const onProgressChange = vi.fn()
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary()}
+    onNavigate={() => {}} onProgressChange={onProgressChange} />)
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Approve for batch extraction' }))
+
+  expect(await screen.findByText('Schema approved')).toBeInTheDocument()
+  expect(JSON.parse(requests[0]!)).toEqual({ projectContextId, schemaRevisionId })
+  expect(onProgressChange).toHaveBeenCalled()
+})
+
+it('guides into reviewing a pilot it watched finish', async () => {
+  let current = { ...batch, executionStatus: 'RUNNING', members: batch.members.map((member) => ({ ...member, executionStatus: 'RUNNING' })) }
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [current] })
+    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  const onNavigate = vi.fn()
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary({ phase: 'extract' })}
+    onNavigate={onNavigate} />)
+  await screen.findByRole('button', { name: /Places/ })
+  expect(screen.queryByText('Pilot Extraction finished')).not.toBeInTheDocument()
+
+  current = { ...batch, members: batch.members.map((member) => publishedMember(member)) }
+  fireEvent(window, new Event('focus'))
+
+  const nudge = (await screen.findByText('Pilot Extraction finished')).closest('[role="status"]') as HTMLElement
+  fireEvent.click(within(nudge).getByRole('button', { name: 'Review results' }))
+  expect(onNavigate).toHaveBeenCalledWith({
+    kind: 'document',
+    projectContextId,
+    sourceDocumentId: failedDocumentId,
+    extractionId,
+    fromBatchExtractionId: batchExtractionId,
+  })
+})
