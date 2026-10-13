@@ -50,7 +50,7 @@ from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
-from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, nearly, normalise, raw_range
+from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, nearly, normalise, printed, raw_range
 from kei_exp.kie.extract.llm import bounded
 from kei_exp.kie.extract.models import ROLE, Router
 from kei_exp.kie.extract.schema import Node, Schema, conform, evidence_policy, json_schema, notes
@@ -78,8 +78,9 @@ ENTRY_VERSION = 4
 # prints it as exactly one occurrence.
 DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
-# Repair of nearly verbatim text: only a free-text value (no number, yes/no, allowed label or derived field) of at least
-# `NEAR` normalised characters, within max(3, length // 50) edits of exactly one place. Measured on one excavation
+# Repair of nearly verbatim text: only a text field's value (not a date, number, yes/no, allowed label or derived field)
+# of at least `NEAR` normalised characters, within max(3, length // 50) edits of exactly one place, and only where
+# verification still decides (an entry's, never a document field's). Measured on one excavation
 # report (13 October 2026, NuExtract3-FP8): copies of 75, 478 and 655 characters were off by 3, 8 and 3 edits.
 NEAR = 40
 # The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
@@ -449,9 +450,9 @@ class _Checker:
     """Checks one window's candidates against `view`: an entry's whole text, or a document window's shown text."""
 
     def __init__(self, view: BlockText, shown: tuple[int, int], window: int, nodes: list[Node],
-                 tables: dict[str, PageTable] | None = None):
+                 tables: dict[str, PageTable] | None = None, *, repair: bool = True):
         self.view, self.shown, self.window, self.nodes = view, shown, window, nodes
-        self.tables = tables or {}
+        self.tables, self.repair = tables or {}, repair
 
     def reply(self, answer: dict) -> list[_Found]:
         return [found for node in self.nodes for found in self._field((node.name,), node, answer.get(node.name))]
@@ -524,8 +525,9 @@ class _Checker:
         return places[0] if len(places) == 1 else None
 
     def _text(self, spans: list[Span]) -> str:
+        """The source text a repaired quote or value stores, as an exact one is compared (`locate.printed`)."""
         start, end = raw_range(self.view, spans)
-        return " ".join(self.view.text[start:end].split())
+        return printed(self.view.text[start:end])
 
     def _scalar(self, path: tuple, node: Node, candidate: Any, item: tuple | None, anchor: tuple | None) -> _Found:
         if not isinstance(candidate, dict):
@@ -540,8 +542,9 @@ class _Checker:
         found.value = typed
         # A list item's values are its own occurrence's first: a cell printed in several rows is this row's.
         own = raw_range(self.view, [Span(segment_id=s, start=a, end=b) for s, a, b in anchor]) if anchor else None
-        free = isinstance(typed, str) and node.allowed_values is None and \
-            evidence_policy(self.nodes, _field_path(path)) != "derived"
+        passage = isinstance(typed, bool) or node.allowed_values is not None or \
+            evidence_policy(self.nodes, _field_path(path)) == "derived"  # a passage may support it, unprinted
+        free = self.repair and node.type in ("string", "verbatim-string") and not passage
         quoted = []
         if found.quote and found.quote.strip():
             quoted = (self._places(quote, own) if own else []) or self._places(quote)
@@ -564,8 +567,7 @@ class _Checker:
             literal, found.value, found.repaired = [near], self._text(near), True
         if literal:
             found.support, found.spans, found.alternatives = "literal", literal[0], literal[1:]
-        elif isinstance(typed, bool) or node.allowed_values is not None or \
-                evidence_policy(self.nodes, _field_path(path)) == "derived":
+        elif passage:
             found.support, found.spans, found.alternatives = "supporting", quoted[0], quoted[1:]
         else:
             found.reason, found.spans = "value_not_in_quote", quoted[0]
@@ -716,8 +718,8 @@ class _Run:
                 first, last = (*window.before, *window.primary)[0], (*window.primary, *window.after)[-1]
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
                 found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
-        out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *each.path))
-                       for each in found if each.repaired]
+        out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
+                       for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, "candidate"), self.nodes)
@@ -828,8 +830,7 @@ class _Run:
             if answer is None:
                 continue
             shown = [*window.before, *window.primary, *window.after]
-            found = _Checker(_view(shown, self.texts), (0, 0), index, nodes, self.tables).reply(answer)
-            out.issues += [Issue("quote_repaired", REPAIRED, None, each.path) for each in found if each.repaired]
+            found = _Checker(_view(shown, self.texts), (0, 0), index, nodes, self.tables, repair=False).reply(answer)
             out.found += found
             per_window.append(conform(_placed(found, "candidate"), nodes))
             shown_units.append(shown)

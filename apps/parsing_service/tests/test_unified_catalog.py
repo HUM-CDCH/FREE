@@ -789,9 +789,9 @@ def test_an_item_whose_value_is_also_printed_at_a_window_cut_is_kept_whole():
 NOTES = {"recordDescription": "One entry.", "schemaNodes": [
     {"id": "n", "name": "notes", "type": "string"}, {"id": "s", "name": "site", "type": "string"},
     {"id": "c", "name": "count", "type": "integer"}]}
-PARAGRAPH = ("The pit was first read as much larger than it really was, because the subsoil was mottled; after cleaning "
-             "it was photographed, drawn and levelled, and measured again with a satellite receiver. Bones lay in the "
-             "surface, so it was dug only with trowels and spatulas; a little skeleton was left above the floor.")
+PARAGRAPH = ("The harbour master noted that the north quay had been repainted twice that spring, once in grey and once "
+             "in a pale green that nobody liked; the fishing boats were moved to the outer basin while the paint dried, "
+             "and the ferry kept to its winter timetable, as it did every year until the first week of May.")
 
 
 def noted(notes, site=None, count=None):
@@ -801,9 +801,9 @@ def noted(notes, site=None, count=None):
 
 
 @pytest.mark.parametrize(("value", "quote"), [
-    (PARAGRAPH, PARAGRAPH.replace("much ", "")),                                    # a word dropped from the quote
-    (PARAGRAPH.replace("levelled", "levelledasi"), PARAGRAPH.replace("levelled", "levelledasi")),  # a corrupt end
-    (PARAGRAPH.replace("was first", "is first"), PARAGRAPH),                        # the value reworded in its quote
+    (PARAGRAPH, PARAGRAPH.replace("pale ", "")),                                    # a word dropped from the quote
+    (PARAGRAPH.replace("timetable", "timetableasi"), PARAGRAPH.replace("timetable", "timetableasi")),  # a corrupt end
+    (PARAGRAPH.replace("had been", "has been"), PARAGRAPH),                         # the value reworded in its quote
 ])
 def test_text_copied_nearly_verbatim_is_the_source_text(value, quote):
     source = evidence(f"1. Adorf. {PARAGRAPH}")
@@ -818,14 +818,22 @@ def test_text_copied_nearly_verbatim_is_the_source_text(value, quote):
 @pytest.mark.parametrize(("text", "answer", "reason"), [
     ("1. Adorf. Fund in Bdorf.", noted(None, site=candidate("Cdorf", "Fund in Cdorf")), "quote_not_in_source"),
     ("1. Adorf. 26 Stück.", noted(None, count=candidate(27, "27 Stück")), "quote_not_in_source"),
-    (f"1. Adorf. {PARAGRAPH} {PARAGRAPH.replace('mottled', 'mottlex')}",
-     noted(candidate(PARAGRAPH.replace("much ", ""), PARAGRAPH.replace("much ", ""))), "quote_not_in_source"),
+    (f"1. Adorf. {PARAGRAPH} {PARAGRAPH.replace('pale ', '').replace('winter', 'wintry')}",
+     noted(candidate(PARAGRAPH.replace("pale ", ""), PARAGRAPH.replace("pale ", ""))), "quote_not_in_source"),
 ])
 def test_short_numeric_or_ambiguous_text_is_never_repaired(text, answer, reason):
     """A short value, a number one edit off, and a quote nearly printed in two places stay refused."""
     source = evidence(text)
     result, _ = extract(source, Model(source, entry=answer), schema=NOTES)
     assert [row["reason"] for row in result["rejected"]] == [reason]
+    assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
+
+
+def test_a_document_field_is_never_repaired_since_nothing_verifies_it():
+    source = evidence(f"{PARAGRAPH}\n1. Adorf. Material: Holz.")
+    near = PARAGRAPH.replace("pale ", "")
+    result, _ = extract(source, Model(source, document=lambda text: {"title": candidate(near, near)}))
+    assert result["records"][0]["title"] is None
     assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
 
 
