@@ -187,6 +187,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   call: a generic Catalog record call that looped on whitespace and was read on
   its one bounded-grammar retry is kept, failed, with `recovered: true`, and
   does not by itself make the result incomplete.
+  Unified Catalog entry calls use the same one-retry policy for whitespace
+  loops between JSON tokens, including before a later token. Durable recovery
+  preserves the original source, guidance and budgets; Retry reuses the saved
+  recovery and completed entries.
 - The task scope is the schema's `recordScope` (`document` for Article,
   `records` for a Catalog; `tests/fixtures/contracts/record-scope.json`). A
   declared scope must match `options.strategy`; an undeclared one (CLI,

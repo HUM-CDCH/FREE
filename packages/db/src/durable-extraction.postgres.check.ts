@@ -213,6 +213,12 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,bounded:true},
     {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,promptOnly:true},
     {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,mixed:true},
+    {unified:true,stage:'entry',finish:'length',intent:'RUN',recoverable:true,whitespace:true},
+    {unified:true,stage:'entry',finish:'length',intent:'PAUSE',recoverable:true,whitespace:true},
+    {unified:true,stage:'entry',finish:'length',intent:'STOP',recoverable:true,whitespace:true},
+    {unified:false,stage:'entry',finish:'length',intent:'RUN',recoverable:false,whitespace:true},
+    {unified:true,stage:'entry',finish:'stop',intent:'RUN',recoverable:false,whitespace:true},
+    {unified:true,stage:'entry',finish:'length',intent:'RUN',recoverable:false,whitespace:true,mixed:true},
   ]) {
     const id=randomUUID(),selected=randomUUID(),active=randomUUID(),captureId=randomUUID()
     await owner.query(`INSERT INTO extraction_runtime.head
@@ -227,8 +233,10 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     await invoke('resolve_selection',[id,active,lease.epoch,configuration])
     const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
       {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])
-    await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',{...descriptor,planDigest:savedPlan.digest}])
+    const policyDescriptor={...descriptor,stage:policy.stage,planDigest:savedPlan.digest}
+    await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',policyDescriptor])
     const policyBody=structuredClone(body)
+    policyBody.body.stage=policy.stage
     if(policy.whitespace)Object.assign(policyBody.body.httpRequest,
       {response_format:{type:'json_schema',json_schema:{name:'reply',schema:{type:'object'},strict:true}}})
     if(policy.bounded){
@@ -258,13 +266,13 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
       const derivedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'bounded',derivedManifest])
       if(policy.whitespace&&policy.recoverable){
         const derived=await invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
-          {...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+          {...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
         const original=await invoke('read_call',[id,active,lease.epoch,captureId])
         assert.equal(derived.feedbackVersion,original.capture.feedbackVersion)
         assert.deepEqual(derived.candidates,original.capture.candidates)
       }else if(policy.recoverable){
         await assert.rejects(invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
-          {...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),(e:{code?:string})=>e.code==='22023')
+          {...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),(e:{code?:string})=>e.code==='22023')
       }
     }
     // Retry/Resume continues the bounded recovery: the original whitespace failure stays visible to later
@@ -278,27 +286,28 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
       if(policy.intent==='RUN'){
         const bounded=await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
         assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
-        const failed=await invoke('commit_output',[id,attempt,epoch,derivedId,bounded.digest,{parsed:null,calls:[{ok:false,stage:'record',finish:'length',
+        const failed=await invoke('commit_output',[id,attempt,epoch,derivedId,bounded.digest,{parsed:null,calls:[{ok:false,stage:policy.stage,finish:'length',
           error:'the reply ran into a whitespace loop (16 of 20 characters trailing whitespace; finish_reason length)'}]}])
-        assert.equal(failed.recoverable,false)
+        assert.equal(failed.recoverable,policy.unified)
+        assert.equal(failed.recovery,null)
       }else{
         // A pause between the recovery's plan and its capture: Resume must reuse that plan.
         await owner.query(`UPDATE extraction_runtime.head SET intent='RUN' WHERE id=$1`,[id])
         const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
         await owner.query(`UPDATE extraction_runtime.head SET intent='PAUSE' WHERE id=$1`,[id])
-        assert.equal(await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),null)
+        assert.equal(await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),null)
       }
       for(const fence of [2,3]){
         attempt=randomUUID()
         await owner.query('INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,$4,$5)',[attempt,id,selected,fence,`test:${attempt}`])
         await owner.query(`UPDATE extraction_runtime.head SET "attemptId"=$2,fence=$3,intent='RUN',acknowledgement='QUEUED',"leaseOwner"=NULL,"leaseUntil"=NULL WHERE id=$1`,[id,attempt,fence])
         epoch=(await invoke('claim',[id,attempt,randomUUID()])).epoch
-        const original=await invoke('capture_unit',[id,attempt,epoch,randomUUID(),'policy',{...descriptor,planDigest:savedPlan.digest}])
+        const original=await invoke('capture_unit',[id,attempt,epoch,randomUUID(),'policy',policyDescriptor])
         assert.equal(original.id,captureId)
         assert.equal(original.checkpoint.outputDigest,committed.outputDigest)
         assert.equal(original.checkpoint.recovery,'whitespace')
         const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
-        const derived=await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...descriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+        const derived=await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
         assert.equal(derived.id,derivedId)
         if(fence===3){
           assert.deepEqual(derived.checkpoint.output.parsed,{flag:true})

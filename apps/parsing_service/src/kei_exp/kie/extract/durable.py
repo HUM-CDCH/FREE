@@ -13,7 +13,7 @@ from copy import deepcopy
 from dataclasses import replace
 from uuid import uuid4
 
-from kei_exp.kie.extract.calls import Call, looped
+from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, looped
 from kei_exp.kie.extract.models import ROLE
 from kei_exp.kie.extract.tokens import counter_for
 
@@ -165,10 +165,10 @@ class CapturePlanner:
             output = capture["checkpoint"]["output"]
             if output.get("formatRefused"):
                 return self._fallback(capture,key)
-            if (capture["checkpoint"].get("recovery") == "whitespace" and stage == "record"
+            if (capture["checkpoint"].get("recovery") == "whitespace" and stage in ("record", "entry")
                     and output.get("calls") and looped(Call(**output["calls"][-1]))
                     and "response_format" in capture["input"]["request"]["body"].get("httpRequest", {})):
-                return self._fallback(capture, key, max_whitespace=16)
+                return self._fallback(capture, key, max_whitespace=MAX_WHITESPACE)
             return output["parsed"], [Call(**call) for call in output["calls"]]
         if capture["input"] is None:
             counter = counter or self.counters.get(ROLE[stage]) or counter_for(chat)

@@ -515,7 +515,8 @@ def test_format_fallback_is_a_separate_capture_with_the_original_input():
 
 
 @pytest.mark.parametrize("recovery_ok", [True, False])
-def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_inputs(monkeypatch, recovery_ok):
+@pytest.mark.parametrize("stage", ["record", "entry"])
+def test_whitespace_loop_gets_one_captured_recovery_with_unchanged_inputs(monkeypatch, recovery_ok, stage):
     from kei_exp.kie.extract import captured_provider, llm
     from kei_exp.kie.extract.schema import Schema
     from kei_exp.kie.extract.stages import extract_record
@@ -530,10 +531,17 @@ def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_input
     loop = '{"year":' + ' \r' * 64
     monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
 
-    def plan():
-        planner = CapturePlanner(lease, {"fields": counter})
-        return extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
-            Router(chat, chat, planner), budget=48000, record=0, counter=counter, document=True)
+    def plan(planner=None):
+        planner = planner or CapturePlanner(lease, {"fields": counter})
+        router = Router(chat, chat, planner)
+        if stage == "record":
+            return extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
+                                  router, budget=48000, record=0, counter=counter, document=True)
+        attempts, issues = [], []
+        budget = unified._Budget(router, {"fields": counter}, {"entry": {"output_tokens": 4096}}, lambda: None)
+        answer = budget.ask("entry", 0, "Read a year", "Published in 2020.",
+                            unified.candidates_schema(Schema.model_validate(tree).record_nodes), attempts, issues)
+        return {"year": answer["year"]["value"] if answer else None}, attempts, issues
 
     def execute(unit, text, finish):
         request = unit["input"]["request"]
@@ -572,7 +580,8 @@ def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_input
     assert recovery["input"]["request"] == expected
     assert recovery["descriptor"]["derivedFrom"] == parent["id"]
     assert recovery["candidates"] == parent["candidates"]
-    execute(recovery, '{"year":2020}' if recovery_ok else loop, "stop" if recovery_ok else "length")
+    answer = '{"year":2020}' if stage == "record" else '{"year":{"value":2020,"quote":"2020"}}'
+    execute(recovery, answer if recovery_ok else loop, "stop" if recovery_ok else "length")
     fields, attempts, issues = plan()
     assert fields == {"year": 2020 if recovery_ok else None}
     assert len(attempts) == len(posted) == len(lease.units) == 2
@@ -591,10 +600,9 @@ def test_article_whitespace_loop_gets_one_captured_recovery_with_unchanged_input
     else:
         planner = CapturePlanner(lease, {"fields": counter})
         with pytest.raises(NeedsCall):
-            extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
-                           Router(chat, chat, planner), budget=48000, record=0, counter=counter, document=True)
+            plan(planner)
         assert list(planner.pending) == [recovery["id"]]
-        execute(recovery, '{"year":2020}', "stop")
+        execute(recovery, answer, "stop")
         assert plan()[0] == {"year": 2020}
     assert len(posted) == (2 if recovery_ok else 3)
     assert len(lease.units) == 2 and lease.plans == plans and parent == frozen
