@@ -94,20 +94,25 @@ NEAR = 40
 # version with `"windows": "column"`, once `experiments/extraction/discovery_windows.py --windows column` holds on more
 # than this one catalogue. 3: version 2, pipelined: a durable run reads the entries of the windows already read while
 # later windows are still asked, and verifies them once discovery has ended (`extract`); the artifact is version 2's
-# but for its execution record.
+# but for its execution record. 4: version 3, and an entry's reply may use the served context its counted input leaves,
+# its reserve the floor that still sizes the windows (`_Budget.ask`); an explicit reply override or a native fields
+# model keeps the reserve. Measured on one excavation report (13 October 2026, NuExtract3-FP8, 32768-token context): a
+# record whose reply passed the 4096-token reserve was read again in halves, and an item at their cut was lost.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
                 "windows": "page"},
             3: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page", "pipelined": True}}
+                "windows": "page", "pipelined": True},
+            4: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
+                "windows": "page", "pipelined": True, "entry_reply": "context"}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3]
+    defaults: Literal[1, 2, 3, 4]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -134,6 +139,7 @@ class _Budget:
     counters: dict
     stages: dict[str, dict]  # stage -> {role, input_tokens, output_tokens}
     check: Callable[[], None]
+    spare: frozenset[str] = frozenset()  # stages whose reply may use the context their counted input leaves
 
     def fits(self, stage: str, system: str, user: str, schema: dict) -> bool:
         return self.counters[ROLE[stage]].request_tokens(system, user, schema) <= self.stages[stage]["input_tokens"]
@@ -146,10 +152,15 @@ class _Budget:
         self.check()
         clock = time.monotonic()
         attempts = []
+        counter, ceiling, floor = self.counters[ROLE[stage]], self.stages[stage]["output_tokens"], None
         try:
+            if stage in self.spare:  # a durable call's reply is trimmed to what its input leaves once it is captured
+                floor = ceiling
+                ceiling = counter.context_tokens if self.chat.runtime is not None else \
+                    max(floor, counter.context_tokens - counter.request_tokens(system, user, schema))
             answer, attempts = complete(self.chat, stage=stage, record=record, system=system, user=user,
-                                        schema=schema, max_tokens=self.stages[stage]["output_tokens"],
-                                        counter=self.counters[ROLE[stage]], unit=unit)
+                                        schema=schema, max_tokens=ceiling, counter=counter,
+                                        minimum_reply_tokens=floor, unit=unit)
             # Durable recovery reuses the finalized parent input in CapturePlanner; it must not be recomposed here.
             recovery = (bounded(self.chat.fields, MAX_WHITESPACE) if self.chat.runtime is None and stage == "entry"
                         and len(attempts) == 1 and looped(attempts[-1])
@@ -158,8 +169,8 @@ class _Budget:
                 self.check()
                 clock = time.monotonic()
                 answer, again = complete(replace(self.chat, fields=recovery), stage=stage, record=record,
-                    system=system, user=user, schema=schema, max_tokens=self.stages[stage]["output_tokens"],
-                    counter=self.counters[ROLE[stage]], unit=unit)
+                    system=system, user=user, schema=schema, max_tokens=ceiling, counter=counter,
+                    minimum_reply_tokens=floor, unit=unit)
                 if again[-1].ok:
                     attempts[-1] = replace(attempts[-1], recovered=True)
                 attempts += again
@@ -170,8 +181,7 @@ class _Budget:
             answer = None
             attempts += [Call(stage, record, None, None, time.monotonic() - clock, None, False,
                                            type(error).__name__ + (f": HTTP {status}" if status else ""), None,
-                                           self.counters[ROLE[stage]].context_tokens,
-                                           self.stages[stage]["output_tokens"])]
+                                           counter.context_tokens, ceiling)]
         # A call an earlier attempt saved under a unit carries the number its entry had then.
         calls += attempts if unit is None else [replace(call, record=record) for call in attempts]
         if not attempts[-1].ok:
@@ -209,8 +219,11 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
-            | {name: value for name, value in DEFAULTS[options.defaults].items() if name in ("windows", "pipelined")}
-            | {"stages": stages} | ({"headings": False, "verification": False} if native else {}),
+            | {name: value for name, value in DEFAULTS[options.defaults].items()
+               if name in ("windows", "pipelined", "entry_reply")}
+            | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
+            | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
+               and (native or options.output_tokens) else {}),
             "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -267,7 +280,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     execution = _execution(evidence, schema, options, chat, counters)
     execution_sha256 = digest(execution)
     effective = execution["effective"]
-    budget = _Budget(chat, counters, effective["stages"], check)
+    budget = _Budget(chat, counters, effective["stages"], check,
+                     frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
     from kei_exp.kie.extract.durable import Boundary, NeedsCall
     from kei_exp.kie.extract.retained import discovering, plan_execution, plan_records, saved_record
     # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose

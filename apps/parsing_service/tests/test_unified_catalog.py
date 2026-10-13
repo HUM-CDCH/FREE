@@ -733,6 +733,26 @@ def test_an_unfittable_minimum_request_is_refused():
         extract(source, input_tokens=512, output_tokens=64, schema={**SCHEMA, "recordDescription": "x " * 499})
 
 
+def test_from_defaults_4_an_entry_reply_may_use_the_context_its_input_leaves():
+    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    result, chat = extract(source, defaults=4)
+    entries = [call for call in chat.calls if call["system"].startswith("You extract structured")]
+    assert entries and [call["max_tokens"] for call in entries] == [
+        WordCounter.context_tokens - WordCounter().request_tokens(call["system"], call["user"], call["schema"])
+        for call in entries]
+    assert {call["max_tokens"] for call in chat.calls if call not in entries} <= {4096, 2048, 512}
+    assert result["execution"]["effective"]["entry_reply"] == "context"
+    assert [record["material"] for record in result["records"]] == ["Holz", "Stein"]
+
+
+@pytest.mark.parametrize(("settings", "reply", "effective"), [
+    ({"defaults": 3}, 4096, None), ({"defaults": 4, "output_tokens": 1000}, 1000, "reserve")])
+def test_earlier_defaults_or_an_explicit_reply_keep_the_entry_reply_at_its_reserve(settings, reply, effective):
+    result, chat = extract(evidence("1. Adorf. Material: Holz."), **settings)
+    assert {call["max_tokens"] for call in chat.calls if call["system"].startswith("You extract structured")} == {reply}
+    assert result["execution"]["effective"].get("entry_reply") == effective
+
+
 def test_an_input_ceiling_beyond_the_served_context_is_refused_not_clamped():
     with pytest.raises(unified.BudgetRefused, match="exceed"):
         extract(evidence("1. Adorf."), input_tokens=16_384, output_tokens=64)

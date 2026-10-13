@@ -191,7 +191,8 @@ class CapturePlanner:
             if examples:
                 system += self._guidance(examples)
             count = counter.request_tokens(system, user, schema)
-            # Article's reply may use spare capacity; its required floor wins
+            # A reply that may use spare capacity (Article's root, a unified
+            # Catalog entry from defaults 4) keeps its required floor; it wins
             # over examples, then the final reply gets the remaining capacity.
             if minimum_reply_tokens is not None:
                 reserve = min(reserve, context - count)
