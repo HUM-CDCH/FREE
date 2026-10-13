@@ -48,6 +48,9 @@ x-parsing-runtime: &parsing-runtime
     # instruction model at another OpenAI-compatible vLLM endpoint.
     KEI_EXTRACT_URL: "${KEI_EXTRACT_URL:-http://extraction_model:8000/v1/chat/completions}"
     KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+    # Optional additional instruction model; it does not replace the default above.
+    KEI_MINICPM_URL: "${KEI_MINICPM_URL:-}"
+    KEI_MINICPM_MODEL: "${KEI_MINICPM_MODEL:-openbmb/MiniCPM-V-4.7-35B-A3B-FP8}"
     HF_HOME: /models/huggingface
     HF_TOKEN: "${HF_TOKEN:-}"
   volumes:
@@ -164,6 +167,7 @@ services:
       # on this server's own CLI login and billing, so none is enabled unless
       # the operator sets it; the development overlay enables both.
       FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
+      FREE_DEPLOYMENT_MINICPM_URL: "${FREE_DEPLOYMENT_MINICPM_URL:-}"
       # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
       # recipe Catalog. Set it only after the unified method passes a held-out evaluation (docs/operations/deployment.md).
       FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"

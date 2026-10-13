@@ -159,6 +159,36 @@ that its CUDA kernels or model architecture work. For extraction's
 `Qwen/Qwen3.8-27B-FP8` (the `qwen3_5` architecture), the image must also
 support that architecture and FP8 on the target GPU.
 
+#### MiniCPM alongside Qwen
+
+Keep `KEI_EXTRACT_MODEL` and the deployment instruction connection pointing at
+Qwen. Start a separate vLLM server serving
+`openbmb/MiniCPM-V-4.7-35B-A3B-FP8`, then configure its container-reachable URLs:
+
+```dotenv
+KEI_MINICPM_URL=http://<minicpm-host>:8000/v1/chat/completions
+KEI_MINICPM_MODEL=openbmb/MiniCPM-V-4.7-35B-A3B-FP8
+FREE_DEPLOYMENT_MINICPM_URL=http://<minicpm-host>:8000/v1
+```
+
+Restart the parsing API/worker and Studio to expose both models. MiniCPM is an
+optional Extraction Model Choice for either role and a read-only deployment
+Model Connection for Assistant and Schema Suggestion. Qwen stays the default
+instruction model; NuExtract stays the default field model. Existing explicit
+routes and extraction choices are not rewritten.
+
+The official [FP8 checkpoint](https://huggingface.co/openbmb/MiniCPM-V-4.7-35B-A3B-FP8)
+has about 38 GB of checkpoint tensors. Its vLLM image must support
+`MiniCPMV4_7ForConditionalGeneration`, compatible Transformers and FP8 kernels
+on the target GPU. Use `--language-model-only` for FREE's text calls and
+`--served-model-name` matching `KEI_MINICPM_MODEL`, including when loading from
+an offline cache. This does not replace OCR or enable image-based extraction.
+Allow memory for both models, their KV caches, OCR and NuExtract; on a shared
+GPU, validate startup, `/tokenize`, structured chat output and representative
+extractions before serving researchers. The active 3B parameter count does
+not reduce the resident checkpoint to 3B parameters.
+
+
 `OCR_KV_CACHE_BYTES` (default 4G) sizes the OCR server's KV cache; with a cache
 size set, vLLM ignores `OCR_GPU_MEMORY_UTILIZATION`. The context is 24,576
 tokens with up to `OCR_MAX_NUM_SEQS` (default 4) simultaneous sequences. The
