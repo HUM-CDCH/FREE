@@ -11,6 +11,7 @@ import {
   type EvidenceOccurrence,
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
+import { scrollWithinPane } from './scrollWithinPane'
 
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision'] }
@@ -134,26 +135,6 @@ function removeOverlays(container: HTMLElement | null, className: string) {
 }
 
 /**
- * Scrolls the viewer once, straight to the overlay. pdf.js renders pages as
- * they enter the scroll container, so animating across pages competes with
- * that rendering and stutters; a long jump therefore lands instantly and only
- * a hop inside the current view glides.
- */
-function scrollOverlayIntoView(container: HTMLElement, overlay: HTMLElement) {
-  const view = container.getBoundingClientRect()
-  const target = overlay.getBoundingClientRect()
-  const deltaY = target.top - view.top - (view.height - target.height) / 2
-  const deltaX = target.left - view.left - (view.width - target.width) / 2
-  if (Math.abs(deltaY) < 2 && Math.abs(deltaX) < 2) return
-  container.scrollTo({
-    top: container.scrollTop + deltaY,
-    left: container.scrollLeft + deltaX,
-    behavior: Math.abs(deltaY) > view.height || Math.abs(deltaX) > view.width ? 'auto' : 'smooth',
-  })
-}
-
-
-/**
  * Owns persistent result-path painting and focused-anchor navigation. The
  * workspace supplies the inspected attempt, partial links, schema field names,
  * and viewer refs; occurrence filtering, repaint, scroll, and cleanup stay here.
@@ -178,18 +159,24 @@ export function useEvidenceOverlays({
   marks?: RailMarks | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
-  // Closing the rail's selection returns the page to every mark: its focus goes with it. Only that transition clears,
-  // so the Evidence tab's focus, painted with nothing selected, survives the marks repainting.
+  const focusedAnchor = useRef<string | null>(null)
+  // An Evidence click changes the selected value without navigating the source.
+  // Retire the old focus if it belongs to another passage; a freshly located
+  // result's focus and the Evidence tab's own focus survive background repaints.
   const selected = marks?.selected ?? null
   const previousSelected = useRef(selected)
   useEffect(() => {
-    if (previousSelected.current !== null && selected === null) {
+    const anchors = marks?.savedLinks?.filter(({ key }) => key === selected).map(({ link }) => link.evidenceAnchorId)
+      ?? [selected ? marks?.describe.get(selected)?.anchorId : null]
+    const switchedPassage = focusedAnchor.current !== null && !anchors.includes(focusedAnchor.current)
+    if (previousSelected.current !== selected && (selected === null || switchedPassage)) {
       stopFocusedPaint.current?.()
       stopFocusedPaint.current = null
+      focusedAnchor.current = null
       removeOverlays(containerRef.current, 'parsed-evidence-focus')
     }
     previousSelected.current = selected
-  }, [containerRef, selected])
+  }, [containerRef, marks, selected])
   useEffect(() => {
     const container = containerRef.current
     const viewer = viewerRef.current
@@ -229,7 +216,7 @@ export function useEvidenceOverlays({
     const paint = () => {
       const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
         .map((element) => [element.dataset.occurrenceId!, element]))
-      // One mark per occurrence, carrying every value its passage supports (several open a popover).
+      // One mark per occurrence, carrying every value its passage supports.
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue
@@ -291,8 +278,10 @@ export function useEvidenceOverlays({
       const container = containerRef.current
       stopFocusedPaint.current?.()
       stopFocusedPaint.current = null
+      focusedAnchor.current = null
       removeOverlays(container, 'parsed-evidence-focus')
       if (!viewer || !container || !parsedDocument) return
+      focusedAnchor.current = anchor.anchor_id
       // The rail narrows a correction's anchor to its selected occurrences before it asks.
       const occurrences = anchorOccurrences(anchor)
       const firstOccurrence = occurrences[0]
@@ -318,7 +307,7 @@ export function useEvidenceOverlays({
       viewer.eventBus?.on('pagerendered', paintFocus)
       stopFocusedPaint.current = () => viewer.eventBus?.off('pagerendered', paintFocus)
       const firstFocus = paintFocus()
-      if (firstFocus) scrollOverlayIntoView(container, firstFocus)
+      if (firstFocus) scrollWithinPane(container, firstFocus)
       else viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     },
     [containerRef, parsedDocument, viewerRef],

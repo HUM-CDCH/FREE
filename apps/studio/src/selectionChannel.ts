@@ -3,7 +3,7 @@ import type { RailMarkState } from './useEvidenceOverlays'
 
 /** A value the workspace asks Results to select, for one Extraction: a value link's (`navigate`, which shows its
  *  Evidence) or a mark's. `seq` names the request; Results acts on it once. */
-export type SelectionRequest = { key: string; navigate: boolean; seq: number; extractionId: string }
+export type SelectionRequest = { key: string; navigate: boolean; seq: number; extractionId: string; linkedKeys?: readonly string[] }
 /** The shown Results' values for the document's marks, with the Extraction they belong to. */
 export type PublishedMarks = RailMarkState & { extractionId: string }
 export type SelectionSnapshot = { request: SelectionRequest | null; marks: PublishedMarks | null; dim: EvidenceLink | null }
@@ -30,9 +30,9 @@ export function createSelectionChannel() {
     },
     snapshot: () => snapshot,
     /** Replaces any pending request; returns its `seq`. */
-    select(key: string, navigate: boolean, extractionId: string) {
+    select(key: string, navigate: boolean, extractionId: string, linkedKeys?: readonly string[]) {
       seq += 1
-      set({ request: { key, navigate, seq, extractionId } })
+      set({ request: { key, navigate, seq, extractionId, ...(linkedKeys ? { linkedKeys } : {}) } })
       return seq
     },
     /** Clears the request only while it is still `requestSeq`'s. */

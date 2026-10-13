@@ -21,20 +21,28 @@ const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">
  * The list: one component for both phases, records keyed by their index so settlement
  * moves nothing; a document's fields once above them; an Article's one record flat. The caller renders each row.
  */
-export default function ReviewList({ model, article, finding, filter, selectedKey, isOpen, onToggle, renderRow }: {
+export default function ReviewList({ model, article, finding, filter, selectedKey, linkedKeys, isOpen, onToggle, renderRow }: {
   model: RailModel
   article: boolean
   /** Before discovery: the one block that becomes the list. */
   finding: boolean
   filter: ValueFilter
   selectedKey: string | null
+  linkedKeys: ReadonlySet<string>
   isOpen: (record: RailRecord) => boolean
   onToggle: (record: RailRecord) => void
   renderRow: (row: RailRow, pinned: boolean) => ReactNode
 }) {
   const rowsOf = (rows: readonly RailRow[]) => rows.flatMap((row) => {
     const passes = passesFilter(row, filter)
-    return passes || row.key === selectedKey ? [<div key={row.key}>{renderRow(row, !passes)}</div>] : []
+    const linked = linkedKeys.has(row.key)
+    return passes || row.key === selectedKey || linked ? [
+      <div key={row.key} data-result-key={row.key} data-evidence-linked={linked || undefined}
+        className={linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : undefined}>
+        {linked && <span className="sr-only">Linked to the selected passage</span>}
+        {renderRow(row, !passes)}
+      </div>,
+    ] : []
   })
   if (finding) return (
     <div className={`${section} flex flex-col gap-2.5 p-3`}>
