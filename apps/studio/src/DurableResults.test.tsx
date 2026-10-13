@@ -604,6 +604,32 @@ it('reveals and scrolls shared Evidence in a collapsed record through a filter, 
   } finally {geometry.mockRestore()}
 })
 
+it('lights the rows of values hovered on the page, a collapsed record\'s header for its own, and says which row is under the pointer',async()=>{
+  const page=reviewPage()
+  page.values=page.values.map((value,index)=>({...value,recordId:index===0?'first':'second',path:['records',index===0?0:1,value.id]})) as never
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  const selection=createSelectionChannel()
+  const view=render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
+  const record=await screen.findByRole('button',{name:/Record 2/})
+  expect(record).toHaveAttribute('aria-expanded','false')
+  const row=screen.getByRole('button',{name:/To check a First title/})
+  act(()=>selection.hover(['b']))
+  expect(record).toHaveAttribute('data-evidence-hovered')
+  expect(view.container.querySelectorAll('[data-evidence-hovered]')).toHaveLength(1)
+  act(()=>selection.hover(['a']))
+  expect(row.closest('[data-result-key]')).toHaveAttribute('data-evidence-hovered')
+  expect(record).not.toHaveAttribute('data-evidence-hovered')
+  act(()=>selection.hover(null))
+  fireEvent.mouseOver(row)
+  expect(selection.snapshot().hover).toEqual(['a'])
+  fireEvent.mouseOver(record)
+  expect(selection.snapshot().hover).toBeNull()
+  fireEvent.mouseOver(row)
+  view.unmount()
+  expect(selection.snapshot().hover).toBeNull()
+})
+
 it('polls a paused run only while the server is to resume it, then reads it on return or every 30 s, and polls once it resumes',async()=> {
   vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,pendingResume:true},page:reviewPage()} as never)
   const attempt={extractionId:'extraction',strategy:'ARTICLE',executionStatus:'PAUSED'} as ExtractionAttempt,reader=createDurableReader(attempt)

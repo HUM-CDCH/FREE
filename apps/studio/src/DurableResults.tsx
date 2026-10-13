@@ -292,6 +292,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const [passageKeys,setPassageKeys]=useState<readonly string[]>([])
   const reading=useDurableReading(reader),state=reading?.state,latestPage=reading?.latestPage??null
   const request=useSyncExternalStore(selection.subscribe,()=>selection.snapshot().request)
+  const hovered=useSyncExternalStore(selection.subscribe,()=>selection.snapshot().hover)
   // While the rail is open, Results wants the latest values, also while it shows an explicitly opened cut ("Show the
   // latest results"). Collapsed, a read already started finishes and none starts.
   useEffect(()=>railOpen?reader?.wantPages():undefined,[reader,railOpen])
@@ -438,7 +439,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
     selection.publish({marks:{describe,selected:review?.value.id??null,savedLinks,extractionId:id}})
   },[model,page,selection,review,document,found,id])
-  useEffect(()=>()=>selection.publish({marks:null,dim:null}),[selection])
+  useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
     const {review,onEvidence,requestTaken}=followRef.current,link=review?.value.links[0]??null
     selection.publish({dim:followKey?link:null})
@@ -605,7 +606,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
-          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} isOpen={isOpen}
+          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} hovered={hovered} onHover={selection.hover} isOpen={isOpen}
           onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}/>)}
     </div>
   </div>

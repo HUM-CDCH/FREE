@@ -263,6 +263,10 @@
 .evidence-mark.decided { border-bottom-width: 1px; }
 .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev-soft) 70%, transparent); outline: 2px solid var(--color-accent); }
 .evidence-mark:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* A value under the pointer, here or on its Results row: its marks get the ev-soft fill and an Evidence outline; the
+   selected one keeps its accent outline. */
+.evidence-mark.hovered { background: var(--color-ev-soft); outline: 2px solid var(--color-ev); outline-offset: 1px; }
+.evidence-mark.hovered.selected { outline-color: var(--color-accent); }
 /* The "Evidence marks" switch hides every mark but the selected one. */
 .evidence-marks-off .evidence-mark:not(.selected) { display: none; }
 /* On the PDF a mark lies over the page's own text, so an alpha fill of a pale token washes the ink out. Multiply
@@ -270,4 +274,5 @@
 .pdf-viewer .evidence-mark,
 .pdf-viewer .parsed-evidence-focus { mix-blend-mode: multiply; }
 .pdf-viewer .evidence-mark { background: var(--color-ev-soft); }
+.pdf-viewer .evidence-mark.hovered { background: color-mix(in srgb, var(--color-ev) 30%, var(--color-ev-soft)); }
 .pdf-viewer .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev) 20%, var(--color-ev-soft)); }
