@@ -6,6 +6,7 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 from kei_exp.kie.extract.calls import Call
 from kei_exp.workflows import durable_extract as worker
@@ -88,6 +89,59 @@ def test_returned_output_is_retried_then_halts_admission_without_claiming_saved(
     with pytest.raises(RuntimeError,match="could not be saved"):
         inspect.unwrap(worker.invoke_capture)("extraction","attempt","capture")
     assert events==["read_call","begin_call","commit_output","commit_output","commit_output","fail_call"]
+
+
+@pytest.mark.parametrize("strategy,error,save_failure", [
+    ("article", requests.Timeout, False), ("article", requests.HTTPError, False),
+    ("catalog", requests.Timeout, False), ("catalog", requests.HTTPError, False),
+    ("article", requests.Timeout, True),
+])
+def test_article_resolution_transport_failures_are_saved_before_fallback(monkeypatch, strategy, error, save_failure):
+    from kei_exp.kie.extract import captured_provider
+    events, committed = [], {}
+
+    class Lease:
+        state = {"selection": {"resolved": {"options": {"strategy": strategy}}}}
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            events.append(routine)
+            if routine == "read_call":
+                return {"checkpoint": None, "intent": "RUN", "input": {"digest": "fixed", "request": {
+                    "composer": 1, "provider": {"model": "fixture/model", "url": "http://model", "timeout": 5},
+                    "budget": {"context": 4096, "counted": 120, "reserve": 256},
+                    "body": {"stage": "arbitration", "record": 0, "system": "s", "user": "u", "schema": {},
+                             "max_tokens": 256, "httpRequest": {"model": "fixture/model", "messages": []}}}}}
+            if routine == "begin_call": return True
+            if routine == "commit_output":
+                if save_failure: raise OSError("disposable save fault")
+                committed["output"] = args[2]
+                return {"recoverable": True}
+
+    def post(*args, **kwargs):
+        raise error("do-not-log-provider-details")
+
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
+    monkeypatch.setattr(captured_provider.requests, "post", post)
+    invoke = lambda: inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    if save_failure:
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            invoke()
+        assert events == ["read_call", "begin_call", "commit_output", "commit_output", "commit_output", "fail_call"]
+    elif strategy == "catalog":
+        assert invoke() == {"ok": False, "reason": error.__name__}
+        assert events == ["read_call", "begin_call", "fail_call"] and not committed
+    else:
+        assert invoke() == {"ok": True, "capture": "capture"}
+        assert events == ["read_call", "begin_call", "commit_output"]
+        assert committed["output"]["parsed"] is None
+        (call,) = committed["output"]["calls"]
+        assert not call["ok"] and not call["recovered"] and error.__name__ in call["error"]
+        assert (call["counted_input_tokens"], call["context_tokens"], call["max_output_tokens"]) == (120, 4096, 256)
+        assert "do-not-log-provider-details" not in json.dumps(committed)
 
 
 @pytest.mark.parametrize("checkpoint", [False, True])

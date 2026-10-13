@@ -6,6 +6,7 @@ provider request preserves outputs across the coordination/DBOS ack gap.
 from __future__ import annotations
 
 from dataclasses import asdict
+from time import monotonic
 
 from dbos import DBOS, SetWorkflowID, WorkflowSerializationFormat
 
@@ -182,6 +183,7 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None)
         if not lease.call("begin_call", capture):
             return {"ok": True, "boundary": True}
+        started = monotonic()
         try:
             if native:
                 parsed,call=calls.structure(client,**body)
@@ -195,8 +197,17 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             output={"formatRefused":True,"parsed":None,"calls":[asdict(calls.Call(body["stage"],body["record"],None,None,
               0.0,None,False,"structured output format refused",recovered=True))]}
         except Exception as error:
-            lease.call("fail_call", capture)
-            return {"ok": False, "reason": type(error).__name__}
+            if (not native and body.get("stage") == "arbitration"
+                    and lease.state["selection"]["resolved"]["options"].get("strategy") == "article"):
+                # Optional resolution keeps assembly after transport failures too. Commit only the
+                # exception type; the fenced routine owns recovery and persistence failures still halt.
+                budget = request["budget"]
+                output = {"parsed": None, "calls": [asdict(calls.Call(body["stage"], body["record"], None, None,
+                    monotonic() - started, None, False, f"provider call raised {type(error).__name__}",
+                    budget["counted"], budget["context"], body["max_tokens"]))]}
+            else:
+                lease.call("fail_call", capture)
+                return {"ok": False, "reason": type(error).__name__}
         # A transient commit failure retains the returned output in this native
         # step and retries persistence. It must never present it as already saved.
         from time import sleep

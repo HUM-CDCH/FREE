@@ -184,6 +184,7 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
                                         schema=reply_schema, counter=counter, max_tokens=reserve)
         if attempts and not attempts[-1].ok:
             # Resolution is optional: a failed reply retains all assembled values and disagreements.
+            answer = None
             attempts = [replace(call, recovered=True) if not call.ok else call for call in attempts]
             issues.append(Issue("resolution_failed", "the resolution reply failed; assembled values are retained", 0))
         calls += attempts

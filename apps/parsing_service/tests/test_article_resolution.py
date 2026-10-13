@@ -89,6 +89,18 @@ def test_a_failed_resolution_keeps_values_and_records_a_recovered_failed_call():
     assert issues[0].code == "resolution_failed"
 
 
+def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
+    class WrongCount(CountingChat):
+        def complete(self, **kwargs):
+            return replace(super().complete(**kwargs), input_tokens=1)
+    readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+    (root, _, repeats, _, calls, issues), item_sources = assembled(readings, WrongCount(lambda *_: {"L1": ["I2"]}))
+    assert root["finds"] == [ITEM, ITEM] and repeats and len(item_sources) == 2
+    assert len(calls) == 1 and not calls[0].ok and calls[0].recovered
+    assert "server reported 1" in calls[0].error
+    assert [issue.code for issue in issues] == ["resolution_failed"]
+
+
 def test_one_failed_list_part_preserves_the_entire_assembled_list():
     readings = [{"finds": [deepcopy(ITEM) for _ in range(61)]}, {"finds": []}]
     (root, _, _, _, _, issues), item_sources = assembled(readings,

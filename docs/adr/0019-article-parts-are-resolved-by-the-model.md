@@ -56,7 +56,7 @@ settle what it can.
 
 ## Consequences
 
-- `ARTICLE_VERSION` 11 (version 10 adds the context fallback). Replays of earlier artifacts (`fixed_upstream`) skip
+- `ARTICLE_VERSION` 12 (version 10 adds the context fallback). Replays of earlier artifacts (`fixed_upstream`) skip
   resolution, which they did not make.
 - A run read in one call is unchanged: one part, nothing to resolve.
 - The model can drop a list item that belonged to the document or pick a wrong
