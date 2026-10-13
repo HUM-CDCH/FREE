@@ -6,6 +6,8 @@ resolved from the served context into the execution record; general record disco
 each entry's work is bound to that discovery's digest. All three live in the artifact. Durable execution resumes from
 its own committed call outputs (`retained.py`), never from files beside the run. A request the server refuses is a
 failed call of its window; a backend that is not ready ends the planning step.
+An instruction-model entry call that loops on whitespace gets one bounded-grammar recovery with the same input
+and output budget. Both calls remain recorded; only a successful recovery marks the first call recovered.
 
 Every entry is read whole through counted windows of its own text (overlap within the entry), beside the record-free
 lines before it when heading context is on. The fields model returns `{value, quote}` candidates, and `_item_text`
@@ -44,11 +46,12 @@ from kei_exp.failures import TransientBackendError, classify
 from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract import discovery, gliformer
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
-from kei_exp.kie.extract.calls import Call, complete
+from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
 from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, raw_range
+from kei_exp.kie.extract.llm import bounded
 from kei_exp.kie.extract.models import ROLE, Router
 from kei_exp.kie.extract.schema import Node, Schema, conform, evidence_policy, json_schema, notes
 from kei_exp.kie.extract.stages import Issue, merge
@@ -133,15 +136,30 @@ class _Budget:
         halved or fails alone; a backend that is not ready (`failures.classify`) ends the step for its retry."""
         self.check()
         clock = time.monotonic()
+        attempts = []
         try:
             answer, attempts = complete(self.chat, stage=stage, record=record, system=system, user=user,
                                         schema=schema, max_tokens=self.stages[stage]["output_tokens"],
                                         counter=self.counters[ROLE[stage]], unit=unit)
+            # Durable recovery reuses the finalized parent input in CapturePlanner; it must not be recomposed here.
+            recovery = (bounded(self.chat.fields, MAX_WHITESPACE) if self.chat.runtime is None and stage == "entry"
+                        and len(attempts) == 1 and looped(attempts[-1])
+                        and getattr(self.chat.fields, "max_whitespace", None) is None else None)
+            if recovery is not None:
+                self.check()
+                clock = time.monotonic()
+                answer, again = complete(replace(self.chat, fields=recovery), stage=stage, record=record,
+                    system=system, user=user, schema=schema, max_tokens=self.stages[stage]["output_tokens"],
+                    counter=self.counters[ROLE[stage]], unit=unit)
+                if again[-1].ok:
+                    attempts[-1] = replace(attempts[-1], recovered=True)
+                attempts += again
         except requests.RequestException as error:
             if isinstance(classify(error), TransientBackendError):
                 raise
             status = getattr(error.response, "status_code", None)
-            answer, attempts = None, [Call(stage, record, None, None, time.monotonic() - clock, None, False,
+            answer = None
+            attempts += [Call(stage, record, None, None, time.monotonic() - clock, None, False,
                                            type(error).__name__ + (f": HTTP {status}" if status else ""), None,
                                            self.counters[ROLE[stage]].context_tokens,
                                            self.stages[stage]["output_tokens"])]
