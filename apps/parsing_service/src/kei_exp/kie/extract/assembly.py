@@ -58,7 +58,9 @@ PROMPT_VERSION = 15
 # field's type is null with an `invalid_value` issue.
 # 10: a document too long for one root call under the full default is read in bounded parts of the served context
 # (`context_fallback`) instead of failing.
-ARTICLE_VERSION = 10
+# 11: retained list occurrences keep their exact reply origins, including nested positions and overlap joins;
+# equal items from another reading no longer route their grounding to that reading's source first.
+ARTICLE_VERSION = 11
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

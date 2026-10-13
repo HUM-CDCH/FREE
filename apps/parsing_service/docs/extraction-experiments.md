@@ -26,7 +26,7 @@ flowchart LR
 | `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Return the assembled result. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
-| `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
+| `routing.py` | Map assembled values to their actual reply occurrences and order whole verification units with exhaustive unresolved fallback. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; assemble or reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
@@ -57,6 +57,15 @@ These are ordinary Python functions. There is no plugin graph or separate
 service per stage. Strategy differences reflect source structure: an Article is
 one document-level object read across the whole source; Catalog entries own
 contiguous source spans.
+
+Article assembly keeps each list item's contributing positions in its conformed
+readings alongside its value. Equal items in separate source contexts keep separate origins; an
+overlap join keeps only the positions that contributed that occurrence. Nested
+list positions remain part of their enclosing item. Grounding checks those
+origins first and still searches all remaining contexts when unsupported. An
+origin identifies where a value was read; the verifier decides whether the
+source supports it. The legacy exact array union and its origin mapping remain
+available to replay captured studies.
 
 ## Pipeline map
 

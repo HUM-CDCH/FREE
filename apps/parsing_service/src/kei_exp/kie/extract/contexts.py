@@ -156,7 +156,8 @@ def sharing(units: Sequence[Context]) -> Callable[[int, int, object], bool]:
 
 
 def assemble_document(values: Sequence[dict],
-                      shared: Callable[[int, int, object], bool] = lambda first, second, item: False
+                      shared: Callable[[int, int, object], bool] = lambda first, second, item: False, *,
+                      item_sources: dict[tuple, list[dict]] | None = None
                       ) -> tuple[dict, list[dict], list[dict], list[dict]]:
     """One document root from its readings' answers, in reading order: the root, its conflicts, the possible repeats
     and the joined overlap items. Not `reconcile_values`, whose exact array union would collapse equal items into one.
@@ -169,10 +170,14 @@ def assemble_document(values: Sequence[dict],
     "indices"}`) as possible repeats, never merged. Objects merge field by field; a missing or null contribution never
     erases another reading's value. Equal scalars are one value; different ones are null, with their conflict
     (`{"path", "candidates"}`) as `reconcile_values` reports it. Order is reading order, then each reply's own order.
+    When supplied, `item_sources` records each assembled list item's conformed reading and item path. Nested lists
+    stay inside their whole item, so their original positions remain unchanged.
     """
     conflicts: list[dict] = []
     repeats: list[dict] = []
     joined: list[dict] = []
+    if item_sources is not None:
+        item_sources.clear()
 
     def combine(items, path):
         present = [(context, v) for context, v in items if v is not None]
@@ -184,14 +189,17 @@ def assemble_document(values: Sequence[dict],
         if all(isinstance(v, list) for _, v in present):
             kept: list[tuple[int, object, list[int]]] = []  # origin, item, every reading that returned it
             for context, v in present:
-                for item in v:
+                for position, item in enumerate(v):
                     match = next((index for index, (_, other, readers) in enumerate(kept) if other == item
                                   and context not in readers and any(shared(reader, context, item) for reader in readers)),
                                  None)
                     if match is None:
+                        match = len(kept)
                         kept.append((context, item, [context]))
                     else:
                         kept[match][2].append(context)
+                    if item_sources is not None:
+                        item_sources.setdefault((*path, match), []).append({"unit": context, "path": [*path, position]})
             joined.extend({"path": path, "contexts": readers, "index": index}
                           for index, (_, _, readers) in enumerate(kept) if len(readers) > 1)
             seen: list = []

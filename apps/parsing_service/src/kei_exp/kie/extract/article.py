@@ -299,13 +299,16 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         if each is not None:
             calls += each[0]
             issues += each[1]
-    root, contested, repeats, joined = (assemble_document(candidates, sharing(groups)) if len(candidates) != 1
+    item_sources: dict[tuple, list[dict]] = {}
+    root, contested, repeats, joined = (assemble_document(candidates, sharing(groups), item_sources=item_sources)
+                                        if len(candidates) != 1
                                         else (candidates[0], [], [], []))
     root = conform(root, schema.record_nodes)
     # Every claim is grounded first where its value was read (`assembly.ground_records`), whatever `grounding_routing`
     # says (retired: it only still adds the routing diagnostics to the artifact). A value `conform` coerced has no
     # origin, so it is routed by value match and relevance alone, never refused (`strict`).
-    origins = [value_origins(candidates, root, {}, item["passages"], strict=False)]
+    origins = [value_origins(candidates, root, {}, item["passages"], strict=False,
+                             item_sources=item_sources if len(candidates) != 1 else None)]
     issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), 0) for conflict in contested]
     issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), 0,
                      ("records", 0, *repeat["path"])) for repeat in repeats]
