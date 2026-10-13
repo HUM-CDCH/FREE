@@ -194,6 +194,25 @@ worse than the loop.
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
 
+### Sharing model servers between stacks
+
+A second stack on the host, such as a test stack beside production, can use the
+first stack's model servers instead of loading another set into the same
+memory. Create the host-wide network once with `docker network create
+free-models`. The providing stack adds `-f compose.provide-models.yaml` after
+`compose.gpu.yaml`, and its OCR, NuExtract and instruction servers join that
+network. A server defined in a host overlay joins it there, with the
+`compose.gpu.yaml` name it replaces as an alias (for example
+`aliases: [extraction_model]`). The using stack starts with `FREE_GPU=shared`,
+which loads `compose.use-models.yaml` in place of `compose.gpu.yaml`. That
+stack starts no model server, and only its parsing processes and Studio join
+`free-models`, so it cannot reach the provider's database or apps. Give it the
+provider's `KEI_EXTRACT_MODEL`, `KEI_NUEXTRACT_MODEL`, `OCR_MAX_NUM_SEQS` and
+`NUEXTRACT_MAX_NUM_SEQS`. Its requests queue on the provider's servers beside the
+provider's own, and its OCR and extraction stop whenever those servers stop.
+Run one using stack per host. A second would answer the first one's service
+names on `free-models`.
+
 ## Configure models
 
 Each researcher configures their own Model Connections and model choices in

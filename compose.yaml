@@ -227,7 +227,7 @@ services:
     environment:
       PHOENIX_WORKING_DIR: /mnt/data
     ports:
-      - "127.0.0.1:6006:6006"
+      - "127.0.0.1:${FREE_PHOENIX_PORT:-6006}:6006"
     volumes:
       - phoenix-data:/mnt/data
     networks:
@@ -246,8 +246,9 @@ volumes:
 
 networks:
   app:
-  # Fixed subnet: it is the FREE_STUDIO_PROXY_ADDRESS trust block above.
+  # Fixed subnet: it is the FREE_STUDIO_PROXY_ADDRESS trust block above. A second stack on
+  # the same host sets FREE_PROXY_SUBNET_PREFIX (and FREE_PHOENIX_PORT) so neither takes the other's.
   proxy:
     ipam:
       config:
-        - subnet: 172.30.0.0/24
+        - subnet: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.0/24"

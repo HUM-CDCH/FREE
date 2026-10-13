@@ -13,7 +13,7 @@ services:
   studio:
     environment:
       # The bundled nginx is the single trusted peer: its fixed address below.
-      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.10
+      FREE_STUDIO_PROXY_ADDRESS: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.10"
     # Only the host nginx needed the loopback publish.
     ports: !reset []
 
@@ -57,4 +57,4 @@ services:
         condition: service_healthy
     networks:
       proxy:
-        ipv4_address: 172.30.0.10
+        ipv4_address: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.10"

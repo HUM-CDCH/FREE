@@ -1,0 +1,17 @@
+# Opt-in, after compose.gpu.yaml: this stack's model servers also join the host-wide
+# free-models network, where a second stack on the host (FREE_GPU=shared,
+# compose.use-models.yaml) reaches them by these service names instead of starting
+# its own. Only model servers join it, so that stack never reaches this one's database
+# or apps. Create the network once, before adding this file: docker network create free-models
+services:
+  ocr_model:
+    networks: [models]
+  nuextract_model:
+    networks: [models]
+  extraction_model:
+    networks: [models]
+
+networks:
+  models:
+    name: free-models
+    external: true

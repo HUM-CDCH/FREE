@@ -46,7 +46,7 @@ services:
       # container through the proxy network's bridge gateway (gw_priority
       # below), so that single address is the whole trusted peer set; every
       # other container has its own non-gateway address and is rejected.
-      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.1
+      FREE_STUDIO_PROXY_ADDRESS: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.1"
     # Published for the host nginx only; the host or perimeter firewall never
     # needs to expose 5173.
     ports:
