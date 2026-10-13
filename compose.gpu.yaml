@@ -14,7 +14,7 @@ x-gpu: &gpu
           capabilities: [gpu]
 
 x-vllm: &vllm
-  image: "${VLLM_IMAGE:-vllm/vllm-openai:latest}"
+  image: "${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0}"
   init: true
   # Both the generic vLLM image and an operator-selected Spark image use
   # this explicit CLI, independent of their image entrypoint defaults.
@@ -88,6 +88,8 @@ services:
       - --max-num-seqs
       # Also parsing_worker's KEI_CATALOG_CHUNKS, which kei bounds at 64: keep it at 64 or below.
       - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+      # GB10 with multiple resident models: graph execution stalled; eager serving passed concurrent extraction.
+      - --enforce-eager
     depends_on:
       ocr_model:
         condition: service_healthy
