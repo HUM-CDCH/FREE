@@ -531,6 +531,7 @@ export default function ProjectContextPage({
   // reopening a project with existing work stays quiet.
   const [nudge, setNudge] = useState<'upload-complete' | 'schema-ready' | null>(null)
   const previousSourceDocumentCount = useRef<number | null>(null)
+  const uploadNudgePending = useRef(false)
   const previousSchemaCount = useRef<number | null>(null)
   const generateSchemaSectionRef = useRef<HTMLElement>(null)
   const [filter, setFilter] = useState('')
@@ -812,14 +813,20 @@ export default function ProjectContextPage({
     return () => controller.abort()
   }, [projectContextId, tab, schemaRequestKey])
 
-  // "First document ingested" -> nudge toward defining a schema.
+  // "First document ingested" -> nudge toward defining a schema, held until
+  // the rest of the batch has settled so it doesn't announce completion
+  // while other files are still sending or parsing.
   useEffect(() => {
     if (branch?.status !== 'ready') return
     const count = branch.detail.sourceDocuments.length
     const previous = previousSourceDocumentCount.current
     previousSourceDocumentCount.current = count
-    if (previous === 0 && count > 0) setNudge('upload-complete')
-  }, [branch])
+    if (previous === 0 && count > 0) uploadNudgePending.current = true
+    if (uploadNudgePending.current && !sourcesInFlight) {
+      uploadNudgePending.current = false
+      setNudge('upload-complete')
+    }
+  }, [branch, sourcesInFlight])
 
   // "First Schema Revision committed" -> nudge toward piloting it. Going
   // back to zero schemas (the last one was just deleted) -> there's nothing
