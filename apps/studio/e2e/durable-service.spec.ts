@@ -134,7 +134,7 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     if(ingestion.status!=='succeeded')throw new Error(`The disposable source was not published: ${JSON.stringify(ingestion)}`)
     const sourceId=ingestion.sourceDocumentId
     // The last page's discovery call is held (its window labels entry 5): the entries before it are read meanwhile.
-    service.holdExtractionMatching(/^\[L\d+\] 5\. /m)
+    service.holdExtractionMatching(/^\[L\d+[^\]]*\] 5\. /m)
     const id=await seedNative(page,project,sourceId,'unified',{defaults:3})
     await service.reconcileDurable()
     const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()

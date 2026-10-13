@@ -92,11 +92,12 @@ def once(evidence: Evidence, gold: dict[str, int], by: str, workers: int, overla
 def score(evidence: Evidence, gold: dict[str, int], body: dict, finished: dict[str, float], wall: float) -> dict:
     units = discovery.units_of(evidence.passages)
     texts = {passage.id: passage.text for passage in evidence.passages}
+    kinds = discovery.kinds_of(evidence.passages)
     position = {(unit.segment, unit.start): index for index, unit in enumerate(units)}
     spans = []  # each read window's first and last unit index and when its reply returned
     for window in body["windows"]:
         first, last = (position[(each["segment"], each["start"])] for each in window["primary"])
-        shown = discovery.text_of(units[first:last + 1], texts, [f"L{n}" for n in range(1, last - first + 2)])
+        shown = discovery.window_text(units[first:last + 1], texts, kinds)
         spans.append((first, last, next((at for user, at in finished.items() if shown in user), wall)))
 
     def window_of(segment: str, start: int) -> int:
