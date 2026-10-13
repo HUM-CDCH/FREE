@@ -252,6 +252,33 @@ describe('marks select their values', () => {
     mark.click()
     expect(onSelect).toHaveBeenCalledWith([JSON.stringify(['records', 0, 'title']), JSON.stringify(['records', 0, 'subtitle'])], mark)
   })
+
+  it('names the values of the passage under the pointer, no record start, and lights the marks of a value hovered in Results', () => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const key = JSON.stringify(['records', 0, 'title'])
+    const onHover = vi.fn()
+    const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]),
+      selected: null, onSelect: vi.fn(), onHover, hovered: null as readonly string[] | null,
+      savedLinks: [{ key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: anchor.anchor_id } },
+        { key, link: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id } }] }
+    const containerRef = { current: container }, viewerRef = { current: { scrollPageIntoView: vi.fn() } as never }, attempt = { extractionId: 'x' }
+    const { rerender } = renderHook(({ marks }) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument, attempt, active: true, marks,
+    }), { initialProps: { marks } })
+    const mark = container.querySelector<HTMLButtonElement>('button.evidence-mark')!
+    expect(mark.className).not.toMatch(/\bhovered\b/)
+    mark.dispatchEvent(new MouseEvent('mouseenter'))
+    expect(onHover).toHaveBeenLastCalledWith([key])
+    mark.dispatchEvent(new MouseEvent('mouseleave'))
+    expect(onHover).toHaveBeenLastCalledWith(null)
+    rerender({ marks: { ...marks, hovered: [key] } })
+    expect(container.querySelector('button.evidence-mark')).toBe(mark)
+    expect(mark.className).toMatch(/\bhovered\b/)
+  })
 })
 
 describe('mark precision, focus and navigation ownership', () => {
