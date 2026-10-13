@@ -16,6 +16,7 @@ from kei_exp.kie.blocks import Span
 
 SEPARATOR = "\n"
 SOFT_HYPHEN = "­"
+NEAR_PLACES = 8  # the most places `nearly` fits by edit distance
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,65 @@ def locate(block: BlockText, quote: str, *, within: tuple[int, int] | None = Non
         if within is None or (within[0] <= raw_start and raw_end <= within[1]):
             found.append(_spans(block, raw_start, raw_end))
     return found
+
+
+def nearly(block: BlockText, quote: str, bound: int, *, within: tuple[int, int] | None = None) -> list[list[Span]]:
+    """Each place where `quote` occurs with at most `bound` character edits (inserted, dropped or changed), compared
+    as `locate` compares, at its fewest edits; places that overlap are one. Seeded by exact pieces of the quote: of
+    `bound + 1` disjoint pieces, at least one is unedited."""
+    needle, view = normalise(quote).text, normalise(block.text)
+    size = len(needle) // (bound + 1)
+    if size < 4:
+        return []
+    inside = [index for index, (start, end) in enumerate(view.ranges)
+              if within is None or (within[0] <= start and end <= within[1])]
+    if not inside:
+        return []
+    low, high = inside[0], inside[-1] + 1
+    seeds: list[int] = []
+    for piece in range(bound + 1):
+        part, at = needle[piece * size:(piece + 1) * size], piece * size
+        found = view.text.find(part, low, high)
+        while found != -1:
+            seeds.append(found - at)
+            found = view.text.find(part, found + 1, high)
+    groups: list[list[int]] = []  # seeds within `bound` of each other name one place
+    for start in sorted(seeds):
+        if groups and start - groups[-1][-1] <= bound:
+            groups[-1].append(start)
+        else:
+            groups.append([start])
+    fits: list[tuple[int, int, int]] = []
+    # A place with most pieces unedited is fitted first; in repetitive text (table rows) a piece also seeds places it
+    # merely repeats in, so only the best-supported few are fitted.
+    for group in sorted(groups, key=len, reverse=True)[:NEAR_PLACES]:
+        start = max(set(group), key=group.count)
+        offset = max(low, start - bound)
+        edits, begin, end = _fitted(needle, view.text[offset:min(high, start + len(needle) + bound)])
+        if edits <= bound:
+            fits.append((edits, offset + begin, offset + end))
+    places: list[tuple[int, int, int]] = []
+    for edits, begin, end in sorted(fits, key=lambda fit: fit[1]):
+        if places and begin < places[-1][2]:
+            places[-1] = min(places[-1], (edits, begin, end))
+        else:
+            places.append((edits, begin, end))
+    return [_spans(block, view.ranges[begin][0], view.ranges[end - 1][1]) for _, begin, end in places]
+
+
+def _fitted(needle: str, haystack: str) -> tuple[int, int, int]:
+    """The fewest edits turning `needle` into some substring of `haystack`, and that substring's [start, end)."""
+    edits, origin = [0] * (len(haystack) + 1), list(range(len(haystack) + 1))
+    for char in needle:
+        row, starts = [edits[0] + 1], [origin[0]]
+        for column, other in enumerate(haystack, 1):
+            cost, start = min((edits[column - 1] + (char != other), origin[column - 1]),
+                              (edits[column] + 1, origin[column]), (row[-1] + 1, starts[-1]))
+            row.append(cost)
+            starts.append(start)
+        edits, origin = row, starts
+    end = min(range(len(haystack) + 1), key=lambda column: edits[column])
+    return edits[end], origin[end], end
 
 
 def raw_range(block: BlockText, spans: list[Span]) -> tuple[int, int]:

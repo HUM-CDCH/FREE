@@ -50,7 +50,7 @@ from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
-from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, raw_range
+from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, nearly, normalise, raw_range
 from kei_exp.kie.extract.llm import bounded
 from kei_exp.kie.extract.models import ROLE, Router
 from kei_exp.kie.extract.schema import Node, Schema, conform, evidence_policy, json_schema, notes
@@ -68,13 +68,20 @@ RECORD_VERSION = 1  # the execution record's layout
 # 2: a value printed in the table row whose cell the quote names is literal there.
 # 3: that row is searched cell by cell (a cell spanning rows no longer widens it to them), and only for a quote found in
 # exactly one place.
-ENTRY_VERSION = 3
+# 4: a list item's values are looked for in its own located occurrence first, so a cell printed in several rows ("Niv.
+# 6") is its own row's, never one at a window cut; and text a model copied nearly verbatim is repaired to the source
+# (`NEAR`): a quote found nowhere, or a value not printed in its quote, within a few edits of exactly one place.
+ENTRY_VERSION = 4
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
 # items, a single window's included). 3: an item two windows returned is joined only when their shared source
 # prints it as exactly one occurrence.
 DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
+# Repair of nearly verbatim text: only a free-text value (no number, yes/no, allowed label or derived field) of at least
+# `NEAR` normalised characters, within max(3, length // 50) edits of exactly one place. Measured on one excavation
+# report (13 October 2026, NuExtract3-FP8): copies of 75, 478 and 655 characters were off by 3, 8 and 3 edits.
+NEAR = 40
 # The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
 # candidates; Auto input is the served context minus the stage's reserve; heading context and verification on; a failed
 # window is halved at most six times. 1: discovery windows cut by the budget alone, one unit of overlap. 2: discovery
@@ -385,6 +392,7 @@ class _Found:
     reason: str | None = None
     item: tuple | None = None         # (list path, window, local position) of the outermost list item it is in
     anchor: tuple | None = None       # that item's occurrence in the entry, when it was located exactly once
+    repaired: bool = False            # its quote or value is the source's text a model copied nearly verbatim
 
 
 def _leaf(node: Node) -> dict:
@@ -507,6 +515,18 @@ class _Checker:
         places = located(self.view, text, within=within, numeric=numeric)
         return sorted(places, key=lambda spans: not self.shown[0] <= raw_range(self.view, spans)[0] < self.shown[1])
 
+    def _near(self, text: str, within: tuple[int, int] | None = None) -> list[Span] | None:
+        """The one place `text` was nearly copied from (`NEAR`), or None when it is short or is not one place."""
+        length = len(normalise(text).text)
+        if length < NEAR:
+            return None
+        places = nearly(self.view, text, max(3, length // 50), within=within)
+        return places[0] if len(places) == 1 else None
+
+    def _text(self, spans: list[Span]) -> str:
+        start, end = raw_range(self.view, spans)
+        return " ".join(self.view.text[start:end].split())
+
     def _scalar(self, path: tuple, node: Node, candidate: Any, item: tuple | None, anchor: tuple | None) -> _Found:
         if not isinstance(candidate, dict):
             return self._rejected(path, candidate, "malformed_candidate", item, anchor)
@@ -518,7 +538,15 @@ class _Checker:
             found.reason = "type_mismatch"
             return found
         found.value = typed
-        quoted = self._places(quote) if found.quote and found.quote.strip() else []
+        # A list item's values are its own occurrence's first: a cell printed in several rows is this row's.
+        own = raw_range(self.view, [Span(segment_id=s, start=a, end=b) for s, a, b in anchor]) if anchor else None
+        free = isinstance(typed, str) and node.allowed_values is None and \
+            evidence_policy(self.nodes, _field_path(path)) != "derived"
+        quoted = []
+        if found.quote and found.quote.strip():
+            quoted = (self._places(quote, own) if own else []) or self._places(quote)
+            if not quoted and free and (near := (self._near(quote, own) if own else None) or self._near(quote)):
+                quoted, found.quote, found.repaired = [near], self._text(near), True
         if not quoted:
             found.reason = "quote_not_in_source" if found.quote and found.quote.strip() else "no_quote"
             return found
@@ -532,6 +560,8 @@ class _Checker:
             for within in self._row(quoted[0]):  # in a cell of that row; a quote found in several places names none
                 for text in forms(typed):
                     literal += [each for each in self._places(text, within, numeric) if each not in literal]
+        if not literal and free and len(quoted) == 1 and (near := self._near(typed, raw_range(self.view, quoted[0]))):
+            literal, found.value, found.repaired = [near], self._text(near), True
         if literal:
             found.support, found.spans, found.alternatives = "literal", literal[0], literal[1:]
         elif isinstance(typed, bool) or node.allowed_values is not None or \
@@ -565,6 +595,7 @@ DOCUMENT = ("You extract fields that describe a whole source document, not one r
             "as the field) and \"quote\" (the exact supporting text, copied character for character). For each object "
             "in a list also give \"_item_text\": the exact text where that item appears, or null. Never invent a "
             "value. Return only the JSON object.")
+REPAIRED = "a nearly verbatim copy was replaced by the source text it was copied from"
 VERDICTS = {"supported": ("accepted", None), "unsupported": ("rejected", "verification_rejected"),
             "unclear": ("proposed", "verification_unclear")}
 
@@ -685,6 +716,8 @@ class _Run:
                 first, last = (*window.before, *window.primary)[0], (*window.primary, *window.after)[-1]
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
                 found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
+        out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *each.path))
+                       for each in found if each.repaired]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, "candidate"), self.nodes)
@@ -796,6 +829,7 @@ class _Run:
                 continue
             shown = [*window.before, *window.primary, *window.after]
             found = _Checker(_view(shown, self.texts), (0, 0), index, nodes, self.tables).reply(answer)
+            out.issues += [Issue("quote_repaired", REPAIRED, None, each.path) for each in found if each.repaired]
             out.found += found
             per_window.append(conform(_placed(found, "candidate"), nodes))
             shown_units.append(shown)
