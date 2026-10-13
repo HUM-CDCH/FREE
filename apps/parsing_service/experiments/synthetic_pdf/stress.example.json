@@ -1,0 +1,16 @@
+{
+  "seed": 20261013,
+  "documents": [
+    {"id": "long-contradiction", "template": "article", "seed": 31, "records": 4, "padding_pages": 12, "cross_page": true, "repeat_values": true, "repeat_entries": 1, "contradiction": true},
+    {"id": "scan", "template": "catalog", "seed": 31, "records": 4, "layout": "columns", "raster_dpi": 90, "blur_radius": 0.6}
+  ],
+  "providers": [
+    {"id": "model-a", "base_url_env": "FREE_BENCH_BASE_URL", "model_env": "FREE_BENCH_MODEL", "context_tokens": 32768, "timeout": 300, "max_tokens": 4096}
+  ],
+  "methods": [
+    {"id": "article-bounded", "options": {"strategy": "article", "article": {"context": "bounded", "context_tokens": 8192, "overlap_passages": 1, "grounding": "semantic"}}},
+    {"id": "catalog", "options": {"strategy": "catalog", "discovery_chars": 4000}}
+  ],
+  "repeats": 1,
+  "parsing": {"model": "granite_vision", "url_env": "FREE_BENCH_OCR_URL"}
+}

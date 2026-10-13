@@ -1,0 +1,17 @@
+{
+  "seed": 20261014,
+  "documents": [
+    {"id": "long-101", "template": "article", "seed": 101, "records": 2, "padding_pages": 6, "repeat_entries": 1},
+    {"id": "long-102", "template": "article", "seed": 102, "records": 2, "padding_pages": 6, "repeat_entries": 1},
+    {"id": "long-103", "template": "article", "seed": 103, "records": 2, "padding_pages": 6, "repeat_entries": 1}
+  ],
+  "providers": [
+    {"id": "qwen27b", "base_url_env": "FREE_BENCH_BASE_URL", "model": "nvidia/Qwen3.8-27B-NVFP4", "context_tokens": 32768, "timeout": 300, "max_tokens": 4096}
+  ],
+  "methods": [
+    {"id": "article-full", "options": {"strategy": "article", "article": {"context": "full", "grounding": "semantic"}}},
+    {"id": "bounded-8k-ov0", "options": {"strategy": "article", "article": {"context": "bounded", "context_tokens": 8192, "overlap_passages": 0, "grounding": "semantic"}}},
+    {"id": "bounded-8k-ov1", "options": {"strategy": "article", "article": {"context": "bounded", "context_tokens": 8192, "overlap_passages": 1, "grounding": "semantic"}}}
+  ],
+  "repeats": 2
+}
