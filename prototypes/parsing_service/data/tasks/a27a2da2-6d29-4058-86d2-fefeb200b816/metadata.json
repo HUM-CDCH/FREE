@@ -1,0 +1,60 @@
+{
+  "task_id": "a27a2da2-6d29-4058-86d2-fefeb200b816",
+  "document_id": "sha256:fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+  "content_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+  "source_path": "source.pdf",
+  "source_store_path": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+  "source_kind": "upload",
+  "status": "completed",
+  "created_at": "2026-08-20T06:23:56.956026+00:00",
+  "updated_at": "2026-08-20T06:23:57.007000+00:00",
+  "params": {
+    "pipeline": "docling_doctags_canonical",
+    "policy_revision": 5,
+    "doctags_converter_revision": 4,
+    "v2_renderer_revision": 3,
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "docling_version": "2.113.0",
+    "ocr_fallback_dpi": 150,
+    "ocr_fallback_device_policy": "auto",
+    "resolved_ocr_device": "cpu",
+    "paddleocr_model": "PP-OCRv6_medium_det",
+    "paddleocr_version": "3.7.0",
+    "table_parser": "docling_inventory_camelot_fallback",
+    "camelot_version": "2.0.0",
+    "source_name": "Beretning_Ellekilde_8_13.pdf"
+  },
+  "stats": {
+    "pymupdf_inspect": {},
+    "docling_doctags": {},
+    "docling_inventory_camelot_fallback": {}
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_inventory_camelot_fallback",
+      "version": null,
+      "status": "success",
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "selected_parser": "docling_doctags",
+  "canonical_parsed_document_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/parsed_document.json",
+  "error_code": null,
+  "error": null,
+  "canonical_generation_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/c9bfd47a58d2f2a5-1dbc6b881f96426bb4e5c7834c5586a8"
+}

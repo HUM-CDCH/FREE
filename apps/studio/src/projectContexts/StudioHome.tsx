@@ -113,7 +113,12 @@ function FirstRun({ onCreate }: { onCreate: () => void }) {
 
       <ol className="grid w-full max-w-xl grid-cols-2 items-start gap-6 sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-16 sm:gap-y-8">
         {phases.map((phase) => (
-          <li key={phase.number} className="flex min-w-0 flex-col gap-1.5 pt-4 sm:w-[150px]">
+          // Centered from sm up: left-aligned columns under the centered hero
+          // pull the row's visual weight left even though the track is centered.
+          <li
+            key={phase.number}
+            className="flex min-w-0 flex-col gap-1.5 pt-4 sm:w-[150px] sm:items-center sm:text-center"
+          >
             <span aria-hidden="true" className="font-mono text-[11px] text-accent">
               {phase.number}
             </span>

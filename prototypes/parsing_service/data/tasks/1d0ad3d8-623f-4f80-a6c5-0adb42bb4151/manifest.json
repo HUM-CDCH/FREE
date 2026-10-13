@@ -1,0 +1,26 @@
+{
+  "entries": [
+    {
+      "media_type": "application/pdf",
+      "path": "source.pdf",
+      "sha256": "a803bbbde13cd0b4f9048a8e1d81222871a6db940cfb3313f7283244cb90417c",
+      "size": 1106224
+    },
+    {
+      "media_type": "application/json",
+      "path": "parsed_document.json",
+      "sha256": "63d06d0824b5041d477f2a8892e5f127a5504d5d0e2d122908d505af7a8c4464",
+      "size": 1942796
+    },
+    {
+      "media_type": "text/markdown; charset=utf-8",
+      "path": "artifacts/document.llm.md",
+      "sha256": "7842d4917674fe35b76a803e6e4b913a19ae70ebc1105601bfedd989c92ac0ed",
+      "size": 123007
+    }
+  ],
+  "package_version": "canonical-ingestion-package.v1",
+  "parsed_document_schema_version": "parsed_document.v2",
+  "preprocess_id": "sha256:c0ff98ea4a3b5e393f0082d2554e5615a6172f837902cf2a2dd5fc67efb25397",
+  "source_sha256": "a803bbbde13cd0b4f9048a8e1d81222871a6db940cfb3313f7283244cb90417c"
+}

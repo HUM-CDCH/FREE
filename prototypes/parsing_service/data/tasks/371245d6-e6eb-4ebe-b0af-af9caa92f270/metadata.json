@@ -1,0 +1,55 @@
+{
+  "byte_size": 837525,
+  "canonical_parsed_document_ref": "parsed_document.json",
+  "content_sha256": "ae25189cdc7683303ecc8b41e334765d29483382613f73f7632b3a022f026341",
+  "created_at": "2026-08-26T08:57:06.127510+00:00",
+  "document_id": "sha256:ae25189cdc7683303ecc8b41e334765d29483382613f73f7632b3a022f026341",
+  "error": null,
+  "error_code": null,
+  "interrupted_attempt": null,
+  "params": {
+    "camelot_version": "unavailable",
+    "docling_version": "2.120.3",
+    "doctags_converter_revision": 0,
+    "ocr_fallback_device_policy": "docling_default",
+    "ocr_fallback_dpi": 0,
+    "paddleocr_model": "unavailable",
+    "paddleocr_version": "unavailable",
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "pipeline": "docling_standard_pdf",
+    "policy_revision": 1,
+    "resolved_ocr_device": "unavailable",
+    "source_name": "how-good.pdf",
+    "table_parser": "docling_default",
+    "v2_renderer_revision": 1
+  },
+  "parser_runs": [
+    {
+      "error": null,
+      "parser": "docling",
+      "status": "success",
+      "version": "2.120.3",
+      "warnings": []
+    }
+  ],
+  "preprocess_id": "sha256:5530dcc0c7de8034b70535d2ed8726f56ec9ae0f1f6b055ef64e1953f70173da",
+  "selected_parser": "docling",
+  "source_kind": "upload",
+  "source_path": "source.pdf",
+  "stats": {
+    "docling": {
+      "content_block_count": 252,
+      "diagnostic_count": 0,
+      "duration_ms": 40694,
+      "evidence_anchor_count": 1643,
+      "markdown_bytes": 108057,
+      "page_count": 18,
+      "status": "success",
+      "table_cell_count": 1401,
+      "table_count": 10
+    }
+  },
+  "status": "completed",
+  "task_id": "371245d6-e6eb-4ebe-b0af-af9caa92f270",
+  "updated_at": "2026-08-26T08:57:47.070171+00:00"
+}

@@ -1,0 +1,55 @@
+{
+  "byte_size": 1106224,
+  "canonical_parsed_document_ref": "parsed_document.json",
+  "content_sha256": "a803bbbde13cd0b4f9048a8e1d81222871a6db940cfb3313f7283244cb90417c",
+  "created_at": "2026-08-26T07:02:19.914550+00:00",
+  "document_id": "sha256:a803bbbde13cd0b4f9048a8e1d81222871a6db940cfb3313f7283244cb90417c",
+  "error": null,
+  "error_code": null,
+  "interrupted_attempt": null,
+  "params": {
+    "camelot_version": "unavailable",
+    "docling_version": "2.120.3",
+    "doctags_converter_revision": 0,
+    "ocr_fallback_device_policy": "docling_default",
+    "ocr_fallback_dpi": 0,
+    "paddleocr_model": "unavailable",
+    "paddleocr_version": "unavailable",
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "pipeline": "docling_standard_pdf",
+    "policy_revision": 1,
+    "resolved_ocr_device": "unavailable",
+    "source_name": "2510.21909v1.pdf",
+    "table_parser": "docling_default",
+    "v2_renderer_revision": 1
+  },
+  "parser_runs": [
+    {
+      "error": null,
+      "parser": "docling",
+      "status": "success",
+      "version": "2.120.3",
+      "warnings": []
+    }
+  ],
+  "preprocess_id": "sha256:c0ff98ea4a3b5e393f0082d2554e5615a6172f837902cf2a2dd5fc67efb25397",
+  "selected_parser": "docling",
+  "source_kind": "upload",
+  "source_path": "source.pdf",
+  "stats": {
+    "docling": {
+      "content_block_count": 407,
+      "diagnostic_count": 0,
+      "duration_ms": 87351,
+      "evidence_anchor_count": 1119,
+      "markdown_bytes": 123007,
+      "page_count": 37,
+      "status": "success",
+      "table_cell_count": 725,
+      "table_count": 13
+    }
+  },
+  "status": "completed",
+  "task_id": "1d0ad3d8-623f-4f80-a6c5-0adb42bb4151",
+  "updated_at": "2026-08-26T07:03:48.765715+00:00"
+}

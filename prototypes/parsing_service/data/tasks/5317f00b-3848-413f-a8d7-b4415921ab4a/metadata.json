@@ -1,0 +1,60 @@
+{
+  "task_id": "5317f00b-3848-413f-a8d7-b4415921ab4a",
+  "document_id": "sha256:e6e51fdc90494ac5b896345955a7f3fe99349eb02114cfe618bd1e9cebc596aa",
+  "content_sha256": "e6e51fdc90494ac5b896345955a7f3fe99349eb02114cfe618bd1e9cebc596aa",
+  "source_path": "source.pdf",
+  "source_store_path": "data/sources/e6e51fdc90494ac5b896345955a7f3fe99349eb02114cfe618bd1e9cebc596aa.pdf",
+  "source_kind": "upload",
+  "status": "completed",
+  "created_at": "2026-08-20T12:37:34.082259+00:00",
+  "updated_at": "2026-08-20T12:38:20.224375+00:00",
+  "params": {
+    "pipeline": "docling_doctags_canonical",
+    "policy_revision": 5,
+    "doctags_converter_revision": 4,
+    "v2_renderer_revision": 3,
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "docling_version": "2.113.0",
+    "ocr_fallback_dpi": 150,
+    "ocr_fallback_device_policy": "auto",
+    "resolved_ocr_device": "cpu",
+    "paddleocr_model": "PP-OCRv6_medium_det",
+    "paddleocr_version": "3.7.0",
+    "table_parser": "docling_inventory_camelot_fallback",
+    "camelot_version": "2.0.0",
+    "source_name": "2023.emnlp-main.459.pdf"
+  },
+  "stats": {
+    "pymupdf_inspect": {},
+    "docling_doctags": {},
+    "docling_inventory_camelot_fallback": {}
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_inventory_camelot_fallback",
+      "version": null,
+      "status": "success",
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "selected_parser": "docling_doctags",
+  "canonical_parsed_document_ref": "data/documents/e6e51fdc90494ac5b896345955a7f3fe99349eb02114cfe618bd1e9cebc596aa/parsed_document.json",
+  "error_code": null,
+  "error": null,
+  "canonical_generation_ref": "data/documents/e6e51fdc90494ac5b896345955a7f3fe99349eb02114cfe618bd1e9cebc596aa/generations/c9bfd47a58d2f2a5-3301804e56094ea389a8c763f8551c59"
+}

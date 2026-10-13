@@ -1,0 +1,55 @@
+{
+  "byte_size": 118108,
+  "canonical_parsed_document_ref": "parsed_document.json",
+  "content_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+  "created_at": "2026-08-28T07:30:51.105453+00:00",
+  "document_id": "sha256:fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+  "error": null,
+  "error_code": null,
+  "interrupted_attempt": null,
+  "params": {
+    "camelot_version": "unavailable",
+    "docling_version": "2.120.3",
+    "doctags_converter_revision": 0,
+    "ocr_fallback_device_policy": "docling_default",
+    "ocr_fallback_dpi": 0,
+    "paddleocr_model": "unavailable",
+    "paddleocr_version": "unavailable",
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "pipeline": "docling_standard_pdf",
+    "policy_revision": 1,
+    "resolved_ocr_device": "unavailable",
+    "source_name": "Beretning_Ellekilde_8_13.pdf",
+    "table_parser": "docling_default",
+    "v2_renderer_revision": 1
+  },
+  "parser_runs": [
+    {
+      "error": null,
+      "parser": "docling",
+      "status": "success",
+      "version": "2.120.3",
+      "warnings": []
+    }
+  ],
+  "preprocess_id": "sha256:9aa5d16ef4d17a681df9a0435c2c46482d7df87b42e0ac5ef08bad7d78cf18e3",
+  "selected_parser": "docling",
+  "source_kind": "upload",
+  "source_path": "source.pdf",
+  "stats": {
+    "docling": {
+      "content_block_count": 94,
+      "diagnostic_count": 0,
+      "duration_ms": 34960,
+      "evidence_anchor_count": 329,
+      "markdown_bytes": 22066,
+      "page_count": 6,
+      "status": "success",
+      "table_cell_count": 249,
+      "table_count": 14
+    }
+  },
+  "status": "completed",
+  "task_id": "01d9cb77-8c6f-4b77-a52a-baab57442a1b",
+  "updated_at": "2026-08-28T07:31:26.336286+00:00"
+}

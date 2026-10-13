@@ -1,0 +1,195 @@
+{
+  "schema_version": "parsed_document.v2",
+  "document": {
+    "document_id": "sha256:5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276",
+    "content_sha256": "5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276",
+    "source": {
+      "kind": "upload",
+      "original_filename": "1790-06-17-1.pdf",
+      "media_type": "application/pdf",
+      "byte_size": 323510
+    },
+    "created_at": "2026-08-17T07:55:30.655726+00:00",
+    "page_count": 1,
+    "language_hints": [],
+    "is_encrypted": false,
+    "input_profile": {
+      "file_kind": "pdf",
+      "detected_mime": "application/pdf",
+      "pdf_version": null,
+      "has_text_layer": false,
+      "has_images": null
+    }
+  },
+  "preprocessing": {
+    "preprocess_id": "sha256:b4bdedb5fbeee7976f9608b1e1557bdf89d51d0aebae27a68381413abcf632cd",
+    "profile": "production_default",
+    "service_version": "0.1.0",
+    "started_at": "2026-08-13T08:31:53.244023+00:00",
+    "finished_at": "2026-08-13T08:32:18.962894+00:00",
+    "status": "completed",
+    "warnings": []
+  },
+  "page_count": 1,
+  "page_mapping_verified": true,
+  "artifacts": {
+    "source_ref": "source.pdf",
+    "parsed_json_ref": "parsed_document.json",
+    "markdown_ref": "artifacts/document.llm.md"
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "camelot_stream",
+      "version": "2.0.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "arbitration": {
+    "primary_document_parser": "docling_doctags",
+    "strategy": "docling_primary_ocr_page_fallback",
+    "page_decisions": [
+      {
+        "page_number": 1,
+        "selected_text_parser": "docling_doctags",
+        "selected_layout_parser": "docling_doctags",
+        "selected_table_parser": "docling_doctags",
+        "fallback_used": false,
+        "reason": "docling_doctags_primary",
+        "scores": {
+          "docling_doctags": 1.0
+        }
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "code": "camelot_only_tables_excluded",
+      "reason": null,
+      "detail": null,
+      "page_number": null,
+      "count": 0
+    }
+  ],
+  "content_stream": [
+    {
+      "block_id": "block_a57caedb7e95cdd7f5b15f6e8a5a9a21fddb4f10c1a001e771b0c2a3d21974be",
+      "page_number": 1,
+      "parser": "docling_doctags",
+      "bbox": {
+        "x0": 10.771200134277343,
+        "y0": 0.0,
+        "x1": 435.7440054321289,
+        "y1": 332.63999328613284
+      },
+      "markdown_span": {
+        "start": 21,
+        "end": 547
+      },
+      "kind": "paragraph",
+      "text": "chatixxivede il aft detenu a la geole du Fort Royal le negre Jeax,a mme Andrt,ayant untrou dans la joue, petite taille, ci devant a M. Havre du Lamentin.Le hegre Marcel,a Crifpina M:Emelot M.Sarfel au Simon# a StPierre.iDauphin, M.Eomond Filix a M.Magdallan au Precheur. Edouard a M.Duval au a St Pierre. Carbet.\u2014 Un petit negre ne fachant dire ni fon nom ni celui de fon maitre,ayant une mauvaise chemise blanche fur le corps Joseph a M. St-Omur,au Carbet. Louis a M. du Buc Ramville,au Robert. Edouard a M.Laju, au Carbet."
+    },
+    {
+      "block_id": "block_153faaa39594c579aa1e5f9a64f4bc347c39f78d3505ddefac740bae517b97df",
+      "page_number": 1,
+      "parser": "docling_doctags",
+      "bbox": {
+        "x0": 24.480000305175782,
+        "y0": 330.22079333496094,
+        "x1": 444.5568055419922,
+        "y1": 593.9135880126953
+      },
+      "markdown_span": {
+        "start": 549,
+        "end": 913
+      },
+      "kind": "paragraph",
+      "text": "Moko Et a celle de St Pierre,le negre d'environ 25 ans,de 5 p.I p. ayant des marchemise & culctte de toile grise,a M. Le mulatre Lallemand,auFort Royal. Pafcal,creole,dela Trinite,denviron de#P. chemise & culotte de toile ans,# lanche,a M. Lamontagne a Ste Marie. \u798f Le negre J.Piere, Sofo,un collier au cou & une chaine qui lai entoure le corps,a \u4eba M.Solliers."
+    }
+  ],
+  "pages": [
+    {
+      "page_number": 1,
+      "width_pt": 489.6000061035156,
+      "height_pt": 604.7999877929688,
+      "rotation": 0,
+      "ordered_content": [
+        "block_a57caedb7e95cdd7f5b15f6e8a5a9a21fddb4f10c1a001e771b0c2a3d21974be",
+        "block_153faaa39594c579aa1e5f9a64f4bc347c39f78d3505ddefac740bae517b97df"
+      ],
+      "unplaced_content": [],
+      "markdown_span": {
+        "start": 21,
+        "end": 913
+      }
+    }
+  ],
+  "tables": [],
+  "evidence_index": {
+    "anchors": [
+      {
+        "kind": "text",
+        "anchor_id": "anchor_16c548362ca877618be7b19ab280005b87f155ae33cb8493bd88614268c99c17",
+        "content_sha256": "5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276",
+        "preprocess_id": "sha256:b4bdedb5fbeee7976f9608b1e1557bdf89d51d0aebae27a68381413abcf632cd",
+        "block_id": "block_a57caedb7e95cdd7f5b15f6e8a5a9a21fddb4f10c1a001e771b0c2a3d21974be",
+        "markdown_span": {
+          "start": 21,
+          "end": 547
+        },
+        "producer_observations": [
+          {
+            "occurrence_id": "anchor_eb69126fb97ef2a6f4cf994d1c10ba4d94c80798b68bca278cf48ea4dc9414ab",
+            "page_number": 1,
+            "producer_ref": null,
+            "bbox": {
+              "x0": 10.771200134277343,
+              "y0": 0.0,
+              "x1": 435.7440054321289,
+              "y1": 332.63999328613284
+            }
+          }
+        ]
+      },
+      {
+        "kind": "text",
+        "anchor_id": "anchor_5f98ea518f45c1d5c4eb1bc8b00c67d1b9f6d16527507c7dcaf1c958625ccd8a",
+        "content_sha256": "5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276",
+        "preprocess_id": "sha256:b4bdedb5fbeee7976f9608b1e1557bdf89d51d0aebae27a68381413abcf632cd",
+        "block_id": "block_153faaa39594c579aa1e5f9a64f4bc347c39f78d3505ddefac740bae517b97df",
+        "markdown_span": {
+          "start": 549,
+          "end": 913
+        },
+        "producer_observations": [
+          {
+            "occurrence_id": "anchor_95d9df82d85a70bf4fa9b7bc0659cf9247d5391fa91b6fbcab7c8198919bd582",
+            "page_number": 1,
+            "producer_ref": null,
+            "bbox": {
+              "x0": 24.480000305175782,
+              "y0": 330.22079333496094,
+              "x1": 444.5568055419922,
+              "y1": 593.9135880126953
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

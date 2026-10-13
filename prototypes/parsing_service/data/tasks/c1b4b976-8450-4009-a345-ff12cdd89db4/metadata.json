@@ -1,0 +1,57 @@
+{
+  "byte_size": 553512,
+  "canonical_parsed_document_ref": "parsed_document.json",
+  "content_sha256": "4b471e747fbb4050919a256f3893b189e0a47ed5d7358f621eeebe305c5b89ae",
+  "created_at": "2026-08-26T08:57:47.604237+00:00",
+  "document_id": "sha256:4b471e747fbb4050919a256f3893b189e0a47ed5d7358f621eeebe305c5b89ae",
+  "error": null,
+  "error_code": null,
+  "interrupted_attempt": null,
+  "params": {
+    "camelot_version": "unavailable",
+    "docling_version": "2.120.3",
+    "doctags_converter_revision": 0,
+    "ocr_fallback_device_policy": "docling_default",
+    "ocr_fallback_dpi": 0,
+    "paddleocr_model": "unavailable",
+    "paddleocr_version": "unavailable",
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "pipeline": "docling_standard_pdf",
+    "policy_revision": 1,
+    "resolved_ocr_device": "unavailable",
+    "source_name": "lg-hard-to-model.pdf",
+    "table_parser": "docling_default",
+    "v2_renderer_revision": 1
+  },
+  "parser_runs": [
+    {
+      "error": null,
+      "parser": "docling",
+      "status": "success",
+      "version": "2.120.3",
+      "warnings": [
+        "Publication recorded 11 diagnostic(s); see parsed_document diagnostics."
+      ]
+    }
+  ],
+  "preprocess_id": "sha256:565299fde571f0456f39c76e76048bfcdc0a591899aa944dcabdb6ddea8c4463",
+  "selected_parser": "docling",
+  "source_kind": "upload",
+  "source_path": "source.pdf",
+  "stats": {
+    "docling": {
+      "content_block_count": 228,
+      "diagnostic_count": 11,
+      "duration_ms": 10677,
+      "evidence_anchor_count": 340,
+      "markdown_bytes": 65970,
+      "page_count": 15,
+      "status": "success",
+      "table_cell_count": 116,
+      "table_count": 4
+    }
+  },
+  "status": "completed",
+  "task_id": "c1b4b976-8450-4009-a345-ff12cdd89db4",
+  "updated_at": "2026-08-26T08:57:58.439325+00:00"
+}

@@ -1,0 +1,62 @@
+{
+  "task_id": "ccf5f604-a4c3-4c65-b2ff-ee8f0720bca3",
+  "document_id": "sha256:3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4",
+  "content_sha256": "3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4",
+  "source_path": "source.pdf",
+  "source_store_path": "data/sources/3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4.pdf",
+  "source_kind": "upload",
+  "status": "completed",
+  "created_at": "2026-08-19T10:02:39.415330+00:00",
+  "updated_at": "2026-08-19T10:05:00.896321+00:00",
+  "params": {
+    "pipeline": "docling_doctags_canonical",
+    "policy_revision": 5,
+    "doctags_converter_revision": 4,
+    "v2_renderer_revision": 3,
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "docling_version": "2.113.0",
+    "ocr_fallback_dpi": 150,
+    "ocr_fallback_device_policy": "auto",
+    "resolved_ocr_device": "cpu",
+    "paddleocr_model": "PP-OCRv6_medium_det",
+    "paddleocr_version": "3.7.0",
+    "table_parser": "docling_inventory_camelot_fallback",
+    "camelot_version": "2.0.0",
+    "source_name": "2203.15556v1.pdf"
+  },
+  "stats": {
+    "pymupdf_inspect": {},
+    "docling_doctags": {},
+    "docling_inventory_camelot_fallback": {}
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_inventory_camelot_fallback",
+      "version": null,
+      "status": "success",
+      "warnings": [
+        "camelot_inventory_enrichment_failed"
+      ],
+      "error": null
+    }
+  ],
+  "selected_parser": "docling_doctags",
+  "canonical_parsed_document_ref": "data/documents/3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4/parsed_document.json",
+  "error_code": null,
+  "error": null,
+  "canonical_generation_ref": "data/documents/3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4/generations/c9bfd47a58d2f2a5-e31c1c0f2077429997b4d070d4c29ded"
+}

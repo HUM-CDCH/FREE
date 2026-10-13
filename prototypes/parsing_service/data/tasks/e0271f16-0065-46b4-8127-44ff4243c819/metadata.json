@@ -1,0 +1,60 @@
+{
+  "task_id": "e0271f16-0065-46b4-8127-44ff4243c819",
+  "document_id": "sha256:993826c8877e9329c24471899f244537e7b82e9d267d09db79bba7d46df7b7fb",
+  "content_sha256": "993826c8877e9329c24471899f244537e7b82e9d267d09db79bba7d46df7b7fb",
+  "source_path": "source.pdf",
+  "source_store_path": "data/sources/993826c8877e9329c24471899f244537e7b82e9d267d09db79bba7d46df7b7fb.pdf",
+  "source_kind": "upload",
+  "status": "completed",
+  "created_at": "2026-08-19T10:00:05.228795+00:00",
+  "updated_at": "2026-08-19T10:01:01.653679+00:00",
+  "params": {
+    "pipeline": "docling_doctags_canonical",
+    "policy_revision": 5,
+    "doctags_converter_revision": 4,
+    "v2_renderer_revision": 3,
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "docling_version": "2.113.0",
+    "ocr_fallback_dpi": 150,
+    "ocr_fallback_device_policy": "auto",
+    "resolved_ocr_device": "cpu",
+    "paddleocr_model": "PP-OCRv6_medium_det",
+    "paddleocr_version": "3.7.0",
+    "table_parser": "docling_inventory_camelot_fallback",
+    "camelot_version": "2.0.0",
+    "source_name": "gla5-fedo.pdf"
+  },
+  "stats": {
+    "pymupdf_inspect": {},
+    "docling_doctags": {},
+    "camelot_stream": {}
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "camelot_stream",
+      "version": "2.0.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "selected_parser": "docling_doctags",
+  "canonical_parsed_document_ref": "data/documents/993826c8877e9329c24471899f244537e7b82e9d267d09db79bba7d46df7b7fb/parsed_document.json",
+  "error_code": null,
+  "error": null,
+  "canonical_generation_ref": "data/documents/993826c8877e9329c24471899f244537e7b82e9d267d09db79bba7d46df7b7fb/generations/c9bfd47a58d2f2a5-7ba3da13acf04c47a4fcef4efc45104c"
+}

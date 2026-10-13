@@ -1,0 +1,60 @@
+{
+  "task_id": "60e56bfc-1f8d-4954-b79c-024b266bfc9d",
+  "document_id": "sha256:5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276",
+  "content_sha256": "5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276",
+  "source_path": "source.pdf",
+  "source_store_path": "data/sources/5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276.pdf",
+  "source_kind": "upload",
+  "status": "completed",
+  "created_at": "2026-08-13T08:40:36.391986+00:00",
+  "updated_at": "2026-08-13T08:40:36.403015+00:00",
+  "params": {
+    "pipeline": "docling_doctags_canonical",
+    "policy_revision": 5,
+    "doctags_converter_revision": 4,
+    "v2_renderer_revision": 3,
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "docling_version": "2.113.0",
+    "ocr_fallback_dpi": 150,
+    "ocr_fallback_device_policy": "auto",
+    "resolved_ocr_device": "cpu",
+    "paddleocr_model": "PP-OCRv6_medium_det",
+    "paddleocr_version": "3.7.0",
+    "table_parser": "docling_inventory_camelot_fallback",
+    "camelot_version": "2.0.0",
+    "source_name": "1790-06-17-1.pdf"
+  },
+  "stats": {
+    "pymupdf_inspect": {},
+    "docling_doctags": {},
+    "camelot_stream": {}
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "camelot_stream",
+      "version": "2.0.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "selected_parser": "docling_doctags",
+  "canonical_parsed_document_ref": "data/documents/5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276/parsed_document.json",
+  "error_code": null,
+  "error": null,
+  "canonical_generation_ref": "data/documents/5091d2ac6dad646795bae3ac0114854fe0cdff4232cb6d378497510fba104276/generations/c9bfd47a58d2f2a5-6a40255c877a48d9beb669cf719a1588"
+}

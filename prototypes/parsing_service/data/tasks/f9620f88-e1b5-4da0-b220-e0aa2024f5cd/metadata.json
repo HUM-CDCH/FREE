@@ -1,0 +1,57 @@
+{
+  "byte_size": 6004349,
+  "canonical_parsed_document_ref": "parsed_document.json",
+  "content_sha256": "3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4",
+  "created_at": "2026-08-26T07:03:50.419336+00:00",
+  "document_id": "sha256:3fd3632a8ef48171bd25282990221d49535d75356192f068b3b2ebe08f2aedd4",
+  "error": null,
+  "error_code": null,
+  "interrupted_attempt": null,
+  "params": {
+    "camelot_version": "unavailable",
+    "docling_version": "2.120.3",
+    "doctags_converter_revision": 0,
+    "ocr_fallback_device_policy": "docling_default",
+    "ocr_fallback_dpi": 0,
+    "paddleocr_model": "unavailable",
+    "paddleocr_version": "unavailable",
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "pipeline": "docling_standard_pdf",
+    "policy_revision": 1,
+    "resolved_ocr_device": "unavailable",
+    "source_name": "Hoffman.pdf",
+    "table_parser": "docling_default",
+    "v2_renderer_revision": 1
+  },
+  "parser_runs": [
+    {
+      "error": null,
+      "parser": "docling",
+      "status": "success",
+      "version": "2.120.3",
+      "warnings": [
+        "Publication recorded 11 diagnostic(s); see parsed_document diagnostics."
+      ]
+    }
+  ],
+  "preprocess_id": "sha256:771564cfffbb8262d3d60e2b3e1015037ba8ea9e0e5e5aa37610cb1d15067f3b",
+  "selected_parser": "docling",
+  "source_kind": "upload",
+  "source_path": "source.pdf",
+  "stats": {
+    "docling": {
+      "content_block_count": 279,
+      "diagnostic_count": 11,
+      "duration_ms": 105546,
+      "evidence_anchor_count": 1455,
+      "markdown_bytes": 116900,
+      "page_count": 36,
+      "status": "success",
+      "table_cell_count": 1199,
+      "table_count": 23
+    }
+  },
+  "status": "completed",
+  "task_id": "f9620f88-e1b5-4da0-b220-e0aa2024f5cd",
+  "updated_at": "2026-08-26T07:05:37.169241+00:00"
+}

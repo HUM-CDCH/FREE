@@ -1,0 +1,60 @@
+{
+  "task_id": "653786a9-32c4-44f5-9772-f85e44070034",
+  "document_id": "sha256:e7c56f7fd0c5d0c32aae265eb13488bd04d82313f3d5dc2d972f7168188d469a",
+  "content_sha256": "e7c56f7fd0c5d0c32aae265eb13488bd04d82313f3d5dc2d972f7168188d469a",
+  "source_path": "source.pdf",
+  "source_store_path": "data/sources/e7c56f7fd0c5d0c32aae265eb13488bd04d82313f3d5dc2d972f7168188d469a.pdf",
+  "source_kind": "upload",
+  "status": "completed",
+  "created_at": "2026-08-20T12:38:20.927275+00:00",
+  "updated_at": "2026-08-20T12:38:46.683491+00:00",
+  "params": {
+    "pipeline": "docling_doctags_canonical",
+    "policy_revision": 5,
+    "doctags_converter_revision": 4,
+    "v2_renderer_revision": 3,
+    "parsed_document_schema_revision": "parsed_document.v2",
+    "docling_version": "2.113.0",
+    "ocr_fallback_dpi": 150,
+    "ocr_fallback_device_policy": "auto",
+    "resolved_ocr_device": "cpu",
+    "paddleocr_model": "PP-OCRv6_medium_det",
+    "paddleocr_version": "3.7.0",
+    "table_parser": "docling_inventory_camelot_fallback",
+    "camelot_version": "2.0.0",
+    "source_name": "2023.findings-acl.350.pdf"
+  },
+  "stats": {
+    "pymupdf_inspect": {},
+    "docling_doctags": {},
+    "docling_inventory_camelot_fallback": {}
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.113.0",
+      "status": "success",
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_inventory_camelot_fallback",
+      "version": null,
+      "status": "success",
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "selected_parser": "docling_doctags",
+  "canonical_parsed_document_ref": "data/documents/e7c56f7fd0c5d0c32aae265eb13488bd04d82313f3d5dc2d972f7168188d469a/parsed_document.json",
+  "error_code": null,
+  "error": null,
+  "canonical_generation_ref": "data/documents/e7c56f7fd0c5d0c32aae265eb13488bd04d82313f3d5dc2d972f7168188d469a/generations/c9bfd47a58d2f2a5-c3523d86b4c44892b635069b2f342c85"
+}
