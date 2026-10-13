@@ -148,7 +148,7 @@ function DocumentTabBar({
             <span className="shrink-0 text-ink-faint">
               Reviewed {pilotRoundProgress.reviewed}/{pilotRoundProgress.total}
             </span>
-            {pilotRoundProgress.onNext && (
+            {pilotRoundProgress.onNext ? (
               <>
                 <span aria-hidden="true" className="text-ink-faint">
                   ·
@@ -161,6 +161,25 @@ function DocumentTabBar({
                   Next document<span aria-hidden="true"> →</span>
                 </button>
               </>
+            ) : (
+              // The round is reviewed: its next step (approving the schema,
+              // or the rest of the collection) is back on the Batch Extraction.
+              onBackToBatch &&
+              pilotRoundProgress.total > 0 &&
+              pilotRoundProgress.reviewed >= pilotRoundProgress.total && (
+                <>
+                  <span aria-hidden="true" className="text-ink-faint">
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 cursor-pointer font-semibold text-accent outline-none transition-colors hover:text-ink focus-visible:text-ink"
+                    onClick={onBackToBatch}
+                  >
+                    Back to Batch Extraction<span aria-hidden="true"> →</span>
+                  </button>
+                </>
+              )
             )}
           </>
         )}
