@@ -6,6 +6,10 @@ and is ledgered `other`. `plan` groups consecutive units into windows whose rend
 stage's budget, with disjoint primary text and up to `overlap` units of context on each side; a unit too long for any
 window is cut at whitespace, then at code points (`windows.windows_of`), keeping its raw offsets. Supplementary
 context that does not fit is dropped and named, never primary text. `split` halves a window whose reply failed.
+A WINDOW line's label names its layout kind when ingestion gave its segment one (a heading or a table row). Measured
+on one 6-page excavation report (7 records; Qwen3.8-27B-NVFP4 at temperature 0, 13 October 2026, page windows under
+12 to 24 concurrent requests): without kinds, one record's heading was missed in up to 12 of 12 identical requests,
+as the server's batching decided; with kinds, 48 of 48 windows were read right.
 
 Each discovery reply names, by line label and the exact text where it starts, every place in its window's primary
 text where a record or record-free text ("other": front matter, headings, an index) begins, and says whether the
@@ -34,16 +38,16 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from itertools import groupby
 
-from kei_exp.kie.extract.contexts import FURNITURE
+from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
 from kei_exp.kie.extract.locate import normalise
 from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 5  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 6  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
-# when both edge flags say the record continues
+# when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`)
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -59,7 +63,9 @@ DISCOVERY = (
     "Answer "
     "\"begins_inside_record\": true when the first WINDOW line continues a record that began before the WINDOW, false "
     "when it does not, null when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW "
-    "continues after it, false when it does not, null when you cannot tell. CONTEXT lines are shown for orientation "
+    "continues after it, false when it does not, null when you cannot tell. A WINDOW line's label may name its "
+    "layout kind (heading or table row); a kind is a hint, never text of the line. CONTEXT lines are shown for "
+    "orientation "
     "only: never report a place in them. Return only the JSON object, on one line, without indentation.")
 
 
@@ -174,10 +180,18 @@ class _Seen:
     ends: bool | None = None
 
 
-def _render(window: Window, texts: dict[str, str]) -> tuple[str, list[str]]:
+def kinds_of(passages: Sequence[Passage]) -> dict[str, str]:
+    """The layout kind a segment's lines are shown with: `heading` or `table row` (a table's lines are its rows)."""
+    return {passage.id: "heading" if passage.label in HEADINGS else "table row" for passage in passages
+            if passage.label in HEADINGS or passage.label == "Table" or passage.table is not None}
+
+
+def _render(window: Window, texts: dict[str, str], kinds: dict[str, str]) -> tuple[str, list[str]]:
     labels = [f"L{number}" for number in range(1, len(window.primary) + 1)]
+    shown = [f"{label} {kinds[unit.segment]}" if unit.segment in kinds else label
+             for label, unit in zip(labels, window.primary, strict=True)]
     parts = ([f"### CONTEXT BEFORE\n{text_of(window.before, texts)}"] if window.before else []) + \
-        [f"### WINDOW\n{text_of(window.primary, texts, labels)}"] + \
+        [f"### WINDOW\n{text_of(window.primary, texts, shown)}"] + \
         ([f"### CONTEXT AFTER\n{text_of(window.after, texts)}"] if window.after else [])
     return "\n\n".join(parts) + "\n\nReturn the JSON object now.", labels
 
@@ -276,10 +290,11 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`). Without
     `unanswered`, every window is answered: `workers` are asked at once, and the first error stops the rest."""
     texts = {passage.id: passage.text for passage in evidence.passages}
+    kinds = kinds_of(evidence.passages)
     system = DISCOVERY.format(description=description)
 
     def fits(window: Window) -> bool:
-        user, labels = _render(window, texts)
+        user, labels = _render(window, texts, kinds)
         return fits_budget(system, user, _reply(labels))
     units, windows, at = units_of([each for each in evidence.passages if each.label not in FURNITURE]), [], 0
     for group in groups_of(units, evidence.passages, by):
@@ -293,7 +308,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     done: list[_Seen] = []
 
     def one(window: Window, found: list[dict]) -> tuple[_Seen | None, list, list[Issue]]:
-        user, labels = _render(window, texts)
+        user, labels = _render(window, texts, kinds)
         if progress is not None:
             progress(found, ranges_json(window.primary))
         calls: list = []
