@@ -194,6 +194,24 @@ it('reads the latest values only while a consumer wants them', async () => {
   expect(reader.snapshot()).toMatchObject({ state: { snapshotVersion: 2 }, latestPage: { snapshotVersion: 1 } })
 })
 
+it('finishes a values read its consumer releases midway, then reads the state only', async () => {
+  let current = state('RUNNING', 1, 1)
+  const values = held()
+  const server = serve(url => url === root ? Response.json(current) : values.answer())
+  const { reader } = start()
+  const release = reader.wantPages()
+  await flush()
+  expect(server.requests).toEqual([root, `${root}/values?limit=500&snapshotVersion=1`])
+  release()
+  values.answers[0]!(Response.json(page(1)))
+  await flush()
+  expect(reader.snapshot().latestPage).toMatchObject({ snapshotVersion: 1 })
+  current = state('RUNNING', 1, 2)
+  await vi.advanceTimersByTimeAsync(1_500)
+  expect(server.requests.slice(2)).toEqual([root])
+  expect(reader.snapshot()).toMatchObject({ state: { snapshotVersion: 2 }, latestPage: { snapshotVersion: 1 } })
+})
+
 it('publishes the state when the values read after it fails, and keeps the values read before', async () => {
   let current = state('RUNNING', 1, 1), values = () => Response.json(page(1))
   serve(url => url === root ? Response.json(current) : values())

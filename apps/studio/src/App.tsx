@@ -1118,10 +1118,11 @@ export function DocumentWorkspace({
                   <MarkPopover keys={markChoice.keys} describe={railMarks.describe} mark={markChoice.mark}
                     onChoose={(key) => { setMarkChoice(null); selectValueRef.current?.(key) }} onClose={() => setMarkChoice(null)} />
                 )}
-                {/* Over the PDF, which stays mounted with its marks and position. */}
+                {/* Over the PDF, which stays mounted with its marks and position. The Markdown's marks show only while the
+                    rail is open. */}
                 {documentView === 'markdown' && (
                   <div className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={marks} marksShown={marksShown} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} />
                   </div>
                 )}
               </div>

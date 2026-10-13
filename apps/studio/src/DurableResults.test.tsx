@@ -298,6 +298,58 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   expect(replacement).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
 })
 
+it('starts no read of the latest values while the rail is collapsed, and catches up once it opens',async()=>{
+  const page=(snapshotVersion:number)=>({snapshotVersion,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}})
+  let state={projectId:'project',status:'RUNNING',controlVersion:1,snapshotVersion:1,feedbackVersion:0,selection:{id:'original',ordinal:1},
+    pendingSelection:null,counts:{saved:0,inFlight:1},records:null,reading:[]}
+  // As the real read: without pages it keeps the values it was given.
+  vi.mocked(readDurable).mockImplementation(async(_id,_signal,previous,pages)=>({state,page:pages?page(state.snapshotVersion):previous}) as never)
+  const onReviewProgress=vi.fn(),pages=()=>vi.mocked(readDurable).mock.calls.map(call=>call[3])
+  const props={attempt:{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt,document:null,currentSchema:null,onEvidence:()=>{},onReviewProgress}
+  vi.useFakeTimers()
+  try {
+    let view!:ReturnType<typeof render>
+    await act(async()=>{view=render(<Results {...props}/>)})
+    expect(pages()).toEqual([true])
+    view.rerender(<Results {...props} railOpen={false}/>)
+    state={...state,snapshotVersion:2}
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(pages()).toEqual([true,false])
+    // The ring keeps its last progress.
+    expect(onReviewProgress).toHaveBeenLastCalledWith(expect.objectContaining({snapshotVersion:1}))
+    view.rerender(<Results {...props}/>)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(0)})
+    expect(pages()).toEqual([true,false,true])
+    expect(onReviewProgress).toHaveBeenLastCalledWith(expect.objectContaining({snapshotVersion:2}))
+  } finally {vi.useRealTimers()}
+})
+
+it('follows nothing on the document while the rail is collapsed, and the one-by-one value once it opens',async()=>{
+  const document=decodeParsedDocument(rawDocument),first=document.evidence_index.anchors[0]!.anchor_id,second='second-anchor'
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'First title',evidence:[],links:[{evidenceAnchorId:first,resultPath:['records',0,'title'],precision:'segment'}],grounding:'grounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const next={...value,id:'next',modelValue:'Next title',links:[{evidenceAnchorId:second,resultPath:['records',0,'title'],precision:'segment'}]}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:2,toCheck:2,approved:0,edited:0,rejected:0},values:[value,next],total:2,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
+  const onEvidence=vi.fn(),onFocusEvidence=vi.fn()
+  const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document,currentSchema:null,onEvidence,onFocusEvidence}
+  const view=render(<Results {...props}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(first,undefined,'segment')
+  view.rerender(<Results {...props} railOpen={false}/>)
+  expect(onFocusEvidence).toHaveBeenLastCalledWith(null)
+  // One-by-one moves on while collapsed, as when a decision saved before the collapse lands.
+  fireEvent.keyDown(screen.getByRole('heading',{name:'First title'}),{key:'j'})
+  expect(screen.getByRole('heading',{name:'Next title'})).toBeVisible()
+  expect(onEvidence).toHaveBeenCalledOnce()
+  expect(onFocusEvidence).toHaveBeenLastCalledWith(null)
+  view.rerender(<Results {...props}/>)
+  expect(onEvidence).toHaveBeenCalledTimes(2)
+  expect(onEvidence).toHaveBeenLastCalledWith(second,undefined,'segment')
+  expect(onFocusEvidence).toHaveBeenLastCalledWith(next.links[0])
+})
+
 it('defers native Evidence navigation until its pinned source arrives and follows once',async()=>{
   const document=decodeParsedDocument(rawDocument),anchor=document.evidence_index.anchors[0]!.anchor_id
   const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
