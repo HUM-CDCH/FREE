@@ -193,9 +193,9 @@ def nearly(block: BlockText, quote: str, bound: int, *, within: tuple[int, int] 
         while found != -1:
             seeds.append(found - at)
             found = view.text.find(part, found + 1, high)
-    groups: list[list[int]] = []  # seeds within `bound` of each other name one place
+    groups: list[list[int]] = []  # seeds within `bound` of a group's first name one place, never chained further
     for start in sorted(seeds):
-        if groups and start - groups[-1][-1] <= bound:
+        if groups and start - groups[-1][0] <= bound:
             groups[-1].append(start)
         else:
             groups.append([start])

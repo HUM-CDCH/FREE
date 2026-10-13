@@ -126,5 +126,12 @@ def test_text_too_repetitive_to_tell_one_place_from_another_gives_none():
     assert nearly(one(rows), "Tooth, human\tLevel 6\tWell preservd", 3) == []
 
 
+def test_two_copies_of_a_repetitive_passage_are_never_one_place():
+    """Seeds every few characters must not chain one group across both copies, which would fit only one of them."""
+    passage = ("unknown " * 100)[:799]
+    quote = passage[:400] + "x" + passage[401:]
+    assert len(nearly(one(f"{passage} END OF ITEM {passage}"), quote, 15)) != 1
+
+
 def test_printed_text_joins_a_word_hyphenated_at_a_break_and_drops_soft_hyphens():
     assert printed("Groß-\nsteingrab mit Trag\xadsteinen, Nord-\nSüd") == "Großsteingrab mit Tragsteinen, Nord- Süd"
