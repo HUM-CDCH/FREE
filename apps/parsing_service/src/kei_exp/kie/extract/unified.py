@@ -146,9 +146,10 @@ class _Budget:
         attempts = []
         counter, ceiling, floor = self.counters[ROLE[stage]], self.stages[stage]["output_tokens"], None
         try:
-            if stage in self.spare:
+            if stage in self.spare:  # a durable call's reply is trimmed to what its input leaves once it is captured
                 floor = ceiling
-                ceiling = max(floor, counter.context_tokens - counter.request_tokens(system, user, schema))
+                ceiling = counter.context_tokens if self.chat.runtime is not None else \
+                    max(floor, counter.context_tokens - counter.request_tokens(system, user, schema))
             answer, attempts = complete(self.chat, stage=stage, record=record, system=system, user=user,
                                         schema=schema, max_tokens=ceiling, counter=counter,
                                         minimum_reply_tokens=floor, unit=unit)

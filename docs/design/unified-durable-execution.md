@@ -640,7 +640,7 @@ queue.
     - **Defaults 1 and 2.** Discovery asks its windows that many at a time,
       so a planning round yields at most that many discovery calls; the
       entries are read once discovery has ended.
-    - **Defaults 3 (pipelined).** Discovery keeps that many windows asked, a
+    - **Defaults 3 and 4 (pipelined).** Discovery keeps that many windows asked, a
       failed window's halves at once. Meanwhile each round reads the entries
       that the windows already read decide, lists them under
       `unified-prefix:<attempt>:<count>` and shows their candidates;

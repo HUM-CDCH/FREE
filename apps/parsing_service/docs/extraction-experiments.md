@@ -115,7 +115,8 @@ character budgets: its record calls reply within 2,048 tokens, and its other
 calls send no `max_tokens`, so the adapter's 8,192 applies. The unified Catalog
 counts every request too; each stage's input ceiling is the served context minus
 its reply reserve (or the method's custom ceiling), and its reply reserve is
-sent as `max_tokens`.
+sent as `max_tokens`; from defaults 4 an entry call sends the served context its
+counted input leaves instead, the reserve its floor.
 
 Every row above sends its request through the same execution seam,
 [`calls.complete`](../src/kei_exp/kie/extract/calls.py):
