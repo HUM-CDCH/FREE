@@ -84,28 +84,21 @@ def fingerprint(result: dict, request, model: dict) -> str:
     })).hexdigest()
 
 
-def unchecked() -> None:
-    """No cancellation hook: the CLI and direct callers run to the end."""
-
-
 def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Schema, chat: Router, *, budget: int,
-                    check: Callable[[], None], counter: TokenCounter | None = None, structured: bool = False
+                    counter: TokenCounter | None = None, structured: bool = False
                     ) -> tuple[dict, list[dict], list[Call], list[Issue]]:
     """The document-level fields read in each context and reconciled across them, the conflicts, calls and issues.
 
-    `check` runs before each context's call when the schema has document-level fields. Several contexts' answers are
-    assembled by `contexts.assemble_document`, as Article's root is: every list occurrence kept, an equal item that
-    contexts sharing an overlap passage both returned joined once (`overlap_items_joined`), equal items from other
-    contexts named (`possible_repeated_items`). A scalar the contexts disagree on is null, with its conflict and a
-    `conflicting_document_values` issue."""
+    Several contexts' answers are assembled by `contexts.assemble_document`, as Article's root is: every list
+    occurrence kept, an equal item that contexts sharing an overlap passage both returned joined once
+    (`overlap_items_joined`), equal items from other contexts named (`possible_repeated_items`). A scalar the contexts
+    disagree on is null, with its conflict and a `conflicting_document_values` issue."""
     from kei_exp.kie.extract.retained import document_inputs, saved_document
     schema, carried = document_inputs(chat,schema)
     documents: list[dict] = []
     calls: list[Call] = []
     issues: list[Issue] = []
     for context in contexts:
-        if schema.document_nodes:
-            check()
         document, document_calls, document_issues = extract_document(replace(evidence, passages=context.passages),
             schema, chat, budget=budget, counter=counter, structured=structured)
         documents.append(document)
@@ -135,7 +128,7 @@ class GroundingResult:
 
 
 def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Schema, chat, *,
-                   check: Callable[[], None], budget: int, counter=None,
+                   budget: int, counter=None,
                    method: ArticleOptions | None = None, identities: Sequence[dict] | None = None,
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
                    origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset(),
@@ -152,7 +145,6 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
     result = GroundingResult()
     verifier = grounding.technique(method.grounding if method is not None else None)
     for number, (group, fields) in enumerate(slices):
-        check()
         skipped_paths = set()
         if method is not None and method.evidence_policy == "schema":
             for path, _ in leaves(fields):
@@ -167,7 +159,7 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
         verification = dict(record=number, budget=budget, counter=counter,
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                 ensure_ascii=False)) if identities is not None else None,
-            before_call=check, proofs=result.proofs, on_batch=on_batch)
+            proofs=result.proofs, on_batch=on_batch)
         if identities is not None:
             links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
                 origins=origins[number], value_contexts=value_contexts[number],

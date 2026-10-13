@@ -155,9 +155,7 @@ its own.
 Pause and Stop are cooperative. A durable attempt stops at its coordination
 boundaries: the planner checks the attempt's intent before it plans, and a
 capture checks it again, and must be admitted by `begin_call`, before its
-request is sent. A request already in flight finishes first. The `before_entry`
-hooks of `run.extract` and `run.dispatch` stay for callers that pass one; the
-durable planner passes none.
+request is sent. A request already in flight finishes first.
 
 ### The recipe Catalog
 

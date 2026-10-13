@@ -1,7 +1,7 @@
 """Grounding: linking a record's extracted values to the passages that support them, as interchangeable techniques.
 
 Every technique has one call shape: a record's passages, its fields, the schema and a chat, keyword-only
-`record`, `budget`, `counter`, `record_context`, `before_call`, `proofs` and `skip_paths`, returning the record's links, the
+`record`, `budget`, `counter`, `record_context`, `proofs` and `skip_paths`, returning the record's links, the
 model calls made and the issues found. `assembly.ground_records` obtains one technique through `technique` and calls it once
 per verification group of each record; it does not know which technique it holds. A new grounding arm is a new
 function of this shape and one more entry in `technique`.
@@ -160,7 +160,7 @@ def _item_path(path: tuple[str | int, ...]) -> str:
 
 def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
            budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-           before_call: Callable[[], None] | None = None, quoted: bool = False,
+           quoted: bool = False,
            proofs: list[dict] | None = None, span_ids: bool = False,
            skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
            on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
@@ -177,7 +177,6 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     Every claim is verified by the model, a uniquely found value included. Every batch carries the record's fields,
     counted in its size, so splitting never separates a claim from its record. Generic Catalog uses a character cap;
     Article adds its record identity and a served counter, verifying within the context minus an output reserve.
-    `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     `on_batch`, when given, runs after each batch's reply with the links that batch made (Article retains them while
     the run goes on): none after a failed reply; a batch split or refused before any call has no reply and no call.
     """
@@ -277,8 +276,6 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 "attribution": {"type": "boolean"}}, "required": ["label", "attribution"],
                 "additionalProperties": False} for claim in batch}
         size = len(instruction) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
-        if before_call is not None:
-            before_call()
         count = counter.request_tokens(instruction, user, reply_schema) if counter else None
         exceeded = count + 2048 > counter.context_tokens if counter else size > budget
         if projected and not exceeded:  # the reply, every label at its longest, within the output reserve
@@ -358,43 +355,43 @@ Grounding = Callable[..., tuple[list[Link], list[Call], list[Issue]]]
 
 def semantic(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
              budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-             before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+             proofs: list[dict] | None = None,
              skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
              on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """The production reference: one evidence label per claim, or NONE."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
-                  record_context=record_context, before_call=before_call, proofs=proofs, skip_paths=skip_paths,
+                  record_context=record_context, proofs=proofs, skip_paths=skip_paths,
                   projected=projected, on_batch=on_batch)
 
 
 def quoted(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
            budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-           before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+           proofs: list[dict] | None = None,
            skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
            on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """A label, an exact source quote and an attribution per claim; accepted quotes are appended to `proofs`."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
-                  record_context=record_context, before_call=before_call, quoted=True, proofs=proofs, skip_paths=skip_paths,
+                  record_context=record_context, quoted=True, proofs=proofs, skip_paths=skip_paths,
                   projected=projected, on_batch=on_batch)
 
 
 def spans(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
           budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-          before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+          proofs: list[dict] | None = None,
           skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
           on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """Canonical spans with reconstructed quotes and model-attested attribution."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
-                  record_context=record_context, before_call=before_call, proofs=proofs, skip_paths=skip_paths, span_ids=True,
+                  record_context=record_context, proofs=proofs, skip_paths=skip_paths, span_ids=True,
                   projected=projected, on_batch=on_batch)
 
 
 def off(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
         budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-        before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+        proofs: list[dict] | None = None,
         skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
         on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:

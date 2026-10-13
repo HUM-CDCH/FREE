@@ -123,7 +123,7 @@ def test_larger_batches_retain_every_claim_and_refuse_oversized_source():
     assert issues[0].code == "grounding_exceeds_budget"
 
 
-def test_truncation_and_cancellation_do_not_accept_span_decisions():
+def test_truncation_does_not_accept_span_decisions():
     class CutChat(CountingChat):
         def complete(self, **kwargs):
             return replace(super().complete(**kwargs), finish="length")
@@ -131,13 +131,6 @@ def test_truncation_and_cancellation_do_not_accept_span_decisions():
     links, calls, issues = verify(passages(["Hill 1827"]), {"year": 1827}, SCHEMA, chat,
         record=0, counter=WordCounter(), record_context="Hill", span_ids=True)
     assert not links and not calls[-1].ok and issues[0].code == "call_failed"
-    def cancel():
-        raise RuntimeError("cancelled")
-    chat = span_chat()
-    with pytest.raises(RuntimeError, match="cancelled"):
-        verify(passages(["Hill 1827"]), {"year": 1827}, SCHEMA, chat, record=0,
-               counter=WordCounter(), record_context="Hill", span_ids=True, before_call=cancel)
-    assert not chat.calls
 
 
 def test_skip_paths_distinguish_records_and_array_positions():

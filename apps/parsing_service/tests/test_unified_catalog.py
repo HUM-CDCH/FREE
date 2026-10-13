@@ -1152,7 +1152,7 @@ def test_only_an_entry_whitespace_loop_gets_a_recovery(monkeypatch, stage, text)
                               "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
     monkeypatch.setattr(llm.requests, "post", post)
     budget = unified._Budget(as_router(llm.OpenAIChat()), dict.fromkeys(("fields", "reasoning"), WordCounter()),
-                             {stage: {"output_tokens": 4096}}, lambda: None)
+                             {stage: {"output_tokens": 4096}})
     calls, issues = [], []
     assert budget.ask(stage, 0, "Read", "Source", {"type": "object"}, calls, issues) is None
     assert len(posted) == len(calls) == 1 and not calls[0].recovered
@@ -1176,7 +1176,7 @@ def test_recovery_refusal_preserves_the_first_call_or_propagates_a_transient_err
     monkeypatch.setattr(llm.requests, "post", post)
     monkeypatch.setattr(llm, "bounded_grammar", lambda *_: "GRAMMAR")
     budget = unified._Budget(as_router(llm.OpenAIChat()), {"fields": WordCounter()},
-                             {"entry": {"output_tokens": 4096}}, lambda: None)
+                             {"entry": {"output_tokens": 4096}})
     calls, issues = [], []
     if status == 503:
         with pytest.raises(requests.HTTPError):
@@ -1186,26 +1186,6 @@ def test_recovery_refusal_preserves_the_first_call_or_propagates_a_transient_err
         assert len(calls) == 2 and calls[1].error == "HTTPError: HTTP 400"
         assert all(not call.ok and not call.recovered for call in calls)
     assert len(posted) == 2
-
-
-def test_cancellation_is_checked_before_an_entry_recovery(monkeypatch):
-    from kei_exp.kie.extract import llm
-    from tests.test_extract_llm import response
-    posted = []
-    def post(url, **kwargs):
-        posted.append(kwargs["json"])
-        return response(200, {"choices": [{"message": {"content": '{"site":' + " " * 100},
-                                           "finish_reason": "length"}],
-                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
-    def check():
-        if posted:
-            raise RuntimeError("cancelled before recovery")
-    monkeypatch.setattr(llm.requests, "post", post)
-    budget = unified._Budget(as_router(llm.OpenAIChat()), {"fields": WordCounter()},
-                             {"entry": {"output_tokens": 4096}}, check)
-    with pytest.raises(RuntimeError, match="cancelled before recovery"):
-        budget.ask("entry", 0, "Read", "Source", {"type": "object"}, [], [])
-    assert len(posted) == 1
 
 
 @pytest.mark.parametrize("mode", ["bounded", "prompt-only"])
@@ -1225,7 +1205,7 @@ def test_an_already_bounded_or_prompt_only_entry_is_not_recovered(monkeypatch, m
     monkeypatch.setattr(llm, "bounded_grammar", lambda *_: "GRAMMAR")
     chat = llm.OpenAIChat(max_whitespace=16 if mode == "bounded" else None)
     budget = unified._Budget(as_router(chat), {"fields": WordCounter()},
-                             {"entry": {"output_tokens": 4096}}, lambda: None)
+                             {"entry": {"output_tokens": 4096}})
     calls, issues = [], []
     assert budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues) is None
     assert len(posted) == len(calls) == (1 if mode == "bounded" else 2)
@@ -1297,20 +1277,6 @@ def test_entries_run_concurrently_assemble_in_source_order():
     chat = CountingChat(Model(source))
     result = unified.extract(None, source, request(), as_router(chat), counter=WordCounter(), chunks=4)
     assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 9)]
-
-
-def test_cancellation_is_observed_before_each_call():
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    checks = []
-
-    def check():
-        checks.append(1)
-        if len(checks) > 3:
-            raise KeyboardInterrupt  # stands in for the worker's cancellation
-    with pytest.raises(KeyboardInterrupt):
-        unified.extract(None, source, request(), as_router(CountingChat(Model(source))), counter=WordCounter(),
-                        before_entry=check)
-    assert len(checks) == 4
 
 
 def test_the_unified_modules_know_no_recipe():

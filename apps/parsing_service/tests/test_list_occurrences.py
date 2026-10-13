@@ -136,21 +136,21 @@ def reader(system, user, schema):
 
 def test_article_document_fields_keep_every_occurrence_and_join_an_overlap_repeat():
     document, conflicts, _, issues = document_values(evidence(SOURCE), OVERLAPPING, DOCUMENT_FIELDS,
-                                                     CountingChat(reader), budget=24000, check=lambda: None)
+                                                     CountingChat(reader), budget=24000)
     assert document == {"charges": [10, 10, 20, 10]} and conflicts == []  # the union kept [10, 20]
     codes = {issue.code: issue for issue in issues}
     assert json.loads(codes["overlap_items_joined"].detail) == {"path": ["charges"], "contexts": [0, 1], "index": 2}
     assert codes["overlap_items_joined"].path == ("charges",) and codes["overlap_items_joined"].record is None
     assert json.loads(codes["possible_repeated_items"].detail)["indices"] == [0, 1, 3]
     document, _, _, issues = document_values(evidence(SOURCE), DISJOINT, DOCUMENT_FIELDS, CountingChat(reader),
-                                             budget=24000, check=lambda: None)
+                                             budget=24000)
     assert document == {"charges": [10, 10, 20, 10]} and "overlap_items_joined" not in {i.code for i in issues}
 
 
 def test_the_article_root_joins_a_nested_item_its_overlapping_contexts_both_read():
     counters = {role: WordCounter() for role in ("fields", "reasoning")}
     found = article.document_root(SOURCE, DOCUMENT_FIELDS, CountingChat(reader), counters=counters,
-                                  record_chars=24000, check=lambda: None, method=ArticleOptions(),
+                                  record_chars=24000, method=ArticleOptions(),
                                   contexts=OVERLAPPING)
     (_, root), = found.slices
     assert root["finds"] == [{"kind": "sword", "materials": None}, {"kind": "urn", "materials": ["clay", "clay"]},
@@ -159,7 +159,7 @@ def test_the_article_root_joins_a_nested_item_its_overlapping_contexts_both_read
     assert json.loads(joined.detail) == {"path": ["finds"], "contexts": [0, 1], "index": 1}
     assert joined.path == ("records", 0, "finds") and joined.record == 0
     found = article.document_root(SOURCE, DOCUMENT_FIELDS, CountingChat(reader), counters=counters,
-                                  record_chars=24000, check=lambda: None, method=ArticleOptions(), contexts=DISJOINT)
+                                  record_chars=24000, method=ArticleOptions(), contexts=DISJOINT)
     assert [item["kind"] for item in found.slices[0][1]["finds"]] == ["sword", "urn", "spear"]
 
 

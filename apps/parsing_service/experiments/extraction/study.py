@@ -45,7 +45,7 @@ def preflight(study: dict, cells: list[dict], *, output: Path | None = None) -> 
         source = next(s for s in study["sources"] if s["id"] == cell["source"])
         evidence = load(Path(source["run"]))
         limited = LimitedCounter(counter, method.context_tokens) if method.context == "bounded" else counter
-        contexts = (source_contexts(evidence.passages, cell["request"].schema_, method, limited, lambda: None)
+        contexts = (source_contexts(evidence.passages, cell["request"].schema_, method, limited)
                     if method.context == "bounded" else [Context(evidence.passages)])
         counts = []
         for context in contexts:

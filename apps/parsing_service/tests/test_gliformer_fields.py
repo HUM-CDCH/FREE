@@ -148,7 +148,7 @@ def test_entry_isolation_raw_values_and_scores(tmp_path):
 
 def test_uncertain_end_is_not_sent_to_model():
     native = Native()
-    budget = unified._Budget(Router(native, None), {"fields": Counter()}, {"entry": {"input_tokens": 1000}}, lambda: None)
+    budget = unified._Budget(Router(native, None), {"fields": Counter()}, {"entry": {"input_tokens": 1000}})
     reader = unified._Run(request().schema_, budget, {"p1_s0": "200. Male"}, {"overlap": 1})
     work = reader.entry(0, {"end": "unresolved", "ranges": []})
     assert native.inputs == [] and work.failed == 1 and work.native == []
@@ -172,7 +172,7 @@ def test_long_entry_windows_keep_unicode_and_never_see_adjacent_entries():
     text = "outside\n" + "αβ 🐐 goatskin.\n" * 180 + "neighbor"
     entry = {"ranges": [{"segment": "p1_s0", "start": 8, "end": len(text) - 8}]}
     windows, calls = gliformer.read_entry(native, Counter(), request().schema_, entry, {"p1_s0": text},
-                                          ceiling=150, overlap=1, check=lambda: None, number=0)
+                                          ceiling=150, overlap=1, number=0)
     assert len(windows) > 1 and all(call.input_tokens <= 150 for call in calls)
     assert all("outside" not in part and "neighbor" not in part for part in native.inputs)
     covered = set()

@@ -3,7 +3,7 @@
 `complete` is the one seam every extraction model call goes through — Article inventory, Catalog discovery,
 document and record values, grounding, and the recipe Catalog's entry and arbitration calls. Its callers own
 everything purpose-specific: the source they render, the prompt and reply schema, what the answer means,
-conformance to the schema, reconciliation and grounding, and cancellation checks, which they make before calling.
+conformance to the schema, reconciliation and grounding.
 This module owns only what every call shares:
 
 - routing: a `models.Router` sends the call to the chat serving its stage's role (`models.ROLE`);
