@@ -2,8 +2,7 @@ import {
   authenticatedFetch,
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -18,7 +17,8 @@ import {
   decodeParsedDocument,
   type ParsedDocument,
 } from 'extraction/parsed-document'
-import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
+import { useEvidenceOverlays } from './useEvidenceOverlays'
+import { createSelectionChannel } from './selectionChannel'
 import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
@@ -134,6 +134,8 @@ export type DocumentWorkspaceProps = {
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
   /** The explicit result/decision cut the route opened `persistedExtraction` on; absent opens its live cut. */
   persistedReviewCut?: SavedReviewCut | null
+  /** The route's value link: Results selects the value once per arrival. Its Extraction is null until known. */
+  routedValue?: { extractionId: string | null; key: string } | null
   /** Opens an Extraction, on `reviewCut` when one is named (a finalized review). */
   onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
@@ -182,6 +184,7 @@ export function DocumentWorkspace({
   persistedExtraction,
   latestReviewedExtraction = null,
   persistedReviewCut = null,
+  routedValue = null,
   onOpenExtraction,
   onInitialResourceLoadFailure,
   onSourceSuperseded,
@@ -274,8 +277,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
-  const [railTab, setRailTab] = useState<RailTab>(() => new URLSearchParams(window.location.search).has('value') ? 'results' : 'schema')
-  const [resultPath, setResultPath] = useState<string[] | null>(null)
+  const [railTab, setRailTab] = useState<RailTab>(() => routedValue ? 'results' : 'schema')
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished. The
   // run is "started here" from the request on: `admittingRef` while its admission is awaited (an admission already
@@ -299,7 +301,6 @@ export function DocumentWorkspace({
   if (renderedExtractionId !== persistedExtraction?.extractionId) {
     setRenderedExtractionId(persistedExtraction?.extractionId)
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setResultPath(null)
   }
   if (renderedSourceRepresentationId !== sourceRepresentationId) {
     setRenderedSourceRepresentationId(sourceRepresentationId)
@@ -307,7 +308,6 @@ export function DocumentWorkspace({
     setZoomPercent(100)
     setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setResultPath(null)
     if (toast?.outlivesSwitch) consumeSwitch()
     else dismissToast()
     setDocIndex({ status: 'parsing' })
@@ -612,8 +612,6 @@ export function DocumentWorkspace({
   //   templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
   const effectiveRailOpen = railOpen
-  // The one-by-one value's link: the page dims around it.
-  const [focusedEvidence, setFocusedEvidence] = useState<EvidenceLink | null>(null)
   const railOnResultsRef = useRef(false)
   // The document pane shows the PDF or the parsed Markdown.
   const [documentView, setDocumentView] = useState<'pdf' | 'markdown'>('pdf')
@@ -751,36 +749,39 @@ export function DocumentWorkspace({
   const inspectionSource=retainedSource?.id===inspectedAttempt?.extractionId?retainedSource?.source:null
   const inspectionDocument=inspectionSource?.document??parsedDocument
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover.
-  const [railMarks, setRailMarks] = useState<RailMarkState | null>(null)
-  const selectValueRef = useRef<((key: string) => void) | null>(null)
+  // Results and the document pane talk through one channel: value requests go to Results; its marks and one-by-one's
+  // dimming come back.
+  const [selection] = useState(createSelectionChannel)
+  const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
+  const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
   const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
   const [marksShown, setMarksShown] = useState(true)
-  // A link to a value (`?value={resultPathKey}`) selects it once the attempt's values are listed.
-  const linkedValue = useRef(new URLSearchParams(window.location.search).get('value'))
-  useEffect(() => {
-    const key = linkedValue.current
-    if (!key || !railMarks?.selectableKeys.has(key)) return
-    linkedValue.current = null
-    selectValueRef.current?.(key)
-  }, [railMarks])
-  const marks = useMemo(() => railMarks && {
-    ...railMarks,
-    onSelect: (keys: string[], mark: HTMLElement) => keys.length === 1 ? selectValueRef.current?.(keys[0]!) : setMarkChoice({ keys, mark }),
-  }, [railMarks])
+  // A value link asks Results for its value once per arrival, as soon as its Extraction is known. Leaving it, or
+  // another value, withdraws an ask not taken yet; a layout effect, so before Results' effects in the same commit.
+  const routedKey = routedValue?.key ?? null, routedExtractionId = routedValue?.extractionId ?? null
+  useLayoutEffect(() => {
+    if (routedKey === null || !routedExtractionId) return
+    const seq = selection.select(routedKey, true, routedExtractionId)
+    return () => selection.consume(seq)
+  }, [selection, routedKey, routedExtractionId])
+  // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
+  // selects its value in the rail, several open a popover.
+  const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
+    ...publishedMarks,
+    onSelect: (keys: string[], mark: HTMLElement) => keys.length === 1 ? selection.select(keys[0]!, false, publishedMarks.extractionId) : setMarkChoice({ keys, mark }),
+  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection])
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
     parsedDocument:inspectionDocument,
     attempt: inspectedAttempt,
     marks,
-    resultPath,
     active: effectiveRailOpen && railTab === 'results',
-    dimLink: focusedEvidence,
+    dimLink: marks ? publishedDim : null,
   })
   // A passage's choice lasts while its values are still marked and its mark is still rendered. A mark goes as a render
   // commits or the overlays above repaint, so it is checked after both; a read that keeps them keeps it.
-  const choiceHolds = (choice: NonNullable<typeof markChoice>) => choice.mark.isConnected && choice.keys.every((key) => railMarks?.describe.has(key))
+  const choiceHolds = (choice: NonNullable<typeof markChoice>) => choice.mark.isConnected && choice.keys.every((key) => marks?.describe.has(key))
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- after every commit
   useEffect(() => { if (markChoice && !choiceHolds(markChoice)) setMarkChoice(null) })
 
@@ -1116,9 +1117,9 @@ export function DocumentWorkspace({
                 <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
-                {markChoice && railMarks && choiceHolds(markChoice) && (
-                  <MarkPopover keys={markChoice.keys} describe={railMarks.describe} mark={markChoice.mark}
-                    onChoose={(key) => { setMarkChoice(null); selectValueRef.current?.(key) }} onClose={() => setMarkChoice(null)} />
+                {markChoice && marks && choiceHolds(markChoice) && (
+                  <MarkPopover keys={markChoice.keys} describe={marks.describe} mark={markChoice.mark}
+                    onChoose={(key) => { setMarkChoice(null); selection.select(key, false, marks.extractionId) }} onClose={() => setMarkChoice(null)} />
                 )}
                 {/* Over the PDF, which stays mounted with its marks and position. The Markdown's marks show only while the
                     rail is open. */}
@@ -1217,10 +1218,7 @@ export function DocumentWorkspace({
                 return renameSchema(extractionSchemaId, name)
               }}
               onSelectEvidence={selectEvidenceAnchor}
-              onResultPathChange={setResultPath}
-              onFocusEvidence={setFocusedEvidence}
-              onMarksChange={setRailMarks}
-              selectValueRef={selectValueRef}
+              selection={selection}
             />
           </aside>
         </div>

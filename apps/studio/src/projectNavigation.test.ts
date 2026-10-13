@@ -123,6 +123,17 @@ describe('Project Context routes', () => {
       .toEqual({ kind: 'document', projectContextId, sourceDocumentId, extractionId })
   })
 
+  it('reads a value link\'s value with or without its Extraction, and never writes it back', () => {
+    const document = `/projects/${projectContextId}/documents/${sourceDocumentId}`
+    expect(parseRoute(`${document}?value=record-505%3Atitle`))
+      .toEqual({ kind: 'document', projectContextId, sourceDocumentId, value: 'record-505:title' })
+    expect(parseRoute(`${document}?extractionId=${extractionId}&snapshotVersion=1&feedbackVersion=2&value=site`))
+      .toEqual({ kind: 'document', projectContextId, sourceDocumentId, extractionId, reviewCut: { snapshotVersion: 1, feedbackVersion: 2 }, value: 'site' })
+    // A navigation in Studio drops it; only a reload or Back keeps the URL that has it.
+    expect(href({ kind: 'document', projectContextId, sourceDocumentId, extractionId, value: 'site' }))
+      .toBe(`${document}?extractionId=${extractionId}`)
+  })
+
   it('has no batch review grid route', () => {
     expect(parseRoute(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)).toEqual({ kind: 'badReference' })
   })

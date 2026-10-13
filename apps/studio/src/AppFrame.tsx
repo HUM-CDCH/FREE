@@ -235,6 +235,16 @@ export default function AppFrame({
         persistedReviewCut: route.kind === 'document' && route.extractionId === openDocument.latestAttempt?.extractionId
           ? route.reviewCut ?? null
           : null,
+        // A value link names its Extraction, else the routed document's latest one once it has opened: while a reopen is
+        // pending the old snapshot stays, and its attempt is another document's or an Extraction opened by name.
+        routedValue: route.kind === 'document' && route.value
+          ? {
+              key: route.value,
+              extractionId: route.extractionId ?? (!opening && route.sourceDocumentId === openDocument.sourceDocument.sourceDocumentId
+                ? openDocument.latestAttempt?.extractionId ?? null
+                : null),
+            }
+          : null,
         onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => onNavigate({
           kind: 'document',
           projectContextId: openDocument.projectContext.projectContextId,
@@ -249,7 +259,7 @@ export default function AppFrame({
         tabBarSlot,
         tabRingSlot,
       },
-    [openDocument, route, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
+    [openDocument, opening, route, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or

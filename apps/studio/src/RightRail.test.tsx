@@ -8,6 +8,7 @@ import rawDocument from './assets/parsed_document.v2.json'
 import RightRail from './RightRail'
 import { DurableResults } from './DurableResults'
 import { requestSchemaEdit } from './api'
+import { createSelectionChannel, type SelectionChannel } from './selectionChannel'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionInspection, RailTab } from './RightRail'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -77,6 +78,7 @@ function renderRail({
   latestReader = null,
   schema = testSchema(),
   onSelectEvidence = vi.fn(),
+  selection = createSelectionChannel(),
 }: {
   open?: boolean
   tab?: RailTab
@@ -85,6 +87,7 @@ function renderRail({
   latestReader?: DurableReader | null
   schema?: SchemaEditorController
   onSelectEvidence?: (anchor: ParsedEvidenceAnchor) => void
+  selection?: SelectionChannel
 } = {}) {
   const rail = (open: boolean) => (
     <RightRail
@@ -101,7 +104,7 @@ function renderRail({
       sourceDocumentName="test.pdf"
       sourceRepresentationId="source-representation"
       onSelectEvidence={onSelectEvidence}
-      onResultPathChange={vi.fn()}
+      selection={selection}
     />
   )
   const view = render(rail(open))
@@ -111,9 +114,12 @@ const results = () => vi.mocked(DurableResults).mock.lastCall![0]
 
 describe('RightRail Results', () => {
   it('reviews every Extraction with the durable reader, at the live cut unless an explicit one is named', () => {
-    renderRail({ tab: 'results', extraction: { ...defaultController, attempt } })
+    const selection = createSelectionChannel()
+    renderRail({ tab: 'results', extraction: { ...defaultController, attempt }, selection })
     expect(screen.getByText('Durable results')).toBeVisible()
     expect(vi.mocked(DurableResults).mock.lastCall![0]).toMatchObject({ attempt, initialCut: null, readOnly: false })
+    // The workspace's one channel, passed through.
+    expect(vi.mocked(DurableResults).mock.lastCall![0].selection).toBe(selection)
     cleanup()
     const cut = { snapshotVersion: 1, feedbackVersion: 2 }
     renderRail({ tab: 'results', inspection: { ...defaultInspection, attempt, cut, readOnly: true } })

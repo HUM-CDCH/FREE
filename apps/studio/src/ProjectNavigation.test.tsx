@@ -53,6 +53,7 @@ vi.mock('./App', () => ({
     extractionSchema,
     persistedExtraction,
     latestReviewedExtraction,
+    routedValue,
     onInitialResourceLoadFailure,
     onSourceSuperseded,
     onReviewFinalized,
@@ -83,6 +84,7 @@ vi.mock('./App', () => ({
       <p data-testid="workspace-reviewed">
         {JSON.stringify(latestReviewedExtraction?.extractionId ?? null)}
       </p>
+      <p data-testid="workspace-routed-value">{JSON.stringify(routedValue ?? null)}</p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
         Fail retained artifact
       </button>
@@ -2434,6 +2436,42 @@ describe('routed Source Document reopening', () => {
     expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^superseded$/)
     expect(screen.getByTestId('workspace-result')).toHaveTextContent('51000000-0000-4000-8006-000000000001')
     expect(screen.queryByRole('heading', { name: /could not be opened|cannot be reopened/ })).not.toBeInTheDocument()
+  })
+
+  it('gives the workspace a value link with its Extraction, never the old document\'s while another one opens', async () => {
+    const opened = hydratedSnapshot(), other = Promise.withResolvers<Response>()
+    history.replaceState(null, '', `${documentPath()}?value=place`)
+    renderRoutes(studioFetch((documentId) => documentId === otherSourceDocumentId ? other.promise : Response.json(opened),
+      { ...detail, sourceDocuments: [{ ...beretning, pageCount: 6 }, { ...historical, pageCount: 4 }] }))
+    const routed = () => screen.getByTestId('workspace-routed-value')
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'place', extractionId: opened.latestAttempt.extractionId })))
+    // Back onto another document's value link: until it opens, the old snapshot stays, and its attempt is not this one's.
+    back(`${documentPath(otherSourceDocumentId)}?value=site`)
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'site', extractionId: null })))
+    const attempt = { ...opened.latestAttempt, extractionId: '51000000-0000-4000-8006-000000000002', sourceDocumentId: otherSourceDocumentId }
+    other.resolve(Response.json({ ...opened, sourceDocument: { ...opened.sourceDocument, sourceDocumentId: otherSourceDocumentId }, latestAttempt: attempt }))
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'site', extractionId: attempt.extractionId })))
+    // The URL keeps the value, so a reload opens it again.
+    expect(location.search).toBe('?value=site')
+  })
+
+  it('names a value link\'s Extraction from the open document only once its reopen has answered', async () => {
+    const opened = hydratedSnapshot(), named = opened.latestAttempt.extractionId, again = Promise.withResolvers<Response>()
+    const rest = studioFetch()
+    history.replaceState(null, '', `${documentPath()}?extractionId=${named}`)
+    renderRoutes(vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (!url.includes('/reopen')) return rest(input)
+      return url.includes('extractionId=') ? Response.json(opened) : again.promise
+    }))
+    const routed = () => screen.getByTestId('workspace-routed-value')
+    await waitFor(() => expect(routed()).toHaveTextContent('null'))
+    // Back onto the same document's value link: the snapshot still open is the Extraction named before, not its latest.
+    back(`${documentPath()}?value=place`)
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'place', extractionId: null })))
+    const latest = { ...opened.latestAttempt, extractionId: '51000000-0000-4000-8006-000000000002' }
+    again.resolve(Response.json({ ...opened, latestAttempt: latest }))
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'place', extractionId: latest.extractionId })))
   })
 
   it('re-reads only "Latest reviewed" once a review is finalized, and keeps the shown Extraction', async () => {

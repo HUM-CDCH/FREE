@@ -1,10 +1,10 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { RailMarkState } from './useEvidenceOverlays'
+import type { SelectionChannel } from './selectionChannel'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
 import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -54,12 +54,8 @@ type RightRailProps = {
   /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
   onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
-  onResultPathChange: (path: string[] | null) => void
-  /** The one-by-one value's Evidence link, for the document's dimming. */
-  onFocusEvidence?: (link: EvidenceLink | null) => void
-  /** The rail's values for the document's marks, and the handle a mark selects a value through. */
-  onMarksChange?: (marks: RailMarkState | null) => void
-  selectValueRef?: RefObject<((key: string) => void) | null>
+  /** The workspace's channel: requests to select a value come in; Results' marks and dimming go out. */
+  selection: SelectionChannel
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void
   onReviewFinalized?:()=>void
@@ -108,10 +104,7 @@ function RightRail({
   boundaries,
   resultsHeaderExtras,
   onSelectEvidence,
-  onResultPathChange,
-  onFocusEvidence,
-  onMarksChange,
-  selectValueRef,
+  selection,
   onPinnedDocument,
   onReviewProgress,
   onReviewFinalized,
@@ -287,10 +280,7 @@ function RightRail({
           sourceDocumentName={sourceDocumentName}
           readOnly={inspection.readOnly}
           onEvidence={selectNativeEvidence}
-          onResultPathChange={onResultPathChange}
-          onFocusEvidence={onFocusEvidence}
-          onMarksChange={onMarksChange}
-          selectValueRef={selectValueRef}
+          selection={selection}
           headerExtras={resultsHeaderExtras}
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}

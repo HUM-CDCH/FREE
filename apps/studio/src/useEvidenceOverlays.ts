@@ -15,17 +15,16 @@ import {
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision'] }
 
-/** The rail also reports unlinked keys so a copied value link can restore every row's selection. */
+/** The rail's values for the marks: a key `describe` names is a value a mark selects. */
 export type RailMarkState = {
   describe: ReadonlyMap<string, MarkInfo>
   selected: string | null
-  selectableKeys: ReadonlySet<string>
   /** Stable retained value IDs, including explicit correction occurrences. */
   savedLinks?: readonly {key:string;link:EvidenceLink;occurrenceIds?:readonly string[]}[]
 }
 
 /** The Results rail's values and selection, which the marks show and select. */
-export type RailMarks = Omit<RailMarkState,'selectableKeys'> & {
+export type RailMarks = RailMarkState & {
   onSelect: (keys: string[], mark: HTMLElement) => void
 }
 
@@ -164,7 +163,6 @@ export function useEvidenceOverlays({
   viewerRef,
   parsedDocument,
   attempt,
-  resultPath,
   active,
   dimLink = null,
   marks = null,
@@ -173,7 +171,6 @@ export function useEvidenceOverlays({
   viewerRef: RefObject<PDFViewer | null>
   parsedDocument: ParsedDocument | null
   attempt: Pick<ExtractionAttempt, 'extractionId'> | null
-  resultPath: readonly string[] | null
   active: boolean
   /** The one-by-one value's link: its page is dimmed around it when it is located to a cell or a segment. */
   dimLink?: EvidenceLink | null
@@ -217,8 +214,7 @@ export function useEvidenceOverlays({
       !parsedDocument ||
       !attempt ||
       evidenceLinks === null ||
-      !active ||
-      !resultPath
+      !active
     ) {
       removeOverlays(container, 'parsed-evidence-highlight')
       return
@@ -237,7 +233,6 @@ export function useEvidenceOverlays({
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue
-        if (!resultPath.every((segment, index) => segment === String(link.resultPath[index]))) continue
         const anchor = anchors.get(link.evidenceAnchorId)
         if (!anchor) continue
         for (const occurrence of anchorOccurrences(anchor)) {
@@ -275,7 +270,7 @@ export function useEvidenceOverlays({
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
     }
-  }, [active, attempt, containerRef, marks, parsedDocument, resultPath, viewerRef])
+  }, [active, attempt, containerRef, marks, parsedDocument, viewerRef])
 
   useEffect(() => () => removeOverlays(containerRef.current, 'parsed-evidence-highlight'),
     [active, attempt?.extractionId, containerRef, parsedDocument])
