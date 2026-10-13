@@ -68,7 +68,6 @@ export const DEPLOYMENT_CONNECTION_IDS = {
   nuextract: '00000000-0000-4000-8000-00000000d002',
   codexCli: '00000000-0000-4000-8000-00000000d003',
   claudeCode: '00000000-0000-4000-8000-00000000d004',
-  minicpm: '00000000-0000-4000-8000-00000000d005',
 } as const
 export const deploymentModelsSchema = z
   .object({

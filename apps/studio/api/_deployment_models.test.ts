@@ -28,25 +28,6 @@ describe('deploymentModels', () => {
     expect(DEPLOYMENT_IDS.has(claude.id)).toBe(true)
   })
 
-  it('lists optional MiniCPM alongside Qwen without changing the default Assistant', () => {
-    const deployment = deploymentModels({
-      FREE_DEPLOYMENT_INSTRUCT_URL: 'http://extraction_model:8000/v1',
-      FREE_DEPLOYMENT_INSTRUCT_MODEL: 'Qwen/Qwen3.8-27B-FP8',
-      FREE_DEPLOYMENT_MINICPM_URL: ' http://minicpm_model:8000/v1 ',
-    })
-
-    expect(deployment.connections).toEqual([
-      { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1', hasKey: false },
-      { id: DEPLOYMENT_CONNECTION_IDS.minicpm, name: 'Deployment MiniCPM', provider: 'vllm', baseUrl: 'http://minicpm_model:8000/v1', hasKey: false },
-    ])
-    expect(deployment.defaultRoute).toEqual({ connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' })
-    expect(DEPLOYMENT_IDS.has(DEPLOYMENT_CONNECTION_IDS.minicpm)).toBe(true)
-    expect(deploymentModels({ FREE_DEPLOYMENT_MINICPM_URL: 'http://minicpm_model:8000/v1' }).defaultRoute).toBeNull()
-    for (const url of [undefined, '', 'not a url']) {
-      expect(deploymentModels({ FREE_DEPLOYMENT_MINICPM_URL: url }).connections).toEqual([])
-    }
-  })
-
   it('the vLLM servers are listed as before', () => {
     expect(deploymentModels({
       FREE_DEPLOYMENT_INSTRUCT_URL: 'http://extraction_model:8000/v1',

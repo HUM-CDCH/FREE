@@ -148,20 +148,6 @@ describe('model configuration storage', () => {
     expectInvalid(() => validateModelConfig(squatting), 'connections.1.id')
   })
 
-  it('accepts saved MiniCPM routes but keeps its deployment connection read-only', () => {
-    const route = {
-      connectionId: DEPLOYMENT_CONNECTION_IDS.minicpm,
-      modelId: 'openbmb/MiniCPM-V-4.7-35B-A3B-FP8',
-    }
-    const routed = configured({ connections: [], routes: { schemaSuggestion: route, interaction: route } })
-    expect(validateModelConfig(routed)).toEqual(routed)
-
-    const squatting = configured()
-    squatting.connections[0] = { ...squatting.connections[0], id: DEPLOYMENT_CONNECTION_IDS.minicpm }
-    squatting.routes.schemaSuggestion = null
-    expectInvalid(() => validateModelConfig(squatting), 'connections.0.id')
-  })
-
   it('a researcher connection may not reuse a CLI deployment ID', () => {
     for (const id of [DEPLOYMENT_CONNECTION_IDS.codexCli, DEPLOYMENT_CONNECTION_IDS.claudeCode]) {
       const squatting = configured()
