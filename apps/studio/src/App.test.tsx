@@ -1108,7 +1108,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText('Markdown unavailable')).not.toBeInTheDocument()
   })
 
-  it('keeps a passage\'s list of values through a read that keeps them, and closes it for good once one is gone or its mark leaves the page', async () => {
+  it('reveals shared Evidence directly in Results and keeps the selected field when its passage is clicked again', async () => {
     const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
       selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       node: { id, name: id, type: 'string' }, modelValue, evidence: [], links: [{ resultPath: ['records', 0, id], evidenceAnchorId: 'bundled-anchor' }],
@@ -1131,24 +1131,32 @@ describe('reopened Source Document workspace', () => {
     const view = within(screen.getByRole('group', { name: 'Document view' }))
     fireEvent.click(view.getByRole('button', { name: 'Markdown' }))
     fireEvent.click(await screen.findByRole('button', { name: 'place: Harlow; parish: Elmbrooke' }))
-    const list = screen.getByRole('dialog', { name: 'Values in this passage' })
+    expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
+    expect(document.querySelectorAll('[data-evidence-linked]')).toHaveLength(2)
 
     saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
-    expect(await within(list).findByRole('button', { name: 'parish · Elmbrook' })).toBeVisible()
+    const parish = await screen.findByRole('button', { name: /^To check parish Elmbrook/ })
+    fireEvent.click(parish)
+    expect(screen.getByRole('region', { name: 'Review parish' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /place: Harlow; parish: Elmbrook/ }))
+    expect(screen.getByRole('region', { name: 'Review parish' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: /^To check place Harlow/ }))
     saveAndRead([linked('place', 'Harlow')])
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: /place: Harlow/ })).not.toHaveAccessibleName(/parish/))
     saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
-    const mark = await screen.findByRole('button', { name: 'place: Harlow; parish: Elmbrook' })
+    const mark = await screen.findByRole('button', { name: /parish: Elmbrook/ })
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
 
     fireEvent.click(mark)
-    expect(screen.getByRole('dialog', { name: 'Values in this passage' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
     fireEvent.click(view.getByRole('button', { name: 'PDF' }))
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
   })
 
-  it('hides the Markdown marks and their list while the rail is collapsed, and marks the selected value again on expand', async () => {
+  it('hides the Markdown marks while the rail is collapsed, and marks the selected value again on expand', async () => {
     const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
       selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       node: { id, name: id, type: 'string' }, modelValue, evidence: [], links: [{ resultPath: ['records', 0, id], evidenceAnchorId: 'bundled-anchor' }],
@@ -1169,10 +1177,10 @@ describe('reopened Source Document workspace', () => {
     // The passage's one mark, whose label lists the reviewed value last.
     const name = /place: Harlow/
     fireEvent.click(await screen.findByRole('button', { name }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Values in this passage' })).getByRole('button', { name: 'place · Harlow' }))
     expect(screen.getByRole('button', { name })).toHaveAttribute('aria-current', 'true')
     fireEvent.click(screen.getByRole('button', { name }))
-    expect(screen.getByRole('dialog', { name: 'Values in this passage' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByTitle('Collapse panel'))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument())

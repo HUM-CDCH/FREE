@@ -320,4 +320,16 @@ describe('mark precision, focus and navigation ownership', () => {
     rerender({ attempt, marks: { ...marks, selected: key } })
     expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
   })
+  it('clears an earlier passage outline when another Evidence mark selects its result, without navigating', () => {
+    const { result, rerender, attempt, marks, key, container, anchor, viewer } = fixture()
+    act(() => result.current(anchor))
+    rerender({ attempt, marks: { ...marks, selected: key } })
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+    viewer.scrollPageIntoView.mockClear()
+    rerender({ attempt, marks: { ...marks, selected: 'other', savedLinks: [
+      ...marks.savedLinks, { key: 'other', link: { ...marks.savedLinks[0]!.link, evidenceAnchorId: 'other-anchor' } },
+    ] } })
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
+    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
+  })
 })

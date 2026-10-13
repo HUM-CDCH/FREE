@@ -27,7 +27,7 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
     keysByAnchor.set(anchorId,keys)
   }
   const spans = (document?.evidence_index.anchors ?? []).flatMap((anchor) => anchor.kind === 'text' && keysByAnchor.has(anchor.anchor_id)
-    ? [{ ...anchor.markdown_span, keys: keysByAnchor.get(anchor.anchor_id)! }] : [])
+    ? [{ ...anchor.markdown_span, anchorId: anchor.anchor_id, keys: keysByAnchor.get(anchor.anchor_id)! }] : [])
     .sort((a, b) => a.start - b.start)
     .filter((span, index, all) => index === 0 || span.start >= all[index - 1]!.end) // nested spans: the outer one marks
   const parts: React.ReactNode[] = []
@@ -39,9 +39,10 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
     const keys = span.keys.filter((key) => marks!.describe.has(key))
     const infos = keys.map((key) => marks!.describe.get(key)!)
     const selected = marks!.selected !== null && keys.includes(marks!.selected)
-    parts.push(!marksShown && !selected ? decode(span.start, span.end)
+    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{decode(span.start, span.end)}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{decode(span.start, span.end)}</span> : (
       <button key={span.start} type="button" className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
+        data-evidence-anchor-id={span.anchorId}
         aria-label={infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; ')} aria-current={selected || undefined}
         onClick={(event) => marks!.onSelect(keys, event.currentTarget)}>{decode(span.start, span.end)}</button>
     ))

@@ -3,6 +3,7 @@ import {
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -16,10 +17,11 @@ import { deleteModelOperation, requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
+  type ParsedEvidenceAnchor,
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { createSelectionChannel } from './selectionChannel'
-import MarkPopover from './MarkPopover'
+import { scrollWithinPane } from './scrollWithinPane'
 import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
@@ -754,7 +756,7 @@ export function DocumentWorkspace({
   const [selection] = useState(createSelectionChannel)
   const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
   const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
-  const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
+  const markdownContainerRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
   // A value link asks Results for its value once per arrival, as soon as its Extraction is known. Leaving it, or
   // another value, withdraws an ask not taken yet; a layout effect, so before Results' effects in the same commit.
@@ -765,12 +767,18 @@ export function DocumentWorkspace({
     return () => selection.consume(seq)
   }, [selection, routedKey, routedExtractionId])
   // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
-  // selects its value in the rail, several open a popover.
+  // reveals its linked fields directly in Results, including shared Evidence.
   const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
     ...publishedMarks,
-    onSelect: (keys: string[], mark: HTMLElement) => keys.length === 1 ? selection.select(keys[0]!, false, publishedMarks.extractionId) : setMarkChoice({ keys, mark }),
+    onSelect: (keys: string[]) => {
+      const key = publishedMarks.selected && keys.includes(publishedMarks.selected) ? publishedMarks.selected : keys[0]
+      if (!key) return
+      setRailOpen(true)
+      setRailTab('results')
+      selection.select(key, false, publishedMarks.extractionId, keys)
+    },
   } : null, [publishedMarks, inspectedAttempt?.extractionId, selection])
-  const selectEvidenceAnchor = useEvidenceOverlays({
+  const selectPdfEvidence = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
     parsedDocument:inspectionDocument,
@@ -779,11 +787,16 @@ export function DocumentWorkspace({
     active: effectiveRailOpen && railTab === 'results',
     dimLink: marks ? publishedDim : null,
   })
-  // A passage's choice lasts while its values are still marked and its mark is still rendered. A mark goes as a render
-  // commits or the overlays above repaint, so it is checked after both; a read that keeps them keeps it.
-  const choiceHolds = (choice: NonNullable<typeof markChoice>) => choice.mark.isConnected && choice.keys.every((key) => marks?.describe.has(key))
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- after every commit
-  useEffect(() => { if (markChoice && !choiceHolds(markChoice)) setMarkChoice(null) })
+  const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => {
+    const container = markdownContainerRef.current
+    const mark = container && [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
+      .find(element => element.dataset.evidenceAnchorId === anchor.anchor_id)
+    if (documentView === 'markdown' && container && mark) scrollWithinPane(container, mark)
+    else {
+      setDocumentView('pdf')
+      selectPdfEvidence(anchor, precision)
+    }
+  }, [documentView, selectPdfEvidence])
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
    *  run over the whole document: what admission pins is what was saved at the click (ADR 0015). A `method_changed` refusal
@@ -1117,14 +1130,10 @@ export function DocumentWorkspace({
                 <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
-                {markChoice && marks && choiceHolds(markChoice) && (
-                  <MarkPopover keys={markChoice.keys} describe={marks.describe} mark={markChoice.mark}
-                    onChoose={(key) => { setMarkChoice(null); selection.select(key, false, marks.extractionId) }} onClose={() => setMarkChoice(null)} />
-                )}
                 {/* Over the PDF, which stays mounted with its marks and position. The Markdown's marks show only while the
                     rail is open. */}
                 {documentView === 'markdown' && (
-                  <div className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
+                  <div ref={markdownContainerRef} className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
                     <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} />
                   </div>
                 )}

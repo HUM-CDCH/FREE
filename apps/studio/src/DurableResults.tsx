@@ -23,6 +23,7 @@ import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './rev
 import { shownValue, stateLabel, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SelectionChannel } from './selectionChannel'
+import { scrollWithinPane } from './scrollWithinPane'
 import {savedCorrectionHref,type SavedReviewCut} from './durableReviewLinks'
 import { keyAction } from './reviewKeys'
 
@@ -286,6 +287,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const id=attempt?.extractionId
   const article=attempt?.strategy==='ARTICLE'
   const keyboardRoot=useRef<HTMLDivElement>(null)
+  const resultsContainer=useRef<HTMLDivElement>(null)
+  const pendingReveal=useRef<string|null>(null)
+  const [passageKeys,setPassageKeys]=useState<readonly string[]>([])
   const reading=useDurableReading(reader),state=reading?.state,latestPage=reading?.latestPage??null
   const request=useSyncExternalStore(selection.subscribe,()=>selection.snapshot().request)
   // While the rail is open, Results wants the latest values, also while it shows an explicitly opened cut ("Show the
@@ -382,8 +386,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   },[page,id,focus])
   // Choosing a value in the list, or opening a link to it, shows its Evidence on the source once: in one-by-one the
   // follow does when the value changes what it follows (also once a pending source arrives), else choose does. A
-  // mark's selection scrolls nothing.
+  // mark leaves the source's scroll position alone.
   const choose=useCallback((key:string)=> {
+    setPassageKeys(previous=>previous.includes(key)?previous:[])
     selectValue(key)
     // A value the page lacks may be the open review's, read on its own.
     const value=page?.values.find(each=>each.id===key)??(review?.value.id===key&&review.version===page?.snapshotVersion?review.value:undefined)
@@ -399,8 +404,27 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     selection.consume(request.seq)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the channel's request, taken once as it arrives
     if(request.navigate)choose(request.key)
-    else selectValue(request.key,true)
+    else {
+      pendingReveal.current=request.key
+      const linkedKeys=request.linkedKeys??[request.key]
+      setPassageKeys([...linkedKeys])
+      const records=new Set(page.values.filter(value=>linkedKeys.includes(value.id)).map(value=>value.recordId))
+      setToggledRecords(previous=>{const next=new Map(previous);records.forEach(record=>next.set(record,true));return next})
+      setFocus(false)
+      selectValue(request.key,true)
+    }
   },[request,id,page,railOpen,selection,choose,selectValue])
+  // The selected row has expanded and its record is now open. Move only the
+  // Results pane, once per explicit Evidence click, never on a background read.
+  useEffect(()=>{
+    const container=resultsContainer.current,key=pendingReveal.current
+    if(!container||!key||review?.value.id!==key||focus||!railOpen)return
+    const row=[...container.querySelectorAll<HTMLElement>('[data-result-key]')].find(element=>element.dataset.resultKey===key)
+    if(!row)return
+    pendingReveal.current=null
+    scrollWithinPane(container,row)
+    row.querySelector<HTMLButtonElement>('button')?.focus({preventScroll:true})
+  },[review,focus,railOpen,passageKeys])
   useEffect(()=> {
     if(!model||!page||!id)return
     const rows=[...model.document,...model.records.flatMap(record=>record.rows)]
@@ -479,7 +503,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     void reader.refresh()
     if(next)selectValue(next)
   }
-  const closeReview=()=>{++selectedGeneration.current;setReview(null);setFocus(false)}
+  const closeReview=()=>{++selectedGeneration.current;pendingReveal.current=null;setPassageKeys([]);setReview(null);setFocus(false)}
   const openNext=()=> {const next=nextToCheck(queue,review?.value.id??null);if(next)selectValue(next);else setReview(null)}
   const finalize=()=> {
     // A cut opened while the review is being saved (History's Open, Show the latest results) stays shown.
@@ -520,6 +544,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const valueReview=review&&<ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
     menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
+  const linkedKeys=new Set(passageKeys.filter(key=>page.values.some(value=>value.id===key)))
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
@@ -568,7 +593,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{page.finalization?' · a saved review':''}.{' '}
         <button type="button" className={linkClass} onClick={showLatest}>Show the latest results</button></p>}
     </div>}
-    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">
+    <div ref={resultsContainer} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">
       {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
         {onShowHistory&&<button type="button" className={linkClass} onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
@@ -576,11 +601,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
-      {review&&(focus||!inline)&&<div className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
+      {review&&(focus||!inline)&&<div data-result-key={review.value.id} className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
-          selectedKey={review?.value.id??null} isOpen={isOpen}
+          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} isOpen={isOpen}
           onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}/>)}
     </div>
   </div>

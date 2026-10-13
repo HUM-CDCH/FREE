@@ -292,11 +292,11 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   expect(new Set(selection.snapshot().marks!.describe.keys())).toEqual(new Set(['value','other']))
   view.rerender(<Results {...props} onEvidence={replacement}/>)
   expect(replacement).not.toHaveBeenCalled()
-  // A mark's request: it selects without scrolling.
+  // A mark's request reveals the list without moving the source.
   act(()=>{selection.select('other',false,'extraction')})
-  expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
+  expect(screen.getByRole('region',{name:'Review other'})).toBeVisible()
   expect(replacement).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button',{name:'Leave one-by-one review, back to the list'}))
+  expect(screen.queryByRole('button',{name:'Leave one-by-one review, back to the list'})).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button',{name:/To check title First title/}))
   expect(replacement).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
 })
@@ -564,6 +564,45 @@ const reviewPage=(snapshotVersion=1,feedbackVersion=0)=>({extractionId:'extracti
   total:3,next:null,coverage:{}} as unknown as DurablePage)
 const pausedState={extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
   selection:{id:'selection',ordinal:1},pendingSelection:null,counts:{saved:3,inFlight:0}}
+
+it('reveals and scrolls shared Evidence in a collapsed record through a filter, without moving the source or scrolling on refresh',async()=>{
+  const page=reviewPage(),parsedDocument=decodeParsedDocument(rawDocument),anchor=parsedDocument.evidence_index.anchors[0]!.anchor_id
+  page.values=page.values.map((value,index)=>({...value,recordId:index===0?'first':'second',path:['records',index===0?0:1,value.id],
+    links:index===0?[]:[{evidenceAnchorId:anchor,resultPath:['records',1,value.id],precision:'segment'}]})) as never
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  const selection=createSelectionChannel(),onEvidence=vi.fn()
+  const reader=createDurableReader({extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt)
+  const view=render(<Results reader={reader} attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt}
+    document={parsedDocument} currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
+  const record=await screen.findByRole('button',{name:/Record 2/})
+  expect(record).toHaveAttribute('aria-expanded','false')
+  fireEvent.change(screen.getByRole('combobox',{name:'Show'}),{target:{value:'approved'}})
+  const container=view.container.querySelector<HTMLElement>('.overflow-y-auto')!
+  container.scrollTo=vi.fn()
+  const original=HTMLElement.prototype.getBoundingClientRect
+  const geometry=vi.spyOn(HTMLElement.prototype,'getBoundingClientRect').mockImplementation(function(this:HTMLElement){
+    if(this===container)return new DOMRect(800,60,330,580)
+    if(this.dataset.resultKey==='b')return new DOMRect(810,1500,310,200)
+    return original.call(this)
+  })
+  try {
+    const linkedKeys=['b','c']
+    act(()=>{selection.select('b',false,'extraction',linkedKeys)})
+    expect(record).toHaveAttribute('aria-expanded','true')
+    expect(screen.getByRole('region',{name:'Review b'})).toBeVisible()
+    expect(screen.getByRole('button',{name:/To check c Third title/})).toBeVisible()
+    expect(view.container.querySelectorAll('[data-evidence-linked]')).toHaveLength(2)
+    expect(container.scrollTo).toHaveBeenCalledExactlyOnceWith({top:1250,left:0,behavior:'auto'})
+    expect(screen.getByRole('button',{name:/To check b Second title/})).toHaveFocus()
+    expect(onEvidence).not.toHaveBeenCalled()
+    await act(async()=>reader.refresh())
+    expect(container.scrollTo).toHaveBeenCalledOnce()
+    act(()=>{selection.select('b',false,'extraction',linkedKeys)})
+    expect(container.scrollTo).toHaveBeenCalledTimes(2)
+    fireEvent.click(record)
+    expect(record).toHaveAttribute('aria-expanded','false')
+  } finally {geometry.mockRestore()}
+})
 
 it('polls a paused run only while the server is to resume it, then reads it on return or every 30 s, and polls once it resumes',async()=> {
   vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,pendingResume:true},page:reviewPage()} as never)
