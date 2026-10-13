@@ -44,7 +44,8 @@ export function unifiedLines(unified: UnifiedCatalogSettings): readonly MethodLi
     value === undefined ? `service default (${fallback ? 'on' : 'off'})` : value ? 'On' : 'Off'
   return [
     { label: UNIFIED_LABELS.input_tokens, value: unified.input_tokens === undefined ? 'Auto (served context minus the reply reserve)' : amount(unified.input_tokens, 'tokens') },
-    { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens === undefined ? 'service defaults per stage' : amount(unified.output_tokens, 'tokens') },
+    { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens !== undefined ? amount(unified.output_tokens, 'tokens')
+      : 'entry_reply' in defaults ? 'service defaults per stage; an entry reply may use the rest of the context' : 'service defaults per stage' },
     { label: UNIFIED_LABELS.overlap, value: unified.overlap === undefined ? `service default (${defaults.overlap} source line)` : `${unified.overlap} source line${unified.overlap === 1 ? '' : 's'}` },
     { label: UNIFIED_LABELS.headings, value: onOff(unified.headings, defaults.headings) },
     { label: UNIFIED_LABELS.verification, value: onOff(unified.verification, defaults.verification) },

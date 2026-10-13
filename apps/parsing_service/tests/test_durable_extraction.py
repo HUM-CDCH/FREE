@@ -742,6 +742,19 @@ def test_version_3_paused_during_discovery_shows_every_entry_read_before_it_stop
     assert before<shown()==read
 
 
+def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves():
+    """The captured entry request asks for the served context its finalized input leaves, the reserve its floor."""
+    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,5)))
+    request=unified_request(defaults=4)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
+    result,_,_=drive(lease,CountingChat(Model(source)),extract,2)
+    entries=[unit["input"]["request"] for unit in lease.units.values() if unit["descriptor"]["stage"]=="entry"]
+    assert entries and all(each["body"]["max_tokens"]==each["budget"]["context"]-each["budget"]["counted"]>4096
+                           for each in entries)
+    assert [record["material"] for record in result["records"]]==["m1","m2","m3","m4"]
+
+
 @pytest.mark.parametrize("chunks",[1,2])
 def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks):
     """Each entry of the windows read so far is read, and shown with its candidates, before discovery has read the
