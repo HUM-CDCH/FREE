@@ -30,7 +30,6 @@ import json
 import threading
 import time
 import unicodedata
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -138,7 +137,6 @@ class _Budget:
     chat: Router
     counters: dict
     stages: dict[str, dict]  # stage -> {role, input_tokens, output_tokens}
-    check: Callable[[], None]
     spare: frozenset[str] = frozenset()  # stages whose reply may use the context their counted input leaves
 
     def fits(self, stage: str, system: str, user: str, schema: dict) -> bool:
@@ -146,10 +144,9 @@ class _Budget:
 
     def ask(self, stage: str, record: int | None, system: str, user: str, schema: dict, calls: list,
             issues: list, unit: str | None = None) -> dict | None:
-        """One counted call after the cancellation check; None when it failed or its reply is not the object asked.
+        """One counted call; None when it failed or its reply is not the object asked.
         A request the server refused (an HTTP 500 on this request) is a failed call of this window, so the window is
         halved or fails alone; a backend that is not ready (`failures.classify`) ends the step for its retry."""
-        self.check()
         clock = time.monotonic()
         attempts = []
         counter, ceiling, floor = self.counters[ROLE[stage]], self.stages[stage]["output_tokens"], None
@@ -166,7 +163,6 @@ class _Budget:
                         and len(attempts) == 1 and looped(attempts[-1])
                         and getattr(self.chat.fields, "max_whitespace", None) is None else None)
             if recovery is not None:
-                self.check()
                 clock = time.monotonic()
                 answer, again = complete(replace(self.chat, fields=recovery), stage=stage, record=record,
                     system=system, user=user, schema=schema, max_tokens=ceiling, counter=counter,
@@ -258,15 +254,13 @@ def work_order(entries: list[dict], pages: dict[str, int], start_page: int | Non
 
 # --- extraction ----------------------------------------------------------------------------------------------------
 
-def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,
-            before_entry: Callable[[], None] | None = None) -> dict:
+def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1) -> dict:
     """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`; the execution,
-    discovery and entry records live only in the artifact (`run_dir` is not read). `before_entry` is called before
-    every model call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
-    `options.start_page` first (`work_order`), assembled in source order. Pipelined (defaults 3), a durable run's
-    planning reads the entries of the windows already read while discovery still waits on later ones (`NeedsCall`),
-    publishing them under `unified-prefix`, and verifies them once discovery is complete; a run that is not durable
-    reads discovery whole first, so its artifact is the same."""
+    discovery and entry records live only in the artifact (`run_dir` is not read). Entries run `chunks` at a time,
+    nearest `options.start_page` first (`work_order`), assembled in source order. Pipelined (defaults 3), a durable
+    run's planning reads the entries of the windows already read while discovery still waits on later ones
+    (`NeedsCall`), publishing them under `unified-prefix`, and verifies them once discovery is complete; a run that is
+    not durable reads discovery whole first, so its artifact is the same."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -275,12 +269,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             raise ValueError("GLiFormer pure extraction cannot use heading context or value verification")
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
-    check = before_entry or (lambda: None)
-    check()
     execution = _execution(evidence, schema, options, chat, counters)
     execution_sha256 = digest(execution)
     effective = execution["effective"]
-    budget = _Budget(chat, counters, effective["stages"], check,
+    budget = _Budget(chat, counters, effective["stages"],
                      frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
     from kei_exp.kie.extract.durable import Boundary, NeedsCall
     from kei_exp.kie.extract.retained import discovering, plan_execution, plan_records, saved_record
@@ -387,7 +379,6 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     if document is not None:
         from kei_exp.kie.extract.retained import saved_document
         saved_document(chat,document.values,complete=not document.failed and all(call.ok or call.recovered for call in document.calls))
-    check()
     return _artifact(evidence, request, chat, started, clock, execution, found, entries, document)
 
 
@@ -714,7 +705,7 @@ class _Run:
             out.native, calls = gliformer.read_entry(
                 self.budget.chat.fields, self.budget.counters["fields"], self.schema, entry, self.texts,
                 ceiling=self.budget.stages["entry"]["input_tokens"], overlap=self.effective["overlap"],
-                check=self.budget.check, number=number, unit=unit)
+                number=number, unit=unit)
             out.calls = [replace(call, record=number) for call in calls]
             out.windows = len(out.native)
             return out

@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kei_exp.kie.extract.assembly import (ARTICLE_VERSION, artifact, document_values, ground_records,
-                                          grounding_accounting, link_json, unchecked)
+                                          grounding_accounting, link_json)
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.contexts import (GROUPING_VERSION, Context, assemble_document, partition, reconcile_values,
                                           sharing, value_disagreements)
@@ -91,18 +91,15 @@ def _typed_reading(answer: dict, nodes) -> tuple[dict, list[Issue]]:
 
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter: dict | None = None,
-            chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+            chunks: int = 1) -> dict:
     """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
 
     The result is exactly one record, the document's root (`run.dispatch` holds it to that); when no value context
     answered the root, `RootUnanswered` is raised before grounding instead. Both roles need a served context size:
-    `counter` is one counter per role, by default the counter of each role's endpoint. `before_entry` is called before
-    each context's document-level call, each value context's call, the root's verification and each grounding batch,
-    and, with bounded contexts, before each count that sizes a context and the selection; what it raises ends the
-    extraction. `chunks` and `run_dir` are not used: Article runs unsplit and publishes nothing itself; each answered
-    value context is handed to the durable retained-result producer (`retained.saved_record`). `options.start_page`
-    orders bounded value contexts, nearest first."""
-    check = before_entry or unchecked
+    `counter` is one counter per role, by default the counter of each role's endpoint. `chunks` and `run_dir` are
+    not used: Article runs unsplit and publishes nothing itself; each answered value context is handed to the durable
+    retained-result producer (`retained.saved_record`). `options.start_page` orders bounded value contexts, nearest
+    first."""
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
@@ -129,7 +126,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                              f"in bounded parts of {method.context_tokens} tokens")
     if method.context == "bounded":
         counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
-        contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
+        contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"])
     from kei_exp.kie.extract.retained import plan_records
     # Retry keeps its generation: a pre-fallback attempt may already have saved the one-part plan before failing
     # admission. Keep that plan immutable and publish fallback scopes separately; call captures still reuse their
@@ -137,7 +134,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     context_stage = "article-contexts:fallback" if fallback is not None else "article-contexts"
     plan_records(chat, context_stage, [context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
-        budget=options.record_chars, check=check, counter=counter["fields"],
+        budget=options.record_chars, counter=counter["fields"],
         structured=method.rendering == "structured")
     if fallback is not None:
         issues.append(fallback)
@@ -148,7 +145,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             saved_record(chat, root, "document", primary=[{"segment": p.id, "start": 0, "end": len(p.text)}
                                                          for p in group.primary], disagreements=disagreements)
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
-                              record_chars=options.record_chars, check=check, method=method, contexts=contexts,
+                              record_chars=options.record_chars, method=method, contexts=contexts,
                               start_page=options.start_page,
                               on_context=retained_context)
     if extracted.calls and not any(call.ok for call in extracted.calls):
@@ -165,7 +162,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             from kei_exp.kie.extract.retained import saved_record
             saved_record(chat, extracted.slices[0][1], "document", links=[link_json(link) for link in grounded],
                          disagreements=extracted.disagreements)
-    support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
+    support = ground_records(extracted.slices, schema, chat, budget=options.record_chars,
         counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
         value_contexts=extracted.value_contexts, origins=extracted.origins, on_batch=retained_links)
     links = support.links
@@ -241,7 +238,7 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
 
 
 def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
-                  record_chars: int, check: Callable[[], None], method: ArticleOptions = REFERENCE,
+                  record_chars: int, method: ArticleOptions = REFERENCE,
                   contexts: list[Context] | None = None, start_page: int | None = None,
                   on_context: Callable[..., None] | None = None) -> Records:
     """The document's one root, from each of its value contexts, assembled; grounding belongs to the shared path.
@@ -264,7 +261,6 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     groups = contexts if contexts is not None else [Context(tuple(passages))]
     if method.context == "bounded":
         def fits(group):
-            check()
             source = structured_source(group) if structured else text_of(group)
             system, user, reply_schema = record_request(source, schema, None, None, document=True)
             counted = counters["fields"].request_tokens(system, user, reply_schema)
@@ -273,14 +269,12 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         groups = partition(passages, fits, overlap=method.overlap_passages,
                            structural=method.grouping == "structural") or [Context(())]
     if method.selection is not None and item["passages"]:
-        check()
         groups, selection = select_contexts(groups, passages, item["passages"], schema)
         selections.append({"record": 0, **selection})
     candidates: list[dict] = [{} for _ in groups]
     answered: list[tuple[list[Call], list[Issue]] | None] = [None] * len(groups)
     for index in context_order(groups, start_page):
         group = groups[index]
-        check()
         fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
             counter=counters["fields"], structured=structured, document=True,
             bounded_document=method.context == "bounded")
@@ -320,14 +314,13 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
-                    record_chars: int, check: Callable[[], None], method: ArticleOptions = REFERENCE,
+                    record_chars: int, method: ArticleOptions = REFERENCE,
                     contexts: list[Context] | None = None) -> Records:
     """Discover identities, then extract their values; grounding belongs to the shared result path."""
     groups = contexts if contexts is not None else [Context(tuple(passages))]
     structured = method.rendering == "structured"
     identities, calls, issues = [], [], []
     for group in groups:
-        check()
         found, attempts, problems = inventory(group.passages, schema, chat, counter=counters["reasoning"],
                                               method=method)
         identities += found
@@ -350,7 +343,6 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
         neutral = method.prompt == "schema"
         if method.context == "bounded":
             def fits(group):
-                check()
                 source = structured_source(group) if structured else text_of(group)
                 system, user, reply_schema = record_request(source, schema, item["identity"], item["label"],
                                                             neutral=neutral)
@@ -358,12 +350,10 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
             record_groups = partition(passages, fits, overlap=method.overlap_passages,
                                       structural=method.grouping == "structural")
         if method.selection is not None:
-            check()
             record_groups, selection = select_contexts(record_groups, passages, item["passages"], schema)
             selections.append({"record": number, **selection})
         value_contexts.append(record_groups)
         for group in record_groups:
-            check()
             fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars,
                 record=number, identity=item["identity"], record_name=item["label"], counter=counters["fields"],
                 neutral=neutral, structured=structured)
@@ -422,10 +412,9 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
     return system, user, reply_schema, identity_nodes
 
 
-def source_contexts(passages: Sequence[Passage], schema: Schema, method: ArticleOptions, counter: TokenCounter,
-                    check: Callable[[], None]) -> list[Context]:
+def source_contexts(passages: Sequence[Passage], schema: Schema, method: ArticleOptions,
+                    counter: TokenCounter) -> list[Context]:
     def fits(group):
-        check()
         system, user, reply_schema, _ = inventory_request(group, schema, method)
         return counter.request_tokens(system, user, reply_schema) + 4096 <= counter.context_tokens
     return partition(passages, fits, overlap=method.overlap_passages,

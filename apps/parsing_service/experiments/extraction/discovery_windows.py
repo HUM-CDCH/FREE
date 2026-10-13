@@ -74,7 +74,7 @@ def once(evidence: Evidence, gold: dict[str, int], by: str, workers: int, overla
     counters = counters_for(chat)
     execution = unified._execution(evidence, request.schema_, request.options.unified, chat, counters)
     effective = execution["effective"]
-    budget = unified._Budget(chat, counters, effective["stages"], lambda: None)
+    budget = unified._Budget(chat, counters, effective["stages"])
     finished: dict[str, float] = {}
     started = time.monotonic()
 

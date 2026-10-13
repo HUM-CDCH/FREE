@@ -138,20 +138,6 @@ def test_discovery_over_a_long_source_is_chunked_by_page_and_labels_run_on():
     assert "[B3]" in users[1] and "[B1]" not in users[1]
 
 
-def test_discovery_asks_its_hook_before_every_window_and_stops_when_it_raises():
-    """The worker's cooperative cancellation: a hook that raises ends discovery before its next call."""
-    asked, windows = [], []
-
-    def before_call():
-        if len(asked) == 2:
-            raise RuntimeError("cancelled")
-        windows.append(len(asked))
-    chat = FakeChat(lambda s, u, schema: asked.append(u) or {"starts": [], "end": None})
-    with pytest.raises(RuntimeError, match="cancelled"):
-        discover(evidence(six_pages()), SCHEMA, chat, budget=7_000, before_call=before_call)  # three windows
-    assert windows == [0, 1] and len(asked) == 2
-
-
 def six_pages() -> list[Passage]:
     """One passage of about 3,000 characters per page: three chunks of two pages at a 7,000 budget."""
     return [Passage(id=f"p{page}_s0", page=page, index=0, text=f"{page}. Entry " + "x" * 3000, label="Text",
@@ -337,51 +323,6 @@ def test_verification_asks_the_model_for_every_claim_including_a_uniquely_found_
     assert [call.stage for call in calls] == ["grounding"] and len(chat.calls) == 1 and not issues
 
 
-def test_verification_asks_its_hook_before_every_grounding_batch_and_stops_when_it_raises():
-    """Cancellation reaches inside a record, including the budget probe before splitting its claims."""
-    fields = {"entry_no": "31", "site": "Hjortlund parish", "year": 1827, "finds": ["spyd", "sword"]}
-    sizes = []
-    probe = FakeChat(lambda s, u, schema: sizes.append(len(s) + len(u) + len(json.dumps(schema))) or {"C1": "NONE", "C2": "NONE"})
-    verify(passages()[1:3], fields, SCHEMA, probe, record=0, budget=10**9)
-    budget = sizes[0] - 1                        # the two pending claims no longer fit one batch: two batches
-    asked, calls = [], []
-
-    def before_call():
-        if len(calls) == 1:
-            raise RuntimeError("cancelled")
-        asked.append(len(calls))
-    chat = FakeChat(lambda s, u, schema: calls.append(u) or {claim: "NONE" for claim in schema["properties"]})
-    with pytest.raises(RuntimeError, match="cancelled"):
-        verify(passages()[1:3], fields, SCHEMA, chat, record=0, budget=budget, before_call=before_call)
-    assert asked == [0, 0] and len(calls) == 1  # oversized parent, first child, then cancelled before second child
-
-
-def test_extract_passes_its_check_to_verification(monkeypatch):
-    """The hook each grounding batch asks is the very `before_entry` extract was given."""
-    from kei_exp.kie.extract import grounding, run as run_module
-    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
-                                             "options": {"strategy": "article"}})
-    received = []
-
-    def spy(*args, before_call=None, **kwargs):
-        received.append(before_call)
-        return [], [], []
-
-    def before_entry():
-        pass
-    monkeypatch.setattr(run_module, "load", lambda run_dir: evidence())
-    monkeypatch.setattr(grounding, "technique", lambda choice: spy)
-    def script(system, user, schema):
-        if "records" in schema["properties"]:
-            return one_identity(schema)
-        if "entry_no" in schema["properties"]:
-            return {"entry_no": "31", "site": "Hjortlund", "year": None, "finds": None}
-        return {"title": None}
-    chat = FakeChat(script)
-    extract(Path("/nonexistent/run-x"), request, chat, before_entry=before_entry)
-    assert received == [before_entry]
-
-
 def test_verification_reports_unknown_labels_and_missing_claims_and_leaves_them_ungrounded():
     chat = FakeChat(lambda s, u, schema: {"C1": "E7"})
     fields = {"entry_no": None, "site": "Hjortlund parish", "year": None, "finds": ["a sword nobody mentioned"]}
@@ -558,11 +499,10 @@ LOOPING = answer('{"entry_no": "31", "finds": [' + "\r   " * 500, "length", 2048
 READ = answer(json.dumps({"entry_no": "31", "site": "Hjortlund sogn", "year": 1827, "finds": ["spyd"]}))
 
 
-def recovering(monkeypatch, recovery, before_entry=None, second=None) -> tuple[dict, list[dict]]:
+def recovering(monkeypatch, recovery, second=None) -> tuple[dict, list[dict]]:
     """A generic Catalog of one record over a vLLM server whose record call through `response_format` loops on
     whitespace and whose bounded-grammar request answers `recovery`; the record requests sent are returned too.
-    `before_entry`, when given, is the cancellation hook and is passed the record requests sent so far. With
-    `second`, a second record (32. Vester Vedsted) is discovered and its requests answer `second`."""
+    With `second`, a second record (32. Vester Vedsted) is discovered and its requests answer `second`."""
     records = []
 
     def post(url, json, **kwargs):
@@ -582,8 +522,7 @@ def recovering(monkeypatch, recovery, before_entry=None, second=None) -> tuple[d
     request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
                                              "options": {"strategy": "catalog"}})
     chat = Router(fields=OpenAIChat(url="http://server", model="m"), reasoning=FakeChat(reasoning))
-    check = (lambda: before_entry(records)) if before_entry else None
-    return catalog.extract(None, evidence(), request, chat, before_entry=check), records
+    return catalog.extract(None, evidence(), request, chat), records
 
 
 def record_calls(result: dict) -> list[dict]:
@@ -627,18 +566,6 @@ def test_a_refused_recovery_is_recorded_as_a_failed_call_and_the_extraction_fini
 def test_a_transient_refusal_of_the_recovery_reaches_the_step_retry(monkeypatch):
     with pytest.raises(requests.HTTPError):
         recovering(monkeypatch, refusal(503, "loading"))
-
-
-def test_cancellation_is_checked_before_the_recovery(monkeypatch):
-    seen = []
-
-    def cancel_after_the_first_record_request(records):
-        seen.append(len(records))
-        if records:
-            raise RuntimeError("cancelled")
-    with pytest.raises(RuntimeError, match="cancelled"):
-        recovering(monkeypatch, READ, before_entry=cancel_after_the_first_record_request)
-    assert seen[-1] == 1  # the looped request only; no recovery was sent
 
 
 def test_a_looping_record_call_on_another_chat_is_not_recovered():

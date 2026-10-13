@@ -98,7 +98,7 @@ def test_unsuccessful_decisions_never_stop_fallback(outcome):
     assert routes[0]["coverage"] == "attempted_all" and not routes[0]["supported"]
 
 
-def test_refused_units_are_distinct_from_attempts_and_cancellation_is_retained():
+def test_refused_units_are_distinct_from_attempts():
     _, contexts, _, origins = fixture()
     class Counter(WordCounter):
         def request_tokens(self, system, user, schema=None):
@@ -111,13 +111,6 @@ def test_refused_units_are_distinct_from_attempts_and_cancellation_is_retained()
     assert len(calls) == 2 and issues[0].code == "grounding_exceeds_budget"
     assert routes[0]["refused"] == [0] and routes[0]["attempted"] == [1, 2]
     assert routes[0]["remaining"] == [] and routes[0]["coverage"] == "partial"
-    def cancel():
-        raise RuntimeError("cancelled")
-    with pytest.raises(RuntimeError, match="cancelled"):
-        verify_routed(contexts, {"year": 1827}, SCHEMA, chat, origins=origins,
-            value_contexts=[contexts[0]], record=0, counter=Counter(), verifier=spans,
-            record_context="Hill", before_call=cancel)
-    assert len(chat.calls) == 2
 
 
 def test_routing_preserves_table_header_and_qualifier_context_and_skips_policy_paths():
@@ -175,7 +168,7 @@ def test_the_retired_routing_setting_never_refuses_an_untraceable_article_value(
     conformed = article.conform
     monkeypatch.setattr(article, "conform", lambda value, nodes: {**conformed(value, nodes), "entry_no": "31"})
     found = article.document_root(passages(["Hill 1827"]), SCHEMA, CountingChat(lambda *_: {"site": "Hill"}),
-        counters={role: WordCounter() for role in ("fields", "reasoning")}, record_chars=24_000, check=lambda: None,
+        counters={role: WordCounter() for role in ("fields", "reasoning")}, record_chars=24_000,
         method=ArticleOptions(grounding="spans", grounding_schedule="unresolved", grounding_routing=routing))
     assert found.origins[0] == [{"path": ["entry_no"], "kind": "value", "sources": []},
                                 {"path": ["site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]}]}]

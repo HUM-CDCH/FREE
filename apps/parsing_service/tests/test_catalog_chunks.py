@@ -20,11 +20,10 @@ def request(schema=SCHEMA):
         "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}})
 
 
-def run(case, tmp_path, *, chunks, script=honest, counter=None, schema=SCHEMA, before_entry=None):
+def run(case, tmp_path, *, chunks, script=honest, counter=None, schema=SCHEMA):
     run_dir = catalogue.write(case, tmp_path / f"chunks-{chunks}" / case)  # the run ID is the directory's name
     chat = CountingChat(script)
-    return extract(run_dir, request(schema), chat, counter=counter or WordCounter(), chunks=chunks,
-                   before_entry=before_entry), chat
+    return extract(run_dir, request(schema), chat, counter=counter or WordCounter(), chunks=chunks), chat
 
 
 def comparable(result: dict) -> dict:
@@ -94,18 +93,6 @@ def test_a_failed_chunk_fails_the_extraction(tmp_path):
         return honest(system, user, schema)
     with pytest.raises(requests.ConnectionError):
         run("headings", tmp_path, chunks=3, script=script)
-
-
-def test_before_entry_runs_before_every_entry_and_its_error_ends_the_extraction(tmp_path):
-    seen = []
-
-    def before_entry():
-        seen.append(1)
-        if len(seen) == 3:
-            raise RuntimeError("cancelled")
-    with pytest.raises(RuntimeError, match="cancelled"):
-        run("headings", tmp_path, chunks=1, before_entry=before_entry)
-    assert len(seen) == 3
 
 
 @pytest.mark.parametrize("count, chunks", [(5, 4), (5, 2), (2, 4), (1, 3), (0, 4), (8, 4)])

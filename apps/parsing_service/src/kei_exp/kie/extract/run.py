@@ -6,7 +6,7 @@ schema is another one, with no OCR rerun either way), the records, their evidenc
 result, what stayed ungrounded, the issues, and every model call's cost.
 
 Every implementation has one call shape: the run directory, the evidence read from it, the validated request and a
-router, keyword-only `counter`, `chunks` and `before_entry`, returning the finished artifact. The unified Catalog's
+router, keyword-only `counter` and `chunks`, returning the finished artifact. The unified Catalog's
 is `unified.extract` (version 3, `options.unified`); the legacy recipe Catalog's is `grounded.extract`, Article's `article.extract` and the legacy version 1
 Catalog's `catalog.extract`; the last two assemble their version 1 artifact in `assembly.py`. `extract` chooses one
 from the request's task scope (`ExtractRequest.record_scope`: Article for "document", a Catalog for "records") and
@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -164,23 +163,22 @@ class RecordScopeViolation(ValueError):
 
 
 def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
-            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+            counter=None, chunks: int = 1) -> dict:
     """The artifact for `request` over the run's canonical result, from the implementation its options choose (the
     CLI and the research harness; durable execution checks its pinned generation and calls `dispatch`).
 
     `generation`, when given, is the parse a replay was captured against: the result on disk must still be that
     generation, or nothing is extracted (a ValueError before the first model call). The CLI passes none and reads
-    whatever the directory holds. `counter`, `chunks` and `before_entry` go to the implementation unchanged;
-    `before_entry` is a hook whose error ends the extraction, and each implementation says where it calls it.
+    whatever the directory holds. `counter` and `chunks` go to the implementation unchanged.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
         raise ValueError(f"the run's result is generation {evidence.generation!r}, not {generation!r}")
-    return dispatch(run_dir, evidence, request, chat, counter=counter, chunks=chunks, before_entry=before_entry)
+    return dispatch(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
 
 
 def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, chat: Chat | Router, *, counter=None,
-             chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+             chunks: int = 1) -> dict:
     """The implementation the request's scope and options choose, over `evidence` already read, and its result held
     to the scope's cardinality: a document-scope result that is not exactly one record is a `RecordScopeViolation`,
     never an artifact; a records-scope result may hold any number, none included. Durable execution and the research
@@ -189,15 +187,12 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     chat = as_router(chat)
     scope = request.record_scope
     if scope == "document":
-        result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                                 before_entry=before_entry)
+        result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
     elif request.options.unified is not None:
-        result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                                 before_entry=before_entry)
+        result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
     else:
         implementation = grounded.extract if request.options.catalog is not None else catalog.extract
-        result = implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                                before_entry=before_entry)
+        result = implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
     if scope == "document" and len(result["records"]) != 1:
         raise RecordScopeViolation(f"record_scope_violation: a document-scope extraction is exactly one record, "
                                    f"and the {request.options.strategy!r} strategy returned {len(result['records'])}")

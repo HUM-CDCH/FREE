@@ -102,7 +102,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     # A version 1 Article inventoried identities; from version 2 (`article_version`) the document is the one root.
     upstream = document_root if expected.get("article_version", 1) >= 2 else extract_records
     extracted = upstream(evidence.passages, schema, router, counters=counters,
-        record_chars=expected["options"]["record_chars"], check=lambda: None, method=method, contexts=contexts)
+        record_chars=expected["options"]["record_chars"], method=method, contexts=contexts)
     calls += extracted.calls
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]

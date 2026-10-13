@@ -140,7 +140,7 @@ def test_article_retry_keeps_the_pre_fallback_plan_and_reuses_completed_calls(ov
         with pytest.raises(ValueError, match="required source and reply budget exceed"):
             document_root(source.passages, request.schema_, Router(chat, chat, planner),
                           counters={"fields": counter, "reasoning": counter}, record_chars=48000,
-                          check=lambda: None, method=request.options.article)
+                          method=request.options.article)
         assert not chat.calls
     old_units = deepcopy(lease.units)
     lease.attempt = str(uuid4())
@@ -470,7 +470,7 @@ def test_article_guidance_preserves_bounded_root_input_sized_reply_floor(bounded
     with pytest.raises(NeedsCall):
         document_root(passages(["source "*7000]),Schema.model_validate(tree),
             Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
-            counters={"fields":counter},record_chars=48000,check=lambda:None,
+            counters={"fields":counter},record_chars=48000,
             method=ArticleOptions(context="bounded" if bounded else "full",context_tokens=16000))
     request=next(iter(lease.units.values()))["input"]["request"]
     assert request["examples"]==([] if bounded else [candidate])
@@ -538,7 +538,7 @@ def test_whitespace_loop_gets_one_captured_recovery_with_unchanged_inputs(monkey
             return extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
                                   router, budget=48000, record=0, counter=counter, document=True)
         attempts, issues = [], []
-        budget = unified._Budget(router, {"fields": counter}, {"entry": {"output_tokens": 4096}}, lambda: None)
+        budget = unified._Budget(router, {"fields": counter}, {"entry": {"output_tokens": 4096}})
         answer = budget.ask("entry", 0, "Read a year", "Published in 2020.",
                             unified.candidates_schema(Schema.model_validate(tree).record_nodes), attempts, issues)
         return {"year": answer["year"]["value"] if answer else None}, attempts, issues
