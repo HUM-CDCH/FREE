@@ -60,7 +60,9 @@ PROMPT_VERSION = 15
 # (`context_fallback`) instead of failing.
 # 11: retained list occurrences keep their exact reply origins, including nested positions and overlap joins;
 # equal items from another reading no longer route their grounding to that reading's source first.
-ARTICLE_VERSION = 11
+# 12: split-source readings are resolved by the reasoning model; assembled list occurrences and their reply origins
+# survive kept-item filtering, and a failed resolution retains the assembled values without pausing the attempt.
+ARTICLE_VERSION = 12
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

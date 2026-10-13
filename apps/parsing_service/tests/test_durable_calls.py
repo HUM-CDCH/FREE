@@ -91,7 +91,7 @@ def test_returned_output_is_retried_then_halts_admission_without_claiming_saved(
 
 
 @pytest.mark.parametrize("checkpoint", [False, True])
-@pytest.mark.parametrize("stage", ["discovery", "record"])
+@pytest.mark.parametrize("stage", ["discovery", "record", "arbitration"])
 def test_recoverable_reply_allows_the_planner_to_continue(monkeypatch, checkpoint, stage):
     call = Call(stage, None, 20395, 4096, 0.1, "length", False,
                 "the reply was cut off (finish_reason length)" if stage == "discovery" else

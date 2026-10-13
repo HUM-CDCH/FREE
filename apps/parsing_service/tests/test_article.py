@@ -14,7 +14,7 @@ from kei_exp.kie.extract.stages import DOCUMENT, extract_record, record_request
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from kei_exp.kie.passages import text_of
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
@@ -46,7 +46,7 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
                                   "title": "Sites", "filename": "bauer.pdf"}]
     assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
-    assert not result["issues"] and result["article_version"] == 11
+    assert not result["issues"] and result["article_version"] == 12
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])
@@ -161,6 +161,8 @@ class Lister(CountingChat):
     per find (or whenever `cut` says so); the document field and any grounding answer at once."""
     def __init__(self, cut=lambda user: False):
         def script(system, user, schema):
+            if resolving(user):
+                return keeps_every_reading(schema)
             if "finds" in schema["properties"]:
                 return {"entry_no": None, "site": "Hill", "year": None,
                         "finds": [find for find in FINDS if f"{find}," in user]}
@@ -214,7 +216,7 @@ def test_a_context_too_full_for_a_4096_token_reply_is_refused_before_it_is_sent(
     assert not [call for call in chat.calls if "finds" in call["schema"]["properties"]]
 
 
-def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts():
+def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts_and_resolved():
     """The measured failure: a long article failed under the full default. It is now read in parts of the served
     context and assembled as a bounded Article is."""
     source = finds_source(2000, 2)
@@ -223,6 +225,9 @@ def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts():
     counter.context_tokens = WordCounter().request_tokens(system, user, reply_schema) + 4000
 
     def script(system, user, schema):
+        if resolving(user):
+            return {key: spec["items"]["enum"] if spec["type"] == "array" else "NONE"
+                    for key, spec in schema["properties"].items()}
         if "finds" in schema["properties"]:
             return {"entry_no": None, "site": "Hill", "year": 1999 if "Part 1." in user else None,
                     "finds": [find for find in FINDS if f"{find}," in user]}
@@ -231,8 +236,8 @@ def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts():
                           counter={"fields": counter, "reasoning": counter})
     assert len(result["value_contexts"][0]) == 2
     assert result["records"][0]["finds"] == FINDS[:2000]
-    assert (result["records"][0]["site"], result["records"][0]["year"]) == ("Hill", 1999)
-    assert [issue["code"] for issue in result["issues"]] == ["context_fallback"]
+    assert (result["records"][0]["site"], result["records"][0]["year"]) == ("Hill", None)
+    assert [issue["code"] for issue in result["issues"]] == ["context_fallback", "resolved_value"]
 
 
 def test_an_article_no_context_answered_fails_instead_of_publishing_an_all_null_root():
@@ -246,7 +251,7 @@ def test_an_article_no_context_answered_fails_instead_of_publishing_an_all_null_
     result = run.dispatch(None, finds_source(2000, 2), bounded, Lister(cut=lambda user: "Part 1." in user),
                           counter=counters())
     assert result["records"][0]["finds"] == FINDS[:1000] and result["complete"] is False
-    assert [issue["code"] for issue in result["issues"]] == ["call_failed"]
+    assert [issue["code"] for issue in result["issues"]] == ["call_failed", "resolved_value"]
 
 
 def test_a_bounded_root_context_keeps_as_many_reply_tokens_as_its_request_counts():

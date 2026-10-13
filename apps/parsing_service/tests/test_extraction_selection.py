@@ -59,7 +59,7 @@ def test_under_document_scope_every_unit_is_the_documents_support_and_none_is_om
     passage, so the pipeline selects every unit and reads every one (the unit-level rules are tested above)."""
     from kei_exp.kie.extract import run
     from kei_exp.kie.extract.models import Router
-    from tests.test_extract_grounded import CountingChat, WordCounter
+    from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
     from tests.test_extract_stages import evidence
 
     source = passages(["Alpha " + "description " * 3000, "qualifier " * 3000,
@@ -78,7 +78,8 @@ def test_under_document_scope_every_unit_is_the_documents_support_and_none_is_om
 
     request = run.ExtractRequest(schema=schema, options={"strategy": "article", "article": {
         "context": "bounded", "context_tokens": 8192, "selection": "supported", "grounding": "off"}})
-    result = run.extract(None, request, Router(CountingChat(fields), CountingChat(lambda *_: pytest.fail("inventory"))),
+    result = run.extract(None, request, Router(CountingChat(fields), CountingChat(
+        lambda _, user, schema: keeps_every_reading(schema) if resolving(user) else pytest.fail("inventory"))),
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
     assert len(seen) == 5 and result["records"] == [{"site": "Alpha", "temperature": 42}]
     assert result["selections"][0]["omitted_units"] == [] and result["selections"][0]["record"] == 0

@@ -9,7 +9,7 @@ from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import spans
 from kei_exp.kie.extract.routing import rank_units, value_origins, verify_routed
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage
 
@@ -137,7 +137,9 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: contexts)
     monkeypatch.setattr("kei_exp.kie.extract.article.partition", lambda *_args, **_kwargs: contexts)
-    def reason(system, user, schema):  # grounding only: the document root takes no inventory
+    def reason(system, user, schema):  # resolution and grounding: the document root takes no inventory
+        if resolving(user):
+            return keeps_every_reading(schema)
         return {claim: {"label": prop["properties"]["label"]["enum"][0], "attribution": True}
                 for claim, prop in schema["properties"].items()}
     results, requests = [], []

@@ -53,7 +53,7 @@ How FREE applies an Extraction Schema to Source Context: Article or Catalog. The
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in separate parts when the whole source does not fit one model call; values read in separate parts of the source are combined into that one object without dropping list items, and scalars read differently stay a Value Disagreement.
+An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in separate parts when the whole source does not fit one model call; a model call then settles each place to the document's own reading and keeps the list items that belong to the document, and readings it cannot settle stay a Value Disagreement.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:

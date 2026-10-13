@@ -57,6 +57,17 @@ class CountingChat(FakeChat):
         return reply
 
 
+def resolving(user: str) -> bool:
+    """An Article resolution call (`resolution.resolve`)."""
+    return user.startswith("### Document opening\n") and "\n### Places\n" in user
+
+
+def keeps_every_reading(schema: dict) -> dict:
+    """A resolution answer that settles nothing away: each place's first candidate, every list item."""
+    return {key: spec["items"]["enum"] if spec["type"] == "array" else spec["enum"][0]
+            for key, spec in schema["properties"].items()}
+
+
 def entry_text(user: str) -> str:
     return user.split("### ENTRY\n", 1)[1].split("\n### END ENTRY", 1)[0]
 

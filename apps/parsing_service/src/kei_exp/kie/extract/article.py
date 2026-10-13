@@ -2,8 +2,9 @@
 
 `extract` is the Article implementation: the document's one root read in each of its value contexts (the complete
 source by default, bounded parts with `options.article.context` or when the whole source does not fit one call),
-assembled across them by `contexts.assemble_document`, verified in every source context, and the artifact assembled in
-`assembly.py`, as the version 1 Catalog's is (`document_root`). No identity is inventoried: the artifact's `inventory`
+assembled across them by `contexts.assemble_document`, resolved by `resolution.resolve`, verified in every source
+context, and the artifact assembled in `assembly.py`, as the version 1 Catalog's is (`document_root`). No identity
+is inventoried: the artifact's `inventory`
 holds the one document identity, every passage its support. The inventory of noncontiguous records (`inventory_request`, `inventory`,
 `reconcile_identities`, `extract_records`) stays for the research replays that read captured version 1 studies; the
 service path does not call it. Every model call goes through `calls.complete`; the shared value prompts live in
@@ -27,6 +28,7 @@ from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import RENDERING_VERSION, structured_source
+from kei_exp.kie.extract.resolution import resolve
 from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, value_origins
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, conform, json_schema, typed
@@ -154,6 +156,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                              f"{extracted.calls[-1].error}")
     calls += extracted.calls
     issues += extracted.issues
+    if len(extracted.value_contexts[0]) > 1:
+        from kei_exp.kie.extract.retained import saved_record
+        saved_record(chat, extracted.slices[0][1], "document", disagreements=extracted.disagreements)
     grounded: list = []
     def retained_links(batch):
         # Each grounding batch's links are retained at once, so the source shows them while the run goes on.
@@ -203,7 +208,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             result["selections"] = extracted.selections
         result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
         result["completion"] = {
-            "processing": all(call.ok for call in calls),
+            "processing": all(call.ok or call.recovered for call in calls),
             "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "record") else "partial",
             "grounding": "disabled" if method.grounding == "off" else (
                 "complete" if not result["ungrounded"] and not disagreeing else "partial"),
@@ -240,7 +245,7 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
 def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
                   record_chars: int, method: ArticleOptions = REFERENCE,
                   contexts: list[Context] | None = None, start_page: int | None = None,
-                  on_context: Callable[..., None] | None = None) -> Records:
+                  on_context: Callable[..., None] | None = None, resolve_parts: bool = True) -> Records:
     """The document's one root, from each of its value contexts, assembled; grounding belongs to the shared path.
 
     The whole document is the object: no identity is inventoried or bound, and every record field is asked of every
@@ -249,7 +254,9 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     null in its context's answer (`_typed_reading`). Several contexts' answers are
     assembled by `contexts.assemble_document`: every array item kept in context order, an equal item that contexts
     sharing an overlap passage both returned joined once (an `overlap_items_joined` issue), equal items from other
-    contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict. With
+    contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict.
+    A split source is then resolved over those assembled occurrences;
+    `resolve_parts=False` replays artifacts before `ARTICLE_VERSION` 12, which made no resolution call. With
     `on_context`, after each value context's call, the root assembled by `assemble_document` and conformed over the
     contexts answered so far is reported with its scalar conflicts and the number of those contexts whose call failed:
     the partial view's reading of the document before the last context answers."""
@@ -297,6 +304,12 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     root, contested, repeats, joined = (assemble_document(candidates, sharing(groups), item_sources=item_sources)
                                         if len(candidates) != 1
                                         else (candidates[0], [], [], []))
+    if resolve_parts and len(groups) > 1 and any(each is not None and _answered(each[0]) for each in answered):
+        root, contested, repeats, joined, resolved, settled = resolve(
+            candidates, groups, root, contested, repeats, joined, schema, chat, counters["reasoning"],
+            item_sources=item_sources)
+        calls += resolved
+        issues += settled
     root = conform(root, schema.record_nodes)
     # Every claim is grounded first where its value was read (`assembly.ground_records`), whatever `grounding_routing`
     # says (retired: it only still adds the routing diagnostics to the artifact). A value `conform` coerced has no
