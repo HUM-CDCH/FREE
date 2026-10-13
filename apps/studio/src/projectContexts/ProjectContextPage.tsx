@@ -1017,6 +1017,7 @@ export default function ProjectContextPage({
                 ? (resource.pilotSchemaRevisionId ?? null)
                 : null
             }
+            summary={projectSummary ?? null}
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
           />

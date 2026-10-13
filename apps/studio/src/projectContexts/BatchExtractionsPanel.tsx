@@ -12,6 +12,7 @@ import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
   PILOT_BATCH_SELECTION_LIMIT,
+  batchExtractionProgress,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import {
@@ -45,6 +46,7 @@ import {
   openBatchExtraction,
 } from './batchExtractions'
 import { stabiliseSchemaRevision } from './schemaGovernance'
+import type { ProjectContext } from './transport'
 import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
 import { sourceCoverageNotice, UNCOMBINED_NOTICE } from '../sourceCoverageNotice'
 import {
@@ -111,6 +113,10 @@ function stamp(value: string): string {
   })
 }
 
+function batchRunning(batch: BatchExtraction): boolean {
+  return batch.executionStatus === 'QUEUED' || batch.executionStatus === 'RUNNING'
+}
+
 function newestBatchFirst(left: BatchExtraction, right: BatchExtraction): number {
   return (
     Date.parse(right.createdAt) - Date.parse(left.createdAt) ||
@@ -160,11 +166,15 @@ export default function BatchExtractionsPanel({
   sourceDocuments,
   openBatchExtractionId,
   pilotSchemaRevisionId,
+  summary = null,
   onNavigate,
   onProgressChange,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
+  /** The project's workflow position, which decides the history's next-step
+   *  banner (guided-pilot-extraction-workflow). */
+  summary?: ProjectContext['summary'] | null
   /** The routed Batch Extraction, so one is linkable and survives a refresh. */
   openBatchExtractionId: string | null
   /** Set right after approving a Schema Revision from the document workspace
@@ -251,6 +261,10 @@ export default function BatchExtractionsPanel({
   // after the preparation screen stabilises a Schema Revision. Holds its
   // `schemaRevisionId` so "Run the full collection" can preselect it.
   const [stabiliseNudge, setStabiliseNudge] = useState<string | null>(null)
+  // A Batch Extraction this panel watched run to completion with results left
+  // to review: nudge straight into reviewing them.
+  const [finishedBatch, setFinishedBatch] = useState<BatchExtraction | null>(null)
+  const runningBatchIds = useRef<ReadonlySet<string> | null>(null)
   // Which of the two `extract` rounds the prepare screen is currently framed
   // as — set by whichever entry point opened it, not derived from the
   // selection size, so it stays put while the researcher freely adds or
@@ -504,6 +518,27 @@ export default function BatchExtractionsPanel({
     return () => window.clearInterval(interval)
   }, [batches.value, suggestions.value])
 
+  // Only a run seen in flight counts as finishing here: opening the tab on an
+  // already-finished one stays quiet, like the page's other nudges.
+  useEffect(() => {
+    if (!batches.value) return
+    const running = new Set(
+      batches.value.filter(batchRunning).map((batch) => batch.batchExtractionId),
+    )
+    const previous = runningBatchIds.current
+    runningBatchIds.current = running
+    if (!previous) return
+    const finished = batches.value
+      .filter(
+        (batch) =>
+          previous.has(batch.batchExtractionId) &&
+          !running.has(batch.batchExtractionId),
+      )
+      .toSorted(newestBatchFirst)[0]
+    if (finished && batchExtractionProgress(finished).needsReview > 0)
+      setFinishedBatch(finished)
+  }, [batches.value])
+
   useEffect(() => {
     const refresh = () => {
       if (pendingRefreshes.current === 0)
@@ -706,18 +741,24 @@ export default function BatchExtractionsPanel({
    *  (guided-workflow-phases). Requires at least one reviewed pilot
    *  Extraction — enforced server-side. */
   const stabiliseChosenSchema = async () => {
-    if (!chosenRevision || stabilisingChosenSchema) return
+    if (chosenRevision) await stabiliseRevision(chosenRevision.schemaRevisionId)
+  }
+
+  const stabiliseRevision = async (revisionId: string) => {
+    if (stabilisingChosenSchema) return
     setStabilisingChosenSchema(true)
     setStabiliseChosenSchemaError(null)
     try {
       await stabiliseSchemaRevision({
         projectContextId,
-        schemaRevisionId: chosenRevision.schemaRevisionId,
+        schemaRevisionId: revisionId,
       })
       setRunFailure(null)
       setRunFailureCode(null)
       setChosenSchemaReload((value) => value + 1)
-      setStabiliseNudge(chosenRevision.schemaRevisionId)
+      setStabiliseNudge(revisionId)
+      // The stepper and the next-step banner read the project summary.
+      onProgressChange?.()
     } catch (error) {
       setStabiliseChosenSchemaError(
         failureText(error, 'This Schema Revision could not be stabilised.'),
@@ -989,6 +1030,88 @@ export default function BatchExtractionsPanel({
   // skipping anything.
   const isPilotPrepare = screen === 'prepare' && preparingKind === 'pilot'
 
+  /** Opens the batch's first member still waiting for review, with the way
+   *  back here and on to the next member. */
+  const reviewBatch = (batch: BatchExtraction) => {
+    const member = batch.members.find(
+      (candidate) => candidate.reviewable && !candidate.currentReview,
+    )
+    onNavigate(
+      member
+        ? {
+            kind: 'document',
+            projectContextId,
+            sourceDocumentId: member.sourceDocumentId,
+            extractionId: member.extractionId,
+            fromBatchExtractionId: batch.batchExtractionId,
+          }
+        : {
+            kind: 'project',
+            projectContextId,
+            tab: 'extractions',
+            batchExtractionId: batch.batchExtractionId,
+          },
+    )
+  }
+
+  const prepareCollectionRun = (revisionId: string) => {
+    setSchemaRevisionId(revisionId)
+    setSelected(
+      new Set(
+        sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
+          ? []
+          : sourceDocumentIds,
+      ),
+    )
+    setPreparingKind('batch')
+    clearSuggestedFields()
+    setRunFailure(null)
+    setRunFailureCode(null)
+    setPreparing(true)
+  }
+
+  // The workflow's next step, said where it happens whatever the selection
+  // size: review the latest run, approve the reviewed pilot's schema, or run
+  // it over the documents nothing has extracted yet. Nothing while a run is
+  // still going — the stepper already shows its progress.
+  const newestBatches = (batches.value ?? []).toSorted(newestBatchFirst)
+  const latestBatch = newestBatches[0] ?? null
+  const reviewedPilot = newestBatches.find(
+    (batch) =>
+      batch.members.length <= PILOT_BATCH_SELECTION_LIMIT &&
+      batch.members.some((member) => member.currentReview !== null),
+  )
+  const latestNeedsReview =
+    latestBatch && !batchRunning(latestBatch)
+      ? batchExtractionProgress(latestBatch).needsReview
+      : 0
+  const nextAction:
+    | { kind: 'approve'; batch: BatchExtraction }
+    | { kind: 'review'; batch: BatchExtraction; count: number }
+    | { kind: 'run'; schemaRevisionId: string; remaining: number }
+    | null =
+    !summary || !latestBatch || newestBatches.some(batchRunning)
+      ? null
+      : summary.phase === 'validate' && !summary.schemaStabilised && reviewedPilot
+        ? { kind: 'approve', batch: reviewedPilot }
+        : latestNeedsReview > 0
+          ? { kind: 'review', batch: latestBatch, count: latestNeedsReview }
+          : summary.phase === 'validate' &&
+              summary.schemaStabilised &&
+              summary.extractedSourceDocumentCount < sourceDocumentIds.length
+            ? {
+                kind: 'run',
+                schemaRevisionId: latestBatch.schemaRevisionId,
+                remaining:
+                  sourceDocumentIds.length - summary.extractedSourceDocumentCount,
+              }
+            : null
+  // A member list already shows what to review; approving is still the next step there.
+  const shownNextAction =
+    screen === 'history' || (screen === 'members' && nextAction?.kind === 'approve')
+      ? nextAction
+      : null
+
   return (
     <div
       id="project-extractions-panel"
@@ -1089,6 +1212,52 @@ export default function BatchExtractionsPanel({
         <p className="mb-3 shrink-0 text-[11px] leading-snug text-ink-muted" role="status">
           {runNotice}
         </p>
+      )}
+
+      {shownNextAction && (
+        <div
+          className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-accent/40 bg-accent-soft px-3 py-2"
+          role="status"
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] leading-snug text-ink">
+              {shownNextAction.kind === 'approve'
+                ? `Pilot reviewed. Approve ${shownNextAction.batch.extractionSchemaName} v${shownNextAction.batch.schemaRevisionNumber} to unlock Batch Extraction over the full collection, or edit the schema on the Schemas tab and pilot again.`
+                : shownNextAction.kind === 'review'
+                  ? `${shownNextAction.count} result${shownNextAction.count === 1 ? '' : 's'} from the latest ${latestBatch && latestBatch.members.length <= PILOT_BATCH_SELECTION_LIMIT ? 'pilot' : 'Batch Extraction'} still need${shownNextAction.count === 1 ? 's' : ''} review.`
+                  : `The schema is approved. ${shownNextAction.remaining} Source Document${shownNextAction.remaining === 1 ? ' has' : 's have'} not been extracted yet.`}
+            </p>
+            {shownNextAction.kind === 'approve' && stabiliseChosenSchemaError && (
+              <p className="mt-1 text-[11px] text-danger" role="alert">
+                {stabiliseChosenSchemaError}
+              </p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="positive"
+            disabled={
+              shownNextAction.kind === 'approve'
+                ? stabilisingChosenSchema
+                : openingAnyBatch
+            }
+            onClick={() => {
+              if (shownNextAction.kind === 'approve')
+                void stabiliseRevision(shownNextAction.batch.schemaRevisionId)
+              else if (shownNextAction.kind === 'review')
+                reviewBatch(shownNextAction.batch)
+              else prepareCollectionRun(shownNextAction.schemaRevisionId)
+            }}
+          >
+            {shownNextAction.kind === 'approve'
+              ? stabilisingChosenSchema
+                ? 'Approving…'
+                : 'Approve for batch extraction'
+              : shownNextAction.kind === 'review'
+                ? 'Review results'
+                : 'Run Batch Extraction'}
+          </Button>
+        </div>
       )}
 
       <div className="min-h-[430px]">
@@ -1548,22 +1717,25 @@ export default function BatchExtractionsPanel({
               ? 'Choose documents'
               : 'Run the full collection'
           }
-          onAction={() => {
-            setSchemaRevisionId(stabiliseNudge)
-            setSelected(
-              new Set(
-                sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
-                  ? []
-                  : sourceDocumentIds,
-              ),
-            )
-            setPreparingKind('batch')
-            clearSuggestedFields()
-            setRunFailure(null)
-            setRunFailureCode(null)
-            setPreparing(true)
-          }}
+          onAction={() => prepareCollectionRun(stabiliseNudge)}
           onDismiss={() => setStabiliseNudge(null)}
+        />
+      )}
+      {finishedBatch && !stabiliseNudge && (
+        <GuidedNextStep
+          title={
+            finishedBatch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+              ? 'Pilot Extraction finished'
+              : 'Batch Extraction finished'
+          }
+          description={
+            finishedBatch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+              ? 'Review each pilot result. Once they look right, approve the schema for batch extraction here on the Extractions tab.'
+              : 'Review the results to validate the collection; each document offers the next one to review.'
+          }
+          actionLabel="Review results"
+          onAction={() => reviewBatch(finishedBatch)}
+          onDismiss={() => setFinishedBatch(null)}
         />
       )}
     </div>
