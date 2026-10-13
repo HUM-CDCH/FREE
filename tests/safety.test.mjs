@@ -247,6 +247,30 @@ test('development tracing: enabled by default with optional LLM input and output
   assert.ok(config.services['mock-oidc'])
 })
 
+test('development never renders as the production project, and a second stack moves its host-wide resources', () => {
+  const { COMPOSE_PROJECT_NAME: _, ...environment } = process.env
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  assert.equal(renderDevelopmentCompose(profile, null, environment).name, 'free-dev')
+  assert.notEqual(renderProductionCompose(completeProductionEnvironment('/tmp/free-test-client.pem')).name, 'free-dev')
+
+  const moved = { FREE_PHOENIX_PORT: '16006', FREE_PROXY_SUBNET_PREFIX: '172.31.252' }
+  const development = renderDevelopmentCompose(profile, null, { ...environment, ...moved })
+  for (const nginx of ['host', 'container']) {
+    const production = renderProductionCompose({
+      ...completeProductionEnvironment('/tmp/free-test-client.pem'), ...moved,
+      FREE_NGINX: nginx, FREE_TLS_CERT_PATH: '/tmp/free-test-client.pem', FREE_TLS_KEY_PATH: '/tmp/free-test-client.pem',
+    })
+    assert.equal(production.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS,
+      nginx === 'container' ? '172.31.252.10' : '172.31.252.1')
+    if (nginx === 'container') assert.equal(production.services.nginx.networks.proxy.ipv4_address, '172.31.252.10')
+    for (const config of [development, production]) {
+      assert.deepEqual(config.networks.proxy.ipam.config, [{ subnet: '172.31.252.0/24' }])
+      assert.equal(String(config.services.phoenix.ports[0].published), '16006')
+    }
+  }
+  assert.equal(development.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS, '172.31.252.0/24')
+})
+
 function assertOwnedParsingTopology(config, gpu) {
   const services = config.services
   assert.equal(services.studio.environment.KEI_EXP_URL, 'http://parsing_service:8001')

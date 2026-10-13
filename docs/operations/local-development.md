@@ -71,6 +71,16 @@ the parsing run volume and the source inbox are durable inputs to future
 extraction. `docker compose down --volumes` destroys all of these volumes and
 is never needed for ordinary restarts.
 
+The development stack is the Compose project `free-dev` (`compose.override.yaml`),
+never production's `free`, so a `docker compose` command in a clone cannot reach a
+production stack on the same host. A stack started before this name was set is the
+project `free`, with its data in `free_*` volumes: on your own machine stop it with
+`docker compose -p free stop` and, to keep that data, export
+`COMPOSE_PROJECT_NAME=free`. Never do either on a host that runs production. To run
+beside another stack on one host, give each its own `COMPOSE_PROJECT_NAME`,
+`FREE_PHOENIX_PORT` (default 6006) and `FREE_PROXY_SUBNET_PREFIX`, the first three
+octets of its `/24` proxy network (default `172.30.0`, production's).
+
 ## Development identity
 
 The default Compose stack uses the `mock-oidc` service

@@ -279,7 +279,7 @@ function printReady(profile) {
       console.log(`  phone trust: install the mkcert root CA from ${caroot.stdout.trim()}`)
   }
   console.log('Press Ctrl+C to stop the stack.\n')
-  console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
+  console.log(`Phoenix model-call traces: http://localhost:${process.env.FREE_PHOENIX_PORT || 6006} (loopback only).`)
 }
 
 function loadDotEnv() {
@@ -727,7 +727,7 @@ async function productionMain(args) {
   } catch (error) {
     console.warn(`Could not report image revisions: ${error.message}`)
   }
-  console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
+  console.log(`Phoenix model-call traces: http://localhost:${environment.FREE_PHOENIX_PORT || 6006} (loopback only).`)
   if (!hostNginx) {
     console.log(`
 The services started and configured health checks passed; the bundled nginx terminates TLS.
