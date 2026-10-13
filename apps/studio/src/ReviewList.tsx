@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
 
@@ -21,7 +21,7 @@ const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">
  * The list: one component for both phases, records keyed by their index so settlement
  * moves nothing; a document's fields once above them; an Article's one record flat. The caller renders each row.
  */
-export default function ReviewList({ model, article, finding, filter, selectedKey, linkedKeys, isOpen, onToggle, renderRow }: {
+export default function ReviewList({ model, article, finding, filter, selectedKey, linkedKeys, hovered, onHover, isOpen, onToggle, renderRow }: {
   model: RailModel
   article: boolean
   /** Before discovery: the one block that becomes the list. */
@@ -29,16 +29,20 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   filter: ValueFilter
   selectedKey: string | null
   linkedKeys: ReadonlySet<string>
+  /** The values under the pointer, on a mark or a row: their rows are lit, a collapsed record's header for its own. */
+  hovered: readonly string[] | null
+  /** The row under the pointer names its value; off the rows, none. */
+  onHover: (keys: readonly string[] | null) => void
   isOpen: (record: RailRecord) => boolean
   onToggle: (record: RailRecord) => void
   renderRow: (row: RailRow, pinned: boolean) => ReactNode
 }) {
   const rowsOf = (rows: readonly RailRow[]) => rows.flatMap((row) => {
     const passes = passesFilter(row, filter)
-    const linked = linkedKeys.has(row.key)
+    const linked = linkedKeys.has(row.key), lit = Boolean(hovered?.includes(row.key))
     return passes || row.key === selectedKey || linked ? [
-      <div key={row.key} data-result-key={row.key} data-evidence-linked={linked || undefined}
-        className={linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : undefined}>
+      <div key={row.key} data-result-key={row.key} data-evidence-linked={linked || undefined} data-evidence-hovered={lit || undefined}
+        className={lit ? 'rounded-md bg-ev-soft shadow-[inset_2px_0_0_var(--color-ev)]' : linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : undefined}>
         {linked && <span className="sr-only">Linked to the selected passage</span>}
         {renderRow(row, !passes)}
       </div>,
@@ -53,8 +57,13 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   )
   if (model.records.length === 0 && model.document.length === 0)
     return <p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">No records were found in the source.</p>
+  // One listener for the list: a row a decision drops from under the pointer is let go at its next move.
+  const onMouseOver = (event: MouseEvent) => {
+    const key = (event.target as Element).closest<HTMLElement>('[data-result-key]')?.dataset.resultKey
+    onHover(key ? [key] : null)
+  }
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" onMouseOver={onMouseOver} onMouseLeave={() => onHover(null)}>
       {model.document.length > 0 && (
         <section aria-label="Document" className={`${section} p-1`}>
           <h3 className="m-0 px-2 pt-1.5 pb-1 text-content font-bold text-ink">Document</h3>
@@ -67,10 +76,12 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
         const state = recordState(record)
         const open = record.state !== 'queued' && isOpen(record)
         const rows = open ? rowsOf(record.rows) : []
+        const holdsHovered = !open && record.rows.some((row) => hovered?.includes(row.key))
         return (
           <section key={record.key ?? record.index} aria-label={`${record.label}, ${state.text}`} className={section}>
             <button type="button" aria-expanded={open} disabled={record.state === 'queued'} onClick={() => onToggle(record)}
-              className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
+              data-evidence-hovered={holdsHovered || undefined}
+              className={`flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default ${holdsHovered ? 'bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : ''}`}>
               <DisclosureGlyph open={open} />
               <b className="min-w-10 truncate text-content text-ink">{record.label}</b>
               <span className="min-w-0 truncate text-secondary text-ink-muted">

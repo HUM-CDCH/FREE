@@ -756,6 +756,7 @@ export function DocumentWorkspace({
   const [selection] = useState(createSelectionChannel)
   const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
   const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
+  const hovered = useSyncExternalStore(selection.subscribe, () => selection.snapshot().hover)
   const markdownContainerRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
   // A value link asks Results for its value once per arrival, as soon as its Extraction is known. Leaving it, or
@@ -767,9 +768,12 @@ export function DocumentWorkspace({
     return () => selection.consume(seq)
   }, [selection, routedKey, routedExtractionId])
   // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
-  // reveals its linked fields directly in Results, including shared Evidence.
+  // reveals its linked fields directly in Results, including shared Evidence. Hovering a mark lights its rows there, and
+  // a row's marks light here.
   const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
     ...publishedMarks,
+    hovered,
+    onHover: selection.hover,
     onSelect: (keys: string[]) => {
       const key = publishedMarks.selected && keys.includes(publishedMarks.selected) ? publishedMarks.selected : keys[0]
       if (!key) return
@@ -777,7 +781,7 @@ export function DocumentWorkspace({
       setRailTab('results')
       selection.select(key, false, publishedMarks.extractionId, keys)
     },
-  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection])
+  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
   const selectPdfEvidence = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,

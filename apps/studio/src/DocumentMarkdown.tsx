@@ -5,8 +5,8 @@ type Marks = RailMarks
 
 /**
  * The parsed Markdown in the document pane: a page-shaped text with the rail's values
- * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting their values as the
- * page's marks do.
+ * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting and lighting their values
+ * as the page's marks do.
  */
 export default function DocumentMarkdown({ markdown, document, marks, marksShown = true }: { markdown: string | null; document: ParsedDocument | null; marks: Marks | null; marksShown?: boolean }) {
   if (!markdown) return (
@@ -39,12 +39,14 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
     const keys = span.keys.filter((key) => marks!.describe.has(key))
     const infos = keys.map((key) => marks!.describe.get(key)!)
     const selected = marks!.selected !== null && keys.includes(marks!.selected)
+    const hovered = keys.some((key) => marks!.hovered?.includes(key))
     parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{decode(span.start, span.end)}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{decode(span.start, span.end)}</span> : (
-      <button key={span.start} type="button" className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
+      <button key={span.start} type="button" className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''}${hovered ? ' hovered' : ''} whitespace-pre-wrap text-left font-mono`}
         data-evidence-anchor-id={span.anchorId}
         aria-label={infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; ')} aria-current={selected || undefined}
-        onClick={(event) => marks!.onSelect(keys, event.currentTarget)}>{decode(span.start, span.end)}</button>
+        onClick={(event) => marks!.onSelect(keys, event.currentTarget)}
+        onMouseEnter={() => marks!.onHover?.(keys)} onMouseLeave={() => marks!.onHover?.(null)}>{decode(span.start, span.end)}</button>
     ))
     at = span.end
   }

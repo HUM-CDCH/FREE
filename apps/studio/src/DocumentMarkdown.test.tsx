@@ -56,6 +56,19 @@ describe('the values in one passage', () => {
     expect(onSelect).toHaveBeenCalledWith([...two.keys()], mark)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('names its values under the pointer, and is lit while one of them is hovered in Results', () => {
+    const onHover = vi.fn()
+    const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect: vi.fn(), onHover }} />)
+    const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
+    expect(mark).not.toHaveClass('hovered')
+    fireEvent.mouseEnter(mark)
+    expect(onHover).toHaveBeenLastCalledWith([key])
+    fireEvent.mouseLeave(mark)
+    expect(onHover).toHaveBeenLastCalledWith(null)
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect: vi.fn(), onHover, hovered: [key] }} />)
+    expect(mark).toHaveClass('hovered')
+  })
 })
 
 describe('mark visibility preserves the Markdown source', () => {

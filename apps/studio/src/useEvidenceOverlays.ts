@@ -27,6 +27,10 @@ export type RailMarkState = {
 /** The Results rail's values and selection, which the marks show and select. */
 export type RailMarks = RailMarkState & {
   onSelect: (keys: string[], mark: HTMLElement) => void
+  /** The values under the pointer, here or in Results: their marks are lit. */
+  hovered?: readonly string[] | null
+  /** A mark under the pointer names its values; leaving it, none. */
+  onHover?: (keys: readonly string[] | null) => void
 }
 
 function appendOverlay(
@@ -41,7 +45,7 @@ function appendOverlay(
     evidenceAnchorId?: string
     resultPath?: readonly (string | number)[]
     /** A mark the researcher can select: a button with its accessible name. */
-    mark?: { label: string; current: boolean; onClick: (element: HTMLElement) => void }
+    mark?: { label: string; current: boolean; onClick: (element: HTMLElement) => void; onHover?: (over: boolean) => void }
   },
 ): HTMLElement | null {
   const page = container.querySelector(
@@ -58,13 +62,15 @@ function appendOverlay(
   if (options.element && options.element !== overlay) options.element.remove()
   overlay.className = options.className
   if (options.mark) {
-    const { label, current, onClick } = options.mark
+    const { label, current, onClick, onHover } = options.mark
     ;(overlay as HTMLButtonElement).type = 'button'
     overlay.setAttribute('aria-label', label)
     overlay.removeAttribute('aria-hidden')
     if (current) overlay.setAttribute('aria-current', 'true')
     else overlay.removeAttribute('aria-current')
     overlay.onclick = () => onClick(overlay)
+    overlay.onmouseenter = onHover ? () => onHover(true) : null
+    overlay.onmouseleave = onHover ? () => onHover(false) : null
   } else overlay.ariaHidden = 'true'
   overlay.dataset.occurrenceId = occurrence.occurrence_id
   if (options.evidenceAnchorId)
@@ -237,14 +243,17 @@ export function useEvidenceOverlays({
         const style = infos[0]?.style ?? 'link'
         const decided = infos.length > 0 && infos.every((info) => info.word !== null)
         const current = marks?.selected !== null && marks?.selected !== undefined && keys.includes(marks.selected)
+        const hovered = keys.some((key) => marks?.hovered?.includes(key))
+        const selectable = keys.filter((key) => marks?.describe.has(key))
         appendOverlay(container, parsedDocument, occurrence, {
           element,
-          className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${current ? ' selected' : ''}`,
+          className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${current ? ' selected' : ''}${hovered ? ' hovered' : ''}`,
           evidenceAnchorId: anchorId,
           resultPath,
           ...(marks && infos.length > 0 ? { mark: {
             label: infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; '),
-            current, onClick: (element: HTMLElement) => marks.onSelect(keys.filter((key) => marks.describe.has(key)), element),
+            current, onClick: (element: HTMLElement) => marks.onSelect(selectable, element),
+            ...(marks.onHover ? { onHover: (over: boolean) => marks.onHover!(over ? selectable : null) } : {}),
           } } : {}),
         })
       }

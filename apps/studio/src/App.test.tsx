@@ -1134,6 +1134,15 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
     expect(document.querySelectorAll('[data-evidence-linked]')).toHaveLength(2)
+    // Hover links the two sides: a row lights its passage, the passage lights its rows.
+    const passage = screen.getByRole('button', { name: /place: Harlow/ })
+    fireEvent.mouseOver(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
+    expect(passage).toHaveClass('hovered')
+    fireEvent.mouseEnter(passage)
+    expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(2)
+    fireEvent.mouseLeave(passage)
+    expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(0)
+    expect(passage).not.toHaveClass('hovered')
 
     saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
     const parish = await screen.findByRole('button', { name: /^To check parish Elmbrook/ })
