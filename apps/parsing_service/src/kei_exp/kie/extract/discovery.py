@@ -186,12 +186,16 @@ def kinds_of(passages: Sequence[Passage]) -> dict[str, str]:
             if passage.label in HEADINGS or passage.label == "Table" or passage.table is not None}
 
 
+def window_text(units: Sequence[Unit], texts: dict[str, str], kinds: dict[str, str]) -> str:
+    """The WINDOW's lines as the model reads them: `[L1] …`, the label naming the line's layout kind when it has one."""
+    return text_of(units, texts, [f"L{number} {kinds[unit.segment]}" if unit.segment in kinds else f"L{number}"
+                                  for number, unit in enumerate(units, 1)])
+
+
 def _render(window: Window, texts: dict[str, str], kinds: dict[str, str]) -> tuple[str, list[str]]:
     labels = [f"L{number}" for number in range(1, len(window.primary) + 1)]
-    shown = [f"{label} {kinds[unit.segment]}" if unit.segment in kinds else label
-             for label, unit in zip(labels, window.primary, strict=True)]
     parts = ([f"### CONTEXT BEFORE\n{text_of(window.before, texts)}"] if window.before else []) + \
-        [f"### WINDOW\n{text_of(window.primary, texts, shown)}"] + \
+        [f"### WINDOW\n{window_text(window.primary, texts, kinds)}"] + \
         ([f"### CONTEXT AFTER\n{text_of(window.after, texts)}"] if window.after else [])
     return "\n\n".join(parts) + "\n\nReturn the JSON object now.", labels
 

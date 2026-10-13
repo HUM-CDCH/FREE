@@ -369,23 +369,23 @@ def test_a_record_continues_across_columns_and_page_furniture(by):
 
 def test_a_window_line_names_its_layout_kind_while_the_reply_names_its_plain_label():
     source = replace(evidence(""), passages=(
-        passage("p1_s0", "Grav 24", label="SectionHeader"),
-        passage("p1_s1", "Ark: 1"),
-        passage("p1_s2", "24-1\tTand\n24-2\tKnogle", label="Table"),
+        passage("p1_s0", "Entry 7", label="SectionHeader"),
+        passage("p1_s1", "Sheet: 2"),
+        passage("p1_s2", "7-1\tCup\n7-2\tBowl", label="Table"),
     ))
     asked = []
 
     def ask(record, system, user, schema, calls, issues):
         asked.append((system, user, schema))
-        return {"places": [["L1", "record", "24"]], "begins_inside_record": False, "ends_inside_record": False}
-    result = discovery.discover(source, "one grave", lambda *_: True, ask, overlap=0, splits=0)
+        return {"places": [["L1", "record", "7"]], "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "one entry", lambda *_: True, ask, overlap=0, splits=0)
     [(system, user, schema)] = asked
     assert section(user, "WINDOW") == \
-        "[L1 heading] Grav 24\n[L2] Ark: 1\n[L3 table row] 24-1\tTand\n[L4 table row] 24-2\tKnogle"
+        "[L1 heading] Entry 7\n[L2] Sheet: 2\n[L3 table row] 7-1\tCup\n[L4 table row] 7-2\tBowl"
     assert "layout kind (heading or table row)" in system
     assert schema["properties"]["places"]["items"]["prefixItems"][0]["enum"] == ["L1", "L2", "L3", "L4"]
     [entry] = result["entries"]
-    assert entry["label"] == "24" and {row["segment"] for row in entry["ranges"]} == {"p1_s0", "p1_s1", "p1_s2"}
+    assert entry["label"] == "7" and {row["segment"] for row in entry["ranges"]} == {"p1_s0", "p1_s1", "p1_s2"}
 
 
 @pytest.mark.parametrize("by", ["budget", "page", "column"])
