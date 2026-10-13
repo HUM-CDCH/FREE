@@ -12,7 +12,6 @@ from tests.helpers.chat import FakeChat
 BOTH = {"KEI_EXTRACT_URL": "http://instruct.test:8000/v1/chat/completions", "KEI_EXTRACT_MODEL": "Qwen/Qwen3.8-27B-FP8",
         "KEI_NUEXTRACT_URL": "http://nuextract.test:8000/v1/chat/completions",
         "KEI_NUEXTRACT_MODEL": "numind/NuExtract3-FP8"}
-MINICPM = {"KEI_MINICPM_URL": "http://minicpm.test:8000/v1/chat/completions"}
 
 
 @pytest.fixture
@@ -44,35 +43,6 @@ def test_a_run_may_route_the_fields_to_the_instruction_model_too(deployed):
     assert routes(options) == {"fields": "instruct", "reasoning": "instruct"}
     router = chats_for(options)
     assert router.fields is router.reasoning  # one server, one client
-
-
-@pytest.fixture
-def with_minicpm(monkeypatch):
-    monkeypatch.setattr(models, "EXTRACT_MODELS", registry({**BOTH, **MINICPM}))
-    monkeypatch.setattr(models, "DEFAULTS", defaults(models.EXTRACT_MODELS))
-
-
-@pytest.mark.parametrize("environ", [{}, {"KEI_MINICPM_MODEL": "custom/minicpm"}, {"KEI_MINICPM_URL": ""}])
-def test_minicpm_requires_a_configured_server(environ):
-    assert "minicpm" not in registry({**BOTH, **environ})
-
-
-def test_adding_minicpm_keeps_qwen_and_the_existing_role_defaults(with_minicpm):
-    assert set(models.EXTRACT_MODELS) == {"instruct", "nuextract", "minicpm"}
-    assert models.EXTRACT_MODELS["minicpm"].roles == frozenset({"fields", "reasoning"})
-    router = chats_for(Options())
-    assert isinstance(router.fields, NuExtractChat)
-    assert router.fields.model == BOTH["KEI_NUEXTRACT_MODEL"]
-    assert isinstance(router.reasoning, OpenAIChat)
-    assert router.reasoning.model == BOTH["KEI_EXTRACT_MODEL"]
-    assert router.reasoning.url == BOTH["KEI_EXTRACT_URL"]
-
-
-
-@pytest.mark.parametrize("role", ["fields", "reasoning"])
-def test_unconfigured_minicpm_is_refused_at_admission(deployed, role):
-    with pytest.raises(ValidationError, match="unknown extraction model 'minicpm'"):
-        Options(models={role: "minicpm"})
 
 
 @pytest.mark.parametrize("choice, message", [

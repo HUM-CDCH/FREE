@@ -37,7 +37,6 @@ export function deploymentModels(env: Environment = process.env): DeploymentMode
   const connections = [
     ...served(DEPLOYMENT_CONNECTION_IDS.instruct, 'Deployment instruction model', env.FREE_DEPLOYMENT_INSTRUCT_URL),
     ...served(DEPLOYMENT_CONNECTION_IDS.nuextract, 'Deployment NuExtract', env.FREE_DEPLOYMENT_NUEXTRACT_URL),
-    ...served(DEPLOYMENT_CONNECTION_IDS.minicpm, 'Deployment MiniCPM', env.FREE_DEPLOYMENT_MINICPM_URL),
     ...cliConnections(env.FREE_DEPLOYMENT_CLI_PROVIDERS),
   ]
   const modelId = env.FREE_DEPLOYMENT_INSTRUCT_MODEL?.trim()

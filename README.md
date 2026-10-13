@@ -88,15 +88,6 @@ KEI_EXTRACT_MODEL=<served-model-name>
 
 On ARM64 hosts such as DGX Spark, set `VLLM_IMAGE` to an ARM64 build of vLLM.
 
-To keep Qwen available and add MiniCPM as another choice, run a separate
-MiniCPM-capable vLLM server and set `KEI_MINICPM_URL` to its chat-completions
-URL and `FREE_DEPLOYMENT_MINICPM_URL` to its `/v1` base URL. The optional
-`KEI_MINICPM_MODEL` defaults to `openbmb/MiniCPM-V-4.7-35B-A3B-FP8`.
-Both models then appear in Configure models: extraction offers each for fields
-and reasoning, and Assistant/Schema Suggestion can use either deployment
-connection. Unset choices still use Qwen for reasoning and Assistant, and
-NuExtract for fields. See the [MiniCPM deployment guidance](docs/operations/deployment.md#minicpm-alongside-qwen).
-
 **Schema help and chat run on any connection you add in Studio.** Open
 **Configure models** → **Connections**. Each researcher adds their own. API keys
 are kept in the browser; Studio holds them in memory only and never stores them.
