@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Profiler } from 'react'
 import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
@@ -817,6 +818,21 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('grave')).toBeInTheDocument()
     expect(screen.getByText('year')).toBeInTheDocument()
     expect(screen.getByText('new_field')).toBeInTheDocument()
+  })
+
+  it('re-renders nothing for a mouse move while no field is dragged', async () => {
+    const setup = setupController()
+    const onRender = vi.fn()
+    render(
+      <Profiler id="schema" onRender={onRender}>
+        <SchemaPanel schema={setup.schema} onClearDraft={() => setup.schema.reset()} sourceDocumentName="test.pdf" />
+      </Profiler>,
+    )
+    await act(async () => {})
+    const commits = onRender.mock.calls.length
+    fireEvent.mouseMove(window, { clientX: 10, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 30, clientY: 40 })
+    expect(onRender).toHaveBeenCalledTimes(commits)
   })
 
   it('a drag from the slot above an open group into its header drops the field into the group', async () => {

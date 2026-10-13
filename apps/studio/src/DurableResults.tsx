@@ -262,7 +262,7 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
@@ -278,6 +278,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   onPinnedDocument?:(id:string,source:PinnedExtractionSource|null)=>void;
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
   onReviewFinalized?:()=>void;
+  /** The rail is expanded. Collapsed, Results starts no read of the latest values and one-by-one follows nothing; the
+   *  rail drops the rest of its document navigation. */
+  railOpen?:boolean;
   /** The History tab's body: guidance and saved versions render there, not in Results. */
   historySlot?:HTMLElement|null;historyShown?:boolean;onShowResults?:()=>void;onShowHistory?:()=>void;
 }) {
@@ -285,8 +288,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const article=attempt?.strategy==='ARTICLE'
   const keyboardRoot=useRef<HTMLDivElement>(null)
   const reading=useDurableReading(reader),state=reading?.state,latestPage=reading?.latestPage??null
-  // Mounted, Results wants the latest values, also while it shows an explicitly opened cut ("Show the latest results").
-  useEffect(()=>reader?.wantPages(),[reader])
+  // While the rail is open, Results wants the latest values, also while it shows an explicitly opened cut ("Show the
+  // latest results"). Collapsed, a read already started finishes and none starts.
+  useEffect(()=>railOpen?reader?.wantPages():undefined,[reader,railOpen])
   // The explicitly opened cut; otherwise the view follows the latest results.
   const [cutPage,setCutPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
   const [errorsBefore,setErrorsBefore]=useState(state)
@@ -395,7 +399,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
   useEffect(()=>{onResultPathChange?.([])},[onResultPathChange])
   const currentLink=review?.value.links[0]??null
-  const followKey=focus&&review&&document?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
+  // Collapsed, one-by-one follows nothing; expanding follows its value again.
+  const followKey=railOpen&&focus&&review&&document?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
   useEffect(()=>{
     const {review,onFocusEvidence,onEvidence}=followRef.current,link=review?.value.links[0]??null
     onFocusEvidence?.(followKey?link:null)

@@ -252,6 +252,43 @@ test('One by one waits for its pinned source before navigating retained Model Ev
   } finally {release.resolve();await fixture.close()}
 })
 
+test('a collapsed rail keeps one-by-one and moves nothing on the page; each toggle passes the focus on',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
+    const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
+      {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'One by one',exact:true}).click()
+    const heading=page.getByRole('heading',{name:'Unit 7',exact:true}),current=page.getByLabel('Current page')
+    await expect(heading).toBeFocused()
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(current).toHaveValue(String(occurrence.page_number))
+    // Away from the value's page, which a collapse must not bring back.
+    await current.fill('6');await current.press('Enter')
+    await expect(page.getByRole('button',{name:'Next page'})).toBeDisabled()
+    // The zoom is a fixed scale, so the wider page pane keeps the scroll position unless something navigates.
+    const viewer=page.locator('.pdf-viewer'),top=await viewer.evaluate(element=>element.scrollTop)
+    await page.getByTitle('Collapse panel').click()
+    await expect(page.getByTitle('Expand panel')).toBeFocused()
+    await expect(heading).toBeHidden()
+    // A navigation would land within a few frames of the collapse.
+    await page.waitForTimeout(500)
+    await expect(current).toHaveValue('6')
+    expect(await viewer.evaluate(element=>element.scrollTop)).toBe(top)
+    await page.getByTitle('Expand panel').click()
+    await expect(page.getByTitle('Collapse panel')).toBeFocused()
+    await expect(heading).toBeVisible()
+    // Expanding in one-by-one scrolls back to its value.
+    await expect(current).toHaveValue(String(occurrence.page_number))
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+  } finally {await fixture.close()}
+})
+
 test('an off-page ungrounded value keeps its source, optional Evidence and target-specific guidance',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   const nodes=[{id:'title',name:'title',type:'string' as const}]
