@@ -85,7 +85,7 @@ class Model:
         raise AssertionError(system)
 
     def discover(self, user: str) -> dict:
-        lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
+        lines = re.findall(r"^\[(L\d+)(?: heading| table row)?\] (.*)$", section(user, "WINDOW"), re.M)
         places = [[label, kind, printed, *([text[at:at + 12]] if at else [])]
                   for label, text in lines for at, kind, printed in marks(text)]
         first = self.full.find(lines[0][1])
@@ -281,7 +281,7 @@ def test_a_middle_window_continuation_the_next_window_denies_stays_unresolved():
     def denying(user):
         answer = model.discover(user)
         return {**answer, "begins_inside_record": False} if answer["begins_inside_record"] else answer
-    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=520, output_tokens=64)
+    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=543, output_tokens=64)
     ends = [entry["end"] for entry in result["discovery"]["entries"]]
     assert "unresolved" in ends and "source_end" not in ends and ends[-1] == "validated"
     assert result["completeness"]["boundaries"] is False and result["complete"] is False
@@ -331,7 +331,7 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     model = Model(source)
 
     def crowded(user):
-        shown = re.findall(r"^\[L\d+\]", section(user, "WINDOW"), re.M)
+        shown = re.findall(r"^\[L\d+", section(user, "WINDOW"), re.M)
         return Reply("{", 50, 4096, "length", 0.0) if len(shown) > 2 else model.discover(user)
     result, _ = extract(source, Model(source, discovery=crowded))
     assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 9)]
@@ -365,6 +365,27 @@ def test_a_record_continues_across_columns_and_page_furniture(by):
     assert {row["segment"] for row in result["ledger"] if row["disposition"] == "other"} == {
         "p1_s0", "p1_s3", "p2_s0", "p3_s0", "p3_s2"}
     assert_accounted(source, {"discovery": result})
+
+
+def test_a_window_line_names_its_layout_kind_while_the_reply_names_its_plain_label():
+    source = replace(evidence(""), passages=(
+        passage("p1_s0", "Entry 7", label="SectionHeader"),
+        passage("p1_s1", "Sheet: 2"),
+        passage("p1_s2", "7-1\tCup\n7-2\tBowl", label="Table"),
+    ))
+    asked = []
+
+    def ask(record, system, user, schema, calls, issues):
+        asked.append((system, user, schema))
+        return {"places": [["L1", "record", "7"]], "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "one entry", lambda *_: True, ask, overlap=0, splits=0)
+    [(system, user, schema)] = asked
+    assert section(user, "WINDOW") == \
+        "[L1 heading] Entry 7\n[L2] Sheet: 2\n[L3 table row] 7-1\tCup\n[L4 table row] 7-2\tBowl"
+    assert "layout kind (heading or table row)" in system
+    assert schema["properties"]["places"]["items"]["prefixItems"][0]["enum"] == ["L1", "L2", "L3", "L4"]
+    [entry] = result["entries"]
+    assert entry["label"] == "7" and {row["segment"] for row in entry["ranges"]} == {"p1_s0", "p1_s1", "p1_s2"}
 
 
 @pytest.mark.parametrize("by", ["budget", "page", "column"])
@@ -490,7 +511,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 3
+    assert result["prompt_version"] == 4
     assert_accounted(source, result)
 
 
