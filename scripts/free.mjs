@@ -360,9 +360,13 @@ export function loadLocalEntraEnvironment(
 
 export function parsingGpuComposeArguments(environment = process.env, execute = run) {
   const mode = environment.FREE_GPU || 'auto'
-  if (!['auto', 'off', 'required'].includes(mode))
-    throw new Error('FREE_GPU must be auto, off, or required.')
+  if (!['auto', 'off', 'required', 'shared'].includes(mode))
+    throw new Error('FREE_GPU must be auto, off, required, or shared.')
   if (mode === 'off') return []
+  if (mode === 'shared') {
+    console.log('Models: using the model servers another stack shares on the free-models network.')
+    return ['-f', 'compose.use-models.yaml']
+  }
   const probe = execute('docker', [
     'run', '--rm', '--gpus', 'all',
     'ubuntu:24.04', 'nvidia-smi', '-L',

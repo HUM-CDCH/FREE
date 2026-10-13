@@ -80,6 +80,8 @@ project `free`, with its data in `free_*` volumes: on your own machine stop it w
 beside another stack on one host, give each its own `COMPOSE_PROJECT_NAME`,
 `FREE_PHOENIX_PORT` (default 6006) and `FREE_PROXY_SUBNET_PREFIX`, the first three
 octets of its `/24` proxy network (default `172.30.0`, production's).
+`FREE_GPU=shared` uses the other stack's model servers instead of starting a second
+set ([sharing model servers](deployment.md#sharing-model-servers-between-stacks)).
 
 ## Development identity
 
