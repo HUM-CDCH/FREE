@@ -8,7 +8,9 @@ segments is a list of spans and no span ever covers a separator. The normalised 
 """
 from __future__ import annotations
 
+import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -16,6 +18,7 @@ from kei_exp.kie.blocks import Span
 
 SEPARATOR = "\n"
 SOFT_HYPHEN = "­"
+NEAR_PLACES = 8  # the most places `nearly` fits by edit distance
 
 
 @dataclass(frozen=True)
@@ -167,6 +170,84 @@ def locate(block: BlockText, quote: str, *, within: tuple[int, int] | None = Non
         if within is None or (within[0] <= raw_start and raw_end <= within[1]):
             found.append(_spans(block, raw_start, raw_end))
     return found
+
+
+def nearly(block: BlockText, quote: str, bound: int, *, within: tuple[int, int] | None = None) -> list[list[Span]]:
+    """Each place where `quote` occurs with at most `bound` character edits (inserted, dropped or changed), compared
+    as `locate` compares (word boundaries included), at its fewest edits; fits starting within `bound` of each other
+    are one place. Seeded by exact pieces of the quote: of `bound + 1` disjoint pieces, at least one is unedited. Text
+    so repetitive that the pieces seed more than `NEAR_PLACES` places gives none: one place could not be told apart."""
+    needle, view = normalise(quote).text, normalise(block.text)
+    size = len(needle) // (bound + 1)
+    if size < 4:
+        return []
+    inside = [index for index, (start, end) in enumerate(view.ranges)
+              if within is None or (within[0] <= start and end <= within[1])]
+    if not inside:
+        return []
+    low, high = inside[0], inside[-1] + 1
+    seeds: list[int] = []
+    for piece in range(bound + 1):
+        part, at = needle[piece * size:(piece + 1) * size], piece * size
+        found = view.text.find(part, low, high)
+        while found != -1:
+            seeds.append(found - at)
+            found = view.text.find(part, found + 1, high)
+    groups: list[list[int]] = []  # seeds within `bound` of each other name one place
+    for start in sorted(seeds):
+        if groups and start - groups[-1][-1] <= bound:
+            groups[-1].append(start)
+        else:
+            groups.append([start])
+    if len(groups) > NEAR_PLACES:
+        return []
+    fits: list[tuple[int, int, int]] = []
+    for group in groups:
+        offset = max(low, max(set(group), key=group.count) - bound)
+        fit = _fitted(needle, view.text, offset, min(high, offset + len(needle) + 2 * bound), bound,
+                      lambda begin, end: _bounded(view.text, begin, end) and
+                      not (begin > 0 and view.ranges[begin - 1] == view.ranges[begin]) and
+                      not (end < len(view.text) and view.ranges[end] == view.ranges[end - 1]))
+        if fit is not None:
+            fits.append(fit)
+    places: list[tuple[int, int, int]] = []
+    for edits, begin, end in sorted(fits, key=lambda fit: fit[1]):
+        if places and begin - places[-1][1] <= bound:  # the same place, fitted from two seeds
+            places[-1] = min(places[-1], (edits, begin, end))
+        else:
+            places.append((edits, begin, end))
+    return [_spans(block, view.ranges[begin][0], view.ranges[end - 1][1]) for _, begin, end in places]
+
+
+def _fitted(needle: str, text: str, low: int, high: int, bound: int,
+            whole: Callable[[int, int], bool]) -> tuple[int, int, int] | None:
+    """The fewest edits (at most `bound`) turning `needle` into a substring of `text[low:high]` that starts within
+    `2 * bound` of `low` and that `whole` accepts, preferring the substring nearest the needle's length: (edits, start,
+    end) in `text`, or None. The table is banded: an alignment `bound` edits off never strays further from its row."""
+    worst = len(needle) + high - low + 1
+    width = high - low
+    edits = [0 if column <= 2 * bound else worst for column in range(width + 1)]
+    origin = list(range(width + 1))
+    for row, char in enumerate(needle, 1):
+        costs, starts = [worst] * (width + 1), [0] * (width + 1)
+        for column in range(max(0, row - bound), min(width, row + 3 * bound) + 1):
+            cost, start = edits[column] + 1, origin[column]
+            if column:
+                cost, start = min((cost, start), (edits[column - 1] + (char != text[low + column - 1]),
+                                                  origin[column - 1]), (costs[column - 1] + 1, starts[column - 1]))
+            costs[column], starts[column] = cost, start
+        edits, origin = costs, starts
+    fits = [(edits[end], abs(end - origin[end] - len(needle)), low + origin[end], low + end)
+            for end in range(width + 1) if edits[end] <= bound and whole(low + origin[end], low + end)]
+    return (min(fits)[0], min(fits)[2], min(fits)[3]) if fits else None
+
+
+def printed(text: str) -> str:
+    """Source text as `normalise` reads it, but not case folded: soft hyphens left out, a word hyphenated at a line
+    break joined (before a lowercase letter), and every run of whitespace one space."""
+    text = text.replace(SOFT_HYPHEN, "")
+    joined = re.sub(r"-[^\S\n]*\n\s*(?=\w)", lambda match: "" if text[match.end()].islower() else match[0], text)
+    return " ".join(joined.split())
 
 
 def raw_range(block: BlockText, spans: list[Span]) -> tuple[int, int]:

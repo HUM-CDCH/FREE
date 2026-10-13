@@ -761,6 +761,82 @@ def test_a_yes_no_value_has_a_supporting_passage_never_a_literal_span():
     assert link["support"] == "supporting" and link["verbatim"] is False and link["raw"] == "Gilded"
 
 
+def test_a_list_item_value_printed_in_several_items_is_its_own_items():
+    """Both finds quote their count as "(2)": each count's evidence is in its own item, never the first one's."""
+    source = evidence("1. Adorf. Find: Nadel (2). Find: Ring (2).")
+    result, _ = extract(source)
+    counts = {link["path"][3]: link["spans"][0]["start"] for link in result["evidence"] if link["path"][-1] == "count"}
+    text = source.passages[0].text
+    assert counts == {0: text.index("(2)") + 1, 1: text.rindex("(2)") + 1}
+
+
+def test_an_item_whose_value_is_also_printed_at_a_window_cut_is_kept_whole():
+    """An entry read in two windows: the second window's items quote "(2)", also printed in the rows shown before it.
+    Their counts are their own rows', so no item is taken for one crossing the cut and left a partial proposal."""
+    source = evidence("1. Adorf.\n" + "\n".join(f"Find: F{n} (2)." for n in range(1, 7)))
+    model = Model(source)
+
+    def crowded(system, user, schema):
+        if system.startswith("You extract structured data") and section(user, "RECORD").count("Find:") > 3:
+            return Reply('{"finds": [', 50, 4096, "length", 0.0)
+        return model(system, user, schema)
+    result, _ = extract(source, crowded)
+    assert result["processing"]["entries"]["windows"] > 1
+    assert [item["name"] for item in result["records"][0]["finds"]] == [f"F{n}" for n in range(1, 7)]
+    assert not [item for item in result["proposed"] if item["reason"] == "partial_item"]
+
+
+NOTES = {"recordDescription": "One entry.", "schemaNodes": [
+    {"id": "n", "name": "notes", "type": "string"}, {"id": "s", "name": "site", "type": "string"},
+    {"id": "c", "name": "count", "type": "integer"}]}
+PARAGRAPH = ("The harbour master noted that the north quay had been repainted twice that spring, once in grey and once "
+             "in a pale green that nobody liked; the fishing boats were moved to the outer basin while the paint dried, "
+             "and the ferry kept to its winter timetable, as it did every year until the first week of May.")
+
+
+def noted(notes, site=None, count=None):
+    def answer(record, user, schema):
+        return {"notes": notes, "site": site, "count": count}
+    return answer
+
+
+@pytest.mark.parametrize(("value", "quote"), [
+    (PARAGRAPH, PARAGRAPH.replace("pale ", "")),                                    # a word dropped from the quote
+    (PARAGRAPH.replace("timetable", "timetableasi"), PARAGRAPH.replace("timetable", "timetableasi")),  # a corrupt end
+    (PARAGRAPH.replace("had been", "has been"), PARAGRAPH),                         # the value reworded in its quote
+])
+def test_text_copied_nearly_verbatim_is_the_source_text(value, quote):
+    source = evidence(f"1. Adorf. {PARAGRAPH}")
+    result, _ = extract(source, Model(source, entry=noted(candidate(value, quote))), schema=NOTES)
+    assert result["records"][0]["notes"] == PARAGRAPH
+    (link,) = [link for link in result["evidence"] if link["path"][2] == "notes"]
+    assert link["verbatim"] and link["raw"] == PARAGRAPH
+    assert [issue["path"] for issue in result["issues"] if issue["code"] == "quote_repaired"] == [
+        ["records", 0, "notes"]]
+
+
+@pytest.mark.parametrize(("text", "answer", "reason"), [
+    ("1. Adorf. Fund in Bdorf.", noted(None, site=candidate("Cdorf", "Fund in Cdorf")), "quote_not_in_source"),
+    ("1. Adorf. 26 Stück.", noted(None, count=candidate(27, "27 Stück")), "quote_not_in_source"),
+    (f"1. Adorf. {PARAGRAPH} {PARAGRAPH.replace('pale ', '').replace('winter', 'wintry')}",
+     noted(candidate(PARAGRAPH.replace("pale ", ""), PARAGRAPH.replace("pale ", ""))), "quote_not_in_source"),
+])
+def test_short_numeric_or_ambiguous_text_is_never_repaired(text, answer, reason):
+    """A short value, a number one edit off, and a quote nearly printed in two places stay refused."""
+    source = evidence(text)
+    result, _ = extract(source, Model(source, entry=answer), schema=NOTES)
+    assert [row["reason"] for row in result["rejected"]] == [reason]
+    assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
+
+
+def test_a_document_field_is_never_repaired_since_nothing_verifies_it():
+    source = evidence(f"{PARAGRAPH}\n1. Adorf. Material: Holz.")
+    near = PARAGRAPH.replace("pale ", "")
+    result, _ = extract(source, Model(source, document=lambda text: {"title": candidate(near, near)}))
+    assert result["records"][0]["title"] is None
+    assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
+
+
 def test_verification_decides_acceptance_and_off_leaves_proposals():
     source = evidence("1. Adorf. Material: Holz.")
 
