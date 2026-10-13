@@ -161,7 +161,7 @@ describe('saved Evidence marks across reads', () => {
   })
 })
 
-describe('dimming in one-by-one (results review redesign §7.3)', () => {
+describe('dimming in one-by-one', () => {
   it.each([
     ['segment', 4], ['cell', 4], ['input', 0], [undefined, 0],
   ] as const)('a %s link dims its page in %i rectangles that take no pointer hits', (precision, rectangles) => {
@@ -218,7 +218,7 @@ describe('dimming in one-by-one (results review redesign §7.3)', () => {
   })
 })
 
-describe('marks select their values (results review redesign §7.2)', () => {
+describe('marks select their values', () => {
   it('paints one button per occurrence, named by its values, current when selected; a click hands over every value of the passage and no record start', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]

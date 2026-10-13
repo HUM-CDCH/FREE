@@ -18,7 +18,7 @@ const document = {
   ] },
 } as unknown as ParsedDocument
 
-describe('evidenceQuote (results review redesign §7.1)', () => {
+describe('evidenceQuote', () => {
   it('marks the grounding raw text case-insensitively, else the value', () => {
     expect(evidenceQuote(document, 'a1', 'CAFÉ WALL', 'x')).toEqual({ before: 'The ', hit: 'café wall', after: ' ran NE–SW. Its full length was not recorded.' })
     expect(evidenceQuote(document, 'a1', null, 'full length')?.hit).toBe('full length')

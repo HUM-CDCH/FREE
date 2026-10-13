@@ -10,7 +10,7 @@ const record = (index: number, rows: RailRow[], state: RailRecord['state'] = 'fi
   ({ index, label: `Grav ${index}`, page: 1, state, rows, toCheck: rows.filter((each) => each.kind === 'to-check').length })
 const model = (records: RailRecord[]): RailModel => ({ document: [], records, counts: {} as RailModel['counts'] })
 
-describe('the one-by-one queue (results review redesign §4.2)', () => {
+describe('the one-by-one queue', () => {
   const two = model([
     record(3, [row(3, 'a'), row(3, 'b', 'approved'), row(3, 'c', 'to-check', 'doubt'), row(3, 'site', 'not-reviewable')]),
     record(1, [row(1, 'x'), row(1, 'y')]),

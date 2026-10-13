@@ -34,7 +34,7 @@ export function UndoIcon({ size = 13 }: { size?: number }) {
   )
 }
 
-/** A 16px stroke glyph in the current colour (the rail's glyphs, results review redesign §1). */
+/** A 16px stroke glyph in the current colour (the rail's glyphs). */
 function Glyph({ children, className = '', strokeWidth = 1.6 }: { children: ReactNode; className?: string; strokeWidth?: number }) {
   return (
     <svg aria-hidden="true" className={`size-4 shrink-0 ${className}`} viewBox="0 0 16 16" fill="none" stroke="currentColor"

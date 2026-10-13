@@ -13,7 +13,7 @@ export type RowDecision = Readonly<{
   reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
 }>
 
-/** A row's state (results review redesign §1): the researcher's decision on a saved value, or why another value is
+/** A row's state: the researcher's decision on a saved value, or why another value is
  *  not reviewable. */
 export type RowKind =
   | 'to-check' | 'approved' | 'edited' | 'rejected'
@@ -35,10 +35,10 @@ export type RailRow = {
   /** The decision a To check, approved, edited or rejected row carries. */
   decision: RowDecision | null
   chip: { text: string; style: ChipStyle } | null
-  /** A not reviewable value's label and detail (§1). */
+  /** A not reviewable value's label and detail. */
   evidence: { label: string; detail: string } | null
   doubt: string | null
-  /** The run-time decision was not kept at settlement (§5.3). */
+  /** The run-time decision was not kept at settlement. */
   changed: boolean
   /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
   disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
@@ -95,7 +95,7 @@ export function rowText(row: Pick<RailRow, 'value' | 'disagreement'>): string {
 export const isDecidable = (kind: RowKind) => kind === 'to-check' || kind === 'approved' || kind === 'edited' || kind === 'rejected'
 export const isNotReviewable = (kind: RowKind) => kind === 'not-reviewable' || kind === 'missing' || kind === 'contested'
 
-/** The rail's value filters (§2.3). */
+/** The rail's value filters. */
 export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>

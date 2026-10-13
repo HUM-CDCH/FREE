@@ -145,7 +145,8 @@ Routes and researchers' keys never reach it. An Extraction has no overall
 deadline; each chat model call times out after waiting `KEI_EXTRACT_TIMEOUT`
 seconds for its reply, or for the next piece of a streamed discovery reply.
 
-Admission pins the method the start view showed
+Admission pins the method a start submits: what a batch start view showed, or
+the saved method single Run reads after saving the schema
 ([ADR 0015](adr/0015-extraction-method-pinned-at-admission.md)). It starts
 nothing and answers 409 for a method the account has changed since
 (`method_changed`), a Schema Revision with no Record Scope
@@ -162,8 +163,10 @@ Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry
 continues a failed Extraction with its saved work. Pause and Stop are refused
 once an Extraction is complete. Revised inputs are saved as a separate
-selection and adopted only at a drained boundary. A Resume requested while the
-Extraction is pausing runs once it has drained, unless a later edit cancels it.
+selection and adopted only at a drained boundary. Studio offers no Resume
+while an Extraction is pausing; a Resume an API client sends meanwhile runs
+once it has drained, unless a later Pause, Stop, input edit, Apply changes or
+Discard changes cancels it.
 
 A researcher's active edits can guide the Project's later admitted calls other
 than record-boundary discovery, wherever their field keeps its meaning, with

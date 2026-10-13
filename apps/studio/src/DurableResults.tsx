@@ -32,7 +32,7 @@ const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
 const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
 
-/** The status line (results review redesign §2.1) for a durable Extraction: its lifecycle, and how far the run is. */
+/** The status line for a durable Extraction: its lifecycle, and how far the run is. */
 function statusLine(state:DurableState,model:RailModel,article:boolean,finalized:boolean):StatusLine {
   // Until discovery ends the records listed are those found so far (a pipelined run reads them meanwhile): no total.
   const planned=state.recordsFinal?state.records?.length??null:null,read=model.records.filter(record=>record.state==='finished').length
@@ -259,7 +259,7 @@ const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
   &&JSON.stringify(readings(a))===JSON.stringify(readings(b))
 
-/** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
+/** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
 export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
@@ -342,7 +342,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // The export's fields are the shown values' own producing fields, never today's schema reinterpreting them.
   const exportFields=useMemo(()=>page?durableSchemaNodes(page.values,state?.selection?.schemaTree?.schemaNodes):[],[page,state?.selection?.schemaTree?.schemaNodes])
   // Records open as a run reads them; a settled Extraction opens only its first record with a value to check, chosen
-  // once so a decision doesn't close it (§3.1). The record holding the reviewed value always opens.
+  // once so a decision doesn't close it. The record holding the reviewed value always opens.
   const [opening,setOpening]=useState<{live:boolean;first:string|undefined}|null>(null)
   if(model&&state&&!opening)setOpening({live:ACTIVE.has(state.status),first:model.records.find(record=>record.toCheck>0)?.key})
   // A resumed or retried run reads again: its records open as they are read, and stay open once it settles.
@@ -369,7 +369,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
   },[page,id,focus])
   // Choosing a value in the list, or opening a link to it, shows its Evidence on the source; one-by-one follows its
-  // own, and a mark's selection scrolls nothing (§7.2).
+  // own, and a mark's selection scrolls nothing.
   const choose=useCallback((key:string)=> {
     selectValue(key)
     const value=page?.values.find(each=>each.id===key),link=value?.links[0],own=value?.correction?.decision.evidence[0] as {anchorId:string;occurrenceIds:string[]}|undefined
@@ -392,7 +392,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     onMarksChange?.({describe,selected:review?.value.id??null,selectableKeys:new Set(rows.map(row=>row.key)),savedLinks})
   },[model,page,onMarksChange,review,document,found])
   useEffect(()=>()=>{onMarksChange?.(null);onFocusEvidence?.(null);onResultPathChange?.(null)},[onMarksChange,onFocusEvidence,onResultPathChange])
-  // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone (§7.2).
+  // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
   useEffect(()=>{onResultPathChange?.([])},[onResultPathChange])
   const currentLink=review?.value.links[0]??null
   const followKey=focus&&review&&document?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
@@ -452,7 +452,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     catch(error){if(generation===readGenerations.current.snapshot)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.');return null}
   }
   const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current}
-  // A saved decision moves one-by-one to the next value at once (§4.3); the saved results and counts follow.
+  // A saved decision moves one-by-one to the next value at once; the saved results and counts follow.
   const saved=()=> {
     const next=focus?nextToCheck(queue,review?.value.id??null):null
     setReview(null);setEditing(null)

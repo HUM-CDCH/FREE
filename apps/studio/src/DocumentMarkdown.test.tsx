@@ -15,7 +15,7 @@ const document = { evidence_index: { anchors: [{ kind: 'text', anchor_id: 'a1', 
 const key = JSON.stringify(['records', 0, 'orientation'])
 const describe_ = new Map([[key, { name: 'orientation', value: 'NE–SW', word: null, style: 'link' as const, anchorId: 'a1' }]])
 
-describe('the Markdown view (results review redesign §7.4)', () => {
+describe('the Markdown view', () => {
   it('marks a value at its anchor\'s byte span, past multi-byte text, and selects it', () => {
     const onSelect = vi.fn()
     render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: key, onSelect }} />)
@@ -46,7 +46,7 @@ describe('the Markdown view (results review redesign §7.4)', () => {
   })
 })
 
-describe('the values in one passage (§7.2)', () => {
+describe('the values in one passage', () => {
   it('lists them; choosing one selects it; Escape closes and returns focus to the mark', () => {
     const mark = window.document.createElement('button')
     window.document.body.append(mark)

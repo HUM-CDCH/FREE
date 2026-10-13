@@ -4,7 +4,7 @@ import type { RailMarks } from './useEvidenceOverlays'
 type Marks = RailMarks
 
 /**
- * The parsed Markdown in the document pane (results review redesign §7.4): a page-shaped text with the rail's values
+ * The parsed Markdown in the document pane: a page-shaped text with the rail's values
  * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting their values as the
  * page's marks do.
  */

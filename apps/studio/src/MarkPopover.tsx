@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { MarkInfo } from './useEvidenceOverlays'
 
-/** Several values share one passage (results review redesign §7.2): the mark opens this list to choose one; Escape
+/** Several values share one passage: the mark opens this list to choose one; Escape
  *  closes it and focus returns to the mark. */
 export default function MarkPopover({ keys, describe, mark, onChoose, onClose }: {
   keys: readonly string[]

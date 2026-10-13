@@ -61,8 +61,9 @@ and `DELETE /api/model_config` are gone, and nothing is kept in a keyring.
 ## Amendment (0015, 2026-09-29)
 
 Clients again send the Extraction Model Choice: every start submits the choice
-and the Extraction Method Settings its view showed, and admission refuses a
-stale one and pins the rest on the Extraction (see
+and the Extraction Method Settings its view showed (single Run, which shows
+none, submits the saved ones; see 0015's 2026-10-12 amendment), and admission
+refuses a stale one and pins the rest on the Extraction (see
 [0015](0015-extraction-method-pinned-at-admission.md)). An identical repeat of
 a start replays its admitted Extraction even if the account's choice changed
 since; only a different request under the same ID conflicts. The page has
