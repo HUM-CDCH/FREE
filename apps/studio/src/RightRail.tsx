@@ -4,7 +4,7 @@ import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
 import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -117,13 +117,26 @@ function RightRail({
   onReviewFinalized,
 }: RightRailProps) {
   const { parsedDocument } = inspection
+  // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
   const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=> {
+    if(!open)return
     const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
     if(!anchor)return
     if(!occurrenceIds)onSelectEvidence(anchor,precision)
     else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
     else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
-  },[parsedDocument,onSelectEvidence])
+  },[open,parsedDocument,onSelectEvidence])
+  // Collapsing or expanding takes away the button that was showing, so the one now shown takes the focus; a mount
+  // moves none.
+  const expandButton = useRef<HTMLButtonElement>(null)
+  const collapseButton = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (wasOpen.current === open) return
+    wasOpen.current = open
+    const button = open ? collapseButton : expandButton
+    button.current?.focus()
+  }, [open])
   const showDeveloperUi = isDeveloperUiEnabled()
   // An uncertain admission is reconnected by admission; once settled, the latest reader reads again.
   const latestReading = useDurableReading(latestReader)
@@ -175,10 +188,12 @@ function RightRail({
     ) }] : []),
   ]
 
-  if (!open) {
-    return (
+  return (
+    <>
+    {!open && (
       <div className="flex h-full flex-col items-center">
         <button
+          ref={expandButton}
           className="flex cursor-pointer items-center justify-center py-3 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           title="Expand panel"
@@ -190,11 +205,10 @@ function RightRail({
           {tabs.map(({ label }) => label).join(' · ')}
         </span>
       </div>
-    )
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
+    )}
+    {/* Collapsed, the rail keeps everything below mounted, so a collapse never destroys work in it. `hidden` beats
+        `flex` only through the preflight's `[hidden] { display: none !important }`. */}
+    <div hidden={!open} className="flex h-full min-h-0 flex-col">
       <div className="@container flex shrink-0 items-stretch border-b border-line" role="tablist">
         {tabs.map(({ key, label, badge, icon }) => {
           const active = activeTab === key
@@ -221,6 +235,7 @@ function RightRail({
           )
         })}
         <button
+          ref={collapseButton}
           className="flex cursor-pointer items-center justify-center border-b-2 border-transparent px-2.5 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           title="Collapse panel"
@@ -230,8 +245,9 @@ function RightRail({
         </button>
       </div>
 
-      {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. */}
-      {statusError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
+      {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. Mounted only
+          while open, so expanding announces its alert. */}
+      {open && statusError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
         <p role="alert" className="m-0 text-compact text-danger">{statusError}</p>
         <div className="flex flex-wrap gap-2">
           <Button onClick={extraction.monitorError ? extraction.reconnect : () => void latestReader?.refresh()}>Reconnect</Button>
@@ -239,7 +255,7 @@ function RightRail({
         </div>
       </div>}
 
-      {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
+      {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches and a collapse. */}
       {showDeveloperUi && (
         <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
           <EvidenceTab document={parsedDocument} onSelectAnchor={onSelectEvidence} />
@@ -279,8 +295,9 @@ function RightRail({
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
+          railOpen={open}
           historySlot={historySlot}
-          historyShown={activeTab === 'history'}
+          historyShown={open && activeTab === 'history'}
           onShowResults={() => onTabChange('results')}
           onShowHistory={() => onTabChange('history')}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
@@ -293,6 +310,7 @@ function RightRail({
       </div>
       {shown && <div ref={setHistorySlot} id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'} />}
     </div>
+    </>
   )
 }
 

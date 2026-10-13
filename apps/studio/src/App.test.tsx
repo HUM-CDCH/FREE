@@ -658,7 +658,8 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Review now' }, { timeout: 4_000 }))
     expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByTitle('Collapse panel')).toBeInTheDocument()
+    expect(screen.getByTitle('Collapse panel')).toBeVisible()
+    expect(screen.getByTitle('Collapse panel')).toHaveFocus()
   })
 
   it('a method_changed refusal is retried once with a fresh read, a second one ends with a toast', async () => {
@@ -891,6 +892,26 @@ describe('reopened Source Document workspace', () => {
     expect(rail.className).toContain(mobileDrawerWidth)
   })
 
+  it('keeps one-by-one and the document tab\'s review progress while the rail is collapsed', async () => {
+    const ring = document.body.appendChild(document.createElement('span'))
+    try {
+      await renderReopened({ tabRingSlot: ring })
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+      expect(screen.getByRole('heading', { name: 'Elmbrooke' })).toHaveFocus()
+      // The ring's progress is reported from an effect after the values read.
+      await waitFor(() => expect(ring).toHaveTextContent('1 saved values to check in results 1'))
+      fireEvent.click(screen.getByTitle('Collapse panel'))
+      expect(screen.getByRole('heading', { name: 'Elmbrooke', hidden: true })).not.toBeVisible()
+      expect(screen.getByTitle('Expand panel')).toHaveFocus()
+      expect(ring).toHaveTextContent('1 saved values to check in results 1')
+      fireEvent.click(screen.getByTitle('Expand panel'))
+      expect(screen.getByRole('heading', { name: 'Elmbrooke' })).toBeVisible()
+      // The review's heading keeps no claim on the focus over the toggle.
+      expect(screen.getByTitle('Collapse panel')).toHaveFocus()
+    } finally {ring.remove()}
+  })
+
   it('initializes PDF zoom only after the first page is available', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const base = document.createElement('base')
@@ -1093,6 +1114,41 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(mark)
     expect(screen.getByRole('dialog', { name: 'Values in this passage' })).toBeVisible()
     fireEvent.click(view.getByRole('button', { name: 'PDF' }))
+    expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
+  })
+
+  it('hides the Markdown marks and their list while the rail is collapsed, and marks the selected value again on expand', async () => {
+    const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id, name: id, type: 'string' }, modelValue, evidence: [], links: [{ resultPath: ['records', 0, id], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null })
+    const values = [linked('place', 'Harlow'), linked('parish', 'Elmbrooke')]
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 2, toCheck: 2, approved: 0, edited: 0, rejected: 0 }, values, total: 2, next: null, coverage: {} }))
+      // The fixture's one text anchor is bytes 21–27 of the parsed Markdown: "Harlow".
+      return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
+    // The passage's one mark, whose label lists the reviewed value last.
+    const name = /place: Harlow/
+    fireEvent.click(await screen.findByRole('button', { name }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Values in this passage' })).getByRole('button', { name: 'place · Harlow' }))
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-current', 'true')
+    fireEvent.click(screen.getByRole('button', { name }))
+    expect(screen.getByRole('dialog', { name: 'Values in this passage' })).toBeVisible()
+
+    fireEvent.click(screen.getByTitle('Collapse panel'))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Expand panel'))
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-current', 'true')
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
   })
 

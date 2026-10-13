@@ -766,6 +766,8 @@ function SchemaPanel({
   // Global mouse listeners are installed once.
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
+      // Idle, a move would re-render the panel for nothing, also while the rail is collapsed.
+      if (!draggingRef.current) return
       setDragX(e.clientX)
       setDragY(e.clientY)
       dragYRef.current = e.clientY

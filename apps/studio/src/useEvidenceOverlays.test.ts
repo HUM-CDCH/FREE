@@ -269,9 +269,10 @@ describe('mark precision, focus and navigation ownership', () => {
     const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]), selected: null as string | null, onSelect: vi.fn(),
       savedLinks: [{ key, link: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision } }] }
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
-    const hook = renderHook(({ attempt, marks }) => useEvidenceOverlays({
-      containerRef, viewerRef, parsedDocument, attempt, resultPath: [], active: true, marks,
-    }), { initialProps: { attempt, marks } })
+    type Props = { attempt: typeof attempt; marks: typeof marks; active?: boolean }
+    const hook = renderHook(({ attempt, marks, active = true }: Props) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument, attempt, resultPath: [], active, marks,
+    }), { initialProps: { attempt, marks } as Props })
     return { ...hook, attempt, marks, key, container, viewer, anchor }
   }
   it('draws no rectangle for page-only precision', () => {
@@ -300,6 +301,20 @@ describe('mark precision, focus and navigation ownership', () => {
     rerender({ attempt, marks: { ...marks, selected: null } })
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
     expect(container.querySelectorAll('.evidence-mark')).toHaveLength(anchor.producer_observations.length)
+  })
+  it('keeps the selected value\'s outline while the rail is collapsed; only the marks go', () => {
+    const { result, rerender, attempt, marks, key, container, anchor, viewer } = fixture()
+    const selected = { ...marks, selected: key }
+    rerender({ attempt, marks: selected })
+    act(() => result.current(anchor))
+    viewer.scrollPageIntoView.mockClear()
+    rerender({ attempt, marks: selected, active: false })
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+    expect(container.querySelectorAll('.evidence-mark')).toHaveLength(0)
+    rerender({ attempt, marks: selected })
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+    expect(container.querySelectorAll('.evidence-mark')).toHaveLength(anchor.producer_observations.length)
+    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
   })
   it('does not navigate the PDF when marks repaint after selecting a value', () => {
     const { rerender, attempt, marks, key, viewer } = fixture()
