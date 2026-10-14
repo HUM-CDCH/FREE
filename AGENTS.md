@@ -18,10 +18,10 @@
 
 ## Commands
 
-- `pnpm test`: run the full test suite
-- `pnpm build`: build the project
-- `pnpm lint`: run the lint task
-- `pnpm dev`: run the development task
+- `pnpm test`: run the fast unit and static checks
+- `pnpm build`: build Studio
+- `pnpm lint`: lint Studio
+- `pnpm dev`: start the local Compose stack
 
 ## Code Map
 
@@ -32,5 +32,6 @@
 
 ## Conventions
 
-- Use ESM `import` and `export` syntax.
-- Name test files with a `.test.` infix.
+- JavaScript and TypeScript use ESM `import` and `export` syntax.
+- JavaScript and TypeScript test files use a `.test.` infix.
+- Parsing Service Python tests use pytest's `test_*.py` naming convention.
