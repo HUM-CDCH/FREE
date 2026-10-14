@@ -1,0 +1,12 @@
+{
+  "sealed_at": "2026-10-14T10:26:36.398027+00:00",
+  "code": "6b4a2b9b02c54847b5883d7cd24588f8b3076749",
+  "resolver_blob": "7a343e26c0c216ef2953c531c715ab6b108bb880",
+  "note": "sealed before any model call of rerun 1",
+  "protocol.md": "2f9d210589a89b8e5fd60e12c947a7d4075a54d98281d7c08c8105c9b2808aaa",
+  "../protocol.md": "f1ee966a7fbc6d7ca731be7f1fc48a4c0d98f7597782964e715744af4b281eab",
+  "../amendment-1.md": "0b3f506d6502156b895ab87316bcfcc2c2b02b08d42a0739f0da947b8fbd5775",
+  "../harness/schema.json": "1e2a3e86c142226bfd39eaab6b869c134d23e6f8872f4406e97541a4034864ec",
+  "../harness/run_paper.py": "09b6ea39a87897761963d794292ddb79e14e3e8596519136ab16d933bcf9d25d",
+  "../score.py": "c22c74c301829c57eef8c23a8f4792ce521bc4ac87450ae103c452699a0e7441"
+}

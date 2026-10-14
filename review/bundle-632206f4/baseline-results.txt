@@ -1,0 +1,22 @@
+Source blob: e89bb663ca8a313636899afe0aa3ae4efce125d7
+FAIL: number boundaries AssertionError
+FAIL: ambiguous occurrences AssertionError
+FAIL: schema-valid null abstention ValidationError
+FAIL: cross-part keep all AssertionError
+FAIL: cross-part shift AssertionError
+PASS: cross-part drop later
+FAIL: direct timeout Timeout
+PASS: runtime exception propagates
+PASS: control BaseException propagates
+PASS: retained occurrence origin
+4/10 isolated checks passed
+
+Additional numeric-boundary probes:
+'-10' -> 10 — page 1: …A cited value was -10.…
+'−10' -> 10 — page 1: …A cited value was −10.…
+'1e-10' -> 10 — page 1: …A cited value was 1e-10.…
+'.10' -> 10 — page 1: …A cited value was .10.…
+
+Three sign-mismatched hits preceding the true hit:
+10 — page 1: …Reference study 0 had -10 degrees. Background. Background. Background. Background. Background. …
+Correct positive occurrence visible: False

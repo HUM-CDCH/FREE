@@ -1,0 +1,4 @@
+632206f4        wrong on: ['review: -10 not 10', 'review: −10 not 10', 'review: 1e-10 not 10', 'review: .10 not 10']; displacement fixed: False; "Jones-Smith" match kept: True
+naive fix       wrong on: ['range pp. 5-10 has 10', 'range 1990-10 style 3-10 has 10', 'p.10 has 10']; displacement fixed: True; "Jones-Smith" match kept: False
+range-safe fix  wrong on: none; displacement fixed: True; "Jones-Smith" match kept: True
+exit 0

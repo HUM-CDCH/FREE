@@ -1,0 +1,7 @@
+{
+  "sealed_at": "2026-10-14T09:32:05.749898+00:00",
+  "amendment-1.md": "0b3f506d6502156b895ab87316bcfcc2c2b02b08d42a0739f0da947b8fbd5775",
+  "harness/schema.json": "1e2a3e86c142226bfd39eaab6b869c134d23e6f8872f4406e97541a4034864ec",
+  "harness/run_paper.py": "09b6ea39a87897761963d794292ddb79e14e3e8596519136ab16d933bcf9d25d",
+  "protocol.md": "f1ee966a7fbc6d7ca731be7f1fc48a4c0d98f7597782964e715744af4b281eab"
+}

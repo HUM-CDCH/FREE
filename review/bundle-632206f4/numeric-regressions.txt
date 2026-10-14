@@ -1,0 +1,75 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_________ test_positive_ten_is_not_another_numeric_tokens_suffix[-10] __________
+
+token = '-10'
+
+    @pytest.mark.parametrize('token', ['-10', '\u221210', '1e-10', '.10'])
+    def test_positive_ten_is_not_another_numeric_tokens_suffix(token):
+        shown = r['_shown'](10, context(f'A cited value was {token}.'))
+>       assert 'not printed verbatim' in shown, shown
+E       AssertionError: 10 — page 1: …A cited value was -10.…
+E       assert 'not printed verbatim' in '10 — page 1: …A cited value was -10.…'
+
+test_numeric_tokens.py:10: AssertionError
+_______ test_positive_ten_is_not_another_numeric_tokens_suffix[\u221210] _______
+
+token = '−10'
+
+    @pytest.mark.parametrize('token', ['-10', '\u221210', '1e-10', '.10'])
+    def test_positive_ten_is_not_another_numeric_tokens_suffix(token):
+        shown = r['_shown'](10, context(f'A cited value was {token}.'))
+>       assert 'not printed verbatim' in shown, shown
+E       AssertionError: 10 — page 1: …A cited value was −10.…
+E       assert 'not printed verbatim' in '10 — page 1: …A cited value was −10.…'
+
+test_numeric_tokens.py:10: AssertionError
+________ test_positive_ten_is_not_another_numeric_tokens_suffix[1e-10] _________
+
+token = '1e-10'
+
+    @pytest.mark.parametrize('token', ['-10', '\u221210', '1e-10', '.10'])
+    def test_positive_ten_is_not_another_numeric_tokens_suffix(token):
+        shown = r['_shown'](10, context(f'A cited value was {token}.'))
+>       assert 'not printed verbatim' in shown, shown
+E       AssertionError: 10 — page 1: …A cited value was 1e-10.…
+E       assert 'not printed verbatim' in '10 — page 1: …A cited value was 1e-10.…'
+
+test_numeric_tokens.py:10: AssertionError
+_________ test_positive_ten_is_not_another_numeric_tokens_suffix[.10] __________
+
+token = '.10'
+
+    @pytest.mark.parametrize('token', ['-10', '\u221210', '1e-10', '.10'])
+    def test_positive_ten_is_not_another_numeric_tokens_suffix(token):
+        shown = r['_shown'](10, context(f'A cited value was {token}.'))
+>       assert 'not printed verbatim' in shown, shown
+E       AssertionError: 10 — page 1: …A cited value was .10.…
+E       assert 'not printed verbatim' in '10 — page 1: …A cited value was .10.…'
+
+test_numeric_tokens.py:10: AssertionError
+_____ test_false_signed_hits_do_not_displace_the_real_positive_occurrence ______
+
+    def test_false_signed_hits_do_not_displace_the_real_positive_occurrence():
+        text = ' '.join(
+            f'Reference study {i} had -10 degrees. ' + 'Background. ' * 20
+            for i in range(3)
+        ) + 'Our study had 10 degrees.'
+        shown = r['_shown'](10, context(text))
+>       assert 'Our study had 10 degrees' in shown, shown
+E       AssertionError: 10 — page 1 (printed 4 times; which one was read is not known): …Reference study 0 had -10 degrees. Background. Background. Background. Background. Background. … | …ackground. Background. Background. Background. Reference study 1 had -10 degrees. Background. Background. Background. Background. Background. … | …ackground. Background. Background. Background. Reference study 2 had -10 degrees. Background. Background. Background. Background. Background. …
+E       assert 'Our study had 10 degrees' in '10 — page 1 (printed 4 times; which one was read is not known): …Reference study 0 had -10 degrees. Background. Backg...ckground. Background. Reference study 2 had -10 degrees. Background. Background. Background. Background. Background. …'
+
+test_numeric_tokens.py:19: AssertionError
+=========================== short test summary info ============================
+FAILED test_numeric_tokens.py::test_positive_ten_is_not_another_numeric_tokens_suffix[-10] - AssertionError: 10 — page 1: …A cited value was -10.…
+assert 'not printed verbatim' in '10 — page 1: …A cited value was -10.…'
+FAILED test_numeric_tokens.py::test_positive_ten_is_not_another_numeric_tokens_suffix[\u221210] - AssertionError: 10 — page 1: …A cited value was −10.…
+assert 'not printed verbatim' in '10 — page 1: …A cited value was −10.…'
+FAILED test_numeric_tokens.py::test_positive_ten_is_not_another_numeric_tokens_suffix[1e-10] - AssertionError: 10 — page 1: …A cited value was 1e-10.…
+assert 'not printed verbatim' in '10 — page 1: …A cited value was 1e-10.…'
+FAILED test_numeric_tokens.py::test_positive_ten_is_not_another_numeric_tokens_suffix[.10] - AssertionError: 10 — page 1: …A cited value was .10.…
+assert 'not printed verbatim' in '10 — page 1: …A cited value was .10.…'
+FAILED test_numeric_tokens.py::test_false_signed_hits_do_not_displace_the_real_positive_occurrence - AssertionError: 10 — page 1 (printed 4 times; which one was read is not known): …Reference study 0 had -10 degrees. Background. Background. Background. Background. Background. … | …ackground. Background. Background. Background. Reference study 1 had -10 degrees. Background. Background. Background. Background. Background. … | …ackground. Background. Background. Background. Reference study 2 had -10 degrees. Background. Background. Background. Background. Background. …
+assert 'Our study had 10 degrees' in '10 — page 1 (printed 4 times; which one was read is not known): …Reference study 0 had -10 degrees. Background. Backg...ckground. Background. Reference study 2 had -10 degrees. Background. Background. Background. Background. Background. …'
+5 failed in 0.90s

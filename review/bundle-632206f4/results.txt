@@ -1,0 +1,22 @@
+Source blob: 7dece74fe49c66253e3e01f5f15de41ffcc84908
+PASS: number boundaries
+PASS: ambiguous occurrences
+PASS: schema-valid null abstention
+PASS: cross-part keep all
+PASS: cross-part shift
+PASS: cross-part drop later
+PASS: direct timeout
+PASS: runtime exception propagates
+PASS: control BaseException propagates
+PASS: retained occurrence origin
+10/10 isolated checks passed
+
+Additional numeric-boundary probes:
+'-10' -> 10 — page 1: …A cited value was -10.…
+'−10' -> 10 — page 1: …A cited value was −10.…
+'1e-10' -> 10 — page 1: …A cited value was 1e-10.…
+'.10' -> 10 — page 1: …A cited value was .10.…
+
+Three sign-mismatched hits preceding the true hit:
+10 — page 1 (printed 4 times; which one was read is not known): …Reference study 0 had -10 degrees. Background. Background. Background. Background. Background. … | …ackground. Background. Background. Background. Reference study 1 had -10 degrees. Background. Background. Background. Background. Background. … | …ackground. Background. Background. Background. Reference study 2 had -10 degrees. Background. Background. Background. Background. Background. …
+Correct positive occurrence visible: False
