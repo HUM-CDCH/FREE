@@ -62,7 +62,9 @@ PROMPT_VERSION = 15
 # equal items from another reading no longer route their grounding to that reading's source first.
 # 12: split-source readings are resolved by the reasoning model; assembled list occurrences and their reply origins
 # survive kept-item filtering, and a failed resolution retains the assembled values without pausing the attempt.
-ARTICLE_VERSION = 12
+# 13: a list too long for one resolution request is resolved in parts that each fit (it was kept unresolved), and a
+# repeat beside an equal item labelled another's leaves with it.
+ARTICLE_VERSION = 13
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

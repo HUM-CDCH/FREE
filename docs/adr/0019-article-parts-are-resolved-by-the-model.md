@@ -41,7 +41,8 @@ settle what it can.
   the source does not settle it: OWN, OTHER (another work's or entity's item)
   or REPEAT, offered only for an item equal to another in its list: the same
   thing printed again (a running header, a repeated byline), which leaves only
-  beside an equal item labelled OWN. An answer leaving an item unlabelled
+  beside an equal item labelled OWN (that copy stays) or OTHER (a repeat of
+  another work's item is that work's too). An answer leaving an item unlabelled
   changes nothing.
   Equal values that describe different things (two finds of one material) stay
   separate items, and two readings of one own item that differ (one part read a
@@ -60,13 +61,16 @@ settle what it can.
   diagnostics follow their retained indices. A failed resolution stays visible in
   attempt-local failure history, is recoverable, and never changes Pause or Stop
   intent sent by the researcher.
-- A long list is resolved in parts of 60 items; a repeat across those parts is
+- A long list is resolved in parts of at most 60 items, fewer when its whole
+  items do not fit one request, so it is never left unresolved for its
+  length alone (version 13); a repeat across those parts is
   kept and stays named (`possible_repeated_items`, at its kept indices), since
   its copies were never shown together.
 
 ## Consequences
 
-- `ARTICLE_VERSION` 12 (version 10 adds the context fallback). Replays of earlier artifacts (`fixed_upstream`) skip
+- `ARTICLE_VERSION` 12, and 13 for token-sized list parts and repeats of
+  OTHER items (version 10 adds the context fallback). Replays of earlier artifacts (`fixed_upstream`) skip
   resolution, which they did not make.
 - A run read in one call is unchanged: one part, nothing to resolve.
 - The model can drop a list item that belonged to the document or pick a wrong

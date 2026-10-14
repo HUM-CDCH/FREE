@@ -139,12 +139,24 @@ def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
 @pytest.mark.parametrize("out,kept", [
     ({"I1": "REPEAT", "I2": "REPEAT"}, 1),  # the copy that stays is the one repeated
     ({"I1": "REPEAT"}, 2),
-    ({"I1": "REPEAT", "I2": "REPEAT", "I3": "REPEAT"}, 3),  # nothing stays for them to repeat: all kept
-    ({"I1": "OTHER", "I2": "REPEAT", "I3": "REPEAT"}, 2)])
-def test_a_repeat_is_left_out_only_beside_an_equal_item_that_stays(out, kept):
+    ({"I1": "REPEAT", "I2": "REPEAT", "I3": "REPEAT"}, 3),  # nothing labelled for them to repeat: all kept
+    ({"I1": "OTHER", "I2": "REPEAT", "I3": "OWN"}, 1),  # the own copy stays
+    ({"I1": "OTHER", "I2": "REPEAT", "I3": "REPEAT"}, 0),  # repeats of another work's item are that work's too
+    ({"I1": "REPEAT", "I2": "OTHER", "I3": "REPEAT"}, 0)])
+def test_a_repeat_is_left_out_beside_an_equal_item_labelled_own_or_another_works(out, kept):
     readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     (root, _, _, _, _, _), item_sources = assembled(readings, valid(labelling(L1=out)))
     assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
+
+
+def test_a_repeat_of_another_works_item_leaves_with_it_and_both_are_reported_dropped():
+    """Labelled another's and a repeat, both copies are another work's item: none stays in the list, and the issue
+    names exactly what left."""
+    readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+    (root, _, repeats, _, _, issues), item_sources = assembled(
+        readings, valid(labelling(L1={"I1": "OTHER", "I2": "REPEAT"})))
+    assert root["finds"] == [] and item_sources == {} and not repeats
+    assert [json.loads(issue.detail) for issue in issues] == [{"path": ["finds"], "dropped": [ITEM, ITEM]}]
 
 
 def test_an_item_is_shown_whole_where_its_least_printed_value_is():
@@ -246,6 +258,61 @@ def test_a_repeat_across_list_parts_stays_named_until_its_copies_are_shown_toget
     readings = [{"finds": [deepcopy(ITEM), *deepcopy(OTHERS)]}, {"finds": [deepcopy(ITEM)]}]
     (_, _, repeats, _, _, _), _ = assembled(readings, valid(labelling(**answer)))
     assert repeats == expected
+
+
+class Budget(WordCounter):
+    """A context that fits about 20 of the wordy items below in one request, not 60."""
+    context_tokens = 1_500
+
+
+WORDY = [{"name": f"find {number}, a decorated bowl from the north trench",
+          "parts": ["cited" if number % 10 == 0 else "own"]} for number in range(1, 51)]
+
+
+def shown_items(user: str) -> dict[str, dict[str, str]]:
+    """Each list place's item lines in a resolution request, by label."""
+    blocks = user.split("\n### Places\n", 1)[1].split("\n\n")
+    return {block.split(" ", 1)[0]: {line.split(" = ", 1)[0].strip(): line for line in block.splitlines()[1:]}
+            for block in blocks}
+
+
+def by_line(rule):
+    """A resolution answer labelling every list item by `rule` over the line it is shown on."""
+    def script(system, user, schema):
+        shown = shown_items(user)
+        return {key: {label: rule(shown[key][label]) for label in spec["properties"]}
+                for key, spec in schema["properties"].items()}
+    return script
+
+
+def test_a_list_too_long_for_one_request_is_resolved_in_parts_that_each_fit():
+    """Shown whole, 50 items do not fit one request: the list is resolved in parts that each hold as many items as fit,
+    rather than kept unresolved, and another work's items leave from every part."""
+    counter = Budget()
+    chat = valid(by_line(lambda line: "OTHER" if '"cited"' in line else "OWN"))
+    readings = [{"finds": deepcopy(WORDY[:30])}, {"finds": deepcopy(WORDY[30:])}]
+    (root, _, _, _, calls, issues), item_sources = assembled(readings, chat, counter=counter)
+    assert root["finds"] == [item for item in WORDY if item["parts"] == ["own"]] and len(item_sources) == 45
+    assert [issue.code for issue in issues] == ["dropped_items"]
+    assert json.loads(issues[0].detail)["dropped"] == [item for item in WORDY if item["parts"] == ["cited"]]
+    parts = [shown_items(call["user"]) for call in chat.calls]
+    assert len(parts) > 1 and all(len(part) == 1 for part in parts)
+    sizes = [len(next(iter(part.values()))) for part in parts]
+    assert sum(sizes) == 50 and len(calls) == len(parts)
+    for call, part, size, following in zip(chat.calls, parts, sizes, [*parts[1:], None]):
+        reserve = 256 + 10 * size
+        words = len(call["system"].split()) + len(call["user"].split()) + WordCounter.template_tokens
+        assert words + reserve <= Budget.context_tokens
+        if following:  # as many as fit: the next part's first item would not
+            assert words + reserve + len(next(iter(following.values()))["I1"].split()) + 10 > Budget.context_tokens
+
+
+def test_a_repeat_whose_copies_fall_in_different_parts_that_fit_stays_named():
+    readings = [{"finds": [deepcopy(ITEM), *deepcopy(WORDY[:40])]}, {"finds": [deepcopy(ITEM)]}]
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
+    (root, _, repeats, _, _, _), _ = assembled(readings, chat, counter=Budget())
+    assert len(chat.calls) > 1 and len(root["finds"]) == 42
+    assert repeats == [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 41]}]
 
 
 def test_a_raising_provider_keeps_assembly_on_the_direct_path_but_halts_the_durable_one():
