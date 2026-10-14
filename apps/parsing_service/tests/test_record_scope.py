@@ -170,9 +170,11 @@ def bounded_article(script, **method):
 
 
 def settle(user: str, schema: dict, **choices) -> dict:
-    """A resolution answer by field name: a label, NONE or UNSURE per scalar place, each item's label per list place."""
+    """A resolution answer by field name: a label, NONE or UNSURE per scalar place, each item's label per list place
+    (naming no other work)."""
     names = dict(re.findall(r"^([SL]\d+) · (\S+)", user, re.MULTILINE))
-    return {key: choices[names[key]] for key in schema["properties"]}
+    return {key: ({label: {"of": "", "label": each} for label, each in choice.items()} if isinstance(choice, dict)
+                  else choice) for key in schema["properties"] for choice in [choices[names[key]]]}
 
 
 def two_parts(system, user, schema):
@@ -203,7 +205,8 @@ def test_a_bounded_article_resolves_one_root_across_contexts(method):
     issues = {issue["code"]: issue for issue in result["issues"]}
     assert "possible_repeated_items" not in issues  # the resolved list has no unsettled repeats
     assert json.loads(issues["dropped_items"]["detail"]) == {"path": ["finds"],
-                                                             "dropped": [{"kind": "urn", "materials": None}]}
+                                                             "dropped": [{"kind": "urn", "materials": None}],
+                                                             "of": [""]}
     assert json.loads(issues["resolved_value"]["detail"]) == {"path": ["place"], "chosen": "Ribe",
                                                               "alternatives": ["Ribe"]}
     assert issues["conflicting_values"]["record"] == 0

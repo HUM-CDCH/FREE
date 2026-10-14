@@ -7,7 +7,7 @@ import jsonschema
 import pytest
 
 from kei_exp.kie.extract.contexts import Context, assemble_document
-from kei_exp.kie.extract.resolution import _shown, resolve
+from kei_exp.kie.extract.resolution import OF_CHARS, _shown, resolve
 from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract import run
@@ -23,11 +23,12 @@ SCHEMA = Schema(schemaNodes=[{"id": "finds", "name": "finds", "type": "array",
                  {"id": "parts", "name": "parts", "type": "array", "itemType": "string"}]}],
     recordDescription="One document's finds")
 ITEM = {"name": "urn", "parts": ["clay", "clay"]}
+CITED = "Smith 2001"  # the work a test source cites, so an item given to it can leave
 
 
 def assembled(readings, chat, *, overlap=False, counter=None, texts=None, schema=SCHEMA):
     groups = [Context(tuple(passages([text], page=index + 1)))
-              for index, text in enumerate(texts or ["An urn made from clay."] * len(readings))]
+              for index, text in enumerate(texts or [f"An urn made from clay ({CITED})."] * len(readings))]
     item_sources = {}
     root, conflicts, repeats, joined = assemble_document(readings, lambda *_: overlap, item_sources=item_sources)
     result = resolve(readings, groups, root, conflicts, repeats, joined, schema, chat, counter or WordCounter(),
@@ -44,10 +45,17 @@ def valid(script):
     return CountingChat(checked)
 
 
+def answer(spec: dict, label: str, of: str = "") -> str | dict:
+    """One list item's answer in the shape its reply schema asks: a bare label, or its `of` and label."""
+    return label if spec.get("type") == "string" else {"of": of, "label": label}
+
+
 def labelling(**out):
-    """A resolution answer: each scalar's first label; each list place's items OWN except those `out` labels."""
+    """A resolution answer: each scalar's first label; each list place's items OWN except those `out` labels, an item
+    labelled OTHER given to the work the test source cites."""
     def script(system, user, schema):
-        return {key: {label: out.get(key, {}).get(label, "OWN") for label in spec["properties"]}
+        return {key: {label: answer(item, reason := out.get(key, {}).get(label, "OWN"), CITED if reason == "OTHER"
+                                    else "") for label, item in spec["properties"].items()}
                 if "properties" in spec else spec["enum"][0] for key, spec in schema["properties"].items()}
     return script
 
@@ -99,14 +107,14 @@ def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer
     (root, _, repeats, _, _, issues), item_sources = assembled(readings, chat)
     assert root["finds"] == [ITEM, ITEM] and repeats and not issues
     assert item_sources == {("finds", index): [{"unit": index, "path": ["finds", 0]}] for index in (0, 1)}
-    # null is the list's abstention: the one answer here the constrained model can give.
-    assert jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer) == (answer["L1"] is None)
+    # None of these is an answer the constrained model can give: a list abstains item by item (UNSURE), never whole.
+    assert not jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer)
 
 
 SAMPLE = {"species": "Sebastes mentella", "tissue": "skin", "preparation": None}
 READ = [SAMPLE | {"preparation": "ASC", "amino_acids": [{"analyte": "hydroxyproline", "value": 64}]},
         SAMPLE | {"preparation": "ASC", "amino_acids": [{"analyte": "imino acids", "value": 16.5}]}]
-TWO_READINGS = ["Sebastes mentella skin ASC had 64 hydroxyproline residues.",
+TWO_READINGS = [f"Sebastes mentella skin ASC had 64 hydroxyproline residues; cited cod skin had fewer ({CITED}).",
                 "Sebastes mentella skin ASC had an imino acid content of 16.5%."]
 
 
@@ -115,13 +123,15 @@ def test_a_differently_filled_reading_of_an_own_item_is_never_left_out_as_a_repe
     for either, and an answer labelling one a repeat is outside its labels and keeps the whole list. Every item must
     be labelled: an answer naming only some items (the ones that belong, say) is never read as leaving the rest out."""
     readings = [{"finds": [deepcopy(READ[0])]}, {"finds": [deepcopy(READ[1])]}]
-    chat = CountingChat(lambda *_: {"L1": {"I1": "OWN", "I2": "REPEAT"}})
+    own, repeat = {"of": "", "label": "OWN"}, {"of": "", "label": "REPEAT"}
+    chat = CountingChat(lambda *_: {"L1": {"I1": own, "I2": repeat}})
     (root, _, _, _, _, issues), item_sources = assembled(readings, chat, texts=TWO_READINGS)
     reasons = chat.calls[0]["schema"]["properties"]["L1"]
-    assert reasons["properties"] == {label: {"type": "string", "enum": ["OWN", "OTHER"]} for label in ("I1", "I2")}
+    assert {label: spec["properties"]["label"]["enum"] for label, spec in reasons["properties"].items()} == {
+        label: ["OWN", "OTHER", "UNSURE"] for label in ("I1", "I2")}
     assert reasons["required"] == ["I1", "I2"]
-    for answer in ({"I1": "OWN", "I2": "REPEAT"}, {"I1": "OTHER"}):
-        assert not jsonschema.Draft202012Validator(reasons).is_valid(answer)
+    for each in ({"I1": own, "I2": repeat}, {"I1": {"of": CITED, "label": "OTHER"}}):
+        assert not jsonschema.Draft202012Validator(reasons).is_valid(each)
     assert root["finds"] == READ and len(item_sources) == 2 and not issues
 
 
@@ -133,7 +143,7 @@ def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
     assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 0]}],
                             ("finds", 1): [{"unit": 1, "path": ["finds", 0]}]}
     assert [json.loads(issue.detail) for issue in issues] == [
-        {"path": ["finds"], "dropped": [{"name": "cited cod skin"}]}]
+        {"path": ["finds"], "dropped": [{"name": "cited cod skin"}], "of": [CITED]}]
 
 
 @pytest.mark.parametrize("out,kept", [
@@ -156,7 +166,8 @@ def test_a_repeat_of_another_works_item_leaves_with_it_and_both_are_reported_dro
     (root, _, repeats, _, _, issues), item_sources = assembled(
         readings, valid(labelling(L1={"I1": "OTHER", "I2": "REPEAT"})))
     assert root["finds"] == [] and item_sources == {} and not repeats
-    assert [json.loads(issue.detail) for issue in issues] == [{"path": ["finds"], "dropped": [ITEM, ITEM]}]
+    assert [json.loads(issue.detail) for issue in issues] == [{"path": ["finds"], "dropped": [ITEM, ITEM],
+                                                               "of": [CITED, ""]}]
 
 
 def test_an_item_is_shown_whole_where_its_least_printed_value_is():
@@ -176,7 +187,7 @@ def test_an_item_is_shown_whole_where_its_least_printed_value_is():
 def test_a_value_is_shown_where_it_is_printed_as_a_whole_number():
     schema = Schema(schemaNodes=[{"id": "n", "name": "participants", "type": "number"}],
                     recordDescription="One study")
-    texts = ["The cited study had 210 participants. " + "Unrelated background. " * 5 + "Our study had 10 participants.",
+    texts = ["The cited study had 210 participants. " + "Unrelated background. " * 10 + "Our study had 10 participants.",
              "Twelve were enrolled."]
     chat = valid(lambda *_: {"S1": "UNSURE"})
     assembled([{"participants": 10}, {"participants": 12}], chat, texts=texts, schema=schema)
@@ -280,8 +291,8 @@ def by_line(rule):
     """A resolution answer labelling every list item by `rule` over the line it is shown on."""
     def script(system, user, schema):
         shown = shown_items(user)
-        return {key: {label: rule(shown[key][label]) for label in spec["properties"]}
-                for key, spec in schema["properties"].items()}
+        return {key: {label: answer(item, reason := rule(shown[key][label]), CITED if reason == "OTHER" else "")
+                      for label, item in spec["properties"].items()} for key, spec in schema["properties"].items()}
     return script
 
 
@@ -302,11 +313,12 @@ def test_a_list_too_long_for_one_request_is_resolved_in_parts_that_each_fit():
     for call, start, size in zip(chat.calls, [sum(sizes[:n]) for n in range(len(sizes))], sizes):
         assert f"(items {start + 1}-{start + size} of 50)" in call["user"]
     for call, part, size, following in zip(chat.calls, parts, sizes, [*parts[1:], None]):
-        reserve = 256 + 10 * size
+        reserve = 256 + (16 + OF_CHARS // 2) * size
         words = len(call["system"].split()) + len(call["user"].split()) + WordCounter.template_tokens
         assert words + reserve <= Budget.context_tokens
         if following:  # as many as fit: the next part's first item would not
-            assert words + reserve + len(next(iter(following.values()))["I1"].split()) + 10 > Budget.context_tokens
+            assert (words + reserve + len(next(iter(following.values()))["I1"].split()) + 16 + OF_CHARS // 2
+                    > Budget.context_tokens)
 
 
 def test_a_repeat_whose_copies_fall_in_different_parts_that_fit_stays_named():
@@ -362,8 +374,9 @@ def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
 
 def test_one_unsettled_list_part_preserves_the_entire_assembled_list():
     readings = [{"finds": [deepcopy(ITEM) for _ in range(61)]}, {"finds": []}]
+    other = {"of": CITED, "label": "OTHER"}
     (root, _, _, _, _, issues), item_sources = assembled(readings,
-        valid(lambda *_: {"L1": {f"I{n}": "OTHER" for n in range(1, 61)}, "L2": None}))
+        CountingChat(lambda *_: {"L1": {f"I{n}": other for n in range(1, 61)}, "L2": None}))
     assert len(root["finds"]) == len(item_sources) == 61 and not issues
 
 
@@ -422,3 +435,107 @@ def test_a_kept_later_occurrence_is_grounded_and_retained_in_its_own_source(monk
     count = len(chat.calls)
     assert finish(lease, chat, extract)["evidence"] == result["evidence"]
     assert len(chat.calls) == count
+
+
+# A bare OTHER is a weak, order-dependent call: once the reasoning model called a paper's first own sample another
+# work's, it called every following one so too, and the paper's whole own list left. Another's item now leaves only
+# where the part it was read from prints the work the model gives it to; otherwise it stays, named for review.
+OWN_TEXT = "Collagen from cod backbone contains 6.4% hydroxyproline in the dry weight."
+CITED_TEXT = "Collagen from Alaska pollock is denatured at 16.8 C (Kimura et al., 1987)."
+OWN_SAMPLE = {"name": "cod backbone collagen", "parts": ["6.4"]}
+CITED_SAMPLE = {"name": "Alaska pollock collagen", "parts": ["16.8"]}
+KIMURA = "Kimura et al., 1987"
+POLLOCK = '"Alaska pollock collagen"'  # the cited sample's value, as its item line shows it
+
+
+def deciding(rule):
+    """A resolution answer giving every list item `rule(line)`: its label and `of`, in the shape its schema asks."""
+    def script(system, user, schema):
+        shown = shown_items(user)
+        return {key: {label: answer(item, *rule(shown[key][label])) for label, item in spec["properties"].items()}
+                for key, spec in schema["properties"].items()}
+    return script
+
+
+def doubts(issues) -> list[dict]:
+    return [each for issue in issues if issue.code == "uncertain_items" for each in json.loads(issue.detail)["items"]]
+
+
+def test_own_items_called_another_works_without_naming_a_printed_work_are_kept_and_marked():
+    """Every item labelled OTHER, as when the first own sample's call carries the list: the own sample names no work
+    and stays, marked for review; the cited sample names the work its part prints and leaves."""
+    def rule(line):
+        return ("OTHER", KIMURA if POLLOCK in line else "")
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": [deepcopy(CITED_SAMPLE)]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[OWN_TEXT, CITED_TEXT])
+    assert root["finds"] == [OWN_SAMPLE]
+    assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 0]}]}
+    assert json.loads(next(i for i in issues if i.code == "dropped_items").detail) == {
+        "path": ["finds"], "dropped": [CITED_SAMPLE], "of": [KIMURA]}
+    assert doubts(issues) == [{"index": 0, "of": "", "label": "OTHER"}]
+
+
+def test_a_work_printed_only_in_another_part_does_not_take_an_item_with_it():
+    """The work the model names must be printed where the item was read: a citation copied from another part's source
+    (or invented) keeps the item."""
+    def rule(line):
+        return ("OTHER", KIMURA)
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": [deepcopy(CITED_SAMPLE)]}]
+    (root, _, _, _, _, issues), _ = assembled(readings, valid(deciding(rule)), texts=[OWN_TEXT, CITED_TEXT])
+    assert root["finds"] == [OWN_SAMPLE]
+    assert doubts(issues) == [{"index": 0, "of": KIMURA, "label": "OTHER"}]
+
+
+@pytest.mark.parametrize("of,printed", [
+    ("Kimura et al., 1987", "(Kimura et al., 1987)"),
+    ("kimura et al., 1987", "(Kimura et al. , 1987 )"),  # case and the spacing around marks differ in the source
+    ("Food Chemistry, 172, 836-843", "Food Chemistry, 172 , 836-843."),
+    ("[19]", "as described previously [ 19 ]."),
+])
+def test_another_works_item_leaves_when_its_part_prints_the_work(of, printed):
+    def rule(line):
+        return ("OTHER", of) if POLLOCK in line else ("OWN", "")
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": [deepcopy(CITED_SAMPLE)]}]
+    texts = [OWN_TEXT, f"Collagen from Alaska pollock is denatured at 16.8 C {printed}"]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)), texts=texts)
+    assert root["finds"] == [OWN_SAMPLE] and len(item_sources) == 1 and not doubts(issues)
+
+
+def test_an_item_whose_membership_the_source_does_not_settle_is_kept_and_named_at_its_kept_index():
+    """UNSURE is an item's own abstention: the item stays where it is, after another work's item before it left, and
+    the issue names its kept position."""
+    def rule(line):
+        return ("OTHER", KIMURA) if POLLOCK in line else ("UNSURE", "")
+    readings = [{"finds": [deepcopy(CITED_SAMPLE), deepcopy(OWN_SAMPLE)]}, {"finds": []}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[f"{CITED_TEXT} {OWN_TEXT}", "Nothing."])
+    assert root["finds"] == [OWN_SAMPLE]
+    assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 1]}]}
+    assert doubts(issues) == [{"index": 0, "of": "", "label": "UNSURE"}]
+
+
+def test_a_reading_of_an_own_sample_with_only_its_method_stays_beside_the_reading_with_its_values():
+    """One part read a sample's method details and no value, another its values: called another's without a work the
+    source names, the method reading is kept with its details."""
+    method = {"name": "catla swim bladder ASC", "parts": ["0.05 M acetic acid"]}
+    values = {"name": "catla swim bladder ASC", "parts": ["38.88"]}
+    texts = ["The catla swim bladder ASC was dissolved in 0.05 M acetic acid for calorimetry.",
+             "The Tmax of the catla swim bladder ASC was 38.88 C."]
+    def rule(line):
+        return ("OTHER", "") if "0.05 M" in line else ("OWN", "")
+    (root, _, _, _, _, issues), _ = assembled([{"finds": [deepcopy(method)]}, {"finds": [deepcopy(values)]}],
+                                              valid(deciding(rule)), texts=texts)
+    assert root["finds"] == [method, values]
+    assert doubts(issues) == [{"index": 0, "of": "", "label": "OTHER"}]
+
+
+@pytest.mark.parametrize("of,kept", [(CITED, []), ("", [ITEM])])
+def test_a_repeat_beside_an_item_called_another_works_leaves_with_it_only_when_the_work_is_printed(of, kept):
+    """OTHER and REPEAT on equal copies: with the work printed both copies are that work's and leave; without it the
+    OTHER copy stays, marked, and only its repeat leaves, since the copy kept holds the same value."""
+    readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": []}]
+    labels = iter([("OTHER", of), ("REPEAT", "")])
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(lambda line: next(labels))))
+    assert root["finds"] == kept and len(item_sources) == len(kept)
+    assert doubts(issues) == ([] if of else [{"index": 0, "of": "", "label": "OTHER"}])

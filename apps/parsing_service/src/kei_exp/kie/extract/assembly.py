@@ -64,7 +64,9 @@ PROMPT_VERSION = 15
 # survive kept-item filtering, and a failed resolution retains the assembled values without pausing the attempt.
 # 13: a list too long for one resolution request is resolved in parts that each fit (it was kept unresolved), and a
 # repeat beside an equal item labelled another's leaves with it.
-ARTICLE_VERSION = 13
+# 14: a list item's answer names the work its source gives it to before its label; another's item leaves only where
+# its part prints that work, and an item kept unsettled (UNSURE, or another's without it) is named for review.
+ARTICLE_VERSION = 14
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

@@ -17,7 +17,7 @@ from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_r
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
-@pytest.fixture(params=(10, 11, 13))
+@pytest.fixture(params=(10, 11, 14))
 def frozen(tmp_path, monkeypatch, request):
     version = request.param
     if version < 12:
@@ -87,7 +87,7 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     _, bundles, original, _ = frozen
     bundle = read(bundles / "Doc.json")
     assert bundle["records"] == original["records"] and bundle["inventory"] == original["inventory"]
-    # Versions 10 and 11 made no resolution call; version 13 did. All replay without a fresh call.
+    # Versions 10 and 11 made no resolution call; version 14 did. All replay without a fresh call.
     expected = {"document", "record"} | ({"arbitration"} if original["article_version"] >= 12 else set())
     assert {call["stage"] for call in bundle["upstream_calls"]} == expected
     assert bundle["provenance"]["fresh_calls"] == 0
@@ -95,17 +95,18 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
         "sources": [{"unit": 1, "path": ["year"]}]}
 
 
-def test_preparation_refuses_a_version_12_artifact_whose_resolution_version_13_cannot_reproduce(frozen, tmp_path):
+@pytest.mark.parametrize("version", [12, 13])
+def test_preparation_refuses_an_artifact_whose_resolution_version_14_cannot_reproduce(frozen, tmp_path, version):
     parent, _, _, _ = frozen
     result = parent / "cells/Doc--bounded--0/result.json"
     saved = read(result)
-    saved["artifact"]["article_version"] = 12
+    saved["artifact"]["article_version"] = version
     result.write_text(json.dumps(saved))
     verification = tmp_path / "verification.json"
     report = read(verification)
     report["verified"][0]["result"] = pin(result)
     verification.write_text(json.dumps(report))
-    with pytest.raises(ValueError, match="version 12 resolution cannot be replayed"):
+    with pytest.raises(ValueError, match=f"version {version} resolution cannot be replayed"):
         fixed_upstream.prepare(parent, "Doc", verification)
 
 
