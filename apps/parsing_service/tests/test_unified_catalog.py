@@ -419,6 +419,59 @@ def test_both_edge_flags_outrank_an_unlabelled_place_at_the_page_top(by, place, 
     assert_accounted(source, {"discovery": result})
 
 
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+@pytest.mark.parametrize(("opening", "top", "label", "begins", "entries", "ends"), [
+    # both flags say the record continues and its own label is reprinted at the page top: one record
+    ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", True,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    ("Nr. 1", "NR.  1 (continued). Material: Stein.", "NR.  1", True,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    # another printed label there begins a new record and ends the open one cleanly, a longer label included
+    ("Nr. 1", "Nr. 7 Hof. Material: Stein.", "Nr. 7", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("Nr. 1", "Nr. 11 Hof. Material: Stein.", "Nr. 11", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    # A bare mark may introduce every record; both continuation flags do not give it an identity.
+    ("◆", "◆ Hof. Material: Stein.", "◆", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("•", "• Hof. Material: Stein.", "•", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("—", "— Hof. Material: Stein.", "—", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    # without both flags, or without the open record's own label, the boundary stays unresolved
+    ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", False,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
+    ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", None,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
+    (None, "Nr. 7 Hof. Material: Stein.", "Nr. 7", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
+])
+def test_both_edge_flags_join_the_open_records_own_label_at_the_page_top_and_close_it_at_another(
+        by, opening, top, label, begins, entries, ends):
+    source = replace(evidence(""), passages=(
+        replace(passage("p1_s0", f"{opening or 'Nr. 1'} Ort. Body A had"), crop=1),
+        replace(passage("p1_s1", "short hair and"), crop=2),
+        passage("p2_s0", top),
+        passage("p2_s1", "Nr. 2 Dorf. Material: Holz."),
+    ))
+
+    def ask(record, system, user, schema, calls, issues):
+        if section(user, "WINDOW").startswith(f"[L1] {opening or 'Nr. 1'} Ort."):
+            return {"places": [["L1", "record", opening]], "begins_inside_record": False, "ends_inside_record": True}
+        if section(user, "WINDOW").startswith("[L1] short hair"):  # the second column, its own window by column
+            return {"places": [], "begins_inside_record": True, "ends_inside_record": True}
+        return {"places": [["L1", "record", label], ["L2", "record", "Nr. 2"]], "begins_inside_record": begins,
+                "ends_inside_record": False}
+
+    def page_top(system, user, schema):  # every mode cuts a window at the page top
+        return not ("hair" in section(user, "WINDOW") and "Stein" in section(user, "WINDOW"))
+    result = discovery.discover(source, "entry", page_top, ask, overlap=3, splits=0, by=by)
+    assert result["windows"][-1]["primary"][0]["segment"] == "p2_s0" and not result["issues"]
+    assert [[row["segment"] for row in entry["ranges"]] for entry in result["entries"]] == entries
+    assert [entry["end"] for entry in result["entries"]] == ends
+    assert_accounted(source, {"discovery": result})
+
+
 def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
     passages = [replace(passage("p1_s0", "a"), crop=1), replace(passage("p1_s1", "b"), crop=1),
                 replace(passage("p1_s2", "c"), crop=2), passage("p2_s0", "d"), passage("p2_s1", "e")]

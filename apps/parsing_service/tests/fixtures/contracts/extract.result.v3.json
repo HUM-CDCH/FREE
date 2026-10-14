@@ -325,7 +325,7 @@
         "reasoning": "fake/extractor"
       },
       "prompt_version": 4,
-      "discovery_version": 6,
+      "discovery_version": 7,
       "tokenizers": {
         "fields": {
           "source": "words",
@@ -343,10 +343,10 @@
         }
       }
     },
-    "execution_sha256": "99904429092b8a61a8bf9f058872b2545b4ab1f15126c8ddd88af2fb4b440d17",
+    "execution_sha256": "16b24414e142c9a2292273e40e550da8b155051ae0761aaddbc142778e0a86cc",
     "discovery": {
-      "version": 6,
-      "execution_sha256": "99904429092b8a61a8bf9f058872b2545b4ab1f15126c8ddd88af2fb4b440d17",
+      "version": 7,
+      "execution_sha256": "16b24414e142c9a2292273e40e550da8b155051ae0761aaddbc142778e0a86cc",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -449,7 +449,7 @@
         }
       ]
     },
-    "discovery_sha256": "931ccdfcb8d2c6e9b2c574399205879a12232140e9cf1fb990ecfbcf6de9b097",
+    "discovery_sha256": "76f87704be85d5e78da0be69def4d2a3d0746b7693faaf5157db358be0306475",
     "records": [
       {
         "label": "12",
@@ -936,6 +936,6 @@
       "input": 1003,
       "output": 30
     },
-    "fingerprint": "09aecee1aef8e47cb2a323400c08fa04b61a2ed593361af09901c11f19097f5c"
+    "fingerprint": "4d35609150d37cc4209d32a75280e416b5a8068b09bfdd9957349beba31d7f20"
   }
 }
