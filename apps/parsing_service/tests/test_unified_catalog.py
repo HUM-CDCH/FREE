@@ -431,6 +431,13 @@ def test_both_edge_flags_outrank_an_unlabelled_place_at_the_page_top(by, place, 
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
     ("Nr. 1", "Nr. 11 Hof. Material: Stein.", "Nr. 11", True,
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    # A bare mark may introduce every record; both continuation flags do not give it an identity.
+    ("◆", "◆ Hof. Material: Stein.", "◆", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("•", "• Hof. Material: Stein.", "•", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("—", "— Hof. Material: Stein.", "—", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
     # without both flags, or without the open record's own label, the boundary stays unresolved
     ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", False,
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
@@ -442,14 +449,14 @@ def test_both_edge_flags_outrank_an_unlabelled_place_at_the_page_top(by, place, 
 def test_both_edge_flags_join_the_open_records_own_label_at_the_page_top_and_close_it_at_another(
         by, opening, top, label, begins, entries, ends):
     source = replace(evidence(""), passages=(
-        replace(passage("p1_s0", "Nr. 1 Ort. Body A had"), crop=1),
+        replace(passage("p1_s0", f"{opening or 'Nr. 1'} Ort. Body A had"), crop=1),
         replace(passage("p1_s1", "short hair and"), crop=2),
         passage("p2_s0", top),
         passage("p2_s1", "Nr. 2 Dorf. Material: Holz."),
     ))
 
     def ask(record, system, user, schema, calls, issues):
-        if section(user, "WINDOW").startswith("[L1] Nr. 1 Ort."):
+        if section(user, "WINDOW").startswith(f"[L1] {opening or 'Nr. 1'} Ort."):
             return {"places": [["L1", "record", opening]], "begins_inside_record": False, "ends_inside_record": True}
         if section(user, "WINDOW").startswith("[L1] short hair"):  # the second column, its own window by column
             return {"places": [], "begins_inside_record": True, "ends_inside_record": True}

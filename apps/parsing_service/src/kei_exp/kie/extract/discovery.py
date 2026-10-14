@@ -528,8 +528,9 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
 
 def _same_label(one: str | None, other: str | None) -> bool:
     """Whether two printed labels are the same one, compared as `locate` compares text (NFKC, case folded, whitespace
-    collapsed); a missing label is never the same as another."""
-    return one is not None and other is not None and normalise(one.strip()).text == normalise(other.strip()).text
+    collapsed); a missing label or a bare mark never names the same record."""
+    return (one is not None and other is not None and any(char.isalnum() for char in one)
+            and normalise(one.strip()).text == normalise(other.strip()).text)
 
 
 def _unread_after(last: Unit, evidence: Evidence) -> bool:
