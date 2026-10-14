@@ -86,8 +86,14 @@ settle what it can.
   artifacts (`fixed_upstream`) skip resolution, which they did not make. A version 12 or 13 artifact is refused
   and must be run again: version 13 sizes, counts and decides its list parts differently, and version 14 asks and
   decides list items differently.
-- The model can still drop an own list item by naming a work its part prints (a method's citation, say);
-  another work's item whose part does not print its work stays, marked for review. Each list item's answer
+- What the runtime guarantees: an item leaves only labelled OTHER with an `of` printed in its part, or as a
+  REPEAT beside an equal item labelled OWN or OTHER (never beside UNSURE alone); every item that leaves is in
+  `dropped_items` with its `of`, and every OTHER item kept and every UNSURE item is in `uncertain_items`. What
+  rests on the model's judgment: whose a printed work is. The guard checks only that the work is printed in the
+  item's part, not that it is this item's, so an own item given a neighbouring item's citation, the document's
+  own title printed in a running header, or a borrowed method's citation leaves when labelled OTHER. A printed
+  citation is never evidence that an item is another's; another work's item whose part does not print its work
+  stays, marked for review. Each list item's answer
   reserves room for its `of`, so list parts hold fewer items.
 - A run read in one call is unchanged: one part, nothing to resolve.
 - The model can drop a list item that belonged to the document or pick a wrong

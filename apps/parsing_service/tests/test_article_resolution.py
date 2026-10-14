@@ -7,7 +7,7 @@ import jsonschema
 import pytest
 
 from kei_exp.kie.extract.contexts import Context, assemble_document
-from kei_exp.kie.extract.resolution import OF_CHARS, _shown, resolve
+from kei_exp.kie.extract.resolution import OF_CHARS, OTHER, UNSURE, _shown, resolve
 from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract import run
@@ -157,6 +157,20 @@ def test_a_repeat_is_left_out_beside_an_equal_item_labelled_own_or_another_works
     readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     (root, _, _, _, _, _), item_sources = assembled(readings, valid(labelling(L1=out)))
     assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
+
+
+@pytest.mark.parametrize("out,kept,unsure", [
+    ({"I1": "UNSURE", "I2": "REPEAT", "I3": "REPEAT"}, 3, [0]),  # an abstention settles no copy: all stay
+    ({"I1": "REPEAT", "I2": "UNSURE", "I3": "REPEAT"}, 3, [1]),
+    ({"I1": "UNSURE", "I2": "UNSURE", "I3": "REPEAT"}, 3, [0, 1]),
+    ({"I1": "UNSURE", "I2": "REPEAT", "I3": "OWN"}, 2, [0])])  # beside an own copy the repeat still leaves
+def test_an_item_labelled_unsure_is_no_copy_a_repeat_leaves_beside(out, kept, unsure):
+    """A repeat leaves only beside an equal item labelled OWN or OTHER (ADR 0019): UNSURE says the source does not
+    settle the item, so it is not the copy the repeat is the same thing printed again as."""
+    readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(labelling(L1=out)))
+    assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
+    assert doubts(issues) == [{"index": index, "of": "", "label": "UNSURE"} for index in unsure]
 
 
 def test_a_repeat_of_another_works_item_leaves_with_it_and_both_are_reported_dropped():
@@ -539,3 +553,83 @@ def test_a_repeat_beside_an_item_called_another_works_leaves_with_it_only_when_t
     (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(lambda line: next(labels))))
     assert root["finds"] == kept and len(item_sources) == len(kept)
     assert doubts(issues) == ([] if of else [{"index": 0, "of": "", "label": "OTHER"}])
+
+
+# What the runtime guard guarantees and what stays the model's judgment. The guard checks only that the work an item is
+# given to is printed in the part the item was read from: an item the model calls another's without such a work stays,
+# marked. It cannot tell whose a printed work is (this item's, a neighbouring item's, the document's own name), so a
+# printed citation never shows that an item is another's: an own item given a work its part prints leaves, and only
+# `dropped_items`, with that `of`, keeps it visible.
+TITLE = "Hydroxyproline in fish backbone collagen"
+NAGAI = "Nagai et al. (2002)"
+METHOD = {"name": "catla skin ASC", "parts": ["0.5 M acetic acid"]}
+METHOD_TEXT = f"Collagen was extracted from catla skin with 0.5 M acetic acid as described by {NAGAI}."
+
+
+def dropped(issues) -> list[dict]:
+    return [json.loads(issue.detail) for issue in issues if issue.code == "dropped_items"]
+
+
+@pytest.mark.parametrize("label", ["OWN", "OTHER"])
+def test_an_own_item_given_another_items_citation_printed_in_its_part_rests_on_the_models_label(label):
+    """Both samples were read from one part, which prints the cited sample's work. Labelled OWN, the own sample stays;
+    labelled OTHER and given that work, it leaves with the cited sample: the work is printed in its part, and which item
+    it belongs to is the model's judgment. The loss is recorded, never silent."""
+    def rule(line):
+        return ("OTHER", KIMURA) if POLLOCK in line else (label, KIMURA if label == OTHER else "")
+    readings = [{"finds": [deepcopy(OWN_SAMPLE), deepcopy(CITED_SAMPLE)]}, {"finds": []}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[f"{OWN_TEXT} {CITED_TEXT}", "Nothing."])
+    gone = [OWN_SAMPLE] if label == OTHER else []
+    assert root["finds"] == ([] if gone else [OWN_SAMPLE]) and len(item_sources) == 1 - len(gone)
+    assert dropped(issues) == [{"path": ["finds"], "dropped": [*gone, CITED_SAMPLE], "of": [KIMURA] * (1 + len(gone))}]
+    assert not doubts(issues)
+
+
+@pytest.mark.parametrize("header", [False, True])
+def test_an_own_item_given_the_documents_own_title_leaves_only_where_its_part_prints_the_title(header):
+    """The model gives an own item to the document itself. Where its part does not print the title, the item stays,
+    marked; where a running header prints it, the guard cannot tell the document's name from another work's and the
+    item leaves, recorded as dropped. Naming the document as another work is the model's error, not caught here."""
+    text = f"{TITLE} 3 {OWN_TEXT}" if header else OWN_TEXT
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": []}]
+    (root, _, _, _, _, issues), _ = assembled(readings, valid(deciding(lambda line: ("OTHER", TITLE))),
+                                              texts=[text, f"{TITLE}. Abstract."])
+    assert root["finds"] == ([] if header else [OWN_SAMPLE])
+    assert dropped(issues) == ([{"path": ["finds"], "dropped": [OWN_SAMPLE], "of": [TITLE]}] if header else [])
+    assert doubts(issues) == ([] if header else [{"index": 0, "of": TITLE, "label": "OTHER"}])
+
+
+@pytest.mark.parametrize("label", ["OWN", "UNSURE", "OTHER"])
+def test_an_own_method_citing_a_borrowed_method_leaves_only_when_the_model_calls_it_anothers(label):
+    """The document's own sample prepared by a cited work's method: the citation is printed beside it and is its `of`.
+    An `of` alone never removes an item: labelled OWN it stays unmarked, UNSURE it stays marked. Labelled OTHER the
+    work is printed in its part and it leaves: telling a borrowed method from a cited result is the model's call."""
+    readings = [{"finds": [deepcopy(METHOD)]}, {"finds": []}]
+    (root, _, _, _, _, issues), _ = assembled(readings, valid(deciding(lambda line: (label, NAGAI))),
+                                              texts=[METHOD_TEXT, "Nothing."])
+    assert root["finds"] == ([] if label == OTHER else [METHOD])
+    assert dropped(issues) == ([{"path": ["finds"], "dropped": [METHOD], "of": [NAGAI]}] if label == OTHER else [])
+    assert doubts(issues) == ([{"index": 0, "of": NAGAI, "label": UNSURE}] if label == UNSURE else [])
+
+
+def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_replay(monkeypatch):
+    """The issue naming a kept, uncertain item reaches the durable record publication's diagnostics, at its kept index,
+    and a replay publishes the same without a new call. (The review page does not read run diagnostics yet.)"""
+    source, request = occurrence_input(monkeypatch, "semantic")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = valid(lambda s, u, schema: labelling(L1={"I1": "UNSURE"})(s, u, schema) if resolving(u)
+                 else occurrence_reply(s, u, schema))
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert result["records"] == [{"fees": [10, 10]}]
+    def saved(publications):
+        return [issue for publication in publications for issue in
+                publication["coverage"].get("diagnostics", {}).get("issues", []) if issue["code"] == "uncertain_items"]
+    first = saved(lease.publications.values())
+    assert len(first) == 1 and first[0]["path"] == ["records", 0, "fees"]
+    assert json.loads(first[0]["detail"]) == {"path": ["fees"], "items": [{"index": 0, "of": "", "label": "UNSURE"}]}
+    before, count = set(lease.publications), len(chat.calls)
+    assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count
+    assert saved(lease.publications[key] for key in set(lease.publications) - before) in ([], first)

@@ -325,8 +325,9 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
                 left_out = {label for label, each in choice.items() if each["label"] == OTHER
                             and _attributed(each["of"], groups[section["units"][label]])}
                 # A repeat is left out beside an equal item labelled own (that copy stays) or another's (the repeat of
-                # another work's item is that work's too): equal items all repeats are kept.
-                anchored = {section["equal"][label] for label, each in choice.items() if each["label"] != REPEAT}
+                # another work's item is that work's too): equal items all repeats or UNSURE are kept, since UNSURE
+                # settles no copy for a repeat to be.
+                anchored = {section["equal"][label] for label, each in choice.items() if each["label"] in (OWN, OTHER)}
                 gone = left_out | {label for label, each in choice.items()
                                    if each["label"] == REPEAT and section["equal"][label] in anchored}
                 doubted = [(section["indices"][label], each) for label, each in choice.items()
