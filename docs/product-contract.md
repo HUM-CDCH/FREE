@@ -36,8 +36,12 @@ FREE's normative product and safety contract is:
    concurrent write reports a conflict instead of overwriting a newer
    decision. Review is finalized only by an explicit action on one named
    result snapshot and decision version, never by saving a correction, and
-   finalizing never freezes the Extraction. Readings that disagree within
-   one source stay saved as a Value Disagreement: shown side by side, marked
+   finalizing never freezes the Extraction. When an Article's source is read
+   in separate parts, a model call settles each place to the document's own
+   reading and keeps the list items that belong to the document; the value it
+   picks is a model value like any other, marked not checked, and every
+   dropped reading and item is kept in the run's issues. Readings it cannot
+   settle stay saved as a Value Disagreement: shown side by side, marked
    not checked, with no winner; it is approved only by choosing one, a choice
    or rejection holds only while the value and its readings stay the same, and
    it is never exported as an unmarked blank or as a reading nobody chose.

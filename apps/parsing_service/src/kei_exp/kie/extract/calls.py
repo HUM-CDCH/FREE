@@ -55,7 +55,7 @@ class Call:
     counted_input_tokens: int | None = None
     context_tokens: int | None = None
     max_output_tokens: int | None = None
-    recovered: bool = False             # a failed call whose one recovery call was read: it cost tokens, lost no value
+    recovered: bool = False             # a failed call handled by recovery or retained-value fallback: lost no value
 
 
 _TRACER = trace.get_tracer("kei")

@@ -1,6 +1,7 @@
 {
   "hash": "sha256:81bf3ec3d60cc2962b34f8f95f164938cee8eb90602da5a463ba78bd5b0ec038",
   "invariants": [
+    "extraction-runtime.article-resolution-recovery",
     "extraction-runtime.catalog-whitespace-recovery",
     "extraction-runtime.value-disagreement"
   ]

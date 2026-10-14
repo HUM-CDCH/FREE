@@ -1,0 +1,82 @@
+# 0019: An Article's separately read parts are resolved by the model
+
+Date: 2026-10-11. Status: proposed; amends
+[0018](0018-value-disagreements-stay-saved.md) (FREE picks no winner).
+
+## Context
+
+A bounded Article asks every value context for the whole document root. A part
+without the document's own value answers from what it alone shows: a cited
+work's title and year from the bibliography, a section heading as the title,
+a running header's author names and page numbers. Measured on nine journal
+articles read in 12,288-token parts, with a corrected record description:
+1 of 9 titles survived, 37 author items were running-header duplicates and 21
+were foreign, every one linked to evidence by grounding. With a stale
+reference-entry description, foreign author items reached 386. The same
+articles read in one call were correct. A document longer than one call, any
+book among them, could not be read in one call at all: the full default failed
+with `article_root_unanswered`.
+
+0018 kept every disagreement for the researcher and rejected model
+arbitration. On long sources that leaves most places empty and every list
+contaminated, and the researcher who owns the product chose to let the model
+settle what it can.
+
+## Decision
+
+- **A document too long for one root call is read in bounded parts** of the
+  served context instead of failing; the run records `context_fallback`.
+- **Whenever the source was read in parts and any part answered, one
+  reasoning call per batch of places resolves them** (`resolution.resolve`),
+  even when a single part answered: that part may be the bibliography. It is
+  shown the document's opening (so it knows which document is its own), each
+  place's readings with the pages and source text each was read from, and the
+  record and field descriptions; an item equal to an earlier one in its list
+  is marked as such. A reply names no position, so a value printed several
+  times in its part is shown at each place with its count, never as one
+  occurrence, and is matched only as a whole word or number (10 is not the 210
+  of a cited study); equal items those places do not tell apart are kept. For a scalar it answers a reading, NONE (no reading is
+  the document's own, including when the opening states a value no reading
+  matches) or UNSURE. For a list it labels every item, or answers null when
+  the source does not settle it: OWN, OTHER (another work's or entity's item)
+  or REPEAT, offered only for an item equal to another in its list: the same
+  thing printed again (a running header, a repeated byline), which leaves only
+  beside an equal item labelled OWN. An answer leaving an item unlabelled
+  changes nothing.
+  Equal values that describe different things (two finds of one material) stay
+  separate items, and two readings of one own item that differ (one part read a
+  sample's temperature, another its imino content) are both kept: neither is a
+  repeat. Each item is shown whole, without its empty fields, where its least
+  printed value is. A scalar read alike by several parts is not
+  asked; one read by a single part is, so a cited work's value cannot pass
+  alone.
+- **What the model settles is a model value**, marked not checked like any
+  other; its alternatives and dropped items stay in the run's issues
+  (`resolved_value`, `dropped_items`). **UNSURE, a null list, a failed or
+  raising call, or an answer outside its labels changes nothing**: the place stays a Value Disagreement
+  and the list keeps every item, as under 0018.
+- List resolution filters the assembled occurrences after overlap joins. Kept items
+  retain their original reply coordinates, including nested positions; overlap
+  diagnostics follow their retained indices. A failed resolution stays visible in
+  attempt-local failure history, is recoverable, and never changes Pause or Stop
+  intent sent by the researcher.
+- A long list is resolved in parts of 60 items; a repeat across those parts is
+  kept and stays named (`possible_repeated_items`, at its kept indices), since
+  its copies were never shown together.
+
+## Consequences
+
+- `ARTICLE_VERSION` 12 (version 10 adds the context fallback). Replays of earlier artifacts (`fixed_upstream`) skip
+  resolution, which they did not make.
+- A run read in one call is unchanged: one part, nothing to resolve.
+- The model can drop a list item that belonged to the document or pick a wrong
+  reading. Unlike a Value Disagreement, a picked value reaches review and
+  export as the answer; the issues keep what it replaced.
+- Rejected: a list answer naming the items to keep (an item the model omits is
+  lost, and a second reading of an own item reads as a repeat), and one naming
+  only the items to leave out (the model sometimes named the items that
+  belong, which then all left),
+  auto-picking without UNSURE (forces a choice the source does not
+  settle), flagging foreign items without dropping them (the contamination
+  still reaches review and export), and resolving by first, majority or
+  grounding (grounding attests presence, not membership in the document).

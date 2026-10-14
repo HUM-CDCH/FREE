@@ -2,7 +2,13 @@
 
 Date: 2026-10-10; narrowed 2026-10-11. Status: proposed; amends
 [0017](0017-durable-extraction-control-and-call-checkpoints.md) (Article
-aggregation's explicit scalar proposals, review binding).
+aggregation's explicit scalar proposals, review binding); amended by
+[0019](0019-article-parts-are-resolved-by-the-model.md).
+
+> Amended by [0019](0019-article-parts-are-resolved-by-the-model.md): an Article
+> read in parts has its readings resolved by the model first. A place it settles
+> with a reading or NONE is no longer a Value Disagreement; a place it leaves
+> UNSURE, or a failed or invalid resolution, stays one as decided here.
 
 ## Context
 

@@ -194,9 +194,18 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   assert.equal(await invoke('begin_call',[extraction,retry,retryLease.epoch,failedId]),true)
   await invoke('commit_output',[extraction,retry,retryLease.epoch,failedId,retained.input.digest,{parsed:{flag:false},calls:[{ok:true}]}])
   assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime."callFailure" WHERE "captureId"=$1',[failedId])).rows[0].n,1)
-  // Only output-limit failures supported by the pinned bounded planner may
-  // continue. Committing admitted work never clears a researcher's intent.
+  // Recoverable replies retain the method's fallback. Committing admitted work
+  // never clears a researcher's intent.
   for (const policy of [
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'stop',intent:'RUN',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:null,intent:'RUN',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'PAUSE',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'STOP',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:false,mixed:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:false,bodyMismatch:true},
+    {article:true,unified:false,stage:'grounding',finish:'length',intent:'RUN',recoverable:false},
+    {article:false,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:false},
     {unified:true,stage:'discovery',finish:'length',intent:'RUN',recoverable:true},
     {unified:true,stage:'discovery',finish:'length',intent:'PAUSE',recoverable:true},
     {unified:true,stage:'entry',finish:'length',intent:'STOP',recoverable:true},
@@ -223,8 +232,8 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     const id=randomUUID(),selected=randomUUID(),active=randomUUID(),captureId=randomUUID()
     await owner.query(`INSERT INTO extraction_runtime.head
       (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
-      VALUES ($1,$2,$3,$4,'CATALOG',$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
-      [id,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selected,active])
+      VALUES ($1,$2,$3,$4,$7,$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
+      [id,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selected,active,policy.article?'ARTICLE':'CATALOG'])
     await owner.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
       VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`,[selected,id,history.revisions.catalog,'a'.repeat(64),{recordDescription:'record',schemaNodes:[flagNode]}])
     await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,[active,id,selected,`test:${active}`])
@@ -236,7 +245,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     const policyDescriptor={...descriptor,stage:policy.stage,planDigest:savedPlan.digest}
     await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',policyDescriptor])
     const policyBody=structuredClone(body)
-    policyBody.body.stage=policy.stage
+    policyBody.body.stage=policy.bodyMismatch?'record':policy.stage
     if(policy.whitespace)Object.assign(policyBody.body.httpRequest,
       {response_format:{type:'json_schema',json_schema:{name:'reply',schema:{type:'object'},strict:true}}})
     if(policy.bounded){
@@ -245,6 +254,11 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
       Object.assign(policyBody.body.httpRequest,{structured_outputs:{grammar:'root ::= "{}"'}})
     }
     if(policy.promptOnly)delete (policyBody.body.httpRequest as Record<string,unknown>).response_format
+    if(policy.bodyMismatch){
+      await assert.rejects(invoke('finalize_input',[id,active,lease.epoch,captureId,policyBody]),
+        (e:{code?:string})=>e.code==='22023')
+      continue
+    }
     const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,policyBody])
     assert.equal(await invoke('begin_call',[id,active,lease.epoch,captureId]),true)
     await owner.query('UPDATE extraction_runtime.head SET intent=$2 WHERE id=$1',[id,policy.intent])

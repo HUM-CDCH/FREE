@@ -53,7 +53,7 @@ How FREE applies an Extraction Schema to Source Context: Article or Catalog. The
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in separate parts when the whole source does not fit one model call; values read in separate parts of the source are combined into that one object without dropping list items, and scalars read differently stay a Value Disagreement.
+An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in separate parts when the whole source does not fit one model call; a model call then settles each place to the document's own reading and keeps the list items that belong to the document, and readings it cannot settle stay a Value Disagreement.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:
@@ -118,7 +118,10 @@ _Avoid_: status, vote, review draft
 
 **Value Disagreement**:
 A saved value whose readings in separate parts of the source differ at one
-place: the field itself or a value nested in its objects, never inside a list.
+place, and that resolution did not settle: the field itself or a value nested
+in its objects, never inside a list. When an Article is read in parts, the model
+first settles each such place with a reading or none (ADR 0019); a place it
+leaves unsure, or that a failed resolution left, stays a Value Disagreement.
 FREE leaves that place empty and keeps each distinct reading as an alternative,
 with where it was read; it picks none and marks them not checked. Approving it
 means choosing one alternative per place; an edit or a rejection also decides

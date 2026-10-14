@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from kei_exp.kie.extract import article, catalog, contexts, run, stages, unified
 from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_extract_grounded import CountingChat, WordCounter, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 CONTRACT = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "record-scope.json").read_text())
@@ -169,7 +169,16 @@ def bounded_article(script, **method):
                         counter={role: WordCounter() for role in ("fields", "reasoning")})
 
 
+def settle(user: str, schema: dict, **choices) -> dict:
+    """A resolution answer by field name: a label, NONE or UNSURE per scalar place, each item's label per list place."""
+    names = dict(re.findall(r"^([SL]\d+) · (\S+)", user, re.MULTILINE))
+    return {key: choices[names[key]] for key in schema["properties"]}
+
+
 def two_parts(system, user, schema):
+    if resolving(user):  # the year stays open, Ribe is the place, the second context's urn repeats the first's
+        return settle(user, schema, year="UNSURE", place="C1", authors={"I1": "OWN"},
+                      finds={"I1": "OWN", "I2": "OWN", "I3": "REPEAT", "I4": "OWN"})
     if "title" not in schema["properties"]:  # grounding: nothing attested
         return {claim: ({"label": "NONE", "quote": "", "attribution": False} if spec.get("type") == "object"
                         else "NONE") for claim, spec in schema["properties"].items()}
@@ -182,18 +191,23 @@ def two_parts(system, user, schema):
 
 @pytest.mark.parametrize("method", [{"grounding": "off"}, {"grounding": "quoted", "grounding_schedule": "unresolved",
                                                            "grounding_routing": "origin_lexical"}])
-def test_a_bounded_article_assembles_one_root_across_contexts_without_deduplicating_items(method):
+def test_a_bounded_article_resolves_one_root_across_contexts(method):
+    """Each context answers the whole root; the model then settles each place: an UNSURE year stays a Value
+    Disagreement, Ribe (read by one context only) is confirmed, and the urn the second context repeats is dropped."""
     result = bounded_article(two_parts, **method)
     assert len(result["value_contexts"]) == 1 and len(result["value_contexts"][0]) == 2
     assert result["records"] == [{"title": None, "year": None, "place": "Ribe", "authors": ["Bauer"],
         "finds": [{"kind": "sword", "materials": None}, {"kind": "urn", "materials": None},
-                  {"kind": "urn", "materials": None}, {"kind": "spear", "materials": None}]}]
+                  {"kind": "spear", "materials": None}]}]
     assert result["conflicts"]["records"] == [{"record": 0, "path": ["year"], "candidates": [1827, 1828]}]
     issues = {issue["code"]: issue for issue in result["issues"]}
-    assert json.loads(issues["possible_repeated_items"]["detail"]) == {
-        "path": ["finds"], "contexts": [0, 1], "indices": [1, 2]}
-    assert issues["possible_repeated_items"]["path"] == ["records", 0, "finds"]
+    assert "possible_repeated_items" not in issues  # the resolved list has no unsettled repeats
+    assert json.loads(issues["dropped_items"]["detail"]) == {"path": ["finds"],
+                                                             "dropped": [{"kind": "urn", "materials": None}]}
+    assert json.loads(issues["resolved_value"]["detail"]) == {"path": ["place"], "chosen": "Ribe",
+                                                              "alternatives": ["Ribe"]}
     assert issues["conflicting_values"]["record"] == 0
+    assert sum(call["stage"] == "arbitration" for call in result["calls"]) == 1
     assert not any(call["stage"] == "inventory" for call in result["calls"])
     assert result["inventory"][0]["passages"] == ["p1_s0", "p1_s1"] and result["complete"] is False
 
