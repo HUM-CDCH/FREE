@@ -15,3 +15,22 @@
   `docs/design/unified-durable-execution.md`.
 - This repository is public: no credentials, internal hostnames/IPs, personal
   data or non-redistributable documents in tracked files (see `CONTRIBUTING.md`).
+
+## Commands
+
+- `pnpm test`: run the full test suite
+- `pnpm build`: build the project
+- `pnpm lint`: run the lint task
+- `pnpm dev`: run the development task
+
+## Code Map
+
+- `apps/`: application source
+- `packages/`: packages
+- `tests/`: automated tests
+- `docs/`: project documentation
+
+## Conventions
+
+- Use ESM `import` and `export` syntax.
+- Name test files with a `.test.` infix.
