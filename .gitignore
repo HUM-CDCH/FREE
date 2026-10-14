@@ -37,7 +37,9 @@ compose.local.yaml
 .codex/worktrees/
 tools/slopo-benchmark/work/
 eval-out/
-/prototypes/
+prototypes/
+formal/
+.lake/
 
 # Keys and certificates never belong in the repository
 *.pem
