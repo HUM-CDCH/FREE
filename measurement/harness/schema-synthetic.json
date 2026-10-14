@@ -1,0 +1,96 @@
+{
+ "recordDescription": "One document-level survey with its metadata and every distinct archival object under items. Object ID identifies objects; Sample ID identifies observations within an object. Repeated entries are the same object.",
+ "recordScope": "document",
+ "schemaNodes": [
+  {
+   "id": "document.id",
+   "name": "document_id",
+   "type": "verbatim-string",
+   "description": "Document reference."
+  },
+  {
+   "id": "document.title",
+   "name": "collection_title",
+   "type": "verbatim-string",
+   "description": "Collection title, not an object's title."
+  },
+  {
+   "id": "document.edition",
+   "name": "edition",
+   "type": "integer",
+   "description": "Printed edition year."
+  },
+  {
+   "id": "document.items",
+   "name": "items",
+   "type": "array",
+   "description": "One archival object identified by its printed Object ID, including every theme and sample observation. A repeated entry or continuation with the same Object ID is the same object, not a new record. Survey metadata is not an object. Return null for fields not recorded.",
+   "children": [
+    {
+     "id": "object.id",
+     "name": "record_id",
+     "type": "verbatim-string",
+     "description": "The unique Object ID, such as OBJ-001234-01."
+    },
+    {
+     "id": "object.title",
+     "name": "title",
+     "type": "verbatim-string",
+     "description": "The object's title, not the collection title."
+    },
+    {
+     "id": "object.year",
+     "name": "year",
+     "type": "integer",
+     "description": "The object's recorded year; null if not recorded."
+    },
+    {
+     "id": "object.holding",
+     "name": "holding",
+     "type": "object",
+     "children": [
+      {
+       "id": "holding.institution",
+       "name": "institution",
+       "type": "verbatim-string",
+       "description": "Holding institution."
+      },
+      {
+       "id": "holding.box",
+       "name": "box",
+       "type": "verbatim-string",
+       "description": "Archival box identifier."
+      }
+     ]
+    },
+    {
+     "id": "object.themes",
+     "name": "themes",
+     "type": "array",
+     "itemType": "verbatim-string",
+     "description": "All printed themes; each distinct theme once."
+    },
+    {
+     "id": "object.observations",
+     "name": "observations",
+     "type": "array",
+     "description": "Every row of this object's observation table; identify rows by sample_id.",
+     "children": [
+      {
+       "id": "observation.sample",
+       "name": "sample_id",
+       "type": "verbatim-string",
+       "description": "Sample ID in the observation row."
+      },
+      {
+       "id": "observation.count",
+       "name": "count",
+       "type": "integer",
+       "description": "Count in the same observation row."
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

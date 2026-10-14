@@ -1,0 +1,41 @@
+{
+ "documents": [
+  {
+   "id": "p2s-a",
+   "seed": 275001,
+   "records": 40,
+   "observations": 5,
+   "cited": 4,
+   "repeat_entries": 4,
+   "prose": 10
+  },
+  {
+   "id": "p2s-b",
+   "seed": 275002,
+   "records": 70,
+   "observations": 5,
+   "cited": 6,
+   "repeat_entries": 6,
+   "prose": 10
+  },
+  {
+   "id": "p2s-c",
+   "seed": 275003,
+   "records": 100,
+   "observations": 4,
+   "cited": 8,
+   "repeat_entries": 8,
+   "prose": 10
+  },
+  {
+   "id": "p2s-d",
+   "seed": 275004,
+   "records": 55,
+   "observations": 6,
+   "cited": 5,
+   "repeat_entries": 5,
+   "missing_year_every": 3,
+   "prose": 10
+  }
+ ]
+}

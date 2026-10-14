@@ -1,0 +1,198 @@
+{
+ "recordScope": "document",
+ "recordDescription": "Return each distinct aquatic species/tissue/preparation/condition record with a reported biochemical amino-acid composition (hydroxyproline, proline or explicitly printed imino total), raw-tissue colorimetric hydroxyproline content, or isolated-collagen denaturation temperature. Keep raw tissue separate from extracted collagen and retain each separately measured fraction. Exclude author-computed sequence composition, bone maturation endpoints, raw-tissue shrinkage, isolated-extract purity/content assays, collagen yields or total extraction amounts, non-aquatic controls, cross-species averages, cited-only literature, procedural temperatures, spectroscopic peak positions and unlabelled curve estimates. A melting or broad endothermic peak is not denaturation temperature. Do not compute imino sums, unit conversions or missing standard deviations. Do not split analytical replicates into separate specimens. Return [] when there are no eligible records.",
+ "schemaNodes": [
+  {
+   "id": "title",
+   "name": "title",
+   "type": "string",
+   "description": "Exact paper title."
+  },
+  {
+   "id": "doi",
+   "name": "doi",
+   "type": "string",
+   "description": "Paper DOI."
+  },
+  {
+   "id": "year",
+   "name": "year",
+   "type": "integer",
+   "description": "Journal issue/publication year, distinguish earlier online publication."
+  },
+  {
+   "id": "sample_records",
+   "name": "sample_records",
+   "type": "array",
+   "description": "Return each distinct aquatic species/tissue/preparation/condition record with a reported biochemical amino-acid composition (hydroxyproline, proline or explicitly printed imino total), raw-tissue colorimetric hydroxyproline content, or isolated-collagen denaturation temperature. Keep raw tissue separate from extracted collagen and retain each separately measured fraction. Exclude author-computed sequence composition, bone maturation endpoints, raw-tissue shrinkage, isolated-extract purity/content assays, collagen yields or total extraction amounts, non-aquatic controls, cross-species averages, cited-only literature, procedural temperatures, spectroscopic peak positions and unlabelled curve estimates. A melting or broad endothermic peak is not denaturation temperature. Do not compute imino sums, unit conversions or missing standard deviations. Do not split analytical replicates into separate specimens. Return [] when there are no eligible records. Copy every free-text value verbatim as printed in the source, using the exact term or abbreviation the paper uses for this sample; do not paraphrase, expand, abbreviate or normalize it. Controlled values (material_class, collagen_type_certainty, analyte, basis, outcome) keep their listed vocabulary.",
+   "children": [
+    {
+     "id": "species",
+     "name": "species",
+     "type": "string",
+     "description": "Source-reported scientific name, or the printed source name when a scientific name is absent. Do not infer a binomial."
+    },
+    {
+     "id": "tissue",
+     "name": "tissue",
+     "type": "string",
+     "description": "The source-reported anatomical material for this specimen. Do not join results from different tissues or infer a more specific tissue."
+    },
+    {
+     "id": "preparation",
+     "name": "preparation",
+     "type": "string",
+     "description": "Printed preparation/fraction identifier, e.g. ASC/PSC/major/minor. Null when the source has no label. Keep separate fraction columns. Do not use inferred collagen type as identity."
+    },
+    {
+     "id": "material_class",
+     "name": "material_class",
+     "type": "string",
+     "description": "isolated_collagen for extracted collagen and its separately prepared fractions, even when purity or collagen type is uncertain; raw_tissue for a raw-material hydroxyproline assay. Keep each observation with its actual owner.",
+     "allowedValues": [
+      "isolated_collagen",
+      "raw_tissue"
+     ]
+    },
+    {
+     "id": "condition",
+     "name": "condition",
+     "type": "string",
+     "description": "Distinct specimen treatment condition only if it defines a separately reported sample. Null otherwise; analytical measurement conditions belong to observations."
+    },
+    {
+     "id": "collagen_type",
+     "name": "collagen_type",
+     "type": "string",
+     "description": "Reported collagen type(s) as source terms, with uncertain types left uncertain. Null if not reported."
+    },
+    {
+     "id": "collagen_type_certainty",
+     "name": "collagen_type_certainty",
+     "type": "string",
+     "description": "Use reported, tentative, or unresolved according to the source claim; null if no type claim.",
+     "allowedValues": [
+      "reported",
+      "tentative",
+      "unresolved"
+     ]
+    },
+    {
+     "id": "extraction_method",
+     "name": "extraction_method",
+     "type": "string",
+     "description": "Preparation-specific reported extraction method. Null for raw tissue/sequence-only or when unresolved."
+    },
+    {
+     "id": "amino_acids",
+     "name": "amino_acids",
+     "type": "array",
+     "description": "All explicitly reported target biochemical composition observations owned by this specimen; raw-tissue colorimetric hydroxyproline is eligible. Keep printed amino composition distinct from raw-tissue dry-weight content. Exclude sequence calculations and isolated-extract purity/content concentrations. [] when none.",
+     "children": [
+      {
+       "id": "analyte",
+       "name": "analyte",
+       "type": "string",
+       "description": "Target analyte only.",
+       "allowedValues": [
+        "hydroxyproline",
+        "proline",
+        "imino acids"
+       ]
+      },
+      {
+       "id": "basis",
+       "name": "basis",
+       "type": "string",
+       "description": "chemical_assay for amino-acid composition; dry_weight for raw-tissue hydroxyproline content reported per dry mass. Preserve units and their denominator.",
+       "allowedValues": [
+        "chemical_assay",
+        "dry_weight"
+       ]
+      },
+      {
+       "id": "value",
+       "name": "value",
+       "type": "number",
+       "description": "Printed amount or mean only. Do not derive a sum, divide or convert units."
+      },
+      {
+       "id": "stdev",
+       "name": "stdev",
+       "type": "number",
+       "description": "Printed standard deviation only. Null if no SD; no invented zero."
+      },
+      {
+       "id": "unit",
+       "name": "unit",
+       "type": "string",
+       "description": "Printed unit including its denominator. Retain percent versus residues per 1000 versus dry-weight basis."
+      }
+     ]
+    },
+    {
+     "id": "thermal_data",
+     "name": "thermal_data",
+     "type": "array",
+     "description": "Source-reported finite numeric isolated-collagen denaturation temperatures only. Return [] when no finite denaturation temperature is reported; do not emit a not_detected observation. Exclude raw-tissue shrinkage, maturation, processing temperatures, generic endothermic or melting peaks, spectroscopic peaks and cited-only results. [] when none.",
+     "children": [
+      {
+       "id": "parameter",
+       "name": "parameter",
+       "type": "string",
+       "description": "A temperature explicitly identified as isolated-collagen denaturation, not any other thermal endpoint."
+      },
+      {
+       "id": "method",
+       "name": "method",
+       "type": "string",
+       "description": "Reported assay method for this collagen denaturation measurement, such as circular dichroism, viscosity or differential scanning calorimetry. Null when unstated."
+      },
+      {
+       "id": "medium",
+       "name": "medium",
+       "type": "string",
+       "description": "Reported measurement medium only; null when unstated."
+      },
+      {
+       "id": "sample_state",
+       "name": "sample_state",
+       "type": "string",
+       "description": "Reported sample state for this assay only."
+      },
+      {
+       "id": "condition",
+       "name": "condition",
+       "type": "string",
+       "description": "Reported assay conditions including concentration/heating rate where available. Do not copy conditions from a different assay."
+      },
+      {
+       "id": "outcome",
+       "name": "outcome",
+       "type": "string",
+       "description": "measured for a printed finite isolated-collagen denaturation temperature. Return no observation when this endpoint is not reported."
+      },
+      {
+       "id": "value",
+       "name": "value",
+       "type": "number",
+       "description": "Printed finite numeric isolated-collagen denaturation temperature only. Exclude process temperatures, test limits, melting peaks, ND and other thermal endpoints."
+      },
+      {
+       "id": "stdev",
+       "name": "stdev",
+       "type": "number",
+       "description": "Printed SD of this endpoint, else null."
+      },
+      {
+       "id": "unit",
+       "name": "unit",
+       "type": "string",
+       "description": "Printed endpoint unit. Do not convert temperatures."
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
