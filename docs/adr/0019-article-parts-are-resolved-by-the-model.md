@@ -32,19 +32,22 @@ settle what it can.
   shown the document's opening (so it knows which document is its own), each
   place's readings with the pages and source text each was read from, and the
   record and field descriptions; an item equal to an earlier one in its list
-  is marked as such. For a scalar it answers a reading, NONE (no reading is
+  is marked as such. A reply names no position, so a value printed several
+  times in its part is shown at each place with its count, never as one
+  occurrence, and is matched only as a whole word or number (10 is not the 210
+  of a cited study); equal items those places do not tell apart are kept. For a scalar it answers a reading, NONE (no reading is
   the document's own, including when the opening states a value no reading
   matches) or UNSURE. For a list it returns the items that belong to the
-  document's own list, leaving out another work's or entity's item and the
-  same thing printed again (a running header, a repeated byline); equal values
+  document's own list, or null when the source does not settle it, leaving
+  out another work's or entity's item and the same thing printed again (a running header, a repeated byline); equal values
   that describe different things (two finds of one material) stay separate
   items. A scalar read alike by several parts is not
   asked; one read by a single part is, so a cited work's value cannot pass
   alone.
 - **What the model settles is a model value**, marked not checked like any
   other; its alternatives and dropped items stay in the run's issues
-  (`resolved_value`, `dropped_items`). **UNSURE, a failed call, or an answer
-  outside its labels changes nothing**: the place stays a Value Disagreement
+  (`resolved_value`, `dropped_items`). **UNSURE, a null list, a failed or
+  raising call, or an answer outside its labels changes nothing**: the place stays a Value Disagreement
   and the list keeps every item, as under 0018.
 - List resolution filters the assembled occurrences after overlap joins. Kept items
   retain their original reply coordinates, including nested positions; overlap
@@ -52,7 +55,8 @@ settle what it can.
   attempt-local failure history, is recoverable, and never changes Pause or Stop
   intent sent by the researcher.
 - A long list is resolved in parts of 60 items; a repeat across those parts is
-  kept.
+  kept and stays named (`possible_repeated_items`, at its kept indices), since
+  its copies were never shown together.
 
 ## Consequences
 

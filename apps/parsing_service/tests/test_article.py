@@ -226,7 +226,7 @@ def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts_and_reso
 
     def script(system, user, schema):
         if resolving(user):
-            return {key: spec["items"]["enum"] if spec["type"] == "array" else "NONE"
+            return {key: spec["items"]["enum"] if "items" in spec else "NONE"
                     for key, spec in schema["properties"].items()}
         if "finds" in schema["properties"]:
             return {"entry_no": None, "site": "Hill", "year": 1999 if "Part 1." in user else None,

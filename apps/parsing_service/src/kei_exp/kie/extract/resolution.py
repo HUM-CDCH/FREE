@@ -5,16 +5,20 @@ own value may return another one: a cited work's year, a section heading as the 
 name or page number. Once a split source's contexts answered, `resolve` shows the reasoning model the document's
 opening and every place's readings, each
 with the pages and source text it was read from, and asks which reading is the document's own value (a candidate,
-NONE when none is, UNSURE when the source does not settle it) and which list items belong to the document's own list.
-A chosen or NONE place replaces assembly's null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps the
-items the model kept, in reading order. A call that fails or answers outside its labels changes nothing.
+NONE when none is, UNSURE when the source does not settle it) and which list items belong to the document's own list
+(null when the source does not settle it). A chosen or NONE place replaces assembly's null-on-conflict; UNSURE keeps
+the Value Disagreement. A list keeps the items the model kept, in reading order; equal items in different list parts
+were never compared, so their possible repeat stays named. A call that fails or answers outside its labels changes
+nothing.
 """
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import replace
+from time import monotonic
 from typing import Any
 
 from kei_exp.kie.extract.calls import Call, complete
@@ -26,10 +30,11 @@ from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import text_of
 
 NONE, UNSURE = "NONE", "UNSURE"
-# shortcut: a list longer than this is resolved in parts, so an item repeating one in another part is kept; resolve
-# across parts (a second pass over the kept items) when long lists show cross-part repeats.
+# shortcut: a list longer than this is resolved in parts, so an item repeating one in another part is kept and stays
+# named as a possible repeat; resolve across parts (a second pass over the kept items) when long lists show them.
 LIST_CHUNK = 60
 SNIPPET = 70  # characters of source shown on each side of a reading
+PRINTED = 3  # places shown of a value printed several times in its part
 VALUE_CHARS = 200
 OPENING_CHARS = 1500  # the document's opening, shown so the model knows which document is its own
 RESOLUTION = (
@@ -41,10 +46,13 @@ RESOLUTION = (
     "NONE when no candidate is (a value only a cited work, a heading or another entity has is never the document's "
     "own, even when it is the only candidate; when the opening states the document's own value and no candidate is "
     "it, answer NONE), or UNSURE when the source does not settle it. For each list place "
-    "(L...), return the labels of the items that belong to the document's own list: leave out an item of another work "
+    "(L...), return the labels of the items that belong to the document's own list, or null when the source does not "
+    "settle it: leave out an item of another work "
     "or entity, and an item that is the same thing printed again (a running header or footer, a repeated byline). An "
     "item marked 'same value as' is such a repeat only when its source shows the same thing again; equal values that "
-    "describe different things are separate items: keep each. Return only the JSON object.")
+    "describe different things are separate items: keep each. A value printed several times is shown at each place, "
+    "since which one a reading read is not known; when those places do not show that equal items are the same thing, "
+    "keep each. Return only the JSON object.")
 
 
 def _places(nodes: Sequence[Node], path: tuple[str, ...] = ()):
@@ -81,13 +89,19 @@ def _needle(value: Any) -> str | None:
 
 
 def _shown(value: Any, context: Context) -> str:
-    """A reading as the model sees it: the value, its pages and the source around it ('' when not printed verbatim)."""
+    """A reading as the model sees it: the value, its pages and the source around where the value is printed as a
+    whole word or number. A value printed several times is shown at its first `PRINTED` places with its count, never
+    as one occurrence: a reply names no position, so which one it read is unknown."""
     pages = sorted({passage.page for passage in context.primary or context.passages})
     where = f"page {pages[0]}" if len(pages) == 1 else f"pages {pages[0]}-{pages[-1]}" if pages else "no page"
     text = " ".join(text_of(context.passages).split())
     needle = _needle(value)
-    at = text.lower().find(needle.lower()) if needle else -1
-    around = f": …{text[max(0, at - SNIPPET):at + len(needle) + SNIPPET]}…" if at >= 0 else " (not printed verbatim)"
+    # Not inside a longer word or number: 10 is not printed in 210, 10.5 or 1,100.
+    found = [match.start() for match in re.finditer(rf"(?<!\w)(?<!\d[.,]){re.escape(needle)}(?!\w|[.,]\d)",
+                                                     text, re.IGNORECASE)] if needle else []
+    shown = " | ".join(f"…{text[max(0, at - SNIPPET):at + len(needle) + SNIPPET]}…" for at in found[:PRINTED])
+    around = (" (not printed verbatim)" if not found else f": {shown}" if len(found) == 1
+              else f" (printed {len(found)} times; which one was read is not known): {shown}")
     return f"{json.dumps(value, ensure_ascii=False)[:VALUE_CHARS]} — {where}{around}"
 
 
@@ -115,7 +129,7 @@ def _sections(readings: Sequence[dict], groups: Sequence[Context], nodes: Sequen
                 sections.append({"key": key, "kind": "list", "path": path, "start": start,
                                  "options": dict(zip(labels, (item for _, item in part))), "text": "\n".join(lines),
                                  "indices": dict(zip(labels, (index for index, _ in part))),
-                                 "schema": {"type": "array", "items": {"type": "string", "enum": labels}}})
+                                 "schema": {"type": ["array", "null"], "items": {"type": "string", "enum": labels}}})
             continue
         alternatives: dict[str, dict] = {}
         for index, reading in enumerate(readings):
@@ -173,15 +187,25 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
     kept: dict[tuple[str, ...], list | None] = {}  # a list place's kept items by part start; None once a part fails
     for batch in batches:
         user, reply_schema, reserve = _request(opening, batch)
+        counted = counter.request_tokens(system, user, reply_schema)
         # A singleton can exceed the served context. Do not admit it into the durable planner:
         # retaining assembly is the same fallback as an unanswered resolution, with no provider call.
-        if counter.request_tokens(system, user, reply_schema) + reserve > counter.context_tokens:
+        if counted + reserve > counter.context_tokens:
             answer, attempts = None, []
             issues.append(Issue("resolution_exceeds_budget", "the resolution request does not fit; assembled values "
                                 "are retained", 0))
         else:
-            answer, attempts = complete(chat, stage="arbitration", record=0, system=system, user=user,
-                                        schema=reply_schema, counter=counter, max_tokens=reserve)
+            started = monotonic()
+            try:
+                answer, attempts = complete(chat, stage="arbitration", record=0, system=system, user=user,
+                                            schema=reply_schema, counter=counter, max_tokens=reserve)
+            except Exception as error:
+                if getattr(chat, "runtime", None) is not None:
+                    raise  # the durable worker commits provider failures (`invoke_capture`); persistence must halt
+                # The failed call the durable worker commits for a raising provider: only the exception's type.
+                answer, attempts = None, [Call("arbitration", 0, None, None, monotonic() - started, None, False,
+                                               f"provider call raised {type(error).__name__}", counted,
+                                               counter.context_tokens, reserve)]
         if attempts and not attempts[-1].ok:
             # Resolution is optional: a failed reply retains all assembled values and disagreements.
             answer = None
@@ -218,11 +242,20 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
         moved = {original: index for index, original in enumerate(positions)}
         joined = [({**join, "index": moved[join["index"]]} if tuple(join["path"]) == path else join)
                   for join in joined if tuple(join["path"]) != path or join["index"] in moved]
+        # A repeat whose kept copies were shown in one part is resolved; copies kept in several parts never met.
+        left = []
+        for repeat in repeats:
+            if tuple(repeat["path"]) != path:
+                left.append(repeat)
+                continue
+            indices = [moved[index] for index in repeat["indices"] if index in moved]
+            contexts = sorted({item_sources[(*path, index)][0]["unit"] for index in indices})
+            if len(contexts) > 1 and len({index // LIST_CHUNK for index in repeat["indices"] if index in moved}) > 1:
+                left.append({**repeat, "contexts": contexts, "indices": indices})
+        repeats = left
         _put(root, path, [item for _, items, _, _ in parts for item in items])
-        settled.add(path)
         if dropped:
             issues.append(Issue("dropped_items", json.dumps({"path": list(path), "dropped": dropped},
                                                             ensure_ascii=False), 0, ("records", 0, *path)))
     contested = [conflict for conflict in contested if tuple(conflict["path"]) not in settled]
-    repeats = [repeat for repeat in repeats if tuple(repeat["path"]) not in settled]
     return root, contested, repeats, joined, calls, issues

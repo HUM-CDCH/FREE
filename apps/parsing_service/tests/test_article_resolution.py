@@ -2,6 +2,7 @@
 from copy import deepcopy
 from dataclasses import replace
 
+import jsonschema
 import pytest
 
 from kei_exp.kie.extract.contexts import Context, assemble_document
@@ -23,19 +24,29 @@ SCHEMA = Schema(schemaNodes=[{"id": "finds", "name": "finds", "type": "array",
 ITEM = {"name": "urn", "parts": ["clay", "clay"]}
 
 
-def assembled(readings, chat, *, overlap=False, counter=None):
-    groups = [Context(tuple(passages(["An urn made from clay."], page=index + 1))) for index in range(len(readings))]
+def assembled(readings, chat, *, overlap=False, counter=None, texts=None, schema=SCHEMA):
+    groups = [Context(tuple(passages([text], page=index + 1)))
+              for index, text in enumerate(texts or ["An urn made from clay."] * len(readings))]
     item_sources = {}
     root, conflicts, repeats, joined = assemble_document(readings, lambda *_: overlap, item_sources=item_sources)
-    result = resolve(readings, groups, root, conflicts, repeats, joined, SCHEMA, chat, counter or WordCounter(),
+    result = resolve(readings, groups, root, conflicts, repeats, joined, schema, chat, counter or WordCounter(),
                      item_sources=item_sources)
     return result, item_sources
+
+
+def valid(script):
+    """A chat whose scripted resolution replies are checked against the reply schema the model is constrained to."""
+    def checked(system, user, schema):
+        answer = script(system, user, schema)
+        jsonschema.validate(answer, schema)
+        return answer
+    return CountingChat(checked)
 
 
 def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
     readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     original = deepcopy(readings)
-    chat = CountingChat(lambda s, u, schema: keeps_every_reading(schema))
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
     (root, _, _, joined, _, _), item_sources = assembled(readings, chat, overlap=True)
     assert root["finds"] == [ITEM, ITEM]
     assert chat.calls[0]["schema"]["properties"]["L1"]["items"]["enum"] == ["I1", "I2"]
@@ -52,8 +63,8 @@ def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
 
 def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (root, _, _, _, _, issues), item_sources = assembled(readings, CountingChat(lambda *_: {"L1": ["I2"]}))
-    assert root["finds"] == [ITEM]
+    (root, _, repeats, _, _, issues), item_sources = assembled(readings, valid(lambda *_: {"L1": ["I2"]}))
+    assert root["finds"] == [ITEM] and not repeats
     assert item_sources == {("finds", 0): [{"unit": 1, "path": ["finds", 0]}]}
     assert [entry["sources"] for entry in value_origins(readings, root, {}, [], item_sources=item_sources)] == [
         [{"unit": 1, "path": ["finds", 0, "name"]}],
@@ -66,16 +77,75 @@ def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
                                           (["I1"], [])])
 def test_overlap_diagnostics_follow_kept_indices(keep, expected):
     readings = [{"finds": [{"name": "sword", "parts": []}, deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (_, _, _, joined, _, _), _ = assembled(readings, CountingChat(lambda *_: {"L1": keep}), overlap=True)
+    (_, _, _, joined, _, _), _ = assembled(readings, valid(lambda *_: {"L1": keep}), overlap=True)
     assert joined == expected
 
 
-@pytest.mark.parametrize("answer", [{"L1": ["foreign"]}, {"L1": [{}]}, {"L1": "UNSURE"}])
-def test_invalid_list_answers_keep_assembly_and_its_origins(answer):
+@pytest.mark.parametrize("answer", [{"L1": ["foreign"]}, {"L1": [{}]}, {"L1": "UNSURE"}, {"L1": None}])
+def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer):
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (root, _, repeats, _, _, issues), item_sources = assembled(readings, CountingChat(lambda *_: answer))
+    chat = CountingChat(lambda *_: answer)
+    (root, _, repeats, _, _, issues), item_sources = assembled(readings, chat)
     assert root["finds"] == [ITEM, ITEM] and repeats and not issues
     assert item_sources == {("finds", index): [{"unit": index, "path": ["finds", 0]}] for index in (0, 1)}
+    # null is the list's abstention: the one answer here the constrained model can give.
+    assert jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer) == (answer["L1"] is None)
+
+
+def test_a_value_is_shown_where_it_is_printed_as_a_whole_number():
+    schema = Schema(schemaNodes=[{"id": "n", "name": "participants", "type": "number"}],
+                    recordDescription="One study")
+    texts = ["The cited study had 210 participants. " + "Unrelated background. " * 5 + "Our study had 10 participants.",
+             "Twelve were enrolled."]
+    chat = valid(lambda *_: {"S1": "UNSURE"})
+    assembled([{"participants": 10}, {"participants": 12}], chat, texts=texts, schema=schema)
+    shown = next(line for line in chat.calls[0]["user"].splitlines() if line.startswith("  C1 = 10"))
+    assert "Our study had 10 participants" in shown and "210" not in shown
+
+
+def test_equal_items_printed_twice_are_shown_at_both_places_not_as_their_own_occurrence():
+    texts = ["Grave A contained an urn. " + "The soil was dark. " * 5 + "Grave B contained an urn.", "Nothing."]
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
+    readings = [{"finds": [{"name": "urn", "parts": []}, {"name": "urn", "parts": []}]}, {"finds": []}]
+    (root, _, _, _, _, _), _ = assembled(readings, chat, texts=texts)
+    lines = [line for line in chat.calls[0]["user"].splitlines() if line.startswith(("  I1", "  I2"))]
+    for line in lines:
+        assert "printed 2 times" in line and "Grave A contained an urn" in line and "Grave B contained an urn" in line
+    assert lines[1].endswith("(same value as I1)") and len(root["finds"]) == 2
+
+
+OTHERS = [{"name": f"find {number}", "parts": []} for number in range(1, 60)]
+
+
+@pytest.mark.parametrize("answer,expected", [
+    ({"L1": [f"I{n}" for n in range(1, 61)], "L2": ["I1"]},
+     [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 60]}]),
+    ({"L1": ["I1", *(f"I{n}" for n in range(3, 61))], "L2": ["I1"]},
+     [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 59]}]),
+    ({"L1": [f"I{n}" for n in range(1, 61)], "L2": []}, [])])
+def test_a_repeat_across_list_parts_stays_named_until_its_copies_are_shown_together(answer, expected):
+    readings = [{"finds": [deepcopy(ITEM), *deepcopy(OTHERS)]}, {"finds": [deepcopy(ITEM)]}]
+    (_, _, repeats, _, _, _), _ = assembled(readings, valid(lambda *_: answer))
+    assert repeats == expected
+
+
+def test_a_raising_provider_keeps_assembly_on_the_direct_path_but_halts_the_durable_one():
+    readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+
+    def timeout(*_):
+        raise TimeoutError("read timed out")
+    (root, _, repeats, _, calls, issues), item_sources = assembled(readings, CountingChat(timeout))
+    assert root["finds"] == [ITEM, ITEM] and repeats and len(item_sources) == 2
+    assert [(call.ok, call.recovered, call.error) for call in calls] == [
+        (False, True, "provider call raised TimeoutError")]
+    assert [issue.code for issue in issues] == ["resolution_failed"]
+
+    class Runtime:
+        def complete(self, *args, **kwargs):
+            raise RuntimeError("capture could not be saved")
+    chat = CountingChat(timeout)
+    with pytest.raises(RuntimeError):
+        assembled(readings, Router(chat, chat, runtime=Runtime()))
 
 
 def test_a_failed_resolution_keeps_values_and_records_a_recovered_failed_call():
@@ -101,10 +171,10 @@ def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
     assert [issue.code for issue in issues] == ["resolution_failed"]
 
 
-def test_one_failed_list_part_preserves_the_entire_assembled_list():
+def test_one_unsettled_list_part_preserves_the_entire_assembled_list():
     readings = [{"finds": [deepcopy(ITEM) for _ in range(61)]}, {"finds": []}]
     (root, _, _, _, _, issues), item_sources = assembled(readings,
-        CountingChat(lambda *_: {"L1": [], "L2": "UNSURE"}))
+        valid(lambda *_: {"L1": [], "L2": None}))
     assert len(root["finds"]) == len(item_sources) == 61 and not issues
 
 
@@ -124,11 +194,14 @@ def test_an_oversized_resolution_keeps_assembly_before_durable_call_admission():
     assert issues[0].code == "resolution_exceeds_budget"
 
 
-def test_failed_resolution_does_not_make_article_processing_incomplete(monkeypatch):
+@pytest.mark.parametrize("raises", [False, True])
+def test_failed_resolution_does_not_make_article_processing_incomplete(monkeypatch, raises):
     source, request = occurrence_input(monkeypatch, "off")
 
     class FailedResolution(CountingChat):
         def complete(self, **kwargs):
+            if raises and resolving(kwargs["user"]):
+                raise TimeoutError("read timed out")
             reply = super().complete(**kwargs)
             return replace(reply, text="{", finish="length") if resolving(kwargs["user"]) else reply
 
@@ -145,7 +218,7 @@ def test_failed_resolution_does_not_make_article_processing_incomplete(monkeypat
 def test_a_kept_later_occurrence_is_grounded_and_retained_in_its_own_source(monkeypatch, grounding):
     source, request = occurrence_input(monkeypatch, grounding)
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
-    chat = CountingChat(lambda s, u, schema: {"L1": ["I2"]} if resolving(u) else occurrence_reply(s, u, schema))
+    chat = valid(lambda s, u, schema: {"L1": ["I2"]} if resolving(u) else occurrence_reply(s, u, schema))
     extract = lambda router, counter: run.dispatch(None, source, request, router,
         counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)
