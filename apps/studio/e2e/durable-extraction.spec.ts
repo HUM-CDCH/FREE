@@ -540,7 +540,7 @@ test('a delayed correction acknowledgement keeps menu Escape usable without dupl
   } finally {release.resolve();await fixture.close()}
 })
 
-test('shared correction Evidence navigates Markdown UTF-8 spans and stable value links',async({page})=>{
+test('shared correction Evidence reveals linked Results fields from Markdown UTF-8 spans and stable value links',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
     const source=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)
@@ -575,9 +575,10 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
     await expect(mark).toHaveText(passage)
     await expect(mark).toHaveAccessibleName(/title: Corrected title.*site: Corrected site/)
     await mark.click()
-    const popover=page.getByRole('dialog',{name:'Values in this passage'})
-    await expect(popover).toBeVisible()
-    await popover.getByRole('button',{name:'site · Corrected site'}).click()
+    await expect(page.getByRole('dialog',{name:'Values in this passage'})).toHaveCount(0)
+    await expect(page.locator('[data-evidence-linked="true"]')).toHaveCount(2)
+    await expect(page.getByRole('region',{name:'Review title',exact:true})).toContainText('Corrected title')
+    await page.getByRole('button',{name:/^Edited site Corrected site/}).click()
     await expect(page.getByRole('region',{name:'Review site',exact:true})).toContainText('Corrected site')
     await expect(mark).toHaveAttribute('aria-current','true')
     await page.goto(`${fixture.url}?extractionId=${id}&value=site`)
@@ -674,7 +675,7 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     // Corrections list newest first: revisions 3, 2, 1.
     const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(0).getAttribute('href')
     await page.goto(historical!);await page.locator('#rail-tab-results').click()
-    await expect(page.getByRole('region',{name:'Review work'})).toContainText('{"a":10,"b":2}')
+    await expect(page.getByRole('region',{name:'Review work'})).toContainText('a: 10 · b: 2')
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
     await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)
   } finally {await second?.close();await fixture.close()}
