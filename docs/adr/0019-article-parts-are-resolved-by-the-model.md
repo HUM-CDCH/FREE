@@ -96,6 +96,9 @@ settle what it can.
   stays, marked for review. Each list item's answer
   reserves room for its `of`, so list parts hold fewer items.
 - A run read in one call is unchanged: one part, nothing to resolve.
+- Review shows `uncertain_items`, `dropped_items` and `resolved_value` from the run's completion snapshot
+  (`coverage.diagnostics`), each at its field and, for an item kept, its kept index; they belong to that
+  snapshot only, so the results of a later attempt that names none show none.
 - The model can drop a list item that belonged to the document or pick a wrong
   reading. Unlike a Value Disagreement, a picked value reaches review and
   export as the answer; the issues keep what it replaced.

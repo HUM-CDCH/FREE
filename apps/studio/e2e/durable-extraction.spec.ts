@@ -831,3 +831,30 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
   } finally {await fixture.close()}
 })
+
+test('run diagnostics of the saved completion snapshot show at their occurrences and survive reload',async({page},testInfo)=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const issue=(code:string,field:string,detail:object)=>({code,detail:JSON.stringify({path:[field],...detail}),record:0,path:['records',0,field]})
+    const coverage={sourceGeneration:'g1',finalizedAttempt:{attemptId:randomUUID(),generation:1,selectionId:randomUUID(),complete:true},diagnostics:{issues:[
+      issue('uncertain_items','fees',{items:[{index:1,of:'',label:'UNSURE'}]}),
+      issue('dropped_items','fees',{dropped:[10],of:['Smith 2001']}),
+      issue('resolved_value','title',{chosen:'Own title',alternatives:['Own title','Cited title']})]}}
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'},{id:'fees',name:'fees',type:'array',itemType:'number'}],
+      ['Own title',[10,10]],'COMPLETED',{coverage})
+    const served=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json())
+    expect(served.coverage.diagnostics).toEqual(coverage.diagnostics)
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    const diagnostics=page.getByRole('region',{name:'Run diagnostics'})
+    const expected=['fees · item 2: 10 · kept, not settled (UNSURE)','fees · left out: 10, given to “Smith 2001”',
+      'title · picked Own title among Own title / Cited title']
+    await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
+    await expect(diagnostics).toContainText(`From saved results 1 · source generation g1 · attempt ${coverage.finalizedAttempt.attemptId.slice(0,8)}`)
+    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('before-reload.png')})
+    await page.reload();await page.locator('#rail-tab-results').click()
+    await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
+    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('after-reload.png')})
+  } finally {await fixture.close()}
+})

@@ -972,3 +972,38 @@ it('publishes its marks with its Extraction, and clears them and the dim when it
   view.unmount()
   expect(selection.snapshot()).toMatchObject({marks:null,dim:null})
 })
+
+it('shows the run diagnostics of the results shown at their occurrences, and none from an earlier snapshot',async()=>{
+  const node={id:'fees',name:'fees',type:'array',itemType:'number'},titleNode={id:'title',name:'title',type:'string'}
+  const value={id:'fees',recordId:'document',fieldId:'fees',path:['records',0,'fees'],selectionId:'original',schemaRevisionId:'schema',
+    node,modelValue:[10,10],evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const title={...value,id:'title',fieldId:'title',path:['records',0,'title'],node:titleNode,modelValue:'Own title'}
+  const issue=(code:string,field:string,detail:object)=>({code,detail:JSON.stringify({path:[field],...detail}),record:0,path:['records',0,field]})
+  const coverage={sourceGeneration:'g1',finalizedAttempt:{attemptId:'0a1b2c3d-0000-4000-8000-000000000001',generation:1,selectionId:'original',complete:true},diagnostics:{issues:[
+    issue('uncertain_items','fees',{items:[{index:1,of:'',label:'UNSURE'}]}),
+    issue('dropped_items','fees',{dropped:[10],of:['Smith 2001']}),
+    issue('resolved_value','title',{chosen:'Own title',alternatives:['Own title','Cited title']}),
+    {code:'resolution_failed',detail:'not shown here',record:0,path:null}]}}
+  const page={snapshotVersion:3,feedbackVersion:0,reviewCounts:{required:2,toCheck:2,approved:0,edited:0,rejected:0},values:[value,title],total:2,next:null,coverage} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:0,snapshotVersion:3,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[node,titleNode]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:2,inFlight:0},records:null,reading:[]}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  vi.useFakeTimers()
+  try {
+    await act(async()=>{render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
+    const diagnostics=screen.getByRole('region',{name:'Run diagnostics'})
+    expect(diagnostics).toHaveTextContent('From saved results 3 · source generation g1 · attempt 0a1b2c3d, generation 1')
+    const entries=within(diagnostics).getAllByRole('listitem')
+    expect(entries.map(entry=>[entry.textContent,entry.dataset.diagnosticPath])).toEqual([
+      ['fees · item 2: 10 · kept, not settled (UNSURE)','["records",0,"fees",1]'],
+      ['fees · left out: 10, given to “Smith 2001”','["records",0,"fees"]'],
+      ['title · picked Own title among Own title / Cited title','["records",0,"title"]']])
+    // The first of the two equal items is not the uncertain one.
+    expect(within(diagnostics).queryByText(/item 1/)).toBeNull()
+    // Reprocessing publishes a newer snapshot whose run named nothing: the earlier snapshot's diagnostics stay with it.
+    const newer={...page,snapshotVersion:4,coverage:{sourceGeneration:'g1',finalizedAttempt:{attemptId:'9f8e7d6c-0000-4000-8000-000000000002',generation:2,selectionId:'original',complete:true}}}
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,snapshotVersion:4},page:newer} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(31_000)})
+    expect(screen.queryByRole('region',{name:'Run diagnostics'})).toBeNull()
+  } finally {vi.useRealTimers()}
+})

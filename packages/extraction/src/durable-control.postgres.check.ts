@@ -373,3 +373,72 @@ test('a Value Disagreement decision binds to its readings: choices apply until t
   assert.deepEqual(values.get('title-value')!.historicalCorrection.decision.choices,[{path:[],value:'A'}])
   assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:2,approved:0,edited:0,rejected:0,toCheck:2})
 })
+
+test('the review page reads the run diagnostics of the completion snapshot shown, and a reprocessed attempt never inherits them',async t=> {
+  const base=process.env.EXTRACTION_TEST_DATABASE_URL
+  if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to an explicit disposable free_test_* target.')
+  const target=await provisionDatabase(base,`free_test_durable_diagnostics_${randomBytes(5).toString('hex')}`)
+  const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
+  t.after(async()=>{await source.end();await admin.end();await target.drop()})
+  await migrate(target.url);await admin.connect()
+  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1
+  const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
+  const id=randomUUID()
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  const client=await source.connect()
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  const repository=createDurableRepository(fixture.accountId,source)
+  const node=ARTICLE_TREE.schemaNodes[0]
+  const publish=(head:{attemptId:string;selectionId:string},epoch:number,identity:string,values:unknown[],coverage:Record<string,unknown>)=>
+    admin.query('SELECT extraction_runtime.publish_snapshot($1,$2,$3,$4,$5,$6,$7) AS v',[id,head.attemptId,epoch,identity,head.selectionId,JSON.stringify(values),coverage]).then(result=>result.rows[0].v)
+  const valueOf=(head:{selectionId:string},schemaRevisionId:string,modelValue:string)=>({id:'title',recordId:'document',fieldId:node.id,path:['records',0,node.name],
+    selectionId:head.selectionId,schemaRevisionId,node,modelValue,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]})
+  // Issue entries as the Article method returns them: `detail` is a JSON string, `path` the record's field.
+  const issue=(code:string,detail:unknown)=>({code,detail:JSON.stringify(detail),record:0,path:['records',0,node.name]})
+  const issues=[issue('resolved_value',{path:[node.name],chosen:'Kept',alternatives:['Kept','Other']}),
+    issue('dropped_items',{path:[node.name],dropped:['Gone'],of:['Another work']}),
+    issue('uncertain_items',{path:[node.name],items:[{index:1,of:'',label:'UNSURE'}]})]
+  let head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  let claim=(await admin.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
+  const generation=head.sourcePin.generation
+  const record=await publish(head,claim.epoch,randomUUID(),[valueOf(head,fixture.revisions.article,'Kept')],
+    {sourceGeneration:generation,processingComplete:true,completedScopes:{},historicalProposals:{},diagnostics:{issues,seconds:1.5}})
+  const finalizedAttempt={attemptId:head.attemptId,generation:head.generation,selectionId:head.selectionId,complete:true}
+  const completion={sourceGeneration:generation,finalizedAttempt,diagnostics:{issues}},identity=randomUUID()
+  const completed=await publish(head,claim.epoch,identity,[],completion)
+  // The given completion coverage is stored as given; only the producer's bookkeeping keys are merged in.
+  assert.deepEqual(completed.coverage.diagnostics,{issues})
+  assert.deepEqual(completed.coverage.finalizedAttempt,finalizedAttempt)
+  // A replayed completion publication is the same snapshot: nothing new, nothing duplicated.
+  assert.deepEqual(await publish(head,claim.epoch,identity,[],completion),completed)
+  const shown=await repository.page(id)
+  assert.equal(shown.snapshotVersion,completed.version);assert.equal(shown.snapshotVersion,record.version+1)
+  assert.deepEqual(shown.coverage.diagnostics,{issues})
+  assert.deepEqual(shown.coverage.finalizedAttempt,finalizedAttempt)
+  assert.equal(shown.coverage.sourceGeneration,generation)
+  assert.deepEqual((await repository.page(id,{snapshotVersion:record.version})).coverage.diagnostics,{issues,seconds:1.5})
+  assert.equal(await admin.query('SELECT extraction_runtime.acknowledge($1,$2,$3,true,NULL) AS v',[id,head.attemptId,claim.epoch]).then(result=>result.rows[0].v),'COMPLETED')
+  // Reprocess under new inputs: a new generation and attempt whose run reports no diagnostics shows none of the old ones.
+  const revised=randomUUID()
+  await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,'RESEARCHER_EDIT',"schemaTree",'document' FROM public."schemaRevision" WHERE id=$2`,[revised,fixture.revisions.article])
+  let state=await repository.read(id)
+  const selected=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:{models:null,settings:{article:null}}})
+  await repository.adoptSelection(id,{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:['title']})
+  state=await repository.read(id)
+  await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'resume'})
+  const previous=head
+  head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  assert.notEqual(head.attemptId,previous.attemptId);assert.ok(head.generation>previous.generation)
+  claim=(await admin.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
+  await publish(head,claim.epoch,randomUUID(),[valueOf(head,revised,'Reread')],
+    {sourceGeneration:generation,processingComplete:true,completedScopes:{},historicalProposals:{}})
+  assert.equal((await repository.page(id)).coverage.diagnostics,undefined)
+  await publish(head,claim.epoch,randomUUID(),[],{sourceGeneration:generation,
+    finalizedAttempt:{attemptId:head.attemptId,generation:head.generation,selectionId:head.selectionId,complete:true}})
+  const reprocessed=await repository.page(id)
+  assert.equal(reprocessed.values[0].modelValue,'Reread')
+  assert.equal(reprocessed.coverage.finalizedAttempt.attemptId,head.attemptId)
+  assert.equal(reprocessed.coverage.diagnostics,undefined)
+  // The earlier snapshot keeps its own diagnostics.
+  assert.deepEqual((await repository.page(id,{snapshotVersion:completed.version})).coverage.diagnostics,{issues})
+})

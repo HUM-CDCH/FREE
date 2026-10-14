@@ -17,6 +17,7 @@ import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
 import ResultsHeader, { type StatusLine } from './ResultsHeader'
 import ResultsMenu from './ResultsMenu'
+import { RunDiagnostics } from './RunDiagnostics'
 import { durableRailModel, durableRailRow, type RunProgress } from './durableRailModel'
 import { evidenceQuote } from './evidenceQuote'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
@@ -602,6 +603,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
+      <RunDiagnostics page={page}/>
       {review&&(focus||!inline)&&<div data-result-key={review.value.id} className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>

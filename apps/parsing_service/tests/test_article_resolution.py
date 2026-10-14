@@ -614,8 +614,8 @@ def test_an_own_method_citing_a_borrowed_method_leaves_only_when_the_model_calls
 
 
 def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_replay(monkeypatch):
-    """The issue naming a kept, uncertain item reaches the durable record publication's diagnostics, at its kept index,
-    and a replay publishes the same without a new call. (The review page does not read run diagnostics yet.)"""
+    """The issue naming a kept, uncertain item reaches the durable record publication's diagnostics and the completion
+    publication the review page reads, at its kept index, and a replay publishes the same without a new call."""
     source, request = occurrence_input(monkeypatch, "semantic")
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     chat = valid(lambda s, u, schema: labelling(L1={"I1": "UNSURE"})(s, u, schema) if resolving(u)
@@ -628,8 +628,14 @@ def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_rep
         return [issue for publication in publications for issue in
                 publication["coverage"].get("diagnostics", {}).get("issues", []) if issue["code"] == "uncertain_items"]
     first = saved(lease.publications.values())
-    assert len(first) == 1 and first[0]["path"] == ["records", 0, "fees"]
+    assert len(first) == 2 and first[0] == first[1] and first[0]["path"] == ["records", 0, "fees"]
     assert json.loads(first[0]["detail"]) == {"path": ["fees"], "items": [{"index": 0, "of": "", "label": "UNSURE"}]}
+    def completions():
+        return [p["coverage"] for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]]
+    [completion] = completions()
+    assert completion["finalizedAttempt"]["attemptId"] == lease.attempt
+    assert completion["diagnostics"] == {"issues": result["issues"]}
     before, count = set(lease.publications), len(chat.calls)
     assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count
-    assert saved(lease.publications[key] for key in set(lease.publications) - before) in ([], first)
+    assert saved(lease.publications[key] for key in set(lease.publications) - before) in ([], first[:1])
+    assert completions() == [completion]
