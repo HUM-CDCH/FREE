@@ -71,7 +71,8 @@ settle what it can.
 
 - `ARTICLE_VERSION` 12, and 13 for token-sized list parts and repeats of
   OTHER items (version 10 adds the context fallback). Replays of earlier artifacts (`fixed_upstream`) skip
-  resolution, which they did not make.
+  resolution, which they did not make. A version 12 artifact is refused and must be run again: version 13
+  sizes, counts and decides its list parts differently.
 - A run read in one call is unchanged: one part, nothing to resolve.
 - The model can drop a list item that belonged to the document or pick a wrong
   reading. Unlike a Value Disagreement, a picked value reaches review and

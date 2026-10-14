@@ -299,6 +299,8 @@ def test_a_list_too_long_for_one_request_is_resolved_in_parts_that_each_fit():
     assert len(parts) > 1 and all(len(part) == 1 for part in parts)
     sizes = [len(next(iter(part.values()))) for part in parts]
     assert sum(sizes) == 50 and len(calls) == len(parts)
+    for call, start, size in zip(chat.calls, [sum(sizes[:n]) for n in range(len(sizes))], sizes):
+        assert f"(items {start + 1}-{start + size} of 50)" in call["user"]
     for call, part, size, following in zip(chat.calls, parts, sizes, [*parts[1:], None]):
         reserve = 256 + 10 * size
         words = len(call["system"].split()) + len(call["user"].split()) + WordCounter.template_tokens
