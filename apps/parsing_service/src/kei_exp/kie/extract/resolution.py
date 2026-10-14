@@ -5,11 +5,11 @@ own value may return another one: a cited work's year, a section heading as the 
 name or page number. Once a split source's contexts answered, `resolve` shows the reasoning model the document's
 opening and every place's readings, each
 with the pages and source text it was read from, and asks which reading is the document's own value (a candidate,
-NONE when none is, UNSURE when the source does not settle it) and which list items to leave out of the document's own
-list, each with its reason (null when the source does not settle it). A chosen or NONE place replaces assembly's
-null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps every item the model did not leave out, in reading
-order: an item of another work or entity, or a repeat, which is only an item equal to one kept beside it, so a second
-reading of an own item that differs from it is never one. Equal items in different list parts were never compared, so
+NONE when none is, UNSURE when the source does not settle it) and, for every list item, whether it is the document's
+own, another work's or entity's, or a repeat (null when the source does not settle the list). A chosen or NONE place
+replaces assembly's null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps every item not labelled
+another's or a repeat, in reading order; a repeat is only an item equal to one labelled own beside it, so a second
+reading of an own item that differs from it is never one. An answer that leaves an item unlabelled changes nothing. Equal items in different list parts were never compared, so
 their possible repeat stays named. A call that fails or answers outside its labels changes nothing.
 """
 from __future__ import annotations
@@ -31,7 +31,8 @@ from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import text_of
 
 NONE, UNSURE = "NONE", "UNSURE"
-OTHER, REPEAT = "OTHER", "REPEAT"  # why a list item is left out: another work's or entity's, or the same thing again
+# A list item is the document's own, another work's or entity's, or the same thing printed again.
+OWN, OTHER, REPEAT = "OWN", "OTHER", "REPEAT"
 # shortcut: a list longer than this is resolved in parts, so an item repeating one in another part is kept and stays
 # named as a possible repeat; resolve across parts (a second pass over the kept items) when long lists show them.
 LIST_CHUNK = 60
@@ -53,15 +54,15 @@ RESOLUTION = (
     "NONE when no candidate is (a value only a cited work, a heading or another entity has is never the document's "
     "own, even when it is the only candidate; when the opening states the document's own value and no candidate is "
     "it, answer NONE), or UNSURE when the source does not settle it. For each list place "
-    "(L...), name each item to leave out of the document's own list with its reason, or answer null when the source "
-    "does not settle it; an item not named is kept, so {{}} keeps every item. OTHER: an item of another work or entity "
-    "(a work the document cites, a reference, another document). REPEAT, offered only for an item marked 'same value "
-    "as': the same thing printed again (a running header or footer, a repeated byline), and only when its source "
-    "shows the same thing again; equal values that describe different things are separate items: keep each. A value "
-    "printed several times is shown at each place, since which one a reading read is not known; when those places do "
-    "not show that equal items are the same thing, keep each. Two readings of one of the document's own things that "
-    "differ, or where one has values the other lacks, are neither: keep both. Each item is shown whole, with the "
-    "source around its value printed the fewest times. Return only the JSON object.")
+    "(L...), label every item, or answer null for the place when the source does not settle it. OWN: an item of the "
+    "document's own list. OTHER: an item of another work or entity (a work the document cites, a reference, another "
+    "document). REPEAT, offered only for an item marked 'same value as': the same thing printed again (a running "
+    "header or footer, a repeated byline), and only when its source shows the same thing again; equal values that "
+    "describe different things are separate items: label each OWN. A value printed several times is shown at each "
+    "place, since which one a reading read is not known; when those places do not show that equal items are the same "
+    "thing, label each OWN. Two readings of one of the document's own things that differ, or where one has values "
+    "the other lacks, are both OWN. Each item is shown whole, with the source around its value printed the fewest "
+    "times. Return only the JSON object.")
 
 
 def _places(nodes: Sequence[Node], path: tuple[str, ...] = ()):
@@ -157,15 +158,15 @@ def _sections(readings: Sequence[dict], groups: Sequence[Context], nodes: Sequen
                     sources = item_sources[(*path, index)]
                     lines.append(f"  {label} = {_shown(item, groups[sources[0]['unit']], whole=True)}"
                                  + (f" (same value as {same})" if same != label else ""))
-                # Only an item equal to another may be left out as a repeat; any other is kept unless another's.
-                reasons = {label: [OTHER, REPEAT] if list(equal.values()).count(equal[label]) > 1 else [OTHER]
-                           for label in labels}
+                # Every item is labelled; only an item equal to another may be a repeat.
+                reasons = {label: [OWN, OTHER, REPEAT] if list(equal.values()).count(equal[label]) > 1
+                           else [OWN, OTHER] for label in labels}
                 sections.append({"key": key, "kind": "list", "path": path, "start": start,
                                  "options": dict(zip(labels, (item for _, item in part))), "text": "\n".join(lines),
                                  "indices": dict(zip(labels, (index for index, _ in part))), "equal": equal,
                                  "schema": {"type": ["object", "null"], "additionalProperties": False,
                                             "properties": {label: {"type": "string", "enum": reasons[label]}
-                                                           for label in labels}}})
+                                                           for label in labels}, "required": labels}})
             continue
         alternatives: dict[str, dict] = {}
         for index, reading in enumerate(readings):
@@ -254,15 +255,14 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
             if section["kind"] == "list":
                 parts = kept.setdefault(path, [])
                 reasons = section["schema"]["properties"]
-                if (parts is None or not isinstance(choice, dict)
-                        or any(label not in reasons or reason not in reasons[label]["enum"]
-                               for label, reason in choice.items())):
+                if (parts is None or not isinstance(choice, dict) or set(choice) != set(reasons)
+                        or any(reason not in reasons[label]["enum"] for label, reason in choice.items())):
                     kept[path] = None
                     continue
-                # A repeat is left out only beside an equal item that stays: equal items all named repeats are kept.
-                staying = {section["equal"][label] for label in section["options"] if label not in choice}
+                # A repeat is left out only beside an equal item labelled own: equal items all repeats are kept.
+                staying = {section["equal"][label] for label, reason in choice.items() if reason == OWN}
                 gone = {label for label, reason in choice.items()
-                        if reason == OTHER or section["equal"][label] in staying}
+                        if reason == OTHER or (reason == REPEAT and section["equal"][label] in staying)}
                 parts.append((section["start"],
                               [item for label, item in section["options"].items() if label not in gone],
                               [item for label, item in section["options"].items() if label in gone],

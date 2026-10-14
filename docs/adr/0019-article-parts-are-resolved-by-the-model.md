@@ -37,11 +37,12 @@ settle what it can.
   occurrence, and is matched only as a whole word or number (10 is not the 210
   of a cited study); equal items those places do not tell apart are kept. For a scalar it answers a reading, NONE (no reading is
   the document's own, including when the opening states a value no reading
-  matches) or UNSURE. For a list it names each item to leave out with its
-  reason, or null when the source does not settle it; an item not named is
-  kept. OTHER is another work's or entity's item. REPEAT, offered only for an
-  item equal to another in its list, is the same thing printed again (a running
-  header, a repeated byline), and leaves only beside an equal item that stays.
+  matches) or UNSURE. For a list it labels every item, or answers null when
+  the source does not settle it: OWN, OTHER (another work's or entity's item)
+  or REPEAT, offered only for an item equal to another in its list: the same
+  thing printed again (a running header, a repeated byline), which leaves only
+  beside an equal item labelled OWN. An answer leaving an item unlabelled
+  changes nothing.
   Equal values that describe different things (two finds of one material) stay
   separate items, and two readings of one own item that differ (one part read a
   sample's temperature, another its imino content) are both kept: neither is a
@@ -72,7 +73,9 @@ settle what it can.
   reading. Unlike a Value Disagreement, a picked value reaches review and
   export as the answer; the issues keep what it replaced.
 - Rejected: a list answer naming the items to keep (an item the model omits is
-  lost, and a second reading of an own item reads as a repeat),
+  lost, and a second reading of an own item reads as a repeat), and one naming
+  only the items to leave out (the model sometimes named the items that
+  belong, which then all left),
   auto-picking without UNSURE (forces a choice the source does not
   settle), flagging foreign items without dropping them (the contamination
   still reaches review and export), and resolving by first, majority or

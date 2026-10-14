@@ -44,6 +44,14 @@ def valid(script):
     return CountingChat(checked)
 
 
+def labelling(**out):
+    """A resolution answer: each scalar's first label; each list place's items OWN except those `out` labels."""
+    def script(system, user, schema):
+        return {key: {label: out.get(key, {}).get(label, "OWN") for label in spec["properties"]}
+                if "properties" in spec else spec["enum"][0] for key, spec in schema["properties"].items()}
+    return script
+
+
 def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
     readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     original = deepcopy(readings)
@@ -64,7 +72,7 @@ def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
 
 def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (root, _, repeats, _, _, issues), item_sources = assembled(readings, valid(lambda *_: {"L1": {"I1": "REPEAT"}}))
+    (root, _, repeats, _, _, issues), item_sources = assembled(readings, valid(labelling(L1={"I1": "REPEAT"})))
     assert root["finds"] == [ITEM] and not repeats
     assert item_sources == {("finds", 0): [{"unit": 1, "path": ["finds", 0]}]}
     assert [entry["sources"] for entry in value_origins(readings, root, {}, [], item_sources=item_sources)] == [
@@ -78,12 +86,13 @@ def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
                                          ({"I2": "OTHER"}, [])])
 def test_overlap_diagnostics_follow_kept_indices(out, expected):
     readings = [{"finds": [{"name": "sword", "parts": []}, deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (_, _, _, joined, _, _), _ = assembled(readings, valid(lambda *_: {"L1": out}), overlap=True)
+    (_, _, _, joined, _, _), _ = assembled(readings, valid(labelling(L1=out)), overlap=True)
     assert joined == expected
 
 
-@pytest.mark.parametrize("answer", [{"L1": {"I3": "OTHER"}}, {"L1": {"I1": "MAYBE"}}, {"L1": ["I1"]},
-                                    {"L1": "UNSURE"}, {"L1": None}])
+@pytest.mark.parametrize("answer", [{"L1": {"I1": "OWN", "I2": "OWN", "I3": "OTHER"}}, {"L1": {"I1": "MAYBE", "I2": "OWN"}},
+                                    {"L1": {"I1": "OTHER"}}, {"L1": {}}, {"L1": ["I1"]}, {"L1": "UNSURE"},
+                                    {"L1": None}])
 def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer):
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     chat = CountingChat(lambda *_: answer)
@@ -103,19 +112,22 @@ TWO_READINGS = ["Sebastes mentella skin ASC had 64 hydroxyproline residues.",
 
 def test_a_differently_filled_reading_of_an_own_item_is_never_left_out_as_a_repeat():
     """Two parts read one sample with different values: neither is the other printed again, so REPEAT is not offered
-    for either, and an answer naming one a repeat is outside its labels and keeps the whole list."""
+    for either, and an answer labelling one a repeat is outside its labels and keeps the whole list. Every item must
+    be labelled: an answer naming only some items (the ones that belong, say) is never read as leaving the rest out."""
     readings = [{"finds": [deepcopy(READ[0])]}, {"finds": [deepcopy(READ[1])]}]
-    chat = CountingChat(lambda *_: {"L1": {"I2": "REPEAT"}})
+    chat = CountingChat(lambda *_: {"L1": {"I1": "OWN", "I2": "REPEAT"}})
     (root, _, _, _, _, issues), item_sources = assembled(readings, chat, texts=TWO_READINGS)
     reasons = chat.calls[0]["schema"]["properties"]["L1"]
-    assert reasons["properties"] == {label: {"type": "string", "enum": ["OTHER"]} for label in ("I1", "I2")}
-    assert not jsonschema.Draft202012Validator(reasons).is_valid({"I2": "REPEAT"})
+    assert reasons["properties"] == {label: {"type": "string", "enum": ["OWN", "OTHER"]} for label in ("I1", "I2")}
+    assert reasons["required"] == ["I1", "I2"]
+    for answer in ({"I1": "OWN", "I2": "REPEAT"}, {"I1": "OTHER"}):
+        assert not jsonschema.Draft202012Validator(reasons).is_valid(answer)
     assert root["finds"] == READ and len(item_sources) == 2 and not issues
 
 
 def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
     readings = [{"finds": [deepcopy(READ[0]), {"name": "cited cod skin"}]}, {"finds": [deepcopy(READ[1])]}]
-    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(lambda *_: {"L1": {"I2": "OTHER"}}),
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(labelling(L1={"I2": "OTHER"})),
                                                          texts=TWO_READINGS)
     assert root["finds"] == READ
     assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 0]}],
@@ -131,7 +143,7 @@ def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
     ({"I1": "OTHER", "I2": "REPEAT", "I3": "REPEAT"}, 2)])
 def test_a_repeat_is_left_out_only_beside_an_equal_item_that_stays(out, kept):
     readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (root, _, _, _, _, _), item_sources = assembled(readings, valid(lambda *_: {"L1": out}))
+    (root, _, _, _, _, _), item_sources = assembled(readings, valid(labelling(L1=out)))
     assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
 
 
@@ -227,12 +239,12 @@ OTHERS = [{"name": f"find {number}", "parts": []} for number in range(1, 60)]
 
 
 @pytest.mark.parametrize("answer,expected", [
-    ({"L1": {}, "L2": {}}, [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 60]}]),
-    ({"L1": {"I2": "OTHER"}, "L2": {}}, [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 59]}]),
-    ({"L1": {}, "L2": {"I1": "OTHER"}}, [])])
+    ({}, [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 60]}]),
+    ({"L1": {"I2": "OTHER"}}, [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 59]}]),
+    ({"L2": {"I1": "OTHER"}}, [])])
 def test_a_repeat_across_list_parts_stays_named_until_its_copies_are_shown_together(answer, expected):
     readings = [{"finds": [deepcopy(ITEM), *deepcopy(OTHERS)]}, {"finds": [deepcopy(ITEM)]}]
-    (_, _, repeats, _, _, _), _ = assembled(readings, valid(lambda *_: answer))
+    (_, _, repeats, _, _, _), _ = assembled(readings, valid(labelling(**answer)))
     assert repeats == expected
 
 
@@ -272,7 +284,7 @@ def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
             return replace(super().complete(**kwargs), input_tokens=1)
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     (root, _, repeats, _, calls, issues), item_sources = assembled(
-        readings, WrongCount(lambda *_: {"L1": {"I1": "REPEAT"}}))
+        readings, WrongCount(lambda *_: {"L1": {"I1": "REPEAT", "I2": "OWN"}}))
     assert root["finds"] == [ITEM, ITEM] and repeats and len(item_sources) == 2
     assert len(calls) == 1 and not calls[0].ok and calls[0].recovered
     assert "server reported 1" in calls[0].error
@@ -326,7 +338,8 @@ def test_failed_resolution_does_not_make_article_processing_incomplete(monkeypat
 def test_a_kept_later_occurrence_is_grounded_and_retained_in_its_own_source(monkeypatch, grounding):
     source, request = occurrence_input(monkeypatch, grounding)
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
-    chat = valid(lambda s, u, schema: {"L1": {"I1": "REPEAT"}} if resolving(u) else occurrence_reply(s, u, schema))
+    chat = valid(lambda s, u, schema: labelling(L1={"I1": "REPEAT"})(s, u, schema) if resolving(u)
+                 else occurrence_reply(s, u, schema))
     def extract(router, counter):
         return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)
