@@ -250,6 +250,12 @@
  "unverified": [],
  "issues": [
   {
+   "code": "resolution_exceeds_budget",
+   "detail": "the resolution request does not fit; assembled values are retained",
+   "record": 0,
+   "path": null
+  },
+  {
    "code": "conflicting_values",
    "detail": "{\"path\": [\"currency\"], \"candidates\": [\"USD\", \"EUR\"]}",
    "record": 0,

@@ -37,11 +37,16 @@ settle what it can.
   occurrence, and is matched only as a whole word or number (10 is not the 210
   of a cited study); equal items those places do not tell apart are kept. For a scalar it answers a reading, NONE (no reading is
   the document's own, including when the opening states a value no reading
-  matches) or UNSURE. For a list it returns the items that belong to the
-  document's own list, or null when the source does not settle it, leaving
-  out another work's or entity's item and the same thing printed again (a running header, a repeated byline); equal values
-  that describe different things (two finds of one material) stay separate
-  items. A scalar read alike by several parts is not
+  matches) or UNSURE. For a list it names each item to leave out with its
+  reason, or null when the source does not settle it; an item not named is
+  kept. OTHER is another work's or entity's item. REPEAT, offered only for an
+  item equal to another in its list, is the same thing printed again (a running
+  header, a repeated byline), and leaves only beside an equal item that stays.
+  Equal values that describe different things (two finds of one material) stay
+  separate items, and two readings of one own item that differ (one part read a
+  sample's temperature, another its imino content) are both kept: neither is a
+  repeat. Each item is shown whole, without its empty fields, where its least
+  printed value is. A scalar read alike by several parts is not
   asked; one read by a single part is, so a cited work's value cannot pass
   alone.
 - **What the model settles is a model value**, marked not checked like any
@@ -66,7 +71,9 @@ settle what it can.
 - The model can drop a list item that belonged to the document or pick a wrong
   reading. Unlike a Value Disagreement, a picked value reaches review and
   export as the answer; the issues keep what it replaced.
-- Rejected: auto-picking without UNSURE (forces a choice the source does not
+- Rejected: a list answer naming the items to keep (an item the model omits is
+  lost, and a second reading of an own item reads as a repeat),
+  auto-picking without UNSURE (forces a choice the source does not
   settle), flagging foreign items without dropping them (the contamination
   still reaches review and export), and resolving by first, majority or
   grounding (grounding attests presence, not membership in the document).

@@ -5,11 +5,12 @@ own value may return another one: a cited work's year, a section heading as the 
 name or page number. Once a split source's contexts answered, `resolve` shows the reasoning model the document's
 opening and every place's readings, each
 with the pages and source text it was read from, and asks which reading is the document's own value (a candidate,
-NONE when none is, UNSURE when the source does not settle it) and which list items belong to the document's own list
-(null when the source does not settle it). A chosen or NONE place replaces assembly's null-on-conflict; UNSURE keeps
-the Value Disagreement. A list keeps the items the model kept, in reading order; equal items in different list parts
-were never compared, so their possible repeat stays named. A call that fails or answers outside its labels changes
-nothing.
+NONE when none is, UNSURE when the source does not settle it) and which list items to leave out of the document's own
+list, each with its reason (null when the source does not settle it). A chosen or NONE place replaces assembly's
+null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps every item the model did not leave out, in reading
+order: an item of another work or entity, or a repeat, which is only an item equal to one kept beside it, so a second
+reading of an own item that differs from it is never one. Equal items in different list parts were never compared, so
+their possible repeat stays named. A call that fails or answers outside its labels changes nothing.
 """
 from __future__ import annotations
 
@@ -30,6 +31,7 @@ from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import text_of
 
 NONE, UNSURE = "NONE", "UNSURE"
+OTHER, REPEAT = "OTHER", "REPEAT"  # why a list item is left out: another work's or entity's, or the same thing again
 # shortcut: a list longer than this is resolved in parts, so an item repeating one in another part is kept and stays
 # named as a possible repeat; resolve across parts (a second pass over the kept items) when long lists show them.
 LIST_CHUNK = 60
@@ -51,13 +53,15 @@ RESOLUTION = (
     "NONE when no candidate is (a value only a cited work, a heading or another entity has is never the document's "
     "own, even when it is the only candidate; when the opening states the document's own value and no candidate is "
     "it, answer NONE), or UNSURE when the source does not settle it. For each list place "
-    "(L...), return the labels of the items that belong to the document's own list, or null when the source does not "
-    "settle it: leave out an item of another work "
-    "or entity, and an item that is the same thing printed again (a running header or footer, a repeated byline). An "
-    "item marked 'same value as' is such a repeat only when its source shows the same thing again; equal values that "
-    "describe different things are separate items: keep each. A value printed several times is shown at each place, "
-    "since which one a reading read is not known; when those places do not show that equal items are the same thing, "
-    "keep each. Return only the JSON object.")
+    "(L...), name each item to leave out of the document's own list with its reason, or answer null when the source "
+    "does not settle it; an item not named is kept, so {{}} keeps every item. OTHER: an item of another work or entity "
+    "(a work the document cites, a reference, another document). REPEAT, offered only for an item marked 'same value "
+    "as': the same thing printed again (a running header or footer, a repeated byline), and only when its source "
+    "shows the same thing again; equal values that describe different things are separate items: keep each. A value "
+    "printed several times is shown at each place, since which one a reading read is not known; when those places do "
+    "not show that equal items are the same thing, keep each. Two readings of one of the document's own things that "
+    "differ, or where one has values the other lacks, are neither: keep both. Each item is shown whole, with the "
+    "source around its value printed the fewest times. Return only the JSON object.")
 
 
 def _places(nodes: Sequence[Node], path: tuple[str, ...] = ()):
@@ -84,30 +88,51 @@ def _put(root: dict, path: Sequence[str], value: Any) -> None:
     root[path[-1]] = value
 
 
-def _needle(value: Any) -> str | None:
-    """The text a reading's value is printed as: the value, or an item's first non-blank string."""
-    if isinstance(value, dict):
-        return next((found for item in value.values() if (found := _needle(item))), None)
-    if isinstance(value, list):
-        return next((found for item in value if (found := _needle(item))), None)
-    return " ".join(str(value).split()) or None if value is not None else None
+def _leaves(value: Any):
+    """The texts a reading's value is printed as: the value, or each of an item's non-blank values in order."""
+    if isinstance(value, dict | list):
+        for item in value.values() if isinstance(value, dict) else value:
+            yield from _leaves(item)
+    elif value is not None and (text := " ".join(str(value).split())):
+        yield text
 
 
-def _shown(value: Any, context: Context) -> str:
-    """A reading as the model sees it: the value, its pages and the source around where the value is printed as a
-    whole word or number. A value printed several times is shown at its first `PRINTED` places with its count, never
-    as one occurrence: a reply names no position, so which one it read is unknown."""
+def _printed(needle: str, text: str) -> list[int]:
+    """Where `needle` is printed in `text` as a whole word or number."""
+    # A value printed digits first is a number; a word keeps only the whole-word rule, so Smith is in Jones-Smith.
+    pattern = (NUMBER_START if needle[0].isdigit() else "") + WHOLE.format(re.escape(needle))
+    return [match.start() for match in re.finditer(pattern, text, re.IGNORECASE)]
+
+
+def _compact(value: Any) -> Any:
+    """A value without its empty fields: null, blank text, empty lists and objects."""
+    if isinstance(value, dict | list):
+        kept = [(key, _compact(item)) for key, item in (value.items() if isinstance(value, dict) else enumerate(value))]
+        kept = [(key, item) for key, item in kept if item is not None and item != "" and item != [] and item != {}]
+        return dict(kept) if isinstance(value, dict) else [item for _, item in kept]
+    return value
+
+
+def _shown(value: Any, context: Context, *, whole: bool = False) -> str:
+    """A reading as the model sees it: the value (`whole`, an item, without its empty fields and never cut, since a cut
+    item hides the values that tell it from another), its pages and the source around where it is printed as a whole
+    word or number. An item is shown where its value printed the fewest times is: its sample's name is printed
+    everywhere, its measured value where it was read. A value printed several times is shown at its first `PRINTED`
+    places with its count, never as one occurrence: a reply names no position, so which one it read is unknown."""
     pages = sorted({passage.page for passage in context.primary or context.passages})
     where = f"page {pages[0]}" if len(pages) == 1 else f"pages {pages[0]}-{pages[-1]}" if pages else "no page"
     text = " ".join(text_of(context.passages).split())
-    needle = _needle(value)
-    # A value printed digits first is a number; a word keeps only the whole-word rule, so Smith is in Jones-Smith.
-    pattern = needle and (NUMBER_START if needle[0].isdigit() else "") + WHOLE.format(re.escape(needle))
-    found = [match.start() for match in re.finditer(pattern, text, re.IGNORECASE)] if needle else []
+    needle, found = "", []
+    for leaf in _leaves(value):
+        places = _printed(leaf, text)
+        if places and (not found or len(places) < len(found)):
+            needle, found = leaf, places
     shown = " | ".join(f"…{text[max(0, at - SNIPPET):at + len(needle) + SNIPPET]}…" for at in found[:PRINTED])
     around = (" (not printed verbatim)" if not found else f": {shown}" if len(found) == 1
               else f" (printed {len(found)} times; which one was read is not known): {shown}")
-    return f"{json.dumps(value, ensure_ascii=False)[:VALUE_CHARS]} — {where}{around}"
+    printed = (json.dumps(_compact(value), ensure_ascii=False) if whole
+               else json.dumps(value, ensure_ascii=False)[:VALUE_CHARS])
+    return f"{printed} — {where}{around}"
 
 
 def _sections(readings: Sequence[dict], groups: Sequence[Context], nodes: Sequence[Node], root: dict,
@@ -126,15 +151,21 @@ def _sections(readings: Sequence[dict], groups: Sequence[Context], nodes: Sequen
                 key = f"L{sum(section['kind'] == 'list' for section in sections) + 1}"
                 lines = [f"{key} · {name} (items {start + 1}-{start + len(part)} of {len(items)})"]
                 first: dict[str, str] = {}  # an equal item's first label in this part, named so a repeat is seen
+                equal: dict[str, str] = {}  # each item's first equal label: items with the same one are equal
                 for label, (index, item) in zip(labels, part):
-                    same = first.setdefault(canonical(item), label)
+                    same = equal[label] = first.setdefault(canonical(item), label)
                     sources = item_sources[(*path, index)]
-                    lines.append(f"  {label} = {_shown(item, groups[sources[0]['unit']])}"
+                    lines.append(f"  {label} = {_shown(item, groups[sources[0]['unit']], whole=True)}"
                                  + (f" (same value as {same})" if same != label else ""))
+                # Only an item equal to another may be left out as a repeat; any other is kept unless another's.
+                reasons = {label: [OTHER, REPEAT] if list(equal.values()).count(equal[label]) > 1 else [OTHER]
+                           for label in labels}
                 sections.append({"key": key, "kind": "list", "path": path, "start": start,
                                  "options": dict(zip(labels, (item for _, item in part))), "text": "\n".join(lines),
-                                 "indices": dict(zip(labels, (index for index, _ in part))),
-                                 "schema": {"type": ["array", "null"], "items": {"type": "string", "enum": labels}}})
+                                 "indices": dict(zip(labels, (index for index, _ in part))), "equal": equal,
+                                 "schema": {"type": ["object", "null"], "additionalProperties": False,
+                                            "properties": {label: {"type": "string", "enum": reasons[label]}
+                                                           for label in labels}}})
             continue
         alternatives: dict[str, dict] = {}
         for index, reading in enumerate(readings):
@@ -160,7 +191,7 @@ def _request(opening: str, sections: Sequence[dict]) -> tuple[str, dict, int]:
     user = f"### Document opening\n{opening}\n\n### Places\n" + "\n\n".join(section["text"] for section in sections)
     schema = {"type": "object", "properties": {section["key"]: section["schema"] for section in sections},
               "required": [section["key"] for section in sections], "additionalProperties": False}
-    reserve = 256 + sum(8 if section["kind"] == "scalar" else 6 * len(section["options"]) for section in sections)
+    reserve = 256 + sum(8 if section["kind"] == "scalar" else 10 * len(section["options"]) for section in sections)
     return user, schema, reserve
 
 
@@ -222,13 +253,20 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
             choice, path = answer.get(section["key"]), section["path"]
             if section["kind"] == "list":
                 parts = kept.setdefault(path, [])
-                if (parts is None or not isinstance(choice, list)
-                        or any(not isinstance(label, str) or label not in section["options"] for label in choice)):
+                reasons = section["schema"]["properties"]
+                if (parts is None or not isinstance(choice, dict)
+                        or any(label not in reasons or reason not in reasons[label]["enum"]
+                               for label, reason in choice.items())):
                     kept[path] = None
                     continue
-                parts.append((section["start"], [item for label, item in section["options"].items() if label in choice],
-                              [item for label, item in section["options"].items() if label not in choice],
-                              [index for label, index in section["indices"].items() if label in choice]))
+                # A repeat is left out only beside an equal item that stays: equal items all named repeats are kept.
+                staying = {section["equal"][label] for label in section["options"] if label not in choice}
+                gone = {label for label, reason in choice.items()
+                        if reason == OTHER or section["equal"][label] in staying}
+                parts.append((section["start"],
+                              [item for label, item in section["options"].items() if label not in gone],
+                              [item for label, item in section["options"].items() if label in gone],
+                              [index for label, index in section["indices"].items() if label not in gone]))
             elif isinstance(choice, str) and (choice in section["options"] or choice == NONE):
                 value = section["options"].get(choice)
                 _put(root, path, value)

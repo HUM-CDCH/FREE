@@ -63,9 +63,8 @@ def resolving(user: str) -> bool:
 
 
 def keeps_every_reading(schema: dict) -> dict:
-    """A resolution answer that settles nothing away: each place's first candidate, every list item."""
-    return {key: spec["items"]["enum"] if "items" in spec else spec["enum"][0]
-            for key, spec in schema["properties"].items()}
+    """A resolution answer that settles nothing away: each place's first candidate, no list item left out."""
+    return {key: {} if "properties" in spec else spec["enum"][0] for key, spec in schema["properties"].items()}
 
 
 def entry_text(user: str) -> str:

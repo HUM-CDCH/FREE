@@ -1,4 +1,5 @@
 """Resolution filters assembled occurrences without rewriting their original readings."""
+import json
 from copy import deepcopy
 from dataclasses import replace
 
@@ -49,7 +50,7 @@ def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
     chat = valid(lambda s, u, schema: keeps_every_reading(schema))
     (root, _, _, joined, _, _), item_sources = assembled(readings, chat, overlap=True)
     assert root["finds"] == [ITEM, ITEM]
-    assert chat.calls[0]["schema"]["properties"]["L1"]["items"]["enum"] == ["I1", "I2"]
+    assert list(chat.calls[0]["schema"]["properties"]["L1"]["properties"]) == ["I1", "I2"]
     assert joined == [{"path": ["finds"], "contexts": [0, 1], "index": 0}]
     origins = {tuple(entry["path"]): entry["sources"] for entry in
                value_origins(readings, root, {}, [], item_sources=item_sources)}
@@ -63,7 +64,7 @@ def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
 
 def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (root, _, repeats, _, _, issues), item_sources = assembled(readings, valid(lambda *_: {"L1": ["I2"]}))
+    (root, _, repeats, _, _, issues), item_sources = assembled(readings, valid(lambda *_: {"L1": {"I1": "REPEAT"}}))
     assert root["finds"] == [ITEM] and not repeats
     assert item_sources == {("finds", 0): [{"unit": 1, "path": ["finds", 0]}]}
     assert [entry["sources"] for entry in value_origins(readings, root, {}, [], item_sources=item_sources)] == [
@@ -73,15 +74,16 @@ def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
     assert issues[0].code == "dropped_items"
 
 
-@pytest.mark.parametrize("keep,expected", [(["I2"], [{"path": ["finds"], "contexts": [0, 1], "index": 0}]),
-                                          (["I1"], [])])
-def test_overlap_diagnostics_follow_kept_indices(keep, expected):
+@pytest.mark.parametrize("out,expected", [({"I1": "OTHER"}, [{"path": ["finds"], "contexts": [0, 1], "index": 0}]),
+                                         ({"I2": "OTHER"}, [])])
+def test_overlap_diagnostics_follow_kept_indices(out, expected):
     readings = [{"finds": [{"name": "sword", "parts": []}, deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (_, _, _, joined, _, _), _ = assembled(readings, valid(lambda *_: {"L1": keep}), overlap=True)
+    (_, _, _, joined, _, _), _ = assembled(readings, valid(lambda *_: {"L1": out}), overlap=True)
     assert joined == expected
 
 
-@pytest.mark.parametrize("answer", [{"L1": ["foreign"]}, {"L1": [{}]}, {"L1": "UNSURE"}, {"L1": None}])
+@pytest.mark.parametrize("answer", [{"L1": {"I3": "OTHER"}}, {"L1": {"I1": "MAYBE"}}, {"L1": ["I1"]},
+                                    {"L1": "UNSURE"}, {"L1": None}])
 def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer):
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     chat = CountingChat(lambda *_: answer)
@@ -90,6 +92,61 @@ def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer
     assert item_sources == {("finds", index): [{"unit": index, "path": ["finds", 0]}] for index in (0, 1)}
     # null is the list's abstention: the one answer here the constrained model can give.
     assert jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer) == (answer["L1"] is None)
+
+
+SAMPLE = {"species": "Sebastes mentella", "tissue": "skin", "preparation": None}
+READ = [SAMPLE | {"preparation": "ASC", "amino_acids": [{"analyte": "hydroxyproline", "value": 64}]},
+        SAMPLE | {"preparation": "ASC", "amino_acids": [{"analyte": "imino acids", "value": 16.5}]}]
+TWO_READINGS = ["Sebastes mentella skin ASC had 64 hydroxyproline residues.",
+                "Sebastes mentella skin ASC had an imino acid content of 16.5%."]
+
+
+def test_a_differently_filled_reading_of_an_own_item_is_never_left_out_as_a_repeat():
+    """Two parts read one sample with different values: neither is the other printed again, so REPEAT is not offered
+    for either, and an answer naming one a repeat is outside its labels and keeps the whole list."""
+    readings = [{"finds": [deepcopy(READ[0])]}, {"finds": [deepcopy(READ[1])]}]
+    chat = CountingChat(lambda *_: {"L1": {"I2": "REPEAT"}})
+    (root, _, _, _, _, issues), item_sources = assembled(readings, chat, texts=TWO_READINGS)
+    reasons = chat.calls[0]["schema"]["properties"]["L1"]
+    assert reasons["properties"] == {label: {"type": "string", "enum": ["OTHER"]} for label in ("I1", "I2")}
+    assert not jsonschema.Draft202012Validator(reasons).is_valid({"I2": "REPEAT"})
+    assert root["finds"] == READ and len(item_sources) == 2 and not issues
+
+
+def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
+    readings = [{"finds": [deepcopy(READ[0]), {"name": "cited cod skin"}]}, {"finds": [deepcopy(READ[1])]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(lambda *_: {"L1": {"I2": "OTHER"}}),
+                                                         texts=TWO_READINGS)
+    assert root["finds"] == READ
+    assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 0]}],
+                            ("finds", 1): [{"unit": 1, "path": ["finds", 0]}]}
+    assert [json.loads(issue.detail) for issue in issues] == [
+        {"path": ["finds"], "dropped": [{"name": "cited cod skin"}]}]
+
+
+@pytest.mark.parametrize("out,kept", [
+    ({"I1": "REPEAT", "I2": "REPEAT"}, 1),  # the copy that stays is the one repeated
+    ({"I1": "REPEAT"}, 2),
+    ({"I1": "REPEAT", "I2": "REPEAT", "I3": "REPEAT"}, 3),  # nothing stays for them to repeat: all kept
+    ({"I1": "OTHER", "I2": "REPEAT", "I3": "REPEAT"}, 2)])
+def test_a_repeat_is_left_out_only_beside_an_equal_item_that_stays(out, kept):
+    readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+    (root, _, _, _, _, _), item_sources = assembled(readings, valid(lambda *_: {"L1": out}))
+    assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
+
+
+def test_an_item_is_shown_whole_where_its_least_printed_value_is():
+    """A cut item hides the values that tell it from another, and its sample name is printed everywhere: the item is
+    shown without empty fields and never cut, at the place its measured value is printed."""
+    note = "tissue from the dorsal side, " * 8
+    item = SAMPLE | {"note": note.strip(), "amino_acids": [{"analyte": "hydroxyproline", "value": 67.3}]}
+    text = ("Sebastes mentella skin was studied. " + "Background. " * 20 + "Sebastes mentella is a redfish. "
+            + "Background. " * 20 + "Table 1: raw skin hydroxyproline 67.3 mg/g.")
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
+    assembled([{"finds": [item]}, {"finds": []}], chat, texts=[text, "Nothing."])
+    shown = next(line for line in chat.calls[0]["user"].splitlines() if line.startswith("  I1 = "))
+    assert json.dumps({key: value for key, value in item.items() if value is not None}, ensure_ascii=False) in shown
+    assert "preparation" not in shown and "raw skin hydroxyproline 67.3 mg/g" in shown and "printed" not in shown
 
 
 def test_a_value_is_shown_where_it_is_printed_as_a_whole_number():
@@ -170,11 +227,9 @@ OTHERS = [{"name": f"find {number}", "parts": []} for number in range(1, 60)]
 
 
 @pytest.mark.parametrize("answer,expected", [
-    ({"L1": [f"I{n}" for n in range(1, 61)], "L2": ["I1"]},
-     [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 60]}]),
-    ({"L1": ["I1", *(f"I{n}" for n in range(3, 61))], "L2": ["I1"]},
-     [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 59]}]),
-    ({"L1": [f"I{n}" for n in range(1, 61)], "L2": []}, [])])
+    ({"L1": {}, "L2": {}}, [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 60]}]),
+    ({"L1": {"I2": "OTHER"}, "L2": {}}, [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 59]}]),
+    ({"L1": {}, "L2": {"I1": "OTHER"}}, [])])
 def test_a_repeat_across_list_parts_stays_named_until_its_copies_are_shown_together(answer, expected):
     readings = [{"finds": [deepcopy(ITEM), *deepcopy(OTHERS)]}, {"finds": [deepcopy(ITEM)]}]
     (_, _, repeats, _, _, _), _ = assembled(readings, valid(lambda *_: answer))
@@ -216,7 +271,8 @@ def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
         def complete(self, **kwargs):
             return replace(super().complete(**kwargs), input_tokens=1)
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
-    (root, _, repeats, _, calls, issues), item_sources = assembled(readings, WrongCount(lambda *_: {"L1": ["I2"]}))
+    (root, _, repeats, _, calls, issues), item_sources = assembled(
+        readings, WrongCount(lambda *_: {"L1": {"I1": "REPEAT"}}))
     assert root["finds"] == [ITEM, ITEM] and repeats and len(item_sources) == 2
     assert len(calls) == 1 and not calls[0].ok and calls[0].recovered
     assert "server reported 1" in calls[0].error
@@ -226,7 +282,7 @@ def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
 def test_one_unsettled_list_part_preserves_the_entire_assembled_list():
     readings = [{"finds": [deepcopy(ITEM) for _ in range(61)]}, {"finds": []}]
     (root, _, _, _, _, issues), item_sources = assembled(readings,
-        valid(lambda *_: {"L1": [], "L2": None}))
+        valid(lambda *_: {"L1": {f"I{n}": "OTHER" for n in range(1, 61)}, "L2": None}))
     assert len(root["finds"]) == len(item_sources) == 61 and not issues
 
 
@@ -270,7 +326,7 @@ def test_failed_resolution_does_not_make_article_processing_incomplete(monkeypat
 def test_a_kept_later_occurrence_is_grounded_and_retained_in_its_own_source(monkeypatch, grounding):
     source, request = occurrence_input(monkeypatch, grounding)
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
-    chat = valid(lambda s, u, schema: {"L1": ["I2"]} if resolving(u) else occurrence_reply(s, u, schema))
+    chat = valid(lambda s, u, schema: {"L1": {"I1": "REPEAT"}} if resolving(u) else occurrence_reply(s, u, schema))
     def extract(router, counter):
         return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)

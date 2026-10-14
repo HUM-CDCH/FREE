@@ -170,14 +170,14 @@ def bounded_article(script, **method):
 
 
 def settle(user: str, schema: dict, **choices) -> dict:
-    """A resolution answer by field name: a label, NONE or UNSURE per scalar place, the kept labels per list place."""
+    """A resolution answer by field name: a label, NONE or UNSURE per scalar place, the items left out per list place."""
     names = dict(re.findall(r"^([SL]\d+) · (\S+)", user, re.MULTILINE))
     return {key: choices[names[key]] for key in schema["properties"]}
 
 
 def two_parts(system, user, schema):
     if resolving(user):  # the year stays open, Ribe is the place, the second context's urn repeats the first's
-        return settle(user, schema, year="UNSURE", place="C1", authors=["I1"], finds=["I1", "I2", "I4"])
+        return settle(user, schema, year="UNSURE", place="C1", authors={}, finds={"I3": "REPEAT"})
     if "title" not in schema["properties"]:  # grounding: nothing attested
         return {claim: ({"label": "NONE", "quote": "", "attribution": False} if spec.get("type") == "object"
                         else "NONE") for claim, spec in schema["properties"].items()}
