@@ -103,6 +103,21 @@ def test_a_value_is_shown_where_it_is_printed_as_a_whole_number():
     assert "Our study had 10 participants" in shown and "210" not in shown
 
 
+@pytest.mark.parametrize("answer,expected", [("C2", 12), ("NONE", None)])
+def test_a_disagreeing_scalar_settled_to_a_reading_or_none_replaces_its_conflict(answer, expected):
+    schema = Schema(schemaNodes=[{"id": "n", "name": "participants", "type": "number"}],
+                    recordDescription="One study")
+    readings = [{"participants": 10}, {"participants": 12}]
+    root, conflicts, _, _ = assemble_document(deepcopy(readings), lambda *_: False)
+    assert root["participants"] is None and conflicts
+    chat = valid(lambda *_: {"S1": answer})
+    (root, contested, _, _, calls, issues), _ = assembled(
+        readings, chat, texts=["Our study had 10 participants.", "A cited study had 12 participants."], schema=schema)
+    assert root["participants"] == expected and contested == []
+    assert [call.stage for call in calls] == ["arbitration"]
+    assert [issue.code for issue in issues] == ["resolved_value"]
+
+
 @pytest.mark.parametrize("value,text,printed", [
     # A page number or a range's endpoint is the number itself.
     (10, "See pp. 5-10 of the report.", True),
@@ -256,8 +271,8 @@ def test_a_kept_later_occurrence_is_grounded_and_retained_in_its_own_source(monk
     source, request = occurrence_input(monkeypatch, grounding)
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     chat = valid(lambda s, u, schema: {"L1": ["I2"]} if resolving(u) else occurrence_reply(s, u, schema))
-    extract = lambda router, counter: run.dispatch(None, source, request, router,
-        counter={"fields": counter, "reasoning": counter})
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)
     assert result["records"] == [{"fees": [10]}]
     assert [(entry["path"], entry["segment"]) for entry in result["evidence"]] == [

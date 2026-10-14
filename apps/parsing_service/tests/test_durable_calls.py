@@ -113,9 +113,11 @@ def test_article_resolution_transport_failures_are_saved_before_fallback(monkeyp
                     "budget": {"context": 4096, "counted": 120, "reserve": 256},
                     "body": {"stage": "arbitration", "record": 0, "system": "s", "user": "u", "schema": {},
                              "max_tokens": 256, "httpRequest": {"model": "fixture/model", "messages": []}}}}}
-            if routine == "begin_call": return True
+            if routine == "begin_call":
+                return True
             if routine == "commit_output":
-                if save_failure: raise OSError("disposable save fault")
+                if save_failure:
+                    raise OSError("disposable save fault")
                 committed["output"] = args[2]
                 return {"recoverable": True}
 
@@ -126,7 +128,8 @@ def test_article_resolution_transport_failures_are_saved_before_fallback(monkeyp
     monkeypatch.setattr(worker, "coordinator", lambda: None)
     monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
     monkeypatch.setattr(captured_provider.requests, "post", post)
-    invoke = lambda: inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    def invoke():
+        return inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
     if save_failure:
         with pytest.raises(RuntimeError, match="could not be saved"):
             invoke()

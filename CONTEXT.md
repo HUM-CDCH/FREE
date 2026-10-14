@@ -118,7 +118,10 @@ _Avoid_: status, vote, review draft
 
 **Value Disagreement**:
 A saved value whose readings in separate parts of the source differ at one
-place: the field itself or a value nested in its objects, never inside a list.
+place, and that resolution did not settle: the field itself or a value nested
+in its objects, never inside a list. When an Article is read in parts, the model
+first settles each such place with a reading or none (ADR 0019); a place it
+leaves unsure, or that a failed resolution left, stays a Value Disagreement.
 FREE leaves that place empty and keeps each distinct reading as an alternative,
 with where it was read; it picks none and marks them not checked. Approving it
 means choosing one alternative per place; an edit or a rejection also decides

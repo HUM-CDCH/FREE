@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from kei_exp.kie.extract import article, catalog, contexts, run, stages, unified
 from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.test_extract_grounded import CountingChat, WordCounter, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 CONTRACT = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "record-scope.json").read_text())
