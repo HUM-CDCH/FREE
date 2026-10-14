@@ -14,13 +14,18 @@ as the server's batching decided; with kinds, 48 of 48 windows were read right.
 Each discovery reply names, by line label and the exact text where it starts, every place in its window's primary
 text where a record or record-free text ("other": front matter, headings, an index) begins, and says whether the
 window begins and ends inside a record. A place counts only where that text occurs exactly once in the named line;
-a line with a place that cannot be located stays unresolved up to the next place. A record continues across a window
-boundary only when the earlier window says it ends inside a record and the later one says it begins inside one; then
-an unlabelled place (`other`, or a `record` without a located label) or a `record` with the open record's own printed
-label (compared as `locate` compares text) at the start of the later window is ignored and the record continues
-there, while a `record` with another printed label there begins a new record and ends the open one cleanly: two
-printed labels mark the boundary between them. Silence, disagreement or a failed window leaves the affected text
-unresolved, never the preceding record's. A record
+a line with a place that cannot be located stays unresolved up to the next place. A `record` and an `other` place at
+one spot are a record start, its printed label kept. A window's opening text continues the open record only when the
+earlier window says it ends inside a record and the later one says it begins inside one; then an unlabelled place
+(`other`, or a `record` without a located label) or a `record` with the open record's own printed label (compared as
+`locate` compares text) at the start of the later window is ignored and the record continues there, while a `record`
+with another printed label there begins a new record and ends the open one cleanly: two printed labels mark the
+boundary between them. Silence, disagreement or a failed window leaves the affected text unresolved, never the
+preceding record's. A record never directly follows itself: a `record` place with the printed label of the record just
+before it, inside a window or at a window's start whatever the edge flags, continues that record (a paragraph that
+opens with its grave's own number is not another grave), and any record-free or unresolved text between them keeps
+its own disposition. A missing label never matches, nor does a bare mark without a letter or digit (a bullet may be
+printed on every record), so numbering that restarts after other records stays apart. A record
 the last window says continues after it is cut by the end of the supplied source (an excerpt): its end is
 `source_end`, as settled as a `validated` one, when no nonblank withheld text follows it in reading order, since then
 nothing after it was left unread; when withheld text does follow, the record may continue there and its end is
@@ -35,6 +40,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import unicodedata
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -46,12 +52,14 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 7  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 8  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
 # both edge flags say the record continues, a record start at the window's start with the open record's own printed
-# label is ignored too, and one with another printed label ends the open record cleanly
+# label is ignored too, and one with another printed label ends the open record cleanly; 8: a `record` and an `other`
+# place at one spot are a record start (`_observe`), and a record start with the printed label of the record just
+# before it continues that record anywhere
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -263,7 +271,8 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
             same = {(kind, label) for at, kind, label in found[index] if at == offset}
             kinds = {kind for kind, _ in same}
             labels_at = {label for _, label in same if label is not None}
-            kind = kinds.pop() if len(kinds) == 1 else "unresolved"
+            kind = "record" if "record" in kinds else "other"  # a record and an `other` at one spot are the record: a
+            # heading read as both begins it rather than leaving it unresolved
             located.append((index, offset, kind, labels_at.pop() if len(labels_at) == 1 else None))
     return _Seen(window, True, located, begins, ends)
 
@@ -464,8 +473,9 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
     """Regions from the windows' places and their explicit continuation observations; then entries and the ledger.
 
     A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
-    so every entry here is final (number, ranges, context, end) except the one still open at the prefix's end, whose
-    end the next window decides; it is left out."""
+    so every entry here is final (number, ranges, context, end) except the last, when it is still open at the prefix's
+    end (the next window decides its end) or a later record start could still continue it (its printed label names a
+    record); it is left out."""
     units: list[Unit] = [unit for each in seen for unit in each.window.primary]
     regions: list[list] = []  # [kind, entry index or None, (unit index, offset)]
     entries: list[dict] = []
@@ -509,9 +519,14 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
             close("validated" if (closed_cleanly and each.begins is False) or switches else "unresolved")
             open_entry = None
         for position, kind, label in places:
+            again = kind == "record" and bool(entries) and _names(label) and _same_label(label, entries[-1]["label"])
+            if again and open_entry is not None:
+                continue  # the open record's own label again, directly after its text: the record goes on
             close("unresolved" if kind == "unresolved" else "validated")
             open_entry = None
-            if kind == "record":
+            if again:  # after record-free or unresolved text, which keeps its own disposition: the record goes on
+                open_entry = len(entries) - 1
+            elif kind == "record":
                 entries.append({"id": f"{units[position[0]].segment}@{position[1]}", "label": label, "ranges": [],
                                 "context": [], "end": "validated"})
                 open_entry = len(entries) - 1
@@ -519,7 +534,8 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
         previous = each
     if prefix:
         body = _ledger(regions, units, entries, evidence, texts)
-        return body if open_entry is None else {**body, "entries": entries[:open_entry]}
+        waiting = open_entry is not None or bool(entries) and _names(entries[-1]["label"])
+        return {**body, "entries": entries[:-1]} if waiting else body
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])
@@ -531,6 +547,12 @@ def _same_label(one: str | None, other: str | None) -> bool:
     collapsed); a missing label or a bare mark never names the same record."""
     return (one is not None and other is not None and any(char.isalnum() for char in one)
             and normalise(one.strip()).text == normalise(other.strip()).text)
+
+
+def _names(label: str | None) -> bool:
+    """Whether a printed label can name one record: it holds a letter or digit. A bare mark (a bullet, a dash) may be
+    printed on every record, so it names none."""
+    return label is not None and any(unicodedata.category(char)[0] in "LN" for char in label)
 
 
 def _unread_after(last: Unit, evidence: Evidence) -> bool:
@@ -545,6 +567,7 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
             texts: dict[str, str]) -> dict:
     ledger: list[dict] = []
     others: list[Unit] = []
+    begun: set[int] = set()  # an entry continued after other text owns several regions; its context is its first's
     ends = [region[2] for region in regions[1:]] + [(len(units), 0)] * bool(regions)
     for (kind, entry, (first, offset)), (last, stop) in zip(regions, ends, strict=True):
         owned = [piece for index in range(first, min(last, len(units) - 1) + 1)
@@ -552,8 +575,10 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
                                       offset if index == first else units[index].start,
                                       stop if index == last else units[index].end)]
         if entry is not None:
-            entries[entry]["ranges"] = ranges_json(owned)
-            entries[entry]["context"] = ranges_json(others[-CONTEXT_UNITS:])
+            if entry not in begun:
+                begun.add(entry)
+                entries[entry]["context"] = ranges_json(others[-CONTEXT_UNITS:])
+            entries[entry]["ranges"] += ranges_json(owned)
         elif kind == "other":
             others += owned
         for piece in owned:

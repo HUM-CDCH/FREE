@@ -438,10 +438,13 @@ def test_both_edge_flags_outrank_an_unlabelled_place_at_the_page_top(by, place, 
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
     ("—", "— Hof. Material: Stein.", "—", True,
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
-    # without both flags, or without the open record's own label, the boundary stays unresolved
+    # without both flags too, the open record's own label continues it: a record never directly follows itself
     ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", False,
-     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
     ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", None,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    # without both flags another printed label, and without the open record's own label any, leave it unresolved
+    ("Nr. 1", "Nr. 7 Hof. Material: Stein.", "Nr. 7", False,
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
     (None, "Nr. 7 Hof. Material: Stein.", "Nr. 7", True,
      [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
@@ -470,6 +473,174 @@ def test_both_edge_flags_join_the_open_records_own_label_at_the_page_top_and_clo
     assert [[row["segment"] for row in entry["ranges"]] for entry in result["entries"]] == entries
     assert [entry["end"] for entry in result["entries"]] == ends
     assert_accounted(source, {"discovery": result})
+
+
+def labelled(source: Evidence, result: dict) -> list[tuple[str | None, list[str]]]:
+    """Each discovered entry as its printed label and the text of its lines."""
+    return [(entry["label"], [text(source, row) for row in entry["ranges"]]) for entry in result["entries"]]
+
+
+def one_window(lines: list[str], places: list[list]) -> tuple[Evidence, dict]:
+    """Discovery over one page read as one window whose reply names `places`."""
+    source = evidence("\n".join(lines))
+
+    def ask(record, system, user, schema, calls, issues):
+        return {"places": places, "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0)
+    assert len(result["windows"]) == 1 and all(entry["end"] == "validated" for entry in result["entries"])
+    assert_accounted(source, {"discovery": result})
+    return source, result
+
+
+HEADED = ["Grav 4 ends here.", "Grav 5", "Grav 5 fremstod som en smal nedgravning."]
+
+
+@pytest.mark.parametrize("spot", [
+    # Hvissinge page 11 read without captions (6 of 8 identical requests): the heading tagged both at one spot
+    [["L2", "other", None, "Grav 5"], ["L2", "record", "Grav 5", "Grav 5"]],
+    [["L2", "record", "Grav 5"], ["L2", "other", None]],
+    [["L2", "other", "Grav 5"], ["L2", "record", None]],  # the printed label kept from either
+])
+def test_a_record_and_an_other_place_at_one_spot_begin_a_record_keeping_its_printed_label(spot):
+    source, result = one_window(HEADED, [["L1", "record", "Grav 4"], *spot])
+    assert labelled(source, result) == [("Grav 4", ["Grav 4 ends here."]),
+                                        ("Grav 5", ["Grav 5", "Grav 5 fremstod som en smal nedgravning."])]
+    assert {row["disposition"] for row in result["ledger"]} == {"entry"}
+
+
+def test_a_record_and_an_other_place_at_two_spots_of_one_line_stay_two_places():
+    source, result = one_window(["Grav 4 ends here.", "Plan 2. Grav 5 fremstod som en smal nedgravning."],
+                                [["L1", "record", "Grav 4"], ["L2", "other", None], ["L2", "record", "Grav 5", "Grav 5"]])
+    assert labelled(source, result) == [("Grav 4", ["Grav 4 ends here."]),
+                                        ("Grav 5", ["Grav 5 fremstod som en smal nedgravning."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == ["Plan 2."]
+
+
+RESTART = ["Grav 3", "The boat grave had a stone cover.", "Grav 3 består af mange elementer.", "Grav 4", "Small."]
+
+
+@pytest.mark.parametrize(("label", "between", "entries"), [
+    # Hvissinge page 9 in every run: a paragraph of grave 3 opens with its label ("Grav 3 består af")
+    ("Grav 3", [], [("Grav 3", RESTART[:3]), ("Grav 4", RESTART[3:])]),
+    ("GRAV  3", [], [("Grav 3", RESTART[:3]), ("Grav 4", RESTART[3:])]),
+    # record-free text between them keeps its disposition, and the record goes on after it
+    ("Grav 3", [["L2", "other", None]], [("Grav 3", [RESTART[0], RESTART[2]]), ("Grav 4", RESTART[3:])]),
+])
+def test_a_record_start_with_the_label_of_the_record_just_before_it_continues_that_record(label, between, entries):
+    source, result = one_window(RESTART, [["L1", "record", "Grav 3"], *between, ["L3", "record", label, label],
+                                          ["L4", "record", "Grav 4"]])
+    assert labelled(source, result) == entries
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == \
+        RESTART[1:2] * bool(between)
+
+
+def test_unresolved_text_between_a_record_and_its_own_label_stays_unresolved():
+    source = evidence("\n".join(RESTART))
+
+    def ask(record, system, user, schema, calls, issues):
+        return {"places": [["L1", "record", "Grav 3"], ["L2", "other", None, "not in the line"],
+                           ["L3", "record", "Grav 3"], ["L4", "record", "Grav 4"]],
+                "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0)
+    assert labelled(source, result) == [("Grav 3", [RESTART[0], RESTART[2]]), ("Grav 4", RESTART[3:])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "unresolved"] == RESTART[1:2]
+    assert [entry["end"] for entry in result["entries"]] == ["validated", "validated"]
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize(("lines", "places", "entries"), [
+    # another printed label begins another record, a longer one that starts alike included
+    (["Grav 3", "Body of three.", "Grav 4", "Body of four."], [["L1", "record", "Grav 3"], ["L3", "record", "Grav 4"]],
+     [("Grav 3", ["Grav 3", "Body of three."]), ("Grav 4", ["Grav 4", "Body of four."])]),
+    (["Grav 3 a", "Grav 31 b"], [["L1", "record", "Grav 3"], ["L2", "record", "Grav 31"]],
+     [("Grav 3", ["Grav 3 a"]), ("Grav 31", ["Grav 31 b"])]),
+    # a missing label never matches, on either side
+    (RESTART, [["L1", "record", None], ["L3", "record", "Grav 3"], ["L4", "record", "Grav 4"]],
+     [(None, RESTART[:2]), ("Grav 3", RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    (RESTART, [["L1", "record", "Grav 3"], ["L3", "record", None], ["L4", "record", "Grav 4"]],
+     [("Grav 3", RESTART[:2]), (None, RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    (RESTART, [["L1", "record", None], ["L3", "record", None], ["L4", "record", "Grav 4"]],
+     [(None, RESTART[:2]), (None, RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    # nor does a bare mark, which every record may carry
+    (["◆ Adorf.", "◆ Bdorf."], [["L1", "record", "◆"], ["L2", "record", "◆"]], [("◆", ["◆ Adorf."]), ("◆", ["◆ Bdorf."])]),
+    # only the record just before it: one between them, unlabelled or with another label, keeps them apart
+    (RESTART, [["L1", "record", "Grav 3"], ["L2", "record", None], ["L3", "record", "Grav 3"], ["L4", "record", "Grav 4"]],
+     [("Grav 3", RESTART[:1]), (None, RESTART[1:2]), ("Grav 3", RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    # numbering restarted after other records, with or without a heading between the series, stays apart
+    (["Grav 1", "Grav 2", "Anden serie", "Grav 1", "Grav 2"],
+     [["L1", "record", "Grav 1"], ["L2", "record", "Grav 2"], ["L3", "other", None], ["L4", "record", "Grav 1"],
+      ["L5", "record", "Grav 2"]],
+     [("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"]), ("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"])]),
+    (["Grav 1", "Grav 2", "Grav 1", "Grav 2"],
+     [["L1", "record", "Grav 1"], ["L2", "record", "Grav 2"], ["L3", "record", "Grav 1"], ["L4", "record", "Grav 2"]],
+     [("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"]), ("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"])]),
+])
+def test_a_record_start_continues_no_record_but_the_one_just_before_it_with_its_own_named_label(lines, places, entries):
+    source, result = one_window(lines, places)
+    assert labelled(source, result) == entries
+
+
+CONTINUED = ("Grav 3\nThe boat grave had", "a stone cover.\nGrav 3 består af mange elementer.\nGrav 4\nSmall.")
+
+
+@pytest.mark.parametrize("by", ["budget", "page"])
+@pytest.mark.parametrize(("top", "begins", "head"), [
+    # both flags carry grave 3 onto the next page, so the page top is grave 3's text
+    (None, True, "entry"), (["L1", "other", None], True, "entry"), (["L1", "record", None], True, "entry"),
+    # the flags disagree or say nothing (Hvissinge pages 8 to 9 in four runs): the page top stays unresolved, and
+    # grave 3 goes on at its own label after it
+    (None, False, "unresolved"), (None, None, "unresolved"),
+])
+def test_a_record_continues_at_its_own_label_on_the_next_page_whatever_its_page_top(by, top, begins, head):
+    """Hvissinge page 9: grave 3 runs on from page 8, then a paragraph opens with "Grav 3 består af"."""
+    source = evidence(*CONTINUED)
+
+    def ask(record, system, user, schema, calls, issues):
+        if section(user, "WINDOW").startswith("[L1] Grav 3"):
+            return {"places": [["L1", "record", "Grav 3"]], "begins_inside_record": False, "ends_inside_record": True}
+        return {"places": [*([top] if top else []), ["L2", "record", "Grav 3"], ["L3", "record", "Grav 4"]],
+                "begins_inside_record": begins, "ends_inside_record": False}
+
+    def page_top(system, user, schema):  # every mode cuts a window at the page top
+        return not ("had" in section(user, "WINDOW") and "stone" in section(user, "WINDOW"))
+    result = discovery.discover(source, "entry", page_top, ask, overlap=3, splits=0, by=by)
+    assert result["windows"][-1]["primary"][0]["segment"] == "p2_s0" and not result["issues"]
+    top_text = ["a stone cover."] * (head == "entry")
+    assert labelled(source, result) == [
+        ("Grav 3", ["Grav 3", "The boat grave had", *top_text, "Grav 3 består af mange elementer."]),
+        ("Grav 4", ["Grav 4", "Small."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "unresolved"] == \
+        ["a stone cover."] * (head == "unresolved")
+    assert [entry["end"] for entry in result["entries"]] == ["validated", "validated"]
+    assert_accounted(source, {"discovery": result})
+
+
+def test_a_read_prefix_lists_a_labelled_entry_once_a_later_record_start_shows_it_is_not_continued():
+    """A record closed by record-free text still goes on at a later start with its own label, so a read prefix holds
+    it back until a later record start with another label is read: every entry it lists is final."""
+    class Unanswered(BaseException):
+        pass
+    pages = ["Grav 3. The boat grave.", "Figures and plates.", "Grav 3 continued: the stones.", "Grav 4. Small.",
+             "Grav 5. Last."]
+    kinds = [("record", "Grav 3"), ("other", None), ("record", "Grav 3"), ("record", "Grav 4"), ("record", "Grav 5")]
+    source = evidence(*pages)
+
+    def read(answered: int) -> dict:
+        def ask(record, system, user, schema, calls, issues):
+            page = next(n for n, text in enumerate(pages) if text in section(user, "WINDOW"))
+            if page >= answered:
+                raise Unanswered()
+            return {"places": [["L1", *kinds[page]]], "begins_inside_record": False, "ends_inside_record": False}
+        return discovery.discover(source, "entry", lambda *_: True, ask, overlap=1, splits=0, by="page", workers=1,
+                                  frontier=True, unanswered=(Unanswered,))
+    whole = read(len(pages))
+    assert whole["complete"] and labelled(source, whole) == [
+        ("Grav 3", ["Grav 3. The boat grave.", "Grav 3 continued: the stones."]), ("Grav 4", ["Grav 4. Small."]),
+        ("Grav 5", ["Grav 5. Last."])]
+    assert [text(source, row) for row in whole["ledger"] if row["disposition"] == "other"] == ["Figures and plates."]
+    for answered, final in ((1, 0), (2, 0), (3, 0), (4, 1)):
+        body = read(answered)
+        assert not body["complete"] and body["entries"] == whole["entries"][:final], answered
 
 
 def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
@@ -543,7 +714,8 @@ def test_a_read_prefix_of_windows_yields_its_final_entries_and_nothing_raised():
         return body
     whole = read(len(pages))
     assert whole["complete"] and [entry["label"] for entry in whole["entries"]] == ["1.", "2.", "3.", "4.", "5."]
-    for answered, final in ((0, 0), (1, 1), (2, 2), (3, 3), (4, 3)):
+    # after page 3's index, entry 3 waits for the next record start, which could continue it with its own label
+    for answered, final in ((0, 0), (1, 1), (2, 2), (3, 2), (4, 3)):
         body = read(answered)
         assert not body["complete"] and body["entries"] == whole["entries"][:final], answered
     assert read(3, failed="Material: Stein.")["entries"] == whole["entries"][:1]  # page 2's halves still unanswered
@@ -1387,3 +1559,22 @@ def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_f
     seen = [_Seen(window, True, [(0, 0, "record", "1"), (1, 3, "other", None), (1, 4, "record", None)]),
             _Seen(window, False, [])]
     assert record_starts(seen) == [{"segment": "p1_s0", "label": "1"}, {"segment": "p1_s1", "label": None}]
+
+
+def test_a_continued_record_with_gaps_keeps_values_and_source_links_in_its_own_ranges():
+    source = evidence("1. Adorf. Material: Bronze.\nIndex Adorf.\n1. Adorf. Gilded.\n"
+                      "2. Bdorf. Material: Eisen.")
+    result, _ = extract(source)
+    assert len(result["records"]) == 2
+    assert result["records"][0]["material"] == "Bronze"
+    assert result["records"][0]["gilded"] is True
+    owned = result["discovery"]["entries"][0]["ranges"]
+    assert len(owned) == 2 and {row["segment"] for row in owned} == {"p1_s0"}
+    assert [text(source, row) for row in owned] == ["1. Adorf. Material: Bronze.", "1. Adorf. Gilded."]
+    assert_accounted(source, result)
+    for field, raw in (("material", "Bronze"), ("gilded", "Gilded")):
+        links = [link for link in result["evidence"] if link["path"] == ["records", 0, field]]
+        assert len(links) == 1
+        assert links[0]["raw"] == raw
+        start = source.passages[0].text.index(raw)
+        assert links[0]["spans"] == [{"segment": "p1_s0", "start": start, "end": start + len(raw)}]
