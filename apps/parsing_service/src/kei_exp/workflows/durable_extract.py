@@ -154,6 +154,16 @@ class PinnedCounter:
         return self.counted
 
 
+def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call]) -> bool:
+    """A call the server counted otherwise than its planning did: the attempt's kept /tokenize counts may be stale (a
+    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped."""
+    if any(call.counted_input_tokens is not None and call.input_tokens is not None
+           and call.input_tokens != call.counted_input_tokens for call in attempts):
+        tokens.forget(f"{extraction}/{attempt}")
+        return True
+    return False
+
+
 @DBOS.step(name="invokeExtractionCaptureV1")
 def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
     with Lease(coordinator(), extraction, attempt) as lease:
@@ -189,6 +199,7 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 attempts=[call]
             else:
                 parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"]))
+                drop_stale_counts(extraction, attempt, attempts)
                 if shown:
                     shown.done()
             output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
