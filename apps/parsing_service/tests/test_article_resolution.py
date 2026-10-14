@@ -105,7 +105,8 @@ def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     chat = CountingChat(lambda *_: answer)
     (root, _, repeats, _, _, issues), item_sources = assembled(readings, chat)
-    assert root["finds"] == [ITEM, ITEM] and repeats and not issues
+    assert root["finds"] == [ITEM, ITEM] and repeats
+    assert [issue.code for issue in issues] == ["resolution_not_applied"]
     assert item_sources == {("finds", index): [{"unit": index, "path": ["finds", 0]}] for index in (0, 1)}
     # None of these is an answer the constrained model can give: a list abstains item by item (UNSURE), never whole.
     assert not jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer)
@@ -132,7 +133,8 @@ def test_a_differently_filled_reading_of_an_own_item_is_never_left_out_as_a_repe
     assert reasons["required"] == ["I1", "I2"]
     for each in ({"I1": own, "I2": repeat}, {"I1": {"of": CITED, "label": "OTHER"}}):
         assert not jsonschema.Draft202012Validator(reasons).is_valid(each)
-    assert root["finds"] == READ and len(item_sources) == 2 and not issues
+    assert root["finds"] == READ and len(item_sources) == 2
+    assert [issue.code for issue in issues] == ["resolution_not_applied"]
 
 
 def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
@@ -391,7 +393,8 @@ def test_one_unsettled_list_part_preserves_the_entire_assembled_list():
     other = {"of": CITED, "label": "OTHER"}
     (root, _, _, _, _, issues), item_sources = assembled(readings,
         CountingChat(lambda *_: {"L1": {f"I{n}": other for n in range(1, 61)}, "L2": None}))
-    assert len(root["finds"]) == len(item_sources) == 61 and not issues
+    assert len(root["finds"]) == len(item_sources) == 61
+    assert [issue.code for issue in issues] == ["resolution_not_applied"]
 
 
 def test_an_oversized_resolution_keeps_assembly_before_durable_call_admission():
@@ -639,3 +642,24 @@ def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_rep
     assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count
     assert saved(lease.publications[key] for key in set(lease.publications) - before) in ([], first[:1])
     assert completions() == [completion]
+
+
+def test_a_rejected_list_reply_reports_non_application_through_completion_and_replay(monkeypatch):
+    source, request = occurrence_input(monkeypatch, "semantic")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    # Valid JSON, but I1 is missing: runtime validation must still reject the list.
+    chat = CountingChat(lambda s, u, schema: {"L1": {}} if resolving(u) else occurrence_reply(s, u, schema))
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert result["records"] == [{"fees": [10, 10]}]
+    rejected = [issue for issue in result["issues"] if issue["code"] == "resolution_not_applied"]
+    assert rejected and all(issue["path"] == ["records", 0, "fees"] for issue in rejected)
+    assert all(json.loads(issue["detail"]) == {"path": ["fees"], "reason": "invalid_list_reply"} for issue in rejected)
+    [completion] = [p for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]]
+    assert completion["coverage"]["diagnostics"] == {"issues": result["issues"]}
+    before, count = deepcopy(lease.publications), len(chat.calls)
+    assert finish(lease, chat, extract)["issues"] == result["issues"]
+    assert len(chat.calls) == count
+    assert all(lease.publications[key] == publication for key, publication in before.items())
+    assert [p for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]] == [completion]

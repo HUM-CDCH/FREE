@@ -1,0 +1,66 @@
+name: parsing integration
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parsing-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Skip only pnpm's Python install hook; the explicit locked install and pytest tiers below still run.
+      FREE_SKIP_PYTHON: '1'
+      PARSING_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_parsing
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: free_test_parsing
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d free_test_parsing"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.8.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install Node dependencies for the real coordination migrations
+        run: pnpm install --frozen-lockfile
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.11.29'
+          python-version: '3.13'
+          enable-cache: false
+      - name: Install locked Python dependencies
+        id: python-install
+        working-directory: apps/parsing_service
+        run: uv sync --frozen
+      - name: Parsing fast tier
+        working-directory: apps/parsing_service
+        run: uv run --no-sync pytest -q -m "not postgres and not live_model"
+      - name: Parsing PostgreSQL tier, including old-completion replay
+        if: ${{ !cancelled() && steps.python-install.outcome == 'success' }}
+        working-directory: apps/parsing_service
+        run: uv run --no-sync pytest -q -m "postgres and not live_model"

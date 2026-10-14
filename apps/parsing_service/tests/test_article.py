@@ -237,7 +237,8 @@ def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts_and_reso
     assert len(result["value_contexts"][0]) == 2
     assert result["records"][0]["finds"] == FINDS[:2000]
     assert (result["records"][0]["site"], result["records"][0]["year"]) == ("Hill", None)
-    assert [issue["code"] for issue in result["issues"]] == ["context_fallback", "resolved_value"]
+    # This script returns NONE for the list instead of labelling its items: keep it and report the rejected reply.
+    assert [issue["code"] for issue in result["issues"]] == ["context_fallback", "resolved_value", "resolution_not_applied"]
 
 
 def test_an_article_no_context_answered_fails_instead_of_publishing_an_all_null_root():

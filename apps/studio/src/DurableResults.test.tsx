@@ -1037,7 +1037,9 @@ it('shows the run diagnostics of the results shown at their occurrences, and non
     issue('uncertain_items','fees',{items:[{index:1,of:'',label:'UNSURE'}]}),
     issue('dropped_items','fees',{dropped:[10],of:['Smith 2001']}),
     issue('resolved_value','title',{chosen:'Own title',alternatives:['Own title','Cited title']}),
-    {code:'resolution_failed',detail:'not shown here',record:0,path:null}]}}
+    issue('resolution_not_applied','fees',{reason:'invalid_list_reply'}),
+    {code:'resolution_failed',detail:'the resolution reply failed; assembled values are retained',record:0,path:null},
+    {code:'resolution_exceeds_budget',detail:'the resolution request does not fit; assembled values are retained',record:0,path:null}]}}
   const page={snapshotVersion:3,feedbackVersion:0,reviewCounts:{required:2,toCheck:2,approved:0,edited:0,rejected:0},values:[value,title],total:2,next:null,coverage} as unknown as DurablePage
   const state={extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:0,snapshotVersion:3,feedbackVersion:0,
     selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[node,titleNode]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:2,inFlight:0},records:null,reading:[]}
@@ -1051,7 +1053,10 @@ it('shows the run diagnostics of the results shown at their occurrences, and non
     expect(entries.map(entry=>[entry.textContent,entry.dataset.diagnosticPath])).toEqual([
       ['fees · item 2: 10 · kept, not settled (UNSURE)','["records",0,"fees",1]'],
       ['fees · left out: 10, given to “Smith 2001”','["records",0,"fees"]'],
-      ['title · picked Own title among Own title / Cited title','["records",0,"title"]']])
+      ['title · picked Own title among Own title / Cited title','["records",0,"title"]'],
+      ['fees · assembled values retained; resolution not applied (invalid list reply)','["records",0,"fees"]'],
+      ['assembled values retained; resolution not applied (resolution reply failed)','[]'],
+      ['assembled values retained; resolution not applied (request exceeds budget)','[]']])
     // The first of the two equal items is not the uncertain one.
     expect(within(diagnostics).queryByText(/item 1/)).toBeNull()
     // Reprocessing publishes a newer snapshot whose run named nothing: the earlier snapshot's diagnostics stay with it.

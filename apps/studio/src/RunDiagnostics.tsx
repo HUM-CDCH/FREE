@@ -3,7 +3,7 @@ import { shownValue } from './reviewVocabulary'
 
 /** The Article resolution issues review shows. Their `detail` is a JSON string naming the field (`path`, from the
  *  record) and, for a list, each item by its index in the list the snapshot kept. */
-const SHOWN:ReadonlySet<string>=new Set(['uncertain_items','dropped_items','resolved_value'])
+const SHOWN:ReadonlySet<string>=new Set(['uncertain_items','dropped_items','resolved_value','resolution_not_applied','resolution_failed','resolution_exceeds_budget'])
 type Issue={code:string;detail:string;record?:number|null;path?:(string|number)[]|null}
 type Entry={key:string;record:string;text:string}
 
@@ -12,6 +12,8 @@ const at=(root:unknown,path:readonly (string|number)[])=>path.reduce<unknown>((v
 
 /** One entry per occurrence: an item is named by its place, never by its value, so equal items stay apart. */
 function entries(issue:Issue,position:number,values:DurablePage['values']):Entry[] {
+  if(issue.code==='resolution_failed'||issue.code==='resolution_exceeds_budget')return [{key:String(position),record:'[]',
+    text:`assembled values retained; resolution not applied (${issue.code==='resolution_failed'?'resolution reply failed':'request exceeds budget'})`}]
   let detail:{path?:unknown;items?:{index:number;of:string;label:string}[];dropped?:unknown[];of?:string[];chosen?:unknown;alternatives?:unknown[]}
   try {detail=JSON.parse(issue.detail)} catch {return []}
   if(!Array.isArray(detail.path)||!Array.isArray(issue.path))return []
@@ -20,6 +22,7 @@ function entries(issue:Issue,position:number,values:DurablePage['values']):Entry
   const list=saved?at(saved.modelValue,detail.path.slice(1)):undefined
   const given=(of:string|undefined)=>of?`, given to “${of}”`:''
   switch(issue.code) {
+    case 'resolution_not_applied': return [{key,record,text:`${field} · assembled values retained; resolution not applied (invalid list reply)`}]
     case 'uncertain_items': return (detail.items??[]).map(item=>({key:`${key}:${item.index}`,record:JSON.stringify([...issue.path!,item.index]),
       text:`${field} · item ${item.index+1}${Array.isArray(list)&&item.index<list.length?`: ${shownValue(list[item.index])}`:''} · kept, not settled (${item.label}${given(item.of)})`}))
     case 'dropped_items': return (detail.dropped??[]).map((item,index)=>({key:`${key}:${index}`,record,

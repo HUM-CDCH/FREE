@@ -319,6 +319,10 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
                                or not isinstance(each["of"], str)
                                or each["label"] not in reasons[label]["properties"]["label"]["enum"]
                                for label, each in choice.items())):
+                    if parts is not None and attempts and attempts[-1].ok:
+                        issues.append(Issue("resolution_not_applied", json.dumps(
+                            {"path": list(path), "reason": "invalid_list_reply"}, ensure_ascii=False),
+                            0, ("records", 0, *path)))
                     kept[path] = None
                     continue
                 # Another's item leaves only where the part it was read from prints the work it was given to.

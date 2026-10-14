@@ -99,6 +99,9 @@ settle what it can.
 - Review shows `uncertain_items`, `dropped_items` and `resolved_value` from the run's completion snapshot
   (`coverage.diagnostics`), each at its field and, for an item kept, its kept index; they belong to that
   snapshot only, so the results of a later attempt that names none show none.
+  An invalid list reply also names its field in `resolution_not_applied`; review states
+  “assembled values retained; resolution not applied.” Failed calls and over-budget resolution
+  requests show the same fallback with their reason. Reply validation and retained values are unchanged.
 - The model can drop a list item that belonged to the document or pick a wrong
   reading. Unlike a Value Disagreement, a picked value reaches review and
   export as the answer; the issues keep what it replaced.
