@@ -1,4 +1,5 @@
 import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { SchemaNode } from 'extraction/schema'
 
 /** A researcher's decision on a value, as the rail shows it. */
 export type ReviewAction = 'APPROVED' | 'EDITED' | 'REJECTED'
@@ -85,6 +86,16 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
 export const shownValue = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'No value'
     : typeof value === 'object' ? JSON.stringify(value) : String(value)
+
+/** A compact label for a composite value, with the full value in its expansion. */
+export function reviewedValueSummary(node: SchemaNode | null, value: unknown): string {
+  if (Array.isArray(value)) return `${value.length} ${value.length === 1 ? 'item' : 'items'}`
+  if (node?.type === 'object' && value && typeof value === 'object') {
+    const fields = value as Record<string, unknown>
+    return node.children.map(child => `${child.name}: ${reviewedValueSummary(child, fields[child.name])}`).join(' · ')
+  }
+  return shownValue(value)
+}
 
 export function rowText(row: Pick<RailRow, 'value' | 'disagreement'>): string {
   const root = row.disagreement?.find(entry => entry.part === '')

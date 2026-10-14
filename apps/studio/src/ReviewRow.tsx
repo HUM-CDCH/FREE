@@ -3,13 +3,14 @@ import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceQuote } from './evidenceQuote'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
 } from './ui/icons'
 import { Button } from './ui'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
+import ReviewedValueDisplay from './ui/ReviewedValueDisplay'
 
 function RowGlyph({ row }: { row: RailRow }) {
   switch (row.kind) {
@@ -93,7 +94,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
           <span className="block truncate font-mono text-compact text-ink-faint">{row.name}</span>
-          <span className="line-clamp-2 text-content font-medium text-ink" title={rowText(row)}>{rowText(row)}</span>
+          <span className="line-clamp-2 text-content font-medium text-ink" title={rowText(row)}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
         </span>
@@ -105,6 +106,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
       </button>
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
+          {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} />}
           {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>

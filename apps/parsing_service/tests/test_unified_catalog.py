@@ -736,7 +736,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 4
+    assert result["prompt_version"] == unified.PROMPT_VERSION
     assert_accounted(source, result)
 
 
@@ -849,7 +849,7 @@ def test_heading_context_that_does_not_fit_is_left_out_and_reported():
     assert not any("Beschreibung" in call["user"] for call in chat.calls if call["system"].startswith("You extract structured"))
 
 
-def table_passage(rows: list[list[str]]) -> Passage:
+def table_passage(rows: list[list[str]], separator: str = " | ") -> Passage:
     """A table whose rows are lines and whose cells are separated by " | ", every cell with its own box."""
     lines, cells, offset = [], [], 0
     for row, values in enumerate(rows):
@@ -857,9 +857,9 @@ def table_passage(rows: list[list[str]]) -> Passage:
             cells.append(TableCell(cell_id=f"r{row}_c{column}", row=row, column=column, rowspan=1, colspan=1, role=None,
                                    text=value, start=offset, end=offset + len(value),
                                    bbox_pt=(float(column), float(row), column + 1.0, row + 1.0)))
-            offset += len(value) + 3
-        offset += 1 - 3
-        lines.append(" | ".join(values))
+            offset += len(value) + len(separator)
+        offset += 1 - len(separator)
+        lines.append(separator.join(values))
     text = "\n".join(lines)
     table = PageTable(rows=len(rows), columns=max(map(len, rows)), producer="docling", cells=cells)
     return passage("p1_s0", text, label="Table", table=table)
@@ -874,6 +874,73 @@ def test_a_dense_table_gives_one_entry_per_row_and_each_value_its_own_cell():
     assert cells == [f"r{n}_c1" for n in range(5)] and all(
         link["precision"] == "cell" for link in result["evidence"] if link["path"][2] == "material")
     assert_accounted(source, result)
+
+
+def test_list_items_locate_repeated_partial_quotes_in_their_own_table_rows():
+    table = replace(table_passage([["A-1", "Bone fragments, probably tibia", ""],
+                                  ["A-2", "Bone fragments, probably tibia", ""]]), id="p1_s1", index=1)
+    source = replace(evidence("1. Remains A-1 and A-2."), passages=(
+        passage("p1_s0", "1. Remains A-1 and A-2."), table))
+    schema = {"recordDescription": "One numbered entry.", "schemaNodes": [
+        {"id": "parts", "name": "parts", "type": "array", "children": [
+            {"id": "number", "name": "number", "type": "string"},
+            {"id": "description", "name": "description", "type": "string"}]}]}
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": number, "number": candidate(number, number),
+                           "description": candidate("Bone fragments, probably tibia", "Bone fragments,")}
+                          for number in ["A-1", "A-2"]]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=schema)
+    assert result["records"][0]["parts"] == [
+        {"number": "A-1", "description": "Bone fragments, probably tibia"},
+        {"number": "A-2", "description": "Bone fragments, probably tibia"}]
+    links = [link for link in result["evidence"] if link["path"][-1] == "description"]
+    assert [link["cell"] for link in links] == ["r0_c1", "r1_c1"]
+    assert all(link["precision"] == "cell" for link in links)
+
+
+def test_a_table_item_value_can_continue_verbatim_into_the_next_page():
+    first = replace(table_passage([["A-1", "Bone fragments,", ""]], "\t"), id="p1_s1", index=1)
+    second = replace(table_passage([["", "probably tibia", ""]], "\t"), id="p2_s0", page=2)
+    source = replace(evidence("1. Remains A-1.", second.text), passages=(
+        passage("p1_s0", "1. Remains A-1."), first, second))
+    schema = {"recordDescription": "One numbered entry.", "schemaNodes": [
+        {"id": "parts", "name": "parts", "type": "array", "children": [
+            {"id": "number", "name": "number", "type": "string"},
+            {"id": "description", "name": "description", "type": "string"}]}]}
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": "A-1", "number": candidate("A-1", "A-1"),
+                           "description": candidate("Bone fragments, probably tibia", "Bone fragments,")}]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=schema)
+    assert result["records"][0]["parts"][0]["description"] == "Bone fragments, probably tibia"
+    link = next(link for link in result["evidence"] if link["path"][-1] == "description")
+    assert [span["segment"] for span in link["spans"]] == ["p1_s1", "p2_s0"]
+
+
+def test_entry_and_verification_input_preserve_empty_table_cells_across_a_page_break():
+    """Verification checks a candidate against the same aligned table text the extraction read: the tabs of empty
+    cells at either end of a line, and a description continued in its own column on the next page."""
+    first = replace(table_passage([["Number", "Description", "Notes"],
+                                  ["A-1", "Tooth", ""], ["A-2", "Bone fragments,", ""]], "\t"),
+                    id="p1_s1", index=1)
+    second = replace(table_passage([["", "probably tibia", ""],
+                                   ["A-3", "Bone fragments", "Recovered while cleaning"]], "\t"),
+                     id="p2_s0", page=2)
+    source = replace(evidence("1. Remains.", second.text), passages=(
+        passage("p1_s0", "1. Remains."), first, second))
+    _, chat = extract(source)
+    shown = {stage: [section(call["user"], "RECORD") for call in chat.calls if call["system"].startswith(start)]
+             for stage, start in (("entry", "You extract structured data"), ("verification", "You check values"))}
+    for stage, records in shown.items():
+        assert records, stage
+        for record in records:
+            assert first.text in record, stage
+            assert second.text in record, stage
+            assert "\nA-1\tTooth\t\n" in record, stage  # an empty last cell keeps its tab
+            assert "\nA-2\tBone fragments,\t\n\tprobably tibia\t\nA-3\t" in record, stage  # page 2 continues A-2
 
 
 def test_a_value_in_the_quoted_table_row_is_literal_in_its_own_cell():
