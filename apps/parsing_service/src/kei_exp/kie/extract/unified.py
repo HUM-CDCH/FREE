@@ -30,6 +30,7 @@ import json
 import threading
 import time
 import unicodedata
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -61,7 +62,7 @@ from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
 PROMPT_VERSION = 5  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
-# 5: entry/document input retains the horizontal whitespace delimiting empty table cells.
+# 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -654,9 +655,9 @@ def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str,
     return text_of(shown, texts)
 
 
-def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable] | None = None) -> str:
+def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable]) -> str:
     def source(units):
-        return _source_text(units, texts, tables or {})
+        return _source_text(units, texts, tables)
     parts = ([f"### CONTEXT (not part of the record)\n{source(window.heading)}"] if window.heading else []) + \
         ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) + \
         [f"### {marker}\n{source(window.primary)}\n### END {marker}"] + \
@@ -797,7 +798,7 @@ class _Run:
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
-                user = _user(window, self.texts, "RECORD") + "\n\n### CANDIDATES\n" + "\n".join(
+                user = _user(window, self.texts, "RECORD", self.tables) + "\n\n### CANDIDATES\n" + "\n".join(
                     f"{label}: {'.'.join(str(step) for step in _field_path(found.path))} = "
                     f"{json.dumps(found.value, ensure_ascii=False)} (quoted: {json.dumps(found.quote, ensure_ascii=False)})"
                     for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."

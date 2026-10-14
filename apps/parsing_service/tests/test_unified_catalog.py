@@ -920,7 +920,9 @@ def test_a_table_item_value_can_continue_verbatim_into_the_next_page():
     assert [span["segment"] for span in link["spans"]] == ["p1_s1", "p2_s0"]
 
 
-def test_entry_input_preserves_empty_table_cells_across_a_page_break():
+def test_entry_and_verification_input_preserve_empty_table_cells_across_a_page_break():
+    """Verification checks a candidate against the same aligned table text the extraction read: the tabs of empty
+    cells at either end of a line, and a description continued in its own column on the next page."""
     first = replace(table_passage([["Number", "Description", "Notes"],
                                   ["A-1", "Tooth", ""], ["A-2", "Bone fragments,", ""]], "\t"),
                     id="p1_s1", index=1)
@@ -930,10 +932,15 @@ def test_entry_input_preserves_empty_table_cells_across_a_page_break():
     source = replace(evidence("1. Remains.", second.text), passages=(
         passage("p1_s0", "1. Remains."), first, second))
     _, chat = extract(source)
-    entry = next(call for call in chat.calls if call["system"].startswith("You extract structured data"))
-    record = section(entry["user"], "RECORD")
-    assert first.text in record
-    assert second.text in record
+    shown = {stage: [section(call["user"], "RECORD") for call in chat.calls if call["system"].startswith(start)]
+             for stage, start in (("entry", "You extract structured data"), ("verification", "You check values"))}
+    for stage, records in shown.items():
+        assert records, stage
+        for record in records:
+            assert first.text in record, stage
+            assert second.text in record, stage
+            assert "\nA-1\tTooth\t\n" in record, stage  # an empty last cell keeps its tab
+            assert "\nA-2\tBone fragments,\t\n\tprobably tibia\t\nA-3\t" in record, stage  # page 2 continues A-2
 
 
 def test_a_value_in_the_quoted_table_row_is_literal_in_its_own_cell():
