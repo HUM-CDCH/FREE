@@ -2889,6 +2889,7 @@ const pilotSummary = (overrides: Record<string, unknown> = {}) => ({
   reviewedSourceDocumentCount: 1,
   staleSourceDocumentCount: 0,
   schemaDraftCount: 0,
+  currentSchemaRevisionId: schemaRevisionId,
   schemaStabilised: false,
   lastActivityAt: '2026-08-14T11:00:00.000Z',
   runningBatch: null,
@@ -2922,6 +2923,58 @@ it('offers approving a reviewed pilot\'s schema from the history even when the w
   expect(await screen.findByText('Schema approved')).toBeInTheDocument()
   expect(JSON.parse(requests[0]!)).toEqual({ projectContextId, schemaRevisionId })
   expect(onProgressChange).toHaveBeenCalled()
+})
+
+it.each([appendedRevisionId, null])('withholds approval of an old reviewed pilot when the current revision is %s', async (currentSchemaRevisionId) => {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?')) return response({
+      batchExtractions: [{ ...batch, members: batch.members.map((member) => publishedMember(member, { currentReview: reviewed })) }],
+    })
+    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary({ currentSchemaRevisionId })}
+    onNavigate={() => {}} />)
+
+  await screen.findByRole('button', { name: /Places · Schema Revision 1/ })
+  expect(screen.queryByRole('button', { name: 'Approve for batch extraction' })).not.toBeInTheDocument()
+  expect(screen.queryByText(/Pilot reviewed\. Approve/)).not.toBeInTheDocument()
+})
+
+it('approves the current revision\'s reviewed pilot even when a newer batch used an old revision', async () => {
+  const requests: string[] = []
+  const currentPilot = {
+    ...batch,
+    batchExtractionId: '51000000-0000-4000-8007-000000000002',
+    schemaRevisionId: appendedRevisionId,
+    schemaRevisionNumber: 2,
+    createdAt: '2026-08-14T10:41:00.000Z',
+    members: batch.members.map((member) => publishedMember(member, {
+      currentReview: { ...reviewed, schemaRevisionId: appendedRevisionId },
+    })),
+  }
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?')) return response({
+      batchExtractions: [currentPilot, { ...batch, members: batch.members.map((member) => publishedMember(member, { currentReview: reviewed })) }],
+    })
+    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+    if (url === '/api/stabilise_schema_revision') {
+      requests.push(String(init?.body))
+      return response({ schemaRevisionId: appendedRevisionId, stabilisedAt: '2026-08-14T12:00:00.000Z' })
+    }
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary({ currentSchemaRevisionId: appendedRevisionId })}
+    onNavigate={() => {}} />)
+
+  expect(await screen.findByText(/Pilot reviewed\. Approve Places v2/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Approve for batch extraction' }))
+  await screen.findByText('Schema approved')
+  expect(requests.map((request) => JSON.parse(request))).toEqual([{ projectContextId, schemaRevisionId: appendedRevisionId }])
 })
 
 it('guides into reviewing a pilot it watched finish', async () => {

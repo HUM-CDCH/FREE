@@ -743,6 +743,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
       schemaDraftCount: 0,
+      currentSchemaRevisionId: null,
       schemaStabilised: false,
       lastActivityAt: new Date('2026-08-01T11:02:00Z'),
       runningBatch: null,
@@ -760,6 +761,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       (item) => item.projectContextId === PROJECT,
     )?.summary
     assert.equal(chattingSummary?.phase, 'chat')
+    assert.equal(chattingSummary?.currentSchemaRevisionId, null)
     assert.equal(chattingSummary?.schemaDraftCount, 0)
 
     database.tables.BatchSchemaSuggestion = [
@@ -932,12 +934,11 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       snapshotVersion: 1,
       createdAt: new Date('2026-08-04T10:00:00Z'),
     })
-    assert.equal(
-      (await store.listProjectContexts(20)).find(
-        (item) => item.projectContextId === PROJECT,
-      )?.summary.phase,
-      'validate',
-    )
+    const reviewedSummary = (await store.listProjectContexts(20)).find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(reviewedSummary?.phase, 'validate')
+    assert.equal(reviewedSummary?.currentSchemaRevisionId, REVISION_1)
     // Editing the schema appends a new, unstabilised Revision. The reviewed
     // pilot belongs to the old Revision, so the Project returns to piloting.
     database.tables.SchemaRevision.push({
@@ -954,6 +955,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       (item) => item.projectContextId === PROJECT,
     )?.summary
     assert.equal(revisedSummary?.phase, 'extract')
+    assert.equal(revisedSummary?.currentSchemaRevisionId, '51000000-0000-4000-8004-000000000011')
     assert.equal(revisedSummary?.schemaStabilised, false)
   })
 
