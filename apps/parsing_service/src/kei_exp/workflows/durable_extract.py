@@ -13,6 +13,7 @@ from kei_exp.kie.extract.discovery import StreamedPlaces
 
 from kei_exp import runs
 from kei_exp.kie.extract import calls
+from kei_exp.kie.extract import tokens
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall
 from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat, composed_order
 from kei_exp.kie.extract.gliformer import GLiFormerFields
@@ -243,7 +244,8 @@ def plan_next(extraction: str, attempt: str) -> dict:
         if not evidence.passages:
             return {"historicalOnly":True}
         try:
-            result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
+            with tokens.counting(f"{extraction}/{attempt}"):  # each round replays the earlier rounds' counts
+                result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
         except NeedsCall:
             if planner.discovery is not None:
                 show("discovery", discovery_event(planner.discovery))
@@ -255,6 +257,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
 
 @DBOS.step(name="acknowledgeExtractionV1")
 def acknowledge(extraction: str, attempt: str, complete: bool, failure: dict | None):
+    tokens.forget(f"{extraction}/{attempt}")
     saved = coordinator().call("read_attempt_outcome", extraction, attempt)
     if saved is not None:
         return saved

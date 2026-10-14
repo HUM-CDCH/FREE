@@ -8,7 +8,7 @@ import json
 import pytest
 
 from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat
-from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for
+from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for, counting, forget
 
 
 class Http:
@@ -87,3 +87,74 @@ def test_each_adapter_s_counter_is_obtained_from_a_request_it_can_render(chat):
     probe = http.sent[0][1]
     if isinstance(chat, NuExtractChat):
         assert json.loads(probe["chat_template_kwargs"]["template"])
+
+
+def _cached(http, chat, attempt, user="user", schema=None):
+    with counting(attempt):
+        return counter_for(chat, http=http).request_tokens("system", user, schema or {"type": "object"})
+
+
+def test_within_an_attempt_a_repeated_count_at_the_same_served_template_is_not_sent_again():
+    """A durable planning round replays every earlier round's planning with a fresh counter: inside one attempt a body
+    already counted at the same served tokenizer and template is answered from that count; its probe is still sent."""
+    http = Http({"/tokenize": {"count": 57, "max_model_len": 16384, "tokens": [1, 2, 3]}})
+    chat = Chat("http://cache.test:8000/v1/chat/completions")
+    assert _cached(http, chat, "x/1") == 57
+    sent = len(http.sent)
+    assert _cached(http, chat, "x/1") == 57
+    assert len(http.sent) == sent + 1  # the probe only
+    _cached(http, chat, "x/1", user="other user")
+    assert len(http.sent) == sent + 3
+
+
+@pytest.mark.parametrize("change", ["template", "context", "headers", "endpoint"])
+def test_a_count_is_sent_again_once_what_the_server_renders_with_may_have_changed(change):
+    """A redeploy that keeps the served context but renders the probe differently (another template or tokenizer), a
+    resized context, other request headers or another endpoint: none of the attempt's earlier counts is reused."""
+    http = Http({"/tokenize": {"count": 57, "max_model_len": 16384, "tokens": [1, 2, 3]}})
+    chat = Chat("http://cache.test:8000/v1/chat/completions")
+    _cached(http, chat, f"change/{change}")
+    if change == "template":
+        http.answers["/tokenize"] = {"count": 60, "max_model_len": 16384, "tokens": [1, 2, 4]}
+    elif change == "context":
+        http.answers["/tokenize"] = {"count": 60, "max_model_len": 8192, "tokens": [1, 2, 3]}
+    elif change == "headers":
+        chat.headers = {"X-Route": "b"}
+    else:
+        chat = Chat("http://other.test:8000/v1/chat/completions")
+    sent = len(http.sent)
+    _cached(http, chat, f"change/{change}")
+    assert len(http.sent) == sent + 2  # the probe and the count
+
+
+def test_no_count_is_kept_outside_an_attempt_across_attempts_after_forget_or_without_probe_tokens():
+    http = Http({"/tokenize": {"count": 57, "max_model_len": 16384, "tokens": [1]}})
+    chat = Chat("http://cache.test:8000/v1/chat/completions")
+    counter = counter_for(chat, http=http)
+    counter.request_tokens("system", "user")
+    sent = len(http.sent)
+    counter.request_tokens("system", "user")  # not durable planning: sent
+    assert len(http.sent) == sent + 1
+    _cached(http, chat, "a/1")
+    sent = len(http.sent)
+    _cached(http, chat, "b/1")  # another attempt (or tenant) shares nothing
+    assert len(http.sent) == sent + 2
+    forget("a/1")
+    sent = len(http.sent)
+    _cached(http, chat, "a/1")
+    assert len(http.sent) == sent + 2
+    http.answers["/tokenize"] = {"count": 57, "max_model_len": 16384}  # no token ids: nothing identifies the template
+    _cached(http, chat, "c/1")
+    sent = len(http.sent)
+    _cached(http, chat, "c/1")
+    assert len(http.sent) == sent + 2
+
+
+def test_bodies_that_differ_only_in_key_order_are_counted_separately():
+    """A template may render a schema's properties in their order: the body is kept as sent, not canonicalized."""
+    http = Http({"/tokenize": {"count": 57, "max_model_len": 16384, "tokens": [1]}})
+    chat = Chat("http://cache.test:8000/v1/chat/completions")
+    _cached(http, chat, "order/1", schema={"properties": {"a": {}, "b": {}}})
+    sent = len(http.sent)
+    _cached(http, chat, "order/1", schema={"properties": {"b": {}, "a": {}}})
+    assert len(http.sent) == sent + 2

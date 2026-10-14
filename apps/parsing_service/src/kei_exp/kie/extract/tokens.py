@@ -9,6 +9,13 @@ server-reported prompt count is compared with the count afterwards; a mismatch i
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import threading
+from collections import OrderedDict
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -18,6 +25,42 @@ if TYPE_CHECKING:
     from kei_exp.kie.extract.models import Router
 
 SOURCE = "vllm:/tokenize"
+# Counts already made within one durable extraction attempt (`counting`). A durable planning round replays every earlier
+# round's planning, so nearly all its counts repeat. A count is reused only inside the attempt that made it, only at the
+# same served tokenizer and template (`_serving`: the endpoint, model, request headers, served context and the token ids
+# the server rendered for this round's probe) and only for the identical body, in the order it is sent. Outside an
+# attempt, or when the server returns no probe token ids, every count is sent. A redeploy that renders the probe the same
+# but other requests differently is not seen here: the served prompt count each call reports is still compared with its
+# count. Keys are digests: an attempt keeps at most CACHED_COUNTS of them (about 220 bytes each with their entry, some
+# 14 MB), and the process keeps at most CACHED_ATTEMPTS attempts; an attempt's counts are dropped when it is
+# acknowledged (`forget`). Planning threads (discovery slices, recipe chunks) do not see the attempt and send counts.
+CACHED_COUNTS = 65_536
+CACHED_ATTEMPTS = 8
+_attempts: OrderedDict[str, OrderedDict[bytes, int]] = OrderedDict()
+_attempts_lock = threading.Lock()
+_attempt: ContextVar[str | None] = ContextVar("counting_attempt", default=None)
+
+
+@contextmanager
+def counting(attempt: str) -> Iterator[None]:
+    """Counts made inside are kept for the rest of `attempt`'s planning rounds in this process."""
+    token = _attempt.set(attempt)
+    try:
+        yield
+    finally:
+        _attempt.reset(token)
+
+
+def forget(attempt: str) -> None:
+    """Drop an attempt's kept counts once it has ended."""
+    with _attempts_lock:
+        _attempts.pop(attempt, None)
+
+
+def _digest(value: Any) -> bytes:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False).encode()).digest()
+
+
 # The reply schema of the request that reads the served context: a template extractor renders no request without one.
 PROBE_SCHEMA = {"type": "object", "properties": {"probe": {"type": ["string", "null"]}}, "required": ["probe"],
                 "additionalProperties": False}
@@ -48,11 +91,31 @@ class TokenCounter:
     _chat: Any = field(default=None, repr=False)
     _http: Any = field(default=None, repr=False)
     _base: str = ""
+    _serving: bytes | None = None  # what fixes this endpoint's answers now; None keeps no count
     probes: list[dict] = field(default_factory=list)  # calibration requests sent to the model: none on /tokenize
 
     def request_tokens(self, system: str, user: str, schema: dict | None = None) -> int:
         """The input tokens of one system+user request as the server will count them."""
-        return self._post(self._chat.tokenize_body(system=system, user=user, schema=schema))["count"]
+        body = self._chat.tokenize_body(system=system, user=user, schema=schema)
+        attempt = _attempt.get()
+        if attempt is None or self._serving is None:
+            return self._post(body)["count"]
+        key = self._serving + _digest(body)  # the body as sent: key order is kept, a template may read it
+        with _attempts_lock:
+            counted = _attempts.get(attempt)
+            if counted is not None and key in counted:
+                counted.move_to_end(key)
+                return counted[key]
+        count = self._post(body)["count"]
+        with _attempts_lock:
+            counted = _attempts.setdefault(attempt, OrderedDict())
+            _attempts.move_to_end(attempt)
+            counted[key] = count
+            if len(counted) > CACHED_COUNTS:
+                counted.popitem(last=False)
+            while len(_attempts) > CACHED_ATTEMPTS:
+                _attempts.popitem(last=False)
+        return count
 
     def identity(self) -> dict:
         return {"source": self.source, "model": self.model, "model_digest": None, "template_tokens": None}
@@ -76,6 +139,9 @@ def counter_for(chat: Countable, *, http: Http = requests) -> TokenCounter:
     if "count" not in answer:
         raise BudgetUnavailable(f"no /tokenize route counted a request for {chat.model!r} at {base}")
     counter.context_tokens = answer.get("max_model_len")
+    if isinstance(answer.get("tokens"), list):
+        counter._serving = _digest([base, chat.model, getattr(chat, "headers", None), counter.context_tokens,
+                                    answer["tokens"]])
     return counter
 
 
