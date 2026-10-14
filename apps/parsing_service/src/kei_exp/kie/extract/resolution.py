@@ -5,18 +5,23 @@ own value may return another one: a cited work's year, a section heading as the 
 name or page number. Once a split source's contexts answered, `resolve` shows the reasoning model the document's
 opening and every place's readings, each
 with the pages and source text it was read from, and asks which reading is the document's own value (a candidate,
-NONE when none is, UNSURE when the source does not settle it) and, for every list item, whether it is the document's
-own, another work's or entity's, or a repeat (null when the source does not settle the list). A chosen or NONE place
-replaces assembly's null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps every item not labelled
-another's or a repeat, in reading order; a repeat is only an item equal to one labelled own beside it, so a second
-reading of an own item that differs from it is never one. An answer that leaves an item unlabelled changes nothing. Equal items in different list parts were never compared, so
-their possible repeat stays named. A call that fails or answers outside its labels changes nothing.
+NONE when none is, UNSURE when the source does not settle it) and, for every list item, first the work or entity its
+source gives it to, as printed (`of`), then whether it is the document's own, another work's or entity's, a repeat, or
+UNSURE. A chosen or NONE place replaces assembly's null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps
+every item not labelled another's or a repeat, in reading order. An item labelled another's leaves only when its `of`
+is printed in the part it was read from: a bare label is a weak, order-dependent call that once emptied a paper's own
+list, so without that attribution the item stays and, like an UNSURE one, is named for review (`uncertain_items`). A
+repeat is only an item equal to one labelled own or another's beside it (a
+repeat of another work's item is that work's too), so a second reading of an own item that differs from it is never
+one. An answer that leaves an item unlabelled changes nothing. A long list is shown in parts that each fit one
+request; equal items in different list parts were never compared, so their possible repeat stays named. A call that
+fails or answers outside its labels changes nothing.
 """
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import replace
 from time import monotonic
@@ -33,10 +38,12 @@ from kei_exp.kie.passages import text_of
 NONE, UNSURE = "NONE", "UNSURE"
 # A list item is the document's own, another work's or entity's, or the same thing printed again.
 OWN, OTHER, REPEAT = "OWN", "OTHER", "REPEAT"
-# shortcut: a list longer than this is resolved in parts, so an item repeating one in another part is kept and stays
-# named as a possible repeat; resolve across parts (a second pass over the kept items) when long lists show them.
+# shortcut: a list part holds at most this many items, and fewer when they do not fit one request, so an item
+# repeating one in another part is kept and stays named as a possible repeat; resolve across parts (a second pass over
+# the kept items) when long lists show them.
 LIST_CHUNK = 60
-SNIPPET = 70  # characters of source shown on each side of a reading
+SNIPPET = 160  # characters of source shown on each side of a reading: enough to show a citation beside a value
+OF_CHARS = 100  # an item's `of`: a citation, reference or name, copied as printed
 PRINTED = 3  # places shown of a value printed several times in its part
 VALUE_CHARS = 200
 OPENING_CHARS = 1500  # the document's opening, shown so the model knows which document is its own
@@ -54,9 +61,14 @@ RESOLUTION = (
     "NONE when no candidate is (a value only a cited work, a heading or another entity has is never the document's "
     "own, even when it is the only candidate; when the opening states the document's own value and no candidate is "
     "it, answer NONE), or UNSURE when the source does not settle it. For each list place "
-    "(L...), label every item, or answer null for the place when the source does not settle it. OWN: an item of the "
-    "document's own list. OTHER: an item of another work or entity (a work the document cites, a reference, another "
-    "document). REPEAT, offered only for an item marked 'same value as': the same thing printed again (a running "
+    "(L...), label every item. OWN: an item of the document's own list, also when it was read only in part (another "
+    "part read its other values, or only its method or conditions). OTHER: an item the source gives as another work's "
+    "or entity's (a work the document cites, a reference, another document). UNSURE: the source shown does not settle "
+    "whether the item is the document's own; it is kept and marked for review. Answer each item as {{\"of\": ..., "
+    "\"label\": ...}}: first `of`, the work or entity its source shown gives the item to (a citation, a reference entry, "
+    "another document's name), copied exactly as printed there, or \"\" when that source names none; then its label. "
+    "An item labelled OTHER leaves only when its `of` is printed in its source shown; otherwise it is kept and marked "
+    "for review. REPEAT, offered only for an item marked 'same value as': the same thing printed again (a running "
     "header or footer, a repeated byline), and only when its source shows the same thing again; equal values that "
     "describe different things are separate items: label each OWN. A value printed several times is shown at each "
     "place, since which one a reading read is not known; when those places do not show that equal items are the same "
@@ -136,37 +148,74 @@ def _shown(value: Any, context: Context, *, whole: bool = False) -> str:
     return f"{printed} — {where}{around}"
 
 
+def _spaced(text: str) -> str:
+    """`text` with single spaces and none before a closing or after an opening mark: "172 , 836" reads "172, 836"."""
+    return re.sub(r"([(\[])\s+", r"\1", re.sub(r"\s+([,.;:)\]])", r"\1", " ".join(text.split())))
+
+
+def _attributed(of: str, context: Context) -> bool:
+    """Whether `of` is printed in the part `context` an item was read from, as whole words, ignoring case and spacing:
+    an item is another work's only where the source it came from names that work."""
+    of = _spaced(of)
+    return len(of) > 1 and bool(_printed(of, _spaced(text_of(context.passages))))
+
+
+def _list_part(key: str, name: str, path: tuple[str, ...], items: Sequence[tuple[int, Any]], start: int, size: int,
+               groups: Sequence[Context], item_sources: dict[tuple, list[dict]]) -> dict:
+    """The section of `size` list items from `start`: each item shown and labelled, an equal one named."""
+    part = items[start:start + size]
+    labels = [f"I{number}" for number in range(1, len(part) + 1)]
+    lines = [f"{key} · {name} (items {start + 1}-{start + len(part)} of {len(items)})"]
+    first: dict[str, str] = {}  # an equal item's first label in this part, named so a repeat is seen
+    equal: dict[str, str] = {}  # each item's first equal label: items with the same one are equal
+    for label, (index, item) in zip(labels, part):
+        same = equal[label] = first.setdefault(canonical(item), label)
+        sources = item_sources[(*path, index)]
+        lines.append(f"  {label} = {_shown(item, groups[sources[0]['unit']], whole=True)}"
+                     + (f" (same value as {same})" if same != label else ""))
+    # Every item is answered, its attribution before its label; only an item equal to another may be a repeat. UNSURE
+    # is an item's abstention, so the list has none of its own.
+    reasons = {label: [OWN, OTHER, UNSURE, REPEAT] if list(equal.values()).count(equal[label]) > 1
+               else [OWN, OTHER, UNSURE] for label in labels}
+    return {"key": key, "kind": "list", "path": path, "start": start,
+            "options": dict(zip(labels, (item for _, item in part))), "text": "\n".join(lines),
+            "indices": dict(zip(labels, (index for index, _ in part))), "equal": equal,
+            "units": {label: item_sources[(*path, index)][0]["unit"] for label, (index, _) in zip(labels, part)},
+            "schema": {"type": "object", "additionalProperties": False,
+                       "properties": {label: {"type": "object", "additionalProperties": False,
+                                              "properties": {"of": {"type": "string", "maxLength": OF_CHARS},
+                                                             "label": {"type": "string", "enum": reasons[label]}},
+                                              "required": ["of", "label"]} for label in labels},
+                       "required": labels}}
+
+
 def _sections(readings: Sequence[dict], groups: Sequence[Context], nodes: Sequence[Node], root: dict,
-              item_sources: dict[tuple, list[dict]]) -> list[dict]:
+              item_sources: dict[tuple, list[dict]], fits: Callable[[dict], bool]) -> list[dict]:
     """One section per scalar place to settle and per list part: a scalar read by one part only or read differently,
-    never one read alike by several parts; every list with items."""
+    never one read alike by several parts; every list with items, in parts of at most `LIST_CHUNK` items that each
+    `fits` one request alone. When not even one item fits, the part stays whole and its list keeps assembly."""
     sections: list[dict] = []
     for path, node in _places(nodes):
         name = ".".join(path)
         if node.type == "array":
             # Resolve assembled occurrences: overlap joins and reply coordinates already belong to assembly.
             items = list(enumerate(_at(root, path) or []))
-            for start in range(0, len(items), LIST_CHUNK):
-                part = items[start:start + LIST_CHUNK]
-                labels = [f"I{number}" for number in range(1, len(part) + 1)]
+            start = 0
+            while start < len(items):
                 key = f"L{sum(section['kind'] == 'list' for section in sections) + 1}"
-                lines = [f"{key} · {name} (items {start + 1}-{start + len(part)} of {len(items)})"]
-                first: dict[str, str] = {}  # an equal item's first label in this part, named so a repeat is seen
-                equal: dict[str, str] = {}  # each item's first equal label: items with the same one are equal
-                for label, (index, item) in zip(labels, part):
-                    same = equal[label] = first.setdefault(canonical(item), label)
-                    sources = item_sources[(*path, index)]
-                    lines.append(f"  {label} = {_shown(item, groups[sources[0]['unit']], whole=True)}"
-                                 + (f" (same value as {same})" if same != label else ""))
-                # Every item is labelled; only an item equal to another may be a repeat.
-                reasons = {label: [OWN, OTHER, REPEAT] if list(equal.values()).count(equal[label]) > 1
-                           else [OWN, OTHER] for label in labels}
-                sections.append({"key": key, "kind": "list", "path": path, "start": start,
-                                 "options": dict(zip(labels, (item for _, item in part))), "text": "\n".join(lines),
-                                 "indices": dict(zip(labels, (index for index, _ in part))), "equal": equal,
-                                 "schema": {"type": ["object", "null"], "additionalProperties": False,
-                                            "properties": {label: {"type": "string", "enum": reasons[label]}
-                                                           for label in labels}, "required": labels}})
+                size = min(LIST_CHUNK, len(items) - start)
+                section = _list_part(key, name, path, items, start, size, groups, item_sources)
+                if size > 1 and not fits(section):
+                    # Whole items made the part too long: the most items that fit, found by halving.
+                    fitting, over = 0, size
+                    while over - fitting > 1:
+                        middle = (fitting + over) // 2
+                        trial = _list_part(key, name, path, items, start, middle, groups, item_sources)
+                        fitting, over = (middle, over) if fits(trial) else (fitting, middle)
+                    if fitting:
+                        section = _list_part(key, name, path, items, start, fitting, groups, item_sources)
+                sections.append(section)
+                start += len(section["options"])
             continue
         alternatives: dict[str, dict] = {}
         for index, reading in enumerate(readings):
@@ -192,7 +241,9 @@ def _request(opening: str, sections: Sequence[dict]) -> tuple[str, dict, int]:
     user = f"### Document opening\n{opening}\n\n### Places\n" + "\n\n".join(section["text"] for section in sections)
     schema = {"type": "object", "properties": {section["key"]: section["schema"] for section in sections},
               "required": [section["key"] for section in sections], "additionalProperties": False}
-    reserve = 256 + sum(8 if section["kind"] == "scalar" else 10 * len(section["options"]) for section in sections)
+    # A list item's answer: its label and, at most, a copied `of` of one token per two characters.
+    reserve = 256 + sum(8 if section["kind"] == "scalar" else (16 + OF_CHARS // 2) * len(section["options"])
+                        for section in sections)
     return user, schema, reserve
 
 
@@ -205,12 +256,20 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
     (UNSURE, a failed call, an answer outside its labels, a list part unsettled) keeps assembly's result.
     Kept list occurrences remap `item_sources` and overlap joins to their new positions, without matching by value."""
     nodes = schema.record_nodes
-    sections = _sections(readings, groups, nodes, root, item_sources)
-    if not sections:
-        return root, contested, repeats, joined, [], []
     system = RESOLUTION.format(description=schema.record_description,
                                notes="".join(f"{line}\n" for line in notes(nodes)))
     opening = " ".join(text_of([p for group in groups for p in group.primary]).split())[:OPENING_CHARS]
+
+    def fits(section: dict) -> bool:
+        user, reply_schema, reserve = _request(opening, [section])
+        return counter.request_tokens(system, user, reply_schema) + reserve <= counter.context_tokens
+
+    sections = _sections(readings, groups, nodes, root, item_sources, fits)
+    if not sections:
+        return root, contested, repeats, joined, [], []
+    # Each original list index's part, so a repeat whose copies stayed in different parts stays named.
+    part_of = {(section["path"], index): section["start"] for section in sections if section["kind"] == "list"
+               for index in section["indices"].values()}
     batches: list[list[dict]] = []
     for section in sections:
         trial = [*batches[-1], section] if batches else [section]
@@ -256,17 +315,29 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
                 parts = kept.setdefault(path, [])
                 reasons = section["schema"]["properties"]
                 if (parts is None or not isinstance(choice, dict) or set(choice) != set(reasons)
-                        or any(reason not in reasons[label]["enum"] for label, reason in choice.items())):
+                        or any(not isinstance(each, dict) or set(each) != {"of", "label"}
+                               or not isinstance(each["of"], str)
+                               or each["label"] not in reasons[label]["properties"]["label"]["enum"]
+                               for label, each in choice.items())):
                     kept[path] = None
                     continue
-                # A repeat is left out only beside an equal item labelled own: equal items all repeats are kept.
-                staying = {section["equal"][label] for label, reason in choice.items() if reason == OWN}
-                gone = {label for label, reason in choice.items()
-                        if reason == OTHER or (reason == REPEAT and section["equal"][label] in staying)}
+                # Another's item leaves only where the part it was read from prints the work it was given to.
+                left_out = {label for label, each in choice.items() if each["label"] == OTHER
+                            and _attributed(each["of"], groups[section["units"][label]])}
+                # A repeat is left out beside an equal item labelled own (that copy stays) or another's (the repeat of
+                # another work's item is that work's too): equal items all repeats or UNSURE are kept, since UNSURE
+                # settles no copy for a repeat to be.
+                anchored = {section["equal"][label] for label, each in choice.items() if each["label"] in (OWN, OTHER)}
+                gone = left_out | {label for label, each in choice.items()
+                                   if each["label"] == REPEAT and section["equal"][label] in anchored}
+                doubted = [(section["indices"][label], each) for label, each in choice.items()
+                           if each["label"] == UNSURE or (each["label"] == OTHER and label not in gone)]
                 parts.append((section["start"],
                               [item for label, item in section["options"].items() if label not in gone],
-                              [item for label, item in section["options"].items() if label in gone],
-                              [index for label, index in section["indices"].items() if label not in gone]))
+                              [(item, choice[label]["of"]) for label, item in section["options"].items()
+                               if label in gone],
+                              [index for label, index in section["indices"].items() if label not in gone],
+                              doubted))
             elif isinstance(choice, str) and (choice in section["options"] or choice == NONE):
                 value = section["options"].get(choice)
                 _put(root, path, value)
@@ -278,8 +349,8 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
         if parts is None:
             continue
         parts.sort(key=lambda part: part[0])
-        dropped = [item for _, _, gone, _ in parts for item in gone]
-        positions = [index for _, _, _, indices in parts for index in indices]
+        dropped = [each for _, _, gone, _, _ in parts for each in gone]
+        positions = [index for _, _, _, indices, _ in parts for index in indices]
         sources = {index: item_sources.pop((*path, index)) for index in range(len(_at(root, path) or []))}
         item_sources.update({(*path, index): sources[original] for index, original in enumerate(positions)})
         moved = {original: index for index, original in enumerate(positions)}
@@ -293,12 +364,17 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
                 continue
             indices = [moved[index] for index in repeat["indices"] if index in moved]
             contexts = sorted({item_sources[(*path, index)][0]["unit"] for index in indices})
-            if len(contexts) > 1 and len({index // LIST_CHUNK for index in repeat["indices"] if index in moved}) > 1:
+            if len(contexts) > 1 and len({part_of[(path, index)] for index in repeat["indices"] if index in moved}) > 1:
                 left.append({**repeat, "contexts": contexts, "indices": indices})
         repeats = left
-        _put(root, path, [item for _, items, _, _ in parts for item in items])
+        _put(root, path, [item for _, items, _, _, _ in parts for item in items])
         if dropped:
-            issues.append(Issue("dropped_items", json.dumps({"path": list(path), "dropped": dropped},
-                                                            ensure_ascii=False), 0, ("records", 0, *path)))
+            issues.append(Issue("dropped_items", json.dumps(
+                {"path": list(path), "dropped": [item for item, _ in dropped], "of": [of for _, of in dropped]},
+                ensure_ascii=False), 0, ("records", 0, *path)))
+        if doubted := [{"index": moved[index], **each} for *_, doubts in parts for index, each in doubts]:
+            # Kept: the source did not settle the item (UNSURE), or it was called another's without printing whose.
+            issues.append(Issue("uncertain_items", json.dumps({"path": list(path), "items": doubted},
+                                                              ensure_ascii=False), 0, ("records", 0, *path)))
     contested = [conflict for conflict in contested if tuple(conflict["path"]) not in settled]
     return root, contested, repeats, joined, calls, issues
