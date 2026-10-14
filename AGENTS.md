@@ -15,3 +15,23 @@
   `docs/design/unified-durable-execution.md`.
 - This repository is public: no credentials, internal hostnames/IPs, personal
   data or non-redistributable documents in tracked files (see `CONTRIBUTING.md`).
+
+## Commands
+
+- `pnpm test`: run the fast unit and static checks
+- `pnpm build`: build Studio
+- `pnpm lint`: lint Studio
+- `pnpm dev`: start the local Compose stack
+
+## Code Map
+
+- `apps/`: application source
+- `packages/`: packages
+- `tests/`: automated tests
+- `docs/`: project documentation
+
+## Conventions
+
+- JavaScript and TypeScript use ESM `import` and `export` syntax.
+- JavaScript and TypeScript test files use a `.test.` infix.
+- Parsing Service Python tests use pytest's `test_*.py` naming convention.
