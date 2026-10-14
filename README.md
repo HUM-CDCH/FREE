@@ -4,13 +4,15 @@ Evidence for [PR #267](https://github.com/HUM-CDCH/FREE/pull/267) (`fix/article-
 by the author's agent session so another reviewer or agent can inspect it. This is an orphan branch that holds evidence
 only. It is not meant to be merged. `CONTRIBUTING.md` puts review and validation evidence with the PR, not in `docs/`.
 
-State when pushed (2026-10-14, about 11:25 UTC):
+State when last updated (2026-10-14, about 12:00 UTC):
 
-- PR #267 is an open draft at head `d21f99e6`, 7 commits ahead of `origin/dev` and 2 behind (merge base `b607c36a`).
+- PR #267 is an open draft at head `d21f99e6`, 7 commits ahead of `origin/dev` and 3 behind (merge base `b607c36a`,
+  `dev` at `f59e9dbf`).
 - **The release hold is in force and has not been lifted.** Only the maintainer (@GennaroBaratta) lifts it, by
   recording acceptance on the PR thread.
-- Rerun 2 of the comparison (code `d21f99e6`) is running on Baratheon. Its results are not on this branch yet; they
-  will be posted on the PR.
+- Rerun 2 of the comparison (code `d21f99e6`) finished: every criterion A1-A4 holds in both conditions
+  (`comparison/rerun-2/results.md`). Under the protocol this goes to the maintainer's decision; it does not lift the
+  hold by itself.
 
 ## Layout
 
@@ -21,7 +23,7 @@ State when pushed (2026-10-14, about 11:25 UTC):
 | `comparison/deviations.md` | The three deviations of run 1 |
 | `comparison/results.md` | Run 1 (`e4516d3c`): verdict, measures, adjudication of every dropped item |
 | `comparison/rerun-1/` | Rerun 1 (`6b4a2b9b`): protocol, seal, results |
-| `comparison/rerun-2/` | Rerun 2 (`d21f99e6`): protocol and seal only; results pending |
+| `comparison/rerun-2/` | Rerun 2 (`d21f99e6`): protocol, seal, results |
 | `comparison/harness/` | `run_paper.py` (one paper, one condition) and the amended `schema.json` |
 | `comparison/launch/` | `run.sh` (container invocation on Baratheon) and `queue.sh` (one condition over the 12 papers) |
 | `comparison/score.py` | Scorer for criteria A1-A4, unchanged across all three runs |
@@ -80,10 +82,19 @@ the same part readings. Every criterion must hold in both conditions.
 | --- | --- | --- | --- |
 | Run 1 (`e4516d3c`) | A1-A4 pass | A1 fail: 1 of 13 covered gold rows lost | not accepted |
 | Rerun 1 (`6b4a2b9b`) | A1 fail: 5 of 14 lost; A3 fail: 2 of 2 multi-part rows lost | A1-A4 pass | not accepted |
-| Rerun 2 (`d21f99e6`) | pending | pending | pending |
+| Rerun 2 (`d21f99e6`) | A1-A4 pass (0 of 14 covered gold rows lost; on H4 the list answer abstained) | A1-A4 pass (0 of 15 lost; no item dropped) | all criteria hold; maintainer decides |
 
 PR comments: [run 1](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6165924774),
-[rerun 1](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6166919663).
+[rerun 1](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6166919663). Rerun 2's verdict is posted in the
+PR thread after this branch's update.
+
+Rerun 2 in brief (`comparison/rerun-2/results.md`): own title/DOI/year went from 27 to 31 of 36 (N) and 20 to 31
+(Q), with no losses. N dropped 11 items: 9 cited species, correctly removed, and 2 own Catla catla copies on H2
+labelled OTHER. The kept copies carry every numeric value, but the DSC medium and ratio the source prints (0.05 M
+acetic acid, 1:40 w/v) were only on the dropped copies. N's pass on H4 rests on the model abstaining on that list
+(all 12 own items kept unjudged). Q dropped nothing and abstained on the Baltic cod list. The values lost in earlier
+runs (redfish imino 16.5% and 16.0%, Baltic cod hydroxyproline 6.4%) are kept. Both conditions kept the cited Baltic
+cod skin item (Sadowska et al. 2003).
 
 - **Scalars are safe in every run.** Resolution recovered own title, DOI and year values from assembly's
   null-on-conflict and lost none. Own values went from 27 to 31 of 36 for N in both runs, 22 to 31 for Q in run 1,
@@ -121,15 +132,17 @@ is not on this branch.
 
 ## Open points
 
-1. **Rerun 2 verdict (pending).** Code `d21f99e6` runs on Baratheon in `/tmp/free-pr267-rerun2/out`. At about
-   11:13 UTC, N had 4 of 12 papers done and Q had 7. It will be scored with `score.py` unchanged and posted on the PR.
-   It is declared as the last fix-and-rerun cycle without a maintainer decision.
+1. **Rerun 2 passed; acceptance is open.** Code `d21f99e6`, scored with `score.py` unchanged: A1-A4 hold in both
+   conditions. It was declared as the last fix-and-rerun cycle without a maintainer decision. Caveats for that
+   decision: N's H4 pass is an abstention, not a correct labelling; N mislabelled 2 own H2 items as OTHER and lost
+   printed DSC conditions; Q removed no foreign item at all.
 2. **Lifting the hold is the maintainer's decision.** Rerun 2 is the third execution on the same 12 papers, and both
    list fixes were designed from what earlier runs dropped there. A pass shows that the observed failures did not
    recur, not that resolution generalizes. A confirmation on papers outside this corpus is recommended before
    default-on release.
 3. **Printed values on dropped second readings.** The redfish imino totals and Baltic cod hydroxyproline losses are
-   not counted by A1-A4 and recurred in both completed runs. Decide whether this needs a criterion, or a design change
+   not counted by A1-A4 and recurred in run 1 and rerun 1. Rerun 2 kept them, but lost H2's printed DSC conditions
+   the same way (a dropped own copy). Decide whether this needs a criterion, or a design change
    (such as merging differently filled readings of one sample) before default-on.
 4. **Kept contamination.** Cited items that stay (the Baltic cod skin items) are not measured by any criterion.
 5. **Model setup.** Choosing N or Q is a separate decision that this comparison does not settle (finding 3, last
@@ -144,7 +157,7 @@ is not on this branch.
    ([comment review](https://github.com/HUM-CDCH/FREE/pull/267#pullrequestreview-5516075182), at `14c79566`) was
    posted as COMMENTED because the author account cannot approve its own PR. `6b4a2b9b` and `d21f99e6`, which change
    list resolution, have had no independent review. `CONTRIBUTING.md` asks for a review before merging into `dev`.
-10. **Merge readiness.** The branch is 2 commits behind `dev`; a scratch merge at `14c79566` had no conflicts. PRs into
+10. **Merge readiness.** The branch is 3 commits behind `dev`; a scratch merge at `14c79566` had no conflicts. PRs into
     `dev` run no CI, so the merged-result checks above need rerunning at the final head with the then-current `dev`.
 11. **Studio timeouts (outside this PR).** The default aggregate `pnpm test` stopped on 5-second timeouts in unchanged
     Studio tests (`api/_pdf_pages.test.ts`, `server/workflows.test.ts`, `ProviderConfigPage.test.tsx`) under load.
@@ -154,9 +167,9 @@ is not on this branch.
 
 The repository is public, so these stay off this branch. `withheld.sha256` lists the sha256 of each:
 
-- Raw captures of all runs (`captures/`, `rerun-1/captures/`, `pilot/`). Each holds long excerpts of the source
+- Raw captures of all runs (`captures/`, `rerun-1/captures/`, `rerun-2/captures/`, `pilot/`). Each holds long excerpts of the source
   articles, which are third-party publications, in its resolution prompts.
-- Per-paper scores (`report.json`, `rerun-1/report.json`), which are built from gold rows.
+- Per-paper scores (`report.json`, `rerun-1/report.json`, `rerun-2/report.json`), which are built from gold rows.
 - The gold that `score.py` reads (`ablation-20261007/gold/gold_heldout.json`, `gold/gold_dev_corrected.xlsx`,
   `run-dev-b1prime/extractor-config.json`). Publishing the held-out gold would spend it.
 
