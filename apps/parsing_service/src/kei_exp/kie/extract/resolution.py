@@ -37,6 +37,11 @@ SNIPPET = 70  # characters of source shown on each side of a reading
 PRINTED = 3  # places shown of a value printed several times in its part
 VALUE_CHARS = 200
 OPENING_CHARS = 1500  # the document's opening, shown so the model knows which document is its own
+# Not inside a longer word or number: 10 is not printed in 210, 10.5 or 1,100.
+WHOLE = r"(?<!\w)(?<!\d[.,]){}(?!\w|[.,]\d)"
+# Digits are not the end of a number that starts before them: 10 is not printed in -10, −10, .10, 1e-10 or 1e+10.
+# A hyphen, minus or point starts a number only after no word character, so 10 is printed in pp. 5-10 and p.10.
+NUMBER_START = r"(?<!(?<!\w)[-\u2212.])(?<!\d[eE][-\u2212+])"
 RESOLUTION = (
     "Several parts of one document were each read on their own for the document's one record, so a part may have "
     "answered with a value that is not the document's own: a value of a work the document cites, a section heading, "
@@ -96,9 +101,9 @@ def _shown(value: Any, context: Context) -> str:
     where = f"page {pages[0]}" if len(pages) == 1 else f"pages {pages[0]}-{pages[-1]}" if pages else "no page"
     text = " ".join(text_of(context.passages).split())
     needle = _needle(value)
-    # Not inside a longer word or number: 10 is not printed in 210, 10.5 or 1,100.
-    found = [match.start() for match in re.finditer(rf"(?<!\w)(?<!\d[.,]){re.escape(needle)}(?!\w|[.,]\d)",
-                                                     text, re.IGNORECASE)] if needle else []
+    # A value printed digits first is a number; a word keeps only the whole-word rule, so Smith is in Jones-Smith.
+    pattern = needle and (NUMBER_START if needle[0].isdigit() else "") + WHOLE.format(re.escape(needle))
+    found = [match.start() for match in re.finditer(pattern, text, re.IGNORECASE)] if needle else []
     shown = " | ".join(f"…{text[max(0, at - SNIPPET):at + len(needle) + SNIPPET]}…" for at in found[:PRINTED])
     around = (" (not printed verbatim)" if not found else f": {shown}" if len(found) == 1
               else f" (printed {len(found)} times; which one was read is not known): {shown}")

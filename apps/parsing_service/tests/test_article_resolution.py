@@ -6,7 +6,7 @@ import jsonschema
 import pytest
 
 from kei_exp.kie.extract.contexts import Context, assemble_document
-from kei_exp.kie.extract.resolution import resolve
+from kei_exp.kie.extract.resolution import _shown, resolve
 from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract import run
@@ -101,6 +101,43 @@ def test_a_value_is_shown_where_it_is_printed_as_a_whole_number():
     assembled([{"participants": 10}, {"participants": 12}], chat, texts=texts, schema=schema)
     shown = next(line for line in chat.calls[0]["user"].splitlines() if line.startswith("  C1 = 10"))
     assert "Our study had 10 participants" in shown and "210" not in shown
+
+
+@pytest.mark.parametrize("value,text,printed", [
+    # A page number or a range's endpoint is the number itself.
+    (10, "See pp. 5-10 of the report.", True),
+    (10, "See pp. 5\u201310 of the report.", True),
+    (10, "As shown on p.10 of the report.", True),
+    # Digits that end another number are not printed: its sign, minus, leading point or exponent starts it before them.
+    (10, "A cited value was -10.", False),
+    (10, "A cited value was \u221210.", False),
+    (10, "A cited value was 1e-10.", False),
+    (10, "A cited value was 1e+10.", False),
+    (10, "A cited value was .10.", False),
+    ("10", "A cited value was -10.", False),
+    # Nor are digits inside a longer number.
+    (10, "A cited value was 210.", False),
+    (10, "A cited value was 10.5.", False),
+    (10, "A cited value was 1,100.", False),
+    # A word is matched whole, and a hyphen ends a word.
+    ("Smith", "By Jones-Smith.", True),
+    ("Smith", "By Smithson.", False),
+])
+def test_a_value_is_found_where_it_is_printed_and_not_inside_another_number_or_word(value, text, printed):
+    shown = _shown(value, Context(tuple(passages([text]))))
+    assert shown.endswith(f": …{text}…" if printed else " (not printed verbatim)"), shown
+
+
+@pytest.mark.parametrize("other", ["-10", "\u221210", "1e-10", ".10"])
+def test_other_numbers_ending_in_the_value_never_displace_where_it_is_printed(other):
+    schema = Schema(schemaNodes=[{"id": "n", "name": "degrees", "type": "number"}], recordDescription="One study")
+    cited = " ".join(f"Reference study {index} had {other} degrees. " + "Background. " * 20 for index in range(3))
+    chat = valid(lambda *_: {"S1": "UNSURE"})
+    assembled([{"degrees": 10}, {"degrees": 12}], chat, texts=[cited + "Our study had 10 degrees.", "Twelve degrees."],
+              schema=schema)
+    shown = next(line for line in chat.calls[0]["user"].splitlines() if line.startswith("  C1 = 10"))
+    # Shown once where it is printed: three places of the cited numbers would fill the shown places and count as four.
+    assert shown.endswith("Our study had 10 degrees.…") and "printed" not in shown and other not in shown, shown
 
 
 def test_equal_items_printed_twice_are_shown_at_both_places_not_as_their_own_occurrence():
