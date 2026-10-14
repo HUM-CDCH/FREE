@@ -60,8 +60,8 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 4  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line; 4: a
-# discovery WINDOW label names its line's layout kind (`discovery.kinds_of`)
+PROMPT_VERSION = 5  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+# 5: entry/document input retains the horizontal whitespace delimiting empty table cells.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -70,7 +70,10 @@ RECORD_VERSION = 1  # the execution record's layout
 # 4: a list item's values are looked for in its own located occurrence first, so a cell printed in several rows ("Niv.
 # 6") is its own row's, never one at a window cut; and text a model copied nearly verbatim is repaired to the source
 # (`NEAR`): a quote found nowhere, or a value not printed in its quote, within a few edits of exactly one place.
-ENTRY_VERSION = 4
+# 5: an item's unique single-row table occurrence takes priority over repeats in prose; its quoted values are
+# located in that row's individual cells first, including repeated partial quotes. A verbatim value continuing
+# across segments may extend its partial quote, with every segment kept in the value's evidence.
+ENTRY_VERSION = 5
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
 # items, a single window's included). 3: an item two windows returned is joined only when their shared source
@@ -490,11 +493,23 @@ class _Checker:
                 spot = anchor
                 if item is None and isinstance(entry.get(ITEM), str) and entry[ITEM].strip():
                     places = self._places(entry[ITEM])
-                    spot = _key(places[0]) if len(places) == 1 else None
+                    table_places = [spans for spans in places if self._item_row(spans)]
+                    own = table_places if len(table_places) == 1 else places
+                    spot = _key(own[0]) if len(own) == 1 else None
                 found += [each for child in node.children or []
                           for each in self._field((*path, index, child.name), child, entry.get(child.name), inner,
                                                   spot)]
         return found
+
+    def _item_row(self, spans: list[Span]) -> list[tuple[int, int]]:
+        """An item's identity must name one row, never a cell shared by several rows."""
+        if len(spans) != 1 or spans[0].segment_id not in self.tables:
+            return []
+        span = spans[0]
+        if any(cell.rowspan == 1 and cell.start <= span.start and span.end <= cell.end
+               for cell in self.tables[span.segment_id].cells):
+            return self._row(spans)
+        return []
 
     def _row(self, spans: list[Span]) -> list[tuple[int, int]]:
         """The view range of each cell of the table row whose cell holds the whole quote, from the parse's own cells;
@@ -508,7 +523,7 @@ class _Checker:
             return []
         ranges = []
         for each in cells:
-            if each.row <= cell.row < each.row + each.rowspan:
+            if each.start < each.end and each.row <= cell.row < each.row + each.rowspan:
                 try:
                     ranges.append(raw_range(self.view, [Span(segment_id=span.segment_id, start=each.start,
                                                              end=each.end)]))
@@ -546,13 +561,16 @@ class _Checker:
             return found
         found.value = typed
         # A list item's values are its own occurrence's first: a cell printed in several rows is this row's.
-        own = raw_range(self.view, [Span(segment_id=s, start=a, end=b) for s, a, b in anchor]) if anchor else None
+        item_spans = [Span(segment_id=s, start=a, end=b) for s, a, b in anchor] if anchor else []
+        own = raw_range(self.view, item_spans) if item_spans else None
+        row = self._item_row(item_spans)
         passage = isinstance(typed, bool) or node.allowed_values is not None or \
             evidence_policy(self.nodes, _field_path(path)) == "derived"  # a passage may support it, unprinted
         free = self.repair and node.type in ("string", "verbatim-string") and not passage
         quoted = []
         if found.quote and found.quote.strip():
-            quoted = (self._places(quote, own) if own else []) or self._places(quote)
+            quoted = ([spans for within in row for spans in self._places(quote, within)]
+                      or (self._places(quote, own) if own else []) or self._places(quote))
             if not quoted and free and (near := (self._near(quote, own) if own else None) or self._near(quote)):
                 quoted, found.quote, found.repaired = [near], self._text(near), True
         if not quoted:
@@ -568,6 +586,16 @@ class _Checker:
             for within in self._row(quoted[0]):  # in a cell of that row; a quote found in several places names none
                 for text in forms(typed):
                     literal += [each for each in self._places(text, within, numeric) if each not in literal]
+        if not literal and free and len(quoted) == 1:
+            # A page break can divide the printed value beyond its quoted cell. Locate the complete value in
+            # contiguous source text, enclosing that quote; never infer or join a table continuation.
+            for text in forms(typed):
+                for spans in self._places(text):
+                    if len(spans) < 2:
+                        continue
+                    start, end = raw_range(self.view, spans)
+                    if any(start <= a and b <= end for a, b in (raw_range(self.view, quote) for quote in quoted)):
+                        literal.append(spans)
         if not literal and free and len(quoted) == 1 and (near := self._near(typed, raw_range(self.view, quoted[0]))):
             literal, found.value, found.repaired = [near], self._text(near), True
         if literal:
@@ -611,11 +639,28 @@ def _notes(nodes: list[Node]) -> str:
     return "".join(f"{line}\n" for line in notes(nodes))
 
 
-def _user(window: Window, texts: dict[str, str], marker: str) -> str:
-    parts = ([f"### CONTEXT (not part of the record)\n{text_of(window.heading, texts)}"] if window.heading else []) + \
-        ([f"### EARLIER TEXT\n{text_of(window.before, texts)}"] if window.before else []) + \
-        [f"### {marker}\n{text_of(window.primary, texts)}\n### END {marker}"] + \
-        ([f"### LATER TEXT\n{text_of(window.after, texts)}"] if window.after else [])
+def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str, PageTable]) -> str:
+    """Discovery owns nonblank ranges; model input restores the empty columns beside each table line."""
+    shown = []
+    for unit in units:
+        start, end = unit.start, unit.end
+        if unit.segment in tables:
+            text = texts[unit.segment]
+            while start > 0 and text[start - 1] in " \t":
+                start -= 1
+            while end < len(text) and text[end] in " \t":
+                end += 1
+        shown.append(Unit(unit.segment, start, end))
+    return text_of(shown, texts)
+
+
+def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable] | None = None) -> str:
+    def source(units):
+        return _source_text(units, texts, tables or {})
+    parts = ([f"### CONTEXT (not part of the record)\n{source(window.heading)}"] if window.heading else []) + \
+        ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) + \
+        [f"### {marker}\n{source(window.primary)}\n### END {marker}"] + \
+        ([f"### LATER TEXT\n{source(window.after)}"] if window.after else [])
     return "\n\n".join(parts)
 
 
@@ -666,7 +711,7 @@ class _Run:
               heading: tuple[Unit, ...], out: _Work) -> list[tuple[Window, dict | None]]:
         """Every window's reply in source order; a failed window is halved up to the versioned number of times."""
         def fits(window: Window) -> bool:
-            user = _user(window, self.texts, marker) + "\n\nReturn the JSON object now."
+            user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
             return self.budget.fits(stage, system, user, schema)
         windows = plan(units, self.texts, fits, overlap=self.effective["overlap"], heading=heading)
         if windows is None:
@@ -675,7 +720,7 @@ class _Run:
         queue = [(window, 0) for window in windows]
         while queue:
             window, depth = queue.pop(0)
-            user = _user(window, self.texts, marker) + "\n\nReturn the JSON object now."
+            user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
             answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit)
             if answer is None and len(window.primary) > 1 and depth < self.effective["splits"]:
                 halves = split(window, self.texts, fits, overlap=self.effective["overlap"])

@@ -23,6 +23,7 @@ import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './rev
 import { shownValue, stateLabel, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SelectionChannel } from './selectionChannel'
+import { sourceEvidenceLinks } from './evidenceNavigation'
 import { scrollWithinPane } from './scrollWithinPane'
 import {savedCorrectionHref,type SavedReviewCut} from './durableReviewLinks'
 import { keyAction } from './reviewKeys'
@@ -432,8 +433,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     if(review){const row=durableRailRow(review.value,document),index=rows.findIndex(each=>each.key===row.key);if(index<0)rows.push(row);else rows[index]=row}
     const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision}]))
     const displayed=review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values
+    const anchors=new Set(document?.evidence_index.anchors.map(anchor=>anchor.anchor_id)??[])
     const savedLinks=[...displayed.flatMap(value=>[
-      ...value.links.map(link=>({key:value.id,link})),
+      ...value.links.flatMap(link=>sourceEvidenceLinks(link,anchors).map(link=>({key:value.id,link}))),
       ...(value.correction?.decision.evidence??[]).map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:value.id,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
     ]),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
@@ -548,7 +550,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const linkedKeys=new Set(passageKeys.filter(key=>page.values.some(value=>value.id===key)))
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
-    editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
+    editing={false} node={page.values.find(value=>value.id===row.key)?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
     onKeyDown={event=>{if(event.key==='Escape'&&menuOpen&&!event.defaultPrevented){event.preventDefault();setMenuOpen(false)}}}>
     <ResultsHeader status={statusLine(state,model,article,Boolean(page.finalization))}

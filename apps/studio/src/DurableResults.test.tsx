@@ -15,6 +15,60 @@ import { ApiRequestError } from './api'
 
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),readDurableHistorySummary:vi.fn(),readValues:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks()})
+
+it('shows every saved table row and absent cell in list and one-by-one review',async()=>{
+  const node={id:'remains',name:'remains',type:'object',children:[
+    {id:'summary',name:'summary',type:'string'},
+    {id:'parts',name:'parts',type:'array',children:[
+      {id:'number',name:'number',type:'string'},
+      {id:'description',name:'description',type:'string'},
+      {id:'notes',name:'notes',type:'string'},
+    ]},
+  ]}
+  const value={id:'value',recordId:'first',fieldId:node.id,path:['records',0,node.name],selectionId:'original',schemaRevisionId:'schema',node,
+    modelValue:{summary:'Fragments survived.',parts:[
+      {number:'A-1',description:'Tooth',notes:null},
+      {number:'A-2',description:null,notes:'Recovered while cleaning'},
+      {number:'A-3',description:'Bone fragments',notes:null},
+    ]},evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'COMPLETED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check remains/}))
+  const checkTable=()=>{
+    const table=screen.getByRole('table',{name:'parts'})
+    expect(within(table).getAllByRole('columnheader').map(cell=>cell.textContent)).toEqual(['number','description','notes'])
+    expect(within(table).getAllByRole('row')).toHaveLength(4)
+    for(const text of ['A-1','Tooth','A-2','Recovered while cleaning','A-3','Bone fragments'])expect(within(table).getByText(text)).toBeVisible()
+    expect(within(table).getAllByText('No value')).toHaveLength(3)
+  }
+  checkTable()
+  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  await screen.findByRole('table',{name:'parts'})
+  checkTable()
+})
+
+it('publishes every source segment of a table value continued onto another page',async()=>{
+  const document=decodeParsedDocument(rawDocument)
+  const original=document.evidence_index.anchors[0]
+  document.evidence_index.anchors=[...document.evidence_index.anchors,
+    {...original,anchor_id:'a_p1_s0'}, {...original,anchor_id:'a_p2_s0'}]
+  const link={resultPath:['records',0,'description'],evidenceAnchorId:'a_p1_s0',precision:'segment',grounding:{
+    linkedBy:'verification',support:'literal',precision:'segment',raw:'Fragments, probably tibia',itemSpans:null,
+    textSpans:[{segment:'p1_s0',start:0,end:10},{segment:'p2_s0',start:0,end:15}],
+    alternatives:[[{segment:'p3_s0',start:0,end:15}]],
+  }}
+  const value={id:'value',recordId:'first',fieldId:'description',path:['records',0,'description'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'description',name:'description',type:'string'},modelValue:'Fragments, probably tibia',evidence:[],links:[link],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'COMPLETED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  const selection=createSelectionChannel()
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={document} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
+  await screen.findByRole('button',{name:/To check description/})
+  await waitFor(()=>expect(selection.snapshot().marks?.savedLinks?.map(saved=>saved.link.evidenceAnchorId)).toEqual(['a_p1_s0','a_p2_s0']))
+})
 /** The rail's History tab body, which Results renders guidance and saved versions into. */
 const historySlot=()=>document.body.appendChild(document.createElement('div'))
 const openDetails=(summary:HTMLElement)=>{const details=summary.closest('details')!;details.open=true;fireEvent(details,new Event('toggle'));return details}

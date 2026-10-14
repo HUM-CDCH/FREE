@@ -4,10 +4,11 @@ import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, rowText, stateLabel, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
+import ReviewedValueDisplay from './ui/ReviewedValueDisplay'
 
 const Kbd = ({ children }: { children: string }) =>
   <kbd aria-hidden="true" className="rounded border border-current/30 px-1 font-mono text-compact font-normal opacity-80">{children}</kbd>
@@ -104,7 +105,10 @@ export default function ReviewFocus({ article, items, position, current, recordL
             onTypedSave={onTypedEdit}
             saveLabel="Save edit and next" onSave={(value) => onDecide('EDITED', value)} />
         ) : (
-          <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{rowText(current)}</h2>
+          <>
+            <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{current.value && typeof current.value === 'object' ? reviewedValueSummary(node, current.value) : rowText(current)}</h2>
+            {current.value !== null && typeof current.value === 'object' && <ReviewedValueDisplay node={node} value={current.value} />}
+          </>
         )}
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}

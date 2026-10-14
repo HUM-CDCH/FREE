@@ -201,7 +201,7 @@
       "fields": "fake/extractor",
       "reasoning": "fake/extractor"
     },
-    "prompt_version": 4,
+    "prompt_version": 5,
     "document_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
@@ -324,7 +324,7 @@
         "fields": "fake/extractor",
         "reasoning": "fake/extractor"
       },
-      "prompt_version": 4,
+      "prompt_version": 5,
       "discovery_version": 8,
       "tokenizers": {
         "fields": {
@@ -343,10 +343,10 @@
         }
       }
     },
-    "execution_sha256": "49813454460c63238f04aa50196e0dd5638eb601abd588ee8b534780ddf6499e",
+    "execution_sha256": "4b7ac4dea39cc850208b8e0d0b8780aca66f42ac6e1c0c4ef746b5bef81e1c29",
     "discovery": {
       "version": 8,
-      "execution_sha256": "49813454460c63238f04aa50196e0dd5638eb601abd588ee8b534780ddf6499e",
+      "execution_sha256": "4b7ac4dea39cc850208b8e0d0b8780aca66f42ac6e1c0c4ef746b5bef81e1c29",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -449,7 +449,7 @@
         }
       ]
     },
-    "discovery_sha256": "cf529370b11e121712865fa8be249734c36dc3572b0fd48b27120554329c8611",
+    "discovery_sha256": "0551fea2fe993290415b5423a2048cc1afa963d427ee46ea4c5c4d8b8a11a0c0",
     "records": [
       {
         "label": "12",
@@ -936,6 +936,6 @@
       "input": 1003,
       "output": 30
     },
-    "fingerprint": "67cb52cdf69695a80b4fd6e9efea094455c12d2917d5c29b594da42398b9e609"
+    "fingerprint": "3addb89c643e3bd99f2ea58f34cc480a4f43e896e55bb5cc8f014e487482ed8c"
   }
 }
