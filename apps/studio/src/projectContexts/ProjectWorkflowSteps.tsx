@@ -54,6 +54,7 @@ function ProjectWorkflowSteps({
   const fullyValidated =
     summary.phase === 'validate' &&
     summary.schemaStabilised &&
+    summary.runningBatch === null &&
     summary.extractedSourceDocumentCount > 0 &&
     summary.reviewedSourceDocumentCount === summary.extractedSourceDocumentCount &&
     summary.staleSourceDocumentCount === 0

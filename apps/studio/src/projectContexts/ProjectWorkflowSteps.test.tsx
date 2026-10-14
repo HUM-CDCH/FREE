@@ -18,6 +18,7 @@ function summary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    currentSchemaRevisionId: null,
     schemaStabilised: false,
     lastActivityAt: '2026-08-03T10:00:00.000Z',
     runningBatch: null,
@@ -90,6 +91,20 @@ describe('ProjectWorkflowSteps', () => {
     expect(
       screen.getByRole('button', { name: 'Next: Batch Extraction' }),
     ).toBeDisabled()
+  })
+
+  it('keeps a running batch current even when all earlier Extractions are reviewed', () => {
+    const { container } = renderSteps(
+      summary({
+        phase: 'validate',
+        reviewedSourceDocumentCount: 1,
+        schemaStabilised: true,
+        runningBatch: { completedMemberCount: 0, memberCount: 3 },
+      }),
+    )
+    expect(screen.getByRole('button', { name: 'Next: Batch Extraction' })).toBeDisabled()
+    expect(screen.getByText('0/3')).toBeVisible()
+    expect(currentStepCount(container)).toBe(1)
   })
 
   it('refuses the next action while the ingest step still has Source Ingestions running', () => {

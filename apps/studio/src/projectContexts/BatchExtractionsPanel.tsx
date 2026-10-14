@@ -1078,6 +1078,7 @@ export default function BatchExtractionsPanel({
   const latestBatch = newestBatches[0] ?? null
   const reviewedPilot = newestBatches.find(
     (batch) =>
+      batch.schemaRevisionId === summary?.currentSchemaRevisionId &&
       batch.members.length <= PILOT_BATCH_SELECTION_LIMIT &&
       batch.members.some((member) => member.currentReview !== null),
   )

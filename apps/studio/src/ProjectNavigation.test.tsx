@@ -244,6 +244,7 @@ function projectSummary(
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
     schemaDraftCount: number
+    currentSchemaRevisionId: string | null
     schemaStabilised: boolean
     lastActivityAt: string
     runningBatch: { completedMemberCount: number; memberCount: number } | null
@@ -256,6 +257,7 @@ function projectSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    currentSchemaRevisionId: null,
     schemaStabilised: false,
     lastActivityAt: project.createdAt,
     runningBatch: null,

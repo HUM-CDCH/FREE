@@ -253,6 +253,8 @@ export type ProjectContextActivitySummary = {
   reviewedSourceDocumentCount: number
   staleSourceDocumentCount: number
   schemaDraftCount: number
+  /** The Current Schema Revision of the project's newest Extraction Schema, or null when absent. */
+  currentSchemaRevisionId: string | null
   schemaStabilised: boolean
   lastActivityAt: Date
   runningBatch: { completedMemberCount: number; memberCount: number } | null
@@ -290,6 +292,7 @@ export function emptyProjectContextActivitySummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    currentSchemaRevisionId: null,
     schemaStabilised: false,
     lastActivityAt,
     runningBatch: null,
@@ -1635,6 +1638,7 @@ export function createResearcherProjectStore(
             reviewedSourceDocumentCount: state.reviewedDocuments.size,
             staleSourceDocumentCount: state.staleSourceDocumentCount,
             schemaDraftCount: state.schemaDraftCount,
+            currentSchemaRevisionId: state.currentRevisionId,
             schemaStabilised: state.schemaStabilised,
             lastActivityAt: state.lastActivityAt,
             runningBatch: state.runningBatch && {
