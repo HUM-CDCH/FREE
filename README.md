@@ -4,15 +4,16 @@ Evidence for [PR #267](https://github.com/HUM-CDCH/FREE/pull/267) (`fix/article-
 by the author's agent session so another reviewer or agent can inspect it. This is an orphan branch that holds evidence
 only. It is not meant to be merged. `CONTRIBUTING.md` puts review and validation evidence with the PR, not in `docs/`.
 
-State when last updated (2026-10-14, about 12:00 UTC):
+State when last updated (2026-10-14, about 12:50 UTC):
 
-- PR #267 is an open draft at head `d21f99e6`, 7 commits ahead of `origin/dev` and 3 behind (merge base `b607c36a`,
-  `dev` at `f59e9dbf`).
-- **The release hold is in force and has not been lifted.** Only the maintainer (@GennaroBaratta) lifts it, by
-  recording acceptance on the PR thread.
-- Rerun 2 of the comparison (code `d21f99e6`) finished: every criterion A1-A4 holds in both conditions
-  (`comparison/rerun-2/results.md`). Under the protocol this goes to the maintainer's decision; it does not lift the
-  hold by itself.
+- **PR #267 is merged into `dev`** as merge commit `811bb9f2` (parents `f59e9dbf` and `d21f99e6`, tree `ae152eb9`),
+  merged by @GennaroBaratta at 12:41 UTC. Default-on Article resolution reaches `main` with the next `dev` to
+  `main` merge PR.
+- **The release hold is lifted.** The maintainer accepted rerun 2 (code `d21f99e6`) with its stated limits
+  ([acceptance comment](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6168155107)).
+- The delta `e4516d3c..d21f99e6` had an independent review: approve with nits
+  ([review](https://github.com/HUM-CDCH/FREE/pull/267#pullrequestreview-5517932459)). Its two P2s are open (point 12).
+- The merged-result checks, including both Postgres tiers, passed on the exact tree that landed (see Checks run).
 
 ## Layout
 
@@ -69,7 +70,7 @@ Every file under `comparison/` matches the hashes in `protocol-seal.json`, `amen
 The production caller does not pass `resolve_parts`, and nothing turns resolution off. Long documents are split
 into parts automatically, so resolution runs on every long document by default. The hold was chosen over a
 default-off opt-in ([hold comment](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6165056541)). Nothing on
-the branch changes this.
+the branch changes this. The hold was lifted when the maintainer accepted rerun 2.
 
 ### 3. Live-model comparison
 
@@ -82,11 +83,12 @@ the same part readings. Every criterion must hold in both conditions.
 | --- | --- | --- | --- |
 | Run 1 (`e4516d3c`) | A1-A4 pass | A1 fail: 1 of 13 covered gold rows lost | not accepted |
 | Rerun 1 (`6b4a2b9b`) | A1 fail: 5 of 14 lost; A3 fail: 2 of 2 multi-part rows lost | A1-A4 pass | not accepted |
-| Rerun 2 (`d21f99e6`) | A1-A4 pass (0 of 14 covered gold rows lost; on H4 the list answer abstained) | A1-A4 pass (0 of 15 lost; no item dropped) | all criteria hold; maintainer decides |
+| Rerun 2 (`d21f99e6`) | A1-A4 pass (0 of 14 covered gold rows lost; on H4 the list answer abstained) | A1-A4 pass (0 of 15 lost; no item dropped) | all criteria hold; accepted by the maintainer |
 
 PR comments: [run 1](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6165924774),
-[rerun 1](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6166919663). Rerun 2's verdict is posted in the
-PR thread after this branch's update.
+[rerun 1](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6166919663),
+[rerun 2](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6167653821),
+[acceptance](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6168155107).
 
 Rerun 2 in brief (`comparison/rerun-2/results.md`): own title/DOI/year went from 27 to 31 of 36 (N) and 20 to 31
 (Q), with no losses. N dropped 11 items: 9 cited species, correctly removed, and 2 own Catla catla copies on H2
@@ -125,21 +127,31 @@ From `apps/parsing_service` unless stated.
 | `e4516d3c` | `uv run --no-sync pytest -q -p no:cacheprovider -m "not postgres and not live_model"` | 1,643 passed, 62 skipped |
 | `14c79566` merged with `dev` `7d246891` | `pnpm typecheck`, `pnpm lint`; parsing fast tier; scripts, studio-configuration, db, extraction, extraction-result-export; Studio `vitest run --maxWorkers=2` | all pass; parsing 1,645 passed, 62 skipped; Studio 2,119 passed, 3 skipped |
 | `d21f99e6` | `uv run --no-sync pytest -q -m "not postgres and not live_model" -p no:cacheprovider` | 1,655 passed, 62 skipped |
+| `d21f99e6` merged with `dev` `f59e9dbf` (tree `ae152eb9`, identical to merge commit `811bb9f2`), from the repository root | `pnpm typecheck`; `pnpm lint` | both pass |
+| same | `pnpm test` (default aggregate) | stopped in Studio: 2,115 of 2,119 passed; 4 failures in unchanged `api/_pdf_pages.test.ts` (2 timeouts, 2 worker-concurrency counts under load; point 11). Scripts 74 and studio-configuration 4 passed before it |
+| same | `pnpm --filter studio test --maxWorkers=2`; `pnpm --filter studio exec vitest run api/_pdf_pages.test.ts` | 2,119 passed; 8 passed |
+| same | `pnpm --filter db test`; `--filter extraction test`; `--filter extraction-result-export test`; `--filter parsing-service test` | 95, 101, 39 passed; parsing 1,662 passed, 62 skipped |
+| same | `pnpm --filter db db:init` on two throwaway `postgres:17` databases (project store, extraction), then `pnpm test:postgres:node` with `DATABASE_URL` = the extraction target | migrations applied; db 59, extraction 16, Studio 63 passed |
+| same | `pnpm --filter parsing-service test:postgres` with `PARSING_TEST_DATABASE_URL` on the same throwaway server | 46 passed, 20 skipped (the durable lifecycle and recovery files, which run only inside the extraction tier) |
 
-Never run at any head: the Postgres and live-model pytest tiers. No merged-result checks have run at `6b4a2b9b` or
-`d21f99e6`. The same session observed the new list tests failing on `6b4a2b9b` and passing on `d21f99e6`; that log
-is not on this branch.
+The extraction Postgres tier runs `tests/test_durable_lifecycle.py` (15 passed) and
+`tests/test_durable_workflow_recovery.py` (5 passed) in a worker container (`DURABLE_TEST_WORKER_IMAGE` = a local
+parsing-worker image built the day before). The container mounts the merged tree's `apps/parsing_service`, whose
+`pythonpath = ["src"]` puts the PR's code first; the image supplies only dependencies, which differ from the merged
+tree only by `dev`'s new `benchmark` group (jsonschema, reportlab), which these tests do not use.
+
+Never run at any head: the live-model tiers, `test:safety`, `test:e2e`, `test:service` and `test:system`. The same
+session observed the new list tests failing on `6b4a2b9b` and passing on `d21f99e6`; that log is not on this branch.
 
 ## Open points
 
-1. **Rerun 2 passed; acceptance is open.** Code `d21f99e6`, scored with `score.py` unchanged: A1-A4 hold in both
-   conditions. It was declared as the last fix-and-rerun cycle without a maintainer decision. Caveats for that
-   decision: N's H4 pass is an abstention, not a correct labelling; N mislabelled 2 own H2 items as OTHER and lost
-   printed DSC conditions; Q removed no foreign item at all.
-2. **Lifting the hold is the maintainer's decision.** Rerun 2 is the third execution on the same 12 papers, and both
+1. **Closed: rerun 2 accepted.** The maintainer accepted code `d21f99e6` with its limits: N's H4 pass is an
+   abstention, not a correct labelling; N mislabelled 2 own H2 items as OTHER and lost printed DSC conditions; Q
+   removed no foreign item at all ([acceptance](https://github.com/HUM-CDCH/FREE/pull/267#issuecomment-6168155107)).
+2. **Same corpus (accepted as a limit, still open).** Rerun 2 is the third execution on the same 12 papers, and both
    list fixes were designed from what earlier runs dropped there. A pass shows that the observed failures did not
-   recur, not that resolution generalizes. A confirmation on papers outside this corpus is recommended before
-   default-on release.
+   recur, not that resolution generalizes. A confirmation on papers outside this corpus is still recommended before
+   the `dev` to `main` merge PR promotes default-on resolution.
 3. **Printed values on dropped second readings.** The redfish imino totals and Baltic cod hydroxyproline losses are
    not counted by A1-A4 and recurred in run 1 and rerun 1. Rerun 2 kept them, but lost H2's printed DSC conditions
    the same way (a dropped own copy). Decide whether this needs a criterion, or a design change
@@ -153,15 +165,29 @@ is not on this branch.
    Both await human sign-off.
 8. **Part size.** The comparison used 12,288-token parts. Production falls back to 32,768 tokens, so it would split
    these papers into fewer parts.
-9. **Review coverage.** The independent review
-   ([comment review](https://github.com/HUM-CDCH/FREE/pull/267#pullrequestreview-5516075182), at `14c79566`) was
-   posted as COMMENTED because the author account cannot approve its own PR. `6b4a2b9b` and `d21f99e6`, which change
-   list resolution, have had no independent review. `CONTRIBUTING.md` asks for a review before merging into `dev`.
-10. **Merge readiness.** The branch is 3 commits behind `dev`; a scratch merge at `14c79566` had no conflicts. PRs into
-    `dev` run no CI, so the merged-result checks above need rerunning at the final head with the then-current `dev`.
+9. **Closed: review coverage.** The independent reviews ([at `14c79566`](https://github.com/HUM-CDCH/FREE/pull/267#pullrequestreview-5516075182)
+   and [of `e4516d3c..d21f99e6`](https://github.com/HUM-CDCH/FREE/pull/267#pullrequestreview-5517932459)) are posted
+   as COMMENTED because the author account cannot approve its own PR. Both: approve with nits.
+10. **Closed: merge readiness.** The merged-result checks passed on tree `ae152eb9`, which is the tree of merge
+    commit `811bb9f2` (see Checks run).
 11. **Studio timeouts (outside this PR).** The default aggregate `pnpm test` stopped on 5-second timeouts in unchanged
     Studio tests (`api/_pdf_pages.test.ts`, `server/workflows.test.ts`, `ProviderConfigPage.test.tsx`) under load.
-    They pass alone or with `--maxWorkers=2`. Not investigated.
+    They pass alone or with `--maxWorkers=2`. Not investigated. At the final merge only `api/_pdf_pages.test.ts`
+    failed (4 tests), and it passed 8 of 8 alone.
+12. **Review follow-ups not addressed by the merge.** `dev` holds the accepted `d21f99e6` unchanged, because changing
+    resolution after acceptance would need a new measurement. From the
+    [delta review](https://github.com/HUM-CDCH/FREE/pull/267#pullrequestreview-5517932459):
+    - P2: a REPEAT whose equal group has OTHER and no OWN keeps the foreign copy, with no repeat flag left, and
+      `dropped_items` still reports it as dropped (`resolution.py:263-265`, pinned at
+      `tests/test_article_resolution.py:143`). No worse than assembly, which keeps both copies.
+    - P2: list parts are cut at 60 items (`LIST_CHUNK`, `resolution.py:38`) while items are now shown whole, so a long
+      list of full sample objects can exceed the 12,288-token bounded budget. It then gets
+      `resolution_exceeds_budget` and keeps assembly (`resolution.py:159`, `:195`). Suggested fix: size list parts by
+      tokens.
+    - P3: a snippet can anchor on a short coincidental value (`resolution.py:127-130`); the prompt says REPEAT is
+      offered only to items marked "same value as", while the schema also offers it to a group's first item
+      (`:59` vs `:162`); a stale test name (`tests/test_article_resolution.py:128`); `_compact`'s docstring
+      (`:112`) says it drops blank text but drops only `""`.
 
 ## Not published here
 
