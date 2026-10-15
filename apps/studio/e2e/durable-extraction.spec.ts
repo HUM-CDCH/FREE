@@ -540,7 +540,7 @@ test('a delayed correction acknowledgement keeps menu Escape usable without dupl
   } finally {release.resolve();await fixture.close()}
 })
 
-test('shared correction Evidence navigates Markdown UTF-8 spans and stable value links',async({page})=>{
+test('shared correction Evidence reveals linked Results fields from Markdown UTF-8 spans and stable value links',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
     const source=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)
@@ -575,9 +575,10 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
     await expect(mark).toHaveText(passage)
     await expect(mark).toHaveAccessibleName(/title: Corrected title.*site: Corrected site/)
     await mark.click()
-    const popover=page.getByRole('dialog',{name:'Values in this passage'})
-    await expect(popover).toBeVisible()
-    await popover.getByRole('button',{name:'site · Corrected site'}).click()
+    await expect(page.getByRole('dialog',{name:'Values in this passage'})).toHaveCount(0)
+    await expect(page.locator('[data-evidence-linked="true"]')).toHaveCount(2)
+    await expect(page.getByRole('region',{name:'Review title',exact:true})).toContainText('Corrected title')
+    await page.getByRole('button',{name:/^Edited site Corrected site/}).click()
     await expect(page.getByRole('region',{name:'Review site',exact:true})).toContainText('Corrected site')
     await expect(mark).toHaveAttribute('aria-current','true')
     await page.goto(`${fixture.url}?extractionId=${id}&value=site`)
@@ -674,7 +675,7 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     // Corrections list newest first: revisions 3, 2, 1.
     const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(0).getAttribute('href')
     await page.goto(historical!);await page.locator('#rail-tab-results').click()
-    await expect(page.getByRole('region',{name:'Review work'})).toContainText('{"a":10,"b":2}')
+    await expect(page.getByRole('region',{name:'Review work'})).toContainText('a: 10 · b: 2')
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
     await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)
   } finally {await second?.close();await fixture.close()}
@@ -829,5 +830,48 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await expect.poll(async()=>(await decision())?.action).toBe('REJECTED')
     await page.getByRole('button',{name:'Save review',exact:true}).click()
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+  } finally {await fixture.close()}
+})
+
+test('run diagnostics of the saved completion snapshot show at their occurrences and survive reload',async({page},testInfo)=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const issue=(code:string,field:string,detail:object)=>({code,detail:JSON.stringify({path:[field],...detail}),record:0,path:['records',0,field]})
+    const coverage={sourceGeneration:'g1',finalizedAttempt:{attemptId:randomUUID(),generation:1,selectionId:randomUUID(),complete:true},diagnostics:{issues:[
+      issue('uncertain_items','fees',{items:[{index:1,of:'',label:'UNSURE'}]}),
+      issue('dropped_items','fees',{dropped:[10],of:['Smith 2001']}),
+      issue('resolved_value','title',{chosen:'Own title',alternatives:['Own title','Cited title']}),
+      issue('resolution_not_applied','charges',{reason:'invalid_list_reply'})]}}
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'},{id:'fees',name:'fees',type:'array',itemType:'number'},
+      {id:'charges',name:'charges',type:'array',itemType:'number'}],['Own title',[10,10],[20,20]],'QUEUED')
+    // Publish the completion through the real routine; the review API serves this new head, carrying its values.
+    const head=(await pool.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+    const claim=(await pool.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
+    coverage.finalizedAttempt={attemptId:head.attemptId,generation:head.generation,selectionId:head.selectionId,complete:true}
+    const identity=randomUUID()
+    const publish=()=>pool.query('SELECT extraction_runtime.publish_snapshot($1,$2,$3,$4,$5,$6,$7) AS v',
+      [id,head.attemptId,claim.epoch,identity,head.selectionId,'[]',coverage]).then(result=>result.rows[0].v)
+    const completion=await publish()
+    expect(await publish()).toEqual(completion)
+    await pool.query('SELECT extraction_runtime.acknowledge($1,$2,$3,true,NULL)',[id,head.attemptId,claim.epoch])
+    const served=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json())
+    expect(served.coverage.diagnostics).toEqual(coverage.diagnostics)
+    expect(served.snapshotVersion).toBe(completion.version)
+    expect(served.values.find((value:{fieldId:string})=>value.fieldId==='charges').modelValue).toEqual([20,20])
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    const diagnostics=page.getByRole('region',{name:'Run diagnostics'})
+    const expected=['fees · item 2: 10 · kept, not settled (UNSURE)','fees · left out: 10, given to “Smith 2001”',
+      'title · picked Own title among Own title / Cited title',
+      'charges · assembled values retained; resolution not applied (invalid list reply)']
+    await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
+    await expect(diagnostics).toContainText(`From saved results ${completion.version} · source generation g1 · attempt ${head.attemptId.slice(0,8)}`)
+    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('before-reload.png')})
+    await page.reload();await page.locator('#rail-tab-results').click()
+    await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
+    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    const reloaded=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json())
+    expect(reloaded).toEqual(served)
+    await page.screenshot({path:testInfo.outputPath('after-reload.png')})
   } finally {await fixture.close()}
 })

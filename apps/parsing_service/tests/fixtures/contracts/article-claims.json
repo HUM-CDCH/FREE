@@ -250,6 +250,16 @@
  "unverified": [],
  "issues": [
   {
+   "code": "resolution_not_applied",
+   "detail": "{\"path\": [\"items\"], \"reason\": \"invalid_list_reply\"}",
+   "record": 0,
+   "path": [
+    "records",
+    0,
+    "items"
+   ]
+  },
+  {
    "code": "resolution_exceeds_budget",
    "detail": "the resolution request does not fit; assembled values are retained",
    "record": 0,

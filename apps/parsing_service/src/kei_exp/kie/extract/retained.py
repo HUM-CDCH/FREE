@@ -154,13 +154,16 @@ def processing_complete(result):
         all(call.get("ok") or call.get("recovered") for call in result.get("calls", [])))
 
 
-def publish_completion(lease, complete):
+def publish_completion(lease, complete, issues=()):
     # Only the final compiler publishes this proof, after all result writes.
     # It also represents successful empty results and carried historical work.
+    # The review reads this last snapshot, so it names the run's issues too (never carried to a later snapshot).
     selection = lease.state["selection"]["id"]
     coverage = {"sourceGeneration": lease.state["source"]["generation"],
         "finalizedAttempt": {"attemptId": lease.attempt, "generation": lease.state["generation"],
             "selectionId": selection, "complete": bool(complete)}}
+    if issues:
+        coverage["diagnostics"] = {"issues": list(issues)}
     identity = str(UUID(digest(["finalized-attempt", coverage])[:32], version=5))
     return lease.call("publish_snapshot", identity, selection, [], coverage)
 
@@ -185,7 +188,7 @@ def publish_final(lease, result):
         if scope is None:
             raise ValueError("record has no canonical source scope")
         publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata, disagreements=result.get("disagreements", ()))
-    publish_completion(lease, processing_complete(result))
+    publish_completion(lease, processing_complete(result), result.get("issues", ()))
 
 
 def saved_document(router, fields: dict, *, complete=False):

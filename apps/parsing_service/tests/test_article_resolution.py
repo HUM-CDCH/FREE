@@ -7,7 +7,7 @@ import jsonschema
 import pytest
 
 from kei_exp.kie.extract.contexts import Context, assemble_document
-from kei_exp.kie.extract.resolution import _shown, resolve
+from kei_exp.kie.extract.resolution import OF_CHARS, OTHER, UNSURE, _shown, resolve
 from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract import run
@@ -23,11 +23,12 @@ SCHEMA = Schema(schemaNodes=[{"id": "finds", "name": "finds", "type": "array",
                  {"id": "parts", "name": "parts", "type": "array", "itemType": "string"}]}],
     recordDescription="One document's finds")
 ITEM = {"name": "urn", "parts": ["clay", "clay"]}
+CITED = "Smith 2001"  # the work a test source cites, so an item given to it can leave
 
 
 def assembled(readings, chat, *, overlap=False, counter=None, texts=None, schema=SCHEMA):
     groups = [Context(tuple(passages([text], page=index + 1)))
-              for index, text in enumerate(texts or ["An urn made from clay."] * len(readings))]
+              for index, text in enumerate(texts or [f"An urn made from clay ({CITED})."] * len(readings))]
     item_sources = {}
     root, conflicts, repeats, joined = assemble_document(readings, lambda *_: overlap, item_sources=item_sources)
     result = resolve(readings, groups, root, conflicts, repeats, joined, schema, chat, counter or WordCounter(),
@@ -44,10 +45,17 @@ def valid(script):
     return CountingChat(checked)
 
 
+def answer(spec: dict, label: str, of: str = "") -> str | dict:
+    """One list item's answer in the shape its reply schema asks: a bare label, or its `of` and label."""
+    return label if spec.get("type") == "string" else {"of": of, "label": label}
+
+
 def labelling(**out):
-    """A resolution answer: each scalar's first label; each list place's items OWN except those `out` labels."""
+    """A resolution answer: each scalar's first label; each list place's items OWN except those `out` labels, an item
+    labelled OTHER given to the work the test source cites."""
     def script(system, user, schema):
-        return {key: {label: out.get(key, {}).get(label, "OWN") for label in spec["properties"]}
+        return {key: {label: answer(item, reason := out.get(key, {}).get(label, "OWN"), CITED if reason == "OTHER"
+                                    else "") for label, item in spec["properties"].items()}
                 if "properties" in spec else spec["enum"][0] for key, spec in schema["properties"].items()}
     return script
 
@@ -97,16 +105,17 @@ def test_invalid_or_abstaining_list_answers_keep_assembly_and_its_origins(answer
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     chat = CountingChat(lambda *_: answer)
     (root, _, repeats, _, _, issues), item_sources = assembled(readings, chat)
-    assert root["finds"] == [ITEM, ITEM] and repeats and not issues
+    assert root["finds"] == [ITEM, ITEM] and repeats
+    assert [issue.code for issue in issues] == ["resolution_not_applied"]
     assert item_sources == {("finds", index): [{"unit": index, "path": ["finds", 0]}] for index in (0, 1)}
-    # null is the list's abstention: the one answer here the constrained model can give.
-    assert jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer) == (answer["L1"] is None)
+    # None of these is an answer the constrained model can give: a list abstains item by item (UNSURE), never whole.
+    assert not jsonschema.Draft202012Validator(chat.calls[0]["schema"]).is_valid(answer)
 
 
 SAMPLE = {"species": "Sebastes mentella", "tissue": "skin", "preparation": None}
 READ = [SAMPLE | {"preparation": "ASC", "amino_acids": [{"analyte": "hydroxyproline", "value": 64}]},
         SAMPLE | {"preparation": "ASC", "amino_acids": [{"analyte": "imino acids", "value": 16.5}]}]
-TWO_READINGS = ["Sebastes mentella skin ASC had 64 hydroxyproline residues.",
+TWO_READINGS = [f"Sebastes mentella skin ASC had 64 hydroxyproline residues; cited cod skin had fewer ({CITED}).",
                 "Sebastes mentella skin ASC had an imino acid content of 16.5%."]
 
 
@@ -115,14 +124,17 @@ def test_a_differently_filled_reading_of_an_own_item_is_never_left_out_as_a_repe
     for either, and an answer labelling one a repeat is outside its labels and keeps the whole list. Every item must
     be labelled: an answer naming only some items (the ones that belong, say) is never read as leaving the rest out."""
     readings = [{"finds": [deepcopy(READ[0])]}, {"finds": [deepcopy(READ[1])]}]
-    chat = CountingChat(lambda *_: {"L1": {"I1": "OWN", "I2": "REPEAT"}})
+    own, repeat = {"of": "", "label": "OWN"}, {"of": "", "label": "REPEAT"}
+    chat = CountingChat(lambda *_: {"L1": {"I1": own, "I2": repeat}})
     (root, _, _, _, _, issues), item_sources = assembled(readings, chat, texts=TWO_READINGS)
     reasons = chat.calls[0]["schema"]["properties"]["L1"]
-    assert reasons["properties"] == {label: {"type": "string", "enum": ["OWN", "OTHER"]} for label in ("I1", "I2")}
+    assert {label: spec["properties"]["label"]["enum"] for label, spec in reasons["properties"].items()} == {
+        label: ["OWN", "OTHER", "UNSURE"] for label in ("I1", "I2")}
     assert reasons["required"] == ["I1", "I2"]
-    for answer in ({"I1": "OWN", "I2": "REPEAT"}, {"I1": "OTHER"}):
-        assert not jsonschema.Draft202012Validator(reasons).is_valid(answer)
-    assert root["finds"] == READ and len(item_sources) == 2 and not issues
+    for each in ({"I1": own, "I2": repeat}, {"I1": {"of": CITED, "label": "OTHER"}}):
+        assert not jsonschema.Draft202012Validator(reasons).is_valid(each)
+    assert root["finds"] == READ and len(item_sources) == 2
+    assert [issue.code for issue in issues] == ["resolution_not_applied"]
 
 
 def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
@@ -133,18 +145,45 @@ def test_an_item_left_unnamed_is_kept_and_only_another_works_item_is_left_out():
     assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 0]}],
                             ("finds", 1): [{"unit": 1, "path": ["finds", 0]}]}
     assert [json.loads(issue.detail) for issue in issues] == [
-        {"path": ["finds"], "dropped": [{"name": "cited cod skin"}]}]
+        {"path": ["finds"], "dropped": [{"name": "cited cod skin"}], "of": [CITED]}]
 
 
 @pytest.mark.parametrize("out,kept", [
     ({"I1": "REPEAT", "I2": "REPEAT"}, 1),  # the copy that stays is the one repeated
     ({"I1": "REPEAT"}, 2),
-    ({"I1": "REPEAT", "I2": "REPEAT", "I3": "REPEAT"}, 3),  # nothing stays for them to repeat: all kept
-    ({"I1": "OTHER", "I2": "REPEAT", "I3": "REPEAT"}, 2)])
-def test_a_repeat_is_left_out_only_beside_an_equal_item_that_stays(out, kept):
+    ({"I1": "REPEAT", "I2": "REPEAT", "I3": "REPEAT"}, 3),  # nothing labelled for them to repeat: all kept
+    ({"I1": "OTHER", "I2": "REPEAT", "I3": "OWN"}, 1),  # the own copy stays
+    ({"I1": "OTHER", "I2": "REPEAT", "I3": "REPEAT"}, 0),  # repeats of another work's item are that work's too
+    ({"I1": "REPEAT", "I2": "OTHER", "I3": "REPEAT"}, 0)])
+def test_a_repeat_is_left_out_beside_an_equal_item_labelled_own_or_another_works(out, kept):
     readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
     (root, _, _, _, _, _), item_sources = assembled(readings, valid(labelling(L1=out)))
     assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
+
+
+@pytest.mark.parametrize("out,kept,unsure", [
+    ({"I1": "UNSURE", "I2": "REPEAT", "I3": "REPEAT"}, 3, [0]),  # an abstention settles no copy: all stay
+    ({"I1": "REPEAT", "I2": "UNSURE", "I3": "REPEAT"}, 3, [1]),
+    ({"I1": "UNSURE", "I2": "UNSURE", "I3": "REPEAT"}, 3, [0, 1]),
+    ({"I1": "UNSURE", "I2": "REPEAT", "I3": "OWN"}, 2, [0])])  # beside an own copy the repeat still leaves
+def test_an_item_labelled_unsure_is_no_copy_a_repeat_leaves_beside(out, kept, unsure):
+    """A repeat leaves only beside an equal item labelled OWN or OTHER (ADR 0019): UNSURE says the source does not
+    settle the item, so it is not the copy the repeat is the same thing printed again as."""
+    readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(labelling(L1=out)))
+    assert root["finds"] == [ITEM] * kept and len(item_sources) == kept
+    assert doubts(issues) == [{"index": index, "of": "", "label": "UNSURE"} for index in unsure]
+
+
+def test_a_repeat_of_another_works_item_leaves_with_it_and_both_are_reported_dropped():
+    """Labelled another's and a repeat, both copies are another work's item: none stays in the list, and the issue
+    names exactly what left."""
+    readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
+    (root, _, repeats, _, _, issues), item_sources = assembled(
+        readings, valid(labelling(L1={"I1": "OTHER", "I2": "REPEAT"})))
+    assert root["finds"] == [] and item_sources == {} and not repeats
+    assert [json.loads(issue.detail) for issue in issues] == [{"path": ["finds"], "dropped": [ITEM, ITEM],
+                                                               "of": [CITED, ""]}]
 
 
 def test_an_item_is_shown_whole_where_its_least_printed_value_is():
@@ -164,7 +203,7 @@ def test_an_item_is_shown_whole_where_its_least_printed_value_is():
 def test_a_value_is_shown_where_it_is_printed_as_a_whole_number():
     schema = Schema(schemaNodes=[{"id": "n", "name": "participants", "type": "number"}],
                     recordDescription="One study")
-    texts = ["The cited study had 210 participants. " + "Unrelated background. " * 5 + "Our study had 10 participants.",
+    texts = ["The cited study had 210 participants. " + "Unrelated background. " * 10 + "Our study had 10 participants.",
              "Twelve were enrolled."]
     chat = valid(lambda *_: {"S1": "UNSURE"})
     assembled([{"participants": 10}, {"participants": 12}], chat, texts=texts, schema=schema)
@@ -248,6 +287,64 @@ def test_a_repeat_across_list_parts_stays_named_until_its_copies_are_shown_toget
     assert repeats == expected
 
 
+class Budget(WordCounter):
+    """A context that fits about 20 of the wordy items below in one request, not 60."""
+    context_tokens = 1_500
+
+
+WORDY = [{"name": f"find {number}, a decorated bowl from the north trench",
+          "parts": ["cited" if number % 10 == 0 else "own"]} for number in range(1, 51)]
+
+
+def shown_items(user: str) -> dict[str, dict[str, str]]:
+    """Each list place's item lines in a resolution request, by label."""
+    blocks = user.split("\n### Places\n", 1)[1].split("\n\n")
+    return {block.split(" ", 1)[0]: {line.split(" = ", 1)[0].strip(): line for line in block.splitlines()[1:]}
+            for block in blocks}
+
+
+def by_line(rule):
+    """A resolution answer labelling every list item by `rule` over the line it is shown on."""
+    def script(system, user, schema):
+        shown = shown_items(user)
+        return {key: {label: answer(item, reason := rule(shown[key][label]), CITED if reason == "OTHER" else "")
+                      for label, item in spec["properties"].items()} for key, spec in schema["properties"].items()}
+    return script
+
+
+def test_a_list_too_long_for_one_request_is_resolved_in_parts_that_each_fit():
+    """Shown whole, 50 items do not fit one request: the list is resolved in parts that each hold as many items as fit,
+    rather than kept unresolved, and another work's items leave from every part."""
+    counter = Budget()
+    chat = valid(by_line(lambda line: "OTHER" if '"cited"' in line else "OWN"))
+    readings = [{"finds": deepcopy(WORDY[:30])}, {"finds": deepcopy(WORDY[30:])}]
+    (root, _, _, _, calls, issues), item_sources = assembled(readings, chat, counter=counter)
+    assert root["finds"] == [item for item in WORDY if item["parts"] == ["own"]] and len(item_sources) == 45
+    assert [issue.code for issue in issues] == ["dropped_items"]
+    assert json.loads(issues[0].detail)["dropped"] == [item for item in WORDY if item["parts"] == ["cited"]]
+    parts = [shown_items(call["user"]) for call in chat.calls]
+    assert len(parts) > 1 and all(len(part) == 1 for part in parts)
+    sizes = [len(next(iter(part.values()))) for part in parts]
+    assert sum(sizes) == 50 and len(calls) == len(parts)
+    for call, start, size in zip(chat.calls, [sum(sizes[:n]) for n in range(len(sizes))], sizes):
+        assert f"(items {start + 1}-{start + size} of 50)" in call["user"]
+    for call, part, size, following in zip(chat.calls, parts, sizes, [*parts[1:], None]):
+        reserve = 256 + (16 + OF_CHARS // 2) * size
+        words = len(call["system"].split()) + len(call["user"].split()) + WordCounter.template_tokens
+        assert words + reserve <= Budget.context_tokens
+        if following:  # as many as fit: the next part's first item would not
+            assert (words + reserve + len(next(iter(following.values()))["I1"].split()) + 16 + OF_CHARS // 2
+                    > Budget.context_tokens)
+
+
+def test_a_repeat_whose_copies_fall_in_different_parts_that_fit_stays_named():
+    readings = [{"finds": [deepcopy(ITEM), *deepcopy(WORDY[:40])]}, {"finds": [deepcopy(ITEM)]}]
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
+    (root, _, repeats, _, _, _), _ = assembled(readings, chat, counter=Budget())
+    assert len(chat.calls) > 1 and len(root["finds"]) == 42
+    assert repeats == [{"path": ["finds"], "contexts": [0, 1], "indices": [0, 41]}]
+
+
 def test_a_raising_provider_keeps_assembly_on_the_direct_path_but_halts_the_durable_one():
     readings = [{"finds": [deepcopy(ITEM)]}, {"finds": [deepcopy(ITEM)]}]
 
@@ -293,9 +390,11 @@ def test_a_parsed_reply_with_a_wrong_token_count_never_drops_assembled_items():
 
 def test_one_unsettled_list_part_preserves_the_entire_assembled_list():
     readings = [{"finds": [deepcopy(ITEM) for _ in range(61)]}, {"finds": []}]
+    other = {"of": CITED, "label": "OTHER"}
     (root, _, _, _, _, issues), item_sources = assembled(readings,
-        valid(lambda *_: {"L1": {f"I{n}": "OTHER" for n in range(1, 61)}, "L2": None}))
-    assert len(root["finds"]) == len(item_sources) == 61 and not issues
+        CountingChat(lambda *_: {"L1": {f"I{n}": other for n in range(1, 61)}, "L2": None}))
+    assert len(root["finds"]) == len(item_sources) == 61
+    assert [issue.code for issue in issues] == ["resolution_not_applied"]
 
 
 def test_an_oversized_resolution_keeps_assembly_before_durable_call_admission():
@@ -353,3 +452,214 @@ def test_a_kept_later_occurrence_is_grounded_and_retained_in_its_own_source(monk
     count = len(chat.calls)
     assert finish(lease, chat, extract)["evidence"] == result["evidence"]
     assert len(chat.calls) == count
+
+
+# A bare OTHER is a weak, order-dependent call: once the reasoning model called a paper's first own sample another
+# work's, it called every following one so too, and the paper's whole own list left. Another's item now leaves only
+# where the part it was read from prints the work the model gives it to; otherwise it stays, named for review.
+OWN_TEXT = "Collagen from cod backbone contains 6.4% hydroxyproline in the dry weight."
+CITED_TEXT = "Collagen from Alaska pollock is denatured at 16.8 C (Kimura et al., 1987)."
+OWN_SAMPLE = {"name": "cod backbone collagen", "parts": ["6.4"]}
+CITED_SAMPLE = {"name": "Alaska pollock collagen", "parts": ["16.8"]}
+KIMURA = "Kimura et al., 1987"
+POLLOCK = '"Alaska pollock collagen"'  # the cited sample's value, as its item line shows it
+
+
+def deciding(rule):
+    """A resolution answer giving every list item `rule(line)`: its label and `of`, in the shape its schema asks."""
+    def script(system, user, schema):
+        shown = shown_items(user)
+        return {key: {label: answer(item, *rule(shown[key][label])) for label, item in spec["properties"].items()}
+                for key, spec in schema["properties"].items()}
+    return script
+
+
+def doubts(issues) -> list[dict]:
+    return [each for issue in issues if issue.code == "uncertain_items" for each in json.loads(issue.detail)["items"]]
+
+
+def test_own_items_called_another_works_without_naming_a_printed_work_are_kept_and_marked():
+    """Every item labelled OTHER, as when the first own sample's call carries the list: the own sample names no work
+    and stays, marked for review; the cited sample names the work its part prints and leaves."""
+    def rule(line):
+        return ("OTHER", KIMURA if POLLOCK in line else "")
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": [deepcopy(CITED_SAMPLE)]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[OWN_TEXT, CITED_TEXT])
+    assert root["finds"] == [OWN_SAMPLE]
+    assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 0]}]}
+    assert json.loads(next(i for i in issues if i.code == "dropped_items").detail) == {
+        "path": ["finds"], "dropped": [CITED_SAMPLE], "of": [KIMURA]}
+    assert doubts(issues) == [{"index": 0, "of": "", "label": "OTHER"}]
+
+
+def test_a_work_printed_only_in_another_part_does_not_take_an_item_with_it():
+    """The work the model names must be printed where the item was read: a citation copied from another part's source
+    (or invented) keeps the item."""
+    def rule(line):
+        return ("OTHER", KIMURA)
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": [deepcopy(CITED_SAMPLE)]}]
+    (root, _, _, _, _, issues), _ = assembled(readings, valid(deciding(rule)), texts=[OWN_TEXT, CITED_TEXT])
+    assert root["finds"] == [OWN_SAMPLE]
+    assert doubts(issues) == [{"index": 0, "of": KIMURA, "label": "OTHER"}]
+
+
+@pytest.mark.parametrize("of,printed", [
+    ("Kimura et al., 1987", "(Kimura et al., 1987)"),
+    ("kimura et al., 1987", "(Kimura et al. , 1987 )"),  # case and the spacing around marks differ in the source
+    ("Food Chemistry, 172, 836-843", "Food Chemistry, 172 , 836-843."),
+    ("[19]", "as described previously [ 19 ]."),
+])
+def test_another_works_item_leaves_when_its_part_prints_the_work(of, printed):
+    def rule(line):
+        return ("OTHER", of) if POLLOCK in line else ("OWN", "")
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": [deepcopy(CITED_SAMPLE)]}]
+    texts = [OWN_TEXT, f"Collagen from Alaska pollock is denatured at 16.8 C {printed}"]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)), texts=texts)
+    assert root["finds"] == [OWN_SAMPLE] and len(item_sources) == 1 and not doubts(issues)
+
+
+def test_an_item_whose_membership_the_source_does_not_settle_is_kept_and_named_at_its_kept_index():
+    """UNSURE is an item's own abstention: the item stays where it is, after another work's item before it left, and
+    the issue names its kept position."""
+    def rule(line):
+        return ("OTHER", KIMURA) if POLLOCK in line else ("UNSURE", "")
+    readings = [{"finds": [deepcopy(CITED_SAMPLE), deepcopy(OWN_SAMPLE)]}, {"finds": []}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[f"{CITED_TEXT} {OWN_TEXT}", "Nothing."])
+    assert root["finds"] == [OWN_SAMPLE]
+    assert item_sources == {("finds", 0): [{"unit": 0, "path": ["finds", 1]}]}
+    assert doubts(issues) == [{"index": 0, "of": "", "label": "UNSURE"}]
+
+
+def test_a_reading_of_an_own_sample_with_only_its_method_stays_beside_the_reading_with_its_values():
+    """One part read a sample's method details and no value, another its values: called another's without a work the
+    source names, the method reading is kept with its details."""
+    method = {"name": "catla swim bladder ASC", "parts": ["0.05 M acetic acid"]}
+    values = {"name": "catla swim bladder ASC", "parts": ["38.88"]}
+    texts = ["The catla swim bladder ASC was dissolved in 0.05 M acetic acid for calorimetry.",
+             "The Tmax of the catla swim bladder ASC was 38.88 C."]
+    def rule(line):
+        return ("OTHER", "") if "0.05 M" in line else ("OWN", "")
+    (root, _, _, _, _, issues), _ = assembled([{"finds": [deepcopy(method)]}, {"finds": [deepcopy(values)]}],
+                                              valid(deciding(rule)), texts=texts)
+    assert root["finds"] == [method, values]
+    assert doubts(issues) == [{"index": 0, "of": "", "label": "OTHER"}]
+
+
+@pytest.mark.parametrize("of,kept", [(CITED, []), ("", [ITEM])])
+def test_a_repeat_beside_an_item_called_another_works_leaves_with_it_only_when_the_work_is_printed(of, kept):
+    """OTHER and REPEAT on equal copies: with the work printed both copies are that work's and leave; without it the
+    OTHER copy stays, marked, and only its repeat leaves, since the copy kept holds the same value."""
+    readings = [{"finds": [deepcopy(ITEM), deepcopy(ITEM)]}, {"finds": []}]
+    labels = iter([("OTHER", of), ("REPEAT", "")])
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(lambda line: next(labels))))
+    assert root["finds"] == kept and len(item_sources) == len(kept)
+    assert doubts(issues) == ([] if of else [{"index": 0, "of": "", "label": "OTHER"}])
+
+
+# What the runtime guard guarantees and what stays the model's judgment. The guard checks only that the work an item is
+# given to is printed in the part the item was read from: an item the model calls another's without such a work stays,
+# marked. It cannot tell whose a printed work is (this item's, a neighbouring item's, the document's own name), so a
+# printed citation never shows that an item is another's: an own item given a work its part prints leaves, and only
+# `dropped_items`, with that `of`, keeps it visible.
+TITLE = "Hydroxyproline in fish backbone collagen"
+NAGAI = "Nagai et al. (2002)"
+METHOD = {"name": "catla skin ASC", "parts": ["0.5 M acetic acid"]}
+METHOD_TEXT = f"Collagen was extracted from catla skin with 0.5 M acetic acid as described by {NAGAI}."
+
+
+def dropped(issues) -> list[dict]:
+    return [json.loads(issue.detail) for issue in issues if issue.code == "dropped_items"]
+
+
+@pytest.mark.parametrize("label", ["OWN", "OTHER"])
+def test_an_own_item_given_another_items_citation_printed_in_its_part_rests_on_the_models_label(label):
+    """Both samples were read from one part, which prints the cited sample's work. Labelled OWN, the own sample stays;
+    labelled OTHER and given that work, it leaves with the cited sample: the work is printed in its part, and which item
+    it belongs to is the model's judgment. The loss is recorded, never silent."""
+    def rule(line):
+        return ("OTHER", KIMURA) if POLLOCK in line else (label, KIMURA if label == OTHER else "")
+    readings = [{"finds": [deepcopy(OWN_SAMPLE), deepcopy(CITED_SAMPLE)]}, {"finds": []}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[f"{OWN_TEXT} {CITED_TEXT}", "Nothing."])
+    gone = [OWN_SAMPLE] if label == OTHER else []
+    assert root["finds"] == ([] if gone else [OWN_SAMPLE]) and len(item_sources) == 1 - len(gone)
+    assert dropped(issues) == [{"path": ["finds"], "dropped": [*gone, CITED_SAMPLE], "of": [KIMURA] * (1 + len(gone))}]
+    assert not doubts(issues)
+
+
+@pytest.mark.parametrize("header", [False, True])
+def test_an_own_item_given_the_documents_own_title_leaves_only_where_its_part_prints_the_title(header):
+    """The model gives an own item to the document itself. Where its part does not print the title, the item stays,
+    marked; where a running header prints it, the guard cannot tell the document's name from another work's and the
+    item leaves, recorded as dropped. Naming the document as another work is the model's error, not caught here."""
+    text = f"{TITLE} 3 {OWN_TEXT}" if header else OWN_TEXT
+    readings = [{"finds": [deepcopy(OWN_SAMPLE)]}, {"finds": []}]
+    (root, _, _, _, _, issues), _ = assembled(readings, valid(deciding(lambda line: ("OTHER", TITLE))),
+                                              texts=[text, f"{TITLE}. Abstract."])
+    assert root["finds"] == ([] if header else [OWN_SAMPLE])
+    assert dropped(issues) == ([{"path": ["finds"], "dropped": [OWN_SAMPLE], "of": [TITLE]}] if header else [])
+    assert doubts(issues) == ([] if header else [{"index": 0, "of": TITLE, "label": "OTHER"}])
+
+
+@pytest.mark.parametrize("label", ["OWN", "UNSURE", "OTHER"])
+def test_an_own_method_citing_a_borrowed_method_leaves_only_when_the_model_calls_it_anothers(label):
+    """The document's own sample prepared by a cited work's method: the citation is printed beside it and is its `of`.
+    An `of` alone never removes an item: labelled OWN it stays unmarked, UNSURE it stays marked. Labelled OTHER the
+    work is printed in its part and it leaves: telling a borrowed method from a cited result is the model's call."""
+    readings = [{"finds": [deepcopy(METHOD)]}, {"finds": []}]
+    (root, _, _, _, _, issues), _ = assembled(readings, valid(deciding(lambda line: (label, NAGAI))),
+                                              texts=[METHOD_TEXT, "Nothing."])
+    assert root["finds"] == ([] if label == OTHER else [METHOD])
+    assert dropped(issues) == ([{"path": ["finds"], "dropped": [METHOD], "of": [NAGAI]}] if label == OTHER else [])
+    assert doubts(issues) == ([{"index": 0, "of": NAGAI, "label": UNSURE}] if label == UNSURE else [])
+
+
+def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_replay(monkeypatch):
+    """The issue naming a kept, uncertain item reaches the durable record publication's diagnostics and the completion
+    publication the review page reads, at its kept index, and a replay publishes the same without a new call."""
+    source, request = occurrence_input(monkeypatch, "semantic")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = valid(lambda s, u, schema: labelling(L1={"I1": "UNSURE"})(s, u, schema) if resolving(u)
+                 else occurrence_reply(s, u, schema))
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert result["records"] == [{"fees": [10, 10]}]
+    def saved(publications):
+        return [issue for publication in publications for issue in
+                publication["coverage"].get("diagnostics", {}).get("issues", []) if issue["code"] == "uncertain_items"]
+    first = saved(lease.publications.values())
+    assert len(first) == 2 and first[0] == first[1] and first[0]["path"] == ["records", 0, "fees"]
+    assert json.loads(first[0]["detail"]) == {"path": ["fees"], "items": [{"index": 0, "of": "", "label": "UNSURE"}]}
+    def completions():
+        return [p["coverage"] for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]]
+    [completion] = completions()
+    assert completion["finalizedAttempt"]["attemptId"] == lease.attempt
+    assert completion["diagnostics"] == {"issues": result["issues"]}
+    before, count = set(lease.publications), len(chat.calls)
+    assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count
+    assert saved(lease.publications[key] for key in set(lease.publications) - before) in ([], first[:1])
+    assert completions() == [completion]
+
+
+def test_a_rejected_list_reply_reports_non_application_through_completion_and_replay(monkeypatch):
+    source, request = occurrence_input(monkeypatch, "semantic")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    # Valid JSON, but I1 is missing: runtime validation must still reject the list.
+    chat = CountingChat(lambda s, u, schema: {"L1": {}} if resolving(u) else occurrence_reply(s, u, schema))
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert result["records"] == [{"fees": [10, 10]}]
+    rejected = [issue for issue in result["issues"] if issue["code"] == "resolution_not_applied"]
+    assert rejected and all(issue["path"] == ["records", 0, "fees"] for issue in rejected)
+    assert all(json.loads(issue["detail"]) == {"path": ["fees"], "reason": "invalid_list_reply"} for issue in rejected)
+    [completion] = [p for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]]
+    assert completion["coverage"]["diagnostics"] == {"issues": result["issues"]}
+    before, count = deepcopy(lease.publications), len(chat.calls)
+    assert finish(lease, chat, extract)["issues"] == result["issues"]
+    assert len(chat.calls) == count
+    assert all(lease.publications[key] == publication for key, publication in before.items())
+    assert [p for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]] == [completion]

@@ -75,6 +75,11 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     if source.get("pdf"):
         checked(source["pdf"])
     expected = read(directory / "result.json")["artifact"]
+    # Version 13 sizes and counts list parts and drops repeats of OTHER items unlike version 12, and version 14 asks
+    # and decides list items unlike both, so neither's requests and records can be reproduced.
+    if expected.get("article_version") in (12, 13):
+        raise ValueError(f"Article version {expected['article_version']} resolution cannot be replayed by version 14; "
+                         "run the cell again")
     if expected["schema"] != read(checked(source["schema"])):
         raise ValueError("parent schema differs from source pin")
     evidence = load(Path(source["run"]))
