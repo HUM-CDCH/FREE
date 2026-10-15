@@ -83,6 +83,33 @@ describe('generateSchemaWithModel', () => {
     ).rejects.toMatchObject({ code: 'invalid_model_output' })
   })
 
+  it('keeps the root record description NuExtract returns beside its template', async () => {
+    stubNuExtractResponse(JSON.stringify({
+      _description: 'Each grave entry, identified by a number and containing its orientation and length.',
+      template: { grave_number: 'integer', orientation: 'string', length: 'number' },
+    }))
+
+    const result = await generateSchemaWithModel(CALLER, { document, instruction: '' }, nuextractTarget)
+
+    expect(result.template).toEqual({
+      _description: 'Each grave entry, identified by a number and containing its orientation and length.',
+      grave_number: 'integer', orientation: 'string', length: 'number',
+    })
+  })
+
+  it.each([
+    { template: { grave_number: 'integer' } },
+    { _description: ' ', template: { grave_number: 'integer' } },
+    { _description: 42, template: { grave_number: 'integer' } },
+    { _description: 'One grave.', template: { _description: '', grave_number: 'integer' } },
+    { _description: 'One document.', template: { name: 'string' }, identifier: 'integer' },
+  ])('still rejects a wrapped schema without a valid record description: %j', async response => {
+    stubNuExtractResponse(JSON.stringify(response))
+
+    await expect(generateSchemaWithModel(CALLER, { document, instruction: '' }, nuextractTarget))
+      .rejects.toMatchObject({ code: 'invalid_model_output' })
+  })
+
   it('asks vLLM for template generation, leading the message with schema guidance', async () => {
     const request = stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
