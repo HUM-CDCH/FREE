@@ -619,6 +619,57 @@ const reviewPage=(snapshotVersion=1,feedbackVersion=0)=>({extractionId:'extracti
 const pausedState={extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
   selection:{id:'selection',ordinal:1},pendingSelection:null,counts:{saved:3,inFlight:0}}
 
+it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachable when entering one-by-one from an open %s row',async(strategy)=>{
+  const page={...reviewPage(),values:[reviewValue('title','Article title')],total:1,
+    reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  render(<Results attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
+  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  expect(screen.getByRole('img',{name:/1 to check/})).toBeVisible()
+  expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
+  expect(screen.getByRole('region',{name:'Review title'})).toBeVisible()
+  expect(screen.getByRole('button',{name:/Approve and next/})).toBeEnabled()
+})
+
+it('offers the unchecked list after saving and undoing an edit, then cancelling an invalid edit',async()=>{
+  const samples={...reviewValue('samples',''),node:{id:'samples',name:'samples',type:'array',children:[
+    {id:'specimen',name:'specimen',type:'string'},
+    {id:'strength',name:'tensile_strength_mpa',type:'number'},
+    {id:'density',name:'density_g_cm3',type:'number'},
+  ]},modelValue:[{specimen:'Redwood',tensile_strength_mpa:10,density_g_cm3:2},{specimen:'Willow',tensile_strength_mpa:20,density_g_cm3:3}]}
+  const title={...reviewValue('title','Article title'),correction:{revision:1,decision:{action:'APPROVED',value:'Article title',evidence:[]}}}
+  const page={...reviewPage(),values:[title,samples],total:2,reviewCounts:{required:2,toCheck:1,approved:1,edited:0,rejected:0}} as unknown as DurablePage
+  const state={...pausedState,status:'COMPLETED'}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  vi.mocked(durableRequest).mockResolvedValue({revision:1})
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check samples/}))
+  fireEvent.click(screen.getByRole('button',{name:'Edit'}))
+  const edited=samples.modelValue.map((value,index)=>index===0?{...value,tensile_strength_mpa:11}:value)
+  fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:JSON.stringify(edited)}})
+  const saved={...page,feedbackVersion:1,values:[title,{...samples,correction:{revision:1,decision:{action:'EDITED',value:edited,evidence:[]}}}],
+    reviewCounts:{required:2,toCheck:0,approved:1,edited:1,rejected:0}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state,page:saved} as never)
+  fireEvent.click(screen.getByRole('button',{name:'Save edit'}))
+  fireEvent.click(await screen.findByRole('button',{name:/Edited samples/}))
+  vi.mocked(durableRequest).mockImplementation((async(path:string)=>path.endsWith('/history')?{corrections:[]}:{revision:2}) as never)
+  vi.mocked(readDurable).mockResolvedValue({state,page:{...page,feedbackVersion:2}} as never)
+  fireEvent.click(screen.getByRole('button',{name:'Undo'}))
+  fireEvent.click(await screen.findByRole('button',{name:/To check samples/}))
+  fireEvent.click(screen.getByRole('button',{name:'Edit'}))
+  fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:JSON.stringify([{...samples.modelValue[0],tensile_strength_mpa:'invalid'},samples.modelValue[1]])}})
+  fireEvent.click(screen.getByRole('button',{name:'Save edit'}))
+  expect(screen.getByRole('alert')).toHaveTextContent('The value does not fit its producing field.')
+  fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
+  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  expect(screen.getByRole('img',{name:/1 approved, 0 edited, 0 rejected, 1 to check/})).toBeVisible()
+  expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
+  expect(screen.getByRole('region',{name:'Review samples'})).toBeVisible()
+  expect(screen.getByRole('button',{name:/Approve and next/})).toBeEnabled()
+  expect(screen.getByText('10')).toBeVisible()
+})
+
 it('reveals and scrolls shared Evidence in a collapsed record through a filter, without moving the source or scrolling on refresh',async()=>{
   const page=reviewPage(),parsedDocument=decodeParsedDocument(rawDocument),anchor=parsedDocument.evidence_index.anchors[0]!.anchor_id
   page.values=page.values.map((value,index)=>({...value,recordId:index===0?'first':'second',path:['records',index===0?0:1,value.id],
