@@ -42,7 +42,11 @@ Represent repeating values as a JSON array containing their item type, for examp
 
 Place the actual requested field names directly inside "template". Never return a "fields" list of name/type/description descriptors. Use the researcher's requested fields and record scope when supplied.
 
-When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.`
+When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.
+
+Required JSON envelope:
+{"template":{"_description":"A sentence defining one complete source record."}}
+Write a source-specific record definition in "_description" and add the actual requested extraction fields as its siblings inside "template". The example shows only the required metadata; it does not replace the requested fields. "_description" contains a sentence, never a type label.`
 }
 
 /** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
