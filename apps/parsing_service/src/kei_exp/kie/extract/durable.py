@@ -73,7 +73,7 @@ class CapturePlanner:
         self._lock = threading.Lock()
 
     def discovering(self, found, lines):
-        """The record starts the earlier rounds found, and the lines of the window this thread asks for next: each
+        """The record starts read so far, and the lines of the window this thread asks for next: each
         discovery capture yielded is shown with its own window's lines, since every window labels its lines from L1."""
         with self._lock:
             self.discovery = None if found is None else {"found": found, "windows": (self.discovery or {}).get("windows", {})}
