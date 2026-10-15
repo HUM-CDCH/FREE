@@ -296,8 +296,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     boundary; context does. Windows are asked in source order, `workers` at once, slice by slice, then every failed
     one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
     raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
-    call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
-    labels: a view of the run while it reads, never an input to discovery.
+    call and after each valid reply, `progress` is given every record start found so far, in source order, and the
+    lines the window labels: a view of the run while it reads, never an input to discovery.
 
     With `frontier`, windows are read as a sliding frontier instead: no slices, a failed window's halves asked as soon
     as it fails, and the body also says whether it is `complete`. `unanswered` are the exceptions an `ask` raises for a
@@ -323,29 +323,39 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         at += len(group)
     rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
     done: list[_Seen] = []
+    lock = threading.Lock()
 
-    def one(window: Window, found: list[dict]) -> tuple[_Seen | None, list, list[Issue]]:
-        user, labels = _render(window, texts, kinds)
+    def report(window: Window) -> None:
+        # Called under the lock: a slower peer must never publish an older snapshot over a completed window.
         if progress is not None:
+            found = record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
+                                                                each.window.primary[0].start)))
             progress(found, ranges_json(window.primary))
+
+    def one(window: Window) -> tuple[_Seen | None, list, list[Issue]]:
+        user, labels = _render(window, texts, kinds)
+        with lock:
+            report(window)
         calls: list = []
         issues: list[Issue] = []
         answer = ask(None, system, user, _reply(labels), calls, issues)
-        return (_observe(answer, window, texts, labels, issues) if answer is not None else None), calls, issues
+        observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
+        if observed is not None:
+            with lock:
+                done.append(observed)
+                report(window)
+        return observed, calls, issues
 
     def read(batch: list[Window], depth: int) -> list[list[tuple[_Seen | None, list, list[Issue]]]]:
         """Per window of `batch`, in order: its reading, then its halves' when it failed and may still be halved."""
         size, results = max(1, workers), []
         with ThreadPoolExecutor(max_workers=size, thread_name_prefix="discovery") as pool:
             for at in range(0, len(batch), size):
-                found = record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
-                                                                    each.window.primary[0].start)))
-                futures = [pool.submit(one, window, found) for window in batch[at:at + size]]
+                futures = [pool.submit(one, window) for window in batch[at:at + size]]
                 for future in futures:
                     if (error := future.exception()) is not None:
                         raise error
                 results += [future.result() for future in futures]
-                done.extend(observed for observed, _, _ in results[-len(futures):] if observed is not None)
         cut = [split(window, texts, fits, overlap=overlap) if observed is None and len(window.primary) > 1
                and depth < splits else [] for window, (observed, _, _) in zip(batch, results, strict=True)]
         halves = iter(read([half for each in cut for half in each], depth + 1) if any(cut) else ())
@@ -363,30 +373,22 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         """The window's reading, then its halves' when it failed and may still be halved, each half once the one
         before it is read; None once one of them is unanswered."""
         try:
-            observed, calls, issues = one(window, sorted_starts())
+            observed, calls, issues = one(window)
         except unanswered:
             return None
-        if observed is not None:
-            with lock:
-                done.append(observed)
-        elif len(window.primary) > 1 and depth < splits:
+        if observed is None and len(window.primary) > 1 and depth < splits:
             readings = [(None, calls, issues)]
             for half in split(window, texts, fits, overlap=overlap):
                 if (more := resolve(half, depth + 1)) is None:
                     return None
                 readings += more
             return readings
-        else:
+        elif observed is None:
             issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
         return [(observed or _Seen(window, False, []), calls, issues)]
 
-    def sorted_starts() -> list[dict]:
-        with lock:
-            return record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
-                                                                each.window.primary[0].start)))
-
     if frontier:
-        lock, resolved, waiting = threading.Lock(), [], 0
+        resolved, waiting = [], 0
         if unanswered:
             for window in windows:
                 resolved.append(each := resolve(window, 0))
