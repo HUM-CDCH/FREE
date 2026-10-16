@@ -38,6 +38,12 @@ mkcert -install
 pnpm install
 ```
 
+For Node-only development, use `FREE_SKIP_PYTHON=1 pnpm install --frozen-lockfile`
+to avoid installing the Python/ML environment in that checkout. Documentation
+changes need no dependency installation. Before creating additional checkouts,
+follow the [worktree lifecycle](CONTRIBUTING.md#worktree-lifecycle) so environments
+and completed worktrees do not accumulate.
+
 ## Run
 
 ```bash

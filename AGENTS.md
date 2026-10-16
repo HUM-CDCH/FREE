@@ -9,8 +9,19 @@
 - For Parsing Service changes, read `apps/parsing_service/README.md` and
   its local `CLAUDE.md`.
 - For Studio changes, read `apps/studio/CLAUDE.md`.
-- Code changes → a worktree from `origin/dev`, the PR base:
-  `git worktree add .claude/worktrees/<name> -b <branch> origin/dev`.
+- Code changes → a worktree from `origin/dev`, the PR base. Follow
+  [the worktree lifecycle](CONTRIBUTING.md#worktree-lifecycle): resolve the
+  common Git directory and place worktrees in the main checkout's sibling
+  `<repository>.worktrees/`, never relative to the current worktree.
+- Reuse the worktree assigned to the current task. Do not create worktrees for
+  read-only investigation or recursively copy checkouts, dependency directories,
+  or other worktrees.
+- Documentation-only work needs no dependency installation. For Node-only work,
+  use `FREE_SKIP_PYTHON=1 pnpm install --frozen-lockfile`; install Python only
+  when the task needs Parsing Service execution. Do not skip required tests.
+- Retire completed worktrees after preserving uncommitted/untracked work and
+  required ignored evidence. Never force removal or infer disposability from
+  age, a branch name, or a merged PR alone. Report retained worktrees and why.
 - `(spec, *Section*)` in code comments →
   `docs/design/unified-durable-execution.md`.
 - This repository is public: no credentials, internal hostnames/IPs, personal
