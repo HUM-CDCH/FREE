@@ -46,7 +46,7 @@ describe('countPdfPages real worker', () => {
     await expect(countPdfPages(new TextEncoder().encode(input))).resolves.toBeNull()
   })
 
-  it('keeps main-loop timers running while the parser is blocked in its worker', async () => {
+  it('keeps main-loop timers running while the parser is blocked in its worker', async ({ onTestFinished }) => {
     const { port1, port2 } = new MessageChannel()
     const gate = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT))
     const started = new Promise<void>((resolve) => port1.once('message', () => resolve()))
@@ -63,9 +63,20 @@ describe('countPdfPages real worker', () => {
     control.parser = { pdfjs: `data:text/javascript,${encodeURIComponent(parser)}`, gate: gate.buffer, ready: port2 }
     let timerRan = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    const cleanup = () => {
+      clearTimeout(timer)
+      Atomics.store(gate, 0, 1)
+      Atomics.notify(gate, 0)
+      port1.close()
+      port2.close()
+    }
+    onTestFinished(cleanup)
     try {
       const count = countPdfPages(blankPdf(2))
-      await started
+      await Promise.race([
+        started,
+        count.then(() => { throw new Error('The counter settled before its parser reported ready.') }),
+      ])
       timer = setTimeout(() => {
         timerRan = true
         Atomics.store(gate, 0, 1)
@@ -74,11 +85,7 @@ describe('countPdfPages real worker', () => {
       await expect(count).resolves.toBe(2)
       expect(timerRan).toBe(true)
     } finally {
-      clearTimeout(timer)
-      Atomics.store(gate, 0, 1)
-      Atomics.notify(gate, 0)
-      port1.close()
-      port2.close()
+      cleanup()
     }
   })
 })
