@@ -907,23 +907,26 @@ describe('ProviderConfigPage', () => {
 })
 
 const openAdvanced = () => fireEvent.click(screen.getByRole('tab', { name: 'Advanced' }))
-/** Check the labelled native select once, instead of scanning every retained, hidden settings view. */
+/** Find the native controls by label, then keep role/name/accessibility checks within their small owner labels. */
 function settingsSelector(): HTMLSelectElement {
-  const article = screen.getByLabelText<HTMLInputElement>('Article', { selector: 'input' }).checked
-  const selector = screen.getByLabelText<HTMLSelectElement>(article ? 'Article setting' : 'Catalog setting', { selector: 'select' })
+  const article = screen.getByLabelText<HTMLInputElement>('Article', { selector: 'input' })
+  expect(within(article.parentElement!).getByRole('radio', { name: 'Article' })).toBe(article)
+  const name = article.checked ? 'Article setting' : 'Catalog setting'
+  const selector = screen.getByLabelText<HTMLSelectElement>(name, { selector: 'select' })
+  expect(within(selector.parentElement!).getByRole('combobox', { name })).toBe(selector)
   expect(selector).toBeVisible()
   return selector
 }
 
 function setting(title: string) {
   const selector = settingsSelector()
-  const option = Array.from(selector.options).find((option) => option.textContent === title || option.textContent?.endsWith(`: ${title}`))
+  const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.endsWith(`: ${title}`)) as HTMLOptionElement
   if (!option) throw new Error(`No setting named ${title}`)
   fireEvent.change(selector, { target: { value: option.value } })
 }
 const openSection = (title: string) => {
   const selector = settingsSelector()
-  const option = Array.from(selector.options).find((option) => option.textContent === title || option.textContent?.startsWith(`${title}: `)) as HTMLOptionElement
+  const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.startsWith(`${title}: `)) as HTMLOptionElement
   fireEvent.change(selector, { target: { value: option.value } })
 }
 const radio = (group: string, name: string) => {

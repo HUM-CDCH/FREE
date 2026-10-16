@@ -13,7 +13,7 @@ import hashlib
 import json
 import threading
 from collections import OrderedDict
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -47,6 +47,13 @@ _attempts: OrderedDict[str, OrderedDict[bytes, int]] = OrderedDict()
 _kept = 0  # counts kept over all attempts
 _attempts_lock = threading.Lock()
 _attempt: ContextVar[str | None] = ContextVar("counting_attempt", default=None)
+# Work a planning round compiled from kept counts and saved replies (`unified.extract`: a finished entry, read and
+# published) is scoped to its attempt and served tokenizers. `forget` drops both caches, but their LRUs are independent:
+# count eviction does not evict work, and work eviction leaves counts. Work keeps the last CACHED_ATTEMPTS attempts
+# accessed for work, with no per-attempt byte or version cap: every distinct key, including successive tokenizer
+# fingerprints and before/after-verification phases, stays until the attempt is forgotten or evicted from this cache.
+# It is derived, never authoritative: a fresh process compiles it again.
+_compiled: OrderedDict[str, dict[bytes, Any]] = OrderedDict()
 
 
 @contextmanager
@@ -60,10 +67,35 @@ def counting(attempt: str) -> Iterator[None]:
 
 
 def forget(attempt: str) -> None:
-    """Drop an attempt's kept counts once it has ended, or once one of them may be stale."""
+    """Drop an attempt's kept counts and compiled work once it has ended, or once a count may be stale."""
     global _kept
     with _attempts_lock:
         _kept -= len(_attempts.pop(attempt, ()))
+        _compiled.pop(attempt, None)
+
+
+def compiled(key: Any, counters: Iterable[TokenCounter]) -> tuple[tuple | None, Any]:
+    """The work kept under `key` for the attempt being planned (None if none is), and where to keep new work (None
+    while the counts `counters` make are not kept: outside an attempt, or a server without a probe fingerprint)."""
+    attempt, servings = _attempt.get(), [getattr(counter, "_serving", None) for counter in counters]
+    if attempt is None or not servings or None in servings:
+        return None, None
+    name = _digest([[serving.hex() for serving in servings], key])
+    with _attempts_lock:
+        kept = _compiled.setdefault(attempt, {})
+        _compiled.move_to_end(attempt)
+        while len(_compiled) > CACHED_ATTEMPTS:
+            _compiled.popitem(last=False)
+        return (kept, name), kept.get(name)
+
+
+def keep_compiled(place: tuple, work: Any) -> None:
+    kept, name = place
+    with _attempts_lock:
+        # `forget` or work-LRU eviction may detach this place while work is compiled. Even if the attempt re-enters
+        # the cache meanwhile, the old place cannot restore it or write into its replacement.
+        if _compiled.get(_attempt.get()) is kept:
+            kept[name] = work
 
 
 def kept() -> int:

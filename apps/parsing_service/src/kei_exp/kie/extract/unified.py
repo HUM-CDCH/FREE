@@ -44,7 +44,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from kei_exp.canonical import canonical_json
 from kei_exp.failures import TransientBackendError, classify
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract import discovery, gliformer
+from kei_exp.kie.extract import discovery, gliformer, tokens
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
 from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
@@ -326,13 +326,22 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         verification waits, so that the reasoning model reads discovery's windows; candidates are shown meanwhile."""
         def one(number: int) -> _Work:
             entry = entries[number]
-            work = run.entry(number, entry, verify=complete,
-                             unit=f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None)
+            unit = f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None
+            # A finished entry is a function of these, its counts and its saved replies: an earlier round of the
+            # attempt that read and saved it leaves nothing to read or save again (a phase change, verification once
+            # discovery is complete, is another key).
+            place, kept = tokens.compiled([execution_sha256, number, entry, complete, unit],
+                                         counters.values()) if durable else (None, None)
+            if kept is not None:  # its scope is listed with every entry's (`plan_records`)
+                return kept
+            work = run.entry(number, entry, verify=complete, unit=unit)
             if not work.failed and not work.undecided:
                 # A finished entry's accepted values are verified: their links are the final artifact's, so the
                 # researcher sees them on the source while the other entries are still read.
                 saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
                              links=[_link(each, number, passages) for each in work.found if each.kind == "accepted"])
+                if place is not None:
+                    tokens.keep_compiled(place, work)
             return work
         order, works = work_order(entries, pages, request.options.start_page), [None] * len(entries)
         raised: dict[int, BaseException] = {}
