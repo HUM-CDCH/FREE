@@ -16,7 +16,7 @@ import {
 import type { ExtractionModelListing } from '../../shared/extraction.contract'
 import { ResearcherSessionContext } from '../auth/sessionContext'
 import ProviderConfigPage from './ProviderConfigPage'
-import { RETIRED_NOTE } from './advancedSettings'
+import { STARTING_POINTS, withStartingPoint } from './advancedSettings'
 
 const OLLAMA_ID = '11111111-1111-4111-8111-111111111111'
 const OPENAI_ID = '22222222-2222-4222-8222-222222222222'
@@ -1054,30 +1054,26 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings.article?.context_tokens).toBe(8192)
   })
 
-  it('retired Article settings are read-only with a note, and their saved values round-trip through Apply unchanged', async () => {
+  it('additional saved Article settings replace detailed controls and round-trip through unrelated Apply', async () => {
     const stored = {
-      ...REFERENCE_ARTICLE, context: 'bounded' as const, identity: 'conservative' as const, identity_fields: ['Species'],
-      prompt: 'schema' as const, selection: 'supported' as const,
+      ...REFERENCE_ARTICLE, context: 'bounded' as const, context_tokens: 16384, overlap_passages: 1,
+      grouping: 'structural' as const, identity: 'conservative' as const, identity_fields: ['Species'],
+      prompt: 'schema' as const, selection: 'supported' as const, grounding: 'spans' as const,
+      evidence_policy: 'schema' as const, grounding_schedule: 'unresolved' as const, grounding_routing: 'origin_lexical' as const,
     }
     const server = studio(config({ extractionSettings: { article: stored } }))
     await renderPage()
     openAdvanced()
-    setting('Reconciliation')
-    expect(radio('Reconciliation', 'Declared identity fields')).toBeChecked()
-    expect(radio('Reconciliation', 'Reference')).toBeEnabled()  // a retired setting can always return to the reference
-    setting('Identity fields')
-    expect(within(screen.getByRole('combobox', { name: 'Declared identity fields' })).getByRole('option', { name: 'Species' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Identity field name' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Add field' })).toBeDisabled()
-    setting('Instructions')
-    expect(radio('Instructions', 'Schema-driven')).toBeChecked()
-    expect(radio('Instructions', 'Reference')).toBeEnabled()
-    expect(radio('Instructions', 'Reference')).toHaveAccessibleDescription(expect.stringContaining(RETIRED_NOTE))
-    setting('Value evidence')
-    expect(radio('Value evidence', 'Supported units')).toBeChecked()
-    expect(radio('Value evidence', 'All source units')).toBeEnabled()
-    expect(screen.getAllByText(RETIRED_NOTE)).toHaveLength(6)
-
+    const additional = screen.getByRole('region', { name: 'Additional saved settings' })
+    expect(additional).toHaveTextContent('Record identity: Declared identity fields · Species')
+    expect(additional).toHaveTextContent('Instructions: Schema-driven')
+    expect(additional).toHaveTextContent('Identity and instructions still affect source budgeting.')
+    expect(within(additional).getAllByRole('button')).toHaveLength(5)
+    expect(within(settingsSelector()).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Source context: Scope', 'Source context: Context ceiling', 'Source context: Grouping', 'Source context: Previous passages',
+      'Extraction input: Source representation', 'Evidence: Verification', 'Evidence: Fields to verify', 'Effective settings', 'Technical details',
+    ])
+    expect(screen.queryByRole('textbox', { name: 'Identity field name' })).not.toBeInTheDocument()
     setting('Source representation')
     fireEvent.click(radio('Source representation', 'Structured blocks and tables'))
     apply()
@@ -1085,38 +1081,94 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...stored, rendering: 'structured' })
   })
 
-  it('a retired value that another choice makes invalid stays changeable, so Apply can recover', async () => {
-    studio(config({ extractionSettings: { article: { ...REFERENCE_ARTICLE, context: 'bounded', selection: 'supported' } } }))
+  it('a saved selection made invalid by full source is focused and can be reset without changing instructions', async () => {
+    const stored = { ...REFERENCE_ARTICLE, context: 'bounded' as const, selection: 'supported' as const, prompt: 'schema' as const }
+    const server = studio(config({ extractionSettings: { article: stored } }))
     await renderPage()
     openAdvanced()
-    setting('Scope')
     fireEvent.click(radio('Scope', 'Full source'))
-    setting('Value evidence')
-    expect(radio('Value evidence', 'Supported units')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
-    fireEvent.click(radio('Value evidence', 'All source units'))
-    expect(radio('Value evidence', 'All source units')).toBeChecked()
-    expect(radio('Value evidence', 'Supported units')).toBeDisabled()
+    fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
+    fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
+    const reset = screen.getByRole('button', { name: 'Reset Value evidence' })
+    await waitFor(() => expect(reset).toHaveFocus())
+    expect(reset).toHaveAccessibleDescription(METHOD_MESSAGES.bounded)
+    fireEvent.click(reset)
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
-  })
-
-  it('a retired identity field the schema no longer has can be removed, which unlocks Reconciliation', async () => {
-    // Admission still refuses identity fields the pinned schema lacks, so a stale saved name must stay removable.
-    const server = studio(config({ extractionSettings: { article: {
-      ...REFERENCE_ARTICLE, context: 'bounded', identity: 'conservative', identity_fields: ['Species'] } } }))
-    await renderPage()
-    openAdvanced()
-    setting('Reconciliation')
-    expect(radio('Reconciliation', 'Reference')).toBeEnabled()
-    setting('Identity fields')
-    expect(screen.getByRole('button', { name: 'Add field' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Species' }))
-    setting('Reconciliation')
-    fireEvent.click(radio('Reconciliation', 'Reference'))
-    expect(radio('Reconciliation', 'Declared identity fields')).toBeDisabled()
+    expect(screen.getByRole('region', { name: 'Additional saved settings' })).toHaveTextContent('Instructions: Schema-driven')
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...REFERENCE_ARTICLE, context: 'bounded' })
+    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...REFERENCE_ARTICLE, prompt: 'schema' })
+  })
+
+  it('stale identity fields remain resettable after applying the spans starting point, without resetting its instructions', async () => {
+    // A stale schema field is refused only at admission, so this reset must be offered in an otherwise valid draft.
+    const stored = { ...REFERENCE_ARTICLE, context: 'bounded' as const, identity: 'conservative' as const, identity_fields: ['Species'] }
+    const server = studio(config({ extractionSettings: { article: stored } }))
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
+    const point = startingPoint('Explore spans and schema policies')
+    fireEvent.click(within(point).getByRole('button', { name: 'Show changes' }))
+    fireEvent.click(within(point).getByRole('button', { name: 'Use these settings' }))
+    const additional = screen.getByRole('region', { name: 'Additional saved settings' })
+    expect(additional).toHaveTextContent('Record identity: Reference · Species')
+    expect(screen.queryByRole('button', { name: /issue.*Apply/ })).not.toBeInTheDocument()
+    fireEvent.click(within(additional).getByRole('button', { name: 'Reset Record identity' }))
+    expect(additional).toHaveTextContent('Record identity: Reference · None')
+    expect(additional).toHaveTextContent('Changed from Declared identity fields · Species')
+    expect(additional).toHaveTextContent('Instructions: Schema-driven')
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings.article).toEqual({
+      ...withStartingPoint(stored, STARTING_POINTS[1]!), identity: 'reference', identity_fields: [],
+    })
+  })
+
+  it('resetting saved identity preserves all live settings and invalid number text, and Discard restores saved values', async () => {
+    const stored = { ...REFERENCE_ARTICLE, context: 'bounded' as const, context_tokens: 16384, overlap_passages: 2,
+      grouping: 'structural' as const, rendering: 'structured' as const, grounding: 'spans' as const, evidence_policy: 'schema' as const,
+      identity: 'conservative' as const, identity_fields: ['Species'], prompt: 'schema' as const }
+    const server = studio(config({ extractionSettings: { article: stored } }))
+    await renderPage()
+    openAdvanced()
+    setting('Context ceiling')
+    const ceiling = screen.getByRole('textbox', { name: /Context ceiling/ })
+    fireEvent.change(ceiling, { target: { value: 'twelve' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Record identity' }))
+    expect(ceiling).toHaveValue('twelve')
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+    fireEvent.change(ceiling, { target: { value: '16384' } })
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...stored, identity: 'reference', identity_fields: [] })
+    await waitFor(() => expect(screen.getByText('Everything saved')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Instructions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.getByRole('region', { name: 'Additional saved settings' })).toHaveTextContent('Instructions: Schema-driven')
+    expect(server.puts()).toHaveLength(1)
+  })
+
+  it('saved routing must be reset before its verification schedule, without changing other saved settings', async () => {
+    const stored = { ...REFERENCE_ARTICLE, context: 'bounded' as const, prompt: 'schema' as const,
+      selection: 'supported' as const, grounding: 'spans' as const, grounding_schedule: 'unresolved' as const,
+      grounding_routing: 'origin_lexical' as const }
+    const server = studio(config({ extractionSettings: { article: stored } }))
+    await renderPage()
+    openAdvanced()
+    const schedule = screen.getByRole('button', { name: 'Reset Continue verification' })
+    expect(schedule).toBeDisabled()
+    expect(schedule).toHaveAccessibleDescription(METHOD_MESSAGES.routing)
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Unit order' }))
+    expect(schedule).toBeEnabled()
+    expect(screen.getByRole('region', { name: 'Additional saved settings' })).toHaveTextContent('Continue verification: Until first support')
+    fireEvent.click(schedule)
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings.article).toEqual({
+      ...REFERENCE_ARTICLE, context: 'bounded', prompt: 'schema', selection: 'supported', grounding: 'spans',
+    })
   })
 
   it('Catalog keeps generic limits and recipe factors apart; Use service defaults removes only Catalog', async () => {
