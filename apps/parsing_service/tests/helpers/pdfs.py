@@ -2,6 +2,7 @@
 and a text-layer PDF for the native transcriber and anything that must skip OCR."""
 import ctypes
 from pathlib import Path
+from time import gmtime
 
 import numpy as np
 import pypdfium2 as pdfium
@@ -24,11 +25,14 @@ def binary_pdf(path: Path, *masks: np.ndarray, dpi: float = DPI) -> Path:
     """A PDF whose pages each carry exactly one bilevel image, placed at `dpi`.
 
     `dpi` is a parameter because a few-row raster placed at a scanning resolution would be a fraction of a point
-    tall, and would be refused for its placement before it could exercise anything else.
+    tall, and would be refused for its placement before it could exercise anything else. Fixed PDF metadata keeps
+    the same path and pixels byte-identical when generated again.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     images = [Image.fromarray(~painted) for painted in masks]
-    images[0].save(path, "PDF", resolution=dpi, save_all=True, append_images=images[1:])
+    stamp = gmtime(0)
+    images[0].save(path, "PDF", resolution=dpi, save_all=True, append_images=images[1:],
+                   creationDate=stamp, modDate=stamp)
     for image in images:
         image.close()
     return path
