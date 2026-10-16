@@ -2124,8 +2124,8 @@ describe('reopened Source Document workspace', () => {
       return bodies
     }
 
-    async function renderWorkspace(persistedExtraction: DocumentWorkspaceProps['persistedExtraction']) {
-      render(<DocumentWorkspace {...reopened} persistedExtraction={persistedExtraction} />)
+    async function renderWorkspace(persistedExtraction: DocumentWorkspaceProps['persistedExtraction'],options:Partial<DocumentWorkspaceProps>={}) {
+      render(<DocumentWorkspace {...reopened} persistedExtraction={persistedExtraction} {...options} />)
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
@@ -2190,6 +2190,55 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(run)
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('ARTICLE'))
+    })
+
+    it('shows only the newly admitted Article values after a Catalog, even when an old read finishes late', async () => {
+      const bodies=stubRuns('SUCCEEDED')
+      const previousFetch=vi.mocked(fetch).getMockImplementation()!
+      const admission=Promise.withResolvers<Response>(),oldRead=Promise.withResolvers<Response>(),newValues=Promise.withResolvers<Response>()
+      const oldId=catalogAttempts.SUCCEEDED.extractionId
+      const onExtractionAdmitted=vi.fn()
+      let holdOld=false,oldInFlight=false,newId=''
+      vi.stubGlobal('fetch',vi.fn(async(input:string|URL|Request,init?:RequestInit)=>{
+        const url=String(input)
+        if(url==='/api/extractions'&&init?.method==='POST') {
+          const response=await previousFetch(input,init)
+          const attempt=await response.json()
+          newId=attempt.extractionId
+          return admission.promise
+        }
+        if(holdOld&&url===`/api/extractions/${oldId}/durable`){oldInFlight=true;return oldRead.promise}
+        if(newId&&url.startsWith(`/api/extractions/${newId}/durable/values`))return newValues.promise
+        if(newId&&url===`/api/extractions/${newId}/durable`)return durableRead(url,'PAUSED')!
+        return previousFetch(input,init)
+      }))
+      await renderWorkspace({...catalogAttempts.SUCCEEDED,
+        sourceRepresentation:reopened.persistedExtraction!.sourceRepresentation,
+        extractionSchema:reopened.persistedExtraction!.extractionSchema},{routeExtractionId:oldId,onExtractionAdmitted})
+      const run=tabStripRun('ARTICLE')
+      expect(await screen.findByText('Elmbrooke')).toBeVisible()
+      holdOld=true
+      fireEvent(window,new Event('focus'))
+      await waitFor(()=>expect(oldInFlight).toBe(true))
+      fireEvent.click(run)
+      await waitFor(()=>expect(bodies).toHaveLength(1))
+      await waitFor(()=>expect(newId).not.toBe(''))
+      expect(bodies[0]).toEqual(posted('ARTICLE'))
+      expect(newId).not.toBe(oldId)
+      admission.resolve(Response.json({...catalogAttempts.SUCCEEDED,extractionId:newId,strategy:'ARTICLE',
+        schemaRevisionId:reopened.extractionSchema!.schemaRevisionId,executionStatus:'RUNNING'},{status:201}))
+      expect(await screen.findByText('Loading saved extraction results…')).toBeVisible()
+      expect(onExtractionAdmitted).toHaveBeenCalledExactlyOnceWith(newId,oldId)
+      expect(screen.queryByText('Elmbrooke')).not.toBeInTheDocument()
+      await act(async()=>{oldRead.resolve(durableRead(`/api/extractions/${oldId}/durable`)!);await oldRead.promise})
+      expect(screen.queryByText('Elmbrooke')).not.toBeInTheDocument()
+      const page=await durableRead(`/api/extractions/${newId}/durable/values`)!.json()
+      page.values[0]={...page.values[0],id:'new-title',fieldId:'title',path:['records',0,'title'],
+        node:{id:'title',name:'title',type:'string'},modelValue:'Current article metadata'}
+      await act(async()=>{newValues.resolve(Response.json(page));await newValues.promise})
+      expect(await screen.findByText('Current article metadata')).toBeVisible()
+      expect(screen.queryByText('Elmbrooke')).not.toBeInTheDocument()
+      expect(screen.getByRole('button',{name:'▶ Resume extraction'})).toBeVisible()
     })
 
     it.each([

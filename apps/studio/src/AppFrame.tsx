@@ -43,7 +43,7 @@ type AppFrameProps = {
   openDocument: DocumentSnapshot | null
   opening: boolean
   failure: Failure | null
-  onNavigate: (route: NavigableRoute) => void
+  onNavigate: (route: NavigableRoute, replace?: boolean, fromExtractionId?: string) => void
   onRetry: () => void
   onInitialResourceLoadFailure: () => void
   /** Reads the open Source Document again and swaps it in only once that read succeeds. */
@@ -231,6 +231,7 @@ export default function AppFrame({
           openDocument.sourceRepresentation.resources.parsedDocumentUrl,
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
+        routeExtractionId: route.kind==='document'?route.extractionId:undefined,
         latestReviewedExtraction: openDocument.latestReviewed,
         persistedReviewCut: route.kind === 'document' && route.extractionId === openDocument.latestAttempt?.extractionId
           ? route.reviewCut ?? null
@@ -252,6 +253,13 @@ export default function AppFrame({
           extractionId,
           ...(reviewCut ? { reviewCut } : {}),
         }),
+        // A new Run supersedes an explicit old-result address only after admission is acknowledged.
+        onExtractionAdmitted:(extractionId:string,fromExtractionId?:string)=>{
+          if(!fromExtractionId||fromExtractionId===extractionId)return
+          onNavigate({kind:'document',projectContextId:openDocument.projectContext.projectContextId,
+            sourceDocumentId:openDocument.sourceDocument.sourceDocumentId,extractionId,
+            ...(route.kind==='document'&&route.fromBatchExtractionId?{fromBatchExtractionId:route.fromBatchExtractionId}:{})},true,fromExtractionId)
+        },
         // A run refused as superseded means this snapshot's Source Representation may be stale.
         onSourceSuperseded: onRefreshDocument,
         fromSchemaBuilder:

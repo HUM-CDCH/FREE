@@ -41,7 +41,7 @@ function server({ post, read }: {
 }
 
 function render(options: Partial<Parameters<typeof useExtraction>[0]> = {}) {
-  const callbacks = { onTerminal: vi.fn(), onError: vi.fn(), onSuperseded: vi.fn(), onMethodChanged: vi.fn() }
+  const callbacks = { onTerminal: vi.fn(), onError: vi.fn(), onSuperseded: vi.fn(), onMethodChanged: vi.fn(),onAdmitted:vi.fn() }
   const hook = renderHook((props: Partial<Parameters<typeof useExtraction>[0]>) => useExtraction({
     schemaReady: true, indexing: false, reviewTarget: target, documentKey: 'document', ...callbacks, ...options, ...props,
   }), { initialProps: {} })
@@ -54,12 +54,13 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
 describe('durable Extraction admission', () => {
   it('admits under a fresh identity and hands the queued Extraction to its controls', async () => {
     const { posts } = server({ post: (body) => Response.json(attempt(body.id), { status: 201 }) })
-    const { result } = render()
+    const { result,onAdmitted } = render()
     expect(result.current.canRun).toBe(true)
     let acknowledged: ExtractionAttempt | null = null
     await act(async () => { acknowledged = await result.current.runExtraction(method, target) })
     expect(posts).toEqual([expect.objectContaining({ id: expect.any(String), schemaRevisionId: target.schemaRevisionId, method })])
     expect(acknowledged).toEqual(attempt(posts[0]!.id))
+    expect(onAdmitted).toHaveBeenCalledExactlyOnceWith(acknowledged)
     expect(result.current.attempt?.executionStatus).toBe('QUEUED')
     // An admitted Extraction is paused, resumed, retried and stopped in Results, not started again.
     expect(result.current.canRun).toBe(false)
@@ -113,9 +114,10 @@ describe('durable Extraction admission', () => {
       post: () => new Response('Bad gateway', { status: 502 }),
       read: (id) => readable ? Response.json({ extraction: attempt(id, 'PAUSED') }) : new Response('Bad gateway', { status: 502 }),
     })
-    const { result } = render()
+    const { result,onAdmitted } = render()
     await act(async () => { await result.current.runExtraction(method, target) })
     await waitFor(() => expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED))
+    expect(onAdmitted).not.toHaveBeenCalled()
     expect(reads).toEqual([posts[0]!.id])
     readable = true
     await act(async () => { result.current.reconnect() })
@@ -123,6 +125,7 @@ describe('durable Extraction admission', () => {
     expect(posts).toHaveLength(1)
     expect(reads).toEqual([posts[0]!.id, posts[0]!.id])
     expect(result.current.monitorError).toBeNull()
+    expect(onAdmitted).toHaveBeenCalledExactlyOnceWith(attempt(posts[0]!.id,'PAUSED'))
   })
 
   it('re-posts an unanswered request under its own identity, so admission can replay it', async () => {

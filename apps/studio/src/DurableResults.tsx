@@ -18,6 +18,8 @@ import ReviewList from './ReviewList'
 import ResultsHeader, { type StatusLine } from './ResultsHeader'
 import ResultsMenu from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
+import { ResultSchemaNotice } from './ResultSchemaNotice'
+import { resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
 import { durableRailModel, durableRailRow, type RunProgress } from './durableRailModel'
 import { evidenceQuote } from './evidenceQuote'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
@@ -245,9 +247,10 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
         <ul className="m-0 list-none space-y-1 p-0">{[...history.selections].reverse().map(selection=> {
           const effective=history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined
           const previous=history.selections.find(each=>each.ordinal===selection.ordinal-1)
+          const producingSchema=history.schemaRevisions?.find(revision=>revision.schemaRevisionId===selection.schemaRevisionId)
           return <li key={selection.id}>
             {selection.ordinal===1?'First inputs':`Changed inputs (version ${selection.ordinal})`}
-            <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}</span>
+            <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}{producingSchema&&` · ${resultSchemaLabel(producingSchema)}`}</span>
           </li>})}</ul></section>}
       <details onToggle={event=>{if(event.currentTarget.open)setAudit(true)}}><summary className="cursor-pointer text-compact text-ink-muted">Technical details (for audit)</summary>
         {audit&&<HistoryAudit id={id}/>}
@@ -265,14 +268,15 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,sourceDocumentName,onEvidence,readOnly=false,selection,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
   connectionShown?:boolean;
   /** The explicit result/decision cut this view opens on, e.g. a finalized
    * review or a saved-correction link; null follows the latest saved results. */
-  initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;
+  initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:CurrentResultSchema|null;
+  onSchema?:()=>void;controlled?:boolean;
   /** Names the export file; falls back to the pinned source's own name, then the Extraction's id. */
   sourceDocumentName?:string;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
   /** The workspace's channel: requests to select a value come in; this view's marks and one-by-one's dimming go out. */
@@ -562,6 +566,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);const first=nextToCheck(queue,null);if(first)selectValue(first)}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
+    <ResultSchemaNotice page={page} state={state} current={currentSchema} controlled={controlled} readOnly={readOnly} onSchema={onSchema}/>
+    {attempt.createdAt&&<p className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">Extraction started {savedAt(attempt.createdAt)}.</p>}
     {menuOpen&&<ResultsMenu items={[
       {label:'Export…',disabled:exportState?.status==='pending'?'Exporting…':page.total===0?'Nothing saved to export yet':null,onSelect:()=>{setMenuOpen(false);setExportOpen(true)}},
       // Offered once per edit session: another acknowledgement would move the open draft's fence.
@@ -589,7 +595,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       </div><details><summary className="cursor-pointer">Reprocess completed values (optional)</summary><p className="text-compact text-ink-muted">Selected values receive new model versions. Earlier versions and corrections remain saved.</p>
         {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/>{v.node.name} · {v.recordId.slice(0,8)}</label>)}
       </details></div>}
-      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema} onSaved={saved} onEdited={reader.refresh}/>}
+      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema?.schemaRevisionId??null} onSaved={saved} onEdited={reader.refresh}/>}
       {shownError&&<p role="alert" className="text-secondary text-danger">{shownError}</p>}
       {reconnect}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}

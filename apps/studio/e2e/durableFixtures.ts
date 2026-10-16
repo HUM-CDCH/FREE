@@ -9,9 +9,9 @@ import type { SchemaNode } from 'extraction/schema'
 import type { InteractiveDocument } from './interactiveStack.js'
 
 /** Saved producer data in the guarded browser database, independent of processing. */
-export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{records?:unknown[][];schemaRevisionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>;empty?:boolean;disagreement?:Readonly<Record<string,NonNullable<DurableValue['disagreement']>>>;coverage?:Record<string,unknown>}={}) {
+export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{records?:unknown[][];schemaRevisionId?:string;extractionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>;empty?:boolean;disagreement?:Readonly<Record<string,NonNullable<DurableValue['disagreement']>>>;coverage?:Record<string,unknown>}={}) {
   const strategy=options.records?'CATALOG':'ARTICLE',settings=options.records?{generic:null}:{article:null}
-  const id=randomUUID(),schemaRevisionId=options.schemaRevisionId??randomUUID(),tree={recordDescription:'One interactive record.',schemaNodes:nodes}
+  const id=options.extractionId??randomUUID(),schemaRevisionId=options.schemaRevisionId??randomUUID(),tree={recordDescription:'One interactive record.',schemaNodes:nodes}
   await withPoolClientTransaction(async(_transaction,client)=> {
     if(!options.schemaRevisionId)await client.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,$2,coalesce(max("revisionNumber"),0)+1,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE "extractionSchemaId"=$2`,

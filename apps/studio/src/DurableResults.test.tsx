@@ -16,6 +16,24 @@ import { ApiRequestError } from './api'
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),readDurableHistorySummary:vi.fn(),readValues:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks()})
 
+it('names the producing schema and the current revision without changing saved values',async()=>{
+  const old={schemaRevisionId:'schema-old',extractionSchemaId:'schema-family',name:'Research',revisionNumber:9,recordScope:'records' as const}
+  const current={schemaRevisionId:'schema-current',revisionNumber:14,recordScope:'document' as const}
+  const value={id:'old-value',recordId:'reference',fieldId:'reference_number',path:['records',0,'reference_number'],selectionId:'original',schemaRevisionId:old.schemaRevisionId,
+    node:{id:'reference_number',name:'reference_number',type:'string'},modelValue:'Reference 17',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={extractionId:'extraction',snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{},schemaRevisions:[old],schemaRevisionId:old.schemaRevisionId} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaRevisionId:old.schemaRevisionId},schemaRevisions:[old],pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  const onSchema=vi.fn()
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={current} onSchema={onSchema} onEvidence={()=>{}}/>)
+  expect(await screen.findByText(/These results use schema revision 9 \(Catalog\)/)).toBeVisible()
+  expect(screen.getByText(/The current schema is revision 14 \(Article\)/)).toBeVisible()
+  expect(screen.getByText('Reference 17')).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:'Open Schema'}))
+  expect(onSchema).toHaveBeenCalledOnce()
+  expect(durableRequest).not.toHaveBeenCalled()
+})
+
 it('shows every saved table row and absent cell in list and one-by-one review',async()=>{
   const node={id:'remains',name:'remains',type:'object',children:[
     {id:'summary',name:'summary',type:'string'},
@@ -575,7 +593,7 @@ it('acknowledges editing once per inputs edit session and saves the draft under 
   const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})
-  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema='newer' onEvidence={()=>{}}/>)
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={{schemaRevisionId:'newer',revisionNumber:2}} onEvidence={()=>{}}/>)
   fireEvent.click(await screen.findByRole('button',{name:'More result actions'}))
   vi.mocked(readDurable).mockResolvedValue({state:{...state,controlVersion:5,pendingSelection:selection},page} as never)
   fireEvent.click(screen.getByRole('menuitem',{name:'Change inputs'}))

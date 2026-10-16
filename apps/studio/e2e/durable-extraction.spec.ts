@@ -16,6 +16,59 @@ test.beforeEach(({page})=> {
   page.on('requestfailed',request=>console.error('durable browser request failed:',request.url(),request.failure()?.errorText))
 })
 
+test('results identify an older schema and a new Article admission survives reload',async({page},testInfo)=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const catalog=[{id:'reference',name:'reference_number',type:'string' as const}]
+    const article=[{id:'title',name:'title',type:'string' as const}]
+    const old=await savedExtraction(fixture,catalog,['Old reference 17'],'COMPLETED',{records:[['Old reference 17']]})
+    const revision=randomUUID()
+    await pool.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
+      VALUES ($1,$2,3,'RESEARCHER_EDIT',$3,'document')`,[revision,fixture.extractionSchemaId,{recordDescription:'One article.',schemaNodes:article}])
+    await page.goto(`${fixture.url}?extractionId=${old.id}`)
+    await page.getByRole('tab',{name:/^Results/}).click()
+    await expect(page.getByText('These results use schema revision 2 (Catalog).')).toBeVisible()
+    await expect(page.getByText('The current schema is revision 3 (Article).')).toBeVisible()
+    await expect(page.getByText('Old reference 17',{exact:true})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('schema-mismatch-desktop.png')})
+    await page.setViewportSize({width:390,height:844})
+    const schemaNotice=page.getByLabel('Results schema')
+    await expect(schemaNotice).toBeVisible()
+    const bounds=await schemaNotice.boundingBox()
+    expect(bounds!.x).toBeGreaterThanOrEqual(0)
+    expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(391)
+    await page.screenshot({path:testInfo.outputPath('schema-mismatch-narrow.png')})
+    await page.setViewportSize({width:1440,height:900})
+    await page.getByRole('button',{name:'Open Schema',exact:true}).click()
+    await expect(page.getByRole('tab',{name:/^Schema/})).toHaveAttribute('aria-selected','true')
+    // Admission is stood in; saved state, values, schema labels and routed reopening use the real owned API.
+    let admitted=''
+    await page.route('**/api/extractions',async route=>{
+      if(route.request().method()!=='POST')return route.continue()
+      const body=route.request().postDataJSON()
+      expect(body.strategy).toBe('ARTICLE')
+      expect(body.schemaRevisionId).toBe(revision)
+      expect(body.id).not.toBe(old.id)
+      const fresh=await savedExtraction(fixture,article,['New article metadata'],'COMPLETED',{schemaRevisionId:revision,extractionId:body.id})
+      admitted=fresh.id
+      await route.fulfill({status:201,json:{extractionId:fresh.id,sourceDocumentId:fixture.sourceDocumentId,
+        sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,strategy:'ARTICLE',catalogRecipe:null,
+        requestedModels:null,requestedSettings:null,executionStatus:'COMPLETED',finalizedReview:null,batchExtractionId:null,createdAt:new Date().toISOString()}})
+    })
+    await page.getByRole('button',{name:'▶ Run extraction',exact:true}).click()
+    await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
+    await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`extractionId=${admitted}`))
+    await expect(page.getByText('Made with schema revision 3 (Article).')).toBeVisible()
+    await page.reload()
+    await page.getByRole('tab',{name:/^Results/}).click()
+    await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
+    await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
+    await expect(page.getByText('Made with schema revision 3 (Article).')).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('new-article-after-reload.png')})
+  } finally {await fixture.close()}
+})
+
 test('every durable API rejects unauthenticated and foreign owners, wrong origins and oversized writes',async({page,browser})=>{
   const parsed=decodeParsedDocument(JSON.parse(await readFile(new URL('../src/assets/parsed_document.v2.json',import.meta.url),'utf8')))
   const anchor=parsed.evidence_index.anchors[0]!

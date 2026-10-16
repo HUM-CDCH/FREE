@@ -14,6 +14,7 @@ import type { ExtractionInspection, RailTab } from './RightRail'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import type { ParsedEvidenceAnchor } from 'extraction/parsed-document'
 import type { DurableReader } from './durableReader'
+import type { CurrentResultSchema } from './resultSchema'
 import {
   createSchemaEditorController,
   localSchemaPersistence,
@@ -76,6 +77,7 @@ function renderRail({
   inspection = defaultInspection,
   extraction = defaultController,
   latestReader = null,
+  currentSchemaRevision = null,
   schema = testSchema(),
   onSelectEvidence = vi.fn(),
   selection = createSelectionChannel(),
@@ -85,6 +87,7 @@ function renderRail({
   inspection?: ExtractionInspection
   extraction?: ExtractionController
   latestReader?: DurableReader | null
+  currentSchemaRevision?: CurrentResultSchema | null
   schema?: SchemaEditorController
   onSelectEvidence?: (anchor: ParsedEvidenceAnchor) => void
   selection?: SelectionChannel
@@ -100,7 +103,7 @@ function renderRail({
       extraction={extraction}
       inspection={inspection}
       latestReader={latestReader}
-      currentSchemaRevision={null}
+      currentSchemaRevision={currentSchemaRevision}
       sourceDocumentName="test.pdf"
       sourceRepresentationId="source-representation"
       onSelectEvidence={onSelectEvidence}
@@ -113,6 +116,14 @@ function renderRail({
 const results = () => vi.mocked(DurableResults).mock.lastCall![0]
 
 describe('RightRail Results', () => {
+  it('passes the acknowledged schema summary and labels retained results during a new admission',()=>{
+    const currentSchemaRevision={schemaRevisionId:'revision-14',revisionNumber:14,recordScope:'document' as const}
+    renderRail({tab:'results',currentSchemaRevision,inspection:{...defaultInspection,attempt},
+      extraction:{...defaultController,attempt,admitting:true}})
+    expect(screen.getByText('A new extraction has not been acknowledged yet. These are previous results.')).toBeVisible()
+    expect(results().currentSchema).toEqual(currentSchemaRevision)
+    expect(results().controlled).toBe(true)
+  })
   it('reviews every Extraction with the durable reader, at the live cut unless an explicit one is named', () => {
     const selection = createSelectionChannel()
     renderRail({ tab: 'results', extraction: { ...defaultController, attempt }, selection })
