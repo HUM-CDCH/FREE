@@ -169,7 +169,7 @@ def materials(owner, extraction=IDS["extraction"]):
     return [json.loads(value) for _, field, value in records(owner, extraction) if field == "material"]
 
 
-def drive(monkeypatch, worker_url, url, runs, *, reuse):
+def drive(monkeypatch, worker_url, url, runs, *, reuse, expire=None):
     """The worker loop (`extract_workflow`) in process, without DBOS: the undecorated steps, two calls per role at once,
     the earliest started answered first through the real begin_call/commit_output."""
     from kei_exp.kie.extract.models import DEFAULTS, EXTRACT_MODELS
@@ -197,6 +197,8 @@ def drive(monkeypatch, worker_url, url, runs, *, reuse):
         running, rounds = {}, 0
         while True:
             rounds += 1
+            if expire:  # calls outlasting the 30 s lease: each round's claim starts another epoch
+                expire()
             work = plan(extraction, attempt)
             if "result" in work:
                 publish(extraction, attempt, work["result"], work["scopes"])
@@ -214,7 +216,19 @@ def drive(monkeypatch, worker_url, url, runs, *, reuse):
         tokens.forget(f"{extraction}/{attempt}")
 
 
-def test_reuse_leaves_the_coordination_database_as_it_was(postgres, tmp_path, monkeypatch):
+def expired(owner):
+    def expire():
+        with psycopg.connect(owner, autocommit=True) as connection:
+            connection.execute('''UPDATE extraction_runtime.head SET "leaseUntil"=clock_timestamp()-interval '1 second'
+                                  WHERE id=%s''', (IDS["extraction"],))
+    return expire
+
+
+@pytest.mark.parametrize("epochs", [False, True])
+def test_reuse_leaves_the_coordination_database_as_it_was(postgres, tmp_path, monkeypatch, epochs):
+    """With `epochs` the lease expires before every round. A finished capture then keeps the reservation epoch of its
+    last lookup, the round before it was reused, not the latest; only an unfinished capture's call (finalize, begin,
+    commit, fail) checks it, so that column is the one permitted difference."""
     pages = texts(3, 3)
     evidence = write_source(tmp_path / "runs", "run-reuse", pages)
     ends, counts = {}, {}
@@ -223,13 +237,21 @@ def test_reuse_leaves_the_coordination_database_as_it_was(postgres, tmp_path, mo
             with migrated(postgres) as (owner, worker_url), monkeypatch.context() as patched:
                 seed(owner, "run-reuse")
                 made = len(requests)
-                routines, hits, rounds = drive(patched, worker_url, url, tmp_path / "runs", reuse=reuse)
+                routines, hits, rounds = drive(patched, worker_url, url, tmp_path / "runs", reuse=reuse,
+                                               expire=expired(owner) if epochs else None)
                 ends[reuse], counts[reuse] = state(owner), (routines, hits, rounds, len(requests) - made)
                 assert materials(owner) == expected_materials(pages)
     (plain, plain_hits, plain_rounds, plain_calls), (reused, reused_hits, reused_rounds, reused_calls) = counts[False], counts[True]
     assert reused_hits["hit"] > 0 and plain_hits["hit"] == 0  # reuse is active on the real path, and only there
     assert plain_rounds == reused_rounds and plain_calls == reused_calls
     # the same rows; a checkpointed capture's repeated lookup only rewrote its reservation to the same attempt
+    if epochs:
+        older = [(reused_row[5], plain_row[5]) for reused_row, plain_row in zip(ends[True]["captures"],
+                                                                               ends[False]["captures"], strict=True)
+                 if reused_row[5] != plain_row[5]]
+        assert older and all(reused_epoch < plain_epoch for reused_epoch, plain_epoch in older)
+        for end in ends.values():
+            end["captures"] = [(*row[:5], None, *row[6:]) for row in end["captures"]]
     assert ends[True] == ends[False]
     fewer = {"publish_plan", "capture_unit", "publish_snapshot"}
     for routine in set(plain) | set(reused):

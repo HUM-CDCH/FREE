@@ -48,8 +48,9 @@ _kept = 0  # counts kept over all attempts
 _attempts_lock = threading.Lock()
 _attempt: ContextVar[str | None] = ContextVar("counting_attempt", default=None)
 # Work a planning round compiled from kept counts and saved replies (`unified.extract`: a finished entry, read and
-# published) is kept as those counts are: inside its attempt, at the same served tokenizers, until `forget`, and only
-# for the last CACHED_ATTEMPTS attempts. It is derived, never authoritative: a fresh process compiles it again.
+# published) is kept with them: inside its attempt, at the same served tokenizers, until `forget`. Unlike the counts it
+# has no byte cap (at most two works per entry: before and after verification) and is evicted on its own, keeping the
+# last CACHED_ATTEMPTS attempts. It is derived, never authoritative: a fresh process compiles it again.
 _compiled: OrderedDict[str, dict[bytes, Any]] = OrderedDict()
 
 
@@ -71,24 +72,27 @@ def forget(attempt: str) -> None:
         _compiled.pop(attempt, None)
 
 
-def compiled(key: Any, counters: Iterable[TokenCounter]) -> tuple[bytes | None, Any]:
-    """The work kept under `key` for the attempt being planned (None if none is), and the name to keep new work under:
-    None while the counts `counters` make are not kept (outside an attempt, or a server without a probe fingerprint)."""
+def compiled(key: Any, counters: Iterable[TokenCounter]) -> tuple[tuple | None, Any]:
+    """The work kept under `key` for the attempt being planned (None if none is), and where to keep new work (None
+    while the counts `counters` make are not kept: outside an attempt, or a server without a probe fingerprint)."""
     attempt, servings = _attempt.get(), [getattr(counter, "_serving", None) for counter in counters]
     if attempt is None or not servings or None in servings:
         return None, None
     name = _digest([[serving.hex() for serving in servings], key])
     with _attempts_lock:
-        return name, _compiled.get(attempt, {}).get(name)
-
-
-def keep_compiled(name: bytes, work: Any) -> None:
-    attempt = _attempt.get()
-    with _attempts_lock:
-        _compiled.setdefault(attempt, {})[name] = work
+        kept = _compiled.setdefault(attempt, {})
         _compiled.move_to_end(attempt)
         while len(_compiled) > CACHED_ATTEMPTS:
             _compiled.popitem(last=False)
+        return (kept, name), kept.get(name)
+
+
+def keep_compiled(place: tuple, work: Any) -> None:
+    kept, name = place
+    with _attempts_lock:
+        # A call's stale count may drop the attempt's counts while this work is compiled from them (`forget`).
+        if _compiled.get(_attempt.get()) is kept:
+            kept[name] = work
 
 
 def kept() -> int:

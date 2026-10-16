@@ -330,7 +330,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             # A finished entry is a function of these, its counts and its saved replies: an earlier round of the
             # attempt that read and saved it leaves nothing to read or save again (a phase change, verification once
             # discovery is complete, is another key).
-            name, kept = tokens.compiled([execution_sha256, number, entry, complete, unit],
+            place, kept = tokens.compiled([execution_sha256, number, entry, complete, unit],
                                          counters.values()) if durable else (None, None)
             if kept is not None:  # its scope is listed with every entry's (`plan_records`)
                 return kept
@@ -340,8 +340,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 # researcher sees them on the source while the other entries are still read.
                 saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
                              links=[_link(each, number, passages) for each in work.found if each.kind == "accepted"])
-                if name is not None:
-                    tokens.keep_compiled(name, work)
+                if place is not None:
+                    tokens.keep_compiled(place, work)
             return work
         order, works = work_order(entries, pages, request.options.start_page), [None] * len(entries)
         raised: dict[int, BaseException] = {}

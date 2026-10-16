@@ -92,7 +92,8 @@ class Attempt:
 
     def step(self):
         """Start what the round planned (up to `chunks` per role), then answer one running call."""
-        for capture, role in self.planner.roles.items():
+        for capture in sorted(self.planner.pending, key=self.planner.pending.get):  # as `extract_workflow` starts them
+            role = self.planner.roles[capture]
             if capture not in self.running and sum(each == role for each in self.running.values()) < self.chunks:
                 self.running[capture] = role
         keys = {unit["id"]: key for key, unit in self.lease.units.items()}
@@ -193,7 +194,7 @@ def test_discovery_completing_verifies_the_entries_read_before_it(monkeypatch):
         assert verified and all(attempt.lease.units[key]["checkpoint"] for key in verified)
 
 
-SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (3, 4) for chunks in (1, 2)
+SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (1, 2, 3, 4) for chunks in (1, 2)
              for order in ("first", "last", "key", "reverse-key") for per_page in (1, 4)]
 
 
@@ -232,6 +233,37 @@ def test_forgotten_counts_read_finished_entries_again(monkeypatch):
     attempt.step()
     attempt.plan()
     assert finished <= {number for number, _ in attempt.trace[-1]["entries"]}
+    expected(attempt.finish(), 8)
+
+
+def test_counts_forgotten_while_an_entry_is_read_keep_nothing_from_it(monkeypatch):
+    """A call workflow may drop the attempt's counts while a round still reads from them: the entry read meanwhile is
+    not kept, so the next round reads it again from fresh counts."""
+    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
+    for _ in range(12):
+        attempt.plan()
+        attempt.step()
+    finished = finished_entries(attempt)
+    assert finished
+    attempt.plan()
+    assert not {number for number, _ in attempt.trace[-1]["entries"]} & set(finished)
+    tokens.forget(attempt.lease.attempt)  # every finished entry is read again in the next round ...
+    first, spied = min(finished), unified._Run.entry
+
+    def stale(run_, number, *args, **kwargs):
+        if number == first:  # ... and the counts go again while the first of them is read
+            tokens.forget(attempt.lease.attempt)
+        return spied(run_, number, *args, **kwargs)
+    monkeypatch.setattr(unified._Run, "entry", stale)
+    attempt.step()
+    attempt.plan()
+    monkeypatch.setattr(unified._Run, "entry", spied)
+    read = {number for number, _ in attempt.trace[-1]["entries"]}
+    assert set(finished) <= read
+    attempt.step()
+    attempt.plan()
+    assert first in {number for number, _ in attempt.trace[-1]["entries"]}
+    assert not set(finished) - {first} & {number for number, _ in attempt.trace[-1]["entries"]}
     expected(attempt.finish(), 8)
 
 
@@ -280,7 +312,7 @@ def test_a_failed_publication_is_not_reused(monkeypatch):
 
 def test_a_fresh_process_plans_the_rest_of_the_attempt_alike(monkeypatch):
     """Kept work is the process's own: a recovered attempt in a new process (nothing kept) reads every finished entry
-    once more, republishes nothing new, and plans what the uninterrupted attempt planned."""
+    once more, publishes only what the uninterrupted attempt's same round did first, and plans what it planned."""
     request, source = unified_request(defaults=3), pages(8, 2)
     with monkeypatch.context() as patched:
         plain = Attempt(patched, request, source, reuse=False)
@@ -289,13 +321,16 @@ def test_a_fresh_process_plans_the_rest_of_the_attempt_alike(monkeypatch):
     for _ in range(len(plain.trace) // 2):
         attempt.plan()
         attempt.step()
-    known = set(attempt.lease.publications)
     monkeypatch.setattr(tokens, "_compiled", type(tokens._compiled)())  # a new process: nothing kept
     monkeypatch.setattr(tokens, "_attempts", type(tokens._attempts)())
     attempt.plan()
-    recovered = attempt.trace[-1]
-    finished = {number for number, verify in recovered["entries"] if verify}
-    assert finished and not {identity for name, identity in recovered["routines"] if name == "publish_snapshot"} - known
+    at, recovered = len(attempt.trace) - 1, attempt.trace[-1]
+    assert {number for number, verify in recovered["entries"] if verify} >= set(finished_entries(attempt))
+
+    def first(trace, at):
+        earlier = {identity for round_ in trace[:at] for name, identity in round_["routines"] if name == "publish_snapshot"}
+        return {identity for name, identity in trace[at]["routines"] if name == "publish_snapshot"} - earlier
+    assert first(attempt.trace, at) == first(plain.trace, at)
     attempt.step()
     expected(attempt.finish(), 8)
     assert observable(attempt) == observable(plain)
