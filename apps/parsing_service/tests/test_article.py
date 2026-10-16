@@ -1,5 +1,5 @@
 """Article reads one document root with complete input and served-token admission; the inventory of
-noncontiguous records it used to take stays for the research replays and is tested here as a unit."""
+noncontiguous records it used to take lives in research tooling and is tested here as a unit."""
 import dataclasses
 
 import pytest
@@ -7,7 +7,8 @@ import pytest
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.llm import Reply
-from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered, inventory
+from experiments.extraction.legacy_article import inventory
+from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered
 from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
 from kei_exp.kie.extract.stages import DOCUMENT, extract_record, record_request

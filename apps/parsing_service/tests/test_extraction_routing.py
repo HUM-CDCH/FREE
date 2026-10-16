@@ -3,8 +3,9 @@ from dataclasses import replace
 
 import pytest
 
+from experiments.extraction.legacy_article import reconcile_values
 from kei_exp.kie.extract import article, run
-from kei_exp.kie.extract.contexts import Context, reconcile_values
+from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import spans

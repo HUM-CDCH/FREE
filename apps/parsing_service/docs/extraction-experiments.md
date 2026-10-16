@@ -30,7 +30,7 @@ flowchart LR
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; assemble or reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
-| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts, resolved when split, and grounded. The service path sends no inventory request but counts `inventory_request` to size bounded contexts; research replays still use the inventory functions. |
+| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts, resolved when split, and grounded. The service path sends no inventory request but keeps its exact `inventory_request` budget for bounded contexts. |
 | `resolution.py` | Resolve split-source Article readings and filter assembled list occurrences; retain disagreements and assembled items when resolution fails or is unsure. |
 | `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
 | `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
@@ -52,7 +52,7 @@ flowchart LR
 | `durable.py` | Plan and capture calls for every method: planning runs the algorithms against committed call outputs, and an unexecuted request yields to the durable workflow instead of reaching a provider. |
 | `captured_provider.py` | Send a captured request's saved HTTP body without recomposition. |
 | `retained.py` | Validate typed values, bind stable record and field identities and publish retained snapshots, always from validated stage objects, never debug files. |
-| `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
+| `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. `legacy_article.py` holds historical identity extraction and exact-union assembly for captured Article replays. Never imported by serving code. |
 
 These are ordinary Python functions. There is no plugin graph or separate
 service per stage. Strategy differences reflect source structure: an Article is
@@ -109,7 +109,7 @@ the source and builds the prompt and reply schema, and who interprets the answer
 | Unified Catalog | `entry` → fields | [`unified._Run.entry`](../src/kei_exp/kie/extract/unified.py), per counted window of the entry's own lines | `unified.ENTRY` with field notes; the entry text, earlier and later lines of the entry as overlap, record-free lines before it as context; `{value, quote}` candidates, `_item_text` per list object | `unified._Checker`: typed value, quote located in the entry, literal or supporting span (a value in another cell of the quoted table row is literal in its own cell); `unified._merged` joins equal observations and keeps partial list items as proposals |
 | Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per window's candidates | `unified.VERIFY`: the window's text and labelled candidates; reply `supported`, `unsupported` or `unclear` per label; batches halved on overflow | only `supported` is accepted; anything else stays a proposal or rejection |
 | Unified Catalog | `arbitration` → reasoning | `unified._Run._settle`, per scalar whose accepted values disagree | `unified.ARBITRATION` over every candidate with its snippet, or no call when they do not fit | the chosen candidate, or all left unresolved |
-| Unified Catalog | `document` → fields | `unified._Run.document`, per counted window over every admitted line | `unified.DOCUMENT`: `{value, quote}` candidates for document fields | located in the window; windows reconciled by `contexts.reconcile_values`, conflicts kept; always `unverified` |
+| Unified Catalog | `document` → fields | `unified._Run.document`, per counted window over every admitted line | `unified.DOCUMENT`: `{value, quote}` candidates for document fields | located in the window; windows assembled by `contexts.assemble_document`, list occurrences preserved and scalar conflicts kept; always `unverified` |
 
 Article counts every request on the serving endpoint of its role
 ([`tokens.counters_for`](../src/kei_exp/kie/extract/tokens.py) over `/tokenize`)
