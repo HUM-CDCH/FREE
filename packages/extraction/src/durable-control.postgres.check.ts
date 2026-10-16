@@ -9,6 +9,89 @@ import { createDurableRepository,initializeDurableExtraction,DurableConflict,Dur
 import { createResearcherExtractionPersistence } from './postgres-persistence.js'
 import { REFERENCE_ARTICLE } from './extraction-method.js'
 
+test('boolean review requires decisions and finalizes without legacy grounding claims (#161)', async t => {
+  const base = process.env.EXTRACTION_TEST_DATABASE_URL
+  if (!base) throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
+  const target = await provisionDatabase(base, `free_test_boolean_review_${randomBytes(5).toString('hex')}`)
+  const admin = new Client({connectionString: target.url}), source = new Pool({connectionString: target.url, max: 4})
+  t.after(async () => { await source.end(); await admin.end(); await target.drop() })
+  await migrate(target.url); await admin.connect()
+  const fixture = await seedPreMigrationHistory(admin), document = fixture.documents.d1
+  const representation = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [document.sourceRepresentationRevisionId])).rows[0]
+  const repository = createDurableRepository(fixture.accountId, source)
+  const nodes = [
+    {id: 'yes', name: 'leather_material', type: 'boolean' as const},
+    {id: 'no', name: 'painted', type: 'boolean' as const},
+    {id: 'details', name: 'details', type: 'object' as const, children: [
+      {id: 'present', name: 'present', type: 'boolean' as const}, {id: 'absent', name: 'absent', type: 'boolean' as const}]},
+    {id: 'flags', name: 'flags', type: 'array' as const, itemType: 'boolean' as const},
+    {id: 'unknown', name: 'unknown', type: 'boolean' as const},
+  ]
+  const tree = {recordDescription: 'One source record', schemaNodes: nodes}
+  for (const [index, strategy] of (['ARTICLE', 'CATALOG'] as const).entries()) await t.test(strategy, async () => {
+    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: null} : {generic: null}
+    await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
+      SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
+      [schemaRevisionId, 2 + index, tree, strategy === 'ARTICLE' ? 'document' : 'records', fixture.revisions.article])
+    await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
+      VALUES ($1,$2,$3,$4,$5,$6)`, [id, document.sourceDocumentId, document.sourceRepresentationRevisionId, schemaRevisionId, strategy, settings])
+    await admin.query('BEGIN')
+    try {
+      await initializeDurableExtraction(admin as never, id, {projectContextId: fixture.projectContextId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId, schemaTree: tree,
+        strategy, catalogRecipe: null, preprocessId: representation.preprocessId, requestedModels: null, requestedSettings: settings})
+      await admin.query('COMMIT')
+    } catch (error) { await admin.query('ROLLBACK'); throw error }
+    const head = (await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1', [id])).rows[0]
+    // Article and generic Catalog omit boolean grounding claims. Their durable producer still saves each whole
+    // typed value, explicitly ungrounded; null is the only absent boolean. Nested booleans share one decision.
+    const modelValues = [true, false, {present: true, absent: false}, [true, false], null]
+    const values = nodes.map((node, number) => ({id: node.id, recordId: 'record', fieldId: node.id,
+      path: ['records', 0, node.name], selectionId: head.selectionId, schemaRevisionId, node, modelValue: modelValues[number],
+      evidence: [], grounding: 'ungrounded', processing: modelValues[number] === null ? 'absent' : 'saved', lineage: []}))
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+      VALUES ($1,$2,1,$3,$4,$5,$6)`, [randomUUID(), id, head.selectionId, 'a'.repeat(64), JSON.stringify(values),
+      {diagnostics: {evidence: [], ungrounded: []}, processingComplete: true}])
+    await admin.query(`UPDATE extraction_runtime.head SET "snapshotVersion"=1,acknowledgement='COMPLETED' WHERE id=$1`, [id])
+    const initial = await repository.page(id)
+    assert.deepEqual(initial.values.map(value => value.modelValue), modelValues)
+    assert.ok(initial.values.every(value => value.grounding === 'ungrounded' && value.links.length === 0))
+    assert.deepEqual(initial.reviewCounts, {required: 4, toCheck: 4, approved: 0, edited: 0, rejected: 0})
+    await assert.rejects(repository.finalize(id, {snapshotVersion: 1, feedbackVersion: initial.feedbackVersion}), /Review each saved value/)
+    const correction = {snapshotVersion: 1, expectedRevision: 0, action: 'EDITED', included: true, evidence: []}
+    for (const [valueId, invalid] of [['no', 'true'], ['details', {present: 'true', absent: false}], ['flags', ['true', false]]] as const)
+      await assert.rejects(repository.saveCorrection(id, valueId, {...correction, value: invalid}, async () => {}), /does not fit its producing field/)
+    await repository.saveCorrection(id, 'no', {...correction, action: 'APPROVED', value: false}, async () => {})
+    await repository.saveCorrection(id, 'details', {...correction, action: 'REJECTED'}, async () => {})
+    await repository.saveCorrection(id, 'flags', {...correction, value: [false, true]}, async () => {})
+    const remaining = await repository.page(id)
+    assert.equal(remaining.reviewCounts.toCheck, 1)
+    await assert.rejects(repository.finalize(id, {snapshotVersion: 1, feedbackVersion: remaining.feedbackVersion}), /Review each saved value/)
+    await repository.saveCorrection(id, 'yes', {...correction, value: false}, async () => {})
+    const reviewed = await repository.page(id)
+    assert.deepEqual(reviewed.reviewCounts, {required: 4, toCheck: 0, approved: 1, edited: 2, rejected: 1})
+    assert.equal(reviewed.values.find(value => value.id === 'yes')?.correction.decision.value, false)
+    assert.equal(reviewed.values.find(value => value.id === 'no')?.correction.decision.value, false)
+    assert.deepEqual(reviewed.values.find(value => value.id === 'flags')?.correction.decision.value, [false, true])
+    assert.equal(reviewed.finalization, null)
+    const cut = {snapshotVersion: 1, feedbackVersion: reviewed.feedbackVersion}
+    await repository.finalize(id, cut)
+    const finalized = await repository.page(id)
+    assert.equal(finalized.finalization?.snapshotVersion, cut.snapshotVersion)
+    assert.equal(finalized.finalization?.feedbackVersion, cut.feedbackVersion)
+    // A changed boolean needs a new decision; its earlier explicit review remains attached to the earlier cut.
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+      VALUES ($1,$2,2,$3,$4,$5,'{}')`, [randomUUID(), id, head.selectionId, 'b'.repeat(64), JSON.stringify(values.map(value => value.id === 'no' ? {...value, modelValue: true} : value))])
+    await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=2 WHERE id=$1', [id])
+    const changed = await repository.page(id)
+    assert.equal(changed.reviewCounts.toCheck, 1)
+    assert.equal(changed.values.find(value => value.id === 'no')?.correction, null)
+    assert.equal(changed.finalization, null)
+    await assert.rejects(repository.finalize(id, {snapshotVersion: 2, feedbackVersion: reviewed.feedbackVersion}), /Review each saved value/)
+    assert.deepEqual((await repository.page(id, cut)).finalization, finalized.finalization)
+  })
+})
+
 test('native pilot finalization drives batch progress and unlocks only its producing schema',async t=> {
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')

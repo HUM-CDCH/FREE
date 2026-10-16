@@ -619,6 +619,46 @@ const reviewPage=(snapshotVersion=1,feedbackVersion=0)=>({extractionId:'extracti
 const pausedState={extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
   selection:{id:'selection',ordinal:1},pendingSelection:null,counts:{saved:3,inFlight:0}}
 
+it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false values before explicitly saving the %s review (#161)', async strategy => {
+  const bool = (id: string, modelValue: boolean): DurablePage['values'][number] => ({...reviewValue(id, ''),
+    node: {id, name: id, type: 'boolean'}, modelValue, grounding: 'ungrounded', processing: 'saved', correctionCompatibility: 'compatible'})
+  const painted = bool('painted', true), leather = bool('leather_material', false)
+  let page: DurablePage = {...reviewPage(), values: [painted, leather], total: 2,
+    reviewCounts: {required: 2, toCheck: 2, approved: 0, edited: 0, rejected: 0}}
+  const state = {...pausedState, status: 'COMPLETED'}
+  vi.mocked(readDurable).mockImplementation(async () => ({state, page}) as never)
+  vi.mocked(durableRequest).mockResolvedValue({revision: 1})
+  render(<Results attempt={{extractionId: 'extraction', strategy} as ExtractionAttempt} document={null}
+    currentSchema={null} onEvidence={() => {}} />)
+  expect(await screen.findByRole('button', {name: /To check leather_material false/})).toBeVisible()
+  expect(screen.getByRole('button', {name: /To check painted true/})).toBeVisible()
+  expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
+  fireEvent.click(screen.getByRole('button', {name: /To check leather_material/}))
+  expect(within(screen.getByRole('region', {name: 'Review leather_material'})).getByText('No Evidence linked')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
+  expect(screen.getByRole('combobox', {name: 'Reviewed value'})).toHaveValue('false')
+  fireEvent.change(screen.getByRole('combobox', {name: 'Reviewed value'}), {target: {value: 'true'}})
+  page = {...page, feedbackVersion: 1, values: [painted, {...leather, correction: {revision: 1,
+    decision: {action: 'EDITED', value: true, included: true, evidence: []}}}],
+    reviewCounts: {required: 2, toCheck: 1, approved: 0, edited: 1, rejected: 0}}
+  fireEvent.click(screen.getByRole('button', {name: 'Save edit'}))
+  await waitFor(() => expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/leather_material',
+    {expectedRevision: 0, snapshotVersion: 1, action: 'EDITED', value: true, included: true, evidence: []}))
+  expect(await screen.findByRole('button', {name: /Edited leather_material true/})).toBeVisible()
+  expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
+  fireEvent.click(screen.getByRole('button', {name: /To check painted/}))
+  page = {...page, feedbackVersion: 2, values: [{...painted, correction: {revision: 1,
+    decision: {action: 'APPROVED', value: true, included: false, evidence: []}}}, page.values[1]!],
+    reviewCounts: {required: 2, toCheck: 0, approved: 1, edited: 1, rejected: 0}}
+  fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
+  expect(await screen.findByRole('button', {name: 'Save review'})).toBeEnabled()
+  expect(durableRequest).not.toHaveBeenCalledWith(expect.stringMatching(/finalize$/), expect.anything())
+  vi.mocked(readValues).mockResolvedValue({...page, finalization: {id: 'saved', snapshotVersion: 1, feedbackVersion: 2}} as never)
+  fireEvent.click(screen.getByRole('button', {name: 'Save review'}))
+  await waitFor(() => expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize', {snapshotVersion: 1, feedbackVersion: 2}))
+  expect(await screen.findByText('Review saved.')).toBeVisible()
+})
+
 it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachable when entering one-by-one from an open %s row',async(strategy)=>{
   const page={...reviewPage(),values:[reviewValue('title','Article title')],total:1,
     reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0}} as unknown as DurablePage
