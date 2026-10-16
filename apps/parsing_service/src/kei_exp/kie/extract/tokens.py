@@ -48,9 +48,11 @@ _kept = 0  # counts kept over all attempts
 _attempts_lock = threading.Lock()
 _attempt: ContextVar[str | None] = ContextVar("counting_attempt", default=None)
 # Work a planning round compiled from kept counts and saved replies (`unified.extract`: a finished entry, read and
-# published) is kept with them: inside its attempt, at the same served tokenizers, until `forget`. Unlike the counts it
-# has no byte cap (at most two works per entry: before and after verification) and is evicted on its own, keeping the
-# last CACHED_ATTEMPTS attempts. It is derived, never authoritative: a fresh process compiles it again.
+# published) is scoped to its attempt and served tokenizers. `forget` drops both caches, but their LRUs are independent:
+# count eviction does not evict work, and work eviction leaves counts. Work keeps the last CACHED_ATTEMPTS attempts
+# accessed for work, with no per-attempt byte or version cap: every distinct key, including successive tokenizer
+# fingerprints and before/after-verification phases, stays until the attempt is forgotten or evicted from this cache.
+# It is derived, never authoritative: a fresh process compiles it again.
 _compiled: OrderedDict[str, dict[bytes, Any]] = OrderedDict()
 
 
@@ -65,7 +67,7 @@ def counting(attempt: str) -> Iterator[None]:
 
 
 def forget(attempt: str) -> None:
-    """Drop an attempt's kept counts once it has ended, or once one of them may be stale."""
+    """Drop an attempt's kept counts and compiled work once it has ended, or once a count may be stale."""
     global _kept
     with _attempts_lock:
         _kept -= len(_attempts.pop(attempt, ()))
@@ -90,7 +92,8 @@ def compiled(key: Any, counters: Iterable[TokenCounter]) -> tuple[tuple | None, 
 def keep_compiled(place: tuple, work: Any) -> None:
     kept, name = place
     with _attempts_lock:
-        # A call's stale count may drop the attempt's counts while this work is compiled from them (`forget`).
+        # `forget` or work-LRU eviction may detach this place while work is compiled. Even if the attempt re-enters
+        # the cache meanwhile, the old place cannot restore it or write into its replacement.
         if _compiled.get(_attempt.get()) is kept:
             kept[name] = work
 

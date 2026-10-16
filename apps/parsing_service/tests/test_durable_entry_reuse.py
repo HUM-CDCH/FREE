@@ -6,7 +6,7 @@ again from what the process kept (`tokens.compiled`) instead of repeating its ca
 publication. Every comparison here is with the same rounds planned without reuse (`tokens.compiled` returning
 nothing), under the same completion schedule.
 """
-from collections import Counter as Tally
+from collections import Counter as Tally, OrderedDict
 
 import pytest
 
@@ -282,6 +282,136 @@ def test_another_served_tokenizer_reads_finished_entries_again(monkeypatch):
     attempt.step()
     attempt.plan()
     assert finished <= {number for number, _ in attempt.trace[-1]["entries"]}
+
+
+@pytest.fixture
+def isolated_caches(monkeypatch):
+    """Count and work retention start empty; no other check's attempt can affect the LRU order."""
+    monkeypatch.setattr(tokens, "_attempts", OrderedDict())
+    monkeypatch.setattr(tokens, "_compiled", OrderedDict())
+    monkeypatch.setattr(tokens, "_kept", 0)
+
+
+def test_successive_tokenizer_fingerprints_keep_historical_entry_work(monkeypatch, isolated_caches):
+    """Each fingerprint compiles another version of every finished entry, without removing the earlier versions;
+    returning to any earlier fingerprint reuses its work, so two versions per entry is not a retention bound."""
+    records = 4
+    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(records, 2))
+    expected(attempt.finish(), records)
+    artifact = untimed(attempt.result)
+    kept = tokens._compiled[attempt.lease.attempt]
+    fingerprints = [attempt.counter._serving, b"second tokenizer", b"third tokenizer", b"fourth tokenizer"]
+    for fingerprint in fingerprints[1:]:
+        earlier = dict(kept)
+        attempt.counter._serving = fingerprint
+        assert untimed(attempt.plan()) == artifact
+        assert set(attempt.trace[-1]["entries"]) == {(number, True) for number in range(records)}
+        assert len(kept) == len(earlier) + records
+        assert all(kept[key] is work for key, work in earlier.items())
+    assert len(kept) > 2 * records
+    for fingerprint in fingerprints:
+        attempt.counter._serving = fingerprint
+        assert untimed(attempt.plan()) == artifact
+        assert not attempt.trace[-1]["entries"]
+        assert not saved(attempt, attempt.trace[-1])
+
+
+def test_compiled_attempts_evict_the_least_recently_used_not_the_oldest_created(isolated_caches):
+    """A hit refreshes the work LRU; at CACHED_ATTEMPTS the next attempt evicts the least recently accessed one."""
+    counter, work = Kept(), object()
+    attempts = [f"work/{number}" for number in range(tokens.CACHED_ATTEMPTS)]
+    for attempt in attempts:
+        with tokens.counting(attempt):
+            place, found = tokens.compiled("entry", [counter])
+            assert found is None
+            tokens.keep_compiled(place, work)
+    with tokens.counting(attempts[0]):
+        _, found = tokens.compiled("entry", [counter])
+        assert found is work
+    assert list(tokens._compiled) == attempts[1:] + attempts[:1]
+    with tokens.counting("new work"):
+        place, found = tokens.compiled("entry", [counter])
+        assert found is None
+        tokens.keep_compiled(place, work)
+    assert len(tokens._compiled) == tokens.CACHED_ATTEMPTS
+    assert list(tokens._compiled) == attempts[2:] + attempts[:1] + ["new work"]
+    assert attempts[1] not in tokens._compiled
+
+
+def test_work_eviction_recomputes_finished_entries_from_the_same_saved_calls(monkeypatch, isolated_caches):
+    """An evicted attempt compiles again from its saved replies: no new model call, input, plan or publication."""
+    monkeypatch.setattr(tokens, "CACHED_ATTEMPTS", 2)
+    records = 4
+    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(records, 2))
+    expected(attempt.finish(), records)
+    before, earlier = observable(attempt), dict(tokens._compiled[attempt.lease.attempt])
+    for other in ("other/1", "other/2"):
+        with tokens.counting(other):
+            tokens.compiled("entry", [attempt.counter])
+    assert attempt.lease.attempt not in tokens._compiled
+    expected(attempt.plan(), records)
+    assert set(attempt.trace[-1]["entries"]) == {(number, True) for number in range(records)}
+    assert set(saved(attempt, attempt.trace[-1])) == set(range(records))
+    after = observable(attempt)
+    for field in ("inputs", "descriptors", "plans", "publications", "final", "artifact"):
+        assert after[field] == before[field], field
+    assert attempt.trace[-1]["scopes"] == before["scopes"][-1]
+    kept = tokens._compiled[attempt.lease.attempt]
+    assert len(kept) == records and kept.keys() <= earlier.keys()
+    assert all(work is not earlier[key] for key, work in kept.items())
+    attempt.plan()
+    assert not attempt.trace[-1]["entries"]
+    assert not saved(attempt, attempt.trace[-1])
+
+
+def test_a_place_evicted_while_work_is_compiled_cannot_restore_or_poison_an_attempt(monkeypatch, isolated_caches):
+    """An in-flight place cannot resurrect an evicted attempt or write into its replacement after re-entry."""
+    monkeypatch.setattr(tokens, "CACHED_ATTEMPTS", 2)
+    counter = Kept()
+    with tokens.counting("evicted"):
+        stale, _ = tokens.compiled("entry", [counter])
+    for other in ("other/1", "other/2"):
+        with tokens.counting(other):
+            tokens.compiled("entry", [counter])
+    assert "evicted" not in tokens._compiled
+    with tokens.counting("evicted"):
+        tokens.keep_compiled(stale, "stale work")
+        assert "evicted" not in tokens._compiled
+        fresh, found = tokens.compiled("entry", [counter])
+        assert found is None and fresh[0] is not stale[0]
+        tokens.keep_compiled(stale, "stale work")
+        assert tokens.compiled("entry", [counter])[1] is None
+        assert not stale[0]
+        work = object()
+        tokens.keep_compiled(fresh, work)
+        assert tokens.compiled("entry", [counter])[1] is work
+
+
+def test_count_and_work_lru_evictions_have_independent_lifetimes(monkeypatch, isolated_caches):
+    """Count-LRU eviction leaves compiled work; work-LRU eviction leaves counts reusable without another /tokenize."""
+    from tests.test_extract_tokens import Chat, Http
+    monkeypatch.setattr(tokens, "CACHED_ATTEMPTS", 1)
+    http = Http({"/tokenize": {"count": 57, "max_model_len": 16384, "tokens": [1]}})
+    counter = tokens.counter_for(Chat("http://retention.test/v1/chat/completions"), http=http)
+    work = object()
+    with tokens.counting("first"):
+        assert counter.request_tokens("system", "user") == 57
+        place, _ = tokens.compiled("entry", [counter])
+        tokens.keep_compiled(place, work)
+    with tokens.counting("second"):
+        assert counter.request_tokens("system", "user") == 57
+    assert list(tokens._attempts) == ["second"] and tokens.kept() == 1
+    with tokens.counting("first"):
+        assert tokens.compiled("entry", [counter])[1] is work
+    with tokens.counting("second"):
+        tokens.compiled("entry", [counter])
+    with tokens.counting("third"):
+        tokens.compiled("entry", [counter])
+    assert list(tokens._compiled) == ["third"] and list(tokens._attempts) == ["second"]
+    sent = len(http.sent)
+    with tokens.counting("second"):
+        assert counter.request_tokens("system", "user") == 57
+    assert len(http.sent) == sent
 
 
 def test_a_failed_publication_is_not_reused(monkeypatch):

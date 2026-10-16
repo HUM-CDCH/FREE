@@ -317,12 +317,10 @@ def until(predicate, timeout=90):
     raise AssertionError("condition timed out")
 
 
-CASES = ["", "after_entry_publication", "before_entry_publication", "after_reused_lookup",
-         *(["baseline_then_candidate"] if BASELINE_SRC else [])]
+CASES = ["", "after_entry_publication", "before_entry_publication", "after_reused_lookup"]
 
 
-@pytest.mark.slow
-def test_a_killed_worker_is_recovered_by_a_fresh_process_to_the_uninterrupted_result(postgres, tmp_path):
+def recover_workers(postgres, tmp_path, cases):
     """Each case is its own extraction in one database; the first, uninterrupted, is the reference."""
     from dbos import DBOSClient, WorkflowSerializationFormat
     pages = texts(3, 3)
@@ -351,7 +349,8 @@ def test_a_killed_worker_is_recovered_by_a_fresh_process_to_the_uninterrupted_re
         client = None
         try:
             reference = None
-            for index, fault in enumerate(CASES):
+            for index, fault in enumerate(cases):
+                print(f"recovery case started: {fault or 'uninterrupted'}", flush=True)
                 ids = seed(owner, "run-crash", case=f"{index + 1:02d}")
                 (tmp_path / "crashed").unlink(missing_ok=True)
                 made = len(requests)
@@ -389,6 +388,7 @@ def test_a_killed_worker_is_recovered_by_a_fresh_process_to_the_uninterrupted_re
                 if reference is None:
                     reference = saved
                 assert saved == reference, fault
+                print(f"recovery case passed: {fault or 'uninterrupted'}", flush=True)
         finally:
             for process in workers:
                 if process.poll() is None:
@@ -403,3 +403,16 @@ def test_a_killed_worker_is_recovered_by_a_fresh_process_to_the_uninterrupted_re
                 log.close()
             if client:
                 client.destroy()
+
+
+@pytest.mark.slow
+def test_a_killed_worker_is_recovered_by_a_fresh_process_to_the_uninterrupted_result(postgres, tmp_path):
+    recover_workers(postgres, tmp_path, CASES)
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not BASELINE_SRC, reason="BASELINE_SRC must explicitly name the pinned baseline's src")
+def test_baseline_then_candidate_recovery(postgres, tmp_path):
+    """Cross-version recovery is a separately reported check, never silently omitted from the crash matrix."""
+    assert (Path(BASELINE_SRC) / "kei_exp/workflows/durable_extract.py").is_file(), "invalid BASELINE_SRC"
+    recover_workers(postgres, tmp_path, ["", "baseline_then_candidate"])

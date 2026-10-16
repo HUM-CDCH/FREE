@@ -653,13 +653,20 @@ queue.
       calls, up to that many per role at once. A run that is not durable
       waits on every call, so it reads that many windows and entries at once
       on threads.
-    - **A finished entry is read once per phase.** An entry whose record a
-      round saved is kept in the planning process with the attempt's kept
-      counts (`tokens.compiled`): later rounds list it without repeating its
-      capture lookups, checks and publication. Discovery's completion is
-      another phase (verification), so those entries are read again; dropped
-      counts, another served tokenizer or a fresh process read them again
-      too. Nothing kept is authoritative: the saved replies are.
+    - **Finished-entry reuse while retained.** An entry whose record a
+      round saved is kept in the planning process (`tokens.compiled`): later
+      rounds at the same key list it without repeating its capture lookups,
+      checks and publication. Discovery's completion is another phase
+      (verification), and another served tokenizer fingerprint is another
+      key, so those entries are read again. Forgetting the attempt, work-cache
+      eviction or a fresh process also reads them again, from saved replies.
+      The work cache keeps the last `CACHED_ATTEMPTS` (8) attempts accessed
+      for work, independently of the count cache's LRU and byte cap. Count
+      eviction does not evict compiled work; work eviction leaves counts.
+      `tokens.forget` drops both. Within a retained attempt there is no byte
+      or version bound: distinct keys, including successive tokenizer
+      fingerprints, accumulate, not just before/after-verification versions.
+      Nothing kept is authoritative: the saved replies are.
 - **Read API.** Five routes, with their path confinement and manifest, page
   and hash checks. Saved Extraction values are never served here.
   - `GET /api/models` (Compose health);
