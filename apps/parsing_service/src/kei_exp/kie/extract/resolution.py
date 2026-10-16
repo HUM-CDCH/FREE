@@ -9,18 +9,21 @@ NONE when none is, UNSURE when the source does not settle it) and, for every lis
 source gives it to, as printed (`of`), then whether it is the document's own, another work's or entity's, a repeat, or
 UNSURE. A chosen or NONE place replaces assembly's null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps
 every item not labelled another's or a repeat, in reading order. An item labelled another's leaves only when its `of`
-is printed in the part it was read from: a bare label is a weak, order-dependent call that once emptied a paper's own
-list, so without that attribution the item stays and, like an UNSURE one, is named for review (`uncertain_items`). A
-repeat is only an item equal to one labelled own or another's beside it (a
-repeat of another work's item is that work's too), so a second reading of an own item that differs from it is never
-one. An answer that leaves an item unlabelled changes nothing. A long list is shown in parts that each fit one
-request; equal items in different list parts were never compared, so their possible repeat stays named. A call that
-fails or answers outside its labels changes nothing.
+is printed in the part it was read from (one that reached its length limit: up to its last word, which may be cut): a
+bare label is a weak, order-dependent call that once emptied a paper's own list, so without that attribution the item
+stays and, like an UNSURE one, is named for review (`uncertain_items`). A repeat is only an item equal to one labelled
+own or another's beside it (a repeat of another work's item is that work's too), or a string printed again shortened
+or differently cased after exactly one such earlier item (`_form_of`: a running header's "A. LOVELACE" after the
+byline's "Ada B. Lovelace"), so a second reading of an own item that differs from it otherwise is never one. An
+answer that leaves an item unlabelled changes nothing. A long list is shown in parts that each fit one request; equal
+items, or a form and its earlier item, in different list parts were never compared, so only an equal item's possible
+repeat stays named. A call that fails or answers outside its labels changes nothing.
 """
 from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import replace
@@ -48,7 +51,7 @@ PRINTED = 3  # places shown of a value printed several times in its part
 VALUE_CHARS = 200
 OPENING_CHARS = 1500  # the document's opening, shown so the model knows which document is its own
 # Not inside a longer word or number: 10 is not printed in 210, 10.5 or 1,100.
-WHOLE = r"(?<!\w)(?<!\d[.,]){}(?!\w|[.,]\d)"
+START, END = r"(?<!\w)(?<!\d[.,])", r"(?!\w|[.,]\d)"
 # Digits are not the end of a number that starts before them: 10 is not printed in -10, −10, .10, 1e-10 or 1e+10.
 # A hyphen, minus or point starts a number only after no word character, so 10 is printed in pp. 5-10 and p.10.
 NUMBER_START = r"(?<!(?<!\w)[-\u2212.])(?<!\d[eE][-\u2212+])"
@@ -65,15 +68,18 @@ RESOLUTION = (
     "part read its other values, or only its method or conditions). OTHER: an item the source gives as another work's "
     "or entity's (a work the document cites, a reference, another document). UNSURE: the source shown does not settle "
     "whether the item is the document's own; it is kept and marked for review. Answer each item as {{\"of\": ..., "
-    "\"label\": ...}}: first `of`, the work or entity its source shown gives the item to (a citation, a reference entry, "
-    "another document's name), copied exactly as printed there, or \"\" when that source names none; then its label. "
+    "\"label\": ...}}: first `of`, the work or entity its source shown gives the item to, as the shortest excerpt that "
+    "names it (a citation, a reference's number and first author, another document's name), copied exactly as printed "
+    "there, or \"\" when that source names none; then its label. "
     "An item labelled OTHER leaves only when its `of` is printed in its source shown; otherwise it is kept and marked "
-    "for review. REPEAT, offered only for an item marked 'same value as': the same thing printed again (a running "
-    "header or footer, a repeated byline), and only when its source shows the same thing again; equal values that "
+    "for review. REPEAT, offered only for an item marked 'same value as' or 'a form of': the same thing printed again "
+    "(a running header or footer, a repeated byline, a name shortened in a running header), and only when its source "
+    "shows the same thing again; equal values that "
     "describe different things are separate items: label each OWN. A value printed several times is shown at each "
     "place, since which one a reading read is not known; when those places do not show that equal items are the same "
     "thing, label each OWN. Two readings of one of the document's own things that differ, or where one has values "
-    "the other lacks, are both OWN. Each item is shown whole, with the source around its value printed the fewest "
+    "the other lacks, are both OWN, unless one is marked 'a form of' the other and its source only prints it again. "
+    "Each item is shown whole, with the source around its value printed the fewest "
     "times. Return only the JSON object.")
 
 
@@ -110,11 +116,14 @@ def _leaves(value: Any):
         yield text
 
 
-def _printed(needle: str, text: str) -> list[int]:
-    """Where `needle` is printed in `text` as a whole word or number."""
+def _printed(needle: str, text: str, *, cut: bool = False) -> list[int]:
+    """Where `needle` is printed in `text` as a whole word or number; `cut`, its last word may be a printed word's
+    first letters (bac of backbone, never of bac123)."""
     # A value printed digits first is a number; a word keeps only the whole-word rule, so Smith is in Jones-Smith.
-    pattern = (NUMBER_START if needle[0].isdigit() else "") + WHOLE.format(re.escape(needle))
-    return [match.start() for match in re.finditer(pattern, text, re.IGNORECASE)]
+    pattern = ((NUMBER_START if needle[0].isdigit() else "") + START + re.escape(needle)
+               + (r"(\w*)" if cut else "") + END)
+    return [match.start() for match in re.finditer(pattern, text, re.IGNORECASE)
+            if not cut or not match[1] or match[1].isalpha()]
 
 
 def _compact(value: Any) -> Any:
@@ -155,9 +164,55 @@ def _spaced(text: str) -> str:
 
 def _attributed(of: str, context: Context) -> bool:
     """Whether `of` is printed in the part `context` an item was read from, as whole words, ignoring case and spacing:
-    an item is another work's only where the source it came from names that work."""
-    of = _spaced(of)
-    return len(of) > 1 and bool(_printed(of, _spaced(text_of(context.passages))))
+    an item is another work's only where the source it came from names that work. An `of` that reached `OF_CHARS` may
+    end in a word cut short, a sentence mark after it: then all but that mark is printed, its last word as a printed
+    word's first letters ("…the backbone," of "…the backbone of"). Only a word of letters: a number, reference or
+    identifier ending it ("[19]" of "[190]", "[Smith AB]" of "[Smith ABC]", "x_foo" of "x_foobar") is whole.
+    """
+    spaced, text = _spaced(of), _spaced(text_of(context.passages))
+    if len(spaced) > 1 and _printed(spaced, text):
+        return True
+    cut = spaced.rstrip(",.;:")
+    return (len(of) == OF_CHARS and len(cut) > 1 and cut.rsplit(" ", 1)[-1].isalpha()
+            and bool(_printed(cut, text, cut=True)))
+
+
+def _words(text: str) -> list[str]:
+    """A string's words, accents, case and punctuation aside: "Zoë B. SMITH" is zoe, b, smith."""
+    return re.findall(r"\w+", "".join(c for c in unicodedata.normalize("NFKD", text)
+                                       if not unicodedata.combining(c)).casefold())
+
+
+def _shortens(word: str, other: str) -> bool:
+    """Whether `word` is `other` or its initial."""
+    return word == other or len(word) == 1 and word.isalpha() and other.startswith(word)
+
+
+def _form_of(item: Any, earlier: Any) -> bool:
+    """Whether string `item` may be `earlier` printed again differently: the same words, or `earlier` shortened, its
+    last word kept, perhaps moved first, its first word kept or cut to its initial, later ones kept, cut or left out in
+    order, and at least one cut ("A. LOVELACE" or "Lovelace A" of "Ada B. Lovelace"; not "B. Lovelace", "A. C.
+    Lovelace" or "Lovelace", nor "type I collagen" of "type I fish collagen"). Never the other way: a full name is no
+    form of its initials, nor a name already given only by initials one with fewer ("A. Lovelace" of "A. B.
+    Lovelace"), and a last word is letters."""
+    if not isinstance(item, str) or not isinstance(earlier, str) or item == earlier:
+        return False
+    short, full = _words(item), _words(earlier)
+    if short == full or len(short) < 2 or len(full) < 2:
+        return bool(short) and short == full
+    for first, *middle, last in (short, short[1:] + short[:1]):
+        if last != full[-1] or len(last) < 2 or not last.isalpha() or not _shortens(first, full[0]):
+            continue
+        rest, cut = iter(full[1:-1]), first != full[0]
+        for word in middle:
+            other = next((other for other in rest if _shortens(word, other)), None)
+            if other is None:
+                break
+            cut = cut or other != word
+        else:
+            if cut:
+                return True
+    return False
 
 
 def _list_part(key: str, name: str, path: tuple[str, ...], items: Sequence[tuple[int, Any]], start: int, size: int,
@@ -168,18 +223,25 @@ def _list_part(key: str, name: str, path: tuple[str, ...], items: Sequence[tuple
     lines = [f"{key} · {name} (items {start + 1}-{start + len(part)} of {len(items)})"]
     first: dict[str, str] = {}  # an equal item's first label in this part, named so a repeat is seen
     equal: dict[str, str] = {}  # each item's first equal label: items with the same one are equal
+    forms: dict[str, str] = {}  # an item that is a form of one earlier value (`_form_of`): that value's first label
+    options = dict(zip(labels, (item for _, item in part)))
     for label, (index, item) in zip(labels, part):
+        # A form of several earlier values does not say which one it repeats.
+        earlier = {same for same in first.values() if _form_of(item, options[same])}
+        if len(earlier) == 1:
+            forms[label] = earlier.pop()
         same = equal[label] = first.setdefault(canonical(item), label)
         sources = item_sources[(*path, index)]
         lines.append(f"  {label} = {_shown(item, groups[sources[0]['unit']], whole=True)}"
-                     + (f" (same value as {same})" if same != label else ""))
-    # Every item is answered, its attribution before its label; only an item equal to another may be a repeat. UNSURE
-    # is an item's abstention, so the list has none of its own.
-    reasons = {label: [OWN, OTHER, UNSURE, REPEAT] if list(equal.values()).count(equal[label]) > 1
+                     + (f" (same value as {same})" if same != label else "")
+                     + (f" (a form of {forms[label]})" if label in forms else ""))
+    # Every item is answered, its attribution before its label; only an item equal to another, or a form of an earlier
+    # one, may be a repeat. UNSURE is an item's abstention, so the list has none of its own.
+    reasons = {label: [OWN, OTHER, UNSURE, REPEAT] if list(equal.values()).count(equal[label]) > 1 or label in forms
                else [OWN, OTHER, UNSURE] for label in labels}
     return {"key": key, "kind": "list", "path": path, "start": start,
-            "options": dict(zip(labels, (item for _, item in part))), "text": "\n".join(lines),
-            "indices": dict(zip(labels, (index for index, _ in part))), "equal": equal,
+            "options": options, "text": "\n".join(lines),
+            "indices": dict(zip(labels, (index for index, _ in part))), "equal": equal, "forms": forms,
             "units": {label: item_sources[(*path, index)][0]["unit"] for label, (index, _) in zip(labels, part)},
             "schema": {"type": "object", "additionalProperties": False,
                        "properties": {label: {"type": "object", "additionalProperties": False,
@@ -328,12 +390,12 @@ def resolve(readings: Sequence[dict], groups: Sequence[Context], root: dict, con
                 # Another's item leaves only where the part it was read from prints the work it was given to.
                 left_out = {label for label, each in choice.items() if each["label"] == OTHER
                             and _attributed(each["of"], groups[section["units"][label]])}
-                # A repeat is left out beside an equal item labelled own (that copy stays) or another's (the repeat of
-                # another work's item is that work's too): equal items all repeats or UNSURE are kept, since UNSURE
-                # settles no copy for a repeat to be.
+                # A repeat is left out beside an equal item, or the earlier one it is a form of, labelled own (that copy
+                # stays) or another's (the repeat of another work's item is that work's too): equal items all repeats
+                # or UNSURE are kept, since UNSURE settles no copy for a repeat to be.
                 anchored = {section["equal"][label] for label, each in choice.items() if each["label"] in (OWN, OTHER)}
-                gone = left_out | {label for label, each in choice.items()
-                                   if each["label"] == REPEAT and section["equal"][label] in anchored}
+                gone = left_out | {label for label, each in choice.items() if each["label"] == REPEAT
+                                   and {section["equal"][label], section["forms"].get(label)} & anchored}
                 doubted = [(section["indices"][label], each) for label, each in choice.items()
                            if each["label"] == UNSURE or (each["label"] == OTHER and label not in gone)]
                 parts.append((section["start"],
