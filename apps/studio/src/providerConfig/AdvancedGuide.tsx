@@ -19,8 +19,9 @@ function useOpenGuide() {
 
 /** The one Explain dialog for the Advanced tab. It holds no configuration: examples are local, and only "Use these
  *  settings" hands an Article draft to `onUseSettings` (the page's draft owner). */
-export function GuideProvider({ article, onUseSettings, children }: {
+export function GuideProvider({ article, articleDefault = REFERENCE_ARTICLE, onUseSettings, children }: {
   article: ArticleSettings | undefined
+  articleDefault?: ArticleSettings
   onUseSettings?: (article: ArticleSettings, name: string) => void
   children: ReactNode
 }) {
@@ -29,9 +30,9 @@ export function GuideProvider({ article, onUseSettings, children }: {
     <GuideContext value={setOpened}>
       {children}
       {opened && (
-        <GuideDialog opened={opened} article={article} onTopic={(topic) => setOpened({ ...opened, topic })}
+        <GuideDialog opened={opened} article={article} articleDefault={articleDefault} onTopic={(topic) => setOpened({ ...opened, topic })}
           onClose={() => setOpened(null)}
-          onUse={onUseSettings?(point) => { onUseSettings(withStartingPoint(article, point), point.name); setOpened(null) }:undefined} />
+          onUse={onUseSettings?(point) => { onUseSettings(withStartingPoint(article, point, articleDefault), point.name); setOpened(null) }:undefined} />
       )}
     </GuideContext>
   )
@@ -54,8 +55,8 @@ export function HowThisWorksButton({ triggerRef }: { triggerRef?: RefObject<HTML
   return <button ref={trigger} type="button" onClick={() => open({ topic: 'overview', trigger })} className={actionButton}>How this works</button>
 }
 
-function GuideDialog({ opened, article, onTopic, onClose, onUse }: {
-  opened: Opened; article: ArticleSettings | undefined; onTopic: (topic: GuideTopicId | 'overview') => void
+function GuideDialog({ opened, article, articleDefault, onTopic, onClose, onUse }: {
+  opened: Opened; article: ArticleSettings | undefined; articleDefault: ArticleSettings; onTopic: (topic: GuideTopicId | 'overview') => void
   onClose: () => void; onUse?: (point: StartingPoint) => void
 }) {
   const titleId = useId()
@@ -75,7 +76,7 @@ function GuideDialog({ opened, article, onTopic, onClose, onUse }: {
           <option key={item.id} value={item.id}>{item.title}</option>
         ))}
       </select>
-      {topic ? <TopicBody key={topic.id} topic={topic} /> : <Overview article={article} onUse={onUse} />}
+      {topic ? <TopicBody key={topic.id} topic={topic} /> : <Overview article={article} articleDefault={articleDefault} onUse={onUse} />}
     </ModalDialog>
   )
 }
@@ -185,9 +186,9 @@ function changedChoices(article: ArticleSettings | undefined): number {
     (article[key] ?? undefined) !== (REFERENCE_ARTICLE[key] ?? undefined)).length
 }
 
-function Overview({ article, onUse }: { article: ArticleSettings | undefined; onUse?: (point: StartingPoint) => void }) {
+function Overview({ article, articleDefault, onUse }: { article: ArticleSettings | undefined; articleDefault: ArticleSettings; onUse?: (point: StartingPoint) => void }) {
   const captionId = useId()
-  const changed = changedChoices(article)
+  const changed = changedChoices(article ?? articleDefault)
   return (
     <div className="mt-3 flex flex-col gap-3 text-[12px] text-ink">
       <SettingsViews label="Guide section" titles={['Extraction flow', 'Flow explained', 'Study scope', ...STARTING_POINTS.map((point) => point.name)]}>
@@ -207,18 +208,18 @@ function Overview({ article, onUse }: { article: ArticleSettings | undefined; on
         </p>
       )}
       </div>
-      {STARTING_POINTS.map((point) => <StartingPointCard key={point.name} point={point} article={article} onUse={onUse} />)}
+      {STARTING_POINTS.map((point) => <StartingPointCard key={point.name} point={point} article={article} articleDefault={articleDefault} onUse={onUse} />)}
       </SettingsViews>
       <p className="text-ink-muted">Normal customization reaches every supported setting without these examples.</p>
     </div>
   )
 }
 
-function StartingPointCard({ point, article, onUse }: { point: StartingPoint; article: ArticleSettings | undefined; onUse?: (point: StartingPoint) => void }) {
+function StartingPointCard({ point, article, articleDefault, onUse }: { point: StartingPoint; article: ArticleSettings | undefined; articleDefault: ArticleSettings; onUse?: (point: StartingPoint) => void }) {
   const titleId = useId()
   const changesId = useId()
   const [shown, setShown] = useState(false)
-  const delta = settingsDelta(article, withStartingPoint(article, point))
+  const delta = settingsDelta(article, withStartingPoint(article, point, articleDefault), articleDefault)
   return (
     <section aria-labelledby={titleId} className="flex flex-col items-start gap-1.5 rounded-xl border border-line p-2">
       <h4 id={titleId} className="text-[12.5px] font-semibold">{point.name}</h4>

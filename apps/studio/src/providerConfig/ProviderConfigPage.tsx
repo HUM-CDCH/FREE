@@ -1,3 +1,4 @@
+import { BOUNDED_ARTICLE } from 'extraction/extraction-method'
 import { type KeyboardEvent, type RefObject, useContext, useEffect, useId, useRef, useState } from 'react'
 import type { ExtractionModelListing } from '../../shared/extraction.contract'
 import type { DeploymentModels, GetModelConfigResponse, IngestionModelListing, ProviderDescriptor } from '../../shared/modelConfig.contract'
@@ -52,6 +53,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
   const editor = useProviderConfigDraft({
     accountId,
     providers,
+    articleDefault: deployment.boundedArticle ? BOUNDED_ARTICLE : undefined,
     scheduleProbe: schedule,
     cancelProbe: cancel,
     disposeProbe: dispose,
@@ -232,6 +234,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
             focusIssue={focusIssue}
             onIssueFocused={() => setFocusIssue(false)}
             unifiedCatalog={deployment.unifiedCatalog === true}
+            articleDefault={deployment.boundedArticle ? BOUNDED_ARTICLE : undefined}
           />
         ) : (
           <ConnectionsTab

@@ -27,6 +27,8 @@ import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import {
   accountMethod,
+  BOUNDED_ARTICLE,
+  boundedArticleEnabled,
   canonicalIntent,
   unifiedCatalogEnabled,
   identityFieldIssues,
@@ -67,7 +69,8 @@ export async function savedMethodStillCurrent(
   catalogRecipe: string | null,
   method: ExtractionMethodIntent,
 ): Promise<boolean> {
-  const saved = accountMethod(await lockModelConfiguration(client, owner), strategy, catalogRecipe, unifiedCatalogEnabled())
+  const saved = accountMethod(await lockModelConfiguration(client, owner), strategy, catalogRecipe, unifiedCatalogEnabled(),
+    boundedArticleEnabled() ? { article: BOUNDED_ARTICLE } : {})
   return isDeepStrictEqual(saved, method)
 }
 

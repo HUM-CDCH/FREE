@@ -76,6 +76,8 @@ export const deploymentModelsSchema = z
     defaultRoute: routeSchema.nullable(),
     /** New Catalog Extractions use the unified method (its rollout gate is on); absent means the legacy Catalog. */
     unifiedCatalog: z.boolean().optional(),
+    /** New Article admissions without an account override pin bounded 12,288-token units, with no overlap. */
+    boundedArticle: z.boolean().optional(),
   })
   .strict()
 export type DeploymentModels = z.infer<typeof deploymentModelsSchema>

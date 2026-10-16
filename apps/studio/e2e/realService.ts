@@ -146,6 +146,10 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
           if (records.length !== 2) throw new Error(`Article call did not receive both entries: ${prompt}`)
           answer = { sites: records }
         }
+      } else if (system.startsWith('Several parts of one document were each read on their own')) {
+        // Explicitly abstain on scalar resolution: the bounded-reading case verifies retained alternatives,
+        // not a transport failure silently falling back to them.
+        answer = Object.fromEntries(Object.keys(properties).map(name => [name, 'UNSURE']))
       } else if ('starts' in properties) {
         const starts = [...prompt.matchAll(/\[(B\d+)\]([^]*?)(?=\[B\d+\]|$)/g)]
           .filter(match => /Hill:|Valley:/.test(match[2])).map(match => match[1])

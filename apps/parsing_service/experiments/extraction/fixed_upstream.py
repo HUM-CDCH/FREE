@@ -12,7 +12,7 @@ from kei_exp.kie.passages import load
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.stages import Issue, extract_document, merge
+from kei_exp.kie.extract.stages import DOCUMENT, Issue, extract_document, merge
 
 from .manifest import checked, pin, read, write_new
 from .replay_reference import Captured, key
@@ -95,6 +95,16 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
                                      method.context_tokens) for role, provider in study["providers"].items()}
     contexts = restore_contexts(expected["contexts"], evidence.passages)
     router = Router(**chats)
+    # A version 1 Article inventoried identities; from version 2 (`article_version`) the document is the one root.
+    upstream = document_root if expected.get("article_version", 1) >= 2 else extract_records
+    # Resolution first shipped in version 12; older artifacts contain no such calls.
+    resolved = {"resolve_parts": expected.get("article_version", 1) >= 12} if upstream is document_root else {}
+    def replay_upstream():
+        return upstream(evidence.passages, schema, router, counters=counters,
+            record_chars=expected["options"]["record_chars"], method=method, contexts=contexts, **resolved)
+    # Captures follow execution order, which changed to root-first without changing the artifact's canonical order.
+    root_first = bool(chats["fields"].calls and chats["fields"].calls[0][0]["system"].startswith(DOCUMENT + "\n"))
+    extracted = replay_upstream() if root_first else None
     documents, calls, issues = [], [], []
     for context in contexts:
         document, attempts, problems = extract_document(replace(evidence, passages=context.passages), schema,
@@ -104,12 +114,8 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
         issues += problems
     document, conflicts = reconcile_values(documents) if len(documents) > 1 else (documents[0], [])
     issues += [Issue("conflicting_document_values", json.dumps(item, ensure_ascii=False)) for item in conflicts]
-    # A version 1 Article inventoried identities; from version 2 (`article_version`) the document is the one root.
-    upstream = document_root if expected.get("article_version", 1) >= 2 else extract_records
-    # Resolution first shipped in version 12; older artifacts contain no such calls.
-    resolved = {"resolve_parts": expected.get("article_version", 1) >= 12} if upstream is document_root else {}
-    extracted = upstream(evidence.passages, schema, router, counters=counters,
-        record_chars=expected["options"]["record_chars"], method=method, contexts=contexts, **resolved)
+    if extracted is None:
+        extracted = replay_upstream()
     calls += extracted.calls
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]

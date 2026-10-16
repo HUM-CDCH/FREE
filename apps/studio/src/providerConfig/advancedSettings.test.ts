@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
+import { articleSettingsIssues, BOUNDED_ARTICLE, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
 import {
   ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, sectionSummary,
   settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
@@ -78,6 +78,22 @@ describe('summaries', () => {
     expect(sectionSummary(REFERENCE_ARTICLE, 'identity')).toBe('Not used by Article')
     expect(sectionSummary(REFERENCE_ARTICLE, 'input')).toBe('Plain text')
     expect(sectionSummary(REFERENCE_ARTICLE, 'evidence')).toBe('Source labels · All fields')
+  })
+
+  it('uses an explicit deployment default for summaries, changed sections and guide deltas, not the named reference', () => {
+    expect(effectiveSummary(undefined, BOUNDED_ARTICLE)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-label verification')
+    expect(effectiveSummary(REFERENCE_ARTICLE, BOUNDED_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
+    expect(changedSections(BOUNDED_ARTICLE, undefined, BOUNDED_ARTICLE)).toEqual(new Set())
+    expect(changedSections(REFERENCE_ARTICLE, undefined, BOUNDED_ARTICLE)).toEqual(new Set(['context']))
+    const reference = withStartingPoint(undefined, STARTING_POINTS[0]!, BOUNDED_ARTICLE)
+    expect(reference).toEqual(REFERENCE_ARTICLE)
+    expect(settingsDelta(undefined, reference, BOUNDED_ARTICLE)).toEqual([
+      { label: 'Article settings', from: 'Service defaults', to: 'Customized' },
+      { label: 'Scope', from: 'Bounded source units', to: 'Full source' },
+      { label: 'Context ceiling', from: '12,288 tokens', to: 'Used with bounded source units' },
+    ])
+    const explore = withStartingPoint(undefined, STARTING_POINTS[1]!, BOUNDED_ARTICLE)
+    expect(settingsDelta(undefined, explore, BOUNDED_ARTICLE).map(({ label }) => label)).not.toContain('Scope')
   })
 
   it('inactive values never reach a summary', () => {

@@ -68,8 +68,11 @@ FREE's normative product and safety contract is:
    Model Choice and the Ingestion Model Choice. It also holds the account's
    Extraction Method Settings: per Extraction Strategy, how future Extractions
    run (the Model Configuration page's Advanced tab). Unset settings keep the
-   Parsing Service's defaults; saved settings never edit an Extraction Schema
-   and never hold a key. A Project Context uses its owner's configuration. The
+   deployment's defaults for new admissions, falling back to the Parsing
+   Service's reference. An enabled bounded Article default is pinned explicitly;
+   changing that default never changes already-admitted work or an explicit
+   account preference. Saved settings never edit an Extraction Schema and never
+   hold a key. A Project Context uses its owner's configuration. The
    Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM
    and OpenAI-compatible connections. A researcher's API keys stay in their
    own browser; Studio holds a copy only in memory while it needs one, and

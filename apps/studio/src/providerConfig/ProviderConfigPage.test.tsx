@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createRef, type RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { METHOD_MESSAGES, REFERENCE_ARTICLE } from 'extraction/extraction-method'
+import { BOUNDED_ARTICLE, METHOD_MESSAGES, REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import {
   DEPLOYMENT_CONNECTION_IDS,
   type DeploymentModels,
@@ -945,6 +945,66 @@ describe('Advanced', () => {
     expect(server.puts()).toEqual([])
     expect(server.request.mock.calls.map(([url]) => String(url))).not.toContainEqual(expect.stringMatching(/extractions|generation|model_probe$/))
   })
+
+  it('shows the bounded deployment default in absent-override controls, summary and request; Customize pins exactly what was shown', async () => {
+    const server = studio(config(), { deployment: { ...NO_DEPLOYMENT, boundedArticle: true } })
+    await renderPage()
+    openAdvanced()
+    expect(radio('Scope', 'Bounded source units')).toBeChecked()
+    expect(radio('Scope', 'Bounded source units')).toBeDisabled()
+    setting('Context ceiling')
+    expect(screen.getByRole('textbox', { name: /Context ceiling/ })).toHaveValue('12288')
+    expect(screen.getByRole('textbox', { name: /Context ceiling/ })).not.toHaveAttribute('readonly')
+    setting('Effective settings')
+    expect(screen.getByText('Bounded source units (12,288 tokens) · Plain text · Source-label verification')).toBeVisible()
+    expect(screen.getByText(/Experimental deployment default/)).toHaveTextContent('existing Extractions keep their admitted settings')
+    expect(screen.getByText('Everything saved')).toBeVisible()
+    expect(server.puts()).toEqual([])
+    setting('Technical details')
+    selectView('Request option', 'article.context')
+    expect(screen.getByText('"bounded"')).toBeVisible()
+    selectView('Request option', 'article.overlap_passages')
+    expect(screen.getByText('0', { selector: 'pre' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings).toEqual({ article: BOUNDED_ARTICLE })
+    await waitFor(() => expect(screen.getByText('Everything saved')).toBeVisible())
+    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(2))
+    expect(server.puts()[1]!.extractionSettings).toEqual({})
+  })
+
+  it('the Reference controls guide starts from the shown bounded default but explicitly produces full source', async () => {
+    const server = studio(config(), { deployment: { ...NO_DEPLOYMENT, boundedArticle: true } })
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
+    const point = within(startingPoint('Reference controls'))
+    fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
+    selectView('Starting point change', 'Scope')
+    expect(point.getByText('Scope: Bounded source units → Full source')).toBeVisible()
+    fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
+    expect(radio('Scope', 'Full source')).toBeChecked()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
+  })
+
+  it.each([REFERENCE_ARTICLE, { ...BOUNDED_ARTICLE, context_tokens: 8192, overlap_passages: 1 }])(
+    'keeps a saved Article override under the bounded deployment gate (%j)', async (article) => {
+      const server = studio(config({ extractionSettings: { article } }), { deployment: { ...NO_DEPLOYMENT, boundedArticle: true } })
+      await renderPage()
+      openAdvanced()
+      expect(radio('Scope', article.context === 'full' ? 'Full source' : 'Bounded source units')).toBeChecked()
+      setting('Source representation')
+      fireEvent.click(radio('Source representation', 'Structured blocks and tables'))
+      apply()
+      await waitFor(() => expect(server.puts()).toHaveLength(1))
+      expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...article, rendering: 'structured' })
+    },
+  )
 
   it('a model choice and a span setting survive tab switches; Discard restores both', async () => {
     const server = studio(config({ extractionModels: { fields: 'nuextract' } }))

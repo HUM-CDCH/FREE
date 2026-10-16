@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { Client } from 'pg'
 import { migrate, provisionDatabase } from '../../db/src/record-scope-history-fixture.js'
 import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
-import { accountMethod, REFERENCE_ARTICLE } from './extraction-method.js'
+import { accountMethod, BOUNDED_ARTICLE, REFERENCE_ARTICLE } from './extraction-method.js'
 import type { ExtractionExecution } from './dependencies.js'
 import type { RunSingleInput, ScheduleBatchInput } from './types.js'
 
@@ -13,12 +13,16 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   if (!base) throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
   const target = await provisionDatabase(base, `free_test_durable_admission_${randomBytes(5).toString('hex')}`)
   const previousUrl = process.env.DATABASE_URL
+  const previousArticleContext = process.env.FREE_ARTICLE_CONTEXT
+  delete process.env.FREE_ARTICLE_CONTEXT
   const admin = new Client({ connectionString: target.url })
   let closeRuntime: (() => Promise<void>) | undefined
   t.after(async () => {
     await closeRuntime?.(); await admin.end(); await target.drop()
     if (previousUrl === undefined) delete process.env.DATABASE_URL
     else process.env.DATABASE_URL = previousUrl
+    if (previousArticleContext === undefined) delete process.env.FREE_ARTICLE_CONTEXT
+    else process.env.FREE_ARTICLE_CONTEXT = previousArticleContext
   })
   await migrate(target.url)
   await admin.connect()
@@ -239,5 +243,61 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.equal(created.length,1)
   assert.deepEqual(refused.map(error=>[error.code,error.extractionId]),[['extraction_in_progress',created[0]]])
   await settle(created[0]!,'RUN','COMPLETED')
-  assert.equal((await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()}))?.disposition,'created')
+  const latest = { ...spareRun, extractionId: randomUUID() }
+  assert.equal((await persistence.scheduleExtraction(latest))?.disposition, 'created')
+  await settle(latest.extractionId, 'RUN', 'COMPLETED')
+
+  // The rollout changes only new admissions with no account Article override. A stale full-default start is refused,
+  // while the exact bounded descriptor is persisted on single work, the batch and each member.
+  process.env.FREE_ARTICLE_CONTEXT = 'bounded'
+  const noOverride = { ...savedConfiguration, extractionSettings: {} }
+  await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1', [owner, noOverride])
+  const boundedMethod = accountMethod(noOverride, 'ARTICLE', null, false, { article: BOUNDED_ARTICLE })
+  const gatedSingle = { ...spareRun, extractionId: randomUUID(), method: boundedMethod }
+  const beforeGateRefusals = await counts()
+  await assert.rejects(persistence.scheduleExtraction({ ...gatedSingle, method }), { code: 'method_changed' })
+  await assert.rejects(persistence.scheduleBatch({ ...batch, sourceDocumentIds: [spare.id] }), { code: 'method_changed' })
+  assert.deepEqual(await counts(), beforeGateRefusals)
+  const gated = await persistence.scheduleExtraction(gatedSingle)
+  assert.equal(gated?.disposition, 'created')
+  assert.deepEqual(gated?.extraction.requestedSettings, { article: BOUNDED_ARTICLE })
+  const gatedBatchInput = { ...equalSelection, method: boundedMethod }
+  const gatedBatch = await persistence.scheduleBatch(gatedBatchInput)
+  assert.equal(gatedBatch?.disposition, 'created')
+  const batchPins = await admin.query('SELECT "requestedSettings" FROM public."batchExtraction" WHERE id=$1', [gatedBatch!.batch.batchExtractionId])
+  assert.deepEqual(batchPins.rows, [{ requestedSettings: { article: BOUNDED_ARTICLE } }])
+  const memberPins = await admin.query('SELECT "requestedSettings" FROM public.extraction WHERE "batchExtractionId"=$1', [gatedBatch!.batch.batchExtractionId])
+  assert.equal(memberPins.rowCount, documents.length)
+  for (const row of memberPins.rows) assert.deepEqual(row.requestedSettings, { article: BOUNDED_ARTICLE })
+
+  // Null/default and explicit full runs admitted before enabling the gate still replay on their original pins.
+  assert.equal((await persistence.scheduleExtraction(single))?.disposition, 'replayed')
+  assert.deepEqual((await persistence.scheduleExtraction(single))?.extraction.requestedSettings, { article: null })
+  assert.equal((await persistence.scheduleExtraction(first))?.disposition, 'replayed')
+  assert.deepEqual((await persistence.scheduleExtraction(first))?.extraction.requestedSettings, changedMethod.settings)
+  assert.equal((await persistence.scheduleBatch(equalSelection))?.disposition, 'replayed')
+
+  // Existing saved full and non-default bounded choices remain authoritative even under the deployment gate.
+  await settle(gatedSingle.extractionId, 'RUN', 'COMPLETED')
+  for (const article of [REFERENCE_ARTICLE, { ...BOUNDED_ARTICLE, context_tokens: 8192, overlap_passages: 1 }]) {
+    const configuration = { ...savedConfiguration, extractionSettings: { article } }
+    await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1', [owner, configuration])
+    const explicitMethod = { models: null, settings: { article } }
+    const explicit = { ...spareRun, extractionId: randomUUID(), method: explicitMethod }
+    const admittedExplicit = await persistence.scheduleExtraction(explicit)
+    assert.equal(admittedExplicit?.disposition, 'created')
+    assert.deepEqual(admittedExplicit?.extraction.requestedSettings, explicitMethod.settings)
+    await settle(explicit.extractionId, 'RUN', 'COMPLETED')
+  }
+
+  // Disabling the rollout restores the default for new work, not the settings of bounded work already admitted.
+  delete process.env.FREE_ARTICLE_CONTEXT
+  await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1', [owner, noOverride])
+  assert.equal((await persistence.scheduleExtraction(gatedSingle))?.disposition, 'replayed')
+  assert.deepEqual((await persistence.scheduleExtraction(gatedSingle))?.extraction.requestedSettings, { article: BOUNDED_ARTICLE })
+  assert.equal((await persistence.scheduleBatch(gatedBatchInput))?.disposition, 'replayed')
+  await assert.rejects(persistence.scheduleExtraction({ ...gatedSingle, extractionId: randomUUID() }), { code: 'method_changed' })
+  const restoredDefault = await persistence.scheduleExtraction({ ...spareRun, extractionId: randomUUID(), method })
+  assert.equal(restoredDefault?.disposition, 'created')
+  assert.deepEqual(restoredDefault?.extraction.requestedSettings, { article: null })
 })

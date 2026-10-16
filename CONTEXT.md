@@ -53,7 +53,7 @@ How FREE applies an Extraction Schema to Source Context: Article or Catalog. The
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in separate parts when the whole source does not fit one model call; a model call then settles each place to the document's own reading and keeps the list items that belong to the document, and readings it cannot settle stay a Value Disagreement.
+An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in bounded parts when its admitted method selects them or the whole source does not fit one model call; a model call then settles each place to the document's own reading and keeps the list items that belong to the document, and readings it cannot settle stay a Value Disagreement.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:
@@ -176,7 +176,7 @@ A Researcher Account's choice of the Parsing Service's extraction models by role
 _Avoid_: extraction model, extraction route, model setting
 
 **Extraction Method Settings**:
-A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings keep the Parsing Service's defaults. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
+A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings use the deployment's defaults for new admissions, or the Parsing Service's reference where the deployment selects none. A deployment's bounded Article default is pinned explicitly at admission and never changes an existing Extraction. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:

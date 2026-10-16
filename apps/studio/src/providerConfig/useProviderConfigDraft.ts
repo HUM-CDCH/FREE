@@ -41,6 +41,8 @@ export type ProviderConfigDraft = ReturnType<typeof useProviderConfigDraft>
 type DraftInputs = {
   accountId: string
   providers: readonly ProviderDescriptor[]
+  /** Future account admissions may use a deployment default; historical input editors omit it and stay full. */
+  articleDefault?: ArticleSettings
   scheduleProbe: (connection: ModelConnection, credential: string | null | undefined) => void
   cancelProbe: (connectionId: string) => void
   disposeProbe: (connectionId: string) => void
@@ -54,7 +56,7 @@ function comparable(config: ModelConfig): ModelConfig {
   return { ...config, extractionSettings: { ...config.extractionSettings, article: { ...article, context_tokens: REFERENCE_ARTICLE.context_tokens } } }
 }
 
-export function useProviderConfigDraft({ accountId, providers, scheduleProbe, cancelProbe, disposeProbe }: DraftInputs) {
+export function useProviderConfigDraft({ accountId, providers, articleDefault = REFERENCE_ARTICLE, scheduleProbe, cancelProbe, disposeProbe }: DraftInputs) {
   const [saved, setSaved] = useState<ModelConfig | null>(null)
   const [draft, setDraft] = useState<ModelConfig | null>(null)
   const [keyEdits, setKeyEdits] = useState<Readonly<Record<string, KeyEdit>>>({})
@@ -197,9 +199,9 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     })
   }
 
-  /** Customize: that strategy's override starts from the documented reference settings. */
+  /** Customize starts from the effective default shown, without changing the full-source reference starting point. */
   function customize(strategy: AdvancedStrategy): void {
-    setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? REFERENCE_ARTICLE : REFERENCE_CATALOG }))
+    setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? articleDefault : REFERENCE_CATALOG }))
   }
 
   /** Use service defaults: removes only that strategy's override; Models, Connections and the other strategy stay. */

@@ -13,6 +13,7 @@ from experiments.extraction.manifest import pin, read, write_new
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.stages import DOCUMENT
 from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -93,6 +94,52 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     assert bundle["provenance"]["fresh_calls"] == 0
     assert bundle["value_origins"][0][1] == {"path": ["year"], "kind": "value",
         "sources": [{"unit": 1, "path": ["year"]}]}
+
+
+def test_preparation_replays_historical_document_first_captures(frozen, tmp_path):
+    parent, bundles, _, _ = frozen
+    calls = parent / "cells/Doc--bounded--0/calls"
+    paths = sorted(calls.glob("fields-*.request.json"))
+    captured = [(read(path), read(path.with_name(path.name.replace(".request.", ".reply.")))) for path in paths]
+    assert captured[0][0]["system"].startswith(DOCUMENT + "\n")
+    documents = [pair for pair in captured if not pair[0]["system"].startswith(DOCUMENT + "\n")]
+    roots = [pair for pair in captured if pair[0]["system"].startswith(DOCUMENT + "\n")]
+    assert len(documents) == len(roots) == 2
+    # Only these fresh synthetic captures are reordered and resealed; historical study inputs stay immutable.
+    for path, (request, reply) in zip(paths, documents + roots, strict=True):
+        path.write_text(json.dumps(request))
+        path.with_name(path.name.replace(".request.", ".reply.")).write_text(json.dumps(reply))
+    verification = tmp_path / "verification.json"
+    report = read(verification)
+    report["verified"][0]["captures"] = [pin(path) for path in sorted(calls.glob("*.json"))]
+    verification.write_text(json.dumps(report))
+    before = {path.name: path.read_bytes() for path in calls.glob("*.json")}
+    bundle = fixed_upstream.prepare(parent, "Doc", verification)
+    expected = read(bundles / "Doc.json")
+    expected["provenance"].update(verification=pin(verification), captures=report["verified"][0]["captures"])
+    assert json.loads(json.dumps(bundle)) == expected
+    assert {path.name: path.read_bytes() for path in calls.glob("*.json")} == before
+
+
+@pytest.mark.parametrize("change", ["max_tokens", "input_tokens", "output_tokens"])
+def test_preparation_still_rejects_resealed_capture_drift(frozen, tmp_path, change):
+    parent, _, _, _ = frozen
+    calls = parent / "cells/Doc--bounded--0/calls"
+    path = calls / ("fields-0001.request.json" if change == "max_tokens" else "fields-0001.reply.json")
+    captured = read(path)
+    captured[change] += 1
+    path.write_text(json.dumps(captured))
+    verification = tmp_path / "verification.json"
+    report = read(verification)
+    report["verified"][0]["captures"] = [pin(path) for path in sorted(calls.glob("*.json"))]
+    verification.write_text(json.dumps(report))
+    error, message = {
+        "max_tokens": (AssertionError, "model request 1 changed"),
+        "input_tokens": (ValueError, "replay tokenizer counts disagree"),
+        "output_tokens": (ValueError, "upstream call accounting differs"),
+    }[change]
+    with pytest.raises(error, match=message):
+        fixed_upstream.prepare(parent, "Doc", verification)
 
 
 @pytest.mark.parametrize("version", [12, 13])

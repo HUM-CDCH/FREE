@@ -70,8 +70,17 @@ export const ARTICLE_KEYS = [
   'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'rendering', 'grouping',
 ] as const satisfies readonly (keyof ArticleSettings)[]
 
-/** The explicit reference Customize starts from: every required field, no optional factor. */
+/** The explicit full-source reference: every required field, no optional factor. */
 export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({}))
+
+/** Opt-in deployment default for new Article admissions only. Reference and historical service defaults stay full. */
+export const BOUNDED_ARTICLE: ArticleSettings = Object.freeze({ ...REFERENCE_ARTICLE, context: 'bounded' })
+export type ExtractionMethodDefaults = Readonly<{ article?: ArticleSettings }>
+
+/** Only a server admission/configuration boundary reads the environment; browser callers pass defaults explicitly. */
+export function boundedArticleEnabled(environment: Readonly<Record<string, string | undefined>> = process.env): boolean {
+  return environment.FREE_ARTICLE_CONTEXT === 'bounded'
+}
 
 export const genericCatalogSettingsSchema = z.object({
   discovery_chars: wholeNumber(METHOD_MESSAGES.characters, 1_000).optional(),
@@ -283,10 +292,11 @@ export function settingsFit(strategy: ExtractionStrategy, catalogRecipe: string 
 
 export function activeSettings(
   settings: ExtractionSettings, strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false,
+  defaults: ExtractionMethodDefaults = {},
 ): ActiveSettings {
   const canonical = canonicalExtractionSettings(settings)
   switch (settingsSlot(strategy, catalogRecipe, unified)) {
-    case 'article': return { article: canonical.article ?? null }
+    case 'article': return { article: canonical.article ?? (defaults.article ? canonicalArticle(defaults.article) : null) }
     case 'recipe': return { recipe: canonical.catalog?.recipe ?? null }
     case 'generic': return { generic: canonical.catalog?.generic ?? null }
     case 'unified': return { unified: canonicalUnified(canonical.catalog?.unified) }
@@ -303,8 +313,9 @@ export type ExtractionMethodIntent = Readonly<{ models: ExtractionModelChoice | 
 
 export function activeMethod(
   models: unknown, settings: ExtractionSettings, strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false,
+  defaults: ExtractionMethodDefaults = {},
 ): ExtractionMethodIntent {
-  return { models: modelChoice(models), settings: activeSettings(settings, strategy, catalogRecipe, unified) }
+  return { models: modelChoice(models), settings: activeSettings(settings, strategy, catalogRecipe, unified, defaults) }
 }
 
 const accountMembersSchema = z.object({ extractionModels: extractionModelChoiceSchema, extractionSettings: extractionSettingsSchema })
@@ -314,15 +325,16 @@ const accountMembersSchema = z.object({ extractionModels: extractionModelChoiceS
  *  never read as defaults. */
 export function accountMethod(
   document: unknown, strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false,
+  defaults: ExtractionMethodDefaults = {},
 ): ExtractionMethodIntent {
-  if (document === null) return activeMethod(null, {}, strategy, catalogRecipe, unified)
+  if (document === null) return activeMethod(null, {}, strategy, catalogRecipe, unified, defaults)
   const members = accountMembersSchema.safeParse(document)
   if (!members.success || extractionSettingsIssues(members.data.extractionSettings).length > 0)
     throw new ExtractionError('invalid_model_config', 'The saved model configuration is invalid.')
   // Retired character limits and recipe factors are never converted: the researcher applies the unified settings.
   if (unified && strategy === 'CATALOG' && legacyCatalogOverrides(members.data.extractionSettings))
     throw new ExtractionError('catalog_migration_required', METHOD_MESSAGES.migration)
-  return activeMethod(members.data.extractionModels, members.data.extractionSettings, strategy, catalogRecipe, unified)
+  return activeMethod(members.data.extractionModels, members.data.extractionSettings, strategy, catalogRecipe, unified, defaults)
 }
 
 /** A submitted intent in the form admission compares, or null when it is malformed, breaks a rule, or names another

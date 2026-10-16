@@ -1,4 +1,4 @@
-import { unifiedCatalogEnabled } from 'extraction/extraction-method'
+import { boundedArticleEnabled, unifiedCatalogEnabled } from 'extraction/extraction-method'
 import {
   DEPLOYMENT_CONNECTION_IDS,
   isValidApiBase,
@@ -45,6 +45,7 @@ export function deploymentModels(env: Environment = process.env): DeploymentMode
     connections,
     defaultRoute: instruct && modelId ? { connectionId: instruct.id, modelId } : null,
     ...(unifiedCatalogEnabled(env) ? { unifiedCatalog: true } : {}),
+    ...(boundedArticleEnabled(env) ? { boundedArticle: true } : {}),
   }
 }
 

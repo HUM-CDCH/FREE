@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { activeMethod, type ExtractionMethodIntent } from 'extraction/extraction-method'
+import { activeMethod, BOUNDED_ARTICLE, type ExtractionMethodIntent } from 'extraction/extraction-method'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
 import { apiErrorText, getModelConfig, onModelConfigSaved } from './providerConfig/providerConfig.data'
 
-/** What a start view needs to know of the account and the deployment: the saved document, and whether new Catalog
- *  Extractions use the unified method. */
-export type SavedMethodSource = Readonly<{ config: ModelConfig; unifiedCatalog?: boolean }>
+/** What a start view needs to know of the account and the deployment's defaults for new admissions. */
+export type SavedMethodSource = Readonly<{ config: ModelConfig; unifiedCatalog?: boolean; boundedArticle?: boolean }>
 
 /** The saved method a start view shows and submits: the same function admission compares it with. */
 export function savedMethodFor(saved: SavedMethodSource, strategy: ExtractionStrategy, catalogRecipe: string | null): ExtractionMethodIntent {
-  const { config, unifiedCatalog } = saved
-  return activeMethod(config.extractionModels, config.extractionSettings, strategy, catalogRecipe, unifiedCatalog === true)
+  const { config, unifiedCatalog, boundedArticle } = saved
+  return activeMethod(config.extractionModels, config.extractionSettings, strategy, catalogRecipe, unifiedCatalog === true,
+    boundedArticle ? { article: BOUNDED_ARTICLE } : {})
 }
 
 export type SavedMethodState =
@@ -24,6 +24,8 @@ export type SavedMethodState =
 export function useSavedMethod(): { state: SavedMethodState; refresh: () => Promise<SavedMethodSource | null> } {
   const [state, setState] = useState<SavedMethodState>({ status: 'loading' })
   const current = useRef<AbortController | null>(null)
+  // Keep deployment defaults while a refresh is loading or fails; an Apply event carries only the account document.
+  const defaults = useRef<Omit<SavedMethodSource, 'config'> | null>(null)
   const refresh = useCallback(async () => {
     current.current?.abort()
     const controller = new AbortController()
@@ -32,7 +34,11 @@ export function useSavedMethod(): { state: SavedMethodState; refresh: () => Prom
     try {
       const { config, deployment } = await getModelConfig(controller.signal)
       if (controller.signal.aborted) return null
-      const ready = { config, ...(deployment.unifiedCatalog ? { unifiedCatalog: true } : {}) }
+      defaults.current = {
+        ...(deployment.unifiedCatalog ? { unifiedCatalog: true } : {}),
+        ...(deployment.boundedArticle ? { boundedArticle: true } : {}),
+      }
+      const ready = { config, ...defaults.current }
       setState({ status: 'ready', ...ready })
       return ready
     } catch (cause) {
@@ -42,9 +48,11 @@ export function useSavedMethod(): { state: SavedMethodState; refresh: () => Prom
   }, [])
   // An Apply in this page is the saved document: it replaces any read still in flight.
   useEffect(() => onModelConfigSaved((config) => {
+    // Before the first deployment read, do not briefly expose a method with guessed defaults.
+    if (!defaults.current) { void refresh(); return }
     current.current?.abort()
-    setState((previous) => ({ status: 'ready', config, ...(previous.status === 'ready' && previous.unifiedCatalog ? { unifiedCatalog: true } : {}) }))
-  }), [])
+    setState({ status: 'ready', config, ...defaults.current })
+  }), [refresh])
   useEffect(() => {
     let mounted = true
     // Deferred so the effect body itself schedules no state update; an unmount before then reads nothing.

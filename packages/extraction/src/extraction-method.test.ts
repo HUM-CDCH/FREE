@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
-  activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
+  activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, BOUNDED_ARTICLE, boundedArticleEnabled, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
   storedSettings, UNIFIED_CATALOG_DEFAULTS, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
@@ -179,6 +179,54 @@ test('explicit reference and omission are different descriptors', () => {
   assert.deepEqual(omitted, { models: null, settings: { article: null } })
   assert.notDeepEqual(omitted, explicit)
   assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, explicit.settings)).article, REFERENCE_ARTICLE)
+})
+
+test('bounded Article is an exact opt-in admission default, never a changed reference or implicit environment read', () => {
+  for (const value of [undefined, '', 'full', 'BOUNDED', 'true', ' bounded '])
+    assert.equal(boundedArticleEnabled({ FREE_ARTICLE_CONTEXT: value }), false)
+  assert.equal(boundedArticleEnabled({ FREE_ARTICLE_CONTEXT: 'bounded' }), true)
+  assert.equal(REFERENCE_ARTICLE.context, 'full')
+  assert.deepEqual(BOUNDED_ARTICLE, { ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 12288, overlap_passages: 0 })
+  const defaults = { article: BOUNDED_ARTICLE }
+  assert.deepEqual(activeSettings({}, 'ARTICLE', null, false, defaults), { article: BOUNDED_ARTICLE })
+  assert.deepEqual(activeMethod(null, {}, 'ARTICLE', null, false, defaults), { models: null, settings: defaults })
+  assert.deepEqual(accountMethod(null, 'ARTICLE', null, false, defaults), { models: null, settings: defaults })
+  assert.deepEqual(accountMethod({ extractionModels: {}, extractionSettings: {} }, 'ARTICLE', null, false, defaults),
+    { models: null, settings: defaults })
+  assert.deepEqual(activeSettings({}, 'CATALOG', null, false, defaults), { generic: null })
+  assert.deepEqual(activeSettings({}, 'CATALOG', null, true, defaults), { unified: { defaults: 4 } })
+
+  const previous = process.env.FREE_ARTICLE_CONTEXT
+  process.env.FREE_ARTICLE_CONTEXT = 'bounded'
+  try {
+    // Browser-imported helpers and historical readers never inspect the rollout environment.
+    assert.deepEqual(activeMethod(null, {}, 'ARTICLE', null), { models: null, settings: { article: null } })
+    assert.deepEqual(accountMethod(null, 'ARTICLE', null), { models: null, settings: { article: null } })
+  } finally {
+    if (previous === undefined) delete process.env.FREE_ARTICLE_CONTEXT
+    else process.env.FREE_ARTICLE_CONTEXT = previous
+  }
+})
+
+test('explicit saved Article overrides survive either deployment default unchanged', () => {
+  for (const article of [REFERENCE_ARTICLE, { ...BOUNDED_ARTICLE, context_tokens: 8192, overlap_passages: 2, grounding: 'spans' as const }]) {
+    const document = { extractionModels: { fields: 'instruct' }, extractionSettings: { article } }
+    for (const defaults of [{}, { article: BOUNDED_ARTICLE }]) {
+      assert.deepEqual(accountMethod(document, 'ARTICLE', null, false, defaults),
+        { models: { fields: 'instruct' }, settings: { article } })
+      assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, { article })), { strategy: 'article', article })
+    }
+  }
+})
+
+test('stored null, full and bounded methods remain pinned independently of new-admission defaults', () => {
+  for (const settings of [null, { article: null }, { article: REFERENCE_ARTICLE }, { article: { ...BOUNDED_ARTICLE, context_tokens: 8192 } }]) {
+    const before = extractionMethod('ARTICLE', null, null, settings)
+    accountMethod(null, 'ARTICLE', null, false, { article: BOUNDED_ARTICLE })
+    assert.deepEqual(extractionMethod('ARTICLE', null, null, settings), before)
+    assert.deepEqual(storedSettings(settings, 'ARTICLE', null), settings)
+    assert.deepEqual(keiMethodOptions(before), settings?.article ? { strategy: 'article', article: settings.article } : { strategy: 'article' })
+  }
 })
 
 test('an account document yields the active descriptor; only the chosen strategy counts', () => {

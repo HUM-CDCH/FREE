@@ -523,7 +523,7 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
   } finally {await service.close()}
 })
 
-test('a real bounded Article retains two title readings through worker publication, choice, reload and exports',async({page},testInfo)=> {
+test('a real bounded Article publishes before later windows finish and retains readings through review and exports',async({page},testInfo)=> {
   test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'This case scripts distinct bounded readings at the model boundary.')
   page.setDefaultTimeout(30_000)
   const service=await startRealService(testInfo.outputPath('value-disagreement-worker.log'),{articleReading:prompt=>({
@@ -543,9 +543,22 @@ test('a real bounded Article retains two title readings through worker publicati
     const ingestion=await settle(page,project,await admit(page,project,textPdf(source,{fontSize:10,lineHeight:18}),'bounded-readings.pdf'),240_000)
     expect(ingestion.status,JSON.stringify(ingestion)).toBe('succeeded')
     if(ingestion.status!=='succeeded')throw new Error('The native source was not published.')
+    service.holdExtractionMatching(/CITED TITLE:/)
     const id=await seedNative(page,project,ingestion.sourceDocumentId,'article',{articleContext:'bounded',nodes:[{id:'title',name:'title',type:'string'}]})
     await service.reconcileDurable()
     const root=`/api/extractions/${id}/durable`
+    await expect.poll(()=>service.extractionHeld(),{timeout:180_000}).toBe(true)
+    const partial=await (await page.request.get(`${root}/values`)).json()
+    expect(partial.values[0].modelValue).toBe('Ecology of Rivers')
+    expect(partial.values[0].grounding).toBe('provisional')
+    expect((await (await page.request.get(root)).json()).status).toBe('RUNNING')
+    await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Ecology of Rivers/}).click()
+    await page.getByRole('button',{name:'Edit',exact:true}).click()
+    await page.getByRole('textbox',{name:'Reviewed value'}).fill('Draft kept while the next window reads')
+    await page.screenshot({path:testInfo.outputPath('article-window-running.png'),fullPage:true})
+    service.releaseExtraction()
     await expect.poll(async()=> {
       const state=await (await page.request.get(root)).json()
       if(state.status==='FAILED')throw new Error(JSON.stringify(state.failure))
@@ -555,7 +568,12 @@ test('a real bounded Article retains two title readings through worker publicati
     const valueCalls=history.captures.filter((capture:{descriptor:{stage:string};output:unknown})=>capture.descriptor.stage==='record'&&capture.output!==null)
     expect(valueCalls.length).toBeGreaterThanOrEqual(2)
     const saved=await (await page.request.get(`${root}/values`)).json()
+    expect(saved.values[0].id).toBe(partial.values[0].id)
+    expect(saved.snapshotVersion).toBeGreaterThan(partial.snapshotVersion)
     expect(saved.values[0].disagreement[0].alternatives.map((a:{value:string})=>a.value).sort()).toEqual(['A History of Clocks','Ecology of Rivers'])
+    await expect(page.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Draft kept while the next window reads')
+    await expect(page.getByText(/A newer version of this value was saved/)).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('article-window-draft-preserved.png'),fullPage:true})
     await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
     await page.locator('#rail-tab-results').click()
     await page.getByRole('button',{name:/To check title/}).click()
@@ -564,6 +582,7 @@ test('a real bounded Article retains two title readings through worker publicati
     await expect(page.getByRole('button',{name:'Use A History of Clocks'})).toBeVisible()
     await expect(page.getByText(/read in .*not checked/)).toHaveCount(2)
     await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0)
+    await page.screenshot({path:testInfo.outputPath('article-window-disagreement.png'),fullPage:true})
     expect((await page.request.post(`${root}/finalize`,{headers,data:{snapshotVersion:saved.snapshotVersion,feedbackVersion:saved.feedbackVersion}})).status()).toBe(422)
     const download=async(format:'CSV'|'XLSX')=> {
       await page.getByRole('button',{name:'More result actions'}).click()

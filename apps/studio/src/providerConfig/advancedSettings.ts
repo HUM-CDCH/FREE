@@ -115,9 +115,9 @@ const VERIFICATION: Readonly<Record<ArticleSettings['grounding'], string>> = {
 const label = <K extends keyof typeof ARTICLE_CHOICES>(key: K, value: unknown) =>
   ARTICLE_CHOICES[key].find((choice) => choice.value === (value ?? undefined))!.label
 
-/** The one line under "Settings for"; service defaults read as the documented reference. */
-export function effectiveSummary(article: ArticleSettings | undefined): string {
-  const shown = article ?? REFERENCE_ARTICLE
+/** The effective method shown; absent account settings use the explicitly supplied deployment default. */
+export function effectiveSummary(article: ArticleSettings | undefined, articleDefault = REFERENCE_ARTICLE): string {
+  const shown = article ?? articleDefault
   const scope = shown.context === 'bounded' ? `Bounded source units (${numberText(shown.context_tokens)} tokens)` : 'Full source'
   return [scope, label('rendering', shown.rendering), VERIFICATION[shown.grounding]].join(' · ')
 }
@@ -152,9 +152,9 @@ export const describeArticleValue = (article: ArticleSettings, key: ArticleKey):
       ? (article.identity_fields.join(', ') || 'None')
       : label(key as keyof typeof ARTICLE_CHOICES, article[key])
 
-/** Sections whose shown values differ from the saved settings (service defaults compare as the reference). */
-export function changedSections(draft: ArticleSettings, saved: ArticleSettings | undefined): ReadonlySet<ArticleSection> {
-  const before = saved ?? REFERENCE_ARTICLE
+/** Sections whose shown values differ from the saved settings, using the same default as their controls. */
+export function changedSections(draft: ArticleSettings, saved: ArticleSettings | undefined, articleDefault = REFERENCE_ARTICLE): ReadonlySet<ArticleSection> {
+  const before = saved ?? articleDefault
   return new Set(ARTICLE_KEYS.filter((key) => describeArticleValue(draft, key) !== describeArticleValue(before, key)).map((key) => SECTION_OF[key]))
 }
 
@@ -182,15 +182,15 @@ export const STARTING_POINTS: readonly StartingPoint[] = [
   },
 ]
 
-export function withStartingPoint(article: ArticleSettings | undefined, point: StartingPoint): ArticleSettings {
-  return orderedArticle({ ...(article ?? REFERENCE_ARTICLE), ...point.assign })
+export function withStartingPoint(article: ArticleSettings | undefined, point: StartingPoint, articleDefault = REFERENCE_ARTICLE): ArticleSettings {
+  return orderedArticle({ ...(article ?? articleDefault), ...point.assign })
 }
 
 export type SettingChange = Readonly<{ label: string; from: string; to: string }>
 
 /** Every setting a change would alter, in control order, as the researcher reads them. */
-export function settingsDelta(before: ArticleSettings | undefined, after: ArticleSettings): readonly SettingChange[] {
-  const base = before ?? REFERENCE_ARTICLE
+export function settingsDelta(before: ArticleSettings | undefined, after: ArticleSettings, articleDefault = REFERENCE_ARTICLE): readonly SettingChange[] {
+  const base = before ?? articleDefault
   return [
     ...(before ? [] : [{ label: 'Article settings', from: 'Service defaults', to: 'Customized' }]),
     ...ARTICLE_SECTIONS.flatMap(({ keys }) => keys)

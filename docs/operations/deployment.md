@@ -137,9 +137,74 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   before their next Catalog Extraction; admitted work, including a retried
   Extraction ID, keeps the method it was admitted with. Unsetting it again
   pauses new unified admissions; admitted unified work still runs and reads.
+- `FREE_ARTICLE_CONTEXT` (optional; `bounded`) enables the experimental
+  [bounded Article admission fallback](#experimental-bounded-article-source-context).
+  Leave it unset for the current full-context default.
 - Studio's `DATABASE_URL` role must own database `free` or hold `CREATE` on it
   (DBOS creates the `dbos` schema at launch) and `CREATEROLE` (the entrypoint
   creates `kei`); Compose uses `postgres`.
+
+### Experimental bounded Article Source Context
+
+`FREE_ARTICLE_CONTEXT=bounded` is an opt-in **Studio admission-only** fallback,
+not a change to the Parsing Service's Python reference defaults or developer
+evaluation options. Only new single and batch Article Extractions whose
+Researcher Account has no saved Article Extraction Method Settings receive
+explicit `context: bounded`, `context_tokens: 12288` and
+`overlap_passages: 0` settings. Other Article settings stay at their reference
+values. Catalog Extractions are unaffected.
+
+Unset or empty keeps the current full-context fallback. Only the exact value
+`bounded` enables the gate. Explicitly saved Article settings, including both
+`full` and `bounded` choices and their token/overlap settings, take precedence
+whether the gate is on or off. Changing the gate does not edit accounts or
+already admitted Extractions: existing runs, Resume and Retry keep their pinned
+method and settings, including a run admitted before the gate was enabled.
+
+This is experimental: bounded source units change what a model sees in each
+call and can change values, list coverage, cross-part reconciliation and
+Evidence. The gate does not establish model correctness or quality equivalence
+with full Source Context, and it promises no speedup. Validate the deployment's
+models and representative held-out documents, and review the resulting values
+and Evidence before relying on this choice.
+
+To enable it, add or uncomment this line in the ignored root `.env`:
+
+```dotenv
+FREE_ARTICLE_CONTEXT=bounded
+```
+
+Then redeploy (the explicit process value below also overrides any different
+value already exported in the operator's shell):
+
+```bash
+FREE_ARTICLE_CONTEXT=bounded node scripts/free.mjs production
+```
+
+To disable the deployment fallback, remove or comment out the line in `.env`,
+clear any exported value and redeploy:
+
+```bash
+unset FREE_ARTICLE_CONTEXT
+node scripts/free.mjs production
+```
+
+A plain container restart does not refresh its environment; use the launcher
+to apply either change. After redeploying, check the value received by Studio
+(add `-f compose.nginx.yaml` and `-f compose.gpu.yaml` when used):
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml exec -T studio node -e \
+  'console.log(JSON.stringify({FREE_ARTICLE_CONTEXT: process.env.FREE_ARTICLE_CONTEXT}))'
+```
+
+It should print `{"FREE_ARTICLE_CONTEXT":"bounded"}` when enabled or
+`{"FREE_ARTICLE_CONTEXT":""}` when disabled. This confirms only the runtime
+gate, not model quality. A new Article Extraction from an account with no
+saved Article settings must show the explicit bounded settings in its pinned
+Extraction Method; an existing or resumed Extraction must retain its prior
+method. Disabling the gate leaves saved bounded account choices and already
+admitted bounded Extractions intact.
 
 ### GPU and DGX Spark
 

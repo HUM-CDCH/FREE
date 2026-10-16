@@ -167,6 +167,9 @@ services:
       # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
       # recipe Catalog. Set it only after the unified method passes a held-out evaluation (docs/operations/deployment.md).
       FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"
+      # Experimental opt-in: `bounded` pins 12,288-token, zero-overlap Article settings only for new admissions
+      # without saved account settings. Unset keeps full; existing Extractions stay pinned. Studio admission only.
+      FREE_ARTICLE_CONTEXT: "${FREE_ARTICLE_CONTEXT:-}"
       # Developer-only evaluation: `1` exposes the read-only round panel and
       # (with the production launcher) starts the eval_watcher profile.
       FREE_DEVELOPER_EVAL: "${FREE_DEVELOPER_EVAL:-}"

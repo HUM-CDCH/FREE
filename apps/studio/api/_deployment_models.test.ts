@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEPLOYMENT_CONNECTION_IDS } from '../shared/modelConfig.contract.js'
+import { DEPLOYMENT_CONNECTION_IDS, deploymentModelsSchema } from '../shared/modelConfig.contract.js'
 import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
 
 const codex = {
@@ -14,6 +14,16 @@ describe('deploymentModels', () => {
     expect(deploymentModels({}).unifiedCatalog).toBeUndefined()
     expect(deploymentModels({ FREE_CATALOG_METHOD: 'legacy' }).unifiedCatalog).toBeUndefined()
     expect(deploymentModels({ FREE_CATALOG_METHOD: 'unified' }).unifiedCatalog).toBe(true)
+  })
+
+  it('exposes bounded Article defaults only for the exact rollout gate, through the strict browser contract', () => {
+    for (const value of [undefined, '', 'full', 'BOUNDED', 'true', ' bounded '])
+      expect(deploymentModels({ FREE_ARTICLE_CONTEXT: value }).boundedArticle).toBeUndefined()
+    const enabled = deploymentModels({ FREE_ARTICLE_CONTEXT: 'bounded', FREE_CATALOG_METHOD: 'unified' })
+    expect(enabled).toEqual({ connections: [], defaultRoute: null, boundedArticle: true, unifiedCatalog: true })
+    expect(deploymentModelsSchema.parse(enabled)).toEqual(enabled)
+    expect(deploymentModelsSchema.safeParse({ ...enabled, boundedArticle: 'true' }).success).toBe(false)
+    expect(deploymentModelsSchema.safeParse({ ...enabled, unknown: true }).success).toBe(false)
   })
 
   it('FREE_DEPLOYMENT_CLI_PROVIDERS enables each CLI kind as a read-only deployment connection', () => {

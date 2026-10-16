@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
+import { BOUNDED_ARTICLE, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, type ArticleSettings } from 'extraction/extraction-method'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { STARTING_POINTS, withStartingPoint } from './advancedSettings'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
@@ -11,9 +11,9 @@ const saved: ModelConfig = {
   extractionModels: { fields: 'instruct' }, ingestionModels: {},
   extractionSettings: { catalog: { generic: { record_chars: 30000 } } },
 }
-function draftHook() {
+function draftHook(articleDefault?: ArticleSettings) {
   const hook = renderHook(() => useProviderConfigDraft({
-    accountId: 'acct', providers: [], scheduleProbe: vi.fn(), cancelProbe: vi.fn(), disposeProbe: vi.fn(),
+    accountId: 'acct', providers: [], articleDefault, scheduleProbe: vi.fn(), cancelProbe: vi.fn(), disposeProbe: vi.fn(),
   }))
   act(() => hook.result.current.initialize(saved))
   return hook
@@ -31,6 +31,18 @@ describe('the Advanced draft', () => {
     act(() => result.current.useServiceDefaults('article'))
     act(() => result.current.customize('catalog'))
     expect(result.current.draft?.extractionSettings).toEqual({ catalog: REFERENCE_CATALOG })
+  })
+
+  it('Customize uses the explicit deployment default; removing it keeps account omission and other settings', () => {
+    const { result } = draftHook(BOUNDED_ARTICLE)
+    expect(result.current.dirty).toBe(false)
+    expect(result.current.draft?.extractionSettings.article).toBeUndefined()
+    act(() => result.current.customize('article'))
+    expect(result.current.draft?.extractionSettings.article).toEqual(BOUNDED_ARTICLE)
+    expect(result.current.dirty).toBe(true)
+    act(() => result.current.useServiceDefaults('article'))
+    expect(result.current.draft).toEqual(saved)
+    expect(result.current.dirty).toBe(false)
   })
 
   it('an inactive context ceiling left behind by full source is not an unsaved change: Apply would store the saved value', () => {

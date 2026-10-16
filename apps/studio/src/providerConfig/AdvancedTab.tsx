@@ -28,6 +28,8 @@ type Props = {
   onIssueFocused: () => void
   /** The deployment admits new Catalog Extractions on the unified method: its one group replaces Generic and Recipe. */
   unifiedCatalog?: boolean
+  /** Explicit default for future account admissions only; historical input editors omit it. */
+  articleDefault?: ArticleSettings
   /** A pending input editor changes only the current Extraction's strategy. */
   extractionStrategy?: AdvancedStrategy
   /** The unified defaults version shown: an Extraction's own, else the latest that new Extractions use. */
@@ -63,7 +65,7 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
-export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy,
+export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, articleDefault, extractionStrategy,
   unifiedDefaults = UNIFIED_CATALOG_DEFAULTS_VERSION }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
@@ -113,7 +115,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
   }
 
   return (
-    <GuideProvider article={draft.extractionSettings.article} onUseSettings={extractionStrategy==='catalog'?undefined:draftStartingPoint}>
+    <GuideProvider article={draft.extractionSettings.article} articleDefault={articleDefault} onUseSettings={extractionStrategy==='catalog'?undefined:draftStartingPoint}>
       <section ref={root} aria-labelledby={headingId} className="configuration-view advanced-settings flex min-w-0 flex-col gap-2 p-3 sm:p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id={headingId} className="text-[13px] font-bold text-ink">Advanced extraction</h3>
@@ -152,7 +154,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
           </div>
         </div>
         {strategy === 'article'
-          ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
+          ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} articleDefault={articleDefault} />
           : unifiedView
             ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} unifiedDefaults={unifiedDefaults} />
             : <CatalogSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />}
@@ -161,11 +163,11 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
   )
 }
 
-function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
+function ArticleSettingsView({ draft, saved, editor, focusIssue, articleDefault }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue' | 'articleDefault'>) {
   const explicit = draft.extractionSettings.article
   const custom = explicit !== undefined
-  const article = explicit ?? REFERENCE_ARTICLE
-  const changed = changedSections(article, saved.extractionSettings.article)
+  const article = explicit ?? articleDefault ?? REFERENCE_ARTICLE
+  const changed = changedSections(article, saved.extractionSettings.article, articleDefault)
   const issueAt = (key: ArticleKey) => editor.settingsIssues.find((issue) => issue.path === `article.${key}`)?.message ?? null
   const choice = (key: keyof typeof ARTICLE_CHOICES) => (
     <ChoiceGroup key={key} settingKey={key} article={article} custom={custom} error={issueAt(key)}
@@ -203,7 +205,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
     </section>,
   })))
   const options = editor.settingsIssues.some((item) => item.path.startsWith('article.')) ? null :
-    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: explicit ?? null }))
+    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: explicit ?? articleDefault ?? null }))
   const entries = options ? requestEntries(options) : []
   return (
     <SettingsViews label="Article setting" titles={[...pages.map((page) => page.title), 'Effective settings', 'Technical details']}
@@ -211,8 +213,10 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
       {pages.map((page) => page.content)}
       <section className="flex flex-col gap-2">
         <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
-        <p className="text-[12px] text-ink">{effectiveSummary(explicit)}</p>
-        {!custom && <p className="text-[11.5px] text-ink-muted">Service defaults; resolved for the Extraction using each served model’s context size.</p>}
+        <p className="text-[12px] text-ink">{effectiveSummary(explicit, articleDefault)}</p>
+        {!custom && <p className="text-[11.5px] text-ink-muted">{articleDefault
+          ? 'Experimental deployment default; pinned for new Extractions only. Bounded context can change model readings; existing Extractions keep their admitted settings.'
+          : 'Service defaults; resolved for the Extraction using each served model’s context size.'}</p>}
         <p className="text-[11.5px] text-ink-muted">Field and reasoning models follow the Models tab: field values {draft.extractionModels.fields ?? 'deployment default'}, reasoning {draft.extractionModels.reasoning ?? 'deployment default'}.</p>
       </section>
       <section className="text-[11px] text-ink-muted">
