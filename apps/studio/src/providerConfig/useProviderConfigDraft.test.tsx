@@ -141,22 +141,6 @@ describe('the Advanced draft', () => {
     expect(result.current.draft).toEqual(saved)
   })
 
-  it('identity fields are trimmed, exact-case, unique and non-empty', () => {
-    const { result } = draftHook()
-    act(() => result.current.customize('article'))
-    let refused: string | null = null
-    act(() => { refused = result.current.addIdentityField('  Species ') })
-    expect(refused).toBeNull()
-    act(() => { refused = result.current.addIdentityField('Species') })
-    expect(refused).toBe(METHOD_MESSAGES.identityNames)
-    act(() => { refused = result.current.addIdentityField('   ') })
-    expect(refused).toBe(METHOD_MESSAGES.identityNames)
-    expect(result.current.draft?.extractionSettings.article?.identity_fields).toEqual(['Species'])
-    act(() => result.current.setArticle('identity', 'conservative'))
-    act(() => result.current.removeIdentityField('Species'))
-    expect(result.current.settingsIssues).toEqual([{ path: 'article.identity_fields', message: METHOD_MESSAGES.identity }])
-  })
-
   it('replaceArticle replaces the Article number text too; Undo with the prior edits restores it exactly', () => {
     const { result } = draftHook()
     act(() => result.current.customize('article'))

@@ -19,6 +19,7 @@ it.each([
   {strategy:'CATALOG',settings:{recipe:null},recipe:'numbered-catalogue-de@1'},
   {strategy:'CATALOG',settings:{unified:{defaults:1}},recipe:null},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}},recipe:null},
+  {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',identity:'conservative',identity_fields:['Species'],prompt:'schema',selection:'supported',grounding:'spans',grounding_schedule:'unresolved',grounding_routing:'origin_lexical'}},recipe:null},
   {strategy:'CATALOG',settings:{generic:{discovery_chars:8000,record_chars:4000}},recipe:null},
   {strategy:'CATALOG',settings:{recipe:{input_tokens:4096,output_tokens:512,factors:{overlap:false}}},recipe:'numbered-catalogue-de@1'},
   {strategy:'CATALOG',settings:{unified:{defaults:1,input_tokens:8192,output_tokens:1024,overlap:0,headings:false,verification:false}},recipe:null},

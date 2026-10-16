@@ -178,9 +178,10 @@ its contract.
 Omitting `options.article` runs the reference method: the complete source as
 one value context, `semantic` grounding. Setting any option records every
 setting and `method_version: 1` in the fingerprint. Studio sets these options on
-its Model Configuration Advanced tab, where the options of the last two rows are
-read-only. `method.ArticleOptions.coherent` refuses the combinations the last
-column names.
+its Model Configuration Advanced tab. Saved values from the last two rows that
+differ from the reference appear under Additional saved settings, with scoped
+reset actions. `method.ArticleOptions.coherent` refuses the combinations the
+last column names.
 
 | Option | Effect | Requires |
 | --- | --- | --- |
