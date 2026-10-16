@@ -8,7 +8,7 @@ import pg from 'pg'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
 import {
   createKeiHandoff, KEI_APPLICATION, KEI_QUEUE, keiConvertOkSchema, keiConvertWorkflowId, keiDeleteRunsOkSchema,
-  keiNotReady, settleKei, type KeiHandoff, type KeiPoll, type KeiSubmission,
+  keiNotReady, settleKei, type KeiHandoff, type KeiPoll, type KeiConversionSubmission,
 } from './kei-handoff.js'
 import { spawnKeiStandIn, type KeiStandInProcess } from './testing/kei-stand-in-client.js'
 
@@ -58,11 +58,10 @@ after(async () => {
   }
 })
 
-function convertSubmission(workflowId: string, attributes: Record<string, unknown> = {}): KeiSubmission {
+function convertSubmission(workflowId: string, attributes: Record<string, unknown> = {}): KeiConversionSubmission {
   const { enqueue, request } = contract('convert.input')
   return {
-    workflow: 'convert', workflowId, queueName: enqueue.queue_name, priority: enqueue.priority,
-    timeoutMs: enqueue.workflow_timeout_ms, request, authenticatedUser: 'researcher@example.test', attributes,
+    workflowId, lane: enqueue.queue_name, pageCount: 3, request, owner: 'researcher@example.test', attributes,
   }
 }
 
@@ -99,8 +98,8 @@ test('submitting a child twice enqueues one kei workflow on its lane with its pr
   await standIn.policy({ convert: 'hold' })
   const attributes = { projectContextId: randomUUID(), sourceDocumentId: randomUUID() }
   const submission = convertSubmission(ingestChild(), attributes)
-  await handoff.submit(submission)
-  await handoff.submit(submission)
+  await handoff.submitConversion(submission)
+  await handoff.submitConversion(submission)
   await heldFor(submission.workflowId)
   // Listed as a scope's kei work is found: by kei's prefix and the parent's attributes.
   const rows = await client.listWorkflows({ workflow_id_prefix: keiConvertWorkflowId(''), attributes, loadInput: true })
@@ -124,7 +123,7 @@ test('submitting a child twice enqueues one kei workflow on its lane with its pr
 test('a poll returns live within its window while kei works, then the finished output', async () => {
   await standIn.policy({ convert: 'hold' })
   const submission = convertSubmission(ingestChild())
-  await handoff.submit(submission)
+  await handoff.submitConversion(submission)
   await heldFor(submission.workflowId)
   const started = performance.now()
   assert.deepEqual(await handoff.poll(submission.workflowId), { state: 'live' })
@@ -143,7 +142,7 @@ test('a poll returns live within its window while kei works, then the finished o
 test('cancel stops a live kei workflow and leaves a finished one untouched', async () => {
   await standIn.policy({ convert: 'hold' })
   const live = convertSubmission(ingestChild())
-  await handoff.submit(live)
+  await handoff.submitConversion(live)
   await heldFor(live.workflowId)
   await handoff.cancel(live.workflowId)
   assert.equal((await statusOf(live.workflowId)).status, 'CANCELLED')
@@ -157,7 +156,7 @@ test('cancel stops a live kei workflow and leaves a finished one untouched', asy
 
   await standIn.policy({ convert: 'auto' })
   const finished = convertSubmission(ingestChild())
-  await handoff.submit(finished)
+  await handoff.submitConversion(finished)
   assert.equal((await settled(finished.workflowId)).state, 'SUCCESS')
   const before = await statusOf(finished.workflowId)
   await delay(20)
@@ -171,12 +170,12 @@ test('a cancelled child\'s lane stays occupied until its step returns', async ()
   await standIn.policy({ convert: 'hold' })
   const first = convertSubmission(ingestChild())
   const second = convertSubmission(ingestChild())
-  assert.equal(first.queueName, KEI_QUEUE.convertSmall)
-  await handoff.submit(first)
+  assert.equal(first.lane, KEI_QUEUE.convertSmall)
+  await handoff.submitConversion(first)
   await heldFor(first.workflowId)
   await handoff.cancel(first.workflowId)
   assert.equal((await statusOf(first.workflowId)).status, 'CANCELLED')
-  await handoff.submit(second)
+  await handoff.submitConversion(second)
   // kei-convert-small has one slot per worker, counted from the steps still running, not from PENDING rows.
   for (let read = 0; read < 8; read += 1) {
     await delay(150)
@@ -196,7 +195,7 @@ test('submitting before kei has migrated its schema fails with a kei-not-ready e
     systemDatabaseUrl: databaseUrl, systemDatabaseSchemaName: unmigratedSchema, applicationName: KEI_APPLICATION,
   })
   try {
-    const error = await createKeiHandoff(unmigrated).submit(convertSubmission(ingestChild())).then(
+    const error = await createKeiHandoff(unmigrated).submitConversion(convertSubmission(ingestChild())).then(
       () => assert.fail('The submission reached a schema kei never migrated.'),
       (reason: unknown) => reason,
     )
@@ -210,7 +209,7 @@ test('a convert fixture request converts on the lane named in its fixture and re
   await standIn.policy({ convert: 'auto' })
   const { enqueue, request } = contract('convert.input')
   const submission = convertSubmission(ingestChild())
-  await handoff.submit(submission)
+  await handoff.submitConversion(submission)
   const outcome = settleKei(await settled(submission.workflowId), keiConvertOkSchema)
   assert.ok(outcome.ok, JSON.stringify(outcome))
   assert.equal((await statusOf(submission.workflowId)).queueName, enqueue.queue_name)
@@ -232,7 +231,7 @@ test('a failure policy answers kei\'s typed failure, and kei\'s read routes list
   const failure = { code: 'source_unreadable', reason: 'the PDF could not be opened', retryable: false } as const
   await standIn.policy({ convert: { failure } })
   const submission = convertSubmission(ingestChild())
-  await handoff.submit(submission)
+  await handoff.submitConversion(submission)
   assert.deepEqual(settleKei(await settled(submission.workflowId), keiConvertOkSchema), { ok: false, ...failure })
   await standIn.policy({ convert: 'auto' })
 
@@ -257,12 +256,12 @@ test('a failure policy answers kei\'s typed failure, and kei\'s read routes list
 test('a deleteRuns request reaches the stand-in on kei-gc, is recorded, and deletes only settled history', async () => {
   await standIn.policy({ convert: 'auto' })
   const converted = convertSubmission(ingestChild())
-  await handoff.submit(converted)
+  await handoff.submitConversion(converted)
   const conversion = settleKei(await settled(converted.workflowId), keiConvertOkSchema)
   assert.ok(conversion.ok, JSON.stringify(conversion))
   await standIn.policy({ convert: 'hold' })
   const live = convertSubmission(ingestChild())
-  await handoff.submit(live)
+  await handoff.submitConversion(live)
   await heldFor(live.workflowId)
 
   const request = { conversions: [converted.workflowId, live.workflowId], history: [] }
