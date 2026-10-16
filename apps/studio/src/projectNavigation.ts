@@ -71,7 +71,7 @@ const sourceArtifactUnavailable: Failure = {
   message: 'The retained Source Document artifact is unavailable.',
 }
 
-type Deps = { push(route: NavigableRoute): void }
+type Deps = { push(route: NavigableRoute): void; replace(route: NavigableRoute): void }
 type Context = {
   deps: Deps
   route: Route
@@ -80,7 +80,7 @@ type Context = {
   failure: Failure | null
 }
 type Event =
-  | { type: 'NAVIGATE'; route: NavigableRoute }
+  | { type: 'NAVIGATE'; route: NavigableRoute; replace?: boolean; fromExtractionId?: string }
   | { type: 'ROUTE_CHANGED'; route: Route }
   | { type: 'RETRY' }
   | { type: 'SOURCE_REPROCESSED' }
@@ -256,7 +256,10 @@ export const navigationMachine = setup({
         : {},
     ),
     pushRoute: ({ context, event }) => {
-      if (event.type === 'NAVIGATE') context.deps.push(event.route)
+      if (event.type === 'NAVIGATE') {
+        if(event.replace)context.deps.replace(event.route)
+        else context.deps.push(event.route)
+      }
     },
     closeDocument: assign({ snapshot: null, failure: null }),
     clearFailure: assign({ failure: null }),
@@ -285,6 +288,10 @@ export const navigationMachine = setup({
       target: '.opening',
     },
     NAVIGATE: {
+      // Admission may answer after a newer navigation, before that document's reopen finishes.
+      guard:({context,event})=>!event.fromExtractionId||(context.route.kind==='document'&&event.route.kind==='document'&&
+        context.route.projectContextId===event.route.projectContextId&&context.route.sourceDocumentId===event.route.sourceDocumentId&&
+        context.route.extractionId===event.fromExtractionId),
       target: '.routing',
       actions: [{ type: 'pushRoute' }, { type: 'setRoute' }],
     },
@@ -380,5 +387,7 @@ export function browserNavigationDeps(): Deps {
   return {
     push: (route) =>
       history.pushState(null, '', browserStudioPath(href(route))),
+    replace: (route) =>
+      history.replaceState(null, '', browserStudioPath(href(route))),
   }
 }

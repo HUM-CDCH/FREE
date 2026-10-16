@@ -26,6 +26,7 @@ import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
 import { createDurableReader, useKeyedController, type ControlReceipt } from './durableReader'
+import { ExtractionControl } from './ExtractionControl'
 import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
@@ -140,6 +141,9 @@ export type DocumentWorkspaceProps = {
   routedValue?: { extractionId: string | null; key: string } | null
   /** Opens an Extraction, on `reviewCut` when one is named (a finalized review). */
   onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => void
+  onExtractionAdmitted?: (extractionId: string, fromExtractionId?: string) => void
+  /** The current address's explicit Extraction pin, captured when a new Run starts. */
+  routeExtractionId?: string
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
   /** A run was refused because reprocessing superseded this Source Representation: read the document again, and
@@ -188,6 +192,8 @@ export function DocumentWorkspace({
   persistedReviewCut = null,
   routedValue = null,
   onOpenExtraction,
+  onExtractionAdmitted,
+  routeExtractionId,
   onInitialResourceLoadFailure,
   onSourceSuperseded,
   tabBarSlot = null,
@@ -286,6 +292,7 @@ export function DocumentWorkspace({
   // finished reaches onTerminal inside that await), then `pendingReportRef` by its identity.
   const pendingReportRef = useRef<string | null>(null)
   const admittingRef = useRef(false)
+  const admissionOrigin=useRef<string|undefined>(undefined)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -685,6 +692,7 @@ export function DocumentWorkspace({
       pendingReportRef.current = extractionId
       showToast(ADMISSION_UNCERTAIN, { durationMs: 6000 })
     },
+    onAdmitted: (attempt)=>onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current),
   })
 
   /** The boundaries choice is one-shot: once a run is acknowledged or ends, the next one returns to model discovery. A
@@ -701,6 +709,8 @@ export function DocumentWorkspace({
       ? {
           schemaRevisionId: acknowledgedRevision.schemaRevisionId,
           revisionNumber: acknowledgedRevision.revisionNumber,
+          extractionSchemaId: acknowledgedRevision.extractionSchemaId,
+          recordScope: acknowledgedRevision.recordScope,
         }
       : null,
     [acknowledgedRevision],
@@ -807,6 +817,7 @@ export function DocumentWorkspace({
    *  re-reads once and retries; a second refusal starts nothing. A failed admission leaves the revision saved. */
   async function runExtraction() {
     if (savingForRun || !extraction.canRun || !sourceRepresentationCurrent) return
+    admissionOrigin.current=routeExtractionId
     setSavingForRun(true)
     setRailOpen(true)
     setRailTab('results')
@@ -1020,16 +1031,7 @@ export function DocumentWorkspace({
                     <Button variant="outline-danger" size="md" disabled={controlling} title="Stop the extraction; its saved values and decisions stay"
                       onClick={() => void controlExtraction('stop')}>■ Stop</Button>
                   )}
-                  <Button
-                    variant={control.action === 'resume' || control.action === 'retry' ? 'positive' : 'secondary'}
-                    size="md"
-                    className="min-w-43 justify-center tabular-nums"
-                    disabled={controlling || control.action === null}
-                    title={control.action === 'pause' ? 'Pause after the calls in flight; their work is saved' : undefined}
-                    onClick={() => control.action && void controlExtraction(control.action)}
-                  >
-                    {control.label}
-                  </Button>
+                  <ExtractionControl reader={latestReader} control={control} busy={controlling} onCommand={action=>void controlExtraction(action)}/>
                 </>
               ) : (
                 <Button

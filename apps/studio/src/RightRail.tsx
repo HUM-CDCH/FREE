@@ -10,6 +10,7 @@ import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
+import type { CurrentResultSchema } from './resultSchema'
 import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
 import type { ExtractionController } from './useExtraction'
@@ -42,7 +43,7 @@ type RightRailProps = {
   /** The latest Extraction's reader: the banner reports its connection once admission is settled. */
   latestReader?: DurableReader | null
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
-  currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
+  currentSchemaRevision: CurrentResultSchema | null
   /** Why the tab strip's Run cannot start now (its disabled title); Results' empty state says it. */
   runUnavailableReason?: string | null
   sourceDocumentName: string
@@ -240,6 +241,7 @@ function RightRail({
 
       {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. Mounted only
           while open, so expanding announces its alert. */}
+      {open&&shown&&(extraction.admitting||extraction.retryAdmission)&&<p role="status" className="m-0 shrink-0 border-b border-line px-3 py-2 text-compact text-ink-muted">A new extraction has not been acknowledged yet. These are previous results.</p>}
       {open && statusError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
         <p role="alert" className="m-0 text-compact text-danger">{statusError}</p>
         <div className="flex flex-wrap gap-2">
@@ -276,7 +278,9 @@ function RightRail({
           initialCut={inspection.cut}
           document={parsedDocument}
           documentRevisionId={sourceRepresentationId}
-          currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
+          currentSchema={currentSchemaRevision}
+          onSchema={()=>onTabChange('schema')}
+          controlled={shown.extractionId===extraction.attempt?.extractionId}
           sourceDocumentName={sourceDocumentName}
           readOnly={inspection.readOnly}
           onEvidence={selectNativeEvidence}

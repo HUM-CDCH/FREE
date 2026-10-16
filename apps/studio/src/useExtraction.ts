@@ -48,6 +48,8 @@ type UseExtractionOptions = {
   onInProgress?: (message: string, extractionId: string) => void
   /** The POST may have committed; its identity stays reserved until the monitor reconciles it. */
   onAdmissionUncertain?: (extractionId: string) => void
+  /** A new admission was acknowledged, immediately or by reconnecting the original request. */
+  onAdmitted?: (attempt: ExtractionAttempt) => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /** Identifies which Source Document `initialAttempt` belongs to: `attempt` is reseeded whenever it changes. */
@@ -109,6 +111,7 @@ export function useExtraction({
   onMethodChanged,
   onInProgress,
   onAdmissionUncertain,
+  onAdmitted,
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
@@ -125,6 +128,8 @@ export function useExtraction({
   const startedRef = useRef<{ extractionId: string; isRerun: boolean } | null>(null)
   const onTerminalRef = useRef(onTerminal)
   useEffect(() => { onTerminalRef.current = onTerminal })
+  const onAdmittedRef=useRef(onAdmitted)
+  useEffect(()=>{onAdmittedRef.current=onAdmitted})
 
   /** Admission and the durable reader share this transition check, so one terminal transition is announced once. */
   const acceptAttempt = useCallback((next: ExtractionAttempt, isRerun: boolean) => {
@@ -171,6 +176,7 @@ export function useExtraction({
       monitorRef.current = null
       setUnansweredAdmission(false)
       acceptAttempt(extraction, monitor.isRerun)
+      onAdmittedRef.current?.(extraction)
     } catch (error) {
       if (!live()) return
       monitor.paused = true
@@ -268,6 +274,7 @@ export function useExtraction({
       monitorRef.current = null
       setUnansweredAdmission(false)
       acceptAttempt(seed, isRerun)
+      onAdmittedRef.current?.(seed)
       return seed
     }
     onAdmissionUncertain?.(monitor.extractionId)

@@ -195,7 +195,7 @@ function reopenController(initialRoute: Route = { kind: 'root' }) {
         ),
       },
     }),
-    { input: { deps: { push }, initialRoute } },
+    { input: { deps: { push,replace:vi.fn() }, initialRoute } },
   )
   actor.start()
   // Every read is gated on the rail branch proving containment; these tests are
@@ -476,8 +476,9 @@ describe('routed Source Document opening', () => {
 describe('project navigation machine', () => {
   it('pushes navigation and accepts back/forward route changes without pushing', () => {
     const push = vi.fn()
+    const replace=vi.fn()
     const actor = createActor(navigationMachine, {
-      input: { deps: { push }, initialRoute: { kind: 'root' } },
+      input: { deps: { push,replace }, initialRoute: { kind: 'root' } },
     })
     actor.start()
 
@@ -493,7 +494,7 @@ describe('project navigation machine', () => {
     actor.send({ type: 'ROUTE_CHANGED', route: { kind: 'root' } })
     expect(push).toHaveBeenCalledOnce()
     expect(actor.getSnapshot().context).toEqual({
-      deps: { push },
+      deps: { push,replace },
       route: { kind: 'root' },
       snapshot: null,
       failure: null,

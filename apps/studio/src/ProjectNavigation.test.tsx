@@ -41,6 +41,7 @@ vi.mock('./savedMethod', async (importOriginal) => ({
 }))
 // The developer evaluation panel is off unless FREE_DEVELOPER_EVAL is set; its read stays out of these fetch counts.
 vi.mock('./projectContexts/evaluationRounds', () => ({ readEvaluationRounds: async () => null }))
+const delayedAdmission=vi.hoisted(()=>({finish:null as null|(()=>void)}))
 
 vi.mock('./App', () => ({
   default: ({
@@ -57,6 +58,8 @@ vi.mock('./App', () => ({
     onInitialResourceLoadFailure,
     onSourceSuperseded,
     onReviewFinalized,
+    onExtractionAdmitted,
+    routeExtractionId,
   }: DocumentWorkspaceProps) => (
     <>
       <p>
@@ -93,6 +96,12 @@ vi.mock('./App', () => ({
       </button>
       <button type="button" onClick={onReviewFinalized}>
         Finalize a review
+      </button>
+      <button type="button" onClick={()=>onExtractionAdmitted?.('51000000-0000-4000-8006-000000000099',routeExtractionId)}>
+        Acknowledge a new extraction
+      </button>
+      <button type="button" onClick={()=>{delayedAdmission.finish=()=>onExtractionAdmitted?.('51000000-0000-4000-8006-000000000099',routeExtractionId)}}>
+        Delay extraction acknowledgement
       </button>
     </>
   ),
@@ -2357,6 +2366,56 @@ describe('routed Source Document reopening', () => {
     expect(
       await screen.findByText(/place.*COMPLETED/),
     ).toBeInTheDocument()
+  })
+
+  it('replaces an old Extraction address after new admission and reloads the new one', async () => {
+    const oldId='51000000-0000-4000-8006-000000000001',newId='51000000-0000-4000-8006-000000000099'
+    const batchId='51000000-0000-4000-8007-000000000001'
+    const rest=studioFetch(),reopens:string[]=[]
+    history.replaceState(null,'',`${documentPath()}?extractionId=${oldId}&snapshotVersion=1&feedbackVersion=0&value=old-value&fromBatchExtractionId=${batchId}`)
+    const reads=vi.fn(async(input:RequestInfo|URL)=>{
+      const url=String(input)
+      if(!url.includes('/reopen'))return rest(input)
+      reopens.push(url)
+      const data=hydratedSnapshot()
+      return Response.json({...data,latestAttempt:{...data.latestAttempt,extractionId:url.includes(newId)?newId:oldId}})
+    })
+    renderRoutes(reads)
+    await screen.findByTestId('workspace-result')
+    const historyLength=history.length
+    fireEvent.click(screen.getByRole('button',{name:'Acknowledge a new extraction'}))
+    await waitFor(()=>expect(new URLSearchParams(location.search).get('extractionId')).toBe(newId))
+    expect(history.length).toBe(historyLength)
+    expect(new URLSearchParams(location.search).get('fromBatchExtractionId')).toBe(batchId)
+    for(const key of ['snapshotVersion','feedbackVersion','value'])expect(new URLSearchParams(location.search).has(key)).toBe(false)
+    await waitFor(()=>expect(screen.getByTestId('workspace-result')).toHaveTextContent(newId))
+    cleanup()
+    renderRoutes(reads)
+    await waitFor(()=>expect(screen.getByTestId('workspace-result')).toHaveTextContent(newId))
+    expect(reopens.at(-1)).toMatch(new RegExp(`/reopen\\?extractionId=${newId}$`))
+  })
+
+  it('keeps a later history navigation when an earlier new admission resolves before its reopen',async()=>{
+    const oldId='51000000-0000-4000-8006-000000000001',chosenId='51000000-0000-4000-8006-000000000088'
+    const later=Promise.withResolvers<Response>(),rest=studioFetch()
+    history.replaceState(null,'',`${documentPath()}?extractionId=${oldId}`)
+    const reads=vi.fn(async(input:RequestInfo|URL)=>{
+      const url=String(input)
+      if(!url.includes('/reopen'))return rest(input)
+      if(url.includes(chosenId))return later.promise
+      return Response.json(hydratedSnapshot())
+    })
+    renderRoutes(reads)
+    await screen.findByTestId('workspace-result')
+    fireEvent.click(screen.getByRole('button',{name:'Delay extraction acknowledgement'}))
+    back(`${documentPath()}?extractionId=${chosenId}`)
+    await waitFor(()=>expect(reads.mock.calls.some(([input])=>String(input).includes(`/reopen?extractionId=${chosenId}`))).toBe(true))
+    delayedAdmission.finish?.()
+    delayedAdmission.finish=null
+    expect(new URLSearchParams(location.search).get('extractionId')).toBe(chosenId)
+    const next=hydratedSnapshot()
+    later.resolve(Response.json({...next,latestAttempt:{...next.latestAttempt,extractionId:chosenId}}))
+    await waitFor(()=>expect(screen.getByTestId('workspace-result')).toHaveTextContent(chosenId))
   })
 
   it('tells the workspace whether its Source Representation is current, per reopen', async () => {
