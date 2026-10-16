@@ -653,6 +653,13 @@ queue.
       calls, up to that many per role at once. A run that is not durable
       waits on every call, so it reads that many windows and entries at once
       on threads.
+    - **A finished entry is read once per phase.** An entry whose record a
+      round saved is kept in the planning process with the attempt's kept
+      counts (`tokens.compiled`): later rounds list it without repeating its
+      capture lookups, checks and publication. Discovery's completion is
+      another phase (verification), so those entries are read again; dropped
+      counts, another served tokenizer or a fresh process read them again
+      too. Nothing kept is authoritative: the saved replies are.
 - **Read API.** Five routes, with their path confinement and manifest, page
   and hash checks. Saved Extraction values are never served here.
   - `GET /api/models` (Compose health);
