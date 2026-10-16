@@ -200,6 +200,59 @@ def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path
     assert len(chat.calls)==count
 
 
+@pytest.mark.parametrize("method", ["article", "generic", "recipe", "unified"])
+@pytest.mark.parametrize("boolean", [False, True])
+def test_boolean_results_keep_their_typed_review_value_and_evidence_state(tmp_path, method, boolean):
+    """#161: legacy grounding claims omit booleans; durable review still receives every saved boolean."""
+    tree = {"recordDescription": "One source record", "schemaNodes": [
+        {"id": "selected", "name": "selected", "type": "boolean"}]}
+    claim = "Selected" if boolean else "Not selected"
+    if method == "recipe":
+        directory = catalogue.write("two-in-one-segment", tmp_path)
+        request = run.ExtractRequest.model_validate({"schema": tree, "options": {
+            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}})
+        chat = CountingChat(lambda _system, user, _schema: {"selected": {
+            "value": boolean, "quote": "Urne" if "Urne" in user else "Axt", "key": None,
+            "provenance": "positional"}})
+        extract = lambda router, counter: run.extract(directory, request, router, counter=counter)
+    elif method == "unified":
+        source = unified_evidence(f"1. Hill. {claim}.", f"2. Valley. {claim}.")
+        request = unified_request(tree)
+        chat = CountingChat(Model(source, entry=lambda *_: {"selected": {"value": boolean, "quote": claim}}))
+        extract = lambda router, counter: run.dispatch(None, source, request, router, counter=counter)
+    else:
+        source = evidence(passages([f"1. Hill. {claim}.", f"2. Valley. {claim}."]))
+        request = run.ExtractRequest.model_validate({"schema": tree, "options": {
+            "strategy": "article" if method == "article" else "catalog"}})
+
+        def answer(system, user, schema):
+            if "record boundaries" in system:
+                return {"starts": ["B1", "B2"], "end": None}
+            if "### Claims" in user:
+                return {key: {"label": "NONE", "attribution": False} for key in schema["properties"]}
+            return {"selected": boolean}
+
+        chat = CountingChat(answer)
+        extract = lambda router, counter: run.dispatch(None, source, request, router,
+                                                       counter={"fields": counter, "reasoning": counter})
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    result = finish(lease, chat, extract)
+    final_values = [value for publication in lease.publications.values()
+                    if publication["coverage"].get("processingComplete") is True
+                    for value in publication["values"]]
+    assert final_values
+    if method == "recipe":
+        # Recipe yes/no candidates remain proposals, as its span rules require. Do not invent a saved value.
+        assert all(value["modelValue"] is None and value["processing"] == "absent" for value in final_values)
+        assert result["proposed"] and all(proposal["value"] is boolean for proposal in result["proposed"])
+    else:
+        assert all(value["modelValue"] is boolean and value["processing"] == "saved" for value in final_values)
+        assert all(value["grounding"] == ("grounded" if method == "unified" else "ungrounded")
+                   and bool(value["evidence"]) is (method == "unified") for value in final_values)
+        if method != "unified":
+            assert result["evidence"] == [] and result["ungrounded"] == []
+
+
 def linked_while_running(lease):
     """Each value's Evidence as published before, and with, the final publication."""
     linked=lambda complete: {value["id"]:value["evidence"] for publication in lease.publications.values()
