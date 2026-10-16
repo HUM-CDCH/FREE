@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Transform the workflow dependency graph during collection, before a timed test can leave an import in flight.
+// resetModules below still gives every test a fresh workflow registration state.
+import './workflows.js'
 
 const registerWorkflow = vi.hoisted(() =>
   vi.fn<(workflow: unknown, config?: { name?: string }) => unknown>(
