@@ -907,15 +907,23 @@ describe('ProviderConfigPage', () => {
 })
 
 const openAdvanced = () => fireEvent.click(screen.getByRole('tab', { name: 'Advanced' }))
+/** Check the labelled native select once, instead of scanning every retained, hidden settings view. */
+function settingsSelector(): HTMLSelectElement {
+  const article = screen.getByLabelText<HTMLInputElement>('Article', { selector: 'input' }).checked
+  const selector = screen.getByLabelText<HTMLSelectElement>(article ? 'Article setting' : 'Catalog setting', { selector: 'select' })
+  expect(selector).toBeVisible()
+  return selector
+}
+
 function setting(title: string) {
-  const selector = screen.getByRole('combobox', { name: (screen.getByRole('radio', { name: 'Article' }) as HTMLInputElement).checked ? 'Article setting' : 'Catalog setting' })
-  const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.endsWith(`: ${title}`)) as HTMLOptionElement
+  const selector = settingsSelector()
+  const option = Array.from(selector.options).find((option) => option.textContent === title || option.textContent?.endsWith(`: ${title}`))
   if (!option) throw new Error(`No setting named ${title}`)
   fireEvent.change(selector, { target: { value: option.value } })
 }
 const openSection = (title: string) => {
-  const selector = screen.getByRole('combobox', { name: (screen.getByRole('radio', { name: 'Article' }) as HTMLInputElement).checked ? 'Article setting' : 'Catalog setting' })
-  const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.startsWith(`${title}: `)) as HTMLOptionElement
+  const selector = settingsSelector()
+  const option = Array.from(selector.options).find((option) => option.textContent === title || option.textContent?.startsWith(`${title}: `)) as HTMLOptionElement
   fireEvent.change(selector, { target: { value: option.value } })
 }
 const radio = (group: string, name: string) => {
