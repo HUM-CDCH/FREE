@@ -38,15 +38,25 @@ settle what it can.
   of a cited study); equal items those places do not tell apart are kept. For a scalar it answers a reading, NONE (no reading is
   the document's own, including when the opening states a value no reading
   matches) or UNSURE. For a list it answers every item with the work or entity
-  its source gives the item to, copied as printed (`of`, empty when none is),
-  then its label: OWN, OTHER (another work's or entity's item), UNSURE (the
-  item's own abstention; since version 14 a list has none of its own) or
-  REPEAT, offered only for an item equal to another in its list: the same
-  thing printed again (a running header, a repeated byline), which leaves only
-  beside an equal item labelled OWN (that copy stays) or OTHER (a repeat of
-  another work's item is that work's too). **An item labelled OTHER leaves only
-  when its `of` is printed in the part it was read from** (whole words, case
-  and spacing aside); otherwise it stays, and it and every UNSURE item are
+  its source gives the item to, copied as printed, the shortest excerpt that
+  names it (`of`, empty when none is), then its label: OWN, OTHER (another
+  work's or entity's item), UNSURE (the item's own abstention; since version 14
+  a list has none of its own) or REPEAT, offered only for an item equal to
+  another in its list or, since version 15, for a string that is a form of
+  exactly one earlier value in its list part (`_form_of`: the same words case,
+  accents and punctuation aside, or that value shortened, its last word kept,
+  its first kept or cut to its initial, at least one word cut: a running
+  header's "A. LOVELACE" after the byline's "Ada B. Lovelace"), marked as such;
+  the earlier value is never offered REPEAT for it, so the byline keeps its
+  place. REPEAT is the same thing printed again (a running header, a repeated
+  byline), which leaves only beside an equal item, or the earlier value a form
+  is of, labelled OWN (that copy stays) or OTHER (a repeat of another work's
+  item is that work's too). **An item labelled OTHER leaves only when its
+  `of` is printed in the part it was read from** (whole words, case and spacing
+  aside; since version 15 an `of` that reached its 100-character limit only up
+  to its last word, after a trailing comma, period, colon or semicolon, which
+  may be a printed word's first letters when it and they are letters only);
+  otherwise it stays, and it and every UNSURE item are
   named for review (`uncertain_items`, at their kept indices, with the label
   and `of` given). A bare label decided too much: on the PR #275 corpus the
   first own item's call was a near-tie (P(OTHER) 0.55 to 0.73, thinking off),
@@ -77,23 +87,34 @@ settle what it can.
   items do not fit one request, so it is never left unresolved for its
   length alone (version 13); a repeat across those parts is
   kept and stays named (`possible_repeated_items`, at its kept indices), since
-  its copies were never shown together.
+  its copies were never shown together. A form and its earlier value in
+  different list parts are never compared: the form stays, unnamed.
 
 ## Consequences
 
 - `ARTICLE_VERSION` 12, 13 for token-sized list parts and repeats of
-  OTHER items, and 14 for attributed list answers (version 10 adds the context fallback). Replays of earlier
-  artifacts (`fixed_upstream`) skip resolution, which they did not make. A version 12 or 13 artifact is refused
-  and must be run again: version 13 sizes, counts and decides its list parts differently, and version 14 asks and
-  decides list items differently.
-- What the runtime guarantees: an item leaves only labelled OTHER with an `of` printed in its part, or as a
-  REPEAT beside an equal item labelled OWN or OTHER (never beside UNSURE alone); every item that leaves is in
+  OTHER items, 14 for attributed list answers, and 15 for cut attributions and forms (version 10 adds the context
+  fallback). Replays of earlier artifacts (`fixed_upstream`) skip resolution, which they did not make. A version 12,
+  13 or 14 artifact is refused and must be run again: version 13 sizes, counts and decides its list parts
+  differently, and versions 14 and 15 each ask and decide list items differently. Saved snapshots and captured calls
+  are never rewritten: an unchanged request reuses its capture, a changed resolution request is captured anew, and a
+  planning result already checkpointed keeps the behaviour it was recorded with.
+- Version 15 came from an Article QA run read in three parts: the byline's authors were kept, and so were the
+  first author's running-header initials (REPEAT was offered only to equal items) and a cited reference's three
+  authors, labelled OTHER with an `of` that reached the 100-character limit and ended in a mark the source does not
+  print there.
+- What the runtime guarantees: an item leaves only labelled OTHER with an `of` printed in its part (one at its
+  length limit: up to its last word), or as a REPEAT beside an equal item, or the one earlier value it is a form
+  of, labelled OWN or OTHER (never beside UNSURE alone); every item that leaves is in
   `dropped_items` with its `of`, and every OTHER item kept and every UNSURE item is in `uncertain_items`. What
   rests on the model's judgment: whose a printed work is. The guard checks only that the work is printed in the
   item's part, not that it is this item's, so an own item given a neighbouring item's citation, the document's
   own title printed in a running header, or a borrowed method's citation leaves when labelled OTHER. A printed
   citation is never evidence that an item is another's; another work's item whose part does not print its work
-  stays, marked for review. Each list item's answer
+  stays, marked for review. At its length limit an `of` whose last word is the start of a printed one counts as
+  printed, so "Smith" there names "Smithson". Whether a form is its earlier value printed again or another
+  person with the same initial is the model's call; an earlier value labelled OTHER anchors its form even when its
+  own attribution failed and it stays, marked. Each list item's answer
   reserves room for its `of`, so list parts hold fewer items.
 - A run read in one call is unchanged: one part, nothing to resolve.
 - Review shows `uncertain_items`, `dropped_items` and `resolved_value` from the run's completion snapshot

@@ -66,7 +66,10 @@ PROMPT_VERSION = 15
 # repeat beside an equal item labelled another's leaves with it.
 # 14: a list item's answer names the work its source gives it to before its label; another's item leaves only where
 # its part prints that work, and an item kept unsettled (UNSURE, or another's without it) is named for review.
-ARTICLE_VERSION = 14
+# 15: an `of` that reached its length limit is printed up to its last word, which may be cut; a string item printed
+# again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
+# `of` is asked as the shortest excerpt naming the work.
+ARTICLE_VERSION = 15
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
