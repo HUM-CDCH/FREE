@@ -67,6 +67,36 @@ def test_frozen_lease_rejects_unknown_or_changed_plan(frozen, changed):
     assert not lease.visited_plans
 
 
+def test_a_new_derived_prefix_plan_does_not_supply_an_unknown_reply(frozen):
+    frozen["state"]["source"] = {"generation": "generation-1"}
+    lease = replay.FrozenLease(frozen)
+    manifest = {"plannerVersion": 1, "selectionId": "selection-1", "sourceGeneration": "generation-1",
+                "units": [{"scope": ["source-range"]}], "coverage": {}}
+    stage = "unified-prefix:synthetic-attempt:1"
+    saved = lease.call("publish_plan", "new-id", stage, manifest)
+    assert saved == {"digest": replay.digest(manifest), "manifest": manifest}
+    assert lease.visited_plans[stage] == saved["digest"]
+    with pytest.raises(replay.ReplayMismatch, match="unknown or changed frozen request"):
+        lease.call("capture_unit", "new-id", "unknown-entry", {"stage": "entry"})
+
+
+@pytest.mark.parametrize("change", ["attempt", "count", "selection", "generation"])
+def test_a_new_prefix_plan_still_checks_its_identity(frozen, change):
+    frozen["state"]["source"] = {"generation": "generation-1"}
+    lease = replay.FrozenLease(frozen)
+    stage = "unified-prefix:synthetic-attempt:1"
+    manifest = {"plannerVersion": 1, "selectionId": "selection-1", "sourceGeneration": "generation-1",
+                "units": [{"scope": ["source-range"]}], "coverage": {}}
+    if change == "attempt":
+        stage = "unified-prefix:different-attempt:1"
+    elif change == "count":
+        stage = "unified-prefix:synthetic-attempt:2"
+    else:
+        manifest["selectionId" if change == "selection" else "sourceGeneration"] = "different"
+    with pytest.raises(replay.ReplayMismatch, match="unknown or changed frozen plan"):
+        lease.call("publish_plan", "new-id", stage, manifest)
+
+
 def test_frozen_lease_never_finalizes_or_recomposes_saved_input(frozen):
     lease = replay.FrozenLease(frozen)
     saved = copy.deepcopy(frozen["captures"][0]["input"])

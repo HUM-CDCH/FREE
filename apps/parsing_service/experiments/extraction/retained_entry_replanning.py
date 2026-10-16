@@ -2,7 +2,9 @@
 
 The fixture uses collect_planning_fixture.sql's shape: state/effective/plans/captures,
 including exact finalized inputs and checkpoints. Canonical result/pages are supplied
-separately. Unknown requests, descriptors, plans and tokenizer observations fail.
+separately. Unknown requests, descriptors, call plans and tokenizer observations fail.
+A different completion schedule may materialize a new derived prefix-scope plan;
+that contains no model request/reply and is compared in full between variants.
 Only --collect-tokenize permits network access, and only to /tokenize via explicitly
 provided routes; replay itself uses saved observations. This is planning replay, not
 end-to-end extraction, new-input composition, or a reproduction of a historical speedup.
@@ -93,6 +95,17 @@ class FrozenLease:
         if name == "publish_plan":
             _, stage, manifest = args
             saved = self.plans.get(stage)
+            prefix = f"unified-prefix:{self.attempt}:"
+            if saved is None and stage.startswith(prefix):
+                # A schedule can expose a prefix size not reached in the captured
+                # run. This is a derived scope manifest, never a fabricated reply.
+                count = stage[len(prefix):]
+                if (count.isdecimal() and int(count) == len(manifest.get("units", []))
+                        and manifest.get("plannerVersion") == 1
+                        and manifest.get("selectionId") == self.state["selection"]["id"]
+                        and manifest.get("sourceGeneration") == self.state.get("source", {}).get("generation")):
+                    saved = {"digest": digest(manifest), "manifest": copy.deepcopy(manifest)}
+                    self.plans[stage] = saved
             if saved is None or saved["manifest"] != manifest:
                 raise ReplayMismatch("unknown or changed frozen plan: " + stage)
             self.visited_plans[stage] = saved["digest"]
