@@ -53,9 +53,9 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
           packageStore,
           kei: {
             ...kei,
-            async submit(submission) {
+            async submitConversion(submission) {
               if (firstRun && mode === 'kill-before-submit') process.kill(process.pid, 'SIGKILL')
-              await kei.submit(submission)
+              await kei.submitConversion(submission)
             },
           },
           storeFor: (account) =>

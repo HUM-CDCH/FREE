@@ -11,11 +11,11 @@ export const KEI_QUEUE = {
 } as const
 export const KEI_PRIORITY = { interactive: 1, batch: 10 } as const
 /** A conversion lane runs one job at a time, so every conversion goes at one constant priority (kei refuses 0). */
-export const CONVERSION_PRIORITY = KEI_PRIORITY.interactive
+const CONVERSION_PRIORITY = KEI_PRIORITY.interactive
 /** At most this many pages convert on kei-convert-small, beside a book on kei-convert-large (decision 14). */
 export const SMALL_DOCUMENT_PAGES = 30
 /** kei's page limit (KEI_MAX_PAGES): the budget of a PDF whose pages pdf.js could not count. */
-export const UNCOUNTED_PAGE_BUDGET = 2000
+const UNCOUNTED_PAGE_BUDGET = 2000
 const CONVERT_PREFIX = 'kei-convert:'
 export const DELETE_RUNS = 'deleteRuns'
 export const GC_PREFIX = 'kei-gc:'
@@ -39,7 +39,7 @@ export function conversionLane(pages: number | null): ConversionLane {
 }
 
 /** M0R 4: max(10 min, 60 s + 18.9 s × pages), provisional until the ~2000-page Spark run. */
-export function conversionTimeoutMs(pages: number | null): number {
+function conversionTimeoutMs(pages: number | null): number {
   return Math.max(600_000, 3 * (20_000 + 6_300 * (pages ?? UNCOUNTED_PAGE_BUDGET)))
 }
 
@@ -83,14 +83,14 @@ export type KeiDeleteRunsInput = z.infer<typeof keiDeleteRunsInputSchema>
 export type KeiDeleteRunsOk = z.infer<typeof keiDeleteRunsOkSchema>
 export type KeiFailureCode = (typeof KEI_FAILURE_CODES)[number]
 
-export type KeiSubmission = Readonly<{
-  workflow: 'convert'
+export type KeiConversionSubmission = Readonly<{
   workflowId: string
-  queueName: string
-  priority: number
-  timeoutMs: number
+  /** Pinned at admission; never recomputed from pageCount during recovery. */
+  lane: ConversionLane
+  /** The admitted page count, used only to budget the conversion's timeout. */
+  pageCount: number | null
   request: KeiConvertInput
-  authenticatedUser: string
+  owner: string
   /** The parent's attributes, so a scope's kei work is found like its Studio work. */
   attributes: Readonly<Record<string, unknown>>
 }>
@@ -101,7 +101,7 @@ export type KeiPoll =
   | { state: 'ERROR' | 'CANCELLED' | 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'; deadlinePassed: boolean }
 export type KeiHandoff = Readonly<{
   /** Enqueues the child; reusing its deterministic ID returns the existing workflow in every state (M0 #1). */
-  submit(submission: KeiSubmission): Promise<void>
+  submitConversion(submission: KeiConversionSubmission): Promise<void>
   /** Reads the child every pollIntervalMs for at most pollWindowMs (M0 #2); an aborted signal rejects at once. */
   poll(workflowId: string, signal?: AbortSignal): Promise<KeiPoll>
   /** Cancels the child only while it is live: a repeated cancel moves a cancelled workflow's updated_at (M0R 4). */
@@ -131,16 +131,16 @@ export function createKeiHandoff(
   const status = async (workflowId: string, loadOutput: boolean) =>
     (await client.listWorkflows({ workflowIDs: [workflowId], loadInput: false, loadOutput }))[0]
   return {
-    async submit(submission) {
+    async submitConversion(submission) {
       await client.enqueuePortable(
         {
-          workflowName: submission.workflow,
-          queueName: submission.queueName,
+          workflowName: 'convert',
+          queueName: submission.lane,
           workflowID: submission.workflowId,
-          priority: submission.priority,
-          workflowTimeoutMS: submission.timeoutMs,
+          priority: CONVERSION_PRIORITY,
+          workflowTimeoutMS: conversionTimeoutMs(submission.pageCount),
           applicationName: KEI_APPLICATION, // unowned rows could be dequeued by any application (M0R 3)
-          authenticatedUser: submission.authenticatedUser,
+          authenticatedUser: submission.owner,
           attributes: { ...submission.attributes, ...traceCarrier() },
         },
         [submission.request],

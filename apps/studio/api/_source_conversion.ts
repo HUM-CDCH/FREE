@@ -5,7 +5,7 @@
  * stays with each workflow. Step names, their order and their stored results are part of each workflow's DBOS history.
  */
 import {
-  CONVERSION_PRIORITY, conversionTimeoutMs, keiConvertOkSchema, settleKei, SUBMIT_TO_KEI_RETRY,
+  keiConvertOkSchema, settleKei, SUBMIT_TO_KEI_RETRY,
   type ConversionLane, type KeiConvertOk, type KeiHandoff, type KeiPoll,
 } from 'extraction/kei-handoff'
 import { ARTIFACT_READ_RETRY, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflow-steps'
@@ -71,13 +71,11 @@ export async function convertStagedSource(
   request: SourceConversionRequest,
 ): Promise<ConvertedPackage | ConversionFailure> {
   const { steps, kei } = ports
-  await steps.step('submitToKei', () => kei.submit({
-    workflow: 'convert',
+  await steps.step('submitToKei', () => kei.submitConversion({
     workflowId: child,
-    queueName: request.lane,
-    priority: CONVERSION_PRIORITY,
-    timeoutMs: conversionTimeoutMs(request.pageCount),
-    authenticatedUser: request.owner,
+    lane: request.lane,
+    pageCount: request.pageCount,
+    owner: request.owner,
     attributes: request.attributes,
     request: {
       source: request.source, source_sha256: request.sourceSha256, source_name: request.originalName,
