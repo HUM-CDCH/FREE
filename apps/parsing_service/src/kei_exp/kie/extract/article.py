@@ -99,9 +99,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     The result is exactly one record, the document's root (`run.dispatch` holds it to that); when no value context
     answered the root, `RootUnanswered` is raised before grounding instead. Both roles need a served context size:
     `counter` is one counter per role, by default the counter of each role's endpoint. `chunks` and `run_dir` are
-    not used: Article runs unsplit and publishes nothing itself; each answered value context is handed to the durable
-    retained-result producer (`retained.saved_record`). `options.start_page` orders bounded value contexts, nearest
-    first."""
+    not used: each answered value context is handed to the durable retained-result producer
+    (`retained.saved_record`), before auxiliary document fields are read. `options.start_page` orders bounded value
+    contexts, nearest first."""
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
@@ -135,11 +135,6 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     # unchanged inputs, independently of this context listing.
     context_stage = "article-contexts:fallback" if fallback is not None else "article-contexts"
     plan_records(chat, context_stage, [context.dumped() for context in contexts])
-    document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
-        budget=options.record_chars, counter=counter["fields"],
-        structured=method.rendering == "structured")
-    if fallback is not None:
-        issues.append(fallback)
     def retained_context(*args):
         index, total, answered, failed, group, fields, root, disagreements, ok, context_calls = args
         if ok:
@@ -154,6 +149,13 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         raise RootUnanswered(f"article_root_unanswered: none of the {len(extracted.value_contexts[0])} value "
                              f"context(s) answered the document's root; the last call failed: "
                              f"{extracted.calls[-1].error}")
+    # Show answered root windows before reading auxiliary document-sourced fields. Their separate window pass
+    # must not hold the researcher's first values behind a complete traversal of the source.
+    document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
+        budget=options.record_chars, counter=counter["fields"],
+        structured=method.rendering == "structured")
+    if fallback is not None:
+        issues.append(fallback)
     calls += extracted.calls
     issues += extracted.issues
     if len(extracted.value_contexts[0]) > 1:

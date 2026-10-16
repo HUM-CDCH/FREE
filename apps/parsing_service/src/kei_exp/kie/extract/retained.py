@@ -174,7 +174,12 @@ def publish_final(lease, result):
     raw_nodes = lease.state["selection"]["schemaTree"]["schemaNodes"]
     document_ids = {node["id"] for node in raw_nodes if node.get("valueSource") is not None}
     if records and document_ids:
-        publish_values(lease, records[0], "document-fields", complete=True, field_ids=document_ids, metadata=metadata)
+        # Final compilation must not turn a failed document window into completed coverage. Successful root or
+        # grounding calls say nothing about whether all auxiliary document-field contexts answered.
+        document_complete = all(call.get("ok") or call.get("recovered") for call in result.get("calls", [])
+                                if call.get("stage") == "document")
+        publish_values(lease, records[0], "document-fields", complete=document_complete,
+                       field_ids=document_ids, metadata=metadata)
     # Record scopes were captured at the producer boundary. If a method cannot
     # prove a final record's lineage, retain it under a distinct historical
     # identity rather than guessing a mapping from its presentation ordinal.

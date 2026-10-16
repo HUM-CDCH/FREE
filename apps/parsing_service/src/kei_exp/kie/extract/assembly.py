@@ -104,14 +104,16 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
     documents: list[dict] = []
     calls: list[Call] = []
     issues: list[Issue] = []
-    for context in contexts:
+    for index, context in enumerate(contexts):
         document, document_calls, document_issues = extract_document(replace(evidence, passages=context.passages),
             schema, chat, budget=budget, counter=counter, structured=structured)
         documents.append(document)
         calls += document_calls
         issues += document_issues
         interim=assemble_document(documents,sharing(contexts[:len(documents)]))[0] if len(documents)>1 else documents[0]
-        saved_document(chat,{**carried,**interim},complete=all(call.ok or call.recovered for call in calls))
+        # A successful prefix has unread source, so adoption must not carry it as a completed document field.
+        saved_document(chat,{**carried,**interim},complete=index == len(contexts) - 1
+                       and all(call.ok or call.recovered for call in calls))
     document, conflicts, repeats, joined = (assemble_document(documents, sharing(contexts)) if len(documents) > 1
                                             else (documents[0], [], [], []))
     issues += [Issue("conflicting_document_values", json.dumps(conflict, ensure_ascii=False))
