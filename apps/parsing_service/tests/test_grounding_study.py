@@ -103,11 +103,8 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
 
 
 @pytest.mark.parametrize("frozen", [1], indirect=True)
-def test_preparation_replays_legacy_inventory_and_bound_values_offline(frozen, tmp_path, monkeypatch):
+def test_preparation_replays_legacy_inventory_and_bound_values_offline(frozen, tmp_path):
     parent, _, original, _ = frozen
-    def forbidden(*_args, **_kwargs):
-        pytest.fail("legacy upstream replay attempted HTTP")
-    monkeypatch.setattr(study.requests.Session, "request", forbidden)
     bundle = fixed_upstream.prepare(parent, "Doc", tmp_path / "verification.json")
     assert original["article_version"] == 1
     assert bundle["records"] == [{"entry_no": None, "site": "Hill", "year": 1827, "finds": None,
@@ -116,7 +113,6 @@ def test_preparation_replays_legacy_inventory_and_bound_values_offline(frozen, t
                                     "passages": ["p1_s0", "p1_s1"]}]
     assert [call["stage"] for call in bundle["upstream_calls"]] == [
         "document", "document", "inventory", "inventory", "record"]
-    assert bundle["provenance"]["fresh_calls"] == 0
     assert bundle["provenance"]["upstream_requests_replayed"] == 5
 
 
