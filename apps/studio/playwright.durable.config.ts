@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
 import { configurePlaywrightStack,playwrightWebServerCommand } from './e2e/playwrightStack.js'
 
-const stack=configurePlaywrightStack({applicationPort:41789,composeProject:'free-durable-extraction-e2e',databaseName:'free_test_durable_browser',oidcPort:41788,postgresPort:45439})
+const stack=configurePlaywrightStack({applicationPort:30789,composeProject:'free-durable-extraction-e2e',databaseName:'free_test_durable_browser',oidcPort:30788,postgresPort:31439})
 const origin=`http://localhost:${stack.applicationPort}`
 const browser=process.env.FREE_DURABLE_E2E_BROWSER??'chromium'
 if(!['chromium','chrome'].includes(browser))throw new Error('Choose chromium or chrome for durable browser verification.')

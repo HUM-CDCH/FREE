@@ -8,11 +8,11 @@ import {
 } from './e2e/playwrightStack.js'
 
 const stack = configurePlaywrightStack({
-  applicationPort: 41_751,
+  applicationPort: 30_751,
   composeProject: 'free-studio-e2e-base-path',
   databaseName: 'free_test_studio_base_path',
-  oidcPort: 41_752,
-  postgresPort: 45_433,
+  oidcPort: 30_752,
+  postgresPort: 31_433,
 })
 const port = stack.applicationPort
 const origin = `http://localhost:${port}`
