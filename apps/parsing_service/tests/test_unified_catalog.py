@@ -1389,6 +1389,11 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
     from kei_exp.kie.extract import llm
     from tests.test_extract_llm import response
 
+    class RenderedCounter(WordCounter):
+        def request_tokens(self, system, user, schema=None):
+            rendered = llm.OpenAIChat().tokenize_body(system=system, user=user, schema=schema)["messages"]
+            return super().request_tokens(*(message["content"] for message in rendered))
+
     source = evidence("1. Hill.", "2. Valley.")
     schema = {"recordDescription": "One numbered place.", "schemaNodes": [
         {"id": "site", "name": "site", "type": "string"}]}
@@ -1396,7 +1401,7 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
         site = record.split()[1].rstrip(".")
         return {"site": candidate(site, site)}
     model = Model(source, entry=entry)
-    counter, posted = WordCounter(), []
+    counter, posted = RenderedCounter(), []
     loop = '{"site":{"value":' + " \r" * 100 + ('"quote":' if internal else "")
     schemas = {}
     monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
@@ -1411,7 +1416,8 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
         failed = is_loop and (not bounded or not recovery_ok)
         text = loop if failed else dumps(model(system, user, schemas[system]))
         return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length" if failed else "stop"}],
-            "usage": {"prompt_tokens": counter.request_tokens(system, user), "completion_tokens": json["max_tokens"] if failed else 20}})
+            "usage": {"prompt_tokens": len(system.split()) + len(user.split()) + counter.template_tokens,
+                      "completion_tokens": json["max_tokens"] if failed else 20}})
 
     monkeypatch.setattr(llm.requests, "post", post)
     result = unified.extract(None, source, request(schema), as_router(llm.OpenAIChat(model="fake/extractor")), counter=counter)

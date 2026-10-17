@@ -63,7 +63,7 @@
     }
   },
   "extraction_version": 2,
-  "prompt_version": 5,
+  "prompt_version": 6,
   "strategy": "catalog",
   "chunks": 1,
   "started": "2026-09-29T12:00:00+00:00",
@@ -1082,5 +1082,5 @@
     "input": 1041,
     "output": 30
   },
-  "fingerprint": "a33a6669815c561fa9b3aba66fe66ef2df9b632b90f895a530edbc4d60c4986d"
+  "fingerprint": "95c78d95992ed1af5746d41403dd157b8631862ace9c488c16d77291260f1668"
 }

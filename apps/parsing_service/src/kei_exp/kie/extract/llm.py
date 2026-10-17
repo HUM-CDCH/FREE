@@ -1,7 +1,8 @@
 """One text-in, JSON-out chat completion against an OpenAI-compatible vLLM server, and how its reply is read.
 
-A call asks for a reply constrained to a JSON schema through `response_format`, with thinking switched off in the
-chat template. Only a refusal that positively says structured output is unsupported is asked once more without it
+A call shows the reply's JSON schema in its system message and constrains decoding to it through `response_format`,
+with thinking switched off in the chat template. Only a refusal that positively says structured output is unsupported
+is asked once more without it
 (the prompt's own "return only the JSON object" then has to do); a malformed schema, an overlong input or any other
 refusal surfaces unchanged. The refused attempt is kept on the reply, so the artifact records every call. `finish`
 is the server's finish_reason: "length" means the reply was cut off, which the caller treats as a failed call
@@ -63,7 +64,10 @@ UNSUPPORTED = re.compile(r"(?is)(response_format|json_schema|structured output|g
 THINKING_OFF = {"enable_thinking": False}
 
 
-def _messages(system: str, user: str) -> list[dict]:
+def _messages(system: str, user: str, schema: dict | None) -> list[dict]:
+    """Decoding constraints do not teach the model the fields or reply shape. Count exactly what it sees."""
+    if schema is not None:
+        system += "\nReply JSON schema:\n" + json.dumps(_plain(schema), ensure_ascii=False)
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
@@ -83,14 +87,14 @@ class OpenAIChat:
     max_whitespace: int | None = None   # set: the schema goes as a bounded grammar (`bounded_grammar`)
 
     def tokenize_body(self, *, system: str, user: str, schema: dict | None = None) -> dict:
-        """The body vLLM's /tokenize renders into exactly the prompt `complete` sends (the schema does not enter it)."""
-        return {"model": self.model, "add_generation_prompt": True, "messages": _messages(system, user),
+        """The body vLLM's /tokenize renders into exactly the prompt `complete` sends, including the reply schema."""
+        return {"model": self.model, "add_generation_prompt": True, "messages": _messages(system, user, schema),
                 "chat_template_kwargs": dict(THINKING_OFF)}
 
     def request_body(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> dict:
         payload: dict[str, Any] = {
             "model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
-            "messages": _messages(system, user), "chat_template_kwargs": dict(THINKING_OFF),
+            "messages": _messages(system, user, schema), "chat_template_kwargs": dict(THINKING_OFF),
         }
         if schema is None:
             constrained = payload

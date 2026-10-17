@@ -61,8 +61,9 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 5  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 6  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
+# 6: instruction-model messages include the reply schema, counted with the rest of the prompt.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.

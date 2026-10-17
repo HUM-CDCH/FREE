@@ -84,8 +84,15 @@ def launched_url(url: str, root: Path, monkeypatch) -> Iterator[Kei]:
     monkeypatch.setattr(runs, "INBOX", root / "inbox")
     DBOS.destroy()
     monkeypatch.setattr(boot, "_timestamp_ms", boot.database_clock_ms(url))  # restored after the test
-    DBOS(config=config.dbos_config(url, "test", log_level="WARNING"))
+    worker = DBOS(config=config.dbos_config(url, "test", log_level="WARNING"))
     DBOS.launch()
+    shutdown = worker._executor.shutdown
+
+    def join_executor(wait=True, *, cancel_futures=False):
+        shutdown(wait=True, cancel_futures=cancel_futures)
+
+    # DBOS stops dequeueing first; join final writes before it closes the fixture's database connections.
+    monkeypatch.setattr(worker._executor, "shutdown", join_executor)
     config.register_queues(polling_interval_sec=0.1)
     client = DBOSClient(system_database_url=url, dbos_system_schema=config.SCHEMA, application_name=config.APP_NAME)
     try:
