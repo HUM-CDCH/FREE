@@ -121,5 +121,3 @@ export function useOpenDocumentTabs() {
     close,
   }
 }
-
-export type OpenDocumentTabs = ReturnType<typeof useOpenDocumentTabs>

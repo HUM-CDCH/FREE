@@ -122,28 +122,6 @@ export function effectiveSummary(article: ArticleSettings | undefined): string {
   return [scope, label('rendering', shown.rendering), VERIFICATION[shown.grounding]].join(' · ')
 }
 
-/** A collapsed row's value, derived from the draft; inactive values are left out. */
-export function sectionSummary(article: ArticleSettings, section: ArticleSection): string {
-  switch (section) {
-    case 'context':
-      return article.context === 'full' ? 'Full source' : [
-        'Bounded', `${numberText(article.context_tokens)} tokens`,
-        ...(article.grouping ? ['Structure-aware'] : []),
-        ...(article.overlap_passages > 0 ? [`${article.overlap_passages} previous passage${article.overlap_passages === 1 ? '' : 's'}`] : []),
-      ].join(' · ')
-    // Retired settings (`RETIRED_ARTICLE_KEYS`) are left out: they no longer describe what Article does.
-    case 'identity':
-      return 'Not used by Article'
-    case 'input':
-      return label('rendering', article.rendering)
-    case 'evidence':
-      return [
-        label('grounding', article.grounding),
-        article.evidence_policy ? 'Schema policies' : 'All fields',
-      ].join(' · ')
-  }
-}
-
 /** A setting's value as a researcher reads it; the unused ceiling says so. */
 export const describeArticleValue = (article: ArticleSettings, key: ArticleKey): string =>
   key === 'context_tokens'
@@ -197,14 +175,6 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
       .filter((key) => describeArticleValue(base, key) !== describeArticleValue(after, key))
       .map((key) => ({ label: CONTROL_LABELS[key], from: describeArticleValue(base, key), to: describeArticleValue(after, key) })),
   ]
-}
-
-/** Which disclosure an issue opens: an Article section, or a Catalog one. */
-export function issueSection(path: string): ArticleSection | 'generic' | 'recipe' | 'unified' | null {
-  const [scope, member] = path.split('.')
-  if (scope === 'article' && member) return SECTION_OF[member as ArticleKey] ?? null
-  if (scope === 'catalog' && (member === 'generic' || member === 'recipe' || member === 'unified')) return member
-  return null
 }
 
 const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const

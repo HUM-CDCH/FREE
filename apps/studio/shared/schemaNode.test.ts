@@ -1,14 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import policySchema from '../../parsing_service/tests/fixtures/contracts/evidence-policy.schema.json'
 import {
-  countSchemaMetadata,
   duplicateFieldKeys,
   enumerateFieldPaths,
   nodesToTemplate,
-  partitionSchemaNodes,
   parseSchemaDefinition,
   parseSchemaNodes,
-  restoreSchemaNodeOrder,
   schemaDefinitionToTemplate,
   schemaNodesToZod,
   templateToSchemaDefinition,
@@ -72,7 +69,6 @@ describe('SchemaNode conversion', () => {
     })
 
     expect(enumerateFieldPaths(nodes).map(({ key }) => key)).toEqual(['place', 'place.region'])
-    expect(countSchemaMetadata(nodes)).toEqual({ descriptions: 1, allowedValues: 1 })
   })
 
   it('reports duplicate opaque keys', () => {
@@ -192,35 +188,6 @@ describe('SchemaNode conversion', () => {
         },
       ]),
     ).toThrow()
-  })
-
-  it('partitions complete top-level subtrees and restores model order', () => {
-    const nodes = parseSchemaNodes([
-      { id: 'title', name: 'title', type: 'string' },
-      {
-        id: 'details',
-        name: 'details',
-        type: 'object',
-        valueSource: 'document',
-        children: [{ id: 'year', name: 'year', type: 'integer' }],
-      },
-      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
-    ])
-    expect(partitionSchemaNodes(nodes)).toEqual({
-      documentNodes: [nodes[1]],
-      recordNodes: [nodes[0]],
-      packageNodes: [nodes[2]],
-    })
-    expect(restoreSchemaNodeOrder(
-      { details: { year: 2026 }, title: 'A title' },
-      [...partitionSchemaNodes(nodes).recordNodes, ...partitionSchemaNodes(nodes).documentNodes],
-    )).toEqual({ title: 'A title', details: { year: 2026 } })
-    expect(() => restoreSchemaNodeOrder({ title: 'A title', unknown: true }, nodes)).toThrow('Unexpected model key')
-    expect(restoreSchemaNodeOrder(
-      { title: 'A title', details: { year: 2026, unknown: true } },
-      nodes,
-      { ignoreUnknownKeys: true },
-    )).toEqual({ title: 'A title', details: { year: 2026 } })
   })
 })
 
