@@ -217,6 +217,11 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   native fields model keeps the reserve). New admissions use it only where Studio's
   `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
+  Scalar fields outside lists can inherit values from heading context actually
+  shown to the field model, with canonical heading evidence and a separate
+  verification of applicability. Uncertain or superseded headings are not
+  accepted; disabling verification keeps these values as proposals. List values
+  and item occurrences still require the entry's own text.
 
 Limitations:
 

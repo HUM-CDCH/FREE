@@ -731,6 +731,8 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     result, chat = extract(source, Model(source, discovery=compact))
     asked = next(call for call in chat.calls if call["system"].startswith("You find where records begin"))
     assert "on one line, without indentation" in asked["system"]
+    assert "include that label in the copied start" in asked["system"]
+    assert "Omit the fourth item for a place at the line's start" in asked["system"]
     place = asked["schema"]["properties"]["places"]["items"]
     assert [item.get("enum") for item in place["prefixItems"]] == [["L1", "L2"], ["record", "other"], None, None]
     assert (place["minItems"], place["maxItems"]) == (3, 4)
@@ -738,6 +740,31 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
     assert result["prompt_version"] == unified.PROMPT_VERSION
     assert_accounted(source, result)
+
+
+def test_a_printed_label_before_the_copied_start_is_rejected_without_moving_the_boundary():
+    source, result = one_window(["1. Adorf. Material: Holz."], [["L1", "record", "1.", "Adorf."]])
+    assert labelled(source, result) == [(None, ["Adorf. Material: Holz."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == ["1."]
+    assert [issue.code for issue in result["issues"]] == ["label_not_in_source"]
+
+
+def test_numbered_subitems_remain_inside_their_discovered_parent_records(tmp_path):
+    source = load(catalogue.write("early-nested", tmp_path))
+    description = "One numbered entry of an archaeological catalogue."
+
+    def ask(record, system, user, schema, calls, issues):
+        assert description in system and "numbered subitems or details within a record continue it" in system
+        return {"places": [["L1", "other", None], ["L2", "record", "1."], ["L5", "record", "2."],
+                           ["L7", "record", "3."]], "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, description, lambda *_: True, ask, overlap=0, splits=0)
+    assert labelled(source, result) == [
+        ("1.", ["1. Adorf. FA: G. Funde:", "1. Gefäß.", "2. Beil."]),
+        ("2.", ["2. Bdorf. FA: G.", "1. Urne."]),
+        ("3.", ["3. Cdorf. FA: EF."]),
+    ]
+    assert not result["issues"]
+    assert_accounted(source, {"discovery": result})
 
 
 def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():

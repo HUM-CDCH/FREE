@@ -12,8 +12,9 @@ and output budget. Both calls remain recorded; only a successful recovery marks 
 Every entry is read whole through counted windows of its own text (overlap within the entry), beside the record-free
 lines before it when heading context is on. The fields model returns `{value, quote}` candidates, and `_item_text`
 for each object in a list. Code, never the model, checks them: the value conforms to its field, the quote is text of
-that entry, and a value is literal where its printed form lies inside the quote; a yes/no, an allowed label or a
-derived field may instead be supported by the quoted passage, never by a fabricated literal span. A separate reasoning
+that entry (or shown heading context for scalars outside lists), and a value is literal where its printed form lies
+inside the quote; a yes/no, an allowed label or a derived field may instead be supported by the quoted passage, never
+by a fabricated literal span. A separate reasoning
 request verifies candidates in counted batches; only a supported candidate is accepted. With verification off, or
 where the schema's evidence policy asks for none, candidates stay proposals.
 
@@ -61,9 +62,10 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 6  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 7  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6: instruction-model messages include the reply schema, counted with the rest of the prompt.
+# 7: scalars outside lists may inherit from shown heading context, with applicability separately verified.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -75,7 +77,8 @@ RECORD_VERSION = 1  # the execution record's layout
 # 5: an item's unique single-row table occurrence takes priority over repeats in prose; its quoted values are
 # located in that row's individual cells first, including repeated partial quotes. A verbatim value continuing
 # across segments may extend its partial quote, with every segment kept in the value's evidence.
-ENTRY_VERSION = 5
+# 6: scalar quotes outside lists may locate in shown heading context; record and list ownership stay unchanged.
+ENTRY_VERSION = 6
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
 # items, a single window's included). 3: an item two windows returned is joined only when their shared source
@@ -466,12 +469,13 @@ def _field_path(path: tuple) -> tuple:
 
 
 class _Checker:
-    """Checks one window's candidates against `view`: an entry's whole text, or a document window's shown text."""
+    """Checks record or document text; shown heading context can also support scalars outside lists."""
 
     def __init__(self, view: BlockText, shown: tuple[int, int], window: int, nodes: list[Node],
-                 tables: dict[str, PageTable] | None = None, *, repair: bool = True):
+                 tables: dict[str, PageTable] | None = None, *, repair: bool = True, context: BlockText | None = None):
         self.view, self.shown, self.window, self.nodes = view, shown, window, nodes
         self.tables, self.repair = tables or {}, repair
+        self.context = context
 
     def reply(self, answer: dict) -> list[_Found]:
         return [found for node in self.nodes for found in self._field((node.name,), node, answer.get(node.name))]
@@ -585,6 +589,9 @@ class _Checker:
             if not quoted and free and (near := (self._near(quote, own) if own else None) or self._near(quote)):
                 quoted, found.quote, found.repaired = [near], self._text(near), True
         if not quoted:
+            if self.context is not None and item is None:
+                return _Checker(self.context, (0, len(self.context.text)), self.window, self.nodes, self.tables,
+                                repair=False)._scalar(path, node, candidate, item, anchor)
             found.reason = "quote_not_in_source" if found.quote and found.quote.strip() else "no_quote"
             return found
         numeric = isinstance(typed, (int, float)) and not isinstance(typed, bool)
@@ -623,16 +630,27 @@ class _Checker:
 # --- prompts -------------------------------------------------------------------------------------------------------
 
 ENTRY = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
-         "Answer every field with null when the record does not give it, or with an object: \"value\" (typed as the "
-         "field) and \"quote\" (the exact text of the record that states or supports the value, copied character "
+         "Answer every field with null when the shown source does not support it, or with an object: \"value\" "
+         "(typed as the field) and \"quote\" (the exact source text that states or supports the value, copied character "
          "for character). For each object in a list also give \"_item_text\": the exact text of the record where that "
          "item appears, or null. Read values from the RECORD text; EARLIER and LATER text belongs to the same record "
-         "and is shown so that a value crossing the cut is whole; CONTEXT is not part of the record. Never invent a "
-         "value. Return only the JSON object.")
+         "and is shown so that a value crossing the cut is whole. CONTEXT is record-free source before the record, "
+         "in source order (oldest first, latest last). "
+         "For scalar fields outside lists, a heading in CONTEXT may supply an inherited value only when it clearly "
+         "applies to this record; quote that heading. Compare all shown headings: a later applicable heading "
+         "supersedes a conflicting earlier value for the same field; earlier higher-level headings still apply "
+         "unless superseded. Do not use unrelated, superseded or uncertain context. List items and all their values "
+         "must come from the record, never CONTEXT. Never invent a value. Return only the JSON object.")
 VERIFY = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
           "For each candidate answer \"supported\" when the record text states that value for that field of this "
-          "record, \"unsupported\" when it does not (it says something else, or the value belongs to another record or "
-          "only to the context), or \"unclear\". Judge only from the text shown. Return only the JSON object.")
+          "record, or a heading in CONTEXT clearly supplies an inherited value for a scalar field outside lists. "
+          "Check that the heading applies to this record, comparing all shown headings in source order "
+          "(oldest first, latest last). A later applicable heading supersedes a conflicting earlier value for "
+          "the same field; earlier higher-level headings still apply unless superseded. Proximity alone is not "
+          "support. Answer \"unsupported\" for a contradicted, unrelated "
+          "or superseded value or one belonging to another record, and \"unclear\" when applicability is uncertain. "
+          "List items and their values require the record text. Judge only from the text shown. "
+          "Return only the JSON object.")
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
@@ -778,7 +796,8 @@ class _Run:
             if answer is not None:
                 first, last = (*window.before, *window.primary)[0], (*window.primary, *window.after)[-1]
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
-                found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
+                context = _view(list(window.heading), self.texts) if window.heading else None
+                found += _Checker(view, shown, index, self.nodes, self.tables, context=context).reply(answer)
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
@@ -786,7 +805,8 @@ class _Run:
             out.record = conform(_placed(out.found, "candidate"), self.nodes)
             return out
         self._verify(number, replies, out)
-        out.contest = self._settle(number, out, view)
+        shown_heading = list(dict.fromkeys(unit for window, _ in replies for unit in window.heading))
+        out.contest = self._settle(number, out, _view([*shown_heading, *units], self.texts))
         _renumbered(out.found)
         out.record = conform(_placed(out.found), self.nodes)
         return out

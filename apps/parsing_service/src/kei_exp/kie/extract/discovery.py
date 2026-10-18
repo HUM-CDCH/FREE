@@ -52,26 +52,31 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 8  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 9  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
 # both edge flags say the record continues, a record start at the window's start with the open record's own printed
 # label is ignored too, and one with another printed label ends the open record cleanly; 8: a `record` and an `other`
 # place at one spot are a record start (`_observe`), and a record start with the printed label of the record just
-# before it continues that record anywhere
+# before it continues that record anywhere; 9: the prompt clarifies record scope and starts that include printed labels
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
 CONTEXT_UNITS = 3  # the record-free lines before an entry kept as its context references
 DISCOVERY = (
     "You find where records begin in a source document. A record is: {description}\n"
+    "Use that description to distinguish records from their contents: numbered subitems or details within a record "
+    "continue it unless they independently meet the record description. "
     "The WINDOW lists source lines, each after a label such as [L1]. Report, in source order, every place in the "
     "WINDOW where a record begins (\"record\") and where text that belongs to no record begins (\"other\": front "
     "matter, a heading between records, an index or a bibliography). A record may begin in the middle of a line and "
     "one line may hold several records. Give each place as a list: the label of its line; \"record\" or \"other\"; "
     "the record's printed number or label when it has one, else null; and, only when the place begins after the "
     "start of its line, a fourth item: the exact characters where it begins, copied from that line (a few words). "
+    "A record's start includes any leading printed label: include that label in the copied start, not just the "
+    "words after it. Omit the fourth item for a place at the line's start. Never include the [L1] line label in "
+    "copied source text. "
     "Answer "
     "\"begins_inside_record\": true when the first WINDOW line continues a record that began before the WINDOW, false "
     "when it does not, null when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW "
