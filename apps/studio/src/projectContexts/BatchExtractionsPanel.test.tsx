@@ -622,6 +622,63 @@ describe('BatchExtractionsPanel', () => {
     ).toBeVisible()
   })
 
+  function stubPilotPreparation() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        const chosen = chosenSchemaRead(url, chosenRevision())
+        if (chosen) return chosen
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+  }
+
+  it("an approved schema's hand-off opens the pilot preparation once the Source Documents have loaded", async () => {
+    stubPilotPreparation()
+    const props = { projectContextId, openBatchExtractionId: null, pilotSchemaRevisionId: schemaRevisionId, onNavigate: () => {} }
+    // The project's documents are still loading when the approval lands here.
+    const view = render(<BatchExtractionsPanel {...props} sourceDocuments={[]} />)
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    view.rerender(<BatchExtractionsPanel {...props} sourceDocuments={documents} />)
+
+    expect(await screen.findByText('2 selected')).toBeInTheDocument()
+  })
+
+  it('the project "Next: Pilot Extraction" opens the pilot preparation, once the documents are there', async () => {
+    stubPilotPreparation()
+    const onPilotRequestHandled = vi.fn()
+    const props = { projectContextId, openBatchExtractionId: null, pilotSchemaRevisionId: null, onNavigate: () => {}, pilotRequested: true, onPilotRequestHandled }
+    const view = render(<BatchExtractionsPanel {...props} sourceDocuments={[]} />)
+    expect(onPilotRequestHandled).not.toHaveBeenCalled()
+
+    view.rerender(<BatchExtractionsPanel {...props} sourceDocuments={documents} />)
+
+    expect(await screen.findByText('2 selected')).toBeInTheDocument()
+    expect(onPilotRequestHandled).toHaveBeenCalledOnce()
+  })
+
   it('disables Run for a collection-scale selection against an unstabilised Schema Revision, and enables it once stabilised', async () => {
     const manyDocuments = Array.from(
       { length: PILOT_BATCH_SELECTION_LIMIT + 1 },

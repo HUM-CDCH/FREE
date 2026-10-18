@@ -166,6 +166,8 @@ export default function BatchExtractionsPanel({
   sourceDocuments,
   openBatchExtractionId,
   pilotSchemaRevisionId,
+  pilotRequested = false,
+  onPilotRequestHandled,
   summary = null,
   onNavigate,
   onProgressChange,
@@ -180,6 +182,10 @@ export default function BatchExtractionsPanel({
   /** Set right after approving a Schema Revision from the document workspace
    *  — opens straight into "Pilot Extraction" on this exact Revision. */
   pilotSchemaRevisionId: string | null
+  /** The project's "Next: Pilot Extraction": open the pilot preparation as its own button does, once the Source
+   *  Documents it pre-picks from have loaded. */
+  pilotRequested?: boolean
+  onPilotRequestHandled?: () => void
   onNavigate: (route: NavigableRoute) => void
   onProgressChange?: () => void
 }) {
@@ -813,21 +819,27 @@ export default function BatchExtractionsPanel({
   // straight into "Pilot Extraction" on that exact Revision — the same
   // small selection `beginPilotExtraction` picks by hand — instead of making
   // the researcher re-find it on the history screen.
+  // The hand-off usually lands while the project's Source Documents are still
+  // loading, so it waits for them instead of being spent on an empty list —
+  // which left the researcher on the history screen.
+  const hasSourceDocuments = sourceDocumentIds.length > 0
+  const handledPilotRevisionId = useRef<string | null>(null)
   useEffect(() => {
-    if (!pilotSchemaRevisionId || sourceDocumentIds.length === 0) return
+    if (!pilotSchemaRevisionId || !hasSourceDocuments) return
+    if (handledPilotRevisionId.current === pilotSchemaRevisionId) return
+    handledPilotRevisionId.current = pilotSchemaRevisionId
     // A one-shot hand-off from the document workspace's "Approve schema and go
     // to next step": the preparation screen opens pre-armed on that Revision.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSchemaRevisionId(pilotSchemaRevisionId)
     setSelected(
       new Set(sourceDocumentIds.slice(0, Math.min(3, sourceDocumentIds.length))),
     )
     setPreparingKind('pilot')
     setPreparing(true)
-    // Only the hand-off id itself should retrigger this; `sourceDocumentIds`
-    // just needs to be readable once it fires.
+    // Only the hand-off id and the documents' arrival should retrigger this;
+    // `sourceDocumentIds` just needs to be readable once it fires.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pilotSchemaRevisionId])
+  }, [pilotSchemaRevisionId, hasSourceDocuments])
 
   /** "Pilot Extraction" entry point: opens the preparation screen with a
    *  small (2-3) Source Document selection pre-picked, so a researcher can
@@ -843,6 +855,14 @@ export default function BatchExtractionsPanel({
     setPreparingKind('pilot')
     setPreparing(true)
   }
+
+  useEffect(() => {
+    if (!pilotRequested || !hasSourceDocuments) return
+    onPilotRequestHandled?.()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    beginPilotExtraction()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pilotRequested, hasSourceDocuments])
 
   const openNewBatch = () => {
     setRunFailure(null)

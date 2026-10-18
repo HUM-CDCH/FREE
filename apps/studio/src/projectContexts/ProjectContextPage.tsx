@@ -542,6 +542,9 @@ export default function ProjectContextPage({
   // otherwise "Next: Create schema" looks like it did nothing there.
   const [schemaPickerRequest, setSchemaPickerRequest] = useState(0)
   const [schemaPickerHighlighted, setSchemaPickerHighlighted] = useState(false)
+  // "Next: Pilot Extraction" opens the Extractions tab's pilot preparation,
+  // not just the tab: already on it, a bare navigation looks like nothing.
+  const [pilotRequested, setPilotRequested] = useState(false)
   const schemaPickerHighlightTimer = useRef<number | undefined>(undefined)
   // The spreadsheet route is the rarer way in, so it stays folded away
   // unless opened, or unless this project already has spreadsheet work.
@@ -1020,11 +1023,11 @@ export default function ProjectContextPage({
             onNavigate={(nextTab) =>
               onNavigate({ kind: 'project', projectContextId, tab: nextTab })
             }
-            onNext={(nextTab) =>
-              projectSummary.phase === 'chat'
-                ? startSchemaCreation()
-                : onNavigate({ kind: 'project', projectContextId, tab: nextTab })
-            }
+            onNext={(nextTab) => {
+              if (projectSummary.phase === 'chat') return startSchemaCreation()
+              if (projectSummary.phase === 'extract') setPilotRequested(true)
+              onNavigate({ kind: 'project', projectContextId, tab: nextTab })
+            }}
           />
         )}
 
@@ -1107,6 +1110,8 @@ export default function ProjectContextPage({
                 ? (resource.pilotSchemaRevisionId ?? null)
                 : null
             }
+            pilotRequested={pilotRequested}
+            onPilotRequestHandled={() => setPilotRequested(false)}
             summary={projectSummary ?? null}
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
