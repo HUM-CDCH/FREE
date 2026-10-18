@@ -36,6 +36,7 @@ function ProjectWorkflowSteps({
   summary,
   sourcesInFlight = false,
   onNavigate,
+  onNext,
 }: {
   summary: ProjectContext['summary']
   /** Source Ingestions this project still has queued or parsing. Only the
@@ -43,6 +44,9 @@ function ProjectWorkflowSteps({
    *  `summary.runningBatch`. */
   sourcesInFlight?: boolean
   onNavigate: (tab: StepTab) => void
+  /** Takes the "Next" button further than the step's tab when the page knows
+   *  where its work actually starts; defaults to `onNavigate(tab)`. */
+  onNext?: (tab: StepTab) => void
 }) {
   const currentPhaseIndex = phaseOrder.indexOf(summary.phase)
   // `validate` never advances to a further phase once reached, so "fully
@@ -220,7 +224,7 @@ function ProjectWorkflowSteps({
           type="button"
           disabled={running}
           className="shrink-0 cursor-pointer rounded-md border border-accent px-3 py-1.5 text-xs font-semibold text-accent outline-none transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:border-line disabled:text-ink-faint disabled:hover:bg-transparent"
-          onClick={() => onNavigate(nextTab)}
+          onClick={() => (onNext ?? onNavigate)(nextTab)}
         >
           Next: {nextLabel}
           <span aria-hidden="true"> →</span>
