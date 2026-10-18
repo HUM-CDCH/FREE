@@ -534,6 +534,15 @@ export default function ProjectContextPage({
   const uploadNudgePending = useRef(false)
   const previousSchemaCount = useRef<number | null>(null)
   const generateSchemaSectionRef = useRef<HTMLElement>(null)
+  // Bumped on every request to start a schema, so the document picker is
+  // scrolled to and flashed even when the Schemas tab is already open —
+  // otherwise "Next: Create schema" looks like it did nothing there.
+  const [schemaPickerRequest, setSchemaPickerRequest] = useState(0)
+  const [schemaPickerHighlighted, setSchemaPickerHighlighted] = useState(false)
+  const schemaPickerHighlightTimer = useRef<number | undefined>(undefined)
+  // The spreadsheet route is the rarer way in, so it stays folded away
+  // unless opened, or unless this project already has spreadsheet work.
+  const [spreadsheetExpanded, setSpreadsheetExpanded] = useState<boolean | null>(null)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -790,6 +799,49 @@ export default function ProjectContextPage({
   const allSourceDocuments =
     branch?.status === 'ready' ? branch.detail.sourceDocuments : []
 
+  const spreadsheetShown =
+    spreadsheetExpanded ??
+    ((spreadsheet.status === 'ready' && spreadsheet.version !== null) ||
+      spreadsheetUploading ||
+      spreadsheetSuggestion.context.draft != null)
+
+  // Where creating a schema actually starts: with one document there is
+  // nothing to choose, so open its schema builder directly; otherwise bring
+  // the Schemas tab's document picker into view.
+  function startSchemaCreation() {
+    const [onlyDocument] = allSourceDocuments
+    if (allSourceDocuments.length === 1 && onlyDocument) {
+      onNavigate({
+        kind: 'document',
+        projectContextId,
+        sourceDocumentId: onlyDocument.sourceDocumentId,
+        fromSchemaBuilder: true,
+      })
+      return
+    }
+    if (tab !== 'schemas')
+      onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })
+    setSchemaPickerRequest((request) => request + 1)
+    setSchemaPickerHighlighted(true)
+    window.clearTimeout(schemaPickerHighlightTimer.current)
+    schemaPickerHighlightTimer.current = window.setTimeout(
+      () => setSchemaPickerHighlighted(false),
+      1600,
+    )
+  }
+
+  useEffect(
+    () => () => window.clearTimeout(schemaPickerHighlightTimer.current),
+    [],
+  )
+
+  useEffect(() => {
+    if (schemaPickerRequest === 0 || tab !== 'schemas') return
+    const section = generateSchemaSectionRef.current
+    section?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+    section?.focus({ preventScroll: true })
+  }, [schemaPickerRequest, tab])
+
   useEffect(() => {
     if (tab !== 'schemas') return
     const controller = new AbortController()
@@ -935,6 +987,11 @@ export default function ProjectContextPage({
             onNavigate={(nextTab) =>
               onNavigate({ kind: 'project', projectContextId, tab: nextTab })
             }
+            onNext={(nextTab) =>
+              projectSummary.phase === 'chat'
+                ? startSchemaCreation()
+                : onNavigate({ kind: 'project', projectContextId, tab: nextTab })
+            }
           />
         )}
 
@@ -1033,7 +1090,9 @@ export default function ProjectContextPage({
             <section
               ref={generateSchemaSectionRef}
               tabIndex={-1}
-              className="mb-6 space-y-3 border-b border-line pb-6 outline-none"
+              className={`-mx-3 -mt-3 mb-6 space-y-3 rounded-md border-b border-line px-3 pb-6 pt-3 outline-none transition-colors duration-500 ${
+                schemaPickerHighlighted ? 'bg-accent-ghost' : ''
+              }`}
               aria-label="From a document"
             >
               <div className="flex items-center justify-between gap-2">
@@ -1054,7 +1113,7 @@ export default function ProjectContextPage({
                 )}
               </div>
               <p className="text-[11px] text-ink-faint">
-                Select a document to start with
+                Select a document to continue with schema creation
               </p>
 
               {allSourceDocuments.length === 0 ? (
@@ -1094,206 +1153,224 @@ export default function ProjectContextPage({
               className="mb-6 space-y-3 border-b border-line pb-6"
               aria-label="From a spreadsheet"
             >
-              <h2 className="text-xs font-bold text-ink">
-                Working from a spreadsheet? Upload it to start
-              </h2>
-              <button
-                ref={formatExampleTrigger}
-                type="button"
-                onClick={() => setShowFormatExample(true)}
-                className="text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                How should I format my spreadsheet?
-              </button>
-              {showFormatExample && (
-                <SpreadsheetFormatExampleDialog
-                  onDismiss={() => setShowFormatExample(false)}
-                  returnFocusRef={formatExampleTrigger}
-                />
-              )}
-
-              {spreadsheet.status === 'error' && (
-                <p className="text-[11px] text-danger" role="alert">
-                  Could not load this project's spreadsheet. {spreadsheet.message}
-                </p>
-              )}
-              {spreadsheet.status === 'ready' && spreadsheet.version && (
-                <p className="text-[11px] text-ink-faint">
-                  Current spreadsheet:{' '}
-                  <span className="font-semibold text-ink">
-                    {spreadsheet.version.originalFilename}
-                  </span>{' '}
-                  (revision {spreadsheet.version.revisionNumber}, uploaded{' '}
-                  {new Date(spreadsheet.version.createdAt).toLocaleDateString(
-                    undefined,
-                    { dateStyle: 'medium' },
-                  )}
-                  )
-                </p>
-              )}
-
-              <div className="flex flex-col gap-3">
-                <label
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-4 text-center text-xs font-semibold outline-none transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
-                    spreadsheetDragging
-                      ? 'border-accent bg-accent-soft text-accent'
-                      : 'border-line-strong text-ink hover:border-accent'
-                  }`}
-                  onDragEnter={(event) => {
-                    event.preventDefault()
-                    setSpreadsheetDragging(true)
-                  }}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDragLeave={(event) => {
-                    const next = event.relatedTarget
-                    if (
-                      !(next instanceof Node) ||
-                      !event.currentTarget.contains(next)
-                    )
-                      setSpreadsheetDragging(false)
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    setSpreadsheetDragging(false)
-                    const file = event.dataTransfer.files[0]
-                    if (file) uploadSpreadsheetFile(file)
-                  }}
+              <h2 className="text-xs font-bold text-ink-muted">
+                <button
+                  type="button"
+                  aria-expanded={spreadsheetShown}
+                  aria-controls="project-spreadsheet-schema"
+                  onClick={() => setSpreadsheetExpanded(!spreadsheetShown)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
                 >
-                  {spreadsheetUploading
-                    ? 'Uploading…'
-                    : spreadsheet.status === 'ready' && spreadsheet.version
-                      ? 'Drop to replace, or click to browse'
-                      : 'Drop a spreadsheet here, or click to browse'}
-                  <input
-                    className="sr-only"
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    disabled={spreadsheetUploading}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0]
-                      event.target.value = ''
-                      if (file) uploadSpreadsheetFile(file)
-                    }}
-                  />
-                </label>
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block text-[10px] transition-transform ${spreadsheetShown ? 'rotate-90' : ''}`}
+                  >
+                    ▶
+                  </span>
+                  Or start from a spreadsheet
+                </button>
+              </h2>
+              {spreadsheetShown && (
+                <div id="project-spreadsheet-schema" className="space-y-3">
+                  <button
+                    ref={formatExampleTrigger}
+                    type="button"
+                    onClick={() => setShowFormatExample(true)}
+                    className="text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-accent/40"
+                  >
+                    How should I format my spreadsheet?
+                  </button>
+                  {showFormatExample && (
+                    <SpreadsheetFormatExampleDialog
+                      onDismiss={() => setShowFormatExample(false)}
+                      returnFocusRef={formatExampleTrigger}
+                    />
+                  )}
 
-                <details className="text-[11px] text-ink-muted">
-                  <summary className="cursor-pointer select-none font-semibold">
-                    Options
-                  </summary>
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <label className="inline-flex items-center gap-1.5">
-                      Hierarchy separator
+                  {spreadsheet.status === 'error' && (
+                    <p className="text-[11px] text-danger" role="alert">
+                      Could not load this project's spreadsheet. {spreadsheet.message}
+                    </p>
+                  )}
+                  {spreadsheet.status === 'ready' && spreadsheet.version && (
+                    <p className="text-[11px] text-ink-faint">
+                      Current spreadsheet:{' '}
+                      <span className="font-semibold text-ink">
+                        {spreadsheet.version.originalFilename}
+                      </span>{' '}
+                      (revision {spreadsheet.version.revisionNumber}, uploaded{' '}
+                      {new Date(spreadsheet.version.createdAt).toLocaleDateString(
+                        undefined,
+                        { dateStyle: 'medium' },
+                      )}
+                      )
+                    </p>
+                  )}
+
+                  <div className="flex flex-col gap-3">
+                    <label
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-4 text-center text-xs font-semibold outline-none transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
+                        spreadsheetDragging
+                          ? 'border-accent bg-accent-soft text-accent'
+                          : 'border-line-strong text-ink hover:border-accent'
+                      }`}
+                      onDragEnter={(event) => {
+                        event.preventDefault()
+                        setSpreadsheetDragging(true)
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDragLeave={(event) => {
+                        const next = event.relatedTarget
+                        if (
+                          !(next instanceof Node) ||
+                          !event.currentTarget.contains(next)
+                        )
+                          setSpreadsheetDragging(false)
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        setSpreadsheetDragging(false)
+                        const file = event.dataTransfer.files[0]
+                        if (file) uploadSpreadsheetFile(file)
+                      }}
+                    >
+                      {spreadsheetUploading
+                        ? 'Uploading…'
+                        : spreadsheet.status === 'ready' && spreadsheet.version
+                          ? 'Drop to replace, or click to browse'
+                          : 'Drop a spreadsheet here, or click to browse'}
                       <input
-                        className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus-visible:border-accent"
-                        type="text"
-                        maxLength={1}
-                        placeholder="none"
-                        aria-label="Hierarchy separator (optional)"
-                        value={separator}
-                        onChange={(event) => setSeparator(event.target.value)}
+                        className="sr-only"
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        disabled={spreadsheetUploading}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          event.target.value = ''
+                          if (file) uploadSpreadsheetFile(file)
+                        }}
                       />
                     </label>
 
-                  </div>
-                </details>
+                    <details className="text-[11px] text-ink-muted">
+                      <summary className="cursor-pointer select-none font-semibold">
+                        Options
+                      </summary>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <label className="inline-flex items-center gap-1.5">
+                          Hierarchy separator
+                          <input
+                            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus-visible:border-accent"
+                            type="text"
+                            maxLength={1}
+                            placeholder="none"
+                            aria-label="Hierarchy separator (optional)"
+                            value={separator}
+                            onChange={(event) => setSeparator(event.target.value)}
+                          />
+                        </label>
 
-                <Button
-                  size="sm"
-                  className="self-start"
-                  disabled={
-                    spreadsheet.status !== 'ready' ||
-                    !spreadsheet.version ||
-                    !(
-                      spreadsheetSuggestion.matches('idle') ||
-                      spreadsheetSuggestion.matches('failed')
-                    )
-                  }
-                  onClick={() =>
-                    createSchemaFromSpreadsheet(
-                      separator.trim() || undefined,
-                    )
-                  }
-                >
-                  Generate schema suggestion
-                </Button>
-              </div>
+                      </div>
+                    </details>
 
-              {spreadsheetError && (
-                <p className="text-[11px] text-danger" role="alert">
-                  {spreadsheetError}
-                </p>
-              )}
-              {spreadsheetSuggestion.matches('creating') && (
-                <p className="text-xs text-ink-muted" aria-busy="true">
-                  Building…
-                </p>
-              )}
-              {spreadsheetSuggestion.context.error && (
-                <p className="text-[11px] text-danger" role="alert">
-                  {spreadsheetSuggestion.context.error}
-                </p>
-              )}
-              {spreadsheetDraftConflict && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] text-danger" role="alert">
-                    This draft changed elsewhere. Reload before continuing.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() =>
-                      sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
-                    }
-                  >
-                    Reload
-                  </Button>
-                </div>
-              )}
-
-              {spreadsheetSuggestion.context.draft && (
-                <>
-                  <div
-                    className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
-                    aria-busy={spreadsheetSuggestion.matches('running')}
-                    inert={spreadsheetSuggestion.matches('running') ? true : undefined}
-                  >
-                    <SuggestedSchemaEditor
-                      key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
-                      proposal={spreadsheetSuggestion.context.draft}
-                      proposalVersion={{
-                        draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
-                        attempt: activeSpreadsheetSuggestion?.attempt ?? 1,
-                      }}
-                      sourceDocumentName="Uploaded spreadsheet"
-                      readOnly={spreadsheetSuggestionConfirmed}
-                      showRegenerate={false}
-                      onProposalEdit={updateSpreadsheetSuggestedDefinition}
-                      onPendingLocalEditChange={() => {}}
-                    />
-                  </div>
-                  {!spreadsheetSuggestionConfirmed && (
                     <Button
                       size="sm"
-                      variant="positive"
-                      disabled={savedMethod.state.status !== 'ready'}
+                      className="self-start"
+                      disabled={
+                        spreadsheet.status !== 'ready' ||
+                        !spreadsheet.version ||
+                        !(
+                          spreadsheetSuggestion.matches('idle') ||
+                          spreadsheetSuggestion.matches('failed')
+                        )
+                      }
                       onClick={() =>
-                        savedMethod.state.status === 'ready' &&
-                        sendSpreadsheetSuggestion({
-                          type: 'run.requested',
-                          strategy: 'ARTICLE',
-                          method: savedMethodFor(
-                            savedMethod.state,
-                            'ARTICLE',
-                            null,
-                          ),
-                        })
+                        createSchemaFromSpreadsheet(
+                          separator.trim() || undefined,
+                        )
                       }
                     >
-                      Confirm schema
+                      Generate schema suggestion
                     </Button>
+                  </div>
+
+                  {spreadsheetError && (
+                    <p className="text-[11px] text-danger" role="alert">
+                      {spreadsheetError}
+                    </p>
                   )}
-                </>
+                  {spreadsheetSuggestion.matches('creating') && (
+                    <p className="text-xs text-ink-muted" aria-busy="true">
+                      Building…
+                    </p>
+                  )}
+                  {spreadsheetSuggestion.context.error && (
+                    <p className="text-[11px] text-danger" role="alert">
+                      {spreadsheetSuggestion.context.error}
+                    </p>
+                  )}
+                  {spreadsheetDraftConflict && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[11px] text-danger" role="alert">
+                        This draft changed elsewhere. Reload before continuing.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
+                        }
+                      >
+                        Reload
+                      </Button>
+                    </div>
+                  )}
+
+                  {spreadsheetSuggestion.context.draft && (
+                    <>
+                      <div
+                        className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
+                        aria-busy={spreadsheetSuggestion.matches('running')}
+                        inert={spreadsheetSuggestion.matches('running') ? true : undefined}
+                      >
+                        <SuggestedSchemaEditor
+                          key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
+                          proposal={spreadsheetSuggestion.context.draft}
+                          proposalVersion={{
+                            draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
+                            attempt: activeSpreadsheetSuggestion?.attempt ?? 1,
+                          }}
+                          sourceDocumentName="Uploaded spreadsheet"
+                          readOnly={spreadsheetSuggestionConfirmed}
+                          showRegenerate={false}
+                          onProposalEdit={updateSpreadsheetSuggestedDefinition}
+                          onPendingLocalEditChange={() => {}}
+                        />
+                      </div>
+                      {!spreadsheetSuggestionConfirmed && (
+                        <Button
+                          size="sm"
+                          variant="positive"
+                          disabled={savedMethod.state.status !== 'ready'}
+                          onClick={() =>
+                            savedMethod.state.status === 'ready' &&
+                            sendSpreadsheetSuggestion({
+                              type: 'run.requested',
+                              strategy: 'ARTICLE',
+                              method: savedMethodFor(
+                                savedMethod.state,
+                                'ARTICLE',
+                                null,
+                              ),
+                            })
+                          }
+                        >
+                          Confirm schema
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </section>
           </div>
@@ -1970,9 +2047,13 @@ export default function ProjectContextPage({
       {nudge === 'upload-complete' && (
         <GuidedNextStep
           title="Upload complete"
-          description="Now tell the extractor what to look for: chat through a schema, or upload a spreadsheet of examples, on the Schemas tab."
-          actionLabel="Go to Schemas"
-          onAction={() => onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })}
+          description={
+            allSourceDocuments.length === 1
+              ? 'Next, create a schema from it to tell the extractor what to look for.'
+              : 'Select a document to continue with schema creation.'
+          }
+          actionLabel={allSourceDocuments.length === 1 ? 'Create schema' : 'Select a document'}
+          onAction={startSchemaCreation}
           onDismiss={() => setNudge(null)}
         />
       )}

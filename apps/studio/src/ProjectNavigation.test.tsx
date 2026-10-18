@@ -1295,6 +1295,57 @@ describe('Project Context navigation', () => {
     ).toBeInTheDocument()
   })
 
+  it('opens the only Source Document in the schema builder from "Next: Create schema"', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes()
+
+    const page = await screen.findByRole('region', { name: 'Project' })
+    fireEvent.click(
+      await within(page).findByRole('button', { name: /^Next: Create schema/ }),
+    )
+    expect(location.pathname).toBe(documentPath())
+    expect(location.search).toContain('fromSchemaBuilder=1')
+  })
+
+  it('brings the document picker into focus from "Next: Create schema", even on the Schemas tab', async () => {
+    renderRoutes(
+      studioFetch(undefined, {
+        ...detail,
+        sourceDocuments: [
+          { ...beretning, pageCount: 6 },
+          { ...historical, pageCount: 2 },
+        ],
+      }),
+    )
+    const page = await openProjectPage()
+    const next = await within(page).findByRole('button', {
+      name: /^Next: Create schema/,
+    })
+    fireEvent.click(next)
+    expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
+    const picker = within(page).getByRole('region', { name: 'From a document' })
+    await waitFor(() => expect(picker).toHaveFocus())
+
+    // The spreadsheet route stays folded away until asked for.
+    const spreadsheet = within(page).getByRole('button', {
+      name: 'Or start from a spreadsheet',
+    })
+    expect(spreadsheet).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      within(page).queryByText('How should I format my spreadsheet?'),
+    ).not.toBeInTheDocument()
+    fireEvent.click(spreadsheet)
+    expect(spreadsheet).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      within(page).getByText('How should I format my spreadsheet?'),
+    ).toBeInTheDocument()
+
+    // Already on the tab, the button still visibly does something.
+    spreadsheet.focus()
+    fireEvent.click(next)
+    await waitFor(() => expect(picker).toHaveFocus())
+  })
+
   it('opens the Sources tab for a Source Document list path', async () => {
     history.replaceState(null, '', `/projects/${projectContextId}/documents`)
     renderRoutes()

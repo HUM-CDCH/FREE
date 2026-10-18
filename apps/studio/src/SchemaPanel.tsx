@@ -1285,12 +1285,21 @@ function SchemaPanel({
             </div>
           )}
           {snap.view === 'empty' && (
-            <EmptyState title="No schema yet" description="Generate it from the document, import a codebook, or start blank.">
+            <EmptyState title="No schema yet" description={onGenerateInstructions
+              ? 'Generate it from this document. Add instructions below first if you want to steer it.'
+              : 'Import a codebook or start blank.'}>
+              {/* Generating is the one next step; importing and starting blank are the rarer ways in, kept quiet
+                  beneath it so the primary action reads first. */}
               {onGenerateInstructions && (
                 <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
               )}
-              {!editorReadOnly && <Button disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>}
-              {!editorReadOnly && <Button disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>}
+              {!editorReadOnly && (
+                <div className="flex basis-full flex-wrap items-center justify-center gap-1 text-compact text-ink-faint">
+                  {onGenerateInstructions && <span>or</span>}
+                  <Button variant="ghost" disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>
+                  <Button variant="ghost" disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>
+                </div>
+              )}
             </EmptyState>
           )}
           {snap.view === 'empty' && mutationError && (
@@ -1492,7 +1501,7 @@ function SchemaPanel({
             Producing schema from the document…
           </span>
         )}
-        {snap.view === 'empty' && 'Generate, import or start blank to create the schema'}
+        {snap.view === 'empty' && (onGenerateInstructions ? 'Generate the schema from the document to continue' : 'Import or start blank to create the schema')}
         {snap.view === 'failed' && 'Generation failed'}
         {/* Status text only: the save's alert and Retry belong to the host beside its run controls, reachable with the
             Schema tab hidden. */}
