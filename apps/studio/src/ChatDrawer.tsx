@@ -5,8 +5,6 @@ export type ChatDrawerProps = {
   onCollapse: () => void
   onExpand: () => void
   title: string
-  /** A command in the header, e.g. "Generate schema" before a schema exists. */
-  headerAction?: ReactNode
   /** While collapsed, marks the composer: an open conversation or an earlier request still running. */
   dot?: { title: string } | null
   /** Sticky controls between the conversation and the composer, e.g. the proposal's Apply / Discard bar. */
@@ -19,16 +17,15 @@ export type ChatDrawerProps = {
 
 /** The rail's conversation: a composer line at rest; sending opens a drawer of 40% of the rail with the conversation,
  *  a header and a collapse chevron. Collapsing hides, never discards. */
-export default function ChatDrawer({ open, onCollapse, onExpand, title, headerAction, dot, bar, composer, bodyRef, children }: ChatDrawerProps) {
+export default function ChatDrawer({ open, onCollapse, onExpand, title, dot, bar, composer, bodyRef, children }: ChatDrawerProps) {
   return (
     <div className={`flex shrink-0 flex-col border-t border-line bg-surface-muted ${open ? 'h-[40%] min-h-48' : ''}`}>
       {open && (
         <section aria-label="Conversation" className="flex min-h-0 flex-1 flex-col">
-          {/* At the 264px rail the title gives way (truncates) and the actions keep their width. */}
+          {/* At the 264px rail the title gives way (truncates) and the collapse control keeps its width. */}
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1.5">
             <span className="min-w-0 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted" title={title}>{title}</span>
             <div className="flex shrink-0 items-center gap-1.5">
-              {headerAction}
               <button type="button" aria-label="Collapse conversation" title="Collapse"
                 className="grid size-6 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none hover:text-ink" onClick={onCollapse}>
                 <span aria-hidden="true">⌄</span>

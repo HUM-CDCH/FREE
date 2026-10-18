@@ -346,6 +346,14 @@ async function renderReopened(overrides: Partial<DocumentWorkspaceProps> = {}) {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('opened from the schema builder, offers a way back to choose another document instead of Run', async () => {
+    const onNavigate = vi.fn()
+    await renderReopened({ persistedExtraction: null, fromSchemaBuilder: true, onNavigate })
+    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Choose another document/ }))
+    expect(onNavigate).toHaveBeenCalledWith({ kind: 'project', projectContextId: reopened.projectContextId, tab: 'schemas' })
+  })
+
 
 
   it.each(['ready', 'loading'] as const)('sends the current page only while the PDF is %s', async (pdfStatus) => {

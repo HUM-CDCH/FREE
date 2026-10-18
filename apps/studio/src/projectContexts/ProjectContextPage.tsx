@@ -12,8 +12,11 @@ import {
   getSchemaRevision,
   listExtractionSchemas,
   listSchemaRevisions,
+  initializeSchemaRevision,
   renameExtractionSchema,
 } from '../schemaRevisions'
+import { SchemaImport, type SchemaImportTarget } from '../SchemaImport'
+import { defaultSchemaName } from '../schemaNames'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import SchemaNameEditor from '../SchemaNameEditor'
 import SchemaPanel from '../SchemaPanel'
@@ -543,6 +546,8 @@ export default function ProjectContextPage({
   // The spreadsheet route is the rarer way in, so it stays folded away
   // unless opened, or unless this project already has spreadsheet work.
   const [spreadsheetExpanded, setSpreadsheetExpanded] = useState<boolean | null>(null)
+  const [codebookOpen, setCodebookOpen] = useState(false)
+  const importedSchemaId = useRef<string | null>(null)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -798,6 +803,34 @@ export default function ProjectContextPage({
 
   const allSourceDocuments =
     branch?.status === 'ready' ? branch.detail.sourceDocuments : []
+
+  // A codebook import from the Schemas tab starts a new Extraction Schema of
+  // its own: no document's schema editor is open to write into.
+  const codebookTarget: SchemaImportTarget = {
+    operationScope: () => ({ projectContextId, extractionSchemaId: null }),
+    snapshot: () => ({ draftVersion: 0, extractionSchemaId: null }),
+    async confirmDefinition(definition) {
+      const revision = await initializeSchemaRevision(projectContextId, definition)
+      importedSchemaId.current = revision.extractionSchemaId
+    },
+  }
+
+  async function nameImportedSchema(workbookName: string) {
+    const extractionSchemaId = importedSchemaId.current
+    importedSchemaId.current = null
+    // Named after the workbook as a generated schema is after its document;
+    // a refused name leaves the default, which can still be renamed inline.
+    if (extractionSchemaId)
+      await renameExtractionSchema(
+        projectContextId,
+        extractionSchemaId,
+        defaultSchemaName(workbookName),
+        undefined,
+        'Extraction Schema',
+      ).catch(() => null)
+    setSchemaRetry((attempt) => attempt + 1)
+    refreshProjects()
+  }
 
   const spreadsheetShown =
     spreadsheetExpanded ??
@@ -1150,6 +1183,34 @@ export default function ProjectContextPage({
             </section>
 
             <section
+              className="mb-6 space-y-1 border-b border-line pb-6"
+              aria-label="From a codebook"
+            >
+              <h2 className="text-xs font-bold text-ink-muted">
+                <button
+                  type="button"
+                  onClick={() => setCodebookOpen(true)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+                >
+                  <span aria-hidden="true" className="inline-block text-[10px]">
+                    ＋
+                  </span>
+                  Or import an Excel codebook…
+                </button>
+              </h2>
+              <p className="text-[11px] text-ink-faint">
+                Each codebook column becomes a schema field.
+              </p>
+              <SchemaImport
+                schema={codebookTarget}
+                disabled={false}
+                open={codebookOpen}
+                onClose={() => setCodebookOpen(false)}
+                onImported={(workbookName) => void nameImportedSchema(workbookName)}
+              />
+            </section>
+
+            <section
               className="mb-6 space-y-3 border-b border-line pb-6"
               aria-label="From a spreadsheet"
             >
@@ -1167,7 +1228,7 @@ export default function ProjectContextPage({
                   >
                     ▶
                   </span>
-                  Or start from a spreadsheet
+                  Or suggest a schema from a spreadsheet of examples
                 </button>
               </h2>
               {spreadsheetShown && (
