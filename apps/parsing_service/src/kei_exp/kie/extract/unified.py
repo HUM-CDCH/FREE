@@ -13,10 +13,11 @@ Every entry is read whole through counted windows of its own text (overlap withi
 lines before it when heading context is on. The fields model returns `{value, quote}` candidates, and `_item_text`
 for each object in a list. Code, never the model, checks them: the value conforms to its field, the quote is text of
 that entry (or shown heading context for scalars outside lists), and a value is literal where its printed form lies
-inside the quote; a yes/no, an allowed label or a derived field may instead be supported by the quoted passage of the
-entry, never by a fabricated literal span and never by heading context, which supplies a value only by printing it.
+inside the quote; a yes/no, an allowed label or a derived field may instead be supported by a quoted passage of the
+entry, never by a fabricated literal span. Heading context grounds only printed non-Boolean values;
+derived fields may also retain supporting heading passages as proposals.
 A separate reasoning request verifies candidates in counted batches; only a supported candidate is accepted. With
-verification off, or where the schema's evidence policy asks for none, candidates stay proposals.
+verification off, or where the schema's evidence policy is derived or unverified, candidates stay proposals.
 
 Merging keeps structure and doubt. Equal observations are one; accepted scalars that disagree go to one counted
 arbitration over the supplied candidates, or stay unresolved. A list item is one item across windows only when two
@@ -77,8 +78,8 @@ RECORD_VERSION = 1  # the execution record's layout
 # 5: an item's unique single-row table occurrence takes priority over repeats in prose; its quoted values are
 # located in that row's individual cells first, including repeated partial quotes. A verbatim value continuing
 # across segments may extend its partial quote, with every segment kept in the value's evidence.
-# 6: scalar quotes outside lists may locate in shown heading context, which supplies a value only where it prints
-# it; record and list ownership stay unchanged. A wrapper whose value is null declines the field (`no_value`).
+# 6: scalar quotes outside lists may locate in shown heading context, which grounds only printed values and may
+# support derived proposals; record and list ownership stay unchanged. A null wrapper value declines (`no_value`).
 ENTRY_VERSION = 6
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
@@ -581,8 +582,9 @@ class _Checker:
         item_spans = [Span(segment_id=s, start=a, end=b) for s, a, b in anchor] if anchor else []
         own = raw_range(self.view, item_spans) if item_spans else None
         row = self._item_row(item_spans)
+        policy = evidence_policy(self.nodes, _field_path(path))
         passage = isinstance(typed, bool) or node.allowed_values is not None or \
-            evidence_policy(self.nodes, _field_path(path)) == "derived"  # a passage may support it, unprinted
+            policy == "derived"  # a passage may support it, unprinted
         free = self.repair and node.type in ("string", "verbatim-string") and not passage
         quoted = []
         if found.quote and found.quote.strip():
@@ -592,11 +594,11 @@ class _Checker:
                 quoted, found.quote, found.repaired = [near], self._text(near), True
         if not quoted:
             if self.context is not None and item is None:
-                # Context supplies a value only by printing it. A yes/no, an allowed label or a derived value may
-                # be supported by an unprinted passage of the record, never by record-free text it does not own.
+                # Context grounds only printed values; a derived field may instead retain supporting context
+                # as a proposal. `_verify` keeps every derived candidate out of accepted values.
                 inherited = _Checker(self.context, (0, len(self.context.text)), self.window, self.nodes,
                                      self.tables, repair=False)._scalar(path, node, candidate, item, anchor)
-                if inherited.support == "literal":
+                if inherited.support == "literal" or (policy == "derived" and inherited.support == "supporting"):
                     return inherited
             found.reason = "quote_not_in_source" if found.quote and found.quote.strip() else "no_quote"
             return found

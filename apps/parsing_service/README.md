@@ -218,12 +218,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
   Scalar fields outside lists can inherit values from heading context actually
-  shown to the field model, with canonical heading evidence and a separate
-  verification of applicability. Context grounds a value only where it prints
-  it: a yes/no, an allowed label or a derived value may be supported by an
-  unprinted passage of the entry, never by record-free text. An unclear verdict
-  and disabled verification both keep these values as proposals. List values
-  and item occurrences still require the entry's own text.
+  shown to the field model, with canonical source spans. Accepted heading values
+  must be printed literals and separately verified for applicability. Boolean
+  fields require the entry's own supporting text; heading text never grounds an
+  accepted Boolean, even when it prints `true` or `false`. An explicitly `derived`
+  field may retain a supporting heading as an `evidence_policy_derived` proposal,
+  including for a Boolean; it never populates the accepted record or its evidence.
+  An unclear verdict and disabled verification also keep candidates as proposals.
+  List values and item occurrences still require the entry's own text.
 
 Limitations:
 
@@ -239,11 +241,10 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
-- Heading inheritance grounds a value in shown context; which heading applies
-  is the verification model's judgement, not a code check. Code cannot tell
-  that a later heading supersedes an earlier one of the same kind, so a model
-  that picks the stale heading produces an accepted wrong value. The context
-  itself is the last three record-free units before the entry, by recency: a
+- Heading applicability and supersession currently rely on the verification
+  model; code checks source spans rather than heading hierarchy. A model that
+  picks a stale heading and verifies it can produce an accepted wrong value.
+  Context is the last three record-free units before the entry, by recency: a
   standing heading is pushed out by nearer record-free text, including text a
   weak discovery misfiled as record-free.
 
