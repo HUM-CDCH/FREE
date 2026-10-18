@@ -15,15 +15,20 @@ function importedFields(nodes: readonly SchemaNode[], separator: string, prefix 
   })
 }
 
-/** The Excel codebook import, as a dialog: renders nothing while closed. `onImported` runs once a confirmed import is
- *  the schema's definition; the dialog then closes through `onClose`. A preview in flight never blocks dismissal (its
+/** What an import writes into: a document's schema editor, or the Schemas tab's new Extraction Schema. */
+export type SchemaImportTarget = Pick<SchemaEditorController, 'operationScope' | 'confirmDefinition'> & {
+  snapshot(): Pick<ReturnType<SchemaEditorController['snapshot']>, 'draftVersion' | 'extractionSchemaId'>
+}
+
+/** The Excel codebook import, as a dialog: renders nothing while closed. `onImported` runs, with the workbook's file
+ *  name, once a confirmed import is the schema's definition; the dialog then closes through `onClose`. A preview in flight never blocks dismissal (its
  *  response is dropped and its request aborted); only the confirmation keeps the dialog open while it saves. */
 export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
-  schema: SchemaEditorController
+  schema: SchemaImportTarget
   disabled: boolean
   open: boolean
   onClose: () => void
-  onImported?: () => void
+  onImported?: (workbookName: string) => void
 }) {
   const [file, setFile] = useState<File | null>(null), [worksheets, setWorksheets] = useState<string[]>([])
   const [worksheet, setWorksheet] = useState(''), [header, setHeader] = useState(1), [separator, setSeparator] = useState('')
@@ -126,7 +131,7 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
               if (!definition) return
               if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
               setConfirming(true); setError(null)
-              try { await schema.confirmDefinition(definition); setConfirming(false); onImported?.(); dismiss() }
+              try { await schema.confirmDefinition(definition); setConfirming(false); onImported?.(file.name); dismiss() }
               catch (error) { setError(error instanceof Error ? error.message : 'Schema could not be confirmed.'); setConfirming(false) }
             }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected schema' : 'Confirm schema'}</Button>
           )}

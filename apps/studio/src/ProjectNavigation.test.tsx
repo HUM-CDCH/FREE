@@ -1328,7 +1328,7 @@ describe('Project Context navigation', () => {
 
     // The spreadsheet route stays folded away until asked for.
     const spreadsheet = within(page).getByRole('button', {
-      name: 'Or start from a spreadsheet',
+      name: 'Or suggest a schema from a spreadsheet of examples',
     })
     expect(spreadsheet).toHaveAttribute('aria-expanded', 'false')
     expect(
@@ -1344,6 +1344,55 @@ describe('Project Context navigation', () => {
     spreadsheet.focus()
     fireEvent.click(next)
     await waitFor(() => expect(picker).toHaveFocus())
+  })
+
+  it('imports an Excel codebook from the Schemas tab as a new Extraction Schema named after the workbook', async () => {
+    const extractionSchemaId = '51000000-0000-4000-8003-000000000009'
+    const column = { id: 'site-column', column: 1, name: 'site', type: 'string', include: true,
+      examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
+    const writes: Array<{ url: string; method: string; body: Record<string, unknown> }> = []
+    const base = studioFetch()
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes(vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/schema_import_preview?'))
+        return Response.json({ worksheets: ['Codebook'], columns: url.includes('worksheet=') ? [column] : [] })
+      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        writes.push({ url, method: 'POST', body })
+        return Response.json({ revision: {
+          schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
+          origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
+          recordDescription: body.recordDescription, recordScope: 'document', schemaNodes: body.schemaNodes,
+        } }, { status: 201 })
+      }
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        writes.push({ url, method: 'PATCH', body })
+        return Response.json({ extractionSchema: { extractionSchemaId, name: body.name, createdAt: '2026-08-14T10:00:00.000Z' } })
+      }
+      return base(input)
+    }))
+
+    const page = await screen.findByRole('region', { name: 'Project' })
+    fireEvent.click(await within(page).findByRole('button', { name: 'Or import an Excel codebook…' }))
+    fireEvent.change(screen.getByLabelText('Excel codebook file'), {
+      target: { files: [new File(['bytes'], 'Site codebook.xlsx')] },
+    })
+    await screen.findByRole('option', { name: 'Codebook' })
+    fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
+    fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+
+    await waitFor(() => expect(writes).toHaveLength(2))
+    expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
+    expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
+    expect(writes[1]).toMatchObject({
+      url: `/api/extraction-schemas/${extractionSchemaId}`,
+      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Schema' },
+    })
+    expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
   })
 
   it('opens the Sources tab for a Source Document list path', async () => {

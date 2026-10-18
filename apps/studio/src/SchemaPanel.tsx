@@ -33,7 +33,7 @@ import { useToast } from './useToast'
 import ActionsMenu, { type ActionItem } from './ActionsMenu'
 import SchemaNameEditor from './SchemaNameEditor'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
-import { defaultSchemaName, UNTITLED_SCHEMA_NAME } from './schemaNames'
+import { defaultSchemaName } from './schemaNames'
 import { deriveSchemaProposal } from '../shared/schemaChanges'
 import {
   SchemaInstructionsChat,
@@ -709,36 +709,7 @@ function SchemaPanel({
       observer.disconnect()
     }
   }, [ready, view, editorReadOnly])
-  const [focusDescriptionOnReady, setFocusDescriptionOnReady] = useState(false)
-  useEffect(() => {
-    if (!focusDescriptionOnReady || !ready) return
-    // Spent on the first ready render, focused or not, so a later unrelated transition cannot fire it.
-    descriptionRef.current?.focus()
-    descriptionRef.current?.select()
-    setFocusDescriptionOnReady(false)
-  }, [focusDescriptionOnReady, ready])
-
-  const startingBlankRef = useRef(false)
-  const [startingBlank, setStartingBlank] = useState(false)
-  async function startBlank() {
-    if (startingBlankRef.current) return
-    startingBlankRef.current = true
-    setStartingBlank(true)
-    setMutationError(null)
-    try {
-      await schema.confirmDefinition({ recordDescription: 'Untitled record', schemaNodes: [] })
-      if (!editorReadOnly) setFocusDescriptionOnReady(true)
-      // A schema cleared and started again keeps its name; only a new one is named.
-      if (!schemaName) await renameNewSchema(UNTITLED_SCHEMA_NAME)
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'The schema could not be created.')
-    } finally {
-      startingBlankRef.current = false
-      setStartingBlank(false)
-    }
-  }
-
-  /** Names a schema that has none yet (Start blank, an import); a rejected rename shows like any other failed edit. */
+  /** Names a schema that has none yet (an import); a rejected rename shows like any other failed edit. */
   async function renameNewSchema(name: string) {
     const rejected = await onRenameSchema?.(name)
     if (rejected) setMutationError(rejected)
@@ -1285,20 +1256,13 @@ function SchemaPanel({
             </div>
           )}
           {snap.view === 'empty' && (
+            // Generating is the panel's one way in: a codebook import is chosen a step earlier, on the Schemas tab, and
+            // what a record is gets said through the generation instructions below.
             <EmptyState title="No schema yet" description={onGenerateInstructions
-              ? 'Generate it from this document. Add instructions below first if you want to steer it.'
-              : 'Import a codebook or start blank.'}>
-              {/* Generating is the one next step; importing and starting blank are the rarer ways in, kept quiet
-                  beneath it so the primary action reads first. */}
+              ? 'Add instructions below if you want to steer it, then generate it from this document.'
+              : undefined}>
               {onGenerateInstructions && (
-                <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
-              )}
-              {!editorReadOnly && (
-                <div className="flex basis-full flex-wrap items-center justify-center gap-1 text-compact text-ink-faint">
-                  {onGenerateInstructions && <span>or</span>}
-                  <Button variant="ghost" disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>
-                  <Button variant="ghost" disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>
-                </div>
+                <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate schema</Button>
               )}
             </EmptyState>
           )}
@@ -1438,10 +1402,6 @@ function SchemaPanel({
       {(!ready || !editorReadOnly) && (
         <ChatDrawer open={drawerShown} onCollapse={() => setDrawerOpen(false)} onExpand={() => setDrawerOpen(true)}
           title={ready ? 'Conversation' : 'Instructions for generation'} dot={dot} bodyRef={chatRef}
-          headerAction={!ready && snap.view === 'empty' && onGenerateInstructions ? (
-            // No message count here: the drawer lists "Message n of n", and the header must fit the 264px rail.
-            <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate schema</Button>
-          ) : undefined}
           bar={ready && pending ? <ProposalReviewBar proposal={pending} canApply={canApply} onApply={applyProposal} onDiscard={discardProposal} /> : undefined}
           composer={ready ? (
             <>
@@ -1501,7 +1461,7 @@ function SchemaPanel({
             Producing schema from the document…
           </span>
         )}
-        {snap.view === 'empty' && (onGenerateInstructions ? 'Generate the schema from the document to continue' : 'Import or start blank to create the schema')}
+        {snap.view === 'empty' && onGenerateInstructions && 'Generate the schema from the document to continue'}
         {snap.view === 'failed' && 'Generation failed'}
         {/* Status text only: the save's alert and Retry belong to the host beside its run controls, reachable with the
             Schema tab hidden. */}

@@ -1049,6 +1049,17 @@ export function DocumentWorkspace({
               )}
             </>
           )}
+          {/* Picked the wrong document: back to the Schemas tab's picker, one click away rather than hidden in the
+              tab bar's project link. */}
+          {fromSchemaBuilder && onNavigate && (
+            <Button
+              size="md"
+              disabled={confirmingSchema}
+              onClick={() => onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })}
+            >
+              <span aria-hidden="true">←</span> Choose another document
+            </Button>
+          )}
           {fromSchemaBuilder && (
             <Button
               variant="positive"
