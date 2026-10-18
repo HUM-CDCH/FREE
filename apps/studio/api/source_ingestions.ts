@@ -1,4 +1,5 @@
 import type { DBOSClient } from '@dbos-inc/dbos-sdk'
+import { expectedConversionMs } from 'extraction/kei-handoff'
 import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { studioDbos } from '../server/dbos.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
@@ -50,10 +51,11 @@ export function projectIngestions(input: {
     a.status.createdAt - b.status.createdAt || a.status.workflowID.localeCompare(b.status.workflowID))
   const newestOfContent = new Map<string, string>()
   for (const attempt of attempts) newestOfContent.set(attempt.input.sourceSha256, attempt.status.workflowID)
+  const estimates = liveEstimates(attempts, input.nowMs)
   return attempts.flatMap(({ status, input: recorded }): SourceIngestion[] => {
     const common = { workflowId: status.workflowID, name: recorded.originalName, createdAt: new Date(status.createdAt).toISOString() }
     const outcome = classifyOutcome(status)
-    if (outcome.kind === 'live') return [{ ...common, status: outcome.status }]
+    if (outcome.kind === 'live') return [{ ...common, ...estimates.get(status.workflowID), status: outcome.status }]
     const completedMs = status.completedAt ?? status.updatedAt ?? status.createdAt
     const completedAt = new Date(completedMs).toISOString()
     const named = input.named.has(status.workflowID)
@@ -67,6 +69,38 @@ export function projectIngestions(input: {
         : []
     return outcome.kind === 'failed' ? [{ ...common, status: 'failed', completedAt, failure: outcome.failure }] : []
   })
+}
+
+type LiveEstimate = { pageCount?: number; estimatedCompletionAt?: string }
+
+/**
+ * Each live attempt's page count and expected completion. A lane converts one document at a time, so an attempt
+ * starts when the one before it on its lane finishes, and an overdue one holds back those behind it until now. Only
+ * this project's attempts are seen: another project's work on the lane makes the estimate early, never late. An
+ * attempt of unknown size has no estimate, and neither do those behind it.
+ */
+export function liveEstimates(attempts: readonly IngestionAttempt[], nowMs: number): Map<string, LiveEstimate> {
+  const estimates = new Map<string, LiveEstimate>()
+  const laneFree = new Map<string, number | null>()
+  for (const { status, input } of attempts) {
+    if (classifyOutcome(status).kind !== 'live') continue
+    const pages = Number.isInteger(input.pageCount) && input.pageCount! > 0 ? input.pageCount! : null
+    const lane = typeof input.lane === 'string' ? input.lane : null
+    if (pages === null || lane === null) {
+      estimates.set(status.workflowID, pages === null ? {} : { pageCount: pages })
+      if (lane !== null) laneFree.set(lane, null)
+      continue
+    }
+    const free = laneFree.has(lane) ? laneFree.get(lane)! : status.createdAt
+    if (free === null) {
+      estimates.set(status.workflowID, { pageCount: pages })
+      continue
+    }
+    const completion = Math.max(free, status.createdAt) + expectedConversionMs(pages)
+    estimates.set(status.workflowID, { pageCount: pages, estimatedCompletionAt: new Date(completion).toISOString() })
+    laneFree.set(lane, Math.max(completion, nowMs))
+  }
+  return estimates
 }
 
 /**

@@ -39,6 +39,7 @@ import { useProjectContexts } from './useProjectContexts'
 import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
+import { BREAK_WORTHY_MS, formatWait, liveIngestionLabel, remainingMs, useNow } from './ingestionEstimate'
 import { EvaluationRoundsPanel } from './EvaluationRoundsPanel'
 
 export type ProjectContextPageProps = {
@@ -636,6 +637,10 @@ export default function ProjectContextPage({
   const sourcesInFlight =
     queued.some((source) => source.status !== 'failed') ||
     serverIngestions.some(isLiveIngestion)
+  const nowMs = useNow(serverIngestions.some(isLiveIngestion))
+  // The longest expected wait decides the note: the batch is done when its last document is.
+  const longestWaitMs = Math.max(0, ...serverIngestions.flatMap((row) =>
+    row.status === 'queued' || row.status === 'parsing' ? [remainingMs(row, nowMs) ?? 0] : []))
   const sourceDocuments =
     branch?.status === 'ready'
       ? branch.detail.sourceDocuments
@@ -1566,6 +1571,12 @@ export default function ProjectContextPage({
               </p>
             )}
 
+            {longestWaitMs >= BREAK_WORTHY_MS && (
+              <p className="py-2 text-xs text-ink-muted" role="status">
+                Parsing should take {formatWait(longestWaitMs)}. You can take a break; this list updates on its own.
+              </p>
+            )}
+
             {(queued.length > 0 ||
               serverIngestions.length > 0 ||
               branch?.status === 'ready') && (
@@ -1621,7 +1632,7 @@ export default function ProjectContextPage({
                         </span>
                       ) : (
                         <span className="block text-[11px] text-ink-faint">
-                          {ingestion.status === 'parsing' ? 'Parsing…' : 'Queued'}
+                          {liveIngestionLabel(ingestion, nowMs)}
                         </span>
                       )}
                     </span>

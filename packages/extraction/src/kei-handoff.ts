@@ -38,9 +38,15 @@ export function conversionLane(pages: number | null): ConversionLane {
   return pages !== null && pages <= SMALL_DOCUMENT_PAGES ? KEI_QUEUE.convertSmall : KEI_QUEUE.convertLarge
 }
 
-/** M0R 4: max(10 min, 60 s + 18.9 s × pages), provisional until the ~2000-page Spark run. */
+/** M0R 4's measured cost of one conversion once it runs: 20 s + 6.3 s × pages, provisional until the ~2000-page Spark
+ *  run. A native PDF or a reused result finishes sooner; Studio shows it as an estimate, never a deadline. */
+export function expectedConversionMs(pages: number): number {
+  return 20_000 + 6_300 * pages
+}
+
+/** M0R 4: max(10 min, 60 s + 18.9 s × pages), three times the expected cost. */
 function conversionTimeoutMs(pages: number | null): number {
-  return Math.max(600_000, 3 * (20_000 + 6_300 * (pages ?? UNCOUNTED_PAGE_BUDGET)))
+  return Math.max(600_000, 3 * expectedConversionMs(pages ?? UNCOUNTED_PAGE_BUDGET))
 }
 
 export const keiConvertWorkflowId = (parentWorkflowId: string) => `${CONVERT_PREFIX}${parentWorkflowId}`
