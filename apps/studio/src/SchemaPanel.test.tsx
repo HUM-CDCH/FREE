@@ -1969,7 +1969,6 @@ describe('schema header (redesign §5)', () => {
   it('the empty state offers Generate schema as its only action', () => {
     const onGenerateInstructions = vi.fn()
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, schemaName: null })
-    expect(screen.getByRole('heading', { name: 'No schema yet' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('')
     // A codebook is imported a step earlier, on the Schemas tab; what a record is goes into the instructions.
@@ -2384,68 +2383,63 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
   })
 
-  it('before a schema exists the instructions conversation is open, and Generate schema sends its instructions', () => {
+  it('before a schema exists the panel is the instructions conversation, and Generate schema sends its instructions', () => {
     const onGenerateInstructions = vi.fn()
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
+    // No drawer: the conversation is the panel's body, with nothing to collapse.
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse conversation' })).not.toBeInTheDocument()
     const input = screen.getByPlaceholderText(/Add a generation instruction/)
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(within(drawer).getByText('Focus on dates')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    expect(screen.getByText('Focus on dates')).toBeInTheDocument()
+    expect(screen.getByText('Message 1 of 1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show conversation' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
 
-  it('the new schema rests with one composer line, though instructions opened the drawer before it', async () => {
+  it('a removed instruction leaves the conversation and the generation', () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(screen.getByTitle('Remove this instruction'))
+    expect(screen.queryByText('Focus on dates')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('')
+  })
+
+  it('a failed generation keeps the conversation, and Retry sends its instructions', async () => {
+    const onGenerateInstructions = vi.fn()
+    const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await act(async () => {
+      await setup.schema.generate(async () => { throw new Error('The model is unavailable.') }).catch(() => undefined)
+    })
+
+    expect(await screen.findByText(/The model is unavailable/)).toBeInTheDocument()
+    expect(screen.getByText('Focus on dates')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('the new schema rests with one composer line after the instructions conversation', async () => {
     const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
     const input = screen.getByPlaceholderText(/Add a generation instruction/)
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(screen.getByRole('region', { name: 'Conversation' })).toBeInTheDocument()
 
     await act(async () => {
       await setup.schema.generate(async () => ({ _description: 'One test record.', title: 'string' }))
     })
 
     expect(await screen.findByPlaceholderText('Describe a change to the schema…')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-  })
-
-  it('the instructions drawer header fits the narrow rail: a truncating title, a fixed actions group, no message count', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
-    // The drawer lists "Message 1 of 1" already.
-    expect(within(drawer).getByText('Message 1 of 1')).toBeInTheDocument()
-    // One Generate schema, in the panel's empty state: the drawer header holds only its collapse control.
-    expect(within(drawer).queryByRole('button', { name: 'Generate schema' })).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Generate schema' })).toHaveLength(1)
-    const actions = within(drawer).getByRole('button', { name: 'Collapse conversation' }).parentElement!
-    expect(actions.className).toMatch(/\bshrink-0\b/)
-    const title = within(drawer).getByText('Instructions for generation')
-    expect(title.className).toMatch(/\bmin-w-0\b/)
-    expect(title.className).toMatch(/\btruncate\b/)
-  })
-
-  it('a collapsed instructions drawer comes back from the dot, with its instructions', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show conversation' }))
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
-    expect(within(drawer).getByText('Focus on dates')).toBeInTheDocument()
-  })
-
-  it('an empty instruction does not reopen the collapsed drawer', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    fireEvent.keyDown(screen.getByPlaceholderText(/Add a generation instruction/), { key: 'Enter' })
+    expect(screen.queryByPlaceholderText(/Add a generation instruction/)).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
   })
 

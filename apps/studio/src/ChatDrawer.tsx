@@ -23,7 +23,7 @@ export default function ChatDrawer({ open, onCollapse, onExpand, title, dot, bar
       {open && (
         <section aria-label="Conversation" className="flex min-h-0 flex-1 flex-col">
           {/* At the 264px rail the title gives way (truncates) and the collapse control keeps its width. */}
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1.5">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-1.5">
             <span className="min-w-0 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted" title={title}>{title}</span>
             <div className="flex shrink-0 items-center gap-1.5">
               <button type="button" aria-label="Collapse conversation" title="Collapse"
@@ -32,19 +32,32 @@ export default function ChatDrawer({ open, onCollapse, onExpand, title, dot, bar
               </button>
             </div>
           </div>
-          <div ref={bodyRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">{children}</div>
+          <div ref={bodyRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-2.5">{children}</div>
           {bar}
         </section>
       )}
-      <div className="flex shrink-0 items-center gap-2 px-3.5 pb-3 pt-1.5">
+      <ChatComposer>
         {!open && dot && (
           <button type="button" aria-label={dot.title} title={dot.title}
             className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-full outline-none hover:bg-surface" onClick={onExpand}>
             <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
           </button>
         )}
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">{composer}</div>
-      </div>
+        <div className="chat-composer flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-3 py-1.5 focus-within:border-ink-faint">{composer}</div>
+      </ChatComposer>
+    </div>
+  )
+}
+
+/** The composer row beneath a conversation; outside a drawer it carries the drawer's top edge and ground itself, and
+ *  its label above the box. */
+export function ChatComposer({ standalone = false, label, children }: { standalone?: boolean; label?: ReactNode; children: ReactNode }) {
+  if (!standalone) return <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-1.5">{children}</div>
+  return (
+    <div className="flex shrink-0 flex-col gap-1.5 border-t border-line bg-surface-muted px-4 pb-3 pt-2.5">
+      {label}
+      {/* Roomier than the drawer's at-rest line: here the composer is the panel's one way forward, so it reads first. */}
+      <div className="chat-composer flex min-w-0 items-end gap-2 rounded-[12px] border border-line-strong bg-surface px-3 py-2.5 shadow-sm focus-within:border-ink-faint">{children}</div>
     </div>
   )
 }

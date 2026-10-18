@@ -15,7 +15,7 @@ function acknowledgement(index: number): React.ReactNode {
 
 
 /** Pre-generation conversation over the same instruction state used by the Regenerate dialog: the message list only;
- *  the panel's chat drawer scrolls it and composes it. */
+ *  the panel scrolls and composes it. */
 export function SchemaInstructionsChat({
   instructions,
   messageClass,
@@ -23,16 +23,9 @@ export function SchemaInstructionsChat({
   instructions: SchemaInstructions
   messageClass: MessageClass
 }) {
+  if (instructions.items.length === 0) return null
   return (
     <div className="flex flex-col gap-2">
-      {instructions.items.length === 0 && (
-        <p className="flex items-center gap-1.5 text-secondary leading-relaxed text-ink-faint">
-          Add instructions for schema generation.
-          <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-overline font-semibold uppercase tracking-wide text-ink-faint">
-            Optional
-          </span>
-        </p>
-      )}
       {instructions.items.map((instruction, index) => (
         <div key={instruction.id} className="flex flex-col gap-1">
           <div className={messageClass('user')}>{instruction.text}</div>

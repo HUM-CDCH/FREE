@@ -103,6 +103,14 @@
   box-shadow: 0 0 0 2px var(--color-surface);
 }
 
+/* A chat composer's text field sits in its own bordered box, which marks focus
+   by darkening its border (ChatDrawer); the ring around the field inside that
+   box would only double it. Its buttons keep the ring. */
+.chat-composer :is(input, textarea):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* The routed content region is focused on navigation, and the shell clips
    anything drawn outside it — so this one ring goes inside. */
 #main-content:focus-visible {

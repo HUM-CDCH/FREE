@@ -1770,8 +1770,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Clear schema' }))
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current schema' })).getByRole('button', { name: 'Clear schema' }))
 
-    expect(await screen.findByText('No schema yet')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate schema' }))
 
     await waitFor(() => expect(schemaPosts).toHaveLength(2), { timeout: 2_000 })
     expect(schemaPosts[0]).toMatchObject({
