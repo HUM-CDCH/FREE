@@ -1,7 +1,8 @@
 """Heading inheritance needs shown source and a separate applicability verdict; it changes no record ownership."""
 import pytest
 
-from tests.test_unified_catalog import Model, candidate, evidence, extract, text
+from tests.test_extract_grounded import WordCounter
+from tests.test_unified_catalog import Model, candidate, evidence, extract, section, text
 
 SCHEMA = {"recordDescription": "One numbered catalogue entry.", "schemaNodes": [
     {"id": "r", "name": "region", "type": "string"},
@@ -42,12 +43,42 @@ def test_a_superseded_heading_value_is_rejected_by_the_verifier():
     assert result["records"] == [{"region": "Moor"}, {"region": None}]
     assert result["rejected"][0]["reason"] == "verification_rejected"
     verification = [call for call in chat.calls if call["system"].startswith("You check values")][-1]
-    assert "Kreis Moor\nKreis Ried" in verification["user"]
+    assert verification["user"].index("Kreis Moor") < verification["user"].index("Kreis Ried")
+    assert "#### CONTEXT 1/2 (earlier shown; source p1_s0)\nKreis Moor" in verification["user"]
+    assert "#### CONTEXT 2/2 (latest shown; source p1_s0)\nKreis Ried" in verification["user"]
     for prefix in ("You extract structured data", "You check values"):
         system = next(call["system"] for call in chat.calls if call["system"].startswith(prefix))
         assert "all shown headings" in system and "source order (oldest first, latest last)" in system
         assert "supersedes a conflicting earlier value for the same field" in system
         assert "earlier higher-level headings still apply unless superseded" in system
+
+
+def test_entry_and_verifier_see_the_same_ordered_context_excerpts_with_source_identity():
+    source = evidence("Kreis Moor\n1. Adorf.", "Kreis Ried\n2. Bdorf.")
+    counter = WordCounter()
+    result, chat = extract(source, Model(source, entry=lambda record, *_: {
+        "region": candidate("Ried", "Kreis Ried") if record.startswith("2.") else candidate("Moor", "Kreis Moor")}),
+        schema=SCHEMA, counter=counter, input_tokens=600, output_tokens=64)
+    expected = ("### CONTEXT (not part of the record)\nExcerpt labels are metadata, not source text.\n"
+                "#### CONTEXT 1/2 (earlier shown; source p1_s0)\nKreis Moor\n"
+                "#### CONTEXT 2/2 (latest shown; source p2_s0)\nKreis Ried\n\n")
+    calls = [call for call in chat.calls if section(call["user"], "RECORD").startswith("2.")]
+    assert len(calls) == 2
+    assert all(call["user"].split("### RECORD\n")[0] == expected for call in calls)
+    assert result["records"] == [{"region": "Moor"}, {"region": "Ried"}]
+    assert result["evidence"][1]["spans"] == [{"segment": "p2_s0", "start": 6, "end": 10}]
+    for call in chat.calls:
+        count = len(call["system"].split()) + len(call["user"].split()) + counter.template_tokens
+        assert count <= 600 and count in counter.counted
+    assert all(call["counted_input_tokens"] == call["input_tokens"] <= 600 for call in result["calls"])
+
+
+def test_context_excerpt_labels_are_not_quotable_source():
+    source = evidence("Kreis Moor\n1. Adorf.")
+    result, _ = extract(source, Model(source, entry=lambda *_: {
+        "region": candidate("Moor", "#### CONTEXT 1/1 (latest shown; source p1_s0)\nKreis Moor")}), schema=SCHEMA)
+    assert result["records"] == [{"region": None}] and result["evidence"] == [] and result["proposed"] == []
+    assert [row["reason"] for row in result["rejected"]] == ["quote_not_in_source"]
 
 
 def test_uncertain_heading_applicability_stays_a_proposal():
@@ -76,6 +107,8 @@ def test_a_heading_not_shown_to_the_entry_is_ineligible(dropped):
     assert result["rejected"][0]["reason"] == "quote_not_in_source"
     assert not any("Kreis Moor" in call["user"] for call in chat.calls
                    if call["system"].startswith("You extract structured data"))
+    assert not any("#### CONTEXT" in call["user"] for call in chat.calls
+                   if call["system"].startswith(("You extract structured data", "You check values")))
     if dropped:
         assert any(row["stage"] == "entry" and row["kind"] == "heading" for row in result["context_omitted"])
 

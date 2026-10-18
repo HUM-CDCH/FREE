@@ -171,7 +171,7 @@ def test_truncated_discovery_is_saved_and_split_until_complete_or_exhausted(tmp_
                 system,user=messages[0]['content'],messages[-1]['content']
                 schema=body['response_format']['json_schema']['schema']
                 discovery=system.startswith('You find where records begin')
-                width=len(schema['properties']['places']['items']['prefixItems'][0]['enum']) if discovery else 0
+                width=len(schema['properties']['places']['items']['anyOf'][0]['prefixItems'][0]['enum']) if discovery else 0
                 if discovery:widths.append(width)
                 cut=width>max_width
                 if cut:truncated.append(body)

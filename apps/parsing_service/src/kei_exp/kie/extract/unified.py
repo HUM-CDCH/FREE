@@ -63,10 +63,11 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 7  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 8  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6: instruction-model messages include the reply schema, counted with the rest of the prompt.
 # 7: scalars outside lists may inherit from shown heading context, with applicability separately verified.
+# 8: context excerpts retain separate source labels and identify the latest shown excerpt.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -694,7 +695,11 @@ def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str,
 def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable]) -> str:
     def source(units):
         return _source_text(units, texts, tables)
-    parts = ([f"### CONTEXT (not part of the record)\n{source(window.heading)}"] if window.heading else []) + \
+    heading = [f"#### CONTEXT {index}/{len(window.heading)} "
+               f"({'latest' if index == len(window.heading) else 'earlier'} shown; source {unit.segment})\n"
+               f"{source([unit])}" for index, unit in enumerate(window.heading, 1)]
+    parts = (["### CONTEXT (not part of the record)\nExcerpt labels are metadata, not source text.\n"
+              + "\n".join(heading)] if heading else []) + \
         ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) + \
         [f"### {marker}\n{source(window.primary)}\n### END {marker}"] + \
         ([f"### LATER TEXT\n{source(window.after)}"] if window.after else [])

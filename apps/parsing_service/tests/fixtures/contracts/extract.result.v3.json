@@ -201,7 +201,7 @@
       "fields": "fake/extractor",
       "reasoning": "fake/extractor"
     },
-    "prompt_version": 7,
+    "prompt_version": 8,
     "document_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
@@ -324,8 +324,8 @@
         "fields": "fake/extractor",
         "reasoning": "fake/extractor"
       },
-      "prompt_version": 7,
-      "discovery_version": 9,
+      "prompt_version": 8,
+      "discovery_version": 10,
       "tokenizers": {
         "fields": {
           "source": "words",
@@ -343,10 +343,10 @@
         }
       }
     },
-    "execution_sha256": "74cf414c7be9568ddf8b57660ac363e99f1b889ec3a948cc9cd2bff1de8ea93b",
+    "execution_sha256": "097f0208084ce4d1ced7fc54ece1388ca01f1e934947606fc8762ed511557138",
     "discovery": {
-      "version": 9,
-      "execution_sha256": "74cf414c7be9568ddf8b57660ac363e99f1b889ec3a948cc9cd2bff1de8ea93b",
+      "version": 10,
+      "execution_sha256": "097f0208084ce4d1ced7fc54ece1388ca01f1e934947606fc8762ed511557138",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -449,7 +449,7 @@
         }
       ]
     },
-    "discovery_sha256": "1e0349d9459e0f95009f445ed82a7c26aa0de5f4f47fe62b0cbcff01fa5b8f81",
+    "discovery_sha256": "8be0b756a79df141d121e162963ca3b011e4f9f19c6ef10b65c5fc619a113207",
     "records": [
       {
         "label": "12",
@@ -864,13 +864,13 @@
       {
         "stage": "entry",
         "record": 0,
-        "input_tokens": 244,
+        "input_tokens": 258,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 244,
+        "counted_input_tokens": 258,
         "context_tokens": 16384,
         "max_output_tokens": 4096,
         "recovered": false
@@ -878,13 +878,13 @@
       {
         "stage": "verification",
         "record": 0,
-        "input_tokens": 217,
+        "input_tokens": 231,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 217,
+        "counted_input_tokens": 231,
         "context_tokens": 16384,
         "max_output_tokens": 2048,
         "recovered": false
@@ -892,13 +892,13 @@
       {
         "stage": "entry",
         "record": 1,
-        "input_tokens": 242,
+        "input_tokens": 256,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 242,
+        "counted_input_tokens": 256,
         "context_tokens": 16384,
         "max_output_tokens": 4096,
         "recovered": false
@@ -906,13 +906,13 @@
       {
         "stage": "verification",
         "record": 1,
-        "input_tokens": 213,
+        "input_tokens": 227,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 213,
+        "counted_input_tokens": 227,
         "context_tokens": 16384,
         "max_output_tokens": 2048,
         "recovered": false
@@ -933,9 +933,9 @@
       }
     ],
     "tokens": {
-      "input": 1356,
+      "input": 1412,
       "output": 30
     },
-    "fingerprint": "cbf124d8a8edcb73e9bafa1c585402e87c81f37a3104f88567d3a30920d53d1a"
+    "fingerprint": "dd81905905968462f32b87c7e227af21e40f86f256bed75ba76e02cc2d12fcce"
   }
 }

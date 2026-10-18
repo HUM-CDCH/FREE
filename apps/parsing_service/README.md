@@ -217,6 +217,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   native fields model keeps the reserve). New admissions use it only where Studio's
   `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
+  Source-invalid copied discovery anchors use the same bounded smaller-window
+  recovery as failed replies. Original calls and issues remain in the artifact;
+  exhausted recovery leaves the affected text unresolved. The reply schema uses
+  exact three- or four-item alternatives so grammar backends cannot force an
+  optional copied anchor at a line's start.
+  Heading excerpts are shown separately in source order with source identities
+  and the latest shown excerpt marked. These labels are metadata, never evidence;
+  extraction and verification see the same counted context.
   Scalar fields outside lists can inherit values from heading context actually
   shown to the field model, with canonical source spans. Accepted heading values
   must be printed literals and separately verified for applicability. Boolean

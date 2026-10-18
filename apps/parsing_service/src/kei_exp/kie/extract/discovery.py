@@ -5,7 +5,8 @@ The admitted canonical text is cut into units: its nonblank source lines, as raw
 and is ledgered `other`. `plan` groups consecutive units into windows whose rendered request fits a
 stage's budget, with disjoint primary text and up to `overlap` units of context on each side; a unit too long for any
 window is cut at whitespace, then at code points (`windows.windows_of`), keeping its raw offsets. Supplementary
-context that does not fit is dropped and named, never primary text. `split` halves a window whose reply failed.
+context that does not fit is dropped and named, never primary text. `split` halves a window whose reply failed or
+whose copied boundary could not be located in its source line.
 A WINDOW line's label names its layout kind when ingestion gave its segment one (a heading or a table row). Measured
 on one 6-page excavation report (7 records; Qwen3.8-27B-NVFP4 at temperature 0, 13 October 2026, page windows under
 12 to 24 concurrent requests): without kinds, one record's heading was missed in up to 12 of 12 identical requests,
@@ -29,7 +30,8 @@ printed on every record), so numbering that restarts after other records stays a
 the last window says continues after it is cut by the end of the supplied source (an excerpt): its end is
 `source_end`, as settled as a `validated` one, when no nonblank withheld text follows it in reading order, since then
 nothing after it was left unread; when withheld text does follow, the record may continue there and its end is
-`unresolved`. A failed or cut-off reply is retried on the window's two halves a bounded number of times.
+`unresolved`. A failed or cut-off reply, or one with an unplaceable boundary, is retried on the window's two halves a
+bounded number of times. Superseded replies keep their calls and issues; only the final readings own source text.
 
 The ledger gives every nonblank canonical range one disposition: `entry` (a record's own text), `other`,
 `unresolved` or `withheld`. A disposition is a recorded decision, not a measure of recall. Nothing here knows a
@@ -52,14 +54,16 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 9  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 10  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
 # both edge flags say the record continues, a record start at the window's start with the open record's own printed
 # label is ignored too, and one with another printed label ends the open record cleanly; 8: a `record` and an `other`
 # place at one spot are a record start (`_observe`), and a record start with the printed label of the record just
-# before it continues that record anywhere; 9: the prompt clarifies record scope and starts that include printed labels
+# before it continues that record anywhere; 9: the prompt clarifies record scope and starts that include printed
+# labels; 10: unplaceable boundaries use bounded split recovery, retaining their calls and issues, and exact tuple
+# alternatives keep the optional copied start optional in grammar compilers that require every prefixItems element
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -218,10 +222,11 @@ def _render(window: Window, texts: dict[str, str], kinds: dict[str, str]) -> tup
 
 
 def _reply(labels: list[str]) -> dict:
-    place = {"type": "array", "prefixItems": [{"type": "string", "enum": labels},
-                                              {"type": "string", "enum": ["record", "other"]},
-                                              {"type": ["string", "null"]}, {"type": "string"}],
-             "items": False, "minItems": 3, "maxItems": 4}
+    fields = [{"type": "string", "enum": labels}, {"type": "string", "enum": ["record", "other"]},
+              {"type": ["string", "null"]}, {"type": "string"}]
+    # xgrammar 0.2.3 requires every prefixItems element even when minItems allows a shorter tuple.
+    place = {"anyOf": [{"type": "array", "prefixItems": fields[:size], "items": False,
+                         "minItems": size, "maxItems": size} for size in (3, 4)]}
     return {"type": "object", "properties": {
         "places": {"type": "array", "items": place},
         "begins_inside_record": {"type": ["boolean", "null"]}, "ends_inside_record": {"type": ["boolean", "null"]}},
@@ -337,7 +342,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
                                                                 each.window.primary[0].start)))
             progress(found, ranges_json(window.primary))
 
-    def one(window: Window) -> tuple[_Seen | None, list, list[Issue]]:
+    def one(window: Window, depth: int) -> tuple[_Seen | None, list, list[Issue]]:
         user, labels = _render(window, texts, kinds)
         with lock:
             report(window)
@@ -345,6 +350,9 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         issues: list[Issue] = []
         answer = ask(None, system, user, _reply(labels), calls, issues)
         observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
+        if observed is not None and len(window.primary) > 1 and depth < splits and \
+                any(kind == "unresolved" for _, _, kind, _ in observed.places):
+            return None, calls, issues  # the halves replace this reading, including its provisional progress
         if observed is not None:
             with lock:
                 done.append(observed)
@@ -356,7 +364,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         size, results = max(1, workers), []
         with ThreadPoolExecutor(max_workers=size, thread_name_prefix="discovery") as pool:
             for at in range(0, len(batch), size):
-                futures = [pool.submit(one, window) for window in batch[at:at + size]]
+                futures = [pool.submit(one, window, depth) for window in batch[at:at + size]]
                 for future in futures:
                     if (error := future.exception()) is not None:
                         raise error
@@ -378,7 +386,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         """The window's reading, then its halves' when it failed and may still be halved, each half once the one
         before it is read; None once one of them is unanswered."""
         try:
-            observed, calls, issues = one(window)
+            observed, calls, issues = one(window, depth)
         except unanswered:
             return None
         if observed is None and len(window.primary) > 1 and depth < splits:
