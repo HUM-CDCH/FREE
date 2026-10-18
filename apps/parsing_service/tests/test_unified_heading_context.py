@@ -117,6 +117,32 @@ def test_an_inherited_value_never_creates_a_scalar_list_item():
     assert result["rejected"][0]["reason"] == "quote_not_in_source"
 
 
+@pytest.mark.parametrize("node, value", [
+    ({"id": "g", "name": "gilded", "type": "boolean"}, True),
+    ({"id": "c", "name": "cover", "type": "string", "allowedValues": ["bog", "field"]}, "bog"),
+    ({"id": "d", "name": "era", "type": "string", "evidencePolicy": "derived"}, "iron age"),
+], ids=["boolean", "allowed-label", "derived"])
+def test_context_supports_no_value_it_does_not_print(node, value):
+    """Inside the record an unprinted value may rest on a supporting passage; record-free text is not the
+    record's to support it, so a heading grounds a value only where it prints it."""
+    source = evidence("Kreis Moor\n1. Adorf.")
+    schema = {**SCHEMA, "schemaNodes": [node]}
+    result, _ = extract(source, Model(source, entry=lambda *_: {
+        node["name"]: candidate(value, "Kreis Moor")}), schema=schema)
+    assert result["records"] == [{node["name"]: None}] and result["evidence"] == []
+    assert result["proposed"] == []
+    assert [row["reason"] for row in result["rejected"]] == ["quote_not_in_source"]
+
+
+def test_a_null_value_in_a_wrapper_declines_the_field_instead_of_mistyping_it():
+    source = evidence("Kreis Moor\n1. Adorf.")
+    result, _ = extract(source, Model(source, entry=lambda *_: {
+        "region": candidate(None, "Kreis Moor")}), schema=SCHEMA)
+    assert result["records"] == [{"region": None}] and result["evidence"] == []
+    assert [(row["path"], row["reason"], row["value"]) for row in result["rejected"]] == [
+        (["records", 0, "region"], "no_value", None)]
+
+
 def test_arbitration_can_read_inherited_evidence_outside_the_record():
     source = evidence("Kreis Moor\n1. Adorf.\n" + "\n".join(f"Detail {n}." for n in range(250)) + "\nRegion: Stein.")
 

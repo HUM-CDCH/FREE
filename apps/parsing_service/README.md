@@ -219,8 +219,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   each method's calls.
   Scalar fields outside lists can inherit values from heading context actually
   shown to the field model, with canonical heading evidence and a separate
-  verification of applicability. Uncertain or superseded headings are not
-  accepted; disabling verification keeps these values as proposals. List values
+  verification of applicability. Context grounds a value only where it prints
+  it: a yes/no, an allowed label or a derived value may be supported by an
+  unprinted passage of the entry, never by record-free text. An unclear verdict
+  and disabled verification both keep these values as proposals. List values
   and item occurrences still require the entry's own text.
 
 Limitations:
@@ -237,6 +239,13 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
+- Heading inheritance grounds a value in shown context; which heading applies
+  is the verification model's judgement, not a code check. Code cannot tell
+  that a later heading supersedes an earlier one of the same kind, so a model
+  that picks the stale heading produces an accepted wrong value. The context
+  itself is the last three record-free units before the entry, by recency: a
+  standing heading is pushed out by nearer record-free text, including text a
+  weak discovery misfiled as record-free.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership. For
