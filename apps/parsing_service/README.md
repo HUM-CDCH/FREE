@@ -225,6 +225,13 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   Heading excerpts are shown separately in source order with source identities
   and the latest shown excerpt marked. These labels are metadata, never evidence;
   extraction and verification see the same counted context.
+  Discovery retains all preceding record-free ranges as context candidates.
+  Record windows and their overlap are planned first; whole context units are
+  then admitted within the remaining budget, newest first. An oversized unit is
+  skipped so smaller older units can still fit. Kept excerpts remain in source
+  order, and every omitted range is reported in `context_omitted`. Context cannot
+  shorten primary windows or add record calls; a split retry reconsiders both
+  previously kept and omitted context.
   Scalar fields outside lists can inherit values from heading context actually
   shown to the field model, with canonical source spans. Accepted heading values
   must be printed literals and separately verified for applicability. Boolean
@@ -252,9 +259,11 @@ Limitations:
 - Heading applicability and supersession currently rely on the verification
   model; code checks source spans rather than heading hierarchy. A model that
   picks a stale heading and verifies it can produce an accepted wrong value.
-  Context is the last three record-free units before the entry, by recency: a
-  standing heading is pushed out by nearer record-free text, including text a
-  weak discovery misfiled as record-free.
+  A standing heading can still be omitted when the counted request has no room
+  for it; source layout kinds do not establish heading applicability. Long
+  histories repeat context references in the discovery artifact. When all
+  context does not fit, selecting whole units can require one tokenizer check
+  per candidate per window; the artifact also lists every omitted range.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership. For

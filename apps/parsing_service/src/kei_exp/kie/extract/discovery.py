@@ -5,8 +5,9 @@ The admitted canonical text is cut into units: its nonblank source lines, as raw
 and is ledgered `other`. `plan` groups consecutive units into windows whose rendered request fits a
 stage's budget, with disjoint primary text and up to `overlap` units of context on each side; a unit too long for any
 window is cut at whitespace, then at code points (`windows.windows_of`), keeping its raw offsets. Supplementary
-context that does not fit is dropped and named, never primary text. `split` halves a window whose reply failed or
-whose copied boundary could not be located in its source line.
+context that does not fit is dropped and named, never primary text. Entry context considers all preceding record-free
+units after fixing the primary windows, admitting whole units newest first and skipping those that do not fit.
+`split` halves a window whose reply failed or whose copied boundary could not be located in its source line.
 A WINDOW line's label names its layout kind when ingestion gave its segment one (a heading or a table row). Measured
 on one 6-page excavation report (7 records; Qwen3.8-27B-NVFP4 at temperature 0, 13 October 2026, page windows under
 12 to 24 concurrent requests): without kinds, one record's heading was missed in up to 12 of 12 identical requests,
@@ -45,7 +46,7 @@ import threading
 import unicodedata
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import groupby
 
 from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
@@ -54,7 +55,7 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 10  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 11  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
@@ -64,10 +65,11 @@ VERSION = 10  # 2: a record the last window says continues ends at the source en
 # before it continues that record anywhere; 9: the prompt clarifies record scope and starts that include printed
 # labels; 10: unplaceable boundaries use bounded split recovery, retaining their calls and issues, and exact tuple
 # alternatives keep the optional copied start optional in grammar compilers that require every prefixItems element
+# 11: all preceding record-free units are context candidates, selected individually within the counted budget
+# without changing primary windows.
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
-CONTEXT_UNITS = 3  # the record-free lines before an entry kept as its context references
 DISCOVERY = (
     "You find where records begin in a source document. A record is: {description}\n"
     "Use that description to distinguish records from their contents: numbered subitems or details within a record "
@@ -125,8 +127,27 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = ()) -> list[Window] | None:
-    """Consecutive windows over `units`, each with as many units as fit beside its full context; `lead` and `trail`
-    are the units just outside. None when not even one code point fits beside the instructions."""
+    """Consecutive primary windows with their existing overlap, then whole heading units that fit, newest first.
+    `lead` and `trail` are the units just outside. None when not even one code point fits beside the instructions."""
+    if heading:
+        windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
+        if windows is None:
+            return None
+        selected = []
+        for window in windows:
+            complete = replace(window, heading=tuple(heading))
+            if fits(complete):
+                selected.append(complete)
+                continue
+            omitted = []
+            for unit in reversed(heading):
+                candidate = replace(window, heading=(unit, *window.heading))
+                if fits(candidate):
+                    window = candidate
+                else:
+                    omitted.append(("heading", unit))
+            selected.append(replace(window, omitted=(*window.omitted, *reversed(omitted))))
+        return selected
     pieces = list(units)
     windows: list[Window] = []
     start = 0
@@ -174,7 +195,10 @@ def split(window: Window, texts: dict[str, str], fits: Callable[[Window], bool],
     """A window of several units as the windows of its two halves, each with its context re-fitted."""
     before = window.before or window.dropped("before")
     after = window.after or window.dropped("after")
-    heading = window.heading or window.dropped("heading")
+    # `texts` follows canonical passage order; segment IDs themselves do not sort in reading order.
+    order = {segment: index for index, segment in enumerate(texts)}
+    heading = tuple(sorted(set((*window.heading, *window.dropped("heading"))),
+                           key=lambda unit: (order[unit.segment], unit.start, unit.end)))
     middle = len(window.primary) // 2
     first, second = window.primary[:middle], window.primary[middle:]
     return [*plan(first, texts, fits, overlap=overlap, lead=before, trail=(*second, *after), heading=heading),
@@ -581,7 +605,7 @@ def _unread_after(last: Unit, evidence: Evidence) -> bool:
 def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidence: Evidence,
             texts: dict[str, str]) -> dict:
     ledger: list[dict] = []
-    others: list[Unit] = []
+    others: list[dict] = []
     begun: set[int] = set()  # an entry continued after other text owns several regions; its context is its first's
     ends = [region[2] for region in regions[1:]] + [(len(units), 0)] * bool(regions)
     for (kind, entry, (first, offset)), (last, stop) in zip(regions, ends, strict=True):
@@ -592,10 +616,11 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
         if entry is not None:
             if entry not in begun:
                 begun.add(entry)
-                entries[entry]["context"] = ranges_json(others[-CONTEXT_UNITS:])
+                # Range dictionaries are read-only after discovery; share them, not the growing prefix list.
+                entries[entry]["context"] = others.copy()
             entries[entry]["ranges"] += ranges_json(owned)
         elif kind == "other":
-            others += owned
+            others += ranges_json(owned)
         for piece in owned:
             row = {"segment": piece.segment, "start": piece.start, "end": piece.end,
                    "disposition": "entry" if entry is not None else kind,

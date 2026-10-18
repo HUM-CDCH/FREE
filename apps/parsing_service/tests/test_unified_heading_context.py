@@ -1,6 +1,8 @@
 """Heading inheritance needs shown source and a separate applicability verdict; it changes no record ownership."""
 import pytest
 
+from kei_exp.kie.extract import unified
+from kei_exp.kie.extract.discovery import Window
 from tests.test_extract_grounded import WordCounter
 from tests.test_unified_catalog import Model, candidate, evidence, extract, section, text
 
@@ -81,6 +83,19 @@ def test_context_excerpt_labels_are_not_quotable_source():
     assert [row["reason"] for row in result["rejected"]] == ["quote_not_in_source"]
 
 
+def test_a_standing_heading_survives_more_than_three_record_free_units():
+    source = evidence("Kreis Moor\nVorwort A.\nVorwort B.\nVorwort C.\n1. Adorf.")
+    result, chat = extract(source, Model(source, entry=inherited), schema=SCHEMA)
+    context = result["discovery"]["entries"][0]["context"]
+    assert [text(source, row) for row in context] == ["Kreis Moor", "Vorwort A.", "Vorwort B.", "Vorwort C."]
+    assert result["records"] == [{"region": "Moor"}] and result["context_omitted"] == []
+    assert result["evidence"][0]["spans"] == [{"segment": "p1_s0", "start": 6, "end": 10}]
+    for call in chat.calls:
+        if call["system"].startswith(("You extract structured data", "You check values")):
+            assert "#### CONTEXT 1/4 (earlier shown; source p1_s0)\nKreis Moor" in call["user"]
+            assert "#### CONTEXT 4/4 (latest shown; source p1_s0)\nVorwort C." in call["user"]
+
+
 def test_uncertain_heading_applicability_stays_a_proposal():
     source = evidence("Kreis Moor\n1. Adorf.")
     result, _ = extract(source, Model(source, entry=inherited, verdict=lambda *_: "unclear"), schema=SCHEMA)
@@ -107,10 +122,27 @@ def test_a_heading_not_shown_to_the_entry_is_ineligible(dropped):
     assert result["rejected"][0]["reason"] == "quote_not_in_source"
     assert not any("Kreis Moor" in call["user"] for call in chat.calls
                    if call["system"].startswith("You extract structured data"))
-    assert not any("#### CONTEXT" in call["user"] for call in chat.calls
-                   if call["system"].startswith(("You extract structured data", "You check values")))
     if dropped:
-        assert any(row["stage"] == "entry" and row["kind"] == "heading" for row in result["context_omitted"])
+        assert any(row["stage"] == "entry" and row["kind"] == "heading"
+                   and text(source, row).startswith("Kreis Moor") for row in result["context_omitted"])
+    else:
+        assert not any("#### CONTEXT" in call["user"] for call in chat.calls
+                       if call["system"].startswith(("You extract structured data", "You check values")))
+
+
+def test_oversized_history_does_not_hide_an_older_fitting_heading():
+    source = evidence("Kreis Moor\nIndex" + " Beschreibung" * 500 + "\nVorwort kurz.\n1. Adorf.")
+    result, chat = extract(source, Model(source, entry=inherited), schema=SCHEMA,
+                           input_tokens=600, output_tokens=64)
+    assert result["records"] == [{"region": "Moor"}]
+    assert result["evidence"][0]["spans"] == [{"segment": "p1_s0", "start": 6, "end": 10}]
+    entries = [call for call in chat.calls if call["system"].startswith("You extract structured data")]
+    assert len(entries) == 1 and "Kreis Moor" in entries[0]["user"] and "Vorwort kurz." in entries[0]["user"]
+    assert any(row["stage"] == "entry" and row["kind"] == "heading" and text(source, row).startswith("Index")
+               for row in result["context_omitted"])
+    verification = next(call for call in chat.calls if call["system"].startswith("You check values"))
+    assert entries[0]["user"].split("### RECORD")[0] == verification["user"].split("### RECORD")[0]
+    assert all(call["counted_input_tokens"] == call["input_tokens"] <= 600 for call in result["calls"])
 
 
 def test_inherited_values_require_verification_and_keep_their_source_when_it_is_off():
@@ -283,9 +315,11 @@ def test_a_null_value_in_a_wrapper_declines_the_field_instead_of_mistyping_it():
 
 
 def test_arbitration_can_read_inherited_evidence_outside_the_record():
-    source = evidence("Kreis Moor\n1. Adorf.\n" + "\n".join(f"Detail {n}." for n in range(250)) + "\nRegion: Stein.")
+    source = evidence("Kreis Moor\n1. Adorf.\nDetail 0.\nDetail 1.\nDetail 2.\nRegion: Stein.")
 
     def values(record, user, schema):
+        if "Detail 0." in record and "Region: Stein" in record:
+            return {}  # a failed whole-entry reply is split; each half still has room for its heading
         if "Region: Stein" in record:
             return {"region": candidate("Stein", "Region: Stein")}
         return inherited(record, user, schema)
@@ -295,3 +329,27 @@ def test_arbitration_can_read_inherited_evidence_outside_the_record():
     arbitration = next(call for call in chat.calls if call["system"].startswith("Several verified candidate"))
     assert "Kreis Moor" in arbitration["user"] and "Stein" in arbitration["user"]
     assert result["records"] == [{"region": "Moor"}]
+
+
+def test_arbitration_keeps_shown_headings_in_source_order_across_partial_selections(monkeypatch):
+    source = evidence("Kreis Alpha\nKreis Beta\nKreis Gamma\nKreis Omitted\n1. Adorf.\nDetail.")
+
+    def partial_windows(units, texts, fits, *, overlap, heading):
+        assert len(units) == 2 and len(heading) == 4
+        windows = [
+            Window((units[0],), heading=heading[1:3], omitted=(("heading", heading[0]), ("heading", heading[3]))),
+            Window((units[1],), heading=heading[:3], omitted=(("heading", heading[3]),)),
+        ]
+        assert all(fits(window) for window in windows)
+        return windows
+
+    monkeypatch.setattr(unified, "plan", partial_windows)
+    result, chat = extract(source, Model(source, entry=lambda record, *_: {
+        "region": candidate("Beta", "Kreis Beta") if record.startswith("1.") else candidate("Alpha", "Kreis Alpha")}),
+        schema=SCHEMA)
+    arbitration = next(call for call in chat.calls if call["system"].startswith("Several verified candidate"))
+    snippets = [line for line in arbitration["user"].splitlines() if line.startswith(("C1:", "C2:"))]
+    assert len(snippets) == 2
+    assert all("Kreis Alpha Kreis Beta Kreis Gamma" in snippet for snippet in snippets)
+    assert "Kreis Omitted" not in arbitration["user"]
+    assert result["records"] == [{"region": "Beta"}]

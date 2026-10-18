@@ -63,11 +63,12 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 8  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 9  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6: instruction-model messages include the reply schema, counted with the rest of the prompt.
 # 7: scalars outside lists may inherit from shown heading context, with applicability separately verified.
 # 8: context excerpts retain separate source labels and identify the latest shown excerpt.
+# 9: counted context selection preserves primary windows and reports individually omitted source units.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -818,7 +819,8 @@ class _Run:
             out.record = conform(_placed(out.found, "candidate"), self.nodes)
             return out
         self._verify(number, replies, out)
-        shown_heading = list(dict.fromkeys(unit for window, _ in replies for unit in window.heading))
+        selected = {unit for window, _ in replies for unit in window.heading}
+        shown_heading = [unit for unit in heading if unit in selected]
         out.contest = self._settle(number, out, _view([*shown_heading, *units], self.texts))
         _renumbered(out.found)
         out.record = conform(_placed(out.found), self.nodes)

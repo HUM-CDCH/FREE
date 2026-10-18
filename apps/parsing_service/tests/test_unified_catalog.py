@@ -966,7 +966,17 @@ def test_heading_context_that_does_not_fit_is_left_out_and_reported():
     assert result["records"][0]["material"] == "Holz"
     omitted = [row for row in result["context_omitted"] if row["stage"] == "entry"]
     assert omitted and {row["kind"] for row in omitted} == {"heading"} and omitted[0]["record"] == 0
-    assert not any("Beschreibung" in call["user"] for call in chat.calls if call["system"].startswith("You extract structured"))
+    context = result["discovery"]["entries"][0]["context"]
+    dropped = [{key: row[key] for key in ("segment", "start", "end")} for row in omitted]
+    assert len(context) > 1 and dropped == context[:-1]
+    [entry] = [call for call in chat.calls if call["system"].startswith("You extract structured")]
+    shown = entry["user"].split("\n\n### RECORD")[0]
+    assert text(source, context[-1]) in shown  # the smaller whole Unit fits; discovery already cut the source line
+    assert all(text(source, row) not in shown for row in dropped)
+    assert heading not in shown and "Kreis " not in shown
+    verification = next(call for call in chat.calls if call["system"].startswith("You check values"))
+    assert verification["user"].split("\n\n### RECORD")[0] == shown
+    assert all(call["counted_input_tokens"] == call["input_tokens"] <= 600 for call in result["calls"])
 
 
 def table_passage(rows: list[list[str]], separator: str = " | ") -> Passage:
