@@ -15,7 +15,8 @@ for each object in a list. Code, never the model, checks them: the value conform
 that entry (or shown heading context for scalars outside lists), and a value is literal where its printed form lies
 inside the quote; a yes/no, an allowed label or a derived field may instead be supported by a quoted passage of the
 entry, never by a fabricated literal span. Heading context grounds only printed non-Boolean values;
-derived fields may also retain supporting heading passages as proposals.
+derived fields may also retain supporting heading passages as proposals. A value read from context that an
+omitted excerpt follows stays a proposal: that excerpt could supersede it unseen.
 A separate reasoning request verifies candidates in counted batches; only a supported candidate is accepted. With
 verification off, or where the schema's evidence policy is derived or unverified, candidates stay proposals.
 
@@ -815,6 +816,7 @@ class _Run:
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
+        self._incomplete(replies, out)
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, "candidate"), self.nodes)
             return out
@@ -825,6 +827,24 @@ class _Run:
         _renumbered(out.found)
         out.record = conform(_placed(out.found), self.nodes)
         return out
+
+    def _incomplete(self, replies: list[tuple[Window, dict | None]], out: _Work) -> None:
+        """A candidate grounded only in context that an omitted excerpt follows stays a proposal: that excerpt could
+        supersede the heading it was read from, and neither the entry call nor the verifier is shown it."""
+        order = {segment: index for index, segment in enumerate(self.texts)}
+        for index, (window, _) in enumerate(replies):
+            if not (dropped := window.dropped("heading")):
+                continue
+            latest = max((order[unit.segment], unit.end) for unit in dropped)
+
+            def superseded(span: Span, window: Window = window, latest: tuple = latest) -> bool:
+                return any(unit.segment == span.segment_id and unit.start <= span.start and span.end <= unit.end
+                           and (order[unit.segment], unit.end) < latest for unit in window.heading)
+
+            for found in out.found:
+                if found.window == index and found.kind == "candidate" and found.spans \
+                        and all(superseded(span) for span in found.spans):
+                    found.kind, found.reason = "proposed", "context_incomplete"
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work) -> None:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""

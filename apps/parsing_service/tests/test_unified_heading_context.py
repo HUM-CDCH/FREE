@@ -130,19 +130,20 @@ def test_a_heading_not_shown_to_the_entry_is_ineligible(dropped):
                        if call["system"].startswith(("You extract structured data", "You check values")))
 
 
-def test_oversized_history_ends_the_shown_run_instead_of_inheriting_across_it():
-    """An excerpt too large to show may supersede what precedes it; nothing behind it grounds an inherited value."""
+def test_oversized_history_does_not_hide_an_older_fitting_heading():
+    """The older heading is still shown and still read; an excerpt omitted after it keeps the value a proposal."""
     source = evidence("Kreis Moor\nIndex" + " Beschreibung" * 500 + "\nVorwort kurz.\n1. Adorf.")
     result, chat = extract(source, Model(source, entry=inherited), schema=SCHEMA,
                            input_tokens=600, output_tokens=64)
-    assert result["records"] == [{"region": None}] and result["evidence"] == []
-    (rejected,) = result["rejected"]
-    assert rejected["quote"] == "Kreis Moor" and rejected["reason"] == "quote_not_in_source"
     entries = [call for call in chat.calls if call["system"].startswith("You extract structured data")]
-    assert len(entries) == 1 and "Kreis Moor" not in entries[0]["user"] and "Vorwort kurz." in entries[0]["user"]
-    omitted = [text(source, row) for row in result["context_omitted"]
-               if row["stage"] == "entry" and row["kind"] == "heading"]
-    assert omitted[0] == "Kreis Moor" and omitted[1].startswith("Index")  # the whole oldest run, not a gap
+    assert len(entries) == 1 and "Kreis Moor" in entries[0]["user"] and "Vorwort kurz." in entries[0]["user"]
+    assert any(row["stage"] == "entry" and row["kind"] == "heading" and text(source, row).startswith("Index")
+               for row in result["context_omitted"])
+    assert result["records"] == [{"region": None}] and result["evidence"] == []
+    (proposed,) = result["proposed"]
+    assert proposed["reason"] == "context_incomplete" and proposed["support"] == "literal"
+    assert proposed["raw"] == "Moor" and proposed["spans"] == [{"segment": "p1_s0", "start": 6, "end": 10}]
+    assert not [call for call in chat.calls if call["system"].startswith("You check values")]
     assert all(call["counted_input_tokens"] == call["input_tokens"] <= 600 for call in result["calls"])
 
 
@@ -333,13 +334,14 @@ def test_arbitration_can_read_inherited_evidence_outside_the_record():
 
 
 def test_arbitration_keeps_shown_headings_in_source_order_across_partial_selections(monkeypatch):
-    source = evidence("Kreis Alpha\nKreis Beta\nKreis Gamma\nKreis Omitted\n1. Adorf.\nDetail.")
+    source = evidence("Kreis Omitted\nKreis Alpha\nKreis Beta\nKreis Gamma\n1. Adorf.\nDetail.")
 
     def partial_windows(units, texts, fits, *, overlap, heading):
         assert len(units) == 2 and len(heading) == 4
+        # Each window omits only excerpts older than the one its candidate is read from, so neither is incomplete.
         windows = [
-            Window((units[0],), heading=heading[1:3], omitted=(("heading", heading[0]), ("heading", heading[3]))),
-            Window((units[1],), heading=heading[:3], omitted=(("heading", heading[3]),)),
+            Window((units[0],), heading=heading[2:], omitted=(("heading", heading[0]), ("heading", heading[1]))),
+            Window((units[1],), heading=heading[1:], omitted=(("heading", heading[0]),)),
         ]
         assert all(fits(window) for window in windows)
         return windows
@@ -354,3 +356,16 @@ def test_arbitration_keeps_shown_headings_in_source_order_across_partial_selecti
     assert all("Kreis Alpha Kreis Beta Kreis Gamma" in snippet for snippet in snippets)
     assert "Kreis Omitted" not in arbitration["user"]
     assert result["records"] == [{"region": "Beta"}]
+
+
+def test_an_omission_older_than_the_heading_it_reads_still_accepts_the_inherited_value():
+    """Only an excerpt that follows the grounding heading can supersede it; older omissions do not."""
+    source = evidence("Index" + " Beschreibung" * 500 + "\nKreis Moor\n1. Adorf.")
+    result, chat = extract(source, Model(source, entry=inherited), schema=SCHEMA,
+                           input_tokens=600, output_tokens=64)
+    assert any(row["stage"] == "entry" and row["kind"] == "heading" and text(source, row).startswith("Index")
+               for row in result["context_omitted"])
+    assert result["records"] == [{"region": "Moor"}] and result["proposed"] == []
+    assert result["evidence"][0]["linked_by"] == "verification"
+    verification = next(call for call in chat.calls if call["system"].startswith("You check values"))
+    assert "Kreis Moor" in verification["user"]

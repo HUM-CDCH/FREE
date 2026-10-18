@@ -65,8 +65,14 @@ VERSION = 11  # 2: a record the last window says continues ends at the source en
 # before it continues that record anywhere; 9: the prompt clarifies record scope and starts that include printed
 # labels; 10: unplaceable boundaries use bounded split recovery, retaining their calls and issues, and exact tuple
 # alternatives keep the optional copied start optional in grammar compilers that require every prefixItems element
-# 11: all preceding record-free units are context candidates, selected individually within the counted budget
-# without changing primary windows.
+# 11: preceding record-free units are context candidates, the newest `CANDIDATES` of them measured individually
+# within the counted budget, without changing primary windows.
+
+# How many context candidates one window measures. Each check renders and counts a request, so without a ceiling the
+# planning cost of one record grows with everything printed before it.
+# shortcut: excerpts older than the newest 32 are omitted without being measured; raise it if a catalogue nests more
+# heading levels than that behind a single record.
+CANDIDATES = 32
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -127,9 +133,9 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = ()) -> list[Window] | None:
-    """Consecutive primary windows with their existing overlap, then the unbroken run of newest heading units that
-    fits. `lead` and `trail` are the units just outside. None when not even one code point fits beside the
-    instructions."""
+    """Consecutive primary windows with their existing overlap, then whole heading units that fit, newest first and
+    at most `CANDIDATES` of them measured. `lead` and `trail` are the units just outside. None when not even one code
+    point fits beside the instructions."""
     if heading:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
         if windows is None:
@@ -140,16 +146,17 @@ def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], 
             if fits(complete):
                 selected.append(complete)
                 continue
-            kept = 0
-            for unit in reversed(heading):
-                candidate = replace(window, heading=(unit, *window.heading))
-                # Stop at the first that does not fit: shown context older than an omitted excerpt could be
-                # superseded by it, and the budget then bounds the checks instead of the document's length.
-                if not fits(candidate):
+            omitted = []
+            for position, unit in enumerate(reversed(heading)):
+                if position >= CANDIDATES:  # the rest are omitted unmeasured, so planning stays bounded
+                    omitted += [("heading", each) for each in reversed(heading[:len(heading) - position])]
                     break
-                window, kept = candidate, kept + 1
-            selected.append(replace(window, omitted=(*window.omitted, *(("heading", unit)
-                                                                       for unit in heading[:len(heading) - kept]))))
+                candidate = replace(window, heading=(unit, *window.heading))
+                if fits(candidate):
+                    window = candidate
+                else:
+                    omitted.append(("heading", unit))
+            selected.append(replace(window, omitted=(*window.omitted, *reversed(omitted))))
         return selected
     pieces = list(units)
     windows: list[Window] = []

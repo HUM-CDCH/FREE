@@ -35,8 +35,7 @@ def test_heading_selection_preserves_primary_and_overlap_when_the_whole_context_
         assert whole("p1_s0", texts) in window.dropped("heading")
 
 
-def test_an_oversized_excerpt_ends_the_run_so_no_older_context_is_shown_without_it():
-    """Shown context older than an omitted excerpt could be superseded by it; the run stops instead."""
+def test_newest_first_selection_skips_an_oversized_excerpt_but_keeps_smaller_older_context():
     texts = {"p1_s0": "older small", "p2_s0": "not context " + "x" * 200 + " not context",
              "p3_s0": "new", "p4_s0": "record" * 8}
     old, new = whole("p1_s0", texts), whole("p3_s0", texts)
@@ -47,10 +46,10 @@ def test_an_oversized_excerpt_ends_the_run_so_no_older_context_is_shown_without_
 
     [selected] = discovery.plan(primary, texts, fits, overlap=0, heading=(old, oversized, new))
 
-    assert selected.primary == primary and selected.heading == (new,)
-    assert selected.omitted == (("heading", old), ("heading", oversized))
+    assert selected.primary == primary and selected.heading == (old, new)
+    assert selected.omitted == (("heading", oversized),)
     assert texts[oversized.segment][oversized.start:oversized.end] == "x" * 200
-    assert fits(selected)
+    assert len(rendered(selected, texts)) == limit
 
 
 def test_when_only_one_excerpt_fits_the_latest_one_is_retained():
@@ -80,7 +79,7 @@ def test_split_reconsiders_omitted_excerpts_in_canonical_passage_and_offset_orde
     limit = len(rendered(discovery.Window(primary, heading=(first, last)), texts))
     fits = lambda window: len(rendered(window, texts)) <= limit
     [parent] = discovery.plan(primary, texts, fits, overlap=0, heading=(first, middle, last))
-    assert parent.heading == (last,) and parent.omitted == (("heading", first), ("heading", middle))
+    assert parent.heading == (first, last) and parent.omitted == (("heading", middle),)
 
     children = discovery.split(parent, texts, fits, overlap=0)
 
@@ -105,7 +104,7 @@ def test_no_heading_plan_and_split_keep_the_existing_primary_and_overlap_windows
     ]
 
 
-def test_selection_checks_are_bounded_by_the_budget_not_by_how_much_context_precedes():
+def test_candidate_checks_are_bounded_by_the_ceiling_not_by_how_much_context_precedes():
     """Every budget-fit check renders and counts a request; a longer document must not multiply them."""
     def checks(units):
         texts = {f"c{n:03d}_s0": f"context {n:03d}" for n in range(units)}
@@ -118,7 +117,7 @@ def test_selection_checks_are_bounded_by_the_budget_not_by_how_much_context_prec
             return len(rendered(window, texts)) <= 60
 
         [selected] = discovery.plan([whole("r_s0", texts)], texts, fits, overlap=0, heading=heading)
-        assert selected.heading == heading[-len(selected.heading):]  # the newest run, unbroken
+        assert len(selected.heading) + len(selected.dropped("heading")) == units  # every candidate accounted for
         return len(counted)
 
-    assert checks(200) == checks(20)
+    assert checks(4 * discovery.CANDIDATES) == checks(2 * discovery.CANDIDATES) <= discovery.CANDIDATES + 4
