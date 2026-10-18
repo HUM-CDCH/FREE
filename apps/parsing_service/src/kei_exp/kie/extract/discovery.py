@@ -68,10 +68,10 @@ VERSION = 11  # 2: a record the last window says continues ends at the source en
 # 11: preceding record-free units are context candidates, the newest `CANDIDATES` of them measured individually
 # within the counted budget, without changing primary windows.
 
-# How many context candidates one window measures. Each check renders and counts a request, so without a ceiling the
-# planning cost of one record grows with everything printed before it.
-# shortcut: excerpts older than the newest 32 are omitted without being measured; raise it if a catalogue nests more
-# heading levels than that behind a single record.
+# How many context candidates one window measures by default. Each check renders and counts a request, so without a
+# ceiling the planning cost of one record grows with everything printed before it. A run may raise or lower it
+# through `UnifiedOptions.candidates`; excerpts older than the newest `candidates` are omitted without being
+# measured.
 CANDIDATES = 32
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
@@ -132,9 +132,10 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 
 
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
-         lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = ()) -> list[Window] | None:
+         lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = (),
+         candidates: int = CANDIDATES) -> list[Window] | None:
     """Consecutive primary windows with their existing overlap, then whole heading units that fit, newest first and
-    at most `CANDIDATES` of them measured. `lead` and `trail` are the units just outside. None when not even one code
+    at most `candidates` of them measured. `lead` and `trail` are the units just outside. None when not even one code
     point fits beside the instructions."""
     if heading:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
@@ -148,7 +149,7 @@ def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], 
                 continue
             omitted = []
             for position, unit in enumerate(reversed(heading)):
-                if position >= CANDIDATES:  # the rest are omitted unmeasured, so planning stays bounded
+                if position >= candidates:  # the rest are omitted unmeasured, so planning stays bounded
                     omitted += [("heading", each) for each in reversed(heading[:len(heading) - position])]
                     break
                 candidate = replace(window, heading=(unit, *window.heading))
@@ -201,7 +202,8 @@ def _longest(start: int, total: int, fits_end: Callable[[int], bool]) -> int:
     return good
 
 
-def split(window: Window, texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int) -> list[Window]:
+def split(window: Window, texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
+          candidates: int = CANDIDATES) -> list[Window]:
     """A window of several units as the windows of its two halves, each with its context re-fitted."""
     before = window.before or window.dropped("before")
     after = window.after or window.dropped("after")
@@ -211,8 +213,10 @@ def split(window: Window, texts: dict[str, str], fits: Callable[[Window], bool],
                            key=lambda unit: (order[unit.segment], unit.start, unit.end)))
     middle = len(window.primary) // 2
     first, second = window.primary[:middle], window.primary[middle:]
-    return [*plan(first, texts, fits, overlap=overlap, lead=before, trail=(*second, *after), heading=heading),
-            *plan(second, texts, fits, overlap=overlap, lead=(*before, *first), trail=after, heading=heading)]
+    return [*plan(first, texts, fits, overlap=overlap, lead=before, trail=(*second, *after), heading=heading,
+                  candidates=candidates),
+            *plan(second, texts, fits, overlap=overlap, lead=(*before, *first), trail=after, heading=heading,
+                  candidates=candidates)]
 
 
 def text_of(units: Sequence[Unit], texts: dict[str, str], labels: Sequence[str] | None = None) -> str:

@@ -1,7 +1,7 @@
 """Heading inheritance needs shown source and a separate applicability verdict; it changes no record ownership."""
 import pytest
 
-from kei_exp.kie.extract import unified
+from kei_exp.kie.extract import discovery, unified
 from kei_exp.kie.extract.discovery import Window
 from tests.test_extract_grounded import WordCounter
 from tests.test_unified_catalog import Model, candidate, evidence, extract, section, text
@@ -336,7 +336,7 @@ def test_arbitration_can_read_inherited_evidence_outside_the_record():
 def test_arbitration_keeps_shown_headings_in_source_order_across_partial_selections(monkeypatch):
     source = evidence("Kreis Omitted\nKreis Alpha\nKreis Beta\nKreis Gamma\n1. Adorf.\nDetail.")
 
-    def partial_windows(units, texts, fits, *, overlap, heading):
+    def partial_windows(units, texts, fits, *, overlap, heading, candidates):
         assert len(units) == 2 and len(heading) == 4
         # Each window omits only excerpts older than the one its candidate is read from, so neither is incomplete.
         windows = [
@@ -369,3 +369,18 @@ def test_an_omission_older_than_the_heading_it_reads_still_accepts_the_inherited
     assert result["evidence"][0]["linked_by"] == "verification"
     verification = next(call for call in chat.calls if call["system"].startswith("You check values"))
     assert "Kreis Moor" in verification["user"]
+
+
+def test_the_candidate_ceiling_is_a_run_setting_that_bounds_what_one_window_measures():
+    """`candidates` caps how many excerpts a window measures; the rest are omitted without being rendered."""
+    source = evidence("Index" + " Beschreibung" * 500 + "\nKreis Moor\n1. Adorf.")
+    shown = {}
+    for ceiling in (None, 1):
+        result, chat = extract(source, Model(source, entry=inherited), schema=SCHEMA, input_tokens=600,
+                               output_tokens=64, **({} if ceiling is None else {"candidates": ceiling}))
+        entries = [call for call in chat.calls if call["system"].startswith("You extract structured data")]
+        shown[ceiling] = entries[0]["user"].count("#### CONTEXT ")
+        effective = result["execution"]["effective"]["candidates"]
+        assert effective == (discovery.CANDIDATES if ceiling is None else ceiling)
+        assert "Kreis Moor" in entries[0]["user"] and result["records"] == [{"region": "Moor"}]
+    assert shown[1] == 1 < shown[None]

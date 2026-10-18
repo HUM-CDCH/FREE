@@ -285,10 +285,12 @@
         "overlap": 1,
         "headings": true,
         "verification": true,
-        "splits": 6
+        "splits": 6,
+        "candidates": 32
       },
       "effective": {
         "overlap": 1,
+        "candidates": 32,
         "headings": true,
         "verification": true,
         "splits": 6,
@@ -343,10 +345,10 @@
         }
       }
     },
-    "execution_sha256": "fbc67e33d256f4d5f8bb719bf85e4d96ca46b7123e4d5642d0f4ab982c686e0c",
+    "execution_sha256": "477cd89b11f031639056511779df846e90751a706674e2700a1b703c45491ad6",
     "discovery": {
       "version": 11,
-      "execution_sha256": "fbc67e33d256f4d5f8bb719bf85e4d96ca46b7123e4d5642d0f4ab982c686e0c",
+      "execution_sha256": "477cd89b11f031639056511779df846e90751a706674e2700a1b703c45491ad6",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -449,7 +451,7 @@
         }
       ]
     },
-    "discovery_sha256": "c6a45e0439aedf52b1fd3e08d67698ff004b98a12360ee48d4442553fbccb85f",
+    "discovery_sha256": "2e78236471bbbb20e3f90412a7b7474185030a3f67fa2d80adb0ff587be865e1",
     "records": [
       {
         "label": "12",
@@ -936,6 +938,6 @@
       "input": 1412,
       "output": 30
     },
-    "fingerprint": "009f46dc5ebaa61e7820aa74f001c431fb2fa9fe67f8016bb9c82a40bf2cd729"
+    "fingerprint": "760081e3755f93a5ac5e36446f64c1f0ca6eca69d3af7b1bc7996345a58e87e4"
   }
 }

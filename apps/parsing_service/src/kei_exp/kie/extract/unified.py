@@ -111,13 +111,12 @@ NEAR = 40
 # model keeps the reserve. Measured on one excavation report (13 October 2026, NuExtract3-FP8, 32768-token context): a
 # record whose reply passed the 4096-token reserve was read again in halves, and an item at their cut was lost.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
-DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
-            2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page"},
-            3: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page", "pipelined": True},
-            4: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page", "pipelined": True, "entry_reply": "context"}}
+_SHARED = {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6,
+           "candidates": discovery.CANDIDATES}  # an override keeps its key's place here, so artifacts keep their order
+DEFAULTS = {1: dict(_SHARED),
+            2: {**_SHARED, "overlap": 3, "windows": "page"},
+            3: {**_SHARED, "overlap": 3, "windows": "page", "pipelined": True},
+            4: {**_SHARED, "overlap": 3, "windows": "page", "pipelined": True, "entry_reply": "context"}}
 
 
 class UnifiedOptions(BaseModel):
@@ -128,6 +127,7 @@ class UnifiedOptions(BaseModel):
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
+    candidates: int | None = Field(default=None, ge=1, le=1024)
     headings: bool | None = None
     verification: bool | None = None
 
@@ -227,7 +227,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "source": {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest},
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
-            "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
+            "effective": {name: options.setting(name) for name in ("overlap", "candidates", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
                if name in ("windows", "pipelined", "entry_reply")}
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
@@ -757,7 +757,8 @@ class _Run:
         def fits(window: Window) -> bool:
             user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
             return self.budget.fits(stage, system, user, schema)
-        windows = plan(units, self.texts, fits, overlap=self.effective["overlap"], heading=heading)
+        windows = plan(units, self.texts, fits, overlap=self.effective["overlap"], heading=heading,
+                       candidates=self.effective["candidates"])
         if windows is None:
             raise BudgetRefused(f"not even one character of source fits a {stage} request beside its instructions")
         replies = []
@@ -767,7 +768,8 @@ class _Run:
             user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
             answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit)
             if answer is None and len(window.primary) > 1 and depth < self.effective["splits"]:
-                halves = split(window, self.texts, fits, overlap=self.effective["overlap"])
+                halves = split(window, self.texts, fits, overlap=self.effective["overlap"],
+                               candidates=self.effective["candidates"])
                 queue[0:0] = [(half, depth + 1) for half in halves]
                 continue
             out.omitted += [{"stage": stage, "record": number, "kind": kind, **ranges_json([unit])[0]}

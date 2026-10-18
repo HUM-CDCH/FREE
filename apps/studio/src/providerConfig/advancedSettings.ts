@@ -179,7 +179,8 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
 
 const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const
 const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const
-const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'headings', 'verification'] as const
+// `candidates` has no control of its own; it is listed so a draft saved here keeps an override set elsewhere.
+const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
 
 /** A Catalog draft in the contract's key order, without unset values; like `orderedArticle`, it never validates. */
 export function orderedCatalog(catalog: Readonly<{ generic?: Record<string, unknown>; recipe?: Record<string, unknown>; unified?: Record<string, unknown> }>): CatalogSettings {
