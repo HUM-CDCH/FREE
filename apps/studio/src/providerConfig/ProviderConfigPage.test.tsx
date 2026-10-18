@@ -1162,12 +1162,14 @@ describe('Advanced', () => {
     fireEvent.change(ceiling, { target: { value: '' } })
     setting('Window overlap')
     fireEvent.change(screen.getByRole('textbox', { name: 'Window overlap' }), { target: { value: '0' } })
+    setting('Heading excerpts measured')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Heading excerpts measured' }), { target: { value: '8' } })
     setting('Verification')
     fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
     expect(screen.getByText(/Off keeps typed values as proposals/)).toBeInTheDocument()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: false } })
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, candidates: 8, verification: false } })
   })
 
   it('retired Catalog controls are shown, never converted, and replaced only by an applied unified group', async () => {

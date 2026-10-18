@@ -15,6 +15,7 @@ export type NumberPath =
   | 'catalog.generic.discovery_chars' | 'catalog.generic.record_chars'
   | 'catalog.recipe.input_tokens' | 'catalog.recipe.output_tokens'
   | 'catalog.unified.input_tokens' | 'catalog.unified.output_tokens' | 'catalog.unified.overlap'
+  | 'catalog.unified.candidates'
 
 export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string; keys: readonly ArticleKey[] }[] = [
   { section: 'context', title: 'Source context', keys: ['context', 'context_tokens', 'grouping', 'overlap_passages', 'selection'] },
@@ -92,6 +93,7 @@ export const NUMBER_MESSAGES: Readonly<Record<NumberPath, string>> = {
   'catalog.unified.input_tokens': METHOD_MESSAGES.inputTokens,
   'catalog.unified.output_tokens': METHOD_MESSAGES.replyTokens,
   'catalog.unified.overlap': METHOD_MESSAGES.catalogOverlap,
+  'catalog.unified.candidates': METHOD_MESSAGES.catalogCandidates,
 }
 
 /** Rebuilds an Article draft in `ArticleOptions` order without unset factors, so equal drafts serialize alike. */
@@ -179,7 +181,6 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
 
 const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const
 const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const
-// `candidates` has no control of its own; it is listed so a draft saved here keeps an override set elsewhere.
 const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
 
 /** A Catalog draft in the contract's key order, without unset values; like `orderedArticle`, it never validates. */
