@@ -127,8 +127,9 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = ()) -> list[Window] | None:
-    """Consecutive primary windows with their existing overlap, then whole heading units that fit, newest first.
-    `lead` and `trail` are the units just outside. None when not even one code point fits beside the instructions."""
+    """Consecutive primary windows with their existing overlap, then the unbroken run of newest heading units that
+    fits. `lead` and `trail` are the units just outside. None when not even one code point fits beside the
+    instructions."""
     if heading:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
         if windows is None:
@@ -139,14 +140,16 @@ def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], 
             if fits(complete):
                 selected.append(complete)
                 continue
-            omitted = []
+            kept = 0
             for unit in reversed(heading):
                 candidate = replace(window, heading=(unit, *window.heading))
-                if fits(candidate):
-                    window = candidate
-                else:
-                    omitted.append(("heading", unit))
-            selected.append(replace(window, omitted=(*window.omitted, *reversed(omitted))))
+                # Stop at the first that does not fit: shown context older than an omitted excerpt could be
+                # superseded by it, and the budget then bounds the checks instead of the document's length.
+                if not fits(candidate):
+                    break
+                window, kept = candidate, kept + 1
+            selected.append(replace(window, omitted=(*window.omitted, *(("heading", unit)
+                                                                       for unit in heading[:len(heading) - kept]))))
         return selected
     pieces = list(units)
     windows: list[Window] = []

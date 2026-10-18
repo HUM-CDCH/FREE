@@ -130,18 +130,19 @@ def test_a_heading_not_shown_to_the_entry_is_ineligible(dropped):
                        if call["system"].startswith(("You extract structured data", "You check values")))
 
 
-def test_oversized_history_does_not_hide_an_older_fitting_heading():
+def test_oversized_history_ends_the_shown_run_instead_of_inheriting_across_it():
+    """An excerpt too large to show may supersede what precedes it; nothing behind it grounds an inherited value."""
     source = evidence("Kreis Moor\nIndex" + " Beschreibung" * 500 + "\nVorwort kurz.\n1. Adorf.")
     result, chat = extract(source, Model(source, entry=inherited), schema=SCHEMA,
                            input_tokens=600, output_tokens=64)
-    assert result["records"] == [{"region": "Moor"}]
-    assert result["evidence"][0]["spans"] == [{"segment": "p1_s0", "start": 6, "end": 10}]
+    assert result["records"] == [{"region": None}] and result["evidence"] == []
+    (rejected,) = result["rejected"]
+    assert rejected["quote"] == "Kreis Moor" and rejected["reason"] == "quote_not_in_source"
     entries = [call for call in chat.calls if call["system"].startswith("You extract structured data")]
-    assert len(entries) == 1 and "Kreis Moor" in entries[0]["user"] and "Vorwort kurz." in entries[0]["user"]
-    assert any(row["stage"] == "entry" and row["kind"] == "heading" and text(source, row).startswith("Index")
-               for row in result["context_omitted"])
-    verification = next(call for call in chat.calls if call["system"].startswith("You check values"))
-    assert entries[0]["user"].split("### RECORD")[0] == verification["user"].split("### RECORD")[0]
+    assert len(entries) == 1 and "Kreis Moor" not in entries[0]["user"] and "Vorwort kurz." in entries[0]["user"]
+    omitted = [text(source, row) for row in result["context_omitted"]
+               if row["stage"] == "entry" and row["kind"] == "heading"]
+    assert omitted[0] == "Kreis Moor" and omitted[1].startswith("Index")  # the whole oldest run, not a gap
     assert all(call["counted_input_tokens"] == call["input_tokens"] <= 600 for call in result["calls"])
 
 
