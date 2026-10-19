@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { DBOSClient } from '@dbos-inc/dbos-sdk'
 import { CONVERSION_OVERHEAD_MS, expectedConversionMs, keiConvertWorkflowId, SMALL_DOCUMENT_PAGES } from 'extraction/kei-handoff'
 import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
@@ -7,7 +8,9 @@ import { MAX_NAMED_INGESTIONS, type SourceIngestion } from '../shared/sourceDocu
 import { ApiError, json, noStore, noStoreError, persistenceUnavailable } from './_http.js'
 import { createConversionQueueReader, type ConversionQueue } from './_conversion_queue.js'
 import { INGEST_SOURCE } from './_ingestion_workflow.js'
+import { readStagedSource, removeStagedSource, sourceInboxRoot, stagedSourceExists } from './_source_inbox.js'
 import { attemptOf, classifyOutcome, isQuiescent, type IngestionAttempt } from './_source_ingestion_outcome.js'
+import { admitUpload, type Dependencies as AdmissionDependencies } from './source_documents.js'
 
 export const RECENT_SUCCESS_MS = 15 * 60 * 1000
 export const FAILURE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
@@ -21,19 +24,23 @@ type SourceIngestionStore = Pick<
 
 const notFound = () => new ApiError(404, 'not_found', 'Source Ingestion was not found.')
 
-/** The route's project and, under it, the decoded workflow ID (null for the collection). */
-function route(pathname: string): { projectId: string; workflowId: string | null } {
-  const match = /^\/api\/project-contexts\/([^/]+)\/source-ingestions(?:\/([^/]+))?$/.exec(pathname)
+/** The route's project and, under it, the decoded workflow ID (null for the collection) and whether it names Retry. */
+function route(pathname: string): { projectId: string; workflowId: string | null; retry: boolean } {
+  const match = /^\/api\/project-contexts\/([^/]+)\/source-ingestions(?:\/([^/]+)(\/retry)?)?$/.exec(pathname)
   if (!match) throw notFound()
   if (!canonicalUuidSchema.safeParse(match[1]).success)
     throw new ApiError(422, 'invalid_request', 'projectContextId must be a canonical lowercase UUID.')
-  if (match[2] === undefined) return { projectId: match[1], workflowId: null }
+  if (match[2] === undefined) return { projectId: match[1], workflowId: null, retry: false }
   try {
-    return { projectId: match[1], workflowId: decodeURIComponent(match[2]) }
+    return { projectId: match[1], workflowId: decodeURIComponent(match[2]), retry: match[3] !== undefined }
   } catch {
     throw notFound()
   }
 }
+
+/** The staged PDF an attempt's input names, when the record carries one. */
+const stagedOf = (attempt: IngestionAttempt): string | null =>
+  typeof attempt.input.source === 'string' ? attempt.input.source : null
 
 /**
  * Live attempts at any age, successes of the last fifteen minutes, failures of the last thirty days that neither a
@@ -46,6 +53,8 @@ export function projectIngestions(input: {
   named: ReadonlySet<string>
   /** Content hash → Source Document ID for the failures' contents. */
   published: ReadonlyMap<string, string>
+  /** The failed attempts whose staged PDF Studio still holds, so Retry needs no new upload. */
+  retained?: ReadonlySet<string>
   nowMs: number
   /** Every project's live conversions and kei's calibration; null estimates from this project alone. */
   queue?: ConversionQueue | null
@@ -70,7 +79,9 @@ export function projectIngestions(input: {
       return named || input.nowMs - completedMs <= RECENT_SUCCESS_MS
         ? [{ ...common, status: 'succeeded', completedAt, sourceDocumentId: published }]
         : []
-    return outcome.kind === 'failed' ? [{ ...common, status: 'failed', completedAt, failure: outcome.failure }] : []
+    if (outcome.kind !== 'failed') return []
+    const retryable = input.retained?.has(status.workflowID) ? { retryable: true as const } : {}
+    return [{ ...common, status: 'failed', completedAt, failure: outcome.failure, ...retryable }]
   })
 }
 
@@ -139,6 +150,7 @@ export function createSourceIngestionListing(
   admission: () => Pick<DBOSClient, 'listWorkflows'> = () => studioDbos().admission,
   now: () => number = Date.now,
   readConversionQueue: () => Promise<ConversionQueue> = conversionQueue,
+  isStaged: (relative: string) => Promise<boolean> = (relative) => stagedSourceExists(sourceInboxRoot(), relative),
 ) {
   const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
   return async function getSourceIngestions(request: Request): Promise<Response> {
@@ -177,9 +189,13 @@ export function createSourceIngestionListing(
         else if (!named.includes(status.workflowID)) skipped += 1
       }
       if (skipped) console.warn(`Skipped ${skipped} unreadable Source Ingestion record(s).`)
-      const failedContent = [...byId.values()]
-        .filter((attempt) => classifyOutcome(attempt.status).kind === 'failed')
-        .map((attempt) => attempt.input.sourceSha256)
+      const failed = [...byId.values()].filter((attempt) => classifyOutcome(attempt.status).kind === 'failed')
+      const failedContent = failed.map((attempt) => attempt.input.sourceSha256)
+      // Retry is offered only while the PDF is still staged; an unreadable inbox offers Upload again instead.
+      const retained = new Set((await Promise.all(failed.map(async (attempt) => {
+        const staged = stagedOf(attempt)
+        return staged && await isStaged(staged).catch(() => false) ? [attempt.status.workflowID] : []
+      }))).flat())
       const published = await store.findSourceDocumentIdsByContent(projectId, failedContent)
         .catch((cause) => { throw unavailable(cause) })
       const attemptList = [...byId.values()]
@@ -191,7 +207,7 @@ export function createSourceIngestionListing(
         })
         : null
       const ingestions = projectIngestions({
-        projectContextId: projectId, attempts: attemptList, named: new Set(named), published, nowMs: now(), queue,
+        projectContextId: projectId, attempts: attemptList, named: new Set(named), published, retained, nowMs: now(), queue,
       })
       return json({ ingestions, absent: named.filter((id) => !byId.has(id)) }, { headers: noStore })
     } catch (error) {
@@ -208,13 +224,14 @@ export function createSourceIngestionDismissal(
   store: Pick<ResearcherProjectStore, 'researcherAccountId' | 'modelOperationScopeExists'>,
   admission: () => Pick<DBOSClient, 'getWorkflow' | 'listWorkflows' | 'deleteWorkflows'> = () => studioDbos().admission,
   bootTimestampMs: () => number = () => studioDbos().bootTimestampMs,
+  inboxRoot: () => string = sourceInboxRoot,
 ) {
   const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
   const done = () => new Response(null, { status: 204, headers: noStore })
   return async function dismissSourceIngestion(request: Request): Promise<Response> {
     try {
-      const { projectId, workflowId } = route(new URL(request.url).pathname)
-      if (workflowId === null) throw notFound()
+      const { projectId, workflowId, retry } = route(new URL(request.url).pathname)
+      if (workflowId === null || retry) throw notFound()
       const owned = await store.modelOperationScopeExists(projectId, null).catch((cause) => { throw unavailable(cause) })
       if (!owned) throw notFound()
       const client = admission()
@@ -242,6 +259,11 @@ export function createSourceIngestionDismissal(
         throw new ApiError(409, 'ingestion_stopping', 'This Source Ingestion is still stopping. Try again shortly.')
       await client.deleteWorkflows(chain.map((status) => status.workflowID).sort())
         .catch((cause) => { throw unavailable(cause) })
+      // The chain is quiescent, so no step reads its PDFs; one left behind goes with garbage collection.
+      for (const status of chain) {
+        const staged = stagedOf(attemptOf(status, projectId)!)
+        if (staged) await removeStagedSource(inboxRoot(), staged).catch(() => undefined)
+      }
       return done()
     } catch (error) {
       return noStoreError(error)
@@ -249,6 +271,58 @@ export function createSourceIngestionDismissal(
   }
 }
 
+/**
+ * `POST …/source-ingestions/<workflowId>/retry`: admits a failed upload again from the PDF its attempt kept (ADR 0014,
+ * 4), with the owner's current models, as a new upload of the same bytes would be. The failed attempt's file goes once
+ * the new attempt is admitted; its history stays, superseded in the listing by the newer attempt. 410 when Studio no
+ * longer holds the PDF: the researcher uploads it again.
+ */
+export function createSourceIngestionRetry(
+  store: Pick<ResearcherProjectStore, 'researcherAccountId' | 'modelOperationScopeExists' | 'findSourceDocumentByContent'>,
+  admission: () => Pick<DBOSClient, 'getWorkflow'> = () => studioDbos().admission,
+  bootTimestampMs: () => number = () => studioDbos().bootTimestampMs,
+  dependencies: AdmissionDependencies = {},
+) {
+  const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
+  return async function retrySourceIngestion(request: Request): Promise<Response> {
+    try {
+      const { projectId, workflowId, retry } = route(new URL(request.url).pathname)
+      if (workflowId === null || !retry) throw notFound()
+      const owned = await store.modelOperationScopeExists(projectId, null).catch((cause) => { throw unavailable(cause) })
+      if (!owned) throw notFound()
+      const recorded = await admission().getWorkflow(workflowId).catch((cause) => { throw unavailable(cause) })
+      const attempt = recorded && recorded.authenticatedUser === store.researcherAccountId ? attemptOf(recorded, projectId) : null
+      if (!recorded || !attempt) throw notFound()
+      if (classifyOutcome(recorded).kind !== 'failed')
+        throw new ApiError(409, 'ingestion_not_retryable', 'Only a failed Source Ingestion can be retried.')
+      // As for dismissal (M6): a stopping attempt may still remove the file this retry would read.
+      if (!isQuiescent(recorded, bootTimestampMs()))
+        throw new ApiError(409, 'ingestion_stopping', 'This Source Ingestion is still stopping. Try again shortly.')
+      const root = dependencies.inboxRoot ?? sourceInboxRoot()
+      const gone = () => new ApiError(410, 'source_not_retained', 'Studio no longer holds this PDF. Upload it again.')
+      const staged = stagedOf(attempt)
+      if (!staged) throw gone()
+      const pdf = await readStagedSource(root, staged).catch((cause: unknown) => {
+        if ((cause as NodeJS.ErrnoException).code === 'ENOENT') throw gone()
+        throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
+      })
+      if (createHash('sha256').update(pdf).digest('hex') !== attempt.input.sourceSha256) throw gone()
+      const admitted = await admitUpload(store, dependencies, projectId, {
+        pdf, originalName: attempt.input.originalName, pageSource: attempt.input.pageSource === 'ingest' ? 'ingest' : 'pdf',
+      })
+      // Admitted again, or already a Source Document: this attempt's copy is no longer anyone's input.
+      if (admitted.ok) await removeStagedSource(root, staged).catch(() => undefined)
+      return admitted
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
 export function createResearcherApiHandlers(store: ResearcherProjectStore) {
-  return { GET: createSourceIngestionListing(store), DELETE: createSourceIngestionDismissal(store) }
+  return {
+    GET: createSourceIngestionListing(store),
+    DELETE: createSourceIngestionDismissal(store),
+    POST: createSourceIngestionRetry(store),
+  }
 }

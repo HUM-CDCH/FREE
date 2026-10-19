@@ -1992,6 +1992,7 @@ describe('Source Ingestions on the Project Context page', () => {
     completedAt?: string
     sourceDocumentId?: string
     failure?: { code: string; message: string }
+    retryable?: true
     /** false: only answered when the tab names it (outside every window). */
     windowed: boolean
   }
@@ -2019,11 +2020,13 @@ describe('Source Ingestions on the Project Context page', () => {
     const posts: { name: string; layout: FormDataEntryValue | null; ingestionKey: FormDataEntryValue | null }[] = []
     const listings: string[][] = []
     const dismissed: string[] = []
+    const retried: string[] = []
     const reads = { branch: 0, list: 0 }
     const control = {
       listing: (): Response | Promise<Response> | undefined => undefined,
       branch: (): Response | Promise<Response> | undefined => undefined,
       dismiss: (): Response | undefined => undefined,
+      retry: (): Response | undefined => undefined,
     }
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -2037,6 +2040,17 @@ describe('Source Ingestions on the Project Context page', () => {
         if (!rows.has(workflowId))
           rows.set(workflowId, { workflowId, name: file.name, status: 'queued', createdAt: '2026-08-12T10:00:00.000Z', windowed: true })
         return Response.json({ workflowId }, { status: 202 })
+      }
+      if (init?.method === 'POST' && url.endsWith('/retry')) {
+        const workflowId = decodeURIComponent(url.split('/').at(-2)!)
+        retried.push(workflowId)
+        const refused = control.retry()
+        if (refused) return refused
+        const old = rows.get(workflowId)!
+        const admitted = `${workflowId}:retry`
+        rows.delete(workflowId)
+        rows.set(admitted, { workflowId: admitted, name: old.name, status: 'queued', createdAt: '2026-08-12T12:00:00.000Z', windowed: true })
+        return Response.json({ workflowId: admitted }, { status: 202 })
       }
       if (init?.method === 'DELETE' && url.includes('/source-ingestions/')) {
         const workflowId = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1))
@@ -2072,7 +2086,7 @@ describe('Source Ingestions on the Project Context page', () => {
       rows.set(workflowId, { ...row, ...change })
     }
     return {
-      fetch, posts, listings, dismissed, reads, control,
+      fetch, posts, listings, dismissed, retried, reads, control, set,
       parse: (name: string) => set(name, { status: 'parsing' }),
       succeed: (name: string, n: number, change: Partial<Row> = {}) => {
         const document = documentOf(n, name)
@@ -2249,6 +2263,36 @@ describe('Source Ingestions on the Project Context page', () => {
     fireEvent.click(within(page).getByRole('button', { name: 'Dismiss Broken.pdf' }))
     await waitFor(() => expect(within(page).queryByText('kei refused the PDF.')).not.toBeInTheDocument())
     expect(studio.dismissed).toEqual([workflowOf('Broken.pdf')])
+  })
+
+  it('Retry admits a retained failure again without the file chooser', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'Timed out.' }, retryable: true as const }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    const chooser = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    expect(within(page).queryByRole('button', { name: 'Upload Broken.pdf again' })).not.toBeInTheDocument()
+    fireEvent.click(await within(page).findByRole('button', { name: 'Retry Broken.pdf' }))
+    await waitFor(() => expect(within(page).queryByText('Timed out.')).not.toBeInTheDocument())
+    await waitFor(() => expect(within(page).getByRole('status')).toHaveTextContent('Broken.pdf: queued.'))
+    expect(studio.retried).toEqual([workflowOf('Broken.pdf')])
+    expect(studio.posts).toEqual([])
+    expect(chooser).not.toHaveBeenCalled()
+    chooser.mockRestore()
+  })
+
+  it('a Retry Studio can no longer serve says so, and the row offers Upload again', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'Timed out.' }, retryable: true as const }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    studio.control.retry = () => {
+      studio.set('Broken.pdf', { retryable: undefined })
+      return failureResponse('source_not_retained', 'Studio no longer holds this PDF. Upload it again.', 410)
+    }
+    fireEvent.click(await within(page).findByRole('button', { name: 'Retry Broken.pdf' }))
+    expect(await within(page).findByText('Studio no longer holds this PDF. Upload it again.')).toBeInTheDocument()
+    expect(await within(page).findByRole('button', { name: 'Upload Broken.pdf again' })).toBeInTheDocument()
   })
 
   it('Upload again opens the file chooser', async () => {

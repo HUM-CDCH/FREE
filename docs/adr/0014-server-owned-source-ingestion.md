@@ -33,9 +33,16 @@ One queue, the server's.
    nothing under the garbage collector's quiescence rule (design, *Cancelled
    Studio history*): a stopped attempt only once it was last updated before
    this Studio process booted. There is no new table.
-4. **Retrying a failed upload sends the bytes again**; the workflow removes its
-   staged file on failure. A send that Studio could not acknowledge keeps its
-   file in the tab for Retry.
+4. **Retrying a failed upload reuses the bytes Studio kept** (amended
+   2026-10-19). A failed attempt keeps its staged PDF, and `POST
+   …/source-ingestions/<id>/retry` admits it again as an upload of the same
+   bytes would be, with the owner's current models; the old copy goes once the
+   new attempt is admitted. The listing marks a failure `retryable` while its
+   PDF is staged. Dismissal removes the PDF with the history, and garbage
+   collection once that history is gone (a deleted project, or thirty days).
+   Without the PDF (an attempt from before patch `ingest-retain-failed-source`,
+   or one collected) Retry answers 410 and the researcher uploads it again. A
+   send that Studio could not acknowledge keeps its file in the tab for Retry.
 5. **The browser only sends.** It keeps a file until Studio admits it, then
    until the listing shows (or reports absent) that workflow. The page renders
    the listing and re-reads the Project Context until every listed success is
@@ -52,5 +59,7 @@ One queue, the server's.
   otherwise.
 - Dismissal is the one exception to the thirty-day background-history
   retention (design, *History retention*).
+- A failed upload's PDF stays in `source-inbox` for as long as its history:
+  at most thirty days, unless dismissed or retried.
 - Reprocessing still waits on its parse, in its own browser region, until it
   moves to the same model.

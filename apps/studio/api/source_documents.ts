@@ -148,12 +148,83 @@ async function upload(request: Request): Promise<{ pdf: Uint8Array; originalName
   return { pdf, originalName, pageSource }
 }
 
+/** The bytes one admission stages: an upload's, or a retry's from its failed attempt's retained file. */
+export type AdmittedUpload = Readonly<{ pdf: Uint8Array; originalName: string; pageSource: 'pdf' | 'ingest' }>
+
 /**
- * `POST …/source-documents`: completed content replays at once; otherwise the upload is staged under a server-minted
- * attempt and `ingestSource` is enqueued with active deduplication on the project and content, so a same-content
- * upload joins the attempt already running (with that attempt's admitted models). It answers 202 with the admitted
- * workflow's ID as soon as the enqueue returns; the Source Ingestion listing reports the attempt from there on.
+ * Admits validated bytes into an owned project: completed content replays at once (201 with its Source Document);
+ * otherwise they are staged under a server-minted attempt and `ingestSource` is enqueued with active deduplication on
+ * the project and content, so a same-content admission joins the attempt already running (with that attempt's
+ * admitted models). 202 with the admitted workflow's ID as soon as the enqueue returns.
  */
+export async function admitUpload(
+  store: Pick<IngestionStore, 'researcherAccountId' | 'findSourceDocumentByContent'>,
+  dependencies: Dependencies,
+  projectId: string,
+  { pdf, originalName, pageSource }: AdmittedUpload,
+): Promise<Response> {
+  const contentSha256 = createHash('sha256').update(pdf).digest('hex')
+
+  // Completed content replays before any parse.
+  const existing = await store.findSourceDocumentByContent(projectId, contentSha256).catch((cause) => {
+    throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
+  })
+  if (existing) {
+    const pageCount = await packagePageCount(existing.descriptor, dependencies.packageStore ?? canonicalPackageStore)
+      .catch((cause) => {
+        throw new ApiError(502, 'source_artifact_unavailable', 'The retained canonical package is unavailable.', { cause })
+      })
+    return json({ ...ingestedOutput(existing), pageCount }, { status: 201, headers: noStore })
+  }
+
+  // Resolved before staging: a Studio that cannot admit leaves no file behind.
+  const admission = dependencies.admission ?? studioDbos().admission
+  const attemptId = randomUUID()
+  const source = uploadSourcePath(projectId, attemptId)
+  const root = dependencies.inboxRoot ?? sourceInboxRoot()
+  await stageSource(root, source, pdf).catch((cause) => {
+    throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
+  })
+  // The caller checked the project, so this account owns it.
+  const owner = store.researcherAccountId
+  const ours = ingestWorkflowId(projectId, attemptId)
+  let input: IngestionInput
+  try {
+    const pageCount = await (dependencies.countPages ?? countPdfPages)(pdf)
+    input = {
+      projectContextId: projectId, attemptId, owner, source, sourceSha256: contentSha256, originalName,
+      byteSize: pdf.byteLength, pageSource, pageCount, lane: conversionLane(pageCount),
+      models: await (dependencies.ingestionModels ?? configuredIngestionModels)(owner),
+    }
+    await dependencies.beforeEnqueue?.()
+  } catch (cause) {
+    // Nothing was enqueued, so no workflow can read this file.
+    await removeStagedSource(root, source).catch(() => undefined)
+    throw cause instanceof ApiError ? cause : persistenceUnavailable(cause, 'Source Document ingestion could not be started.')
+  }
+  let workflowId: string
+  try {
+    const handle = await admission.enqueue({
+      workflowName: INGEST_SOURCE,
+      queueName: STUDIO_QUEUE,
+      workflowID: ours,
+      // Active deduplication: a same-project, same-content attempt that is still running is joined, not repeated.
+      deduplicationID: ingestDeduplicationId(projectId, contentSha256),
+      duplicationPolicy: 'return-existing',
+      authenticatedUser: owner,
+      attributes: { projectContextId: projectId },
+    }, input)
+    workflowId = handle.workflowID
+  } catch (cause) {
+    // An uncertain enqueue leaves its file for garbage collection rather than risking a live attempt's input.
+    throw persistenceUnavailable(cause, 'Source Document ingestion could not be started.')
+  }
+  // Another attempt won: this request's file was never handed to a workflow.
+  if (workflowId !== ours) await removeStagedSource(root, source).catch(() => undefined)
+  return json({ workflowId }, { status: 202, headers: noStore })
+}
+
+/** `POST …/source-documents`: validates one PDF upload into an owned project and admits it (admitUpload). */
 export function createSourceDocumentIngestion(
   store: IngestionStore,
   dependencies: Dependencies = {},
@@ -165,66 +236,7 @@ export function createSourceDocumentIngestion(
         throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
       })
       if (!projectContext) throw new ApiError(404, 'not_found', 'Project Context was not found.')
-      const { pdf, originalName, pageSource } = await upload(request)
-      const contentSha256 = createHash('sha256').update(pdf).digest('hex')
-
-      // Completed content replays before any parse.
-      const existing = await store.findSourceDocumentByContent(projectId, contentSha256).catch((cause) => {
-        throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
-      })
-      if (existing) {
-        const pageCount = await packagePageCount(existing.descriptor, dependencies.packageStore ?? canonicalPackageStore)
-          .catch((cause) => {
-            throw new ApiError(502, 'source_artifact_unavailable', 'The retained canonical package is unavailable.', { cause })
-          })
-        return json({ ...ingestedOutput(existing), pageCount }, { status: 201, headers: noStore })
-      }
-
-      // Resolved before staging: a Studio that cannot admit leaves no file behind.
-      const admission = dependencies.admission ?? studioDbos().admission
-      const attemptId = randomUUID()
-      const source = uploadSourcePath(projectId, attemptId)
-      const root = dependencies.inboxRoot ?? sourceInboxRoot()
-      await stageSource(root, source, pdf).catch((cause) => {
-        throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
-      })
-      // The project check above passed, so this account owns the project.
-      const owner = store.researcherAccountId
-      const ours = ingestWorkflowId(projectId, attemptId)
-      let input: IngestionInput
-      try {
-        const pageCount = await (dependencies.countPages ?? countPdfPages)(pdf)
-        input = {
-          projectContextId: projectId, attemptId, owner, source, sourceSha256: contentSha256, originalName,
-          byteSize: pdf.byteLength, pageSource, pageCount, lane: conversionLane(pageCount),
-          models: await (dependencies.ingestionModels ?? configuredIngestionModels)(owner),
-        }
-        await dependencies.beforeEnqueue?.()
-      } catch (cause) {
-        // Nothing was enqueued, so no workflow can read this file.
-        await removeStagedSource(root, source).catch(() => undefined)
-        throw cause instanceof ApiError ? cause : persistenceUnavailable(cause, 'Source Document ingestion could not be started.')
-      }
-      let workflowId: string
-      try {
-        const handle = await admission.enqueue({
-          workflowName: INGEST_SOURCE,
-          queueName: STUDIO_QUEUE,
-          workflowID: ours,
-          // Active deduplication: a same-project, same-content attempt that is still running is joined, not repeated.
-          deduplicationID: ingestDeduplicationId(projectId, contentSha256),
-          duplicationPolicy: 'return-existing',
-          authenticatedUser: owner,
-          attributes: { projectContextId: projectId },
-        }, input)
-        workflowId = handle.workflowID
-      } catch (cause) {
-        // An uncertain enqueue leaves its file for garbage collection rather than risking a live attempt's input.
-        throw persistenceUnavailable(cause, 'Source Document ingestion could not be started.')
-      }
-      // Another attempt won: this request's file was never handed to a workflow.
-      if (workflowId !== ours) await removeStagedSource(root, source).catch(() => undefined)
-      return json({ workflowId }, { status: 202, headers: noStore })
+      return await admitUpload(store, dependencies, projectId, await upload(request))
     } catch (error) {
       if (request.signal.aborted) throw error
       return noStoreError(error)

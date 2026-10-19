@@ -60,7 +60,7 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
     store: workerSuggestionStore(createInternalProjectWorkerStore()),
     patched: (name) => DBOS.patch(name),
   }))
-  registerIngestionWorkflow(sourceConversionWorkflowPorts)
+  registerIngestionWorkflow(() => ({ ...sourceConversionWorkflowPorts(), patched: (name) => DBOS.patch(name) }))
   registerReprocessWorkflow(sourceConversionWorkflowPorts)
   registerSchemaGenerationWorkflow(() => {
     const worker = createInternalProjectWorkerStore()

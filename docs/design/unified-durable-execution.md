@@ -278,7 +278,10 @@ contentSha256)` is unique.
 - Then `submitToKei` (the admitted conversion lane), `pollKei`, verify
   manifest and pages, translate/package, and commit under the ownership and
   content constraints. A replayed commit returns the same document/revision.
-  The workflow deletes its own staging file; GC handles the rest.
+  The workflow deletes its own staging file on success. Past patch
+  `ingest-retain-failed-source` a failure keeps it, so `POST
+  …/source-ingestions/<id>/retry` can admit the same bytes again (ADR 0014,
+  4); Retry, dismissal or GC removes it. GC handles the rest.
 
 **`reprocessSource`** keeps its separate request key, fingerprint and
 expected-head checks, before start and at commit. It shares conversion and
@@ -467,7 +470,9 @@ the scope unreadable immediately; execution and file cleanup can finish later.
   project/attempt workflow is absent or terminal. This includes crashes after
   staging but before enqueue and losing dedup candidates. Protect active
   attempts and their kei children; filenames never identify a shared file by
-  content alone.
+  content alone. A failed upload attempt keeps its file for Retry while its
+  history lasts (ADR 0014, 4): dismissal, a deleted project and history
+  retention remove that history, and the file goes after it.
 - **Orphaned execution:** cancel live workflows whose scope disappeared, live
   Studio workflows with a terminal domain outcome, and live kei children of
   terminal Studio parents. No workflow may publish into a deleted scope.
