@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SourceIngestion } from '../../shared/sourceDocumentIngestion.contract'
 
-/** At least this much expected waiting earns the "take a break" note. */
-export const BREAK_WORTHY_MS = 5 * 60 * 1000
-
 type LiveIngestion = Extract<SourceIngestion, { status: 'queued' | 'parsing' }>
 
 /** "less than a minute", "about 7 min", "about 1 h 20 min": rounded up, so the wait is never understated. */
@@ -53,28 +50,18 @@ export function useNow(active: boolean, intervalMs = 15_000): number {
   return now
 }
 
-const clockTime = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-
 /**
- * The line above the list while documents are parsing: how many are left and when the last should be done. The lanes
- * convert side by side and each estimate already waits behind its lane, so the whole set is done at the latest one,
- * not at their sum. A document without an estimate makes it a lower bound.
+ * The one line above the list while documents are parsing, e.g. "About 12 min left". The lanes convert side by side
+ * and each estimate already waits behind its lane, so the whole set is done at the latest one, not at their sum. A
+ * document without an estimate makes it a lower bound. Null when nothing is parsing or nothing has an estimate.
  */
-export function parsingSummary(
-  rows: readonly SourceIngestion[], nowMs: number, formatClock: (ms: number) => string = clockTime,
-): string | null {
+export function parsingSummary(rows: readonly SourceIngestion[], nowMs: number): string | null {
   const live = rows.filter((row): row is LiveIngestion => row.status === 'queued' || row.status === 'parsing')
-  if (!live.length) return null
-  const left = `${live.length} document${live.length === 1 ? '' : 's'} left to parse`
   const estimated = live.flatMap((row) => row.estimatedCompletionAt === undefined ? [] : [Date.parse(row.estimatedCompletionAt)])
-  if (!estimated.length) return `${left}.`
-  const last = Math.max(...estimated)
-  if (last <= nowMs) return `${left} · taking longer than estimated.`
-  const unknown = live.length - estimated.length
-  const wait = last - nowMs
-  return [
-    `${left} · all done in ${unknown ? 'at least ' : ''}${formatWait(wait)} (around ${formatClock(last)}).`,
-    unknown ? ` ${unknown} ${unknown === 1 ? 'has' : 'have'} no estimate yet.` : '',
-    wait >= BREAK_WORTHY_MS ? ' You can take a break; this list updates on its own.' : '',
-  ].join('')
+  if (!estimated.length) return null
+  const wait = Math.max(...estimated) - nowMs
+  if (wait <= 0) return 'Taking longer than estimated'
+  const left = formatWait(wait)
+  if (estimated.length < live.length) return `At least ${left.replace(/^about /, '')} left`
+  return `${left[0]!.toUpperCase()}${left.slice(1)} left`
 }

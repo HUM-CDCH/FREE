@@ -35,29 +35,28 @@ describe('liveIngestionLabel', () => {
 })
 
 describe('parsingSummary', () => {
-  const clock = (ms: number) => `T+${(ms - NOW) / 60_000}m`
   const done = { workflowId: 'd', name: 'd.pdf', createdAt: at(-1), status: 'succeeded' as const, completedAt: at(0), sourceDocumentId: 'x' }
 
-  it('says nothing once no document is parsing', () => {
-    expect(parsingSummary([done], NOW, clock)).toBeNull()
+  it('says nothing without a parsing document that has an estimate', () => {
+    expect(parsingSummary([done], NOW)).toBeNull()
+    expect(parsingSummary([live('queued')], NOW)).toBeNull()
   })
 
-  it('is done at the latest estimate, not their sum, and suggests a break for a long wait', () => {
+  it('is done at the latest estimate, not their sum', () => {
     expect(parsingSummary([
       live('parsing', { pageCount: 10, estimatedCompletionAt: at(3 * 60_000) }),
       live('queued', { pageCount: 90, estimatedCompletionAt: at(12 * 60_000) }),
       done,
-    ], NOW, clock)).toBe('2 documents left to parse · all done in about 12 min (around T+12m). You can take a break; this list updates on its own.')
+    ], NOW)).toBe('About 12 min left')
+    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(30_000) })], NOW)).toBe('Less than a minute left')
   })
 
   it('makes the wait a lower bound while a document has no estimate', () => {
-    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(2 * 60_000) }), live('queued')], NOW, clock))
-      .toBe('2 documents left to parse · all done in at least about 2 min (around T+2m). 1 has no estimate yet.')
-    expect(parsingSummary([live('queued')], NOW, clock)).toBe('1 document left to parse.')
+    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(2 * 60_000) }), live('queued')], NOW))
+      .toBe('At least 2 min left')
   })
 
   it('admits an overdue set instead of counting down past zero', () => {
-    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(-1) })], NOW, clock))
-      .toBe('1 document left to parse · taking longer than estimated.')
+    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(-1) })], NOW)).toBe('Taking longer than estimated')
   })
 })
