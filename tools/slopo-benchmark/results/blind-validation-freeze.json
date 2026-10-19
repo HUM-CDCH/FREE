@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-22T13:51:08+0200",
+  "training": {
+    "summary_sha256": "10872972f7159e84138f1feb328673dd067a6a3618d7da6d7e24540e64e3b543",
+    "corpus_fingerprint": "0fa0403d70246a7f5141d3be97915613c1c589fdf4f5026d03b1232f932f4db7"
+  },
+  "holdout": {
+    "distribution": "slopo",
+    "version": "0.5.0",
+    "corpus_fingerprint": "94d0266bfcae364c7c47d5d4e425288e1d04ebe577e4f811654d93b30d07a97d",
+    "files": 46,
+    "index": {
+      "files": 46,
+      "units": 183,
+      "unique_bodies": 138
+    }
+  },
+  "models": [
+    {
+      "configuration": "pplx-v1-0.6b-512d",
+      "family": "pplx-v1-0.6b",
+      "dimensions": 512,
+      "role": "discovery",
+      "similarity_threshold": 0.8167676767676768,
+      "rerank_threshold": 0.8167676767676768,
+      "model_repo": "mykor/pplx-embed-v1-0.6b-GGUF",
+      "model_revision": "2cadede717541842c84c7c2693811ae7970e2dde",
+      "model_filename": "pplx-embed-v1-0.6B-Q8_0.gguf"
+    },
+    {
+      "configuration": "jina-v2-code-768d",
+      "family": "jina-v2-code",
+      "dimensions": 768,
+      "role": "discovery",
+      "similarity_threshold": 0.7926018238067627,
+      "rerank_threshold": 0.9538904536581594,
+      "model_repo": "ggml-org/jina-embeddings-v2-base-code-Q8_0-GGUF",
+      "model_revision": "05e79e9a6c8b99491e92ebb28d753268f8601e3c",
+      "model_filename": "jina-embeddings-v2-base-code-q8_0.gguf"
+    },
+    {
+      "configuration": "qwen3-0.6b-1024d",
+      "family": "qwen3-0.6b",
+      "dimensions": 1024,
+      "role": "discovery",
+      "similarity_threshold": 0.8761616161616161,
+      "rerank_threshold": 0.8761616161616161,
+      "model_repo": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+      "model_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+      "model_filename": "Qwen3-Embedding-0.6B-Q8_0.gguf"
+    },
+    {
+      "configuration": "voyage-4-nano-512d",
+      "family": "voyage-4-nano",
+      "dimensions": 512,
+      "role": "confirmation_only",
+      "similarity_threshold": 0.9224504232406616,
+      "rerank_threshold": 0.9224504232406616,
+      "model_repo": "jsonMartin/voyage-4-nano-gguf",
+      "model_revision": "75e62c7dba5ee8156717a56920976ab128b8c693",
+      "model_filename": "voyage-4-nano-q8_0.gguf"
+    }
+  ],
+  "fusion": {
+    "discovery_configurations": [
+      "pplx-v1-0.6b-512d",
+      "jina-v2-code-768d",
+      "qwen3-0.6b-1024d"
+    ],
+    "confirmation_configurations": [
+      "voyage-4-nano-512d"
+    ],
+    "primary_configuration": "pplx-v1-0.6b-512d",
+    "pool_size_per_configuration": 50,
+    "member_jaccard_threshold": 0.6,
+    "minimum_shared_members": 2,
+    "rrf_k": 60,
+    "transitive_member_union": false
+  },
+  "review_protocol": {
+    "selection": "union of primary-model top 20 and consensus top 20",
+    "order": "deterministic SHA-256 shuffle",
+    "reviewer_hidden_fields": [
+      "source model",
+      "model support",
+      "rank",
+      "similarity score"
+    ],
+    "positive_rule": "all reported members are one coherent duplicate implementation or refactoring opportunity"
+  },
+  "acceptance": {
+    "minimum_consensus_candidates": 20,
+    "minimum_consensus_p20": 0.9,
+    "requires_all_consensus_top20_reviewed": true,
+    "threshold_retuning_allowed": false
+  }
+}
