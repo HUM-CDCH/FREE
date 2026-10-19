@@ -1,11 +1,13 @@
 import type { WorkflowStatus } from '@dbos-inc/dbos-sdk'
 import { describe, expect, it, vi } from 'vitest'
 import { sourceIngestionListingSchema } from '../shared/sourceDocumentIngestion.contract'
+import type { ConversionQueue } from './_conversion_queue.js'
 import { attemptOf, type IngestionAttempt } from './_source_ingestion_outcome.js'
 import {
   createSourceIngestionDismissal,
   createSourceIngestionListing,
   FAILURE_RETENTION_MS,
+  liveEstimates,
   projectIngestions,
   RECENT_SUCCESS_MS,
 } from './source_ingestions.js'
@@ -41,7 +43,11 @@ const attempts = (...statuses: WorkflowStatus[]): IngestionAttempt[] => statuses
 const project = (input: Partial<Parameters<typeof projectIngestions>[0]> & { attempts: IngestionAttempt[] }) =>
   projectIngestions({ projectContextId: PROJECT, named: new Set(), published: new Map(), nowMs: NOW, ...input })
 
-type Reads = { live?: WorkflowStatus[]; terminal?: WorkflowStatus[]; named?: WorkflowStatus[]; published?: Map<string, string> }
+type Reads = {
+  live?: WorkflowStatus[]; terminal?: WorkflowStatus[]; named?: WorkflowStatus[]; published?: Map<string, string>
+  queue?: () => Promise<ConversionQueue>
+}
+const emptyQueue = async (): Promise<ConversionQueue> => ({ msPerPage: null, typicalPages: new Map(), lanes: new Map() })
 function handlers(reads: Reads = {}, owns: () => Promise<boolean> = async () => true) {
   const calls: string[] = []
   const client = {
@@ -56,7 +62,7 @@ function handlers(reads: Reads = {}, owns: () => Promise<boolean> = async () => 
     modelOperationScopeExists: vi.fn(owns),
     findSourceDocumentIdsByContent: vi.fn(async () => reads.published ?? new Map<string, string>()),
   }
-  return { client, store, calls, GET: createSourceIngestionListing(store, () => client as never, () => NOW) }
+  return { client, store, calls, GET: createSourceIngestionListing(store, () => client as never, () => NOW, reads.queue ?? emptyQueue) }
 }
 const get = (projectContextId: string, named: string[] = []) =>
   new Request(`http://local.test/api/project-contexts/${projectContextId}/source-ingestions${named.length ? `?${named.map((id) => `workflowId=${encodeURIComponent(id)}`).join('&')}` : ''}`)
@@ -183,6 +189,87 @@ describe('projectIngestions', () => {
       published: new Map([['published', doc(7)]]),
     })
     expect(listed).toEqual([expect.objectContaining({ status: 'succeeded', sourceDocumentId: doc(7) })])
+  })
+})
+
+describe('liveEstimates', () => {
+  const SMALL = 'kei-convert-small'
+  const LARGE = 'kei-convert-large'
+  const sized = (n: number, status: string, pageCount: number | null, lane: string, createdAt = NOW - 60_000 + n) => {
+    const base = row(n, status, { createdAt })
+    return { ...base, input: [{ ...(base.input as object[])[0], pageCount, lane }] }
+  }
+  const at = (ms: number) => new Date(ms).toISOString()
+
+  it('queues each lane behind its earlier live attempts, from kei\'s cost per page', () => {
+    const estimates = liveEstimates(attempts(
+      sized(1, 'PENDING', 10, SMALL, NOW - 30_000), // 20 s + 63 s
+      sized(2, 'ENQUEUED', 4, SMALL, NOW - 20_000), // + 45.2 s
+      sized(3, 'ENQUEUED', 100, LARGE, NOW - 10_000), // its own lane: 20 s + 630 s
+    ), NOW)
+    expect(estimates.get(row(1, '').workflowID)).toEqual({ pageCount: 10, estimatedCompletionAt: at(NOW + 53_000) })
+    expect(estimates.get(row(2, '').workflowID)).toEqual({ pageCount: 4, estimatedCompletionAt: at(NOW + 98_200) })
+    expect(estimates.get(row(3, '').workflowID)).toEqual({ pageCount: 100, estimatedCompletionAt: at(NOW + 640_000) })
+  })
+
+  it('an overdue attempt holds back the next one until now, not into the past', () => {
+    const estimates = liveEstimates(attempts(
+      sized(1, 'PENDING', 1, SMALL, NOW - 600_000),
+      sized(2, 'ENQUEUED', 1, SMALL, NOW - 500_000),
+    ), NOW)
+    expect(estimates.get(row(1, '').workflowID)?.estimatedCompletionAt).toBe(at(NOW - 600_000 + 26_300))
+    expect(estimates.get(row(2, '').workflowID)?.estimatedCompletionAt).toBe(at(NOW + 26_300))
+  })
+
+  it('gives no estimate to an attempt of unknown size, nor to those behind it, and none to settled work', () => {
+    const estimates = liveEstimates(attempts(
+      sized(1, 'PENDING', null, LARGE),
+      sized(2, 'ENQUEUED', 50, LARGE),
+      sized(3, 'SUCCESS', 50, SMALL),
+    ), NOW)
+    expect(estimates.get(row(1, '').workflowID)).toEqual({})
+    expect(estimates.get(row(2, '').workflowID)).toEqual({ pageCount: 50 })
+    expect(estimates.has(row(3, '').workflowID)).toBe(false)
+  })
+
+  it('with the lanes read, waits behind every project\'s conversions at the calibrated cost', () => {
+    const queue: ConversionQueue = {
+      msPerPage: 10_000,
+      typicalPages: new Map([[SMALL, 8]]),
+      lanes: new Map([[SMALL, [
+        // Another project's conversion, running for a minute: 20 s + 10 × 10 s from its start.
+        { conversionId: 'kei-convert:other-1', createdAt: NOW - 120_000, startedAt: NOW - 60_000, pages: 10 },
+        // This project's attempt 1, already on the lane behind it.
+        { conversionId: `kei-convert:${row(1, '').workflowID}`, createdAt: NOW - 30_000, startedAt: null, pages: 2 },
+        // A conversion of unknown size: the lane's typical 8 pages.
+        { conversionId: 'kei-convert:other-2', createdAt: NOW - 20_000, startedAt: null, pages: null },
+      ]]]),
+    }
+    const estimates = liveEstimates(attempts(
+      sized(1, 'PENDING', 2, SMALL, NOW - 40_000),
+      sized(2, 'ENQUEUED', 3, SMALL, NOW - 10_000), // not on the lane yet
+    ), NOW, queue)
+    expect(estimates.get(row(1, '').workflowID)).toEqual({ pageCount: 2, estimatedCompletionAt: at(NOW + 60_000 + 40_000) })
+    expect(estimates.get(row(2, '').workflowID)).toEqual({
+      pageCount: 3, estimatedCompletionAt: at(NOW + 100_000 + 100_000 + 50_000),
+    })
+  })
+
+  it('reads the lanes only for live work, and still answers when they are unreadable', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const queue = vi.fn(async (): Promise<ConversionQueue> => { throw new Error('kei_dbos is unreachable') })
+    expect((await handlers({ terminal: [row(1, 'SUCCESS', { output: ok(1), completedAt: NOW })], queue }).GET(get(PROJECT))).status).toBe(200)
+    expect(queue).not.toHaveBeenCalled()
+    const listed = await (await handlers({ live: [sized(2, 'PENDING', 2, SMALL, NOW)], queue }).GET(get(PROJECT))).json()
+    expect(queue).toHaveBeenCalledOnce()
+    expect(listed.ingestions[0]).toEqual(expect.objectContaining({ pageCount: 2, estimatedCompletionAt: at(NOW + 32_600) }))
+    warn.mockRestore()
+  })
+
+  it('lists the estimate on the live rows', () => {
+    const [listed] = project({ attempts: attempts(sized(1, 'PENDING', 2, SMALL, NOW)) })
+    expect(listed).toEqual(expect.objectContaining({ status: 'parsing', pageCount: 2, estimatedCompletionAt: at(NOW + 32_600) }))
+    expect(sourceIngestionListingSchema.safeParse({ ingestions: [listed], absent: [] }).success).toBe(true)
   })
 })
 

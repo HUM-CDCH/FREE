@@ -1,9 +1,11 @@
 import type { DBOSClient } from '@dbos-inc/dbos-sdk'
+import { CONVERSION_OVERHEAD_MS, expectedConversionMs, keiConvertWorkflowId, SMALL_DOCUMENT_PAGES } from 'extraction/kei-handoff'
 import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { studioDbos } from '../server/dbos.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { MAX_NAMED_INGESTIONS, type SourceIngestion } from '../shared/sourceDocumentIngestion.contract.js'
 import { ApiError, json, noStore, noStoreError, persistenceUnavailable } from './_http.js'
+import { createConversionQueueReader, type ConversionQueue } from './_conversion_queue.js'
 import { INGEST_SOURCE } from './_ingestion_workflow.js'
 import { attemptOf, classifyOutcome, isQuiescent, type IngestionAttempt } from './_source_ingestion_outcome.js'
 
@@ -45,15 +47,18 @@ export function projectIngestions(input: {
   /** Content hash → Source Document ID for the failures' contents. */
   published: ReadonlyMap<string, string>
   nowMs: number
+  /** Every project's live conversions and kei's calibration; null estimates from this project alone. */
+  queue?: ConversionQueue | null
 }): SourceIngestion[] {
   const attempts = [...input.attempts].sort((a, b) =>
     a.status.createdAt - b.status.createdAt || a.status.workflowID.localeCompare(b.status.workflowID))
   const newestOfContent = new Map<string, string>()
   for (const attempt of attempts) newestOfContent.set(attempt.input.sourceSha256, attempt.status.workflowID)
+  const estimates = liveEstimates(attempts, input.nowMs, input.queue ?? null)
   return attempts.flatMap(({ status, input: recorded }): SourceIngestion[] => {
     const common = { workflowId: status.workflowID, name: recorded.originalName, createdAt: new Date(status.createdAt).toISOString() }
     const outcome = classifyOutcome(status)
-    if (outcome.kind === 'live') return [{ ...common, status: outcome.status }]
+    if (outcome.kind === 'live') return [{ ...common, ...estimates.get(status.workflowID), status: outcome.status }]
     const completedMs = status.completedAt ?? status.updatedAt ?? status.createdAt
     const completedAt = new Date(completedMs).toISOString()
     const named = input.named.has(status.workflowID)
@@ -69,6 +74,61 @@ export function projectIngestions(input: {
   })
 }
 
+type LiveEstimate = { pageCount?: number; estimatedCompletionAt?: string }
+
+/**
+ * Each live attempt's page count and expected completion. A lane converts one document at a time, so a conversion
+ * starts when the one before it finishes, and an overdue one holds back those behind it until now. With `queue`, the
+ * lanes are every project's live conversions, costed from kei's calibrated history (a job of unknown size as the
+ * lane's typical one), and an attempt not yet on its lane waits behind all of them. Without it, only this project's
+ * attempts are seen, at kei's measured cost. This project's attempt of unknown size has no estimate; without `queue`,
+ * neither do those behind it.
+ */
+export function liveEstimates(
+  attempts: readonly IngestionAttempt[], nowMs: number, queue: ConversionQueue | null = null,
+): Map<string, LiveEstimate> {
+  const cost = (pages: number) => expectedConversionMs(pages, queue?.msPerPage ?? undefined)
+  const onLane = new Map<string, number>()
+  const laneFree = new Map<string, number | null>()
+  for (const [lane, jobs] of queue?.lanes ?? []) {
+    let free = nowMs
+    for (const job of jobs) {
+      const completion = (job.startedAt ?? free) + cost(job.pages ?? queue!.typicalPages.get(lane) ?? SMALL_DOCUMENT_PAGES)
+      onLane.set(job.conversionId, completion)
+      free = Math.max(completion, nowMs)
+    }
+    laneFree.set(lane, free)
+  }
+  const estimates = new Map<string, LiveEstimate>()
+  for (const { status, input } of attempts) {
+    if (classifyOutcome(status).kind !== 'live') continue
+    const pages = Number.isInteger(input.pageCount) && input.pageCount! > 0 ? input.pageCount! : null
+    const lane = typeof input.lane === 'string' ? input.lane : null
+    const converting = onLane.get(keiConvertWorkflowId(status.workflowID))
+    if (converting !== undefined || pages === null || lane === null) {
+      estimates.set(status.workflowID, pages === null ? {} : {
+        pageCount: pages, ...converting !== undefined && { estimatedCompletionAt: new Date(converting).toISOString() },
+      })
+      if (converting === undefined && lane !== null && pages === null) laneFree.set(lane, null)
+      continue
+    }
+    const free = laneFree.has(lane) ? laneFree.get(lane)! : status.createdAt
+    if (free === null) {
+      estimates.set(status.workflowID, { pageCount: pages })
+      continue
+    }
+    const completion = Math.max(free, status.createdAt) + cost(pages)
+    estimates.set(status.workflowID, { pageCount: pages, estimatedCompletionAt: new Date(completion).toISOString() })
+    laneFree.set(lane, Math.max(completion, nowMs))
+  }
+  return estimates
+}
+
+/** The lanes as the listing reads them, one reader per process so its calibration is shared. */
+const conversionQueue = createConversionQueueReader({
+  kei: () => studioDbos().kei, admission: () => studioDbos().admission, overheadMs: CONVERSION_OVERHEAD_MS,
+})
+
 /**
  * `GET …/source-ingestions[?workflowId=…]`: the project's Source Ingestions. The browser's queue only sends files, so
  * this is how an upload stays on the page after a reload or in another tab; named IDs are answered whatever their
@@ -78,6 +138,7 @@ export function createSourceIngestionListing(
   store: SourceIngestionStore,
   admission: () => Pick<DBOSClient, 'listWorkflows'> = () => studioDbos().admission,
   now: () => number = Date.now,
+  readConversionQueue: () => Promise<ConversionQueue> = conversionQueue,
 ) {
   const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
   return async function getSourceIngestions(request: Request): Promise<Response> {
@@ -121,8 +182,16 @@ export function createSourceIngestionListing(
         .map((attempt) => attempt.input.sourceSha256)
       const published = await store.findSourceDocumentIdsByContent(projectId, failedContent)
         .catch((cause) => { throw unavailable(cause) })
+      const attemptList = [...byId.values()]
+      // The lanes only refine an estimate: unreadable, the listing still answers, from this project alone.
+      const queue = attemptList.some((attempt) => classifyOutcome(attempt.status).kind === 'live')
+        ? await readConversionQueue().catch((cause: unknown) => {
+          console.warn('Conversion lanes are unreadable; estimating from this project alone.', cause)
+          return null
+        })
+        : null
       const ingestions = projectIngestions({
-        projectContextId: projectId, attempts: [...byId.values()], named: new Set(named), published, nowMs: now(),
+        projectContextId: projectId, attempts: attemptList, named: new Set(named), published, nowMs: now(), queue,
       })
       return json({ ingestions, absent: named.filter((id) => !byId.has(id)) }, { headers: noStore })
     } catch (error) {

@@ -39,6 +39,7 @@ import { useProjectContexts } from './useProjectContexts'
 import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
+import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
 import { EvaluationRoundsPanel } from './EvaluationRoundsPanel'
 
 export type ProjectContextPageProps = {
@@ -639,6 +640,8 @@ export default function ProjectContextPage({
   const sourcesInFlight =
     queued.some((source) => source.status !== 'failed') ||
     serverIngestions.some(isLiveIngestion)
+  const nowMs = useNow(serverIngestions.some(isLiveIngestion))
+  const summary = parsingSummary(serverIngestions, nowMs)
   const sourceDocuments =
     branch?.status === 'ready'
       ? branch.detail.sourceDocuments
@@ -1571,6 +1574,13 @@ export default function ProjectContextPage({
               </p>
             )}
 
+            {/* Visual only: the countdown would re-announce every tick; the sr-only status names each state. */}
+            {summary && (
+              <p className="py-2 text-xs text-ink-muted">
+                {summary}
+              </p>
+            )}
+
             {(queued.length > 0 ||
               serverIngestions.length > 0 ||
               branch?.status === 'ready') && (
@@ -1626,7 +1636,7 @@ export default function ProjectContextPage({
                         </span>
                       ) : (
                         <span className="block text-[11px] text-ink-faint">
-                          {ingestion.status === 'parsing' ? 'Parsing…' : 'Queued'}
+                          {liveIngestionLabel(ingestion, nowMs)}
                         </span>
                       )}
                     </span>
