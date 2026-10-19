@@ -53,6 +53,16 @@ import {
 } from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
+
+/** The label over the panel's chat composer, before and after the first schema alike. */
+function ChatLabel({ optional = false }: { optional?: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">Chat</span>
+      {optional && <span className="rounded bg-canvas px-1.5 py-0.5 text-overline font-semibold uppercase tracking-wide text-ink-faint">Optional</span>}
+    </span>
+  )
+}
 /** `ids` taken out of the collapsed set, so those groups show their children. */
 const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
   const next = new Set(current)
@@ -1413,12 +1423,7 @@ function SchemaPanel({
 
       {/* Before a schema exists: the instructions conversation's composer, under the conversation in the panel's body. */}
       {instructing && (
-        <ChatComposer standalone label={
-          <span className="flex items-center gap-1.5">
-            <span className="text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">Chat</span>
-            <span className="rounded bg-canvas px-1.5 py-0.5 text-overline font-semibold uppercase tracking-wide text-ink-faint">Optional</span>
-          </span>
-        }>
+        <ChatComposer standalone label={<ChatLabel optional />}>
           <textarea ref={instructionInputRef} className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint" rows={3}
             placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations")…'} value={instructions.draft}
             onChange={(event) => instructions.setDraft(event.target.value)}
@@ -1432,19 +1437,19 @@ function SchemaPanel({
           drawer. */}
       {ready && !editorReadOnly && (
         <ChatDrawer open={drawerShown} onCollapse={() => setDrawerOpen(false)} onExpand={() => setDrawerOpen(true)}
-          title="Conversation" dot={dot} bodyRef={chatRef}
+          title="Conversation" label={<ChatLabel />} dot={dot} bodyRef={chatRef}
           bar={pending ? <ProposalReviewBar proposal={pending} canApply={canApply} onApply={applyProposal} onDiscard={discardProposal} /> : undefined}
           composer={
             <>
-              <input className="min-w-0 flex-1 bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+              <textarea className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50" rows={3}
                 placeholder="Describe a change to the schema…" value={chatInput} disabled={chatBlocked}
                 onChange={(event) => setChatInput(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Enter') void sendChatMessage(chatInput) }} />
+                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendChatMessage(chatInput) } }} />
               {chatLoading ? (
-                <button type="button" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
+                <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
                   onClick={cancelChat} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
               ) : (
-                <button type="button" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+                <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
                   aria-label="Send" disabled={!chatInput.trim() || chatBlocked} onClick={() => void sendChatMessage(chatInput)}>↑</button>
               )}
             </>
