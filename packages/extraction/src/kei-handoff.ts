@@ -40,8 +40,11 @@ export function conversionLane(pages: number | null): ConversionLane {
 
 /** M0R 4's measured cost of one conversion once it runs: 20 s + 6.3 s × pages, provisional until the ~2000-page Spark
  *  run. A native PDF or a reused result finishes sooner; Studio shows it as an estimate, never a deadline. */
-export function expectedConversionMs(pages: number): number {
-  return 20_000 + 6_300 * pages
+export const CONVERSION_OVERHEAD_MS = 20_000
+export const CONVERSION_MS_PER_PAGE = 6_300
+/** `msPerPage` is a calibration from kei's own history; the timeout always uses the measured default. */
+export function expectedConversionMs(pages: number, msPerPage: number = CONVERSION_MS_PER_PAGE): number {
+  return CONVERSION_OVERHEAD_MS + msPerPage * pages
 }
 
 /** M0R 4: max(10 min, 60 s + 18.9 s × pages), three times the expected cost. */
