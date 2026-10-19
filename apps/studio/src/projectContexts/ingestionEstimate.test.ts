@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatWait, liveIngestionLabel } from './ingestionEstimate'
+import { formatWait, liveIngestionLabel, parsingSummary } from './ingestionEstimate'
 
 const NOW = Date.parse('2026-10-19T12:00:00.000Z')
 const at = (ms: number) => new Date(NOW + ms).toISOString()
@@ -31,5 +31,33 @@ describe('liveIngestionLabel', () => {
   it('never counts below zero', () => {
     expect(liveIngestionLabel(live('parsing', { pageCount: 3, estimatedCompletionAt: at(-1) }), NOW))
       .toBe('Parsing · 3 pages · taking longer than estimated')
+  })
+})
+
+describe('parsingSummary', () => {
+  const clock = (ms: number) => `T+${(ms - NOW) / 60_000}m`
+  const done = { workflowId: 'd', name: 'd.pdf', createdAt: at(-1), status: 'succeeded' as const, completedAt: at(0), sourceDocumentId: 'x' }
+
+  it('says nothing once no document is parsing', () => {
+    expect(parsingSummary([done], NOW, clock)).toBeNull()
+  })
+
+  it('is done at the latest estimate, not their sum, and suggests a break for a long wait', () => {
+    expect(parsingSummary([
+      live('parsing', { pageCount: 10, estimatedCompletionAt: at(3 * 60_000) }),
+      live('queued', { pageCount: 90, estimatedCompletionAt: at(12 * 60_000) }),
+      done,
+    ], NOW, clock)).toBe('2 documents left to parse · all done in about 12 min (around T+12m). You can take a break; this list updates on its own.')
+  })
+
+  it('makes the wait a lower bound while a document has no estimate', () => {
+    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(2 * 60_000) }), live('queued')], NOW, clock))
+      .toBe('2 documents left to parse · all done in at least about 2 min (around T+2m). 1 has no estimate yet.')
+    expect(parsingSummary([live('queued')], NOW, clock)).toBe('1 document left to parse.')
+  })
+
+  it('admits an overdue set instead of counting down past zero', () => {
+    expect(parsingSummary([live('parsing', { estimatedCompletionAt: at(-1) })], NOW, clock))
+      .toBe('1 document left to parse · taking longer than estimated.')
   })
 })
