@@ -219,6 +219,21 @@ export async function listSourceIngestions(
   )
 }
 
+/**
+ * Admits a failed Source Ingestion again from the PDF Studio kept for it, as an upload of the same bytes would be:
+ * 202 with the new attempt's workflow ID, or 201 with the Source Document the bytes already became. 410 when Studio no
+ * longer holds the PDF.
+ */
+export async function retrySourceIngestion(projectContextId: string, workflowId: string): Promise<UploadAdmission> {
+  const { status, body } = await readResponse(
+    `/api/project-contexts/${projectContextId}/source-ingestions/${encodeURIComponent(workflowId)}/retry`,
+    { method: 'POST' },
+  )
+  if (status === 202) return { kind: 'admitted', workflowId: sourceIngestionAdmittedSchema.parse(body).workflowId }
+  if (status === 201) return { kind: 'replayed', document: sourceDocumentIngestionResponseSchema.parse(body) }
+  throw new ProjectContextRequestError(status, null)
+}
+
 export async function dismissSourceIngestion(projectContextId: string, workflowId: string): Promise<void> {
   await read(`/api/project-contexts/${projectContextId}/source-ingestions/${encodeURIComponent(workflowId)}`, {
     method: 'DELETE',

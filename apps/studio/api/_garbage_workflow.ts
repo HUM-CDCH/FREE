@@ -53,8 +53,8 @@ const rows = (statuses: readonly WorkflowStatus[]): WorkflowRow[] =>
     ({ workflowID, status, updatedAt, completedAt, attributes, output }))
 const byId = (list: readonly WorkflowRow[]) => new Map(list.map((row) => [row.workflowID, row]))
 const unique = (values: readonly (string | null)[]) => [...new Set(values.filter((value): value is string => value !== null))]
-const listed = async (client: Pick<DBOSClient, 'listWorkflows'>, workflowIDs: string[]) =>
-  workflowIDs.length === 0 ? [] : rows(await client.listWorkflows({ workflowIDs, ...NO_DATA }))
+const listed = async (client: Pick<DBOSClient, 'listWorkflows'>, workflowIDs: string[], loadOutput = false) =>
+  workflowIDs.length === 0 ? [] : rows(await client.listWorkflows({ workflowIDs, ...NO_DATA, loadOutput }))
 
 /** Rechecking avoids moving a cancelled workflow's updatedAt into this boot, which would delay its cleanup. */
 async function cancelIfLive(client: Pick<DBOSClient, 'listWorkflows' | 'cancelWorkflow'>, id: string): Promise<boolean> {
@@ -113,7 +113,8 @@ export async function collectKei(ports: GarbagePorts, nowMs: number, workflowId:
 export async function collectStagedSources(ports: GarbagePorts, nowMs: number): Promise<number> {
   const files = await ports.inbox.list(ports.inbox.root)
   const workflowIds = unique(files.map((file) => file.workflowId))
-  const parents = byId(await listed(ports.studio, workflowIds))
+  // Outputs tell a failed upload, whose file is kept for Retry, from a settled one.
+  const parents = byId(await listed(ports.studio, workflowIds, true))
   const children = byId(await listed(ports.kei, workflowIds.map(keiConvertWorkflowId)))
   const doomed = planStagedSources({ files, parents, children, nowMs, policy: ports.policy })
   for (const relative of doomed) await ports.inbox.remove(ports.inbox.root, relative)

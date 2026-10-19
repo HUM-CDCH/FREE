@@ -507,6 +507,7 @@ export default function ProjectContextPage({
     ingestions,
     observeIngestions,
     dismissIngestion,
+    retryIngestion,
     addSources,
     retrySource,
     deleteSourceDocument,
@@ -673,12 +674,23 @@ export default function ProjectContextPage({
               : `${ingestion.name}: ${ingestion.status}.`,
           ),
         ].join(' ')
-  const dismiss = async (workflowId: string) => {
-    const refused = await dismissIngestion(projectContextId, workflowId)
+  const [retrying, setRetrying] = useState<ReadonlySet<string>>(new Set())
+  const noteRowFailure = (workflowId: string, refused: { message: string } | null) =>
     setDismissFailures((current) => {
       const next = { ...current }
       if (refused) next[workflowId] = refused.message
       else delete next[workflowId]
+      return next
+    })
+  const dismiss = async (workflowId: string) => {
+    noteRowFailure(workflowId, await dismissIngestion(projectContextId, workflowId))
+  }
+  const retryIngestionRow = async (workflowId: string) => {
+    setRetrying((current) => new Set(current).add(workflowId))
+    noteRowFailure(workflowId, await retryIngestion(projectContextId, workflowId))
+    setRetrying((current) => {
+      const next = new Set(current)
+      next.delete(workflowId)
       return next
     })
   }
@@ -1642,12 +1654,23 @@ export default function ProjectContextPage({
                     </span>
                     {ingestion.status === 'failed' && (
                       <span className="flex shrink-0 gap-2">
-                        <Button
-                          onClick={() => fileInput.current?.click()}
-                          aria-label={`Upload ${ingestion.name} again`}
-                        >
-                          Upload again
-                        </Button>
+                        {/* Studio kept the PDF: Retry needs no new upload. */}
+                        {ingestion.retryable ? (
+                          <Button
+                            onClick={() => void retryIngestionRow(ingestion.workflowId)}
+                            disabled={retrying.has(ingestion.workflowId)}
+                            aria-label={`Retry ${ingestion.name}`}
+                          >
+                            Retry
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => fileInput.current?.click()}
+                            aria-label={`Upload ${ingestion.name} again`}
+                          >
+                            Upload again
+                          </Button>
+                        )}
                         <Button
                           onClick={() => void dismiss(ingestion.workflowId)}
                           aria-label={`Dismiss ${ingestion.name}`}

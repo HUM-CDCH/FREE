@@ -45,7 +45,11 @@ export const sourceIngestionSchema = z.discriminatedUnion('status', [
   z.object({ ...common, ...liveEstimate, status: z.literal('queued') }).strict(),
   z.object({ ...common, ...liveEstimate, status: z.literal('parsing') }).strict(),
   z.object({ ...common, status: z.literal('succeeded'), completedAt: timestamp, sourceDocumentId: canonicalUuidSchema }).strict(),
-  z.object({ ...common, status: z.literal('failed'), completedAt: timestamp, failure: ingestionFailureSchema }).strict(),
+  z.object({
+    ...common, status: z.literal('failed'), completedAt: timestamp, failure: ingestionFailureSchema,
+    /** Studio still holds the PDF: Retry admits it again without a new upload. */
+    retryable: z.literal(true).optional(),
+  }).strict(),
 ])
 export type SourceIngestion = z.output<typeof sourceIngestionSchema>
 

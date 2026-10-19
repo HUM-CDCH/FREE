@@ -216,6 +216,13 @@ export function planKeiCleanup(input: {
 }
 
 /** Staged uploads no attempt or kei child can still read (spec, *Staged uploads*). */
+/** A failed upload attempt, which keeps its staged PDF for Retry while its history lasts (ADR 0014, 4): dismissal,
+ *  a deleted project and the thirty-day background retention all delete that history, and the file goes after it. */
+function failedUpload(row: WorkflowRow): boolean {
+  if (!row.workflowID.startsWith('ingest:') || !TERMINAL.has(row.status)) return false
+  return row.status !== 'SUCCESS' || (row.output as { ok?: unknown } | undefined)?.ok === false
+}
+
 export function planStagedSources(input: {
   files: readonly StagedSource[]
   parents: ReadonlyMap<string, WorkflowRow>
@@ -230,6 +237,7 @@ export function planStagedSources(input: {
       if (file.workflowId === null) return false
       const parent = input.parents.get(file.workflowId)
       if (parent && !TERMINAL.has(parent.status)) return false // an active attempt keeps its PDF
+      if (parent && failedUpload(parent)) return false
       const child = input.children.get(`${KEI_CONVERT}${file.workflowId}`)
       return !child || !LIVE.has(child.status) // kei may still be reading it
     })

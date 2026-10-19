@@ -131,6 +131,10 @@ export const projectContextErrorSchema = z
       'source_artifact_unavailable',
       'source_ingestion_failed',
       'source_ingestion_timeout',
+      // Retry of a failed Source Ingestion: the PDF is gone, the attempt is not a failure, or it is still stopping.
+      'source_not_retained',
+      'ingestion_not_retryable',
+      'ingestion_stopping',
     ]),
     message: z.string(),
   })
