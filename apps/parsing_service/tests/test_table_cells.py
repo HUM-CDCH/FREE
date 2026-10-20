@@ -39,11 +39,12 @@ def test_invalid_nested_or_overlapping_cells_are_not_published():
         PageTable.model_validate(table)
 
 
-def test_a_unique_cell_is_offered_to_the_model_and_its_parent_not_double_counted():
+@pytest.mark.parametrize("projected", [False, True])
+def test_a_matching_cell_is_selectable_and_its_parent_is_not(projected):
     def choose(system, user, schema):
-        assert schema['properties']['C1']['enum'] == ['E1', 'E4', 'NONE']  # the table and its one matching cell
+        assert schema['properties']['C1']['enum'] == ['E4', 'NONE']
         return {'C1': 'E4'}
-    links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0)
+    links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0, projected=projected)
     assert len(calls) == 1 and not issues
     assert (links[0].cell, links[0].hits, links[0].precision, links[0].bbox_pt, links[0].linked_by) == (
         'r1_c0', 1, 'cell', (0, 20, 90, 38), 'model')
@@ -84,3 +85,36 @@ def test_grounded_catalog_uses_only_spans_wholly_inside_one_cell():
     outcome.alternatives = []
     outcome.spans = [Span(segment_id=item.id, start=cell.start, end=item.table.cells[3].end)]
     assert evidence_link(outcome, {item.id: item}, {})['cell'] is None
+
+
+@pytest.mark.parametrize("projected", [False, True])
+def test_a_whole_table_answer_is_rejected_when_its_matching_cell_was_offered(projected):
+    links, _, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA,
+                              FakeChat(lambda *_: {'C1': 'E1'}), record=0, projected=projected)
+    assert links == [] and issues[0].code == 'unknown_label'
+
+
+def test_whole_table_support_remains_per_claim_and_per_table():
+    first = passage()
+    other = replace(passage('<table><tr><td>Other support</td></tr></table>'), id='p4_s0', page=4)
+    prose = Passage('p4_s1', 4, 1, 'A glass bead catalogue.', 'text', (0, 0, 200, 60), 'block')
+    def choose(system, user, schema):
+        # 7-8 has a cell in the first table: only that parent is removed, not other sources.
+        assert schema['properties']['C1']['enum'] == ['E4', 'E8', 'E10', 'NONE']
+        # This value crosses cells, so the first table must still be available for this claim.
+        assert schema['properties']['C2']['enum'] == ['E1', 'E8', 'E10', 'NONE']
+        return {'C1': 'E4', 'C2': 'E1'}
+    links, calls, issues = verify([first, other, prose], {'entry_no': '7-8', 'site': '7-8 Glass bead'},
+                                  SCHEMA, FakeChat(choose), record=0)
+    assert len(calls) == 1 and not issues
+    assert [(link.segment, link.precision) for link in links] == [('p3_s4', 'cell'), ('p3_s4', 'segment')]
+
+
+@pytest.mark.parametrize("quoted,span_ids", [(True, False), (False, True)])
+def test_other_grounding_modes_also_exclude_a_matching_cells_parent(quoted, span_ids):
+    def choose(system, user, schema):
+        assert schema['properties']['C1']['properties']['label']['enum'] == ['E4', 'NONE']
+        return {'C1': {'label': 'E4', 'attribution': True, **({'quote': '7-8'} if quoted else {})}}
+    links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0,
+                                  quoted=quoted, span_ids=span_ids)
+    assert len(calls) == 1 and not issues and links[0].cell == 'r1_c0'

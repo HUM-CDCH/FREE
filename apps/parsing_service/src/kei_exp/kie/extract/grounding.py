@@ -98,6 +98,8 @@ def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate | SourceSpan]],
         rows.setdefault(identity, set()).add(row)
     for identity, passage in tables.items():
         assert passage.table is not None
+        if not any(candidate.cell is None and candidate.passage.id == identity for _, candidate in labelled):
+            lines.append(f"Table {identity} full text (not selectable evidence labels):\n{passage.text.strip()}")
         lines.append(f"Table {identity} row/header context (not selectable evidence labels):")
         for cell in passage.table.cells:
             if cell.role in {"column_header", "row_section"} or any(
@@ -172,7 +174,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     on how many other items the record holds. The reply is budgeted too (every label at its longest within the output
     reserve), and a failed call names each claim it held.
 
-    Every batch retains all passages for coarse/non-verbatim support, and all matching cells for its claims.
+    Every batch retains coarse/non-verbatim support and matching cells; a selectable cell excludes its table parent.
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
     Every claim is verified by the model, a uniquely found value included. Every batch carries the record's fields,
     counted in its size, so splitting never separates a claim from its record. Generic Catalog uses a character cap;
@@ -232,6 +234,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 eligible[claim] = [label for label in eligible[claim] if label not in rows_of] + own
             elif len(best) == 1:  # no offered cell shows the item's own row (a section header): print that row
                 context_rows[claim] = best
+    # Enforce cell precision per claim, after row filtering, without removing other tables or prose support.
+    for claim, labels in eligible.items():
+        cell_parents = {labelled[label].passage.id for label in labels if labelled[label].cell is not None}
+        eligible[claim] = [label for label in labels
+                           if labelled[label].cell is not None or labelled[label].passage.id not in cell_parents]
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
     batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
