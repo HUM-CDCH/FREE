@@ -315,7 +315,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
       })
       // `sourceDocumentCount` is patched in locally above for an instant
       // count, but the first ingested Source Document also moves this
-      // Project Context's persisted phase (ingest -> chat) — a value only
+      // Project Context's persisted phase (upload -> schema) — a value only
       // the list read carries. Without this, the stepper and its "Next"
       // button keep showing "Upload" as current until something else
       // happens to refetch the list.

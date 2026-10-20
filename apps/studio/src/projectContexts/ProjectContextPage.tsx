@@ -25,7 +25,7 @@ import {
   localSchemaPersistence,
 } from '../currentSchemaRevision'
 import { useSchemaEditorController } from '../useCurrentSchemaRevision'
-import { Button, DeleteDialog, ModalDialog, EmptyState, GuidedNextStep } from '../ui'
+import { Button, DeleteDialog, ModalDialog, EmptyState, type WorkflowPhase } from '../ui'
 import BatchExtractionsPanel, {
   SuggestedSchemaEditor,
 } from './BatchExtractionsPanel'
@@ -40,6 +40,8 @@ import { useProjectContexts } from './useProjectContexts'
 // import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
+import ApproveSchemaDialog from './ApproveSchemaDialog'
+import type { GuidedAction } from './guidedWorkflow'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
 import { EvaluationRoundsPanel } from './EvaluationRoundsPanel'
 
@@ -531,13 +533,6 @@ export default function ProjectContextPage({
   // pages; everything else is read page by page. Born-digital PDFs are read
   // natively whatever is chosen.
   const [layout, setLayout] = useState<SourceLayout>('pages')
-  // Guided next-step nudge (guided-pilot-extraction-workflow): fired once on
-  // the live transition into "first document ingested" or "first schema
-  // committed" — never on an initial load that already has either, so
-  // reopening a project with existing work stays quiet.
-  const [nudge, setNudge] = useState<'upload-complete' | 'schema-ready' | null>(null)
-  const previousSourceDocumentCount = useRef<number | null>(null)
-  const uploadNudgePending = useRef(false)
   const previousSchemaCount = useRef<number | null>(null)
   const generateSchemaSectionRef = useRef<HTMLElement>(null)
   // Bumped on every request to start a schema, so the document picker is
@@ -545,9 +540,11 @@ export default function ProjectContextPage({
   // otherwise "Next: Create schema" looks like it did nothing there.
   const [schemaPickerRequest, setSchemaPickerRequest] = useState(0)
   const [schemaPickerHighlighted, setSchemaPickerHighlighted] = useState(false)
-  // "Next: Pilot Extraction" opens the Extractions tab's pilot preparation,
-  // not just the tab: already on it, a bare navigation looks like nothing.
-  const [pilotRequested, setPilotRequested] = useState(false)
+  // The workflow bar's Next for a step whose work starts on the Extractions
+  // tab opens that work, not just the tab: already on it, a bare navigation
+  // looks like nothing.
+  const [extractionRequest, setExtractionRequest] = useState<'pilot' | 'batch' | 'review' | null>(null)
+  const [approvingSchema, setApprovingSchema] = useState(false)
   const schemaPickerHighlightTimer = useRef<number | undefined>(undefined)
   // The spreadsheet route is the rarer way in, so it stays folded away
   // unless opened, or unless this project already has spreadsheet work.
@@ -799,7 +796,7 @@ export default function ProjectContextPage({
         setSchemaRetry((attempt) => attempt + 1)
         sendSpreadsheetSuggestion({ type: 'reset' })
         // Confirming this suggestion just committed a Schema Revision,
-        // moving this project's workflow phase (chat/approve -> extract) —
+        // moving this project's workflow phase (schema -> pilot) —
         // refresh the list's persisted summary so the stepper picks it up
         // instead of showing the pre-approval phase until something else
         // happens to refetch it.
@@ -917,34 +914,37 @@ export default function ProjectContextPage({
     return () => controller.abort()
   }, [projectContextId, tab, schemaRequestKey])
 
-  // "First document ingested" -> nudge toward defining a schema, held until
-  // the rest of the batch has settled so it doesn't announce completion
-  // while other files are still sending or parsing.
-  useEffect(() => {
-    if (branch?.status !== 'ready') return
-    const count = branch.detail.sourceDocuments.length
-    const previous = previousSourceDocumentCount.current
-    previousSourceDocumentCount.current = count
-    if (previous === 0 && count > 0) uploadNudgePending.current = true
-    if (uploadNudgePending.current && !sourcesInFlight) {
-      uploadNudgePending.current = false
-      setNudge('upload-complete')
-    }
-  }, [branch, sourcesInFlight])
-
-  // "First Schema Revision committed" -> nudge toward piloting it. Going
-  // back to zero schemas (the last one was just deleted) -> there's nothing
-  // left in Schema history, so jump straight back to the chat step instead
-  // of leaving the researcher looking at an empty list.
+  // Going back to zero schemas (the last one was just deleted) -> there's
+  // nothing left in Schema history, so jump straight back to creating one
+  // instead of leaving the researcher looking at an empty list.
   useEffect(() => {
     if (schemaList?.status !== 'ready') return
     const count = schemaList.schemas.length
     const previous = previousSchemaCount.current
     previousSchemaCount.current = count
-    if (previous === 0 && count > 0) setNudge('schema-ready')
     if (previous !== null && previous > 0 && count === 0)
       generateSchemaSectionRef.current?.focus()
   }, [schemaList])
+
+  /** Where each workflow step's work lives. */
+  const stepTab: Record<WorkflowPhase, ProjectResource['tab']> = {
+    upload: 'sources',
+    schema: 'schemas',
+    pilot: 'extractions',
+    approve: 'schemas',
+    batch: 'extractions',
+    review: 'extractions',
+  }
+  const openStep = (step: WorkflowPhase) =>
+    onNavigate({ kind: 'project', projectContextId, tab: stepTab[step] })
+  const startStep = (action: GuidedAction) => {
+    if (action === 'schema') return startSchemaCreation()
+    if (action === 'approve') return setApprovingSchema(true)
+    if (action === 'pilot' || action === 'batch' || action === 'review')
+      setExtractionRequest(action)
+    openStep(action)
+    if (action === 'upload') fileInput.current?.click()
+  }
 
   if (branch?.status === 'error')
     return (
@@ -1036,14 +1036,21 @@ export default function ProjectContextPage({
           <ProjectWorkflowSteps
             summary={projectSummary}
             sourcesInFlight={sourcesInFlight}
-            onNavigate={(nextTab) =>
-              onNavigate({ kind: 'project', projectContextId, tab: nextTab })
-            }
-            onNext={(nextTab) => {
-              if (projectSummary.phase === 'chat') return startSchemaCreation()
-              if (projectSummary.phase === 'extract') setPilotRequested(true)
-              onNavigate({ kind: 'project', projectContextId, tab: nextTab })
+            onOpenStep={openStep}
+            onNext={startStep}
+          />
+        )}
+        {approvingSchema && projectSummary?.currentSchemaRevisionId && (
+          <ApproveSchemaDialog
+            projectContextId={projectContextId}
+            schemaRevisionId={projectSummary.currentSchemaRevisionId}
+            reapproval={projectSummary.phase === 'batch' || projectSummary.phase === 'review'}
+            pendingExtractionCount={projectSummary.pendingExtractionSourceDocumentCount}
+            onApproved={() => {
+              setApprovingSchema(false)
+              refreshProjects()
             }}
+            onDismiss={() => setApprovingSchema(false)}
           />
         )}
 
@@ -1127,8 +1134,8 @@ export default function ProjectContextPage({
                 ? (resource.pilotSchemaRevisionId ?? null)
                 : null
             }
-            pilotRequested={pilotRequested}
-            onPilotRequestHandled={() => setPilotRequested(false)}
+            guidedRequest={extractionRequest}
+            onGuidedRequestHandled={() => setExtractionRequest(null)}
             summary={projectSummary ?? null}
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
@@ -2144,28 +2151,6 @@ export default function ProjectContextPage({
               )}
           </div>
         </ModalDialog>
-      )}
-      {nudge === 'upload-complete' && (
-        <GuidedNextStep
-          title="Upload complete"
-          description={
-            allSourceDocuments.length === 1
-              ? 'Next, create a schema from it to tell the extractor what to look for.'
-              : 'Select a document to continue with schema creation.'
-          }
-          actionLabel={allSourceDocuments.length === 1 ? 'Create schema' : 'Select a document'}
-          onAction={startSchemaCreation}
-          onDismiss={() => setNudge(null)}
-        />
-      )}
-      {nudge === 'schema-ready' && (
-        <GuidedNextStep
-          title="Schema saved"
-          description="Pilot it before trusting it on the whole collection: on the Extractions tab, run a Batch Extraction over just 2-3 documents first."
-          actionLabel="Go to Extractions"
-          onAction={() => onNavigate({ kind: 'project', projectContextId, tab: 'extractions' })}
-          onDismiss={() => setNudge(null)}
-        />
       )}
     </div>
   )

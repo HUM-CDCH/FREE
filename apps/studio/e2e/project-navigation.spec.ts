@@ -916,7 +916,7 @@ test.describe('rail navigation', () => {
     ).toBeVisible()
   })
 
-  test('approves only the current revision\'s reviewed pilot and keeps a running batch visible', async ({ page }) => {
+  test('approves the current revision only through the workflow bar, once piloted, and keeps a running batch visible', async ({ page }) => {
     const CURRENT = '00000000-0000-4000-8000-0000000001c2'
     const OLD = '00000000-0000-4000-8000-0000000001c1'
     let currentPilotReviewed = false
@@ -927,7 +927,8 @@ test.describe('rail navigation', () => {
         const seed = seedOf(ELMBROOKE)!
         return [{ ...summary(seed), sourceDocumentCount: seed.sourceDocuments.length,
           summary: { ...emptyProjectContextActivitySummary(summary(seed).createdAt),
-            phase: 'validate', currentSchemaRevisionId: CURRENT, schemaStabilised: approved,
+            phase: approved ? 'batch' : 'approve', currentSchemaRevisionId: CURRENT, schemaStabilised: approved,
+            currentSchemaRevisionReviewed: currentPilotReviewed, pendingExtractionSourceDocumentCount: seed.sourceDocuments.length,
             extractionCount: 1, extractedSourceDocumentCount: 1, reviewedSourceDocumentCount: 1,
             runningBatch: running ? { completedMemberCount: 0, memberCount: 2 } : null,
           },
@@ -959,20 +960,23 @@ test.describe('rail navigation', () => {
 
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}/extractions`)
     await expect(page.getByText('Places · Schema Revision 1')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Approve for batch extraction', exact: true })).toHaveCount(0)
+    // Only the old revision was piloted: the one way forward is piloting the current one, and nothing offers approval.
+    await expect(page.getByRole('button', { name: 'Next: Pilot the revised schema' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: /Approve/ })).toHaveCount(0)
 
     currentPilotReviewed = true
     await page.reload()
-    await expect(page.getByText(/Pilot reviewed\. Approve Places v2/)).toBeVisible()
-    await page.getByRole('button', { name: 'Approve for batch extraction', exact: true }).click()
-    await expect(page.getByText('Schema approved', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Next: Approve schema' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Approve the schema for Batch Extraction?' })
+    await dialog.getByRole('button', { name: 'Approve', exact: true }).click()
+    await expect(dialog).toBeHidden()
     expect(approvals).toEqual([{ projectContextId: ELMBROOKE, schemaRevisionId: CURRENT }])
-    await expect(page.getByRole('button', { name: 'Approve for batch extraction', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Next: Extract \d+ documents?$/ })).toBeEnabled()
 
     running = true
     await page.reload()
-    await expect(page.getByRole('button', { name: 'Next: Batch Extraction' })).toBeDisabled()
-    await expect(page.getByText('0/2', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Next: Extract/ })).toBeDisabled()
+    await expect(page.getByText('Extraction running · 0/2', { exact: true })).toBeVisible()
   })
 
   test('deep-links every Project resource tab and the open Batch Extraction', async ({

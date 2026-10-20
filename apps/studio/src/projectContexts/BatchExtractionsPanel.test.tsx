@@ -270,7 +270,7 @@ afterEach(() => {
 /** Opens a new Batch Extraction over every Source Document and chooses suggested fields; the panel then adopts the
  *  listed suggestion whose pins match the selection. */
 async function openSuggestedFields() {
-  fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
   await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
   fireEvent.change(screen.getByLabelText('Extraction Schema'), {
     target: { value: '__suggest_common_fields__' },
@@ -472,7 +472,7 @@ describe('BatchExtractionsPanel', () => {
     )
     renderPanel(vi.fn(), null, manyDocuments)
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     const checkboxes = await screen.findAllByRole('checkbox')
     expect(checkboxes).toHaveLength(51)
     // The chosen Schema Revision (stabilised, per this fixture) loads
@@ -546,9 +546,10 @@ describe('BatchExtractionsPanel', () => {
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
-    renderPanel(vi.fn(), null, manyDocuments)
+    render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={manyDocuments}
+      openBatchExtractionId={null} pilotSchemaRevisionId={null} onNavigate={() => {}}
+      summary={pilotSummary({ phase: 'pilot', currentSchemaRevisionReviewed: false })} guidedRequest="pilot" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pilot Extraction' }))
     expect(await screen.findAllByRole('checkbox')).toHaveLength(6)
     expect(screen.getByText('3 selected')).toBeInTheDocument()
     // The checkbox's accessible name includes the trailing page-count text
@@ -569,57 +570,10 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /^Source 01\.pdf/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /^Source 04\.pdf/ }))
     expect(screen.getByText('3 selected')).toBeInTheDocument()
-    // Skipping the pilot would lead straight into the collection gate that
-    // refuses an unstabilised Revision, so it is not offered here.
-    expect(
-      screen.queryByText(/Skip — run the full collection/),
-    ).not.toBeInTheDocument()
-  })
-
-  it('offers skipping the pilot only when the collection run can start', async () => {
-    const manyDocuments = Array.from({ length: 6 }, (_, index) => ({
-      sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
-      name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
-      pageCount: 1,
-    }))
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input)
-        if (url.startsWith('/api/batch-extractions?'))
-          return response({ batchExtractions: [] })
-        if (url.startsWith('/api/batch-schema-suggestions?'))
-          return response({ batchSchemaSuggestions: [] })
-        if (url.startsWith('/api/extraction-schemas?'))
-          return response({
-            extractionSchemas: [
-              {
-                extractionSchemaId: batch.extractionSchemaId,
-                name: 'Places',
-                createdAt: '2026-08-14T10:00:00.000Z',
-                currentRevision: {
-                  schemaRevisionId,
-                  revisionNumber: 1,
-                  origin: 'researcher-edit',
-                  createdAt: '2026-08-14T10:00:00.000Z',
-                },
-              },
-            ],
-          })
-        const chosen = chosenSchemaRead(url, {
-          ...chosenRevision(),
-          stabilisedAt: '2026-08-14T10:00:00.000Z',
-        })
-        if (chosen) return chosen
-        throw new Error(`Unexpected request: ${url}`)
-      }),
-    )
-    renderPanel(vi.fn(), null, manyDocuments)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pilot Extraction' }))
-    expect(
-      await screen.findByText(/Skip — run the full collection/),
-    ).toBeVisible()
+    // The workflow's pilot runs its Current Schema Revision: no other schema, no suggestion, no skipping ahead.
+    expect(screen.getByLabelText('Extraction Schema')).toBeDisabled()
+    expect(screen.queryByRole('option', { name: 'Suggest fields from selected sources' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Skip/)).not.toBeInTheDocument()
   })
 
   function stubPilotPreparation() {
@@ -666,20 +620,20 @@ describe('BatchExtractionsPanel', () => {
     expect(await screen.findByText('2 selected')).toBeInTheDocument()
   })
 
-  it('the project "Next: Pilot Extraction" opens the pilot preparation, once the documents are there', async () => {
+  it('the workflow bar\'s "Next: Pilot extraction" opens the pilot preparation, once the documents are there', async () => {
     stubPilotPreparation()
-    const onPilotRequestHandled = vi.fn()
-    const props = { projectContextId, openBatchExtractionId: null, pilotSchemaRevisionId: null, onNavigate: () => {}, pilotRequested: true, onPilotRequestHandled }
+    const onGuidedRequestHandled = vi.fn()
+    const props = { projectContextId, openBatchExtractionId: null, pilotSchemaRevisionId: null, onNavigate: () => {}, guidedRequest: 'pilot' as const, onGuidedRequestHandled }
     const view = render(<BatchExtractionsPanel {...props} sourceDocuments={[]} />)
-    expect(onPilotRequestHandled).not.toHaveBeenCalled()
+    expect(onGuidedRequestHandled).not.toHaveBeenCalled()
 
     view.rerender(<BatchExtractionsPanel {...props} sourceDocuments={documents} />)
 
     expect(await screen.findByText('2 selected')).toBeInTheDocument()
-    expect(onPilotRequestHandled).toHaveBeenCalledOnce()
+    expect(onGuidedRequestHandled).toHaveBeenCalledOnce()
   })
 
-  it('disables Run for a collection-scale selection against an unstabilised Schema Revision, and enables it once stabilised', async () => {
+  it('disables Run for a collection-scale selection against an unstabilised Schema Revision, and says approval is in the workflow bar', async () => {
     const manyDocuments = Array.from(
       { length: PILOT_BATCH_SELECTION_LIMIT + 1 },
       (_, index) => ({
@@ -688,7 +642,7 @@ describe('BatchExtractionsPanel', () => {
         pageCount: 1,
       }),
     )
-    let stabilisedAt: string | null = null
+    const stabilisedAt: string | null = null
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -727,18 +681,14 @@ describe('BatchExtractionsPanel', () => {
               schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
             },
           })
-        if (url === '/api/stabilise_schema_revision') {
-          stabilisedAt = '2026-08-14T11:00:00.000Z'
-          return response({ schemaRevisionId, stabilisedAt })
-        }
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
     renderPanel(vi.fn(), null, manyDocuments)
 
-    // "New Batch Extraction" pre-selects every Source Document, which is
+    // "Custom Batch Extraction" pre-selects every Source Document, which is
     // already over the pilot limit for this fixture.
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findAllByRole('checkbox')
     const selectionCount = manyDocuments.length
     expect(
@@ -761,22 +711,17 @@ describe('BatchExtractionsPanel', () => {
       }),
     ).toBeEnabled()
 
-    // Re-select the full set, then approve for batch extraction — Run
-    // enables at the collection scale too, without changing the selection.
+    // Re-selecting the full set disables Run again and says where approval happens; the panel never approves.
     fireEvent.click(
       screen.getByRole('checkbox', { name: /^Source 06\.pdf/ }),
     )
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Approve for batch extraction' }),
-    )
-    expect(
-      await screen.findByText(/is approved for batch extraction/),
-    ).toBeVisible()
     expect(
       screen.getByRole('button', {
         name: `Run ${selectionCount} Source Documents`,
       }),
-    ).toBeEnabled()
+    ).toBeDisabled()
+    expect(screen.getByText(/^Approve the schema in the workflow bar to run more than/)).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Approve for batch extraction' })).not.toBeInTheDocument()
   })
 
   it('selects every source document by default and toggles the full selection', async () => {
@@ -796,7 +741,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
 
     const checkboxes = await screen.findAllByRole('checkbox')
@@ -890,7 +835,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
 
     const schema = await screen.findByLabelText('Extraction Schema fields')
@@ -994,7 +939,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel(vi.fn(), null, documents)
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     expect(
       await screen.findByText(/is approved for batch extraction/),
@@ -1056,7 +1001,7 @@ describe('BatchExtractionsPanel', () => {
     saved.refresh.mockClear()
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Schema fields')
     expect(screen.getByText('Saved advanced settings: Service defaults')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -1092,7 +1037,7 @@ describe('BatchExtractionsPanel', () => {
       throw new Error(`Unexpected request: ${url}`)
     }))
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Schema fields')
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
@@ -1126,7 +1071,7 @@ describe('BatchExtractionsPanel', () => {
       throw new Error(`Unexpected request: ${url}`)
     }))
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Schema fields')
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
 
@@ -1178,7 +1123,7 @@ describe('BatchExtractionsPanel', () => {
       throw new Error(`Unexpected request: ${url}`)
     }))
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Schema fields')
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     const strategy = screen.getByLabelText('Batch extraction strategy')
@@ -1237,7 +1182,7 @@ describe('BatchExtractionsPanel', () => {
     }))
     saved.state = { status: 'ready', config: saved.config(), unifiedCatalog: true }
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Schema fields')
     await waitFor(() => expect(screen.getByLabelText('Batch extraction strategy')).toBeEnabled())
     fireEvent.change(screen.getByLabelText('Batch extraction strategy'), { target: { value: 'CATALOG' } })
@@ -1327,7 +1272,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -1422,7 +1367,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     // The select shows the chosen revision's saved scope; choosing Catalog appends a revision that names it.
@@ -1497,7 +1442,7 @@ describe('BatchExtractionsPanel', () => {
 
     expect(await screen.findByRole('button', { name: 'Run again' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     await waitFor(() => expect(screen.getByLabelText('Extraction Schema')).toHaveValue(schemaRevisionId))
     // The chosen schema's fields render above the sources once read; its saved scope is the strategy.
@@ -1553,7 +1498,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -1620,7 +1565,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -1676,7 +1621,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -1748,7 +1693,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -1827,7 +1772,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+      screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(await enabledRun('Run 2 Source Documents'))
@@ -1878,7 +1823,7 @@ describe('BatchExtractionsPanel', () => {
     const onNavigate = renderPanel()
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'New Batch Extraction' }),
+      await screen.findByRole('button', { name: 'Custom Batch Extraction' }),
     )
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(await enabledRun('Run 2 Source Documents'))
@@ -2346,7 +2291,7 @@ describe('BatchExtractionsPanel', () => {
 
     const openSuggestion = async () => {
       fireEvent.click(
-        screen.getByRole('button', { name: 'New Batch Extraction' }),
+        screen.getByRole('button', { name: 'Custom Batch Extraction' }),
       )
       await waitFor(() =>
         expect(screen.getAllByRole('checkbox')).toHaveLength(2),
@@ -2430,7 +2375,7 @@ describe('BatchExtractionsPanel', () => {
     vi.stubGlobal('fetch', fetch)
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.change(screen.getByLabelText('Extraction Schema'), {
       target: { value: '__suggest_common_fields__' },
@@ -2517,7 +2462,7 @@ describe('BatchExtractionsPanel', () => {
     vi.stubGlobal('fetch', fetch)
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.change(screen.getByLabelText('Extraction Schema'), {
       target: { value: '__suggest_common_fields__' },
@@ -2627,7 +2572,7 @@ describe('BatchExtractionsPanel', () => {
     )
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.change(screen.getByLabelText('Extraction Schema'), {
       target: { value: '__suggest_common_fields__' },
@@ -2678,7 +2623,7 @@ describe('BatchExtractionsPanel', () => {
     )
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.change(screen.getByLabelText('Extraction Schema'), {
       target: { value: '__suggest_common_fields__' },
@@ -2754,7 +2699,7 @@ describe('BatchExtractionsPanel', () => {
     vi.stubGlobal('fetch', fetch)
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.change(screen.getByLabelText('Extraction Schema'), {
       target: { value: '__suggest_common_fields__' },
@@ -2815,7 +2760,7 @@ describe('BatchExtractionsPanel', () => {
     vi.stubGlobal('fetch', fetch)
     renderPanel(vi.fn(), null, documents)
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() =>
       expect(screen.getAllByRole('checkbox')).toHaveLength(
         PILOT_BATCH_SELECTION_LIMIT + 1,
@@ -2872,7 +2817,7 @@ describe('BatchExtractionsPanel', () => {
     vi.stubGlobal('fetch', fetch)
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.change(screen.getByLabelText('Extraction Schema'), {
       target: { value: '__suggest_common_fields__' },
@@ -2940,14 +2885,16 @@ describe('BatchExtractionsPanel', () => {
 })
 
 const pilotSummary = (overrides: Record<string, unknown> = {}) => ({
-  phase: 'validate' as const,
+  phase: 'approve' as const,
   extractionCount: 2,
   extractedSourceDocumentCount: 2,
   reviewedSourceDocumentCount: 1,
   staleSourceDocumentCount: 0,
+  pendingExtractionSourceDocumentCount: 0,
   schemaDraftCount: 0,
   currentSchemaRevisionId: schemaRevisionId,
   schemaStabilised: false,
+  currentSchemaRevisionReviewed: true,
   lastActivityAt: '2026-08-14T11:00:00.000Z',
   runningBatch: null,
   ...overrides,
@@ -2955,34 +2902,7 @@ const pilotSummary = (overrides: Record<string, unknown> = {}) => ({
 
 const reviewed = { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-08-14T11:00:00.000Z', schemaRevisionId }
 
-it('offers approving a reviewed pilot\'s schema from the history even when the whole project fits in a pilot', async () => {
-  const requests: string[] = []
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    if (url.startsWith('/api/batch-extractions?')) return response({
-      batchExtractions: [{ ...batch, members: batch.members.map((member) => publishedMember(member, { currentReview: reviewed })) }],
-    })
-    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
-    if (url === '/api/stabilise_schema_revision') {
-      requests.push(String(init?.body))
-      return response({ schemaRevisionId, stabilisedAt: '2026-08-14T12:00:00.000Z' })
-    }
-    const schema = chosenSchemaRead(url); if (schema) return schema
-    throw new Error(`Unexpected request: ${url}`)
-  }))
-  const onProgressChange = vi.fn()
-  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
-    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary()}
-    onNavigate={() => {}} onProgressChange={onProgressChange} />)
-
-  fireEvent.click(await screen.findByRole('button', { name: 'Approve for batch extraction' }))
-
-  expect(await screen.findByText('Schema approved')).toBeInTheDocument()
-  expect(JSON.parse(requests[0]!)).toEqual({ projectContextId, schemaRevisionId })
-  expect(onProgressChange).toHaveBeenCalled()
-})
-
-it.each([appendedRevisionId, null])('withholds approval of an old reviewed pilot when the current revision is %s', async (currentSchemaRevisionId) => {
+it('leaves approving a reviewed pilot to the workflow bar: the history offers no second way forward', async () => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.startsWith('/api/batch-extractions?')) return response({
@@ -2992,73 +2912,66 @@ it.each([appendedRevisionId, null])('withholds approval of an old reviewed pilot
     throw new Error(`Unexpected request: ${url}`)
   }))
   render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
-    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary({ currentSchemaRevisionId })}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary()}
     onNavigate={() => {}} />)
 
   await screen.findByRole('button', { name: /Places · Schema Revision 1/ })
-  expect(screen.queryByRole('button', { name: 'Approve for batch extraction' })).not.toBeInTheDocument()
-  expect(screen.queryByText(/Pilot reviewed\. Approve/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Pilot Extraction' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Custom Batch Extraction' })).toBeEnabled()
 })
 
-it('approves the current revision\'s reviewed pilot even when a newer batch used an old revision', async () => {
-  const requests: string[] = []
-  const currentPilot = {
-    ...batch,
-    batchExtractionId: '51000000-0000-4000-8007-000000000002',
-    schemaRevisionId: appendedRevisionId,
-    schemaRevisionNumber: 2,
-    createdAt: '2026-08-14T10:41:00.000Z',
-    members: batch.members.map((member) => publishedMember(member, {
-      currentReview: { ...reviewed, schemaRevisionId: appendedRevisionId },
-    })),
-  }
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    if (url.startsWith('/api/batch-extractions?')) return response({
-      batchExtractions: [currentPilot, { ...batch, members: batch.members.map((member) => publishedMember(member, { currentReview: reviewed })) }],
-    })
-    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
-    if (url === '/api/stabilise_schema_revision') {
-      requests.push(String(init?.body))
-      return response({ schemaRevisionId: appendedRevisionId, stabilisedAt: '2026-08-14T12:00:00.000Z' })
-    }
-    throw new Error(`Unexpected request: ${url}`)
-  }))
-  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
-    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary({ currentSchemaRevisionId: appendedRevisionId })}
-    onNavigate={() => {}} />)
-
-  expect(await screen.findByText(/Pilot reviewed\. Approve Places v2/)).toBeVisible()
-  fireEvent.click(screen.getByRole('button', { name: 'Approve for batch extraction' }))
-  await screen.findByText('Schema approved')
-  expect(requests.map((request) => JSON.parse(request))).toEqual([{ projectContextId, schemaRevisionId: appendedRevisionId }])
-})
-
-it('guides into reviewing a pilot it watched finish', async () => {
-  let current = { ...batch, executionStatus: 'RUNNING', members: batch.members.map((member) => ({ ...member, executionStatus: 'RUNNING' })) }
+it('the workflow bar\'s batch step opens the collection run on the approved Current Schema Revision', async () => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
-    if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [current] })
+    if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
+    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+    if (url.startsWith('/api/extraction-schemas?')) return response({
+      extractionSchemas: [{
+        extractionSchemaId: batch.extractionSchemaId, name: 'Places', createdAt: '2026-08-14T10:00:00.000Z',
+        currentRevision: { schemaRevisionId, revisionNumber: 1, origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z' },
+      }],
+    })
+    const chosen = chosenSchemaRead(url, { ...chosenRevision(), stabilisedAt: '2026-08-14T12:00:00.000Z' })
+    if (chosen) return chosen
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  const onGuidedRequestHandled = vi.fn()
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null}
+    summary={pilotSummary({ phase: 'batch', schemaStabilised: true, pendingExtractionSourceDocumentCount: 2 })}
+    guidedRequest="batch" onGuidedRequestHandled={onGuidedRequestHandled} onNavigate={() => {}} />)
+
+  expect(await screen.findByText(/This schema is approved for batch extraction/)).toBeVisible()
+  expect(onGuidedRequestHandled).toHaveBeenCalledOnce()
+  expect(screen.getByText('2 selected')).toBeInTheDocument()
+  expect(screen.getByLabelText('Extraction Schema')).toBeDisabled()
+  expect(screen.queryByRole('option', { name: 'Suggest fields from selected sources' })).not.toBeInTheDocument()
+  await enabledRun('Run 2 Source Documents')
+})
+
+it('the workflow bar\'s review step opens the first result left to review', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?')) return response({
+      batchExtractions: [{ ...batch, members: batch.members.map((member) => publishedMember(member)) }],
+    })
     if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
     throw new Error(`Unexpected request: ${url}`)
   }))
   const onNavigate = vi.fn()
+  const onGuidedRequestHandled = vi.fn()
   render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
-    openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary({ phase: 'extract' })}
-    onNavigate={onNavigate} />)
-  await screen.findByRole('button', { name: /Places/ })
-  expect(screen.queryByText('Pilot Extraction finished')).not.toBeInTheDocument()
+    openBatchExtractionId={null} pilotSchemaRevisionId={null}
+    summary={pilotSummary({ phase: 'review', schemaStabilised: true, reviewedSourceDocumentCount: 0 })}
+    guidedRequest="review" onGuidedRequestHandled={onGuidedRequestHandled} onNavigate={onNavigate} />)
 
-  current = { ...batch, members: batch.members.map((member) => publishedMember(member)) }
-  fireEvent(window, new Event('focus'))
-
-  const nudge = (await screen.findByText('Pilot Extraction finished')).closest('[role="status"]') as HTMLElement
-  fireEvent.click(within(nudge).getByRole('button', { name: 'Review results' }))
-  expect(onNavigate).toHaveBeenCalledWith({
+  await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith({
     kind: 'document',
     projectContextId,
     sourceDocumentId: failedDocumentId,
     extractionId,
     fromBatchExtractionId: batchExtractionId,
-  })
+  }))
+  expect(onGuidedRequestHandled).toHaveBeenCalledOnce()
 })
