@@ -36,7 +36,8 @@ import {
 import { useSpreadsheetSchemaSuggestion } from './useSpreadsheetSchemaSuggestion'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
-import { ProjectFeedback } from '../ProjectFeedback'
+// Hidden for now with its use on the Extractions tab below.
+// import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
@@ -1106,7 +1107,8 @@ export default function ProjectContextPage({
       >
         {tab === 'extractions' ? (
           <>
-          <ProjectFeedback projectId={projectContextId}/>
+          {/* Hidden for now: "Corrections the model learns from". Restore with the import above.
+          <ProjectFeedback projectId={projectContextId}/> */}
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
             // continuation of what this panel currently shows.

@@ -540,7 +540,8 @@ it('keeps saying an opened cut could not be read once the latest state arrives',
   expect(readValues).toHaveBeenCalledOnce()
 })
 
-it('keeps the producing call guidance and budget omissions inspectable after exclusion',async()=>{
+// Skipped while ProjectFeedback ("Corrections the model learns from") is hidden in DurableResults; restore with it.
+it.skip('keeps the producing call guidance and budget omissions inspectable after exclusion',async()=>{
   const page={snapshotVersion:1,feedbackVersion:2,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const row={id:'consumed',extractionId:'extraction',sourceDocumentId:'source',valueId:'value',snapshotVersion:1,feedbackVersion:2,revision:2,
     included:true,active:true,selectionId:'selection',targetCompatibility:'compatible',candidate:{value:'Captured example',sourceContext:'own-source',grounded:false},decision:{action:'EDITED'}}
@@ -570,7 +571,8 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
 })
 
 
-it('warns in Results when pending inputs leave a saved correction unfit, and opens History',async()=>{
+// Skipped while ProjectFeedback ("Corrections the model learns from") is hidden in DurableResults; restore with it.
+it.skip('warns in Results when pending inputs leave a saved correction unfit, and opens History',async()=>{
   const page={snapshotVersion:1,feedbackVersion:1,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const row={id:'unfit',extractionId:'extraction',sourceDocumentId:'source',valueId:'value',snapshotVersion:1,feedbackVersion:1,revision:1,
     included:true,active:true,selectionId:'selection',targetCompatibility:'incompatible',candidate:{value:'Saved',sourceContext:'source',grounded:false,node:{name:'title'}},decision:{action:'EDITED'}}

@@ -11,7 +11,8 @@ import { durableReviewMachine } from './durableReviewMachine'
 import Button from './ui/Button'
 import { DurableInputs } from './DurableInputs'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
-import { ProjectFeedback } from './ProjectFeedback'
+// Hidden for now with its use in the history panel below.
+// import { ProjectFeedback } from './ProjectFeedback'
 import ReviewRow from './ReviewRow'
 import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
@@ -317,7 +318,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const exportRequest=useRef<AbortController|null>(null)
   const menuButton=useRef<HTMLButtonElement>(null)
   useEffect(()=>()=>{exportRequest.current?.abort()},[])
-  const [unfit,setUnfit]=useState(0)
+  // Restore with ProjectFeedback (hidden for now): const [unfit,setUnfit]=useState(0)
+  const [unfit]=useState(0)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
   const document=state&&state.sourceRevisionId!==documentRevisionId
     ? pinnedDocument?.revision===state.sourceRevisionId?pinnedDocument.document:null : currentDocument
@@ -607,7 +609,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
         {onShowHistory&&<button type="button" className={linkClass} onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
-        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${latestPage.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/>
+        {/* Hidden for now: "Corrections the model learns from". Restore with the import above; while hidden, `unfit`
+            stays 0, so the pending schema's "corrections don't fit" note stays hidden too.
+        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${latestPage.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/> */}
         <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
