@@ -22,13 +22,14 @@ export const projectContextSummarySchema = z
     createdAt: timestamp,
   })
   .strict()
-/** Where a Project Context currently sits in the five-phase workflow. */
+/** The furthest step a Project Context has reached in the guided workflow. It never moves back. */
 export const projectContextWorkflowPhaseSchema = z.enum([
-  'ingest',
-  'chat',
+  'upload',
+  'schema',
+  'pilot',
   'approve',
-  'extract',
-  'validate',
+  'batch',
+  'review',
 ])
 const nonNegativeCount = z.number().int().nonnegative()
 /**
@@ -45,9 +46,14 @@ export const projectContextActivitySummarySchema = z
     extractedSourceDocumentCount: nonNegativeCount,
     reviewedSourceDocumentCount: nonNegativeCount,
     staleSourceDocumentCount: nonNegativeCount,
+    /** Source Documents whose latest Extraction is missing, on another revision than the current one, or stale. */
+    pendingExtractionSourceDocumentCount: nonNegativeCount,
     schemaDraftCount: nonNegativeCount,
     currentSchemaRevisionId: canonicalUuidSchema.nullable(),
+    /** The Current Schema Revision is approved for Batch Extraction. */
     schemaStabilised: z.boolean(),
+    /** The Current Schema Revision has a reviewed Extraction: it has been piloted. */
+    currentSchemaRevisionReviewed: z.boolean(),
     lastActivityAt: timestamp,
     runningBatch: z
       .object({

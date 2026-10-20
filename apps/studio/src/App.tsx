@@ -162,7 +162,7 @@ export type DocumentWorkspaceProps = {
    *  the schema and returns to the project's Schemas tab. */
   fromSchemaBuilder?: boolean
   onNavigate?: (route: NavigableRoute) => void
-  /** Fired once the "Approve schema and go to next step" flush durably
+  /** Fired once the "Save schema and pilot it" flush durably
    *  commits a Schema Revision — the caller's cue to refresh whatever
    *  persisted project summary (phase, etc.) it's holding, since this
    *  component has no reason to know about that store itself. */
@@ -225,7 +225,7 @@ export function DocumentWorkspace({
   })
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
-  // The "Approve schema and go to next step" flush is in flight.
+  // The "Save schema and pilot it" flush is in flight.
   const [confirmingSchema, setConfirmingSchema] = useState(false)
   // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
   // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
@@ -908,7 +908,7 @@ export function DocumentWorkspace({
     void schema.flush().catch(() => undefined)
   }
 
-  // "Approve schema and go to next step" (guided-pilot-extraction-workflow):
+  // "Save schema and pilot it" (guided-workflow-phases):
   // flushes the draft to a durable Schema Revision — that revision is already
   // what "saved to history" means here, there is no separate commit step —
   // then hands the researcher to the Extractions tab pre-armed with this exact
@@ -926,7 +926,7 @@ export function DocumentWorkspace({
         schemaSnap.extractableSchemaRevisionId ??
         undefined
       // The persisted Schema Revision just moved this project's workflow phase
-      // (chat/approve -> extract) — the rail's project list only ever read that
+      // (schema -> pilot) — the rail's project list only ever read that
       // summary once, so without this it would keep showing the pre-approval
       // phase until an unrelated write happened to refetch it.
       onSchemaApproved?.()
@@ -1072,7 +1072,7 @@ export function DocumentWorkspace({
               }
               onClick={() => void approveSchemaAndGoToNextStep()}
             >
-              {confirmingSchema ? 'Approving…' : 'Approve schema and go to next step'}
+              {confirmingSchema ? 'Saving…' : 'Save schema and pilot it'}
             </Button>
           )}
         </>,
