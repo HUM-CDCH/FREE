@@ -160,10 +160,11 @@ class PinnedCounter:
         return self.counted
 
 
-def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call]) -> bool:
+def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call], *, upper_bound: bool = False) -> bool:
     """A call the server counted otherwise than its planning did: the attempt's kept /tokenize counts may be stale (a
-    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped."""
-    if any(call.counted_input_tokens is not None and call.input_tokens is not None
+    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped.
+    An upper bound (Codex) is computed, never served, so it cannot be stale and differs from usage by design."""
+    if not upper_bound and any(call.counted_input_tokens is not None and call.input_tokens is not None
            and call.input_tokens != call.counted_input_tokens for call in attempts):
         tokens.forget(f"{extraction}/{attempt}")
         return True
@@ -205,9 +206,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 parsed,call=calls.structure(client,**body)
                 attempts=[call]
             else:
-                parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"],
-                    upper_bound=request.get("tokenizer", {}).get("input_counting") == "upper_bound"))
-                drop_stale_counts(extraction, attempt, attempts)
+                counter = PinnedCounter(request["budget"],
+                    upper_bound=request.get("tokenizer", {}).get("input_counting") == "upper_bound")
+                parsed, attempts = calls.complete(client, **body, counter=counter)
+                drop_stale_counts(extraction, attempt, attempts, upper_bound=counter.upper_bound)
                 if shown:
                     shown.done()
             output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}

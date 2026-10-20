@@ -120,10 +120,41 @@ def test_other_grounding_modes_also_exclude_a_matching_cells_parent(quoted, span
     assert len(calls) == 1 and not issues and links[0].cell == 'r1_c0'
 
 
-def test_a_matching_cell_hides_its_table_even_when_the_cell_does_not_support_the_claim():
+@pytest.mark.parametrize("projected", [False, True])
+@pytest.mark.parametrize("captioned", [False, True])
+def test_a_table_its_matching_cell_hid_is_offered_for_a_claim_the_cell_leaves_unsupported(captioned, projected):
+    # '7-8' is printed as an entry number, not a site; only a caption naming the site supports the claim.
+    html = HTML.replace('<table>', '<table><caption>Site identifier: 7-8</caption>') if captioned else HTML
+    offered = []
+
     def choose(system, user, schema):
-        # '7-8' is an entry number, not a site: the table is context only, not a fallback label.
-        assert schema['properties']['C1']['enum'] == ['E4', 'NONE']
-        return {'C1': 'NONE'}
-    links, calls, issues = verify([passage()], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0)
-    assert links == [] and len(calls) == 1
+        offered.append(schema['properties']['C1']['enum'])
+        return {'C1': 'E1' if captioned and 'E1' in offered[-1] else 'NONE'}
+    links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0,
+                                  projected=projected)
+    assert offered == [['E4', 'NONE'], ['E1', 'E4', 'NONE']] and len(calls) == 2 and not issues
+    assert [(link.segment, link.precision) for link in links] == ([('p3_s4', 'segment')] if captioned else [])
+
+
+@pytest.mark.parametrize("quoted,span_ids", [(True, False), (False, True)])
+def test_a_cell_the_model_does_not_attest_also_offers_its_table(quoted, span_ids):
+    offered = []
+
+    def choose(system, user, schema):
+        offered.append(schema['properties']['C1']['properties']['label']['enum'])
+        label = offered[-1][0] if len(offered) == 1 else 'NONE'
+        return {'C1': {'label': label, 'attribution': False, **({'quote': ''} if quoted else {})}}
+    links, calls, issues = verify([passage()], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0,
+                                  quoted=quoted, span_ids=span_ids)
+    assert len(calls) == 2 and set(offered[0]) < set(offered[1]) and links == [] and not issues
+
+
+def test_a_cell_quoted_with_text_it_does_not_print_also_offers_its_table():
+    html = HTML.replace('<table>', '<table><caption>Site identifier: 7-8</caption>')
+
+    def choose(system, user, schema):
+        label = schema['properties']['C1']['properties']['label']['enum'][0]  # E4, then the table E1
+        return {'C1': {'label': label, 'quote': 'Site identifier: 7-8', 'attribution': True}}
+    links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0, quoted=True)
+    assert len(calls) == 2 and not issues and [(link.segment, link.precision) for link in links] == [('p3_s4', 'segment')]
+

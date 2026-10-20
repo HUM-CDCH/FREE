@@ -65,8 +65,7 @@ def ground(fields: dict, source, path: tuple, script, schema: Schema = SCHEMA):
     links, _, issues = grounding.semantic(source, fields, schema, CountingChat(recording), record=0,
         counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}", projected=True,
         skip_paths=frozenset(every - {("records", 0, *path)}))
-    (user,) = users
-    return links, issues, user
+    return links, issues, users[0]  # the precise request; an unsupported claim is asked again with its table
 
 
 @pytest.fixture

@@ -1,6 +1,7 @@
 """Codex protocol, isolation and conservative budgets through real child processes, without model access."""
 import json
 import sys
+import time
 
 import pytest
 
@@ -18,7 +19,7 @@ SCHEMA = {"type": "object", "properties": {"identifier": {"type": "string"}},
 @pytest.fixture
 def server(tmp_path, monkeypatch):
     def configure(*, activity=None, usage=True, input_tokens=100, output_tokens=20, window=272000,
-                  status="completed", hang=False, catalog=None):
+                  status="completed", hang=False, stall=False, catalog=None):
         script = tmp_path / "fake-codex"
         recorded = tmp_path / "requests.jsonl"
         script.write_text(f"#!{sys.executable}\n" + """
@@ -36,6 +37,8 @@ for line in sys.stdin:
     method = request['method']
     if method == 'initialize':
         emit({'id': request['id'], 'result': {}})
+        if settings['stall']:
+            time.sleep(60)
     if method == 'model/list':
         page = int(request['params'].get('cursor') or 0)
         emit({'id': request['id'], 'result': settings['catalog'][page]})
@@ -53,7 +56,7 @@ for line in sys.stdin:
                 'modelContextWindow': settings['window']}}})
         emit({'method': 'turn/completed', 'params': {'turn': {'status': settings['status']}}})
 """.replace("SETTINGS", repr(dict(activity=activity, usage=usage, input_tokens=input_tokens,
-              output_tokens=output_tokens, window=window, status=status, hang=hang, catalog=catalog))).replace("RECORDED", repr(str(recorded))))
+              output_tokens=output_tokens, window=window, status=status, hang=hang, stall=stall, catalog=catalog))).replace("RECORDED", repr(str(recorded))))
         script.chmod(0o700)
         monkeypatch.setenv("KEI_CODEX_BINARY", str(script))
         return recorded
@@ -101,6 +104,16 @@ def test_a_hung_child_is_terminated_within_the_call_deadline(server):
     server(hang=True)
     with pytest.raises(TimeoutError):
         extract(CodexChat(model='test-model', timeout=0.2))
+
+
+def test_a_child_that_stops_reading_cannot_block_a_write_past_the_deadline(server):
+    # Within budget, yet its JSON-escaped instructions exceed the pipe buffer, so writing thread/start blocks.
+    server(stall=True)
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        CodexChat(model='test-model', timeout=0.5, max_tokens=1024).complete(
+            system='文' * 16000, user='Document identifier: FREE-LOCAL-001.', schema=SCHEMA)
+    assert time.monotonic() - started < 3
 
 
 def test_oversize_source_is_refused_before_starting_a_process(monkeypatch):

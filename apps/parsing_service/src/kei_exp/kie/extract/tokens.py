@@ -76,7 +76,8 @@ def forget(attempt: str) -> None:
 
 def compiled(key: Any, counters: Iterable[TokenCounter]) -> tuple[tuple | None, Any]:
     """The work kept under `key` for the attempt being planned (None if none is), and where to keep new work (None
-    while the counts `counters` make are not kept: outside an attempt, or a server without a probe fingerprint)."""
+    while the counts `counters` make are not kept: outside an attempt, or a counter without a `_serving` identity:
+    a server without a probe fingerprint; Codex's computed reservation has one from its policy and model)."""
     attempt, servings = _attempt.get(), [getattr(counter, "_serving", None) for counter in counters]
     if attempt is None or not servings or None in servings:
         return None, None

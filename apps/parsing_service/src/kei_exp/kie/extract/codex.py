@@ -7,6 +7,7 @@ and this policy are pinned by the ordinary capture/checkpoint path, just like HT
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import queue
@@ -16,7 +17,7 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import re
 
 from kei_exp.kie.extract.llm import EXTRACT_TIMEOUT, ModelOutputError, Reply, _plain
@@ -47,6 +48,17 @@ def _app_server(timeout):
         process = subprocess.Popen(arguments, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=subprocess.DEVNULL, text=True, encoding="utf-8", start_new_session=True)
         incoming = queue.Queue()
+        # The deadline covers writes too: a child that stops reading would otherwise block a write past it.
+        expired = threading.Event()
+
+        def expire():
+            expired.set()
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+
+        watchdog = threading.Timer(timeout, expire)
+        watchdog.daemon = True
+        watchdog.start()
 
         def read_output():
             try:
@@ -60,9 +72,20 @@ def _app_server(timeout):
         reader = threading.Thread(target=read_output, daemon=True)
         reader.start()
 
+        def ended():
+            if expired.is_set():
+                return TimeoutError("Codex extraction call timed out")
+            return ModelOutputError("Codex app server ended before completing extraction")
+
+        def write(message):
+            try:
+                process.stdin.write(json.dumps(message) + "\n")
+                process.stdin.flush()
+            except OSError:
+                raise ended() from None
+
         def send(identifier, method, params):
-            process.stdin.write(json.dumps({"id": identifier, "method": method, "params": params}) + "\n")
-            process.stdin.flush()
+            write({"id": identifier, "method": method, "params": params})
 
         def receive():
             remaining = deadline - time.monotonic()
@@ -73,7 +96,7 @@ def _app_server(timeout):
             except queue.Empty:
                 raise TimeoutError("Codex extraction call timed out") from None
             if event is None:
-                raise ModelOutputError("Codex app server ended before completing extraction")
+                raise ended()
             # Requests from the server ask the client to approve an action. Never approve, execute, or return
             # document content through tools, even if a future CLI changes a feature flag's meaning.
             if "method" in event and "id" in event:
@@ -86,17 +109,22 @@ def _app_server(timeout):
             send(1, "initialize", {"clientInfo": {"name": "free-extraction", "version": "1"}})
             while receive().get("id") != 1:
                 pass
-            process.stdin.write('{"method":"initialized"}\n'); process.stdin.flush()
+            write({"method": "initialized"})
             yield directory, send, receive
         finally:
+            watchdog.cancel()
+            watchdog.join()  # never signal the group once it is reaped and its id may be reused
             if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGTERM)
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            process.stdin.close()
+            with suppress(OSError):  # unsent input after a kill
+                process.stdin.close()
             process.stdout.close()
             reader.join(timeout=1)
 
@@ -148,6 +176,11 @@ class CodexCounter:
         # conservative for multilingual text and is never compared for equality with Codex's actual usage.
         return FRAMING_TOKENS + len(json.dumps(
             {"system": system, "user": user, "schema": schema}, ensure_ascii=False).encode("utf-8"))
+
+    @property
+    def _serving(self) -> bytes:
+        # Counts are a pure function of this policy and model: work planned from them stays valid (`tokens.compiled`).
+        return hashlib.sha256(json.dumps([self.source, FRAMING_TOKENS, self.context_tokens, self.model]).encode()).digest()
 
     def identity(self) -> dict:
         return {"source": self.source, "model": self.model, "model_digest": None, "template_tokens": None,
