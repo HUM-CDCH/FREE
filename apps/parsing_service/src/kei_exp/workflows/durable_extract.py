@@ -22,7 +22,7 @@ from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.unified import UnifiedOptions
-from kei_exp.kie.extract.models import EXTRACT_MODELS, Router, routes
+from kei_exp.kie.extract.models import Router, resolve, routes
 from kei_exp.kie.extract.run import ExtractRequest, dispatch, Options
 from kei_exp.kie.passages import load
 from kei_exp.workflows import config
@@ -97,6 +97,10 @@ def chat_for(provider):
     if provider["adapter"]=="gliformer":
         return GLiFormerFields(url=provider["url"],model=provider["model"],timeout=provider["timeout"],
                               pinned_info=provider["nativeInfo"])
+    if provider["adapter"] == "codex-cli":
+        from kei_exp.kie.extract.codex import CodexChat
+        return CodexChat(model=provider["model"], url=provider["url"], timeout=provider["timeout"],
+                         max_tokens=provider["maxTokens"])
     kind = {"instruct": OpenAIChat, "nuextract": NuExtractChat}.get(provider["adapter"])
     if kind is None:
         raise ValueError("unsupported durable fields adapter")
@@ -123,7 +127,7 @@ def effective(lease):
     request = ExtractRequest.model_validate({"schema": selected["schemaTree"], "options": options})
     models = {}
     for role, key in routes(request.options).items():
-        model = EXTRACT_MODELS[key]
+        model = resolve(key)
         client = model.chat()
         # Deployment endpoints only; no researcher keys/headers reach storage.
         from urllib.parse import urlsplit
@@ -147,9 +151,10 @@ def effective(lease):
 
 
 class PinnedCounter:
-    def __init__(self, budget):
+    def __init__(self, budget, *, upper_bound=False):
         self.context_tokens = budget["context"]
         self.counted = budget["counted"]
+        self.upper_bound = upper_bound
 
     def request_tokens(self, *_):
         return self.counted
@@ -200,7 +205,8 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 parsed,call=calls.structure(client,**body)
                 attempts=[call]
             else:
-                parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"]))
+                parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"],
+                    upper_bound=request.get("tokenizer", {}).get("input_counting") == "upper_bound"))
                 drop_stale_counts(extraction, attempt, attempts)
                 if shown:
                     shown.done()

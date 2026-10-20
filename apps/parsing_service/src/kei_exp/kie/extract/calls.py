@@ -202,7 +202,12 @@ def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str
             parsed = parse_json(reply.text)
         except ModelOutputError as exc:
             error = str(exc)
-    if error is None and counted is not None and reply.input_tokens != counted:
-        error = f"counted {counted} input tokens but the server reported {reply.input_tokens}"
+    if error is None and counted is not None:
+        upper_bound = getattr(counter, "upper_bound", False)
+        if upper_bound:
+            if type(reply.input_tokens) is not int or not 0 < reply.input_tokens <= counted:
+                error = f"input usage {reply.input_tokens} exceeds the reserved upper bound {counted}"
+        elif reply.input_tokens != counted:
+            error = f"counted {counted} input tokens but the server reported {reply.input_tokens}"
     return parsed, [*refused, Call(stage, record, reply.input_tokens, reply.output_tokens, reply.seconds,
         reply.finish, error is None, error, counted, counter.context_tokens if counter else None, max_tokens)]

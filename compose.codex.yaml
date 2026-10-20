@@ -1,0 +1,21 @@
+# Operator-owned Codex login; no GPU model servers or researcher keys are needed for extraction.
+# Use KEI_EXTRACT_PROVIDER=codex-cli FREE_GPU=off KEI_CODEX_MODEL=<available-model> pnpm dev.
+x-codex-environment: &codex-environment
+  KEI_EXTRACT_PROVIDER: codex-cli
+  KEI_EXTRACT_MODEL: "${KEI_CODEX_MODEL:?Set KEI_CODEX_MODEL to a model available through your Codex login}"
+  CODEX_HOME: /codex-config/codex
+
+services:
+  parsing_service:
+    environment: *codex-environment
+    volumes:
+      - studio-config:/codex-config
+
+  parsing_worker:
+    environment:
+      <<: *codex-environment
+      # Each call owns an app-server process and a fresh context; bound deployment login concurrency.
+      KEI_CATALOG_CHUNKS: "1"
+      SURYA_INFERENCE_PARALLEL: "1"
+    volumes:
+      - studio-config:/codex-config

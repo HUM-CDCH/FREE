@@ -362,6 +362,8 @@ export function parsingGpuComposeArguments(environment = process.env, execute = 
   const mode = environment.FREE_GPU || 'auto'
   if (!['auto', 'off', 'required', 'shared'].includes(mode))
     throw new Error('FREE_GPU must be auto, off, required, or shared.')
+  if (environment.KEI_EXTRACT_PROVIDER === 'codex-cli' && mode !== 'off')
+    throw new Error('Codex extraction requires FREE_GPU=off; use an external OCR server for scanned PDFs.')
   if (mode === 'off') return []
   if (mode === 'shared') {
     console.log('Models: using the model servers another stack shares on the free-models network.')
@@ -382,11 +384,12 @@ export function parsingGpuComposeArguments(environment = process.env, execute = 
   return []
 }
 
-export function developmentComposeFiles(profile) {
+export function developmentComposeFiles(profile, environment = process.env) {
   return [
     'compose.yaml',
     'compose.override.yaml',
     ...(profile.entra ? ['compose.entra.yaml'] : []),
+    ...(environment.KEI_EXTRACT_PROVIDER === 'codex-cli' ? ['compose.codex.yaml'] : []),
   ]
 }
 
@@ -601,6 +604,7 @@ export function productionComposeFiles(environment) {
     'compose.yaml',
     'compose.prod.yaml',
     ...(environment.FREE_NGINX === 'container' ? ['compose.nginx.yaml'] : []),
+    ...(environment.KEI_EXTRACT_PROVIDER === 'codex-cli' ? ['compose.codex.yaml'] : []),
   ]
 }
 

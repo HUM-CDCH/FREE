@@ -236,6 +236,28 @@ afterEach(() => {
 })
 
 describe('ProviderConfigPage', () => {
+  it('shows every deployment model in a plain list without model pages', async () => {
+    const ids = Array.from({ length: 8 }, (_, index) => `codex-model-${index}`)
+    studio(config(), { deployment, probe: () => jsonResponse({ checkedAt: '2026-10-20T00:00:00Z', status: 'connected',
+      message: 'Connected. 8 models available.', catalog: ids.map(id => ({ id, label: id })) }) })
+    await renderPage()
+    const details = openConnection(/^Deployment instruction model/)
+    await waitFor(() => expect(within(details.getByRole('list', { name: 'Models' })).getAllByRole('listitem')).toHaveLength(8))
+    expect(details.queryByRole('combobox', { name: 'Connection models page' })).not.toBeInTheDocument()
+  })
+
+  it('saves independently selected Codex models for both extraction roles', async () => {
+    const server = studio(config(), { extraction: () => jsonResponse({ defaults: { fields: 'instruct', reasoning: 'instruct' },
+      models: ['gpt-6.1-sol', 'gpt-6-luna'].map(repo => ({ key: `codex:${repo}`, repo, roles: ['fields', 'reasoning'], reachable: true, serving: true })) }) })
+    await renderPage()
+    fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
+    await choose('Field values', 'Extraction models this deployment runs', 'gpt-6.1-sol')
+    await choose('Reasoning', 'Extraction models this deployment runs', 'gpt-6-luna')
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].extractionModels).toEqual({ fields: 'codex:gpt-6.1-sol', reasoning: 'codex:gpt-6-luna' })
+  })
+
   it('opens on Models with each step as one sentence at its defaults', async () => {
     studio(config(), { deployment })
     await renderPage()

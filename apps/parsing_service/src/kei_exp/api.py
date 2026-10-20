@@ -55,13 +55,27 @@ def list_extraction_models() -> dict:
     """The extraction models this deployment serves, each with the roles it may take and whether its server answers
     with it now, and the default per role: what a run may choose in `options.models`."""
     models = []
-    for key, record in extraction_models.EXTRACT_MODELS.items():
+    records = list(extraction_models.EXTRACT_MODELS.values())
+    default = extraction_models.EXTRACT_MODELS.get("instruct")
+    if default is not None and default.adapter == "codex-cli":
+        from kei_exp.kie.extract.codex import available_models, ModelOutputError
+        try:
+            catalog = available_models()
+            codex_reachable = True
+        except (OSError, TimeoutError, ValueError, ModelOutputError):
+            catalog, codex_reachable = [], False
+        records += [extraction_models.resolve(f"codex:{repo}") for repo in catalog if repo != default.repo]
+    for record in records:
+        key = record.key
         if record.adapter == "gliformer":
             try:
                 info = record.chat().info()
                 reachable, repo = True, info["model"]
             except (requests.RequestException, ValueError, KeyError):
                 reachable, repo = False, None
+        elif record.adapter == "codex-cli":
+            reachable = codex_reachable
+            repo = record.repo if record.repo in catalog else None
         else:
             reachable, repo = loaded_model(record.url)
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],

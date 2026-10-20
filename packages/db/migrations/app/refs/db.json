@@ -3,6 +3,7 @@
   "invariants": [
     "extraction-runtime.article-resolution-recovery",
     "extraction-runtime.catalog-whitespace-recovery",
+    "extraction-runtime.codex-extraction",
     "extraction-runtime.value-disagreement"
   ]
 }

@@ -205,6 +205,9 @@ class TokenCounter:
 
 def counter_for(chat: Countable, *, http: Http = requests) -> TokenCounter:
     """The counter of the endpoint `chat` sends to, with the context that endpoint serves now."""
+    from kei_exp.kie.extract.codex import CodexChat
+    if isinstance(chat, CodexChat):
+        return chat.counter()
     base = chat.url.split("/v1/", 1)[0].rstrip("/")
     counter = TokenCounter(SOURCE, chat.model, None, _chat=chat, _http=http, _base=base)
     try:

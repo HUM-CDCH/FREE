@@ -9,18 +9,23 @@ import pytest
 import requests
 
 from kei_exp.kie.extract.calls import Call
+from kei_exp.kie.extract import models
 from kei_exp.workflows import durable_extract as worker
 
 
 @pytest.mark.parametrize("context", ["full", "bounded"])
-def test_explicit_article_settings_are_frozen_and_restored_without_serializer_conflicts(monkeypatch,context):
+@pytest.mark.parametrize("adapter", ["instruct", "codex-cli"])
+def test_explicit_article_settings_are_frozen_and_restored_without_serializer_conflicts(monkeypatch,context,adapter):
     from kei_exp.kie.extract.models import ExtractModel
-    monkeypatch.setitem(worker.EXTRACT_MODELS,"instruct",ExtractModel("instruct","fixture/model",
-        "http://127.0.0.1:12345/v1/chat/completions","instruct",frozenset({"fields","reasoning"})))
+    key = "codex:gpt-6.1-sol" if adapter == "codex-cli" else "instruct"
+    repo = "gpt-6.1-sol" if adapter == "codex-cli" else "fixture/model"
+    monkeypatch.setitem(models.EXTRACT_MODELS,"instruct",ExtractModel("instruct",repo,
+        "codex://local" if adapter == "codex-cli" else "http://127.0.0.1:12345/v1/chat/completions",
+        adapter,frozenset({"fields","reasoning"})))
     class Lease:
         state={"selection":{"schemaTree":{"recordDescription":"A document","recordScope":"document",
             "schemaNodes":[{"id":"title","name":"title","type":"string"}]},
-            "resolved":{"options":{"strategy":"article","models":{"fields":"instruct","reasoning":"instruct"},
+            "resolved":{"options":{"strategy":"article","models":{"fields":key,"reasoning":key},
                 "article":{"context":context,"context_tokens":8192},"start_page":2}}}}
         saved=None
         def call(self,routine,value):
@@ -35,11 +40,13 @@ def test_explicit_article_settings_are_frozen_and_restored_without_serializer_co
     assert request.options.article.context==context
     assert captured["configuration"]["options"]["article"]==request.options.article.model_dump()
     assert captured["configuration"]["options"]["start_page"]==2
-    monkeypatch.delitem(worker.EXTRACT_MODELS,"instruct")
+    assert captured["configuration"]["models"]["fields"]["key"] == key
+    assert captured["configuration"]["models"]["fields"]["adapter"] == adapter
+    monkeypatch.delitem(models.EXTRACT_MODELS,"instruct")
     resumed,resumed_router=worker.effective(lease)
     assert resumed.options.article==request.options.article
     assert resumed.options.start_page==2
-    assert resumed_router.models==router.models=={"fields":"fixture/model","reasoning":"fixture/model"}
+    assert resumed_router.models==router.models=={"fields":repo,"reasoning":repo}
     assert lease.saved==captured
 
 

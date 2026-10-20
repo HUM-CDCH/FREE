@@ -275,6 +275,31 @@ The recipe path is split across these files:
 The designs under `docs/design/` are the contracts that code cites as
 `spec N.N` or `design §N`.
 
+## Codex extraction
+
+`KEI_EXTRACT_PROVIDER=codex-cli` selects the deployment-owned Codex login for both extraction roles;
+`KEI_EXTRACT_MODEL` must name an available Codex model. The root launcher's `compose.codex.yaml` maps
+`KEI_CODEX_MODEL` to it and shares Studio's login volume. Use `FREE_GPU=off` so the default GPU extraction
+servers do not start. The image contains the pinned standalone Codex executable; `KEI_CODEX_BINARY` can
+select another executable for diagnostics. The extraction selectors discover the login's current Codex catalog
+and offer every visible model for both roles. `KEI_EXTRACT_MODEL` remains the deployment default; explicit choices
+are saved as `codex:<model-id>` and pinned by the normal durable execution path. Discovery runs only for the
+listing, never inside a planning round.
+
+Each captured call starts one ephemeral app-server thread in an empty directory, with its exact saved instructions,
+source and JSON schema. Shell, network tools, apps, MCP servers and delegation are disabled; any tool request or
+context compaction fails the call. There is no separate extraction, result or review path.
+
+Codex does not provide preflight tokenization or a hard per-turn output limit. Policy `codex:utf8-budget-v1`
+reserves the UTF-8 bytes of the request plus 12,288 tokens for framing, within a 65,536-token planning ceiling.
+The capture labels this as `input_counting: upper_bound`, never an exact count. Returned input usage must fit the
+reservation, the reported model window must cover the planning ceiling, and reported output usage must fit the
+saved reply reserve; otherwise the call fails before publishing values. Output limits are checked after inference.
+Small explicit method budgets may therefore be refused: use a bounded Article context of at least 32,768 and
+increase counted Catalog input budgets beyond the framing allowance, or keep the default full Article mode.
+The policy is pinned with every capture, so later changes require a new policy version. Discovery text may be
+shown while generated, but only a validated completed reply becomes a checkpoint.
+
 ## Verification
 
 From the FREE root, install once with `pnpm --filter parsing-service install:python`.
