@@ -205,7 +205,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 for claim, (_, value, _) in claims.items()}
     # A list item's claim located to one row that no offered cell lies in: that row, printed as table context.
     context_rows: dict[str, set[tuple[str, int]]] = {}
-    if projected:
+    # Row eligibility belongs to the source table, independent of Article's projected prompt or Catalog's full record.
+    if any(candidate.cell is not None for candidate in candidates):
         # A value printed in many table rows ("1", a brand name) offers every such cell; a list item's claim is offered
         # only the cells in the rows printing its item's most distinctive other value (the one in fewest rows: its own
         # row, by an article number), when there are any. A candidate location only: the model still decides support,

@@ -4,11 +4,13 @@ import json
 import pytest
 
 from kei_exp.kie.extract import grounding, run
+from kei_exp.kie.extract.assembly import ground_records
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Link
 from kei_exp.kie.passages import Passage
 from tests.helpers.chat import FakeChat
+from tests.test_article_grounding_negative import grid, offered_cells
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -168,3 +170,66 @@ def test_a_nested_claim_split_from_its_records_name_is_verified_with_the_record(
     assert "C1" not in ada_year and '"name": "Ada"' in ada_year and "Grace" not in ada_year.split("### Evidence")[0]
     assert ada_links == {("records", 0, "name")}, "1843 under Ada's record stays unsupported"
     assert grace_links == {("records", 0, "name"), ("records", 0, "details", "birth_year")}
+
+
+TABLE_ITEMS = Schema(recordDescription="One catalogue entry with a list of finds.", schemaNodes=[
+    {"id": "items", "name": "items", "type": "array", "children": [
+        {"id": "number", "name": "number", "type": "verbatim-string"},
+        {"id": "description", "name": "description", "type": "verbatim-string"},
+        {"id": "notes", "name": "notes", "type": "verbatim-string"}]}])
+
+
+@pytest.mark.parametrize("wrong_row", [False, True])
+def test_generic_catalog_repeated_cells_are_linked_only_in_their_items_row(wrong_row):
+    table = grid([("header", ("number", "description", "notes")),
+                  ("data", ("26-12", "Tand, human", "Niv. 6")),
+                  ("data", ("26-28", "Tand, human", "Niv. 6"))])
+    # Extraction order differs from source order: the item number identifies the row, never the list index.
+    fields = {"items": [{"number": number, "description": "Tand, human", "notes": "Niv. 6"}
+                        for number in ("26-28", "26-12")]}
+    selected = {}
+
+    def script(system, user, schema):
+        labels = {cell: label for label, (cell, _) in offered_cells(user).items()}
+        for claim, cell in zip(schema["properties"],
+                               ("r2_c0", "r1_c1" if wrong_row else "r2_c1",
+                                "r1_c2" if wrong_row else "r2_c2", "r1_c0", "r1_c1", "r1_c2"), strict=True):
+            selected[claim] = labels[cell]
+        return selected
+
+    chat = FakeChat(script)
+    result = ground_records([([table], fields)], TABLE_ITEMS, chat, budget=24_000)
+    linked = {link.path[2:]: link for link in result.links}
+    expected = {("items", item, field): f"r{row}_c{column}"
+                for item, row in enumerate((2, 1)) for column, field in enumerate(("number", "description", "notes"))}
+    if wrong_row:
+        del expected[("items", 0, "description")]
+        del expected[("items", 0, "notes")]
+        assert [(issue.code, issue.path[2:]) for issue in result.issues] == [
+            ("unknown_label", ("items", 0, "description")), ("unknown_label", ("items", 0, "notes"))]
+        # The bad labels are real and offered for the other item in this same request; per-claim validation refuses them.
+        for claim in ("C2", "C3"):
+            assert selected[claim] not in chat.calls[0]["schema"]["properties"][claim]["enum"]
+    else:
+        assert result.issues == []
+    assert {path: link.cell for path, link in linked.items()} == expected
+    assert all(link.precision == "cell" and link.verbatim for link in result.links)
+    assert all(link.hits == 2 for path, link in linked.items() if path[-1] != "number")
+    assert len(chat.calls) == 1
+
+
+def test_generic_catalog_keeps_both_rows_eligible_when_an_item_has_no_distinctive_value():
+    table = grid([("header", ("number", "description", "notes")),
+                  ("data", ("26-12", "Tand, human", "Niv. 6")),
+                  ("data", ("26-28", "Tand, human", "Niv. 6"))])
+    fields = {"items": [{"number": None, "description": "Tand, human", "notes": "Niv. 6"}]}
+
+    def script(system, user, schema):
+        labels = {cell: label for label, (cell, _) in offered_cells(user).items()}
+        for claim, column in (("C1", 1), ("C2", 2)):
+            assert all(labels[f"r{row}_c{column}"] in schema["properties"][claim]["enum"] for row in (1, 2))
+        return {"C1": labels["r2_c1"], "C2": labels["r2_c2"]}
+
+    result = ground_records([([table], fields)], TABLE_ITEMS, FakeChat(script), budget=24_000)
+    assert [link.cell for link in result.links] == ["r2_c1", "r2_c2"]
+    assert all(link.hits == 2 for link in result.links) and result.issues == []
