@@ -30,7 +30,7 @@
     "@ai-sdk/openai": "^4.0.60",
     "@ai-sdk/openai-compatible": "^3.0.44",
     "@ai-sdk/otel": "1.0.93",
-    "@anthropic-ai/claude-code": "2.1.304",
+    "@anthropic-ai/claude-code": "2.1.263",
     "@azure/msal-node": "^5.6.0",
     "@dbos-inc/dbos-sdk": "5.1.10",
     "@hono/node-server": "^2.0.12",
@@ -51,7 +51,6 @@
     "exceljs": "4.4.0",
     "extraction": "workspace:*",
     "extraction-result-export": "workspace:*",
-    "fflate": "0.8.3",
     "hono": "^4.13.7",
     "jsonrepair": "^3.15.0",
     "pdfjs-dist": "^6.3.289",
@@ -63,7 +62,8 @@
     "studio-configuration": "workspace:*",
     "tailwindcss": "^4.3.0",
     "xstate": "^5.32.5",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "fflate": "0.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

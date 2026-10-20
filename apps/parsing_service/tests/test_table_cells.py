@@ -118,3 +118,12 @@ def test_other_grounding_modes_also_exclude_a_matching_cells_parent(quoted, span
     links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0,
                                   quoted=quoted, span_ids=span_ids)
     assert len(calls) == 1 and not issues and links[0].cell == 'r1_c0'
+
+
+def test_a_matching_cell_hides_its_table_even_when_the_cell_does_not_support_the_claim():
+    def choose(system, user, schema):
+        # '7-8' is an entry number, not a site: the table is context only, not a fallback label.
+        assert schema['properties']['C1']['enum'] == ['E4', 'NONE']
+        return {'C1': 'NONE'}
+    links, calls, issues = verify([passage()], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0)
+    assert links == [] and len(calls) == 1

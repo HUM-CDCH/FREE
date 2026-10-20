@@ -199,6 +199,101 @@ importers:
         specifier: ^1.59.2
         version: 1.59.2(@types/node@24.13.3)(jiti@2.7.0)(picomatch@4.0.5)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.4)(yaml@2.9.1)
 
+  packages/db:
+    dependencies:
+      '@prisma-next/postgres':
+        specifier: ^0.16.0
+        version: 0.16.0(typanion@3.14.0)(typescript@6.0.3)
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
+      env-paths:
+        specifier: ^4.0.0
+        version: 4.0.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
+      pg:
+        specifier: 8.22.0
+        version: 8.22.0
+    devDependencies:
+      '@dbos-inc/dbos-sdk':
+        specifier: 5.1.10
+        version: 5.1.10
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
+      prisma-next:
+        specifier: ^0.16.0
+        version: 0.16.0(typanion@3.14.0)(typescript@6.0.3)
+      tsx:
+        specifier: ^4.23.4
+        version: 4.23.4
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/extraction:
+    dependencies:
+      '@dbos-inc/dbos-sdk':
+        specifier: 5.1.10
+        version: 5.1.10
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      db:
+        specifier: workspace:*
+        version: link:../db
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
+      pg:
+        specifier: 8.22.0
+        version: 8.22.0
+      tsx:
+        specifier: ^4.23.4
+        version: 4.23.4
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/extraction-result-export:
+    dependencies:
+      extraction:
+        specifier: workspace:*
+        version: link:../extraction
+      write-excel-file:
+        specifier: ^4.1.1
+        version: 4.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.3
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
+      tsx:
+        specifier: ^4.23.4
+        version: 4.23.4
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/studio-configuration: {}
+
   apps/parsing_service: {}
 
   apps/studio:
@@ -219,8 +314,8 @@ importers:
         specifier: 1.0.93
         version: 1.0.93(zod@4.4.3)
       '@anthropic-ai/claude-code':
-        specifier: 2.1.304
-        version: 2.1.304
+        specifier: 2.1.263
+        version: 2.1.263
       '@azure/msal-node':
         specifier: ^5.6.0
         version: 5.6.0
@@ -382,101 +477,6 @@ importers:
         specifier: ^4.1.9
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.2.0(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.4)(yaml@2.9.1))
 
-  packages/db:
-    dependencies:
-      '@prisma-next/postgres':
-        specifier: ^0.16.0
-        version: 0.16.0(typanion@3.14.0)(typescript@6.0.3)
-      dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
-      env-paths:
-        specifier: ^4.0.0
-        version: 4.0.0
-      fflate:
-        specifier: ^0.8.3
-        version: 0.8.3
-      pg:
-        specifier: 8.22.0
-        version: 8.22.0
-    devDependencies:
-      '@dbos-inc/dbos-sdk':
-        specifier: 5.1.10
-        version: 5.1.10
-      '@types/node':
-        specifier: ^24.13.2
-        version: 24.13.3
-      '@types/pg':
-        specifier: ^8.21.0
-        version: 8.21.0
-      prisma-next:
-        specifier: ^0.16.0
-        version: 0.16.0(typanion@3.14.0)(typescript@6.0.3)
-      tsx:
-        specifier: ^4.23.4
-        version: 4.23.4
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-
-  packages/extraction:
-    dependencies:
-      '@dbos-inc/dbos-sdk':
-        specifier: 5.1.10
-        version: 5.1.10
-      '@opentelemetry/api':
-        specifier: ^1.9.1
-        version: 1.9.1
-      db:
-        specifier: workspace:*
-        version: link:../db
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.2
-        version: 24.13.3
-      '@types/pg':
-        specifier: ^8.21.0
-        version: 8.21.0
-      fflate:
-        specifier: ^0.8.3
-        version: 0.8.3
-      pg:
-        specifier: 8.22.0
-        version: 8.22.0
-      tsx:
-        specifier: ^4.23.4
-        version: 4.23.4
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-
-  packages/extraction-result-export:
-    dependencies:
-      extraction:
-        specifier: workspace:*
-        version: link:../extraction
-      write-excel-file:
-        specifier: ^4.1.1
-        version: 4.1.1
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.2
-        version: 24.13.3
-      fflate:
-        specifier: ^0.8.3
-        version: 0.8.3
-      tsx:
-        specifier: ^4.23.4
-        version: 4.23.4
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-
-  packages/studio-configuration: {}
-
 packages:
 
   '@adobe/css-tools@4.5.0':
@@ -584,52 +584,48 @@ packages:
       '@modelcontextprotocol/sdk': ^1.29.0
       zod: ^4.0.0
 
-  '@anthropic-ai/claude-code-darwin-arm64@2.1.304':
-    resolution: {integrity: sha512-io7hBh98nUB3wTzg+XKoh2pN4j71w155wj2jAoF9bwWrnT7u6gcm9vTh0geArjABGNSh2+GaApa+lYREWOOwxw==}
+  '@anthropic-ai/claude-code-darwin-arm64@2.1.263':
+    resolution: {integrity: sha512-yLv8MtgulGMGCWTwDUSmlEL0+94sxKP3vJm0SAXZX+0qVQ09PrjVSRC0ibtVeW7xymyhvP1JaUimOyp+t2wO5g==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-code-darwin-x64@2.1.304':
-    resolution: {integrity: sha512-og+GudUxBNKFVHZiKkDO3ESrlpdA2JDVanj0BJB0fgOhyt3eU2BZPOxpW+IG6lL/jtkrr85n3MGhd7mQ/nmgfg==}
+  '@anthropic-ai/claude-code-darwin-x64@2.1.263':
+    resolution: {integrity: sha512-55AHarRoo10yV8qLRrtZiNfum0uLQ6FKtwQEGuahzXHUnBDDrQ56ejLZB/FSs+q2Nx3IFWEq9J/rNVfuX7oZ6w==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-code-linux-arm64-musl@2.1.304':
-    resolution: {integrity: sha512-bTJbGLmcTafkuVp45XUmJTiTPKCudiTyZge3XUFZuLFSXyiw/cLVt4CE52EZ1HKmcqmIryGtsTcMGFTjRKgjnA==}
+  '@anthropic-ai/claude-code-linux-arm64-musl@2.1.263':
+    resolution: {integrity: sha512-RxeDl9uWmj7FtghdtRImpWsGEEe8l05VoS9wt5vJAFVZFP6ZmyanS7b+1+STXW6F6QsEbVqbKF5R/HPz3dzW4g==}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
-  '@anthropic-ai/claude-code-linux-arm64@2.1.304':
-    resolution: {integrity: sha512-iS+JKciRosAtrrgb1UkD7h8f/8olkeVA+4aK6aeb9LkLGZ1d6ME6CQxpbUO56QGR/2oPJt0QgDv7MWwRNlwd7A==}
+  '@anthropic-ai/claude-code-linux-arm64@2.1.263':
+    resolution: {integrity: sha512-RlJtLbl8xqFMf2zUdOKD4o5FkNhcgGjlS3Un8PNfSbv1fLQg3SqBQgEJhNEtSeKlEsOs26RnCG/jVk4yah8Udw==}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
-  '@anthropic-ai/claude-code-linux-x64-musl@2.1.304':
-    resolution: {integrity: sha512-vip5klHVN7sorXljEXR15AAKrdePHaKVjxgwnRNWVIXL7cjVsE6PdVlNfmzOWPJqyoMJXDTlKBXOfPu85s/Rkw==}
+  '@anthropic-ai/claude-code-linux-x64-musl@2.1.263':
+    resolution: {integrity: sha512-R6gtwGcW+sxoyANhikfUKPsat+mysEoLhl5rBUSaSHsey7x4oe/0zrWV2vbWw3t5X9XDsh0Bcl/n4/1Jgyc4vw==}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
-  '@anthropic-ai/claude-code-linux-x64@2.1.304':
-    resolution: {integrity: sha512-yZ/zZk3y7e0zbkMs740y9Z+bs40MmWApwM9qHQ8Adis01SycQlyaZnHYhB/+UOeFJcL+hzbiIGCIyuTKyL2U7Q==}
+  '@anthropic-ai/claude-code-linux-x64@2.1.263':
+    resolution: {integrity: sha512-0IrvpLd/0FP0acQw59T4Cvx/r4nwAXKBrW0WyhIXymzYWurPCLztB+Icu9MkeewAUI+p3PTXsSfmilv/n6XlAQ==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
-  '@anthropic-ai/claude-code-win32-arm64@2.1.304':
-    resolution: {integrity: sha512-oHqntcr0EVQn4/wOTNr5QIYmmfIYD/yyHtLZ1fE7D44fwRb40Qybsi0wWttM1GoPF7GifOaBW9/YuVRgeYILIw==}
+  '@anthropic-ai/claude-code-win32-arm64@2.1.263':
+    resolution: {integrity: sha512-koscGNDJ0qMXQIAse9zqeQ70EL8qoMkDnMSrAbW8ussrLCyTvfgNny+N9GFic382XegSAIhcInF+oqJnaBSyxA==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-code-win32-x64@2.1.304':
-    resolution: {integrity: sha512-BXEQwzYyCKAWxa+CPVoq2+jl2ZcQIi8urs5iPQBcQyHOwONuwJ+InHC4nCDkWy8Nk7cMsT+2o3DHeYRxlkn/nw==}
+  '@anthropic-ai/claude-code-win32-x64@2.1.263':
+    resolution: {integrity: sha512-P1LnudAWj2ptyE0IZzCZKAe7nU7LxqlkcLdBfp8FsHlH5dp75Og4JJ6TClvfjanHn3shYW4CYN6oI1vSqZlkHw==}
     cpu: [x64]
     os: [win32]
 
-  '@anthropic-ai/claude-code@2.1.304':
-    resolution: {integrity: sha512-oAD2KLEUdAbsAMxQMWYHq/AHCUlkYuZ80ovkL0mVSy07z+EeDhIo19/XpRA2NVI+9/LZCC+NXCJm+/hIvhNWWQ==}
+  '@anthropic-ai/claude-code@2.1.263':
+    resolution: {integrity: sha512-kvvBK6/69iTRYnq0TKVyxVZs1CxYCJGojshQSP+2qaDb66A2xtI4zbCuqkZUWLkFGmHSRqhFf/ATpzH2UNKcwg==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
@@ -4144,40 +4140,40 @@ snapshots:
       '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.263
       '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.263
 
-  '@anthropic-ai/claude-code-darwin-arm64@2.1.304':
+  '@anthropic-ai/claude-code-darwin-arm64@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-darwin-x64@2.1.304':
+  '@anthropic-ai/claude-code-darwin-x64@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-linux-arm64-musl@2.1.304':
+  '@anthropic-ai/claude-code-linux-arm64-musl@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-linux-arm64@2.1.304':
+  '@anthropic-ai/claude-code-linux-arm64@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-linux-x64-musl@2.1.304':
+  '@anthropic-ai/claude-code-linux-x64-musl@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-linux-x64@2.1.304':
+  '@anthropic-ai/claude-code-linux-x64@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-win32-arm64@2.1.304':
+  '@anthropic-ai/claude-code-win32-arm64@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code-win32-x64@2.1.304':
+  '@anthropic-ai/claude-code-win32-x64@2.1.263':
     optional: true
 
-  '@anthropic-ai/claude-code@2.1.304':
+  '@anthropic-ai/claude-code@2.1.263':
     optionalDependencies:
-      '@anthropic-ai/claude-code-darwin-arm64': 2.1.304
-      '@anthropic-ai/claude-code-darwin-x64': 2.1.304
-      '@anthropic-ai/claude-code-linux-arm64': 2.1.304
-      '@anthropic-ai/claude-code-linux-arm64-musl': 2.1.304
-      '@anthropic-ai/claude-code-linux-x64': 2.1.304
-      '@anthropic-ai/claude-code-linux-x64-musl': 2.1.304
-      '@anthropic-ai/claude-code-win32-arm64': 2.1.304
-      '@anthropic-ai/claude-code-win32-x64': 2.1.304
+      '@anthropic-ai/claude-code-darwin-arm64': 2.1.263
+      '@anthropic-ai/claude-code-darwin-x64': 2.1.263
+      '@anthropic-ai/claude-code-linux-arm64': 2.1.263
+      '@anthropic-ai/claude-code-linux-arm64-musl': 2.1.263
+      '@anthropic-ai/claude-code-linux-x64': 2.1.263
+      '@anthropic-ai/claude-code-linux-x64-musl': 2.1.263
+      '@anthropic-ai/claude-code-win32-arm64': 2.1.263
+      '@anthropic-ai/claude-code-win32-x64': 2.1.263
 
   '@anthropic-ai/sdk@0.115.0(zod@4.4.3)':
     dependencies:

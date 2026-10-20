@@ -236,6 +236,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             elif len(best) == 1:  # no offered cell shows the item's own row (a section header): print that row
                 context_rows[claim] = best
     # Enforce cell precision per claim, after row filtering, without removing other tables or prose support.
+    # shortcut: a textual cell match hides its table even if only the whole table supports the claim (NONE then);
+    # offer the table as a fallback if reviews show such misses.
     for claim, labels in eligible.items():
         cell_parents = {labelled[label].passage.id for label in labels if labelled[label].cell is not None}
         eligible[claim] = [label for label in labels

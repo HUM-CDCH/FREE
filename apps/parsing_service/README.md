@@ -282,7 +282,7 @@ The designs under `docs/design/` are the contracts that code cites as
 `KEI_CODEX_MODEL` to it and shares Studio's login volume. Use `FREE_GPU=off` so the default GPU extraction
 servers do not start. The image contains the pinned standalone Codex executable; `KEI_CODEX_BINARY` can
 select another executable for diagnostics. The extraction selectors discover the login's current Codex catalog
-and offer every visible model for both roles. `KEI_EXTRACT_MODEL` remains the deployment default; explicit choices
+and offer every visible model that supports the low reasoning effort each call requests, for both roles. `KEI_EXTRACT_MODEL` remains the deployment default; explicit choices
 are saved as `codex:<model-id>` and pinned by the normal durable execution path. Discovery runs only for the
 listing, never inside a planning round.
 

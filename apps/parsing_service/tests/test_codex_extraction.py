@@ -196,8 +196,15 @@ def test_selected_codex_models_reach_the_clients_without_discovery_during_planni
 
 def test_model_discovery_reads_all_pages_without_starting_an_inference(server):
     from kei_exp.kie.extract.codex import available_models
-    recorded = server(catalog=[{"data": [{"id": "gpt-6.1-sol"}, {"id": "hidden", "hidden": True}], "nextCursor": "1"},
-                               {"data": [{"model": "gpt-6-luna", "id": "display-only"}, {"id": "gpt-6.1-sol"}], "nextCursor": None}])
+    low = [{"reasoningEffort": "low", "description": ""}, {"reasoningEffort": "high", "description": ""}]
+    recorded = server(catalog=[
+        {"data": [{"id": "gpt-6.1-sol", "supportedReasoningEfforts": low},
+                  {"id": "hidden", "hidden": True, "supportedReasoningEfforts": low}], "nextCursor": "1"},
+        {"data": [{"model": "gpt-6-luna", "id": "display-only", "supportedReasoningEfforts": low},
+                  {"id": "gpt-6.1-sol", "supportedReasoningEfforts": low},
+                  # Extraction requests low effort; a model that would reject it is not offered.
+                  {"id": "high-only", "supportedReasoningEfforts": low[1:]}, {"id": "unadvertised"}],
+         "nextCursor": None}])
     assert available_models() == ["gpt-6.1-sol", "gpt-6-luna"]
     requests = [json.loads(line) for line in recorded.read_text().splitlines()]
     assert [r["method"] for r in requests] == ["initialize", "initialized", "model/list", "model/list"]

@@ -11,13 +11,17 @@ Using that login for extraction must preserve the existing durable operation, pi
 ## Decision
 
 A deployment may select `KEI_EXTRACT_PROVIDER=codex-cli` and an explicit available model for both extraction roles.
-The extraction listing discovers the login’s visible Codex models; each role can select its own `codex:<model-id>`
+The extraction listing discovers the login’s visible Codex models that support the low reasoning effort each call
+requests; each role can select its own `codex:<model-id>`
 without changing the configured default. Planning resolves these IDs locally and pins the selected provider.
 The default remains vLLM. The Parsing Service contains the pinned standalone Codex executable and shares the
 operator's login volume with Studio; researcher keys and Model Connections do not enter extraction execution.
 Each provider call runs one ephemeral app-server turn in an empty directory. Tools, MCP, apps and delegation are
 disabled. Unexpected tool requests or context compaction fail the call. Existing durable captures and checkpoints
 own the exact request and reply; there is no second extraction or review path.
+The adapter speaks the app-server protocol directly rather than through the `openai-codex` Python SDK (0.163.0),
+which has no per-call deadline, does not page the model catalog, accepts approval requests by default, stops only
+its direct child process, and adds a ~140 MB runtime wheel to every Parsing Service environment.
 
 Codex exposes token usage after inference rather than an exact preflight tokenizer or a hard per-turn output cap.
 The versioned `codex:utf8-budget-v1` policy reserves request UTF-8 bytes plus 12,288 framing tokens under a

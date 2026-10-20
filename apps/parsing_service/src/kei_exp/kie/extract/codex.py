@@ -24,6 +24,7 @@ from kei_exp.kie.extract.llm import EXTRACT_TIMEOUT, ModelOutputError, Reply, _p
 CONTEXT_TOKENS = 65536
 FRAMING_TOKENS = 12288
 POLICY = "codex:utf8-budget-v1"
+EFFORT = "low"
 # Keep the same restrictions as Studio's Codex connection. An empty working directory also excludes repository
 # instructions and source files; the deployment login is the only host state this adapter needs.
 RESTRICTIONS = {
@@ -120,7 +121,11 @@ def available_models() -> list[str]:
                 raise ModelOutputError("Codex returned an invalid model catalog")
             for entry in entries:
                 model = entry.get("model", entry.get("id"))
-                if not entry.get("hidden", False) and isinstance(model, str) and MODEL_ID.fullmatch(model) and model not in models:
+                # Every extraction turn requests EFFORT; a model that does not advertise it is not offered.
+                efforts = entry.get("supportedReasoningEfforts") or ()
+                if (not entry.get("hidden", False) and isinstance(model, str) and MODEL_ID.fullmatch(model)
+                        and model not in models
+                        and any(isinstance(option, dict) and option.get("reasoningEffort") == EFFORT for option in efforts)):
                     models.append(model)
             cursor = result.get("nextCursor")
             if cursor is None:
@@ -186,7 +191,7 @@ class CodexChat:
                     break
             send(3, "turn/start", {"threadId": thread,
                  "input": [{"type": "text", "text": payload["user"], "text_elements": []}],
-                 "outputSchema": _plain(payload["schema"]), "effort": "low"})
+                 "outputSchema": _plain(payload["schema"]), "effort": EFFORT})
             text, usage, window = None, None, None
             while True:
                 event = receive()
