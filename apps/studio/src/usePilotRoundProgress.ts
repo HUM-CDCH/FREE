@@ -6,6 +6,8 @@ export type PilotRoundProgress = {
   reviewed: number
   /** The members a researcher can review: published, reviewable results. */
   total: number
+  /** Whether the open document's review is saved. */
+  currentReviewed: boolean
   /** The next not-yet-reviewed member after the current document, wrapping
    *  around the round; `null` once every member is reviewed (or has no
    *  Extraction to review yet). */
@@ -65,6 +67,7 @@ export function usePilotRoundProgress(
           value: {
             reviewed,
             total,
+            currentReviewed: Boolean(batch.members[currentIndex]?.currentReview),
             nextMember: next
               ? {
                   sourceDocumentId: next.sourceDocumentId,

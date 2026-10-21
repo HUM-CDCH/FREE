@@ -35,7 +35,7 @@ function Mark({ mark }: { mark: StatusLine['mark'] }) {
 }
 
 export type HeaderActions = {
-  /** "One by one": disabled with its reason as title, or null when enabled. */
+  /** "Review one by one": disabled with its reason as title, or null when enabled. */
   oneByOne: { disabled: string | null } | null
   /** The finalization action, labelled with the result and decision cut it names; null when it is not offered. */
   saveReview: string | null
@@ -138,11 +138,14 @@ export default function ResultsHeader({
               </Button>
             )}
             {actions.oneByOne && (
-              <Button size="md" className="h-8 font-semibold" disabled={actions.oneByOne.disabled !== null}
-                title={actions.oneByOne.disabled ?? undefined} onClick={onOneByOne}><OneByOneGlyph />One by one</Button>
+              // Checking each value against its source is the review's main action: filled while any is left.
+              <Button size="md" variant={actions.oneByOne.disabled === null ? 'positive' : 'secondary'} className="h-8 font-semibold"
+                disabled={actions.oneByOne.disabled !== null}
+                title={actions.oneByOne.disabled ?? 'Check each value against its highlighted source, one at a time'}
+                onClick={onOneByOne}><OneByOneGlyph />Review one by one</Button>
             )}
             {actions.saveReview && (
-              <Button size="md" variant="outline-positive" className="h-8 font-semibold" onClick={onSaveReview}>{actions.saveReview}</Button>
+              <Button size="md" variant={actions.oneByOne?.disabled === null ? 'outline-positive' : 'positive'} className="h-8 font-semibold" onClick={onSaveReview}>{actions.saveReview}</Button>
             )}
           </div>
         </div>

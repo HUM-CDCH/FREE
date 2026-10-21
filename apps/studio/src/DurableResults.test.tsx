@@ -260,7 +260,7 @@ it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
   vi.mocked(durableRequest).mockImplementation(async(_url,body)=>body?{revision:1}:page)
   const view=render(<><button>Outside</button><div data-testid="results"><Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/></div></>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   const approve=screen.getByRole('button',{name:'Approve and next'})
   fireEvent.keyDown(screen.getByRole('button',{name:'Outside'}),{key:'a'})
   fireEvent.keyDown(approve,{key:'a',repeat:true})
@@ -282,7 +282,7 @@ it('cancels editing before leaving one-by-one and restores heading keyboard focu
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   const heading=screen.getByRole('heading',{name:'First title'})
   expect(heading).toHaveFocus()
   fireEvent.keyDown(heading,{key:'e'})
@@ -310,7 +310,7 @@ it.each(['More result actions','Run details'])('gives %s keyboard ownership befo
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   const overlay=screen.getByRole('button',{name});overlay.focus();fireEvent.click(overlay)
   expect(overlay).toHaveAttribute('aria-expanded','true')
   const target=name==='More result actions'?screen.getByRole('menuitem',{name:'Export…'}):overlay
@@ -336,7 +336,7 @@ it('keeps menu Escape available while a correction save is pending and suspends 
   vi.mocked(durableRequest).mockReturnValue(new Promise(()=>{}))
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   fireEvent.keyDown(screen.getByRole('heading',{name:'Saved title'}),{key:'a'})
   await screen.findByText('Saving your decision…')
   fireEvent.keyDown(screen.getByRole('heading',{name:'Saved title'}),{key:'r'})
@@ -359,7 +359,7 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   const onEvidence=vi.fn(),replacement=vi.fn(),selection=createSelectionChannel()
   const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document:decodeParsedDocument(rawDocument),currentSchema:null,selection}
   const view=render(<Results {...props} onEvidence={onEvidence}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
   expect(new Set(selection.snapshot().marks!.describe.keys())).toEqual(new Set(['value','other']))
   view.rerender(<Results {...props} onEvidence={replacement}/>)
@@ -410,7 +410,7 @@ it('follows nothing on the document while the rail is collapsed, and the one-by-
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document,currentSchema:null,onEvidence,selection}
   const view=render(<Results {...props}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   expect(onEvidence).toHaveBeenCalledExactlyOnceWith(first,undefined,'segment')
   expect(selection.snapshot().dim).toEqual(value.links[0])
   view.rerender(<Results {...props} railOpen={false}/>)
@@ -438,7 +438,7 @@ it('defers native Evidence navigation until its pinned source arrives and follow
   const onEvidence=vi.fn(),replacement=vi.fn(),props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,
     document,documentRevisionId:'newer',currentSchema:null}
   const view=render(<Results {...props} onEvidence={onEvidence}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   expect(onEvidence).not.toHaveBeenCalled()
   await act(async()=>source.resolve({sourceRevisionId:'pinned',document,markdown:'# Saved source'}))
   expect(onEvidence).toHaveBeenCalledExactlyOnceWith(anchor,undefined,'segment')
@@ -685,7 +685,7 @@ it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachabl
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
   fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
-  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 to check/})).toBeVisible()
   expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
   expect(screen.getByRole('region',{name:'Review title'})).toBeVisible()
@@ -722,7 +722,7 @@ it('offers the unchecked list after saving and undoing an edit, then cancelling 
   fireEvent.click(screen.getByRole('button',{name:'Save edit'}))
   expect(screen.getByRole('alert')).toHaveTextContent('The value does not fit its producing field.')
   fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
-  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 approved, 0 edited, 0 rejected, 1 to check/})).toBeVisible()
   expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
   expect(screen.getByRole('region',{name:'Review samples'})).toBeVisible()
@@ -830,7 +830,7 @@ it('moves to the next value once a decision is saved, and a late read never repl
   const selection=createSelectionChannel()
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={parsedDocument} currentSchema={null}
     onEvidence={()=>{}} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   fireEvent.keyDown(screen.getByRole('heading',{name:'First title'}),{key:'a'})
   expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
   act(()=>{selection.select('c',false,'extraction')})
@@ -1008,7 +1008,7 @@ it('takes a value link once its values are read, never again across a re-key, an
   expect(selection.snapshot().request).toBeNull()
   // Another cut of the same Extraction opens nothing: the link was taken.
   view.rerender(<Results key="cut" attempt={article} document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
-  await screen.findByRole('button',{name:'One by one'})
+  await screen.findByRole('button',{name:'Review one by one'})
   expect(screen.queryByRole('region',{name:'Review b'})).toBeNull()
   act(()=>{selection.select('a',true,'other')})
   expect(screen.queryByRole('region',{name:'Review a'})).toBeNull()
@@ -1031,7 +1031,7 @@ it('scrolls once per value link in one-by-one: the follow for another linked val
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:linkedPage()} as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   expect(onEvidence).toHaveBeenCalledExactlyOnceWith('a-anchor',undefined,'segment')
   onEvidence.mockClear()
   act(()=>{selection.select('b',true,'extraction')})
@@ -1054,7 +1054,7 @@ it('scrolls a value link in one-by-one once, when the pinned source it waits for
   vi.mocked(durableRequest).mockReturnValue(source.promise as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={document} documentRevisionId="newer" currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   act(()=>{selection.select('b',true,'extraction')})
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   expect(onEvidence).not.toHaveBeenCalled()
@@ -1069,7 +1069,7 @@ it('reads a value its page lacks on its own, and one-by-one follows it once it a
   vi.mocked(durableRequest).mockReturnValue(lookup.promise as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   onEvidence.mockClear()
   act(()=>{selection.select('z',true,'extraction')})
   expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/z?snapshotVersion=1&feedbackVersion=0')
@@ -1090,7 +1090,7 @@ it('holds a value link that arrives while the rail is collapsed, and scrolls to 
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   const props={attempt:article,document:decodeParsedDocument(rawDocument),currentSchema:null,onEvidence,selection}
   const view=render(<Results {...props}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   onEvidence.mockClear()
   view.rerender(<Results {...props} railOpen={false}/>)
   act(()=>{selection.select('b',true,'extraction')})
@@ -1132,7 +1132,7 @@ it('publishes its marks with its Extraction, and clears them and the dim when it
   const selection=createSelectionChannel()
   const view=render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
   await waitFor(()=>expect(selection.snapshot().marks?.extractionId).toBe('extraction'))
-  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(selection.snapshot().dim).toMatchObject({evidenceAnchorId:'a-anchor'})
   view.unmount()
   expect(selection.snapshot()).toMatchObject({marks:null,dim:null})

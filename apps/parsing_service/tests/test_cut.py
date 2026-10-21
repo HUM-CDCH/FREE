@@ -264,14 +264,13 @@ def test_useful_recovery_is_accepted_below_the_retry_threshold():
     assert 0.8 < decorated.ink_share(*(r.bbox for r in regions)) < 0.9
 
 
-def test_no_body_blocks_at_either_resolution_is_a_cut_error():
-    # Finding no body blocks at either resolution still fails explicitly.
+def test_no_body_blocks_at_either_resolution_transcribes_the_whole_page():
+    # Ink the layout cannot classify at either resolution is transcribed whole, not dropped or fatal.
     unfound = fake_page([], unboxed=[(320, 40, 550, 700)])
     with patch("kei_exp.cut._layout", return_value=[]) as layout:
-        with pytest.raises(CutError) as failure:  # an unsuccessful layout retry must fail
-            unfound.regions()
-        assert "page 9" in str(failure.value) and "after tiled layout" in str(failure.value), failure.value
+        regions = unfound.regions()
         assert layout.call_count == 4
+    assert [(r.kind, r.bbox, r.ink) for r in regions] == [("page", unfound.bounds, 1)]
 
 
 @pytest.mark.parametrize("found_initially", [True, False])
@@ -294,8 +293,9 @@ def test_a_scanned_blank_page_with_specks_yields_no_crops():
 
 def test_a_footer_does_not_hide_unrecognized_body_content():
     page = fake_page([(520, 760, 535, 780, "page_footer")], unboxed=[(50, 40, 550, 700)])
-    with patch("kei_exp.cut._layout", return_value=[]), pytest.raises(CutError, match="no body blocks"):
-        page.regions()
+    with patch("kei_exp.cut._layout", return_value=[]):
+        regions = page.regions()
+    assert [(r.kind, r.bbox) for r in regions] == [("page", page.bounds)]
 
 
 def test_good_cuts_and_blank_pages_need_no_more_inference():

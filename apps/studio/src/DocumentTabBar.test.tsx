@@ -33,18 +33,3 @@ it('shows no project chip until the project name is known', () => {
   expect(screen.queryByRole('button', { name: 'Project actions' })).not.toBeInTheDocument()
   expect(screen.getByRole('tablist', { name: 'Open Source Documents' })).toBeInTheDocument()
 })
-
-it('leads back to the Batch Extraction once every member of the round is reviewed', () => {
-  const onBackToBatch = vi.fn()
-  const { rerender } = render(<DocumentTabBar projectName="Elmbrooke" tabs={tabs} activeSourceDocumentId="doc-1" onActivate={vi.fn()}
-    onClose={vi.fn()} onNavigateProject={vi.fn()} onBackToBatch={onBackToBatch}
-    pilotRoundProgress={{ reviewed: 1, total: 2, onNext: vi.fn() }} slotRef={() => {}} />)
-  expect(screen.getByRole('button', { name: 'Next document' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Back to Batch Extraction' })).not.toBeInTheDocument()
-
-  rerender(<DocumentTabBar projectName="Elmbrooke" tabs={tabs} activeSourceDocumentId="doc-1" onActivate={vi.fn()}
-    onClose={vi.fn()} onNavigateProject={vi.fn()} onBackToBatch={onBackToBatch}
-    pilotRoundProgress={{ reviewed: 2, total: 2 }} slotRef={() => {}} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Back to Batch Extraction' }))
-  expect(onBackToBatch).toHaveBeenCalledOnce()
-})

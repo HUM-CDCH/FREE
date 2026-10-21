@@ -244,8 +244,9 @@ class _Page:
             # A scanned blank page: too little ink for a line of text, so specks the layout rightly ignored.
             if self.ink.mean() < BLANK_INK:
                 return []
-            raise CutError(f"page {self.number}: layout found no body blocks after tiled layout "
-                           f"({self.ink.mean():.2%} of the page is ink)")
+            # Show-through, stamps or faint marks the layout cannot classify: transcribe the whole page rather
+            # than fail the document; OCR returns little or nothing for a page without text.
+            return [self.region("page", self.bounds)]
         return recovered if recovered_coverage > coverage else regions
 
     def _extend_column(self, region: Region, yspan: Span) -> Region:

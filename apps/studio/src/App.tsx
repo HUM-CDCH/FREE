@@ -1034,17 +1034,20 @@ export function DocumentWorkspace({
                   <ExtractionControl reader={latestReader} control={control} busy={controlling} onCommand={action=>void controlExtraction(action)}/>
                 </>
               ) : (
+                // Once this document has an Extraction, the work is reviewing it: a new run is the secondary action,
+                // named as one, so it never reads as the way to go on.
                 <Button
-                  variant="positive"
+                  variant={inspectedAttempt ? 'secondary' : 'positive'}
                   size="md"
                   className="min-w-43 justify-center tabular-nums"
                   disabled={runExtractionUnavailable}
-                  title={runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
+                  title={runUnavailableReason ?? `${nextExtractionStrategy === 'CATALOG'
                     ? 'Find the catalogue entries and extract one record per entry'
-                    : 'Extract one record from the whole document')}
+                    : 'Extract one record from the whole document'}${inspectedAttempt
+                    ? '. A new Extraction: the current results and your review stay saved.' : ''}`}
                   onClick={() => void runExtraction()}
                 >
-                  ▶ Run extraction
+                  {inspectedAttempt ? '↻ Re-run extraction' : '▶ Run extraction'}
                 </Button>
               )}
             </>

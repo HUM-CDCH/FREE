@@ -10,6 +10,9 @@ import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 
+// The run action is "▶ Run extraction" until the document has an Extraction, then "↻ Re-run extraction".
+const RUN_EXTRACTION = /^(▶ Run|↻ Re-run) extraction$/
+
 HTMLElement.prototype.scrollIntoView = vi.fn()
 
 const {
@@ -349,7 +352,7 @@ describe('reopened Source Document workspace', () => {
   it('opened from the schema builder, offers a way back to choose another document instead of Run', async () => {
     const onNavigate = vi.fn()
     await renderReopened({ persistedExtraction: null, fromSchemaBuilder: true, onNavigate })
-    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Choose another document/ }))
     expect(onNavigate).toHaveBeenCalledWith({ kind: 'project', projectContextId: reopened.projectContextId, tab: 'schemas' })
   })
@@ -381,7 +384,7 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Next page' }))
       expect(screen.getByRole('textbox', { name: 'Current page' })).toHaveValue('2')
     }
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(posts).toHaveLength(1))
     if (pdfStatus === 'ready') expect(posts[0]).toMatchObject({ startPage: 2 })
     else expect(posts[0]).not.toHaveProperty('startPage')
@@ -404,13 +407,13 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     // Run is the screen's positive; Stop is red (decision 02).
-    expect(screen.getByRole('button', { name: '▶ Run extraction' }).className).toMatch(/(^|\s)bg-green(\s|$)/)
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION }).className).toMatch(/(^|\s)bg-green(\s|$)/)
     // While Run can start, Results' empty state points at it.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByText('Press ▶ Run extraction above.')).toBeVisible()
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     if (panel === 'collapsed') fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }))
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
@@ -450,7 +453,7 @@ describe('reopened Source Document workspace', () => {
         'restored while running': { ...reopened.persistedExtraction!, ...runningAttempt(extractionId) } as DocumentWorkspaceProps['persistedExtraction'] }[origin]} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     if (origin !== 'restored while running') {
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
     }
     expect(await screen.findByText(message, undefined, { timeout: 4_000 })).toBeVisible()
@@ -489,7 +492,7 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} latestReviewedExtraction={{ ...reopened.persistedExtraction!,
       finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await screen.findByRole('button', { name: '❚❚ Pause extraction' })
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(await screen.findByText('Elmbrooke')).toBeVisible()
@@ -511,7 +514,7 @@ describe('reopened Source Document workspace', () => {
       expect(reads).toEqual([])
     }
     expect(shownToasts.filter(message => message.includes('complete —'))).toHaveLength(1)
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
   }, 6_000)
 
   it.each(['PAUSED', 'FAILED', 'PAUSING', 'STOPPING'] as const)('disables Run while latest is %s and Latest reviewed is inspected', async (status) => {
@@ -530,7 +533,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reviewed.extractionId } })
     // The latest can still continue: the run button stays its control, whatever is inspected.
-    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: { PAUSED: '▶ Resume extraction', FAILED: '↻ Retry extraction', PAUSING: 'Pausing…', STOPPING: 'Stopping…' }[status] })).toBeInTheDocument()
     expect(posts).toEqual([])
   })
@@ -569,7 +572,7 @@ describe('reopened Source Document workspace', () => {
     expect(commands).toEqual([expect.objectContaining({ expectedVersion: 1, action: 'pause' })])
     status = 'PAUSED'
     expect(await screen.findByRole('button', { name: '▶ Resume extraction' }, { timeout: 4_000 })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
   }, 6_000)
 
   it('shows uncertain re-run admission beside prior results and reconnects the original identity after a page change', async () => {
@@ -595,14 +598,14 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to update status')
     expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeVisible()
     expect(shownToasts.some(message => message.includes('admission'))).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     readable = true
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument())
@@ -629,11 +632,11 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened}/>)
     await waitFor(()=>expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button',{name:'▶ Run extraction'}))
+    fireEvent.click(screen.getByRole('button',{name: RUN_EXTRACTION}))
     const retry=await screen.findByRole('button',{name:'Retry original request'})
     fireEvent.click(screen.getByRole('button',{name:'Next page'}))
     expect(screen.getByRole('textbox',{name:'Current page'})).toHaveValue('2')
-    expect(screen.getByRole('button',{name:'▶ Run extraction'})).toBeDisabled()
+    expect(screen.getByRole('button',{name: RUN_EXTRACTION})).toBeDisabled()
     fireEvent.click(retry)
     await waitFor(()=>expect(posts).toHaveLength(2))
     expect(posts[1]).toEqual(posts[0])
@@ -660,7 +663,7 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     fireEvent.click(screen.getByTitle('Collapse panel'))
     expect(screen.queryByRole('tab', { name: /^Results/ })).not.toBeInTheDocument()
 
@@ -687,11 +690,11 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(posts).toHaveLength(2))
     expect(saved.refresh).toHaveBeenCalledTimes(2)
     expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
   })
 
   it('a failed read of the saved method, read again once, starts nothing and says so (Review Focus 1)', async () => {
@@ -712,11 +715,11 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
     expect(saved.refresh).toHaveBeenCalledTimes(2)
     expect(posts).toHaveLength(0)
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
   })
 
   it('a read of the saved method that an Apply interrupted is read again, and the run goes ahead', async () => {
@@ -738,7 +741,7 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(saved.refresh).toHaveBeenCalledTimes(2)
     expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
@@ -747,8 +750,8 @@ describe('reopened Source Document workspace', () => {
 
   it('without a saved record scope the run is disabled and points at the schema header', async () => {
     await renderReopened({ persistedExtraction: null, extractionSchema: { ...reopened.extractionSchema!, recordScope: null } })
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
     expect(screen.queryByText(/Press Run extraction/)).not.toBeInTheDocument()
     // Results' empty state says why, in the same words, instead of pointing at a disabled Run.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
@@ -936,7 +939,7 @@ describe('reopened Source Document workspace', () => {
     try {
       await renderReopened({ tabRingSlot: ring })
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-      fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Review one by one' }))
       expect(screen.getByRole('heading', { name: 'Elmbrooke' })).toHaveFocus()
       // The ring's progress is reported from an effect after the values read.
       await waitFor(() => expect(ring).toHaveTextContent('1 saved values to check in results 1'))
@@ -1789,7 +1792,7 @@ describe('reopened Source Document workspace', () => {
     // The Schema tab's badge is the field count derived from the reopened template.
     expect(screen.getByRole('tab', { name: /^Schema\s*1$/ })).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: '▶ Run extraction' }),
+      screen.getByRole('button', { name: RUN_EXTRACTION }),
     ).toBeInTheDocument()
   })
 
@@ -1909,7 +1912,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     fireEvent.click(run)
     fireEvent.click(run)
     await waitFor(() => expect(run).toBeDisabled())
@@ -2013,7 +2016,7 @@ describe('reopened Source Document workspace', () => {
     const boundaries = screen.getByLabelText('Boundaries')
     expect(boundaries).toHaveValue('')
     if (recipe) fireEvent.change(boundaries, { target: { value: recipe } })
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
 
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     // Catalog is a schema change: the run flushes it as a revision that names the scope, then runs that revision.
@@ -2051,7 +2054,7 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
       await waitFor(() => expect(extractionRequests).toHaveLength(2))
       for (const request of extractionRequests) {
@@ -2144,9 +2147,9 @@ describe('reopened Source Document workspace', () => {
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       if (recipe)
         fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
-      expect(screen.getByRole('button', { name: '▶ Run extraction' }))
-        .toHaveAttribute('title', 'Find the catalogue entries and extract one record per entry')
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION }))
+        .toHaveAttribute('title', expect.stringMatching(/^Find the catalogue entries and extract one record per entry/))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('CATALOG', recipe))
       await waitFor(() =>
@@ -2160,10 +2163,10 @@ describe('reopened Source Document workspace', () => {
     function tabStripRun(strategy: 'ARTICLE' | 'CATALOG') {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
-      const run = screen.getByRole('button', { name: '▶ Run extraction' })
-      expect(run).toHaveAttribute('title', strategy === 'CATALOG'
-        ? 'Find the catalogue entries and extract one record per entry'
-        : 'Extract one record from the whole document')
+      const run = screen.getByRole('button', { name: RUN_EXTRACTION })
+      expect(run).toHaveAttribute('title', expect.stringMatching(strategy === 'CATALOG'
+        ? /^Find the catalogue entries and extract one record per entry/
+        : /^Extract one record from the whole document/))
       return run
     }
 
@@ -2323,7 +2326,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByRole('option', { name: 'Choose Article or Catalog' })).toBeDisabled()
       expect(screen.getByRole('option', { name: 'Article · one object for the document' })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: 'Catalog · a collection of records' })).toBeInTheDocument()
-      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+      const run = screen.getByRole('button', { name: RUN_EXTRACTION })
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
@@ -2350,7 +2353,7 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
 
       await waitFor(() => expect(runs).toHaveLength(1))
       expect(writes).toHaveLength(1)
@@ -2404,7 +2407,7 @@ describe('reopened Source Document workspace', () => {
         return answer(input, init)
       })
       await renderWith(reopened.extractionSchema)
-      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+      const run = screen.getByRole('button', { name: RUN_EXTRACTION })
 
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       // One alert and one Retry, the toolbar's (reachable with the Schema tab hidden); the Schema panel's footer says it
@@ -2454,13 +2457,13 @@ describe('reopened Source Document workspace', () => {
       const { runs } = stubWorkspace(() => Response.json({ error: { code, message } }, { status: 409 }))
       await renderWith(reopened.extractionSchema)
 
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       // The workspace's toast over the PDF says it in the server's own words, without the code.
       const notice = await within(screen.getByRole('region', { name: 'PDF document' })).findByText(message)
       expect(notice.closest('[role="status"]')?.textContent).toBe(message)
       // Only a changed method is retried.
       expect(runs).toHaveLength(1)
-      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
     })
 
@@ -2510,12 +2513,12 @@ describe('reopened Source Document workspace', () => {
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
       const selector = screen.getByLabelText('Record scope')
       expect(selector).toHaveValue('')
-      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
 
       fireEvent.change(selector, { target: { value: 'document' } })
       await waitFor(() => expect(written).toHaveLength(2))
       expect(written[1]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'document' })
-      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      await waitFor(() => expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled())
       expect(selector).toHaveValue('document')
     })
   })
@@ -2565,14 +2568,14 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(runs).toHaveLength(1))
       expect(writes).toHaveLength(1)
       expect(runs[0]).toMatchObject({ schemaRevisionId: appendedRevisionId(2) })
 
       // Refused: the revision stays saved, so running again only admits, under a new identity.
-      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(runs).toHaveLength(2))
       expect(writes).toHaveLength(1)
       expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
@@ -2580,8 +2583,8 @@ describe('reopened Source Document workspace', () => {
       // Uncertain (the gateway failed, and so does reading it): Reconnect reads the reserved identity.
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       readable = true
       fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
       await waitFor(() => expect(reads).toHaveLength(2))
@@ -2626,13 +2629,13 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(screen.getByText('Elmbrooke')).toBeVisible()
 
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       expect(posts).toHaveLength(1)
       expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
       expect(screen.getByText('Elmbrooke')).toBeVisible()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
-      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+      const run = screen.getByRole('button', { name: RUN_EXTRACTION })
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute(
         'title',
@@ -2665,11 +2668,11 @@ describe('reopened Source Document workspace', () => {
       render(<DocumentWorkspace {...reopened} onOpenExtraction={onOpenExtraction} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       expect(await screen.findByText(message)).toBeVisible()
       // A definite refusal: no identity is left reserved, so Run stays offered.
       expect(posts).toHaveLength(1)
-      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
       fireEvent.click(screen.getByRole('button', { name: 'Open it' }))
       expect(onOpenExtraction).toHaveBeenCalledWith(unfinished)
       expect(screen.queryByText(message)).not.toBeInTheDocument()
@@ -2696,10 +2699,10 @@ describe('reopened Source Document workspace', () => {
         render(<DocumentWorkspace {...reopened} />)
         await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
         // The click reads the saved method itself, so Run does not wait on the mount-time read.
-        fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+        fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
         expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
         expect(posts).toHaveLength(0)
-        expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
       } finally {
         saved.state = ready
       }
@@ -2730,13 +2733,13 @@ describe('reopened Source Document workspace', () => {
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
 
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
       expect(posts).toHaveLength(2)
       expect(saved.refresh).toHaveBeenCalledTimes(2)
       expect(screen.queryByText(message)).not.toBeInTheDocument()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
     })
 
     it('keeps the superseded notice when the refresh moves a plain route to the reprocessed Source Representation', async () => {
@@ -2786,7 +2789,7 @@ describe('reopened Source Document workspace', () => {
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
 
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
@@ -2795,7 +2798,7 @@ describe('reopened Source Document workspace', () => {
       expect(posts).toHaveLength(1)
       expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
       // The workspace now shows the reprocessed Source Representation, which can be run.
-      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
     })
 
     it('a notice that outlives the switch stays above the switched document\'s loading cover', async () => {
@@ -2831,7 +2834,7 @@ describe('reopened Source Document workspace', () => {
       // The reprocessed document's PDF is still loading when the notice shows.
       getDocument.mockReturnValueOnce({ promise: new Promise<{ numPages: number }>(() => {}), destroy: destroyLoadingTask })
 
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       const cover = await screen.findByRole('status', { name: 'Loading Source Document' })
       const notice = screen.getByText('This document has been reprocessed — no new Extraction was started').closest('[role="status"]')!
@@ -2894,7 +2897,7 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
       expect(screen.queryByLabelText('Field model')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('Reasoning model')).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
 
       await waitFor(() => expect(extractionRequests).toHaveLength(1))
       expect(extractionRequests[0]).not.toHaveProperty('models')
@@ -2949,7 +2952,7 @@ describe('reopened Source Document workspace', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     fireEvent.click(
-      screen.getByRole('button', { name: '▶ Run extraction' }),
+      screen.getByRole('button', { name: RUN_EXTRACTION }),
     )
     await waitFor(() => expect(savedDefinition).not.toBeNull())
 
@@ -3059,7 +3062,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(
-      screen.getByRole('button', { name: '▶ Run extraction' }),
+      screen.getByRole('button', { name: RUN_EXTRACTION }),
     )
     await waitFor(() =>
       expect(
@@ -3084,7 +3087,7 @@ describe('reopened Source Document workspace', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: '▶ Run extraction' }),
+        screen.getByRole('button', { name: RUN_EXTRACTION }),
       ).toBeInTheDocument(),
     )
     await new Promise((resolve) => window.setTimeout(resolve, 2_100))
@@ -3129,7 +3132,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
 
     expect(await screen.findByText(message)).toBeInTheDocument()
     expect(screen.queryByText(/Extraction complete/)).not.toBeInTheDocument()
@@ -3255,7 +3258,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     stubWorkspace({}, attempt.executionStatus)
     await renderView(pinnedView(attempt))
 
-    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeDisabled()
     expect(run).toHaveAttribute('title', earlierSourceRunTitle)
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
@@ -3268,7 +3271,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const attempt = attemptOn(earlierRepresentationId, { executionStatus: 'FAILED' })
     stubWorkspace({}, 'FAILED')
     await renderView(pinnedView(attempt))
-    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '↻ Retry extraction' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '■ Stop' })).toBeEnabled()
   })
@@ -3290,9 +3293,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const { runs } = stubWorkspace()
     await renderView(view)
 
-    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeEnabled()
-    expect(run).toHaveAttribute('title', 'Extract one record from the whole document')
+    expect(run).toHaveAttribute('title', expect.stringMatching(/^Extract one record from the whole document/))
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     // The tab strip's Run is the only run (decision 03).
     expect(resultsRunActions()).toEqual([])
@@ -3305,7 +3308,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const reviewed = attemptOn(earlierRepresentationId, { finalizedReview: { snapshotVersion: 1, feedbackVersion: 1, createdAt: '2026-08-01T00:00:00.000Z' } })
     const { runs } = stubWorkspace()
     const { rerender } = await renderView(pinnedView(reviewed))
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
 
     // The plain route: the current Source Representation, its newer unreviewed
     // attempt, and the reviewed one still on the earlier source.
@@ -3325,7 +3328,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeEnabled()
     // "Open latest reviewed" sits in the Results header.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
