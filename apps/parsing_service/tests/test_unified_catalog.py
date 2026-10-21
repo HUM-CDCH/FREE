@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 import requests
+from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from kei_exp.kie.extract import discovery, run, unified
@@ -383,7 +384,8 @@ def test_a_window_line_names_its_layout_kind_while_the_reply_names_its_plain_lab
     assert section(user, "WINDOW") == \
         "[L1 heading] Entry 7\n[L2] Sheet: 2\n[L3 table row] 7-1\tCup\n[L4 table row] 7-2\tBowl"
     assert "layout kind (heading or table row)" in system
-    assert schema["properties"]["places"]["items"]["prefixItems"][0]["enum"] == ["L1", "L2", "L3", "L4"]
+    assert all(place["prefixItems"][0]["enum"] == ["L1", "L2", "L3", "L4"]
+               for place in schema["properties"]["places"]["items"]["anyOf"])
     [entry] = result["entries"]
     assert entry["label"] == "7" and {row["segment"] for row in entry["ranges"]} == {"p1_s0", "p1_s1", "p1_s2"}
 
@@ -731,13 +733,57 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     result, chat = extract(source, Model(source, discovery=compact))
     asked = next(call for call in chat.calls if call["system"].startswith("You find where records begin"))
     assert "on one line, without indentation" in asked["system"]
-    place = asked["schema"]["properties"]["places"]["items"]
-    assert [item.get("enum") for item in place["prefixItems"]] == [["L1", "L2"], ["record", "other"], None, None]
-    assert (place["minItems"], place["maxItems"]) == (3, 4)
+    assert "include that label in the copied start" in asked["system"]
+    assert "Omit the fourth item for a place at the line's start" in asked["system"]
+    places = asked["schema"]["properties"]["places"]["items"]["anyOf"]
+    assert [(place["minItems"], place["maxItems"]) for place in places] == [(3, 3), (4, 4)]
+    for size, place in zip((3, 4), places, strict=True):
+        assert [item.get("enum") for item in place["prefixItems"]] == \
+            [["L1", "L2"], ["record", "other"], None, None][:size]
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
     assert result["prompt_version"] == unified.PROMPT_VERSION
     assert_accounted(source, result)
+
+
+@pytest.mark.parametrize(("place", "valid"), [
+    (["L1", "record", "1."], True), (["L2", "other", None], True),
+    (["L2", "record", None, "2. Beta"], True), (["L1", "other", None, "Heading"], True),
+    (["L1", "record"], False), (["L1", "record", "1.", "1. Alpha", "extra"], False),
+    (["L3", "record", None], False), (["L3", "record", None, "start"], False),
+    (["L1", "unknown", None], False), (["L1", "unknown", None, "start"], False),
+    (["L1", "record", 1], False), (["L1", "record", None, None], False),
+])
+def test_discovery_reply_schema_preserves_exact_tuple_shapes(place, valid):
+    schema = discovery._reply(["L1", "L2"])
+    Draft202012Validator.check_schema(schema)
+    answer = {"places": [place], "begins_inside_record": False, "ends_inside_record": False}
+    assert Draft202012Validator(schema).is_valid(answer) is valid
+
+
+def test_a_printed_label_before_the_copied_start_is_rejected_without_moving_the_boundary():
+    source, result = one_window(["1. Adorf. Material: Holz."], [["L1", "record", "1.", "Adorf."]])
+    assert labelled(source, result) == [(None, ["Adorf. Material: Holz."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == ["1."]
+    assert [issue.code for issue in result["issues"]] == ["label_not_in_source"]
+
+
+def test_numbered_subitems_remain_inside_their_discovered_parent_records(tmp_path):
+    source = load(catalogue.write("early-nested", tmp_path))
+    description = "One numbered entry of an archaeological catalogue."
+
+    def ask(record, system, user, schema, calls, issues):
+        assert description in system and "numbered subitems or details within a record continue it" in system
+        return {"places": [["L1", "other", None], ["L2", "record", "1."], ["L5", "record", "2."],
+                           ["L7", "record", "3."]], "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, description, lambda *_: True, ask, overlap=0, splits=0)
+    assert labelled(source, result) == [
+        ("1.", ["1. Adorf. FA: G. Funde:", "1. Gefäß.", "2. Beil."]),
+        ("2.", ["2. Bdorf. FA: G.", "1. Urne."]),
+        ("3.", ["3. Cdorf. FA: EF."]),
+    ]
+    assert not result["issues"]
+    assert_accounted(source, {"discovery": result})
 
 
 def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
@@ -749,6 +795,80 @@ def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
     result, _ = extract(source, Model(source, discovery=repeated))
     assert result["records"] == [] and ranges(result, "unresolved") == [("p1_s0", 0, 31)]
     assert any(issue["code"] == "boundary_unplaced" for issue in result["issues"])
+
+
+@pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
+def test_source_invalid_boundaries_retry_bounded_halves_without_publishing_the_superseded_parent(frontier):
+    source = evidence("1. Alpha.\ncontinued Alpha.\n2. Beta.\ncontinued Beta.")
+    model, shown, asked = Model(source), [], []
+
+    def ask(record, system, user, schema, calls, issues):
+        window = section(user, "WINDOW")
+        asked.append(user)
+        calls.append({"window": window, "ok": True})  # JSON succeeded; source validation decides recovery.
+        if window.count("[L") == 4:
+            return {"places": [["L1", "record", "Alpha"], ["L2", "record", None, "not copied from this line"]],
+                    "begins_inside_record": False, "ends_inside_record": False}
+        return model.discover(user)
+
+    # The whole primary fits; a half's supplementary context must still fit the same request limit.
+    budget = 145
+    fits = lambda _system, user, _schema: len(user) <= budget
+    result = discovery.discover(source, "entry", fits, ask, overlap=3, splits=1, workers=2, frontier=frontier,
+                                progress=lambda found, lines: shown.append(found))
+    assert len(asked) == len(result["calls"]) == 3
+    assert all(len(user) <= budget for user in asked)
+    assert labelled(source, result) == [("1.", ["1. Alpha.", "continued Alpha."]),
+                                        ("2.", ["2. Beta.", "continued Beta."])]
+    assert all(entry["end"] == "validated" for entry in result["entries"])
+    assert len(result["windows"]) == 2 and all(window["ok"] for window in result["windows"])
+    assert all(call["ok"] for call in result["calls"])
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
+    assert all(found["label"] != "Alpha" for snapshot in shown for found in snapshot)
+    assert shown[-1] == [{"segment": "p1_s0", "label": "1."}, {"segment": "p1_s0", "label": "2."}]
+    assert all(len(snapshot) == len({item["label"] for item in snapshot}) for snapshot in shown)
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
+@pytest.mark.parametrize(("splits", "calls", "labels"), [(0, 1, ["2.", "3.", "4."]),
+                                                        (1, 3, ["2.", "4."]), (6, 7, [])])
+def test_persistent_invalid_boundaries_stop_at_the_split_budget_or_one_unit(frontier, splits, calls, labels):
+    source = evidence("1. Alpha.\n2. Beta.\n3. Gamma.\n4. Delta.")
+    model = Model(source)
+
+    def ask(record, system, user, schema, attempts, issues):
+        attempts.append(user)
+        answer = model.discover(user)
+        answer["places"][0].append("not copied from this line")
+        return answer
+
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=1, splits=splits,
+                                frontier=frontier, workers=2)
+    assert len(result["calls"]) == calls
+    assert [entry["label"] for entry in result["entries"]] == labels
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"] * calls
+    assert any(row["disposition"] == "unresolved" for row in result["ledger"])
+    assert all(window["ok"] for window in result["windows"])  # partial source decisions survive exhaustion
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
+def test_source_valid_semantic_decisions_are_not_retried_as_invalid_anchors(frontier):
+    source = evidence("1. Alpha.\ncontinued Alpha.\n2. Beta.")
+
+    def ask(record, system, user, schema, calls, issues):
+        calls.append(user)
+        return {"places": [["L1", "record", "1.", "Alpha."], ["L2", "other", None], ["L3", "record", "2."]],
+                "begins_inside_record": False, "ends_inside_record": False}
+
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=1, splits=6, frontier=frontier)
+    assert len(result["calls"]) == 1
+    assert [issue.code for issue in result["issues"]] == ["label_not_in_source"]
+    assert labelled(source, result) == [(None, ["Alpha."]), ("2.", ["2. Beta."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == \
+        ["1.", "continued Alpha."]
+    assert_accounted(source, {"discovery": result})
 
 
 def test_restarted_labels_stay_distinct_and_an_entry_continues_across_pages():
@@ -846,7 +966,17 @@ def test_heading_context_that_does_not_fit_is_left_out_and_reported():
     assert result["records"][0]["material"] == "Holz"
     omitted = [row for row in result["context_omitted"] if row["stage"] == "entry"]
     assert omitted and {row["kind"] for row in omitted} == {"heading"} and omitted[0]["record"] == 0
-    assert not any("Beschreibung" in call["user"] for call in chat.calls if call["system"].startswith("You extract structured"))
+    context = result["discovery"]["entries"][0]["context"]
+    dropped = [{key: row[key] for key in ("segment", "start", "end")} for row in omitted]
+    assert len(context) > 1 and dropped == context[:-1]
+    [entry] = [call for call in chat.calls if call["system"].startswith("You extract structured")]
+    shown = entry["user"].split("\n\n### RECORD")[0]
+    assert text(source, context[-1]) in shown  # the smaller whole Unit fits; discovery already cut the source line
+    assert all(text(source, row) not in shown for row in dropped)
+    assert heading not in shown and "Kreis " not in shown
+    verification = next(call for call in chat.calls if call["system"].startswith("You check values"))
+    assert verification["user"].split("\n\n### RECORD")[0] == shown
+    assert all(call["counted_input_tokens"] == call["input_tokens"] <= 600 for call in result["calls"])
 
 
 def table_passage(rows: list[list[str]], separator: str = " | ") -> Passage:
@@ -1389,6 +1519,11 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
     from kei_exp.kie.extract import llm
     from tests.test_extract_llm import response
 
+    class RenderedCounter(WordCounter):
+        def request_tokens(self, system, user, schema=None):
+            rendered = llm.OpenAIChat().tokenize_body(system=system, user=user, schema=schema)["messages"]
+            return super().request_tokens(*(message["content"] for message in rendered))
+
     source = evidence("1. Hill.", "2. Valley.")
     schema = {"recordDescription": "One numbered place.", "schemaNodes": [
         {"id": "site", "name": "site", "type": "string"}]}
@@ -1396,7 +1531,7 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
         site = record.split()[1].rstrip(".")
         return {"site": candidate(site, site)}
     model = Model(source, entry=entry)
-    counter, posted = WordCounter(), []
+    counter, posted = RenderedCounter(), []
     loop = '{"site":{"value":' + " \r" * 100 + ('"quote":' if internal else "")
     schemas = {}
     monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
@@ -1411,7 +1546,8 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
         failed = is_loop and (not bounded or not recovery_ok)
         text = loop if failed else dumps(model(system, user, schemas[system]))
         return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length" if failed else "stop"}],
-            "usage": {"prompt_tokens": counter.request_tokens(system, user), "completion_tokens": json["max_tokens"] if failed else 20}})
+            "usage": {"prompt_tokens": len(system.split()) + len(user.split()) + counter.template_tokens,
+                      "completion_tokens": json["max_tokens"] if failed else 20}})
 
     monkeypatch.setattr(llm.requests, "post", post)
     result = unified.extract(None, source, request(schema), as_router(llm.OpenAIChat(model="fake/extractor")), counter=counter)

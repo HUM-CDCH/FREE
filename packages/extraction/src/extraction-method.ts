@@ -38,6 +38,7 @@ export const METHOD_MESSAGES = {
   inputTokens: 'Enter a whole number of tokens from 512 to 1,048,576, or leave Auto.',
   replyTokens: 'Enter a whole number of tokens from 64 to 65,536, or use the stage defaults.',
   catalogOverlap: 'Choose from 0 to 4 source lines.',
+  catalogCandidates: 'Choose from 1 to 1024 context excerpts.',
   migration: 'Review the unified Catalog settings and apply them before starting a Catalog Extraction.',
 } as const
 
@@ -98,11 +99,12 @@ export type RecipeCatalogSettings = z.output<typeof recipeCatalogSettingsSchema>
  *  fixture: reply reserves per stage, overlap in source lines, heading context, verification, window halvings and
  *  what discovery windows never cross (2: a printed page), whether a durable run reads entries while discovery
  *  still reads later windows (3), and whether an entry's reply may use the context its counted input leaves, its reserve
- *  the floor (4). Auto input is the served context minus the stage's reserve. New admissions use the
+ *  the floor (4), and how many context excerpts one window measures before omitting the rest unmeasured.
+ *  Auto input is the served context minus the stage's reserve. New admissions use the
  *  latest version; an Extraction keeps the one it was admitted under. */
 const UNIFIED_BASE = {
   reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
-  headings: true, verification: true, splits: 6,
+  headings: true, verification: true, splits: 6, candidates: 32,
 } as const
 export const UNIFIED_CATALOG_DEFAULTS = {
   1: { ...UNIFIED_BASE, overlap: 1 },
@@ -112,11 +114,13 @@ export const UNIFIED_CATALOG_DEFAULTS = {
 } as const
 export const UNIFIED_CATALOG_DEFAULTS_VERSION = 4 as const
 
-/** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
+/** The unified Catalog's six controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
   input_tokens: wholeNumber(METHOD_MESSAGES.inputTokens, 512).max(1_048_576, METHOD_MESSAGES.inputTokens).optional(),
   output_tokens: wholeNumber(METHOD_MESSAGES.replyTokens, 64).max(65_536, METHOD_MESSAGES.replyTokens).optional(),
   overlap: wholeNumber(METHOD_MESSAGES.catalogOverlap, 0).max(4, METHOD_MESSAGES.catalogOverlap).optional(),
+  candidates: wholeNumber(METHOD_MESSAGES.catalogCandidates, 1)
+    .max(1_024, METHOD_MESSAGES.catalogCandidates).optional(),
   headings: z.boolean().optional(),
   verification: z.boolean().optional(),
 }).strict()
@@ -127,7 +131,7 @@ export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.exten
   defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
-const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'headings', 'verification'] as const
+const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
 
 /** New Catalog admissions use the unified method only where the deployment enables it; until its release gates
  *  pass, the default remains the legacy generic and recipe Catalog. */

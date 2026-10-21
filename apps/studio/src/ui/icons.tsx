@@ -58,5 +58,4 @@ export const MoreGlyph = () => <svg aria-hidden="true" className="size-4" viewBo
 export const OneByOneGlyph = () => <Glyph><rect x="2.5" y="3.5" width="11" height="9" rx="1.5" /><path d="M7 6.5l2.5 1.5L7 9.5z" fill="currentColor" /></Glyph>
 export const ListGlyph = () => <Glyph strokeWidth={1.5}><path d="M3 4h10M3 8h10M3 12h10" /></Glyph>
 export const UndoGlyph = () => <Glyph><path d="M5.5 4L3 6.5 5.5 9M3 6.5h6.5a3.5 3.5 0 010 7H7" /></Glyph>
-export const CloseGlyph = () => <Glyph strokeWidth={1.8}><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></Glyph>
 export const DisclosureGlyph = ({ open }: { open: boolean }) => <Glyph className={`transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`}><path d="M4.5 6.5l3.5 3.5 3.5-3.5" /></Glyph>

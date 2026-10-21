@@ -184,6 +184,23 @@ class Tokenizing(Http):
         return Response(200, answer if self.context is None else {**answer, "max_model_len": self.context})
 
 
+def test_instruction_model_counts_include_the_reply_schema_and_do_not_reuse_another_schemas_count():
+    http = Tokenizing(ord)
+    chat = OpenAIChat(url="http://schema.test:8000/v1/chat/completions", model="m")
+    small = {"type": "object", "properties": {"site": {"type": "string"}}}
+    large = {"type": "object", "properties": {**small["properties"], "finds": {"type": "string"}}}
+    with counting("schema/1"):
+        counter = counter_for(chat, http=http)
+        bare = counter.request_tokens("Read", "Source")
+        first = counter.request_tokens("Read", "Source", small)
+        sent = len(http.sent)
+        second = counter.request_tokens("Read", "Source", large)
+        assert bare < first < second
+        assert len(http.sent) == sent + 1
+        assert counter.request_tokens("Read", "Source", small) == first
+        assert len(http.sent) == sent + 1
+
+
 def test_the_probe_is_a_fingerprint_a_tokenizer_change_outside_s_and_u_still_changes():
     """vLLM reports no tokenizer revision: a redeploy whose tokenizer renders "S" and "U" as before but other text
     (here, any non-ASCII character) differently changes the probe's token ids, so no earlier count is reused."""

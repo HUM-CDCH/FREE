@@ -413,10 +413,12 @@ function liveCataloguePages(): string[][] {
 // Defaults 2 reads every entry after discovery; 3 reads them while discovery still asks later windows.
 for(const defaults of [2,3] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
+  page.setDefaultTimeout(30_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
   const service=await startRealService(info.outputPath('live-results-worker.log'))
   const shot=(name:string)=>page.screenshot({path:info.outputPath(`${name}.png`)})
   const timeline:unknown[]=[]
+  let extractionId=''
   try {
     await loginResearcher(page,randomUUID())
     const project=(await (await page.request.post('/api/project-contexts',{headers:{Origin:E2E_ORIGIN},data:{name:'Live results catalogue'}})).json()).projectContext.projectContextId as string
@@ -425,6 +427,7 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
     const sourceId=ingestion.sourceDocumentId
     // The reasoning server also reads the fields: its values carry verification links, so Evidence is highlighted.
     const id=await seedNative(page,project,sourceId,'unified',{models:{fields:'instruct',reasoning:'instruct'},defaults})
+    extractionId=id
     await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
     await page.locator('#rail-tab-results').click()
     const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
@@ -520,6 +523,18 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
     expect(events.some(event=>event.key==='places')).toBe(true)
     expect(found,'discovery progress reached Studio while discovery ran').toBeGreaterThan(0)
     expect(final.values.filter((value:{links:unknown[]})=>value.links.length>0).length).toBeGreaterThan(0)
+  } catch(error) {
+    if(extractionId) {
+      // Keep the provider's saved requests and outputs before teardown removes the disposable database.
+      const snapshots=await Promise.allSettled(['','/values?limit=500','/history'].map(async suffix=>{
+        const response=await page.request.get(`/api/extractions/${extractionId}/durable${suffix}`,{timeout:10_000})
+        return {suffix,status:response.status(),body:await response.json()}
+      }))
+      await writeFile(info.outputPath('live-results-failure.json'),JSON.stringify({extractionId,timeline,
+        snapshots:snapshots.map(result=>result.status==='fulfilled'?result.value:{error:String(result.reason)})},null,2))
+        .catch(captureError=>console.error('Could not save live extraction failure evidence:',captureError))
+    }
+    throw error
   } finally {await service.close()}
 })
 

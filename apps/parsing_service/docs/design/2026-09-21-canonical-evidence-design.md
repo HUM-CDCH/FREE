@@ -118,10 +118,7 @@ FREE's anchors are `a_p{page}_s{index}`.
 ## 4. Geometry (`kei_exp/geometry.py`)
 
 A leaf module (no docling, no pdfium): `PointBox`, `PixelBox`, `CropTransform(origin_x, origin_y, pt_per_px_x,
-pt_per_px_y, source_px)` with `to_unit_points(bbox_px)`; `unit_pixels(bbox_px, source_px, image_px) -> PixelBox`
-(the crop-image box on the unit's native raster, floor left and top, ceil right and bottom, as the stage 0 design
-§3.1 rounds every transformed box); `clamp(box, within) -> PixelBox | None` (a rounded box clamped into the crop
-it was read from, `None` when nothing is left); `unit_to_page_points(placement,
+pt_per_px_y, source_px)` with `to_unit_points(bbox_px)`; `unit_to_page_points(placement,
 source_rect, spread_size_px, dpi, bbox) -> PointBox` (book-page points onto the PDF page: the four corners through
 the placement matrix and the visible page's origin, their bounding box); and the validators the models share
 (`ordered_box`, half-open pixel boxes). `pages.PdfPage.crop_transform` and `pages.BookPage.crop_transform` keep

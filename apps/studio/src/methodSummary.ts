@@ -47,13 +47,14 @@ export function unifiedLines(unified: UnifiedCatalogSettings): readonly MethodLi
     { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens === undefined ? `service defaults per stage${'entry_reply' in defaults ? '; an entry reply may use the rest of the context (not with a native fields model)' : ''}` : amount(unified.output_tokens, 'tokens') },
     { label: UNIFIED_LABELS.overlap, value: unified.overlap === undefined ? `service default (${defaults.overlap} source line)` : `${unified.overlap} source line${unified.overlap === 1 ? '' : 's'}` },
     { label: UNIFIED_LABELS.headings, value: onOff(unified.headings, defaults.headings) },
+    { label: UNIFIED_LABELS.candidates, value: unified.candidates === undefined ? `service default (${defaults.candidates} excerpts)` : `${unified.candidates} excerpt${unified.candidates === 1 ? '' : 's'}` },
     { label: UNIFIED_LABELS.verification, value: onOff(unified.verification, defaults.verification) },
   ]
 }
 
 export const UNIFIED_LABELS = {
   input_tokens: 'Input token ceiling', output_tokens: 'Reply token reserve', overlap: 'Window overlap',
-  headings: 'Heading context', verification: 'Verification',
+  headings: 'Heading context', candidates: 'Heading excerpts measured', verification: 'Verification',
 } as const
 
 export function settingsHeadline(settings: ActiveSettings | null): string {

@@ -113,7 +113,6 @@ export const ARTICLE_EVIDENCE = [
   { resultPath: ['records', 0, 'authors', 0], evidenceAnchorId: 'a_s2', verbatim: true, lexicalHits: 1 },
   { resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_s3', linkedBy: 'lexical' },
 ]
-export const ARTICLE_OCCURRENCES: Record<string, string[]> = { a_s1: ['o1', 'o2'], a_s2: ['o3'], a_s3: ['o4'] }
 /** The latest finalized review of the Article Extraction. */
 export const ARTICLE_DECISIONS: HistoricalDecision[] = [
   { resultPath: ['records', 0, 'authors', 0], evidenceAnchorId: 'a_s2', reviewedOccurrenceIds: ['o3'], action: 'APPROVED', reviewedValue: null },

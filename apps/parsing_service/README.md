@@ -217,6 +217,30 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   native fields model keeps the reserve). New admissions use it only where Studio's
   `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
+  Source-invalid copied discovery anchors use the same bounded smaller-window
+  recovery as failed replies. Original calls and issues remain in the artifact;
+  exhausted recovery leaves the affected text unresolved. The reply schema uses
+  exact three- or four-item alternatives so grammar backends cannot force an
+  optional copied anchor at a line's start.
+  Heading excerpts are shown separately in source order with source identities
+  and the latest shown excerpt marked. These labels are metadata, never evidence;
+  extraction and verification see the same counted context.
+  Discovery retains all preceding record-free ranges as context candidates.
+  Record windows and their overlap are planned first; whole context units are
+  then admitted within the remaining budget, newest first. An oversized unit is
+  skipped so smaller older units can still fit. Kept excerpts remain in source
+  order, and every omitted range is reported in `context_omitted`. Context cannot
+  shorten primary windows or add record calls; a split retry reconsiders both
+  previously kept and omitted context.
+  Scalar fields outside lists can inherit values from heading context actually
+  shown to the field model, with canonical source spans. Accepted heading values
+  must be printed literals and separately verified for applicability. Boolean
+  fields require the entry's own supporting text; heading text never grounds an
+  accepted Boolean, even when it prints `true` or `false`. An explicitly `derived`
+  field may retain a supporting heading as an `evidence_policy_derived` proposal,
+  including for a Boolean; it never populates the accepted record or its evidence.
+  An unclear verdict and disabled verification also keep candidates as proposals.
+  List values and item occurrences still require the entry's own text.
 
 Limitations:
 
@@ -232,6 +256,14 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
+- Heading applicability and supersession currently rely on the verification
+  model; code checks source spans rather than heading hierarchy. A model that
+  picks a stale heading and verifies it can produce an accepted wrong value.
+  A standing heading can still be omitted when the counted request has no room
+  for it; source layout kinds do not establish heading applicability. Long
+  histories repeat context references in the discovery artifact. When all
+  context does not fit, selecting whole units can require one tokenizer check
+  per candidate per window; the artifact also lists every omitted range.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership. For
