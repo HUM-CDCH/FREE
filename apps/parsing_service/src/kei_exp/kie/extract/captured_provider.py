@@ -27,6 +27,10 @@ class CapturedChat:
         return self.provider["model"]
 
     def complete(self, **_logical_request):
+        if self.provider.get("adapter") == "codex-cli":
+            from kei_exp.kie.extract.codex import CodexChat
+            return CodexChat(model=self.model, timeout=self.provider["timeout"]).complete_request(
+                self.payload, on_text=self.on_text)
         started=time.monotonic()
         if self.on_text is not None:
             return self._streamed(started)

@@ -8,7 +8,10 @@ from kei_exp.pagefile import PageTable
 from kei_exp.transcription.tables import table_of_html
 from kei_exp.transcription.types import html_to_text
 from kei_exp.kie.passages import Passage
+from kei_exp.kie.extract.assembly import grounding_accounting
+from kei_exp.kie.extract.codex import CodexCounter
 from kei_exp.kie.extract.grounding import verify
+from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
 from tests.test_extract_stages import SCHEMA
 
@@ -39,11 +42,12 @@ def test_invalid_nested_or_overlapping_cells_are_not_published():
         PageTable.model_validate(table)
 
 
-def test_a_unique_cell_is_offered_to_the_model_and_its_parent_not_double_counted():
+@pytest.mark.parametrize("projected", [False, True])
+def test_a_matching_cell_is_selectable_and_its_parent_is_not(projected):
     def choose(system, user, schema):
-        assert schema['properties']['C1']['enum'] == ['E1', 'E4', 'NONE']  # the table and its one matching cell
+        assert schema['properties']['C1']['enum'] == ['E4', 'NONE']
         return {'C1': 'E4'}
-    links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0)
+    links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0, projected=projected)
     assert len(calls) == 1 and not issues
     assert (links[0].cell, links[0].hits, links[0].precision, links[0].bbox_pt, links[0].linked_by) == (
         'r1_c0', 1, 'cell', (0, 20, 90, 38), 'model')
@@ -84,3 +88,108 @@ def test_grounded_catalog_uses_only_spans_wholly_inside_one_cell():
     outcome.alternatives = []
     outcome.spans = [Span(segment_id=item.id, start=cell.start, end=item.table.cells[3].end)]
     assert evidence_link(outcome, {item.id: item}, {})['cell'] is None
+
+
+@pytest.mark.parametrize("projected", [False, True])
+def test_a_whole_table_answer_is_rejected_when_its_matching_cell_was_offered(projected):
+    links, _, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA,
+                              FakeChat(lambda *_: {'C1': 'E1'}), record=0, projected=projected)
+    assert links == [] and issues[0].code == 'unknown_label'
+
+
+def test_whole_table_support_remains_per_claim_and_per_table():
+    first = passage()
+    other = replace(passage('<table><tr><td>Other support</td></tr></table>'), id='p4_s0', page=4)
+    prose = Passage('p4_s1', 4, 1, 'A glass bead catalogue.', 'text', (0, 0, 200, 60), 'block')
+    def choose(system, user, schema):
+        # 7-8 has a cell in the first table: only that parent is removed, not other sources.
+        assert schema['properties']['C1']['enum'] == ['E4', 'E8', 'E10', 'NONE']
+        # This value crosses cells, so the first table must still be available for this claim.
+        assert schema['properties']['C2']['enum'] == ['E1', 'E8', 'E10', 'NONE']
+        return {'C1': 'E4', 'C2': 'E1'}
+    links, calls, issues = verify([first, other, prose], {'entry_no': '7-8', 'site': '7-8 Glass bead'},
+                                  SCHEMA, FakeChat(choose), record=0)
+    assert len(calls) == 1 and not issues
+    assert [(link.segment, link.precision) for link in links] == [('p3_s4', 'cell'), ('p3_s4', 'segment')]
+
+
+@pytest.mark.parametrize("quoted,span_ids", [(True, False), (False, True)])
+def test_other_grounding_modes_also_exclude_a_matching_cells_parent(quoted, span_ids):
+    def choose(system, user, schema):
+        assert schema['properties']['C1']['properties']['label']['enum'] == ['E4', 'NONE']
+        return {'C1': {'label': 'E4', 'attribution': True, **({'quote': '7-8'} if quoted else {})}}
+    links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0,
+                                  quoted=quoted, span_ids=span_ids)
+    assert len(calls) == 1 and not issues and links[0].cell == 'r1_c0'
+
+
+@pytest.mark.parametrize("projected", [False, True])
+@pytest.mark.parametrize("captioned", [False, True])
+def test_a_table_its_matching_cell_hid_is_offered_for_a_claim_the_cell_leaves_unsupported(captioned, projected):
+    # '7-8' is printed as an entry number, not a site; only a caption naming the site supports the claim.
+    html = HTML.replace('<table>', '<table><caption>Site identifier: 7-8</caption>') if captioned else HTML
+    offered = []
+
+    def choose(system, user, schema):
+        offered.append(schema['properties']['C1']['enum'])
+        return {'C1': 'E1' if captioned and 'E1' in offered[-1] else 'NONE'}
+    links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0,
+                                  projected=projected)
+    assert offered == [['E4', 'NONE'], ['E1', 'E4', 'NONE']] and len(calls) == 2 and not issues
+    assert [(link.segment, link.precision) for link in links] == ([('p3_s4', 'segment')] if captioned else [])
+
+
+@pytest.mark.parametrize("quoted,span_ids", [(True, False), (False, True)])
+def test_a_cell_the_model_does_not_attest_also_offers_its_table(quoted, span_ids):
+    offered = []
+
+    def choose(system, user, schema):
+        offered.append(schema['properties']['C1']['properties']['label']['enum'])
+        label = offered[-1][0] if len(offered) == 1 else 'NONE'
+        return {'C1': {'label': label, 'attribution': False, **({'quote': ''} if quoted else {})}}
+    links, calls, issues = verify([passage()], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0,
+                                  quoted=quoted, span_ids=span_ids)
+    assert len(calls) == 2 and set(offered[0]) < set(offered[1]) and links == [] and not issues
+
+
+def test_a_cell_quoted_with_text_it_does_not_print_also_offers_its_table():
+    html = HTML.replace('<table>', '<table><caption>Site identifier: 7-8</caption>')
+
+    def choose(system, user, schema):
+        label = schema['properties']['C1']['properties']['label']['enum'][0]  # E4, then the table E1
+        return {'C1': {'label': label, 'quote': 'Site identifier: 7-8', 'attribution': True}}
+    links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0, quoted=True)
+    assert len(calls) == 2 and not issues and [(link.segment, link.precision) for link in links] == [('p3_s4', 'segment')]
+
+
+def test_a_caption_fallback_refused_by_the_codex_budget_is_not_completed():
+    # The item is located by its sku, while its site is only supported by the table caption.
+    rows = ''.join(f'<tr><td>S{n:04}</td><td>7-8</td></tr>' for n in range(150))
+    item = passage('<table><caption>Site identifier: 7-8. ' + 'context ' * 5800 +
+                   '</caption><tr><th>Article</th><th>Entry number</th></tr>' + rows + '</table>')
+    schema = Schema(recordDescription='One catalogue.', schemaNodes=[
+        {'id': 'items', 'name': 'items', 'type': 'array', 'children': [
+            {'id': 'sku', 'name': 'sku', 'type': 'string'}, {'id': 'site', 'name': 'site', 'type': 'string'}]}])
+    fields = {'items': [{'sku': 'S0007', 'site': '7-8'}]}
+    paths = {('records', 0, 'items', 0, field) for field in ('sku', 'site')}
+
+    def check(counter):
+        chat = FakeChat(lambda system, user, schema: {
+            claim: spec['enum'][0] if claim == 'C1' else 'E1' if 'E1' in spec['enum'] else 'NONE'
+            for claim, spec in schema['properties'].items()})
+        links, calls, issues = verify([item], fields, schema, chat, record=0, counter=counter)
+        return links, calls, issues, chat
+
+    links, calls, issues, chat = check(CodexCounter('test-model'))
+    assert len(calls) == 1 and [link.path[-1] for link in links] == ['sku']
+    assert [(issue.code, issue.path) for issue in issues] == [
+        ('grounding_exceeds_budget', ('records', 0, 'items', 0, 'site'))]
+    accounting = grounding_accounting(paths, {link.path for link in links}, issues)
+    assert (accounting['supported'], accounting['unsupported'], accounting['not_completed']) == (1, 0, 1)
+    assert accounting['reasons'] == {'grounding_exceeds_budget': 1}
+
+    # The same caption and scripted model support the site when the wider check fits; sku is not checked again.
+    links, calls, issues, chat = check(CodexCounter('test-model', context_tokens=131_072))
+    assert len(calls) == 2 and issues == []
+    assert list(chat.calls[1]['schema']['properties']) == ['C2']
+    assert [(link.path[-1], link.precision) for link in links] == [('sku', 'cell'), ('site', 'segment')]

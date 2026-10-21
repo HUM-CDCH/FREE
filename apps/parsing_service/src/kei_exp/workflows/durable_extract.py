@@ -22,7 +22,7 @@ from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.unified import UnifiedOptions
-from kei_exp.kie.extract.models import EXTRACT_MODELS, Router, routes
+from kei_exp.kie.extract.models import Router, resolve, routes
 from kei_exp.kie.extract.run import ExtractRequest, dispatch, Options
 from kei_exp.kie.passages import load
 from kei_exp.workflows import config
@@ -97,6 +97,10 @@ def chat_for(provider):
     if provider["adapter"]=="gliformer":
         return GLiFormerFields(url=provider["url"],model=provider["model"],timeout=provider["timeout"],
                               pinned_info=provider["nativeInfo"])
+    if provider["adapter"] == "codex-cli":
+        from kei_exp.kie.extract.codex import CodexChat
+        return CodexChat(model=provider["model"], url=provider["url"], timeout=provider["timeout"],
+                         max_tokens=provider["maxTokens"])
     kind = {"instruct": OpenAIChat, "nuextract": NuExtractChat}.get(provider["adapter"])
     if kind is None:
         raise ValueError("unsupported durable fields adapter")
@@ -123,7 +127,7 @@ def effective(lease):
     request = ExtractRequest.model_validate({"schema": selected["schemaTree"], "options": options})
     models = {}
     for role, key in routes(request.options).items():
-        model = EXTRACT_MODELS[key]
+        model = resolve(key)
         client = model.chat()
         # Deployment endpoints only; no researcher keys/headers reach storage.
         from urllib.parse import urlsplit
@@ -147,18 +151,20 @@ def effective(lease):
 
 
 class PinnedCounter:
-    def __init__(self, budget):
+    def __init__(self, budget, *, upper_bound=False):
         self.context_tokens = budget["context"]
         self.counted = budget["counted"]
+        self.upper_bound = upper_bound
 
     def request_tokens(self, *_):
         return self.counted
 
 
-def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call]) -> bool:
+def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call], *, upper_bound: bool = False) -> bool:
     """A call the server counted otherwise than its planning did: the attempt's kept /tokenize counts may be stale (a
-    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped."""
-    if any(call.counted_input_tokens is not None and call.input_tokens is not None
+    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped.
+    An upper bound (Codex) is computed, never served, so it cannot be stale and differs from usage by design."""
+    if not upper_bound and any(call.counted_input_tokens is not None and call.input_tokens is not None
            and call.input_tokens != call.counted_input_tokens for call in attempts):
         tokens.forget(f"{extraction}/{attempt}")
         return True
@@ -200,8 +206,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 parsed,call=calls.structure(client,**body)
                 attempts=[call]
             else:
-                parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"]))
-                drop_stale_counts(extraction, attempt, attempts)
+                counter = PinnedCounter(request["budget"],
+                    upper_bound=request.get("tokenizer", {}).get("input_counting") == "upper_bound")
+                parsed, attempts = calls.complete(client, **body, counter=counter)
+                drop_stale_counts(extraction, attempt, attempts, upper_bound=counter.upper_bound)
                 if shown:
                     shown.done()
             output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}

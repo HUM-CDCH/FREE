@@ -11,6 +11,7 @@ from collections import Counter as Tally, OrderedDict
 import pytest
 
 from kei_exp.kie.extract import calls, run, tokens, unified
+from kei_exp.kie.extract.codex import CodexChat
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
@@ -282,6 +283,19 @@ def test_another_served_tokenizer_reads_finished_entries_again(monkeypatch):
     attempt.step()
     attempt.plan()
     assert finished <= {number for number, _ in attempt.trace[-1]["entries"]}
+
+
+def test_codex_reserved_counts_reuse_finished_entries(monkeypatch):
+    """Codex's reserved counts are a pure function of its policy and model, so finished entries are reused too."""
+    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
+    attempt.counter = CodexChat("test-model").counter()
+    for _ in range(12):
+        attempt.plan()
+        attempt.step()
+    finished = set(finished_entries(attempt))
+    assert finished
+    attempt.plan()
+    assert not {number for number, _ in attempt.trace[-1]["entries"]} & finished
 
 
 @pytest.fixture

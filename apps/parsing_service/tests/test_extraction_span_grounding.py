@@ -193,7 +193,7 @@ def test_filtered_cell_labels_stay_stable_across_budget_splits():
     assert [p["span"] for p in proofs] == ["p1_s0/r2_c0", "p1_s0/r2_c1"]
     assert [p["quote"] for p in proofs] == ["37", "42"]
     for call, claim, label in zip(chat.calls, ("C1", "C2"), ("E5", "E6")):
-        assert call["schema"]["properties"][claim]["properties"]["label"]["enum"] == ["E1", label, "NONE"]
+        assert call["schema"]["properties"][claim]["properties"]["label"]["enum"] == [label, "NONE"]
         assert f"{label}: p1_s0 Table" in call["user"]
         assert "row/header context" in call["user"] and "Group α" in call["user"]
 
