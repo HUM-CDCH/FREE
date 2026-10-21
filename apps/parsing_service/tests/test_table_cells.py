@@ -8,7 +8,10 @@ from kei_exp.pagefile import PageTable
 from kei_exp.transcription.tables import table_of_html
 from kei_exp.transcription.types import html_to_text
 from kei_exp.kie.passages import Passage
+from kei_exp.kie.extract.assembly import grounding_accounting
+from kei_exp.kie.extract.codex import CodexCounter
 from kei_exp.kie.extract.grounding import verify
+from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
 from tests.test_extract_stages import SCHEMA
 
@@ -158,3 +161,35 @@ def test_a_cell_quoted_with_text_it_does_not_print_also_offers_its_table():
     links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0, quoted=True)
     assert len(calls) == 2 and not issues and [(link.segment, link.precision) for link in links] == [('p3_s4', 'segment')]
 
+
+def test_a_caption_fallback_refused_by_the_codex_budget_is_not_completed():
+    # The item is located by its sku, while its site is only supported by the table caption.
+    rows = ''.join(f'<tr><td>S{n:04}</td><td>7-8</td></tr>' for n in range(150))
+    item = passage('<table><caption>Site identifier: 7-8. ' + 'context ' * 5800 +
+                   '</caption><tr><th>Article</th><th>Entry number</th></tr>' + rows + '</table>')
+    schema = Schema(recordDescription='One catalogue.', schemaNodes=[
+        {'id': 'items', 'name': 'items', 'type': 'array', 'children': [
+            {'id': 'sku', 'name': 'sku', 'type': 'string'}, {'id': 'site', 'name': 'site', 'type': 'string'}]}])
+    fields = {'items': [{'sku': 'S0007', 'site': '7-8'}]}
+    paths = {('records', 0, 'items', 0, field) for field in ('sku', 'site')}
+
+    def check(counter):
+        chat = FakeChat(lambda system, user, schema: {
+            claim: spec['enum'][0] if claim == 'C1' else 'E1' if 'E1' in spec['enum'] else 'NONE'
+            for claim, spec in schema['properties'].items()})
+        links, calls, issues = verify([item], fields, schema, chat, record=0, counter=counter)
+        return links, calls, issues, chat
+
+    links, calls, issues, chat = check(CodexCounter('test-model'))
+    assert len(calls) == 1 and [link.path[-1] for link in links] == ['sku']
+    assert [(issue.code, issue.path) for issue in issues] == [
+        ('grounding_exceeds_budget', ('records', 0, 'items', 0, 'site'))]
+    accounting = grounding_accounting(paths, {link.path for link in links}, issues)
+    assert (accounting['supported'], accounting['unsupported'], accounting['not_completed']) == (1, 0, 1)
+    assert accounting['reasons'] == {'grounding_exceeds_budget': 1}
+
+    # The same caption and scripted model support the site when the wider check fits; sku is not checked again.
+    links, calls, issues, chat = check(CodexCounter('test-model', context_tokens=131_072))
+    assert len(calls) == 2 and issues == []
+    assert list(chat.calls[1]['schema']['properties']) == ['C2']
+    assert [(link.path[-1], link.precision) for link in links] == [('sku', 'cell'), ('site', 'segment')]

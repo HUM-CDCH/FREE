@@ -4,7 +4,7 @@ import json
 import pytest
 
 from kei_exp.kie.extract import grounding, run
-from kei_exp.kie.extract.assembly import ground_records
+from kei_exp.kie.extract.assembly import ground_records, grounding_accounting
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Link
@@ -262,7 +262,7 @@ def test_generic_catalog_offers_other_rows_for_a_claim_its_items_row_leaves_unsu
         ("items", 0, "name"): "r1_c0", ("items", 0, "warm_value"): "r1_c2", ("items", 0, "cold_value"): "r2_c2"}
 
 
-def test_generic_catalog_fallback_too_large_for_the_budget_leaves_the_claim_unsupported_without_an_issue():
+def test_generic_catalog_fallback_too_large_for_the_budget_leaves_the_claim_not_completed():
     schema = Schema(recordDescription="One price list.", schemaNodes=[
         {"id": "items", "name": "items", "type": "array", "children": [
             {"id": "sku", "name": "sku", "type": "verbatim-string"},
@@ -270,6 +270,12 @@ def test_generic_catalog_fallback_too_large_for_the_budget_leaves_the_claim_unsu
     table = grid([("header", ("Article", "Qty")), *(("data", (f"S{n:04}", "1")) for n in range(150))])
     chat = FakeChat(lambda system, user, schema: {claim: "NONE" for claim in schema["properties"]})
     result = ground_records([([table], {"items": [{"sku": "S0007", "pack_size": "1"}]})], schema, chat, budget=24_000)
-    # The sku's fallback fits and is asked; pack_size's (every row prints "1") is not, and stays unsupported.
-    assert result.links == [] and result.issues == []
+    # The sku's fallback fits and is asked; pack_size's (every row prints "1") cannot finish its check.
+    assert result.links == []
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("grounding_exceeds_budget", ("records", 0, "items", 0, "pack_size"))]
+    accounting = grounding_accounting({("records", 0, "items", 0, field) for field in ("sku", "pack_size")},
+                                      set(), result.issues)
+    assert (accounting["supported"], accounting["unsupported"], accounting["not_completed"]) == (0, 1, 1)
+    assert accounting["reasons"] == {"grounding_exceeds_budget": 1}
     assert [list(call["schema"]["properties"]) for call in chat.calls] == [["C1", "C2"], ["C1"]]

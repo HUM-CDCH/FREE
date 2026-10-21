@@ -249,7 +249,6 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                            if labelled[label].cell is not None or labelled[label].passage.id not in cell_parents]
     fallback = {claim: labels for claim, labels in unfiltered.items() if set(labels) != set(eligible[claim])}
     retry: list[str] = []
-    retried: set[str] = set()
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
     batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
@@ -267,7 +266,6 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         if not batches:  # the claims the precise round left unsupported, offered what it hid
             for claim in retry:
                 eligible[claim] = fallback.pop(claim)
-            retried.update(retry)
             batches, retry = [retry[n:n + batch_size] for n in range(0, len(retry), batch_size)], []
         batch = batches.pop(0)
         made_before = len(links)
@@ -307,7 +305,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             if len(batch) > 1:
                 middle = len(batch) // 2
                 batches[0:0] = [batch[:middle], batch[middle:]]
-            elif batch[0] not in retried:  # a fallback too large leaves the precise round's verdict: unsupported
+            else:
                 issues.append(Issue("grounding_exceeds_budget",
                                     (f"{count} input + 2048 output tokens exceed {counter.context_tokens}" if counter
                                      else f"{size} characters exceed {budget}") + "; complete evidence was not sent",
