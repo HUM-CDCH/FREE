@@ -51,8 +51,8 @@ export function expectedConversionMs(pages: number, msPerPage: number = CONVERSI
 const REFERENCE_PARALLEL_REQUESTS = 4
 const CONVERSION_HISTORY_SIZE = 50
 
-/** A conservative admission budget: concurrency scales the reference floor, matching history can raise it. Reused
- * and native results must never shorten it. It is passed to DBOS inside submitToKei, so replay keeps the deadline. */
+/** Concurrency scales the static floor, and matching history can raise the allowance above it. A rolling estimate
+ * may decrease as fast work dominates. Admission occurs inside submitToKei, so replay keeps the deadline. */
 function conversionTimeoutMs(submission: KeiConversionSubmission, parallelRequests: number, history: readonly WorkflowStatus[]): number {
   const slowdown = Math.max(1, REFERENCE_PARALLEL_REQUESTS / parallelRequests)
   const samples: number[] = []
@@ -70,7 +70,7 @@ function conversionTimeoutMs(submission: KeiConversionSubmission, parallelReques
     if (Number.isFinite(perPage) && perPage > 0) samples.push(perPage)
   }
   samples.sort((a, b) => a - b)
-  // The slow end of recent matching work protects scans in a history that also contains fast native PDFs.
+  // A rolling percentile can lose a slow-scan allowance when fast matching conversions dominate the window.
   const measured = samples[Math.ceil(samples.length * 0.9) - 1] ?? 0
   const msPerPage = Math.max(CONVERSION_MS_PER_PAGE * slowdown, measured)
   return Math.ceil(Math.max(600_000 * slowdown,

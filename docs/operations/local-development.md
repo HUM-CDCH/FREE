@@ -11,7 +11,9 @@ runs as a container, rendering the same
 Parsing deadlines adapt to OCR capacity and recent matching conversion times.
 The standalone default assumes one concurrent OCR request; GPU/model overlays
 pass their `OCR_MAX_NUM_SEQS` (default four) to Studio as
-`FREE_PARSING_OCR_PARALLEL`. A single-request deployment starts with a
+`FREE_PARSING_OCR_PARALLEL`. The Codex overlay pins this value and the worker's
+OCR client concurrency to one, regardless of the OCR server's capacity.
+A single-request deployment starts with a
 40-minute minimum and increases the budget for larger or slower documents.
 The admitted deadline survives a worker restart. For long parsing runs, avoid
 editing the watched service checkout: a source reload repeats the unfinished

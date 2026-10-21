@@ -516,6 +516,17 @@ test('development enables both CLI deployment connections; the base file leaves 
   )
 })
 
+for (const serverCapacity of ['1', '4']) test(`Codex parsing deadlines use the worker limit with server capacity ${serverCapacity}`, () => {
+  const environment = {
+    ...process.env, FREE_GPU: 'off', KEI_CODEX_MODEL: 'synthetic-codex-model', OCR_MAX_NUM_SEQS: serverCapacity,
+  }
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}), null, environment,
+    ['-f', 'compose.codex.yaml']).services
+  assert.equal(services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL, '1')
+  assert.equal(services.studio.environment.FREE_PARSING_OCR_PARALLEL,
+    services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL)
+})
+
 test('no deployment admits new Catalog work on the unified method unless its operator sets the gate', () => {
   const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
   assert.equal(services.studio.environment.FREE_CATALOG_METHOD, '')

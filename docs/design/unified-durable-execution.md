@@ -553,11 +553,15 @@ queue.
   reference is `max(10 min, 60 s + 18.9 s × pages)` (M0R 4). Studio scales
   its floor and per-page seed by `max(1, 4 / FREE_PARSING_OCR_PARALLEL)`;
   standalone deployments assume one request, and the GPU/model overlays use
-  `OCR_MAX_NUM_SEQS` (default four). The per-page cost can grow to the 90th
+  `OCR_MAX_NUM_SEQS` (default four). The Codex overlay pins both Studio's
+  capacity and the worker's `SURYA_INFERENCE_PARALLEL` to one, even when the
+  OCR server permits more requests. The per-page cost can grow to the 90th
   percentile of matching conversions among the latest 50 successes, comparing
   requested OCR, layout, page source, ingest and cut settings and using
   execution time only.
-  Fast native/reused results never lower the seed. The deadline is three times
+  Fast native/reused results never lower the static seed, but can lower a
+  previously learned allowance as they dominate the rolling sample; this policy
+  does not retain a slow-scan allowance indefinitely. The deadline is three times
   the resulting expected cost, with the scaled ten-minute floor, counting
   2000 pages for a PDF that pdf.js could not count. History is read inside the
   existing submission step: checkpoints and DBOS keep an admitted deadline

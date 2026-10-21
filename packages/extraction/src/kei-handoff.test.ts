@@ -363,3 +363,22 @@ test('invalid OCR capacity fails before any workflow can be enqueued', () => {
     assert.equal(calls.enqueued.length, 0)
   }
 })
+
+
+test('mixed matching histories can lower a learned allowance only as far as the static concurrency floor', async () => {
+  const request = fixture('convert.input').request
+  const slow: Row = {
+    status: 'SUCCESS', input: [request], output: { ...fixture('convert.output.ok'), page_count: 10 },
+    dequeuedAt: 1_000_000, completedAt: 1_620_000,
+  }
+  // Fast native/reused work still has a valid positive per-page sample, below the static seed.
+  const fast: Row = { ...slow, completedAt: 1_040_000 }
+  for (const [fastCount, expected] of [[0, 3_480_000], [8, 3_480_000], [9, 2_400_000], [49, 2_400_000]] as const) {
+    const { client, calls } = fakeClient([], [slow, ...Array.from({ length: fastCount }, () => fast)])
+    await handoff.createKeiHandoff(client).submitConversion({
+      workflowId: 'kei-convert:mixed', lane: handoff.KEI_QUEUE.convertSmall, pageCount: 19,
+      request, owner: 'owner', attributes: {},
+    })
+    assert.equal((calls.enqueued[0]!.options as { workflowTimeoutMS: number }).workflowTimeoutMS, expected)
+  }
+})
