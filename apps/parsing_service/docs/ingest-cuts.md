@@ -85,11 +85,13 @@ scanner border, and `_Page.policy` has the final say on each page's cut:
   scan noise count as ink too.
 - A blank page yields no crops. A page with no body blocks after the retry is
   transcribed whole, furniture included, when its detected headers and footers
-  account for at least 90 % of its ink.
+  account for at least 90 % of its ink, and yields no crops when ink covers
+  less than 0.1 % of it: a scanned blank page's dust and specks, too little
+  for a line of text.
 
-`CutError` is raised when no body blocks remain and the furniture does not
-explain the ink, when nothing lies inside the scanner border, for an unknown
-layout model, and for a page index or crop box the renderer refuses.
+`CutError` is raised when no body blocks remain and neither the furniture nor
+scan noise explains the ink, when nothing lies inside the scanner border, for
+an unknown layout model, and for a page index or crop box the renderer refuses.
 
 The cut runs Heron-101 (`layout_heron_101`) by default; Studio's **Page
 regions** choice also offers Heron and Egret XLarge. A run uses its model for

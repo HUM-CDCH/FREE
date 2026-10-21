@@ -40,6 +40,10 @@ PAD = 4                   # pt around every crop
 INK_FREE = 0.005          # max ink fraction for a profile column/row to count as blank
 RETRY_COVERAGE = 0.9      # below this, retry layout on smaller views; ink may also be decoration or scan noise
 COLUMN_COVERAGE = 0.97    # a few missing lines matter even when the rest of a column is complete
+# ponytail: a scan of an empty page still has dust, specks and show-through dark enough to count as ink. At layout
+# resolution one line of 8 pt text is about 0.2% of an A4 page and a page number well under 0.01%; calibrate on real
+# blank scans if this ever drops a page with content.
+BLANK_INK = 0.001         # max ink fraction of a page the layout finds nothing on to count as blank
 MARGIN_LABELS = {"page_header", "page_footer"}
 TEXT_LABELS = {"text", "list_item", "section_header"}
 
@@ -237,7 +241,11 @@ class _Page:
             margins = [box[:4] for box in self.boxes if box.label in MARGIN_LABELS]
             if self.ink_share(*margins) >= RETRY_COVERAGE:
                 return [self.region("page", self.bounds)]
-            raise CutError(f"page {self.number}: layout found no body blocks after tiled layout")
+            # A scanned blank page: too little ink for a line of text, so specks the layout rightly ignored.
+            if self.ink.mean() < BLANK_INK:
+                return []
+            raise CutError(f"page {self.number}: layout found no body blocks after tiled layout "
+                           f"({self.ink.mean():.2%} of the page is ink)")
         return recovered if recovered_coverage > coverage else regions
 
     def _extend_column(self, region: Region, yspan: Span) -> Region:

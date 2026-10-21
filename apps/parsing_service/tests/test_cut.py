@@ -284,6 +284,14 @@ def test_a_numbered_blank_page_keeps_its_furniture(found_initially):
     assert len(regions) == 1 and regions[0].bbox == page.bounds and regions[0].ink == 1
 
 
+def test_a_scanned_blank_page_with_specks_yields_no_crops():
+    # Dust on an empty scan is ink the layout rightly ignores; it must not abort the whole document.
+    specks = [(x, y, x + 2, y + 2) for x, y in [(100, 100), (300, 500), (450, 700), (520, 60)]]
+    page = fake_page([], unboxed=specks)
+    with patch("kei_exp.cut._layout", return_value=[]):
+        assert page.regions() == []
+
+
 def test_a_footer_does_not_hide_unrecognized_body_content():
     page = fake_page([(520, 760, 535, 780, "page_footer")], unboxed=[(50, 40, 550, 700)])
     with patch("kei_exp.cut._layout", return_value=[]), pytest.raises(CutError, match="no body blocks"):
