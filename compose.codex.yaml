@@ -6,6 +6,11 @@ x-codex-environment: &codex-environment
   CODEX_HOME: /codex-config/codex
 
 services:
+  studio:
+    environment:
+      # Match this overlay's effective per-conversion OCR client limit below.
+      FREE_PARSING_OCR_PARALLEL: "1"
+
   parsing_service:
     environment: *codex-environment
     volumes:
