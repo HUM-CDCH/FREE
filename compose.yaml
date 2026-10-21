@@ -155,8 +155,6 @@ services:
       NODE_ENV: production
       # Parsing and extraction use the service built from this checkout.
       KEI_EXP_URL: http://parsing_service:8001
-      # Deadline calibration starts conservatively for a standalone OCR server. GPU/model overlays match its capacity.
-      FREE_PARSING_OCR_PARALLEL: "${OCR_MAX_NUM_SEQS:-1}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy

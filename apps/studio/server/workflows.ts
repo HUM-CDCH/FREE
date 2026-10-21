@@ -36,9 +36,7 @@ export const STUDIO_WORKFLOW_NAMES: readonly string[] = [
 export function sourceConversionWorkflowPorts(): IngestionWorkflowPorts & ReprocessWorkflowPorts {
   return {
     steps: dbosSteps,
-    kei: createKeiHandoff(studioDbos().kei, {
-      conversionParallelRequests: Number(process.env.FREE_PARSING_OCR_PARALLEL ?? 1),
-    }),
+    kei: createKeiHandoff(studioDbos().kei),
     readBase: KEI_EXP_URL,
     inboxRoot: sourceInboxRoot(),
     packageStore: canonicalPackageStore,

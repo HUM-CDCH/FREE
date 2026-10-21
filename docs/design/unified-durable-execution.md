@@ -549,19 +549,10 @@ queue.
   `registerQueue` defaults to `always_update` and would overwrite kei's
   configuration.
 - **kei deadlines.** `workflowTimeoutMS` applies to kei `convert` only,
-  measured from kei dequeue and fixed when submitted. The four-request Spark
-  reference is `max(10 min, 60 s + 18.9 s × pages)` (M0R 4). Studio scales
-  its floor and per-page seed by `max(1, 4 / FREE_PARSING_OCR_PARALLEL)`;
-  standalone deployments assume one request, and the GPU/model overlays use
-  `OCR_MAX_NUM_SEQS` (default four). The per-page cost can grow to the 90th
-  percentile of matching conversions among the latest 50 successes, comparing
-  requested OCR, layout, page source, ingest and cut settings and using
-  execution time only.
-  Fast native/reused results never lower the seed. The deadline is three times
-  the resulting expected cost, with the scaled ten-minute floor, counting
-  2000 pages for a PDF that pdf.js could not count. History is read inside the
-  existing submission step: checkpoints and DBOS keep an admitted deadline
-  through recovery, and queue wait is excluded. Studio
+  measured from kei dequeue: `max(10 min, 60 s + 18.9 s × pages)` (M0R 4),
+  counting 2000 pages for a PDF that pdf.js could not count. The budget is per
+  page because cutting (2.7 s per page on the CPU) and OCR (about 2 s per
+  crop) grow with the document: a 2000-page scan takes roughly 3.5 h. Studio
   parents have no deadline; they end with their child. A durable Extraction
   attempt has none either; each provider call keeps its own timeout
   (`KEI_EXTRACT_TIMEOUT`).
@@ -837,10 +828,9 @@ synthetic documents.
    `updated_at` from the database clock, and a repeated cancel of a cancelled
    workflow moves its `updated_at` again. `deleteRuns` leaves a run with a
    cancelled workflow alone until a kei restart. Priorities, FIFO ties and
-   dequeue-relative deadlines hold. The four-request reference budget is
-   `max(600_000, 3 × (20_000 + 6_300 × pages))` ms; admission scales it for
-   OCR concurrency and slower matching history as specified under *kei
-   deadlines*.
+   dequeue-relative deadlines hold. The conversion budget is
+   `max(600_000, 3 × (20_000 + 6_300 × pages))` ms (6.3 s per page measured, a
+   factor of 3, a 10-minute floor), provisional until a run near 2000 pages.
 5. **Model calls.** `DBOS.stepStatus.cancelSignal` reaches a wrapper model
    inside a step and fires about 1 s after the cancel, before any provider
    call.
