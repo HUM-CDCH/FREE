@@ -372,7 +372,7 @@ async function openExtractions(page: Page): Promise<void> {
 
 /** The prepare screen, over every Source Document in the Project Context. */
 async function prepareBatch(page: Page): Promise<void> {
-  await panel(page).getByRole('button', { name: 'New Batch Extraction' }).click()
+  await panel(page).getByRole('button', { name: 'Custom Batch Extraction' }).click()
   await expect(panel(page).getByText('2 selected')).toBeVisible()
 }
 

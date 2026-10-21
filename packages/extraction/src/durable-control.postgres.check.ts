@@ -145,7 +145,8 @@ test('native pilot finalization drives batch progress and unlocks only its produ
   assert.equal(pending.schemaTree.recordScope,'document')
   assert.deepEqual(pending.method.settings.article.identity_fields,['title'])
   await repository.adoptSelection(ids[0],{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:[]})
-  assert.equal(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
+  // A later revision of an approved schema needs no pilot of its own to be approved.
+  assert.notEqual(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
 })
 
 test('durable controls, concurrent corrections, fixed pages and deletion retain one owned Extraction',async t=> {

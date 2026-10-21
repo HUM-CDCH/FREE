@@ -7,7 +7,7 @@ import {
   listSchemaRevisions,
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
-import { Button, GuidedNextStep } from '../ui'
+import { Button } from '../ui'
 import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
@@ -45,7 +45,6 @@ import {
   listBatchSchemaSuggestions,
   openBatchExtraction,
 } from './batchExtractions'
-import { stabiliseSchemaRevision } from './schemaGovernance'
 import type { ProjectContext } from './transport'
 import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
 import { sourceCoverageNotice, UNCOMBINED_NOTICE } from '../sourceCoverageNotice'
@@ -166,26 +165,26 @@ export default function BatchExtractionsPanel({
   sourceDocuments,
   openBatchExtractionId,
   pilotSchemaRevisionId,
-  pilotRequested = false,
-  onPilotRequestHandled,
+  guidedRequest = null,
+  onGuidedRequestHandled,
   summary = null,
   onNavigate,
   onProgressChange,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
-  /** The project's workflow position, which decides the history's next-step
-   *  banner (guided-pilot-extraction-workflow). */
+  /** The project's workflow position: which Schema Revision the guided pilot and batch run. */
   summary?: ProjectContext['summary'] | null
   /** The routed Batch Extraction, so one is linkable and survives a refresh. */
   openBatchExtractionId: string | null
   /** Set right after approving a Schema Revision from the document workspace
    *  — opens straight into "Pilot Extraction" on this exact Revision. */
   pilotSchemaRevisionId: string | null
-  /** The project's "Next: Pilot Extraction": open the pilot preparation as its own button does, once the Source
-   *  Documents it pre-picks from have loaded. */
-  pilotRequested?: boolean
-  onPilotRequestHandled?: () => void
+  /** The workflow bar's Next for a step whose work starts here (guided-workflow-phases): open the pilot or the
+   *  collection-scale preparation on the Current Schema Revision, or the first result left to review, once what it
+   *  needs has loaded. */
+  guidedRequest?: 'pilot' | 'batch' | 'review' | null
+  onGuidedRequestHandled?: () => void
   onNavigate: (route: NavigableRoute) => void
   onProgressChange?: () => void
 }) {
@@ -261,21 +260,12 @@ export default function BatchExtractionsPanel({
     batchExtractionId: string
     message: string
   } | null>(null)
-  const [stabilisingChosenSchema, setStabilisingChosenSchema] = useState(false)
-  const [stabiliseChosenSchemaError, setStabiliseChosenSchemaError] = useState<string | null>(null)
-  // Guided next-step nudge (guided-pilot-extraction-workflow): fires right
-  // after the preparation screen stabilises a Schema Revision. Holds its
-  // `schemaRevisionId` so "Run the full collection" can preselect it.
-  const [stabiliseNudge, setStabiliseNudge] = useState<string | null>(null)
-  // A Batch Extraction this panel watched run to completion with results left
-  // to review: nudge straight into reviewing them.
-  const [finishedBatch, setFinishedBatch] = useState<BatchExtraction | null>(null)
-  const runningBatchIds = useRef<ReadonlySet<string> | null>(null)
-  // Which of the two `extract` rounds the prepare screen is currently framed
-  // as — set by whichever entry point opened it, not derived from the
-  // selection size, so it stays put while the researcher freely adds or
-  // removes documents (guided-pilot-extraction-workflow).
-  const [preparingKind, setPreparingKind] = useState<'pilot' | 'batch'>('pilot')
+  // What the prepare screen is framed as — the workflow's pilot or batch step
+  // on the Current Schema Revision, or a custom run under Advanced — set by
+  // whichever entry point opened it, not derived from the selection size, so
+  // it stays put while the researcher freely adds or removes documents.
+  const [preparingKind, setPreparingKind] = useState<'pilot' | 'batch' | 'custom'>('pilot')
+  const guidedPrepare = preparingKind !== 'custom'
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(sourceDocumentIds),
   )
@@ -524,27 +514,6 @@ export default function BatchExtractionsPanel({
     return () => window.clearInterval(interval)
   }, [batches.value, suggestions.value])
 
-  // Only a run seen in flight counts as finishing here: opening the tab on an
-  // already-finished one stays quiet, like the page's other nudges.
-  useEffect(() => {
-    if (!batches.value) return
-    const running = new Set(
-      batches.value.filter(batchRunning).map((batch) => batch.batchExtractionId),
-    )
-    const previous = runningBatchIds.current
-    runningBatchIds.current = running
-    if (!previous) return
-    const finished = batches.value
-      .filter(
-        (batch) =>
-          previous.has(batch.batchExtractionId) &&
-          !running.has(batch.batchExtractionId),
-      )
-      .toSorted(newestBatchFirst)[0]
-    if (finished && batchExtractionProgress(finished).needsReview > 0)
-      setFinishedBatch(finished)
-  }, [batches.value])
-
   useEffect(() => {
     const refresh = () => {
       if (pendingRefreshes.current === 0)
@@ -742,38 +711,6 @@ export default function BatchExtractionsPanel({
     }
   }
 
-  /** Stabilises the Schema Revision chosen in the preparation screen,
-   *  unlocking collection-scale Batch Extraction against it
-   *  (guided-workflow-phases). Requires at least one reviewed pilot
-   *  Extraction — enforced server-side. */
-  const stabiliseChosenSchema = async () => {
-    if (chosenRevision) await stabiliseRevision(chosenRevision.schemaRevisionId)
-  }
-
-  const stabiliseRevision = async (revisionId: string) => {
-    if (stabilisingChosenSchema) return
-    setStabilisingChosenSchema(true)
-    setStabiliseChosenSchemaError(null)
-    try {
-      await stabiliseSchemaRevision({
-        projectContextId,
-        schemaRevisionId: revisionId,
-      })
-      setRunFailure(null)
-      setRunFailureCode(null)
-      setChosenSchemaReload((value) => value + 1)
-      setStabiliseNudge(revisionId)
-      // The stepper and the next-step banner read the project summary.
-      onProgressChange?.()
-    } catch (error) {
-      setStabiliseChosenSchemaError(
-        failureText(error, 'This Schema Revision could not be stabilised.'),
-      )
-    } finally {
-      setStabilisingChosenSchema(false)
-    }
-  }
-
   /**
    * Runs the open Batch Extraction's selection again as its own Batch
    * Extraction. The stored one is immutable research state, so a rerun is a new
@@ -841,28 +778,18 @@ export default function BatchExtractionsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pilotSchemaRevisionId, hasSourceDocuments])
 
-  /** "Pilot Extraction" entry point: opens the preparation screen with a
-   *  small (2-3) Source Document selection pre-picked, so a researcher can
-   *  start piloting in one click — still free to change it before running
-   *  (guided-pilot-extraction-workflow). The Extraction Schemas list isn't
-   *  loaded yet at this point (it only fetches once `screen === 'prepare'`),
-   *  so the schema field is left to the existing "pick the first schema
-   *  with a current revision" auto-select effect that already runs once
-   *  that happens, rather than duplicating its lookup here against stale
-   *  (empty) data. */
-  const beginPilotExtraction = () => {
+  /** The workflow's pilot: opens the preparation screen on the Current
+   *  Schema Revision with a small (2-3) Source Document selection pre-picked,
+   *  so a researcher can start piloting in one click — still free to change
+   *  the selection before running (guided-workflow-phases). */
+  const beginPilotExtraction = (revisionId: string | null) => {
+    if (revisionId) setSchemaRevisionId(revisionId)
+    setChosenSchemaReload((value) => value + 1)
+    clearSuggestedFields()
     setSelected(new Set(sourceDocumentIds.slice(0, Math.min(3, sourceDocumentIds.length))))
     setPreparingKind('pilot')
     setPreparing(true)
   }
-
-  useEffect(() => {
-    if (!pilotRequested || !hasSourceDocuments) return
-    onPilotRequestHandled?.()
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    beginPilotExtraction()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pilotRequested, hasSourceDocuments])
 
   const openNewBatch = () => {
     setRunFailure(null)
@@ -940,12 +867,6 @@ export default function BatchExtractionsPanel({
       : null
   const chosenSchemaShown =
     schemaRevisionId !== SUGGEST_SCHEMA && chosenRevision !== null
-  // "Skip the pilot" only makes sense when the collection run it leads to can
-  // actually start: the Revision is approved, or the whole project fits in a
-  // pilot. Otherwise the gate would refuse the run the button just promised.
-  const canSkipPilot =
-    chosenRevision?.stabilisedAt != null ||
-    sourceDocumentIds.length <= PILOT_BATCH_SELECTION_LIMIT
   // Only the chosen schema's own editor speaks for it (a replaced editor may still be registered for a render).
   const chosenEditor =
     savedSchemaSnap?.extractionSchemaId === chosenRevision?.extractionSchemaId ? savedSchemaSnap : null
@@ -966,12 +887,6 @@ export default function BatchExtractionsPanel({
   const preparingSuggestedBatch =
     suggestion.matches('running')
   const openingAnyBatch = openingBatch || preparingSuggestedBatch
-  // Whether there's an approved schema to pilot isn't knowable here — the
-  // Extraction Schemas list only loads once inside the `prepare` screen
-  // (see `beginPilotExtraction`'s note) — so this only guards against the
-  // obviously-empty case; an unapproved-schema state is handled the same
-  // way it already is for "New Batch Extraction".
-  const canPilot = !openingAnyBatch && sourceDocumentIds.length > 0
   const validSelection =
     selected.size > 0 && selected.size <= BATCH_EXTRACTION_SELECTION_LIMIT
   // Mirrors the server's size-based stabilise gate (guided-workflow-phases):
@@ -1007,6 +922,26 @@ export default function BatchExtractionsPanel({
         // Opening waits for the editor's save; a failed or conflicting one blocks it until the editor recovers.
         chosenEditor?.save?.status !== 'error' &&
         chosenEditor?.save?.status !== 'conflict')
+  // Said beside Run whenever it cannot be taken, so a disabled Run is never a mystery.
+  const runBlocker: string | null = canRun || openingAnyBatch
+    ? null
+    : selected.size === 0
+      ? 'Select at least one Source Document.'
+      : overSelectionLimit
+        ? null // Already said beside the selection.
+        : saved.state.status === 'loading'
+          ? 'Loading your extraction settings…'
+          : saved.state.status === 'error'
+            ? `Your extraction settings could not be read: ${saved.state.message}`
+            : collectionScaleNeedsStabilisedSchema
+              ? `Approve the schema in the workflow bar to run more than ${PILOT_BATCH_SELECTION_LIMIT} Source Documents.`
+              : schemaRevisionId === SUGGEST_SCHEMA
+                ? 'Get the suggested fields ready first.'
+                : schemaRevisionId.length === 0
+                  ? 'Choose an Extraction Schema.'
+                  : selectedStrategy === null
+                    ? 'Choose Article or Catalog.'
+                    : 'The schema has unsaved changes: resolve them above first.'
   const toggleAllSourceDocuments = () => {
     if (schemaRevisionId === SUGGEST_SCHEMA) clearSuggestedFields()
     setSelected(
@@ -1042,12 +977,9 @@ export default function BatchExtractionsPanel({
         : openBatch
           ? stamp(openBatch.createdAt)
           : 'Batch Extraction'
-  // The "← Back to history" / "New Batch Extraction" header reads as a
-  // second, conflicting framing on top of the pilot banner below it (which
-  // already explains what's happening and offers its own way out via
-  // "Skip"), so it's left out entirely here — the top tabs above this panel
-  // still get a researcher out if they want to leave without running or
-  // skipping anything.
+  // The "← Back to history" header reads as a second, conflicting framing on
+  // top of the pilot banner below it (which already explains what's
+  // happening and offers its own way out), so it's left out entirely here.
   const isPilotPrepare = screen === 'prepare' && preparingKind === 'pilot'
 
   /** Opens the batch's first member still waiting for review, with the way
@@ -1076,6 +1008,8 @@ export default function BatchExtractionsPanel({
 
   const prepareCollectionRun = (revisionId: string) => {
     setSchemaRevisionId(revisionId)
+    // Approval happens in the workflow bar: read the revision again for its approval.
+    setChosenSchemaReload((value) => value + 1)
     setSelected(
       new Set(
         sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
@@ -1090,48 +1024,34 @@ export default function BatchExtractionsPanel({
     setPreparing(true)
   }
 
-  // The workflow's next step, said where it happens whatever the selection
-  // size: review the latest run, approve the reviewed pilot's schema, or run
-  // it over the documents nothing has extracted yet. Nothing while a run is
-  // still going — the stepper already shows its progress.
-  const newestBatches = (batches.value ?? []).toSorted(newestBatchFirst)
-  const latestBatch = newestBatches[0] ?? null
-  const reviewedPilot = newestBatches.find(
-    (batch) =>
-      batch.schemaRevisionId === summary?.currentSchemaRevisionId &&
-      batch.members.length <= PILOT_BATCH_SELECTION_LIMIT &&
-      batch.members.some((member) => member.currentReview !== null),
-  )
-  const latestNeedsReview =
-    latestBatch && !batchRunning(latestBatch)
-      ? batchExtractionProgress(latestBatch).needsReview
-      : 0
-  const nextAction:
-    | { kind: 'approve'; batch: BatchExtraction }
-    | { kind: 'review'; batch: BatchExtraction; count: number }
-    | { kind: 'run'; schemaRevisionId: string; remaining: number }
-    | null =
-    !summary || !latestBatch || newestBatches.some(batchRunning)
-      ? null
-      : summary.phase === 'validate' && !summary.schemaStabilised && reviewedPilot
-        ? { kind: 'approve', batch: reviewedPilot }
-        : latestNeedsReview > 0
-          ? { kind: 'review', batch: latestBatch, count: latestNeedsReview }
-          : summary.phase === 'validate' &&
-              summary.schemaStabilised &&
-              summary.extractedSourceDocumentCount < sourceDocumentIds.length
-            ? {
-                kind: 'run',
-                schemaRevisionId: latestBatch.schemaRevisionId,
-                remaining:
-                  sourceDocumentIds.length - summary.extractedSourceDocumentCount,
-              }
-            : null
-  // A member list already shows what to review; approving is still the next step there.
-  const shownNextAction =
-    screen === 'history' || (screen === 'members' && nextAction?.kind === 'approve')
-      ? nextAction
-      : null
+  // The workflow bar's Next lands here once what it opens has loaded.
+  const batchesRead = batches.value !== null
+  const handledGuidedRequest = useRef<typeof guidedRequest>(null)
+  useEffect(() => {
+    if (!guidedRequest) {
+      handledGuidedRequest.current = null
+      return
+    }
+    if (handledGuidedRequest.current === guidedRequest) return
+    if (guidedRequest === 'review' ? !batchesRead : !hasSourceDocuments) return
+    handledGuidedRequest.current = guidedRequest
+    onGuidedRequestHandled?.()
+    const revisionId = summary?.currentSchemaRevisionId ?? null
+    // A one-shot hand-off from the workflow bar, like the pilot hand-off above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (guidedRequest === 'pilot') beginPilotExtraction(revisionId)
+    else if (guidedRequest === 'batch') {
+      if (revisionId) prepareCollectionRun(revisionId)
+    } else {
+      const unreviewed = (batches.value ?? [])
+        .toSorted(newestBatchFirst)
+        .find((batch) => !batchRunning(batch) && batchExtractionProgress(batch).needsReview > 0)
+      if (unreviewed) reviewBatch(unreviewed)
+      else showHistory()
+    }
+    // Only a new request, or the data it waits for arriving, should act.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guidedRequest, hasSourceDocuments, batchesRead])
 
   return (
     <div
@@ -1182,20 +1102,11 @@ export default function BatchExtractionsPanel({
               <Button
                 variant="secondary"
                 size="md"
-                disabled={!canPilot}
-                title={canPilot ? undefined : 'Add Source Documents on the Sources tab first.'}
-                onClick={beginPilotExtraction}
-              >
-                <PlusIcon />
-                Pilot Extraction
-              </Button>
-              <Button
-                variant="positive"
-                size="md"
                 disabled={openingAnyBatch}
+                title="Advanced: choose the schema and Source Documents yourself, outside the guided workflow."
                 onClick={() => {
                   setSelected(new Set(sourceDocumentIds))
-                  setPreparingKind('batch')
+                  setPreparingKind('custom')
                   setPreparing(true)
                 }}
               >
@@ -1204,7 +1115,7 @@ export default function BatchExtractionsPanel({
                 ) : (
                   <>
                     <PlusIcon />
-                    New Batch Extraction
+                    Custom Batch Extraction
                   </>
                 )}
               </Button>
@@ -1218,14 +1129,9 @@ export default function BatchExtractionsPanel({
             {runFailure}
           </p>
           {runFailureCode === 'schema_not_stabilised' && (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={stabilisingChosenSchema}
-              onClick={() => void stabiliseChosenSchema()}
-            >
-              {stabilisingChosenSchema ? 'Approving…' : 'Approve for batch extraction'}
-            </Button>
+            <p className="text-[11px] leading-snug text-ink-muted">
+              Approve the schema in the workflow bar above, then run again.
+            </p>
           )}
         </div>
       )}
@@ -1233,52 +1139,6 @@ export default function BatchExtractionsPanel({
         <p className="mb-3 shrink-0 text-[11px] leading-snug text-ink-muted" role="status">
           {runNotice}
         </p>
-      )}
-
-      {shownNextAction && (
-        <div
-          className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-accent/40 bg-accent-soft px-3 py-2"
-          role="status"
-        >
-          <div className="min-w-0">
-            <p className="text-[11px] leading-snug text-ink">
-              {shownNextAction.kind === 'approve'
-                ? `Pilot reviewed. Approve ${shownNextAction.batch.extractionSchemaName} v${shownNextAction.batch.schemaRevisionNumber} to unlock Batch Extraction over the full collection, or edit the schema on the Schemas tab and pilot again.`
-                : shownNextAction.kind === 'review'
-                  ? `${shownNextAction.count} result${shownNextAction.count === 1 ? '' : 's'} from the latest ${latestBatch && latestBatch.members.length <= PILOT_BATCH_SELECTION_LIMIT ? 'pilot' : 'Batch Extraction'} still need${shownNextAction.count === 1 ? 's' : ''} review.`
-                  : `The schema is approved. ${shownNextAction.remaining} Source Document${shownNextAction.remaining === 1 ? ' has' : 's have'} not been extracted yet.`}
-            </p>
-            {shownNextAction.kind === 'approve' && stabiliseChosenSchemaError && (
-              <p className="mt-1 text-[11px] text-danger" role="alert">
-                {stabiliseChosenSchemaError}
-              </p>
-            )}
-          </div>
-          <Button
-            size="sm"
-            variant="positive"
-            disabled={
-              shownNextAction.kind === 'approve'
-                ? stabilisingChosenSchema
-                : openingAnyBatch
-            }
-            onClick={() => {
-              if (shownNextAction.kind === 'approve')
-                void stabiliseRevision(shownNextAction.batch.schemaRevisionId)
-              else if (shownNextAction.kind === 'review')
-                reviewBatch(shownNextAction.batch)
-              else prepareCollectionRun(shownNextAction.schemaRevisionId)
-            }}
-          >
-            {shownNextAction.kind === 'approve'
-              ? stabilisingChosenSchema
-                ? 'Approving…'
-                : 'Approve for batch extraction'
-              : shownNextAction.kind === 'review'
-                ? 'Review results'
-                : 'Run Batch Extraction'}
-          </Button>
-        </div>
       )}
 
       <div className="min-h-[430px]">
@@ -1297,18 +1157,14 @@ export default function BatchExtractionsPanel({
                   catch a schema issue now than after running the whole
                   collection.
                 </p>
-                {canSkipPilot && (
-                  <button
-                    type="button"
-                    className="shrink-0 text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none hover:no-underline"
-                    onClick={() => {
-                      setPreparingKind('batch')
-                      setSelected(new Set(sourceDocumentIds))
-                    }}
-                  >
-                    Skip — run the full collection instead
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="shrink-0 text-[11px] font-semibold text-ink-muted underline decoration-dotted underline-offset-2 outline-none hover:text-ink hover:no-underline disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={openingAnyBatch}
+                  onClick={showHistory}
+                >
+                  Cancel
+                </button>
               </div>
             )}
             {/* Chosen before the schema, not after: the pilot banner above
@@ -1407,7 +1263,8 @@ export default function BatchExtractionsPanel({
                 <select
                   className={`${control} mt-1 block w-full font-normal`}
                   value={schemaRevisionId}
-                  disabled={schemas.value === null || openingAnyBatch}
+                  // The workflow's pilot and batch run its Current Schema Revision; another schema is a custom run.
+                  disabled={schemas.value === null || openingAnyBatch || (guidedPrepare && schemaRevisionId !== '')}
                   onChange={(event) => {
                     const nextRevisionId = event.target.value
                     setSchemaRevisionId(nextRevisionId)
@@ -1447,9 +1304,12 @@ export default function BatchExtractionsPanel({
                             ]
                           : [],
                       )}
-                      <option value={SUGGEST_SCHEMA}>
-                        Suggest fields from selected sources
-                      </option>
+                      {/* Suggesting a schema here skips the workflow's schema steps: a custom run only. */}
+                      {!guidedPrepare && (
+                        <option value={SUGGEST_SCHEMA}>
+                          Suggest fields from selected sources
+                        </option>
+                      )}
                     </>
                   ) : (
                     <option value="">
@@ -1511,23 +1371,12 @@ export default function BatchExtractionsPanel({
             {chosenRevision &&
               (chosenRevision.stabilisedAt ||
                 selected.size > PILOT_BATCH_SELECTION_LIMIT) && (
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2">
+                <div className="mb-3 rounded-md border border-line bg-surface-muted px-3 py-2">
                   <p className="text-[11px] leading-snug text-ink-muted">
                     {chosenRevision.stabilisedAt
                       ? 'This schema is approved for batch extraction — the full collection is unlocked.'
-                      : `This schema isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved schema. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it.`}
+                      : `This schema isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved schema. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it in the workflow bar.`}
                   </p>
-                  {!chosenRevision.stabilisedAt && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={stabilisingChosenSchema}
-                      title={`Stabilising needs at least one reviewed pilot Batch Extraction under this Schema Revision on ${PILOT_BATCH_SELECTION_LIMIT} or fewer Source Documents.`}
-                      onClick={() => void stabiliseChosenSchema()}
-                    >
-                      {stabilisingChosenSchema ? 'Approving…' : 'Approve for batch extraction'}
-                    </Button>
-                  )}
                 </div>
               )}
             {schemaRevisionId === SUGGEST_SCHEMA &&
@@ -1542,11 +1391,6 @@ export default function BatchExtractionsPanel({
                   </p>
                 </div>
               )}
-            {stabiliseChosenSchemaError && (
-              <p className="mb-3 text-[11px] text-danger" role="alert">
-                {stabiliseChosenSchemaError}
-              </p>
-            )}
             {chosenRevision !== null && (
               <SavedSchemaEditor
                 key={chosenRevision.extractionSchemaId}
@@ -1668,7 +1512,12 @@ export default function BatchExtractionsPanel({
                 )}
               </section>
             )}
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+              {runBlocker && (
+                <p className="text-[11px] leading-snug text-ink-muted" role="status">
+                  {runBlocker}
+                </p>
+              )}
               <Button
                 variant="positive"
                 size="md"
@@ -1725,40 +1574,6 @@ export default function BatchExtractionsPanel({
           />
         )}
       </div>
-      {stabiliseNudge && (
-        <GuidedNextStep
-          title="Schema approved"
-          description={
-            sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
-              ? `Batch Extraction is unlocked. Choose up to ${BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents for the run.`
-              : 'Batch Extraction is unlocked. Select all your Source Documents and run the full batch.'
-          }
-          actionLabel={
-            sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
-              ? 'Choose documents'
-              : 'Run the full collection'
-          }
-          onAction={() => prepareCollectionRun(stabiliseNudge)}
-          onDismiss={() => setStabiliseNudge(null)}
-        />
-      )}
-      {finishedBatch && !stabiliseNudge && (
-        <GuidedNextStep
-          title={
-            finishedBatch.members.length <= PILOT_BATCH_SELECTION_LIMIT
-              ? 'Pilot Extraction finished'
-              : 'Batch Extraction finished'
-          }
-          description={
-            finishedBatch.members.length <= PILOT_BATCH_SELECTION_LIMIT
-              ? 'Review each pilot result. Once they look right, approve the schema for batch extraction here on the Extractions tab.'
-              : 'Review the results to validate the collection; each document offers the next one to review.'
-          }
-          actionLabel="Review results"
-          onAction={() => reviewBatch(finishedBatch)}
-          onDismiss={() => setFinishedBatch(null)}
-        />
-      )}
     </div>
   )
 }

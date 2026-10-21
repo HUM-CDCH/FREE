@@ -40,14 +40,16 @@ export function provisionalSummary(
   sourceDocumentCount: number,
 ): ProjectContextActivitySummary {
   return {
-    phase: sourceDocumentCount > 0 ? 'chat' : 'ingest',
+    phase: sourceDocumentCount > 0 ? 'schema' : 'upload',
     extractionCount: 0,
     extractedSourceDocumentCount: 0,
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
+    pendingExtractionSourceDocumentCount: sourceDocumentCount,
     schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
+    currentSchemaRevisionReviewed: false,
     lastActivityAt: createdAt,
     runningBatch: null,
   }

@@ -9,19 +9,16 @@ import { CreateProjectModal } from './CreateProjectModal'
 import { useProjectContexts } from './useProjectContexts'
 
 const phases = [
-  { number: '01', name: 'Ingest', copy: 'Add your Source Documents.' },
+  { number: '01', name: 'Upload', copy: 'Add your Source Documents.' },
   {
     number: '02',
-    name: 'Chat',
+    name: 'Create schema',
     copy: 'Describe what you want to extract; a schema is drafted.',
   },
-  { number: '03', name: 'Approve', copy: 'Refine the schema, then approve it.' },
-  {
-    number: '04',
-    name: 'Extract',
-    copy: 'Pilot it on a few documents, stabilise the schema, then run the full collection.',
-  },
-  { number: '05', name: 'Validate', copy: 'Review each value against its Evidence.' },
+  { number: '03', name: 'Pilot', copy: 'Try the schema on a few documents and review the results.' },
+  { number: '04', name: 'Approve', copy: 'Approve the schema for the whole collection.' },
+  { number: '05', name: 'Batch extract', copy: 'Run the approved schema over every document.' },
+  { number: '06', name: 'Review', copy: 'Review each value against its Evidence.' },
 ]
 
 /**
@@ -57,8 +54,8 @@ function summaryTone(summary: ProjectContext['summary']): PhaseProgressTone {
   if (summary.runningBatch) return 'running'
   if (summary.staleSourceDocumentCount > 0) return 'stale'
   if (
-    summary.phase === 'validate' &&
-    summary.extractedSourceDocumentCount > 0 &&
+    summary.phase === 'review' &&
+    summary.pendingExtractionSourceDocumentCount === 0 &&
     summary.reviewedSourceDocumentCount === summary.extractedSourceDocumentCount
   )
     return 'validated'

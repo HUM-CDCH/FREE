@@ -247,27 +247,31 @@ const failureResponse = (
 /** The persisted per-project summary as the list contract ships it. */
 function projectSummary(
   overrides: Partial<{
-    phase: 'ingest' | 'chat' | 'approve' | 'extract' | 'validate'
+    phase: 'upload' | 'schema' | 'pilot' | 'approve' | 'batch' | 'review'
     extractionCount: number
     extractedSourceDocumentCount: number
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
+    pendingExtractionSourceDocumentCount: number
     schemaDraftCount: number
     currentSchemaRevisionId: string | null
     schemaStabilised: boolean
+    currentSchemaRevisionReviewed: boolean
     lastActivityAt: string
     runningBatch: { completedMemberCount: number; memberCount: number } | null
   }> = {},
 ) {
   return {
-    phase: 'chat' as const,
+    phase: 'schema' as const,
     extractionCount: 0,
     extractedSourceDocumentCount: 0,
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
+    pendingExtractionSourceDocumentCount: 1,
     schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
+    currentSchemaRevisionReviewed: false,
     lastActivityAt: project.createdAt,
     runningBatch: null,
     ...overrides,
@@ -490,8 +494,8 @@ describe('Studio home', () => {
         name: 'From source to structured data, with the evidence to prove it',
       }),
     ).toBeVisible()
-    // The five workflow phases, named per the design.
-    for (const phase of ['Ingest', 'Chat', 'Approve', 'Extract', 'Validate'])
+    // The six workflow steps, named as the workflow bar names them.
+    for (const phase of ['Upload', 'Create schema', 'Pilot', 'Approve', 'Batch extract', 'Review'])
       expect(home().getByText(phase)).toBeInTheDocument()
     expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
 
@@ -544,7 +548,7 @@ describe('Studio home', () => {
           projectListResponse(
             [project],
             projectSummary({
-              phase: 'validate',
+              phase: 'review',
               extractionCount: 3,
               extractedSourceDocumentCount: 3,
               reviewedSourceDocumentCount: 2,
@@ -560,27 +564,28 @@ describe('Studio home', () => {
 
   it('shows the phase bar and state line for each summary state', async () => {
     const states = [
-      { name: 'Chatting', summary: projectSummary({ phase: 'chat' }) },
+      { name: 'Chatting', summary: projectSummary({ phase: 'schema' }) },
       {
         name: 'Running',
         summary: projectSummary({
-          phase: 'extract',
+          phase: 'batch',
           runningBatch: { completedMemberCount: 31, memberCount: 42 },
         }),
       },
       {
         name: 'Reviewed',
         summary: projectSummary({
-          phase: 'validate',
+          phase: 'review',
           extractionCount: 2,
           extractedSourceDocumentCount: 2,
           reviewedSourceDocumentCount: 2,
+          pendingExtractionSourceDocumentCount: 0,
         }),
       },
       {
         name: 'Drifted',
         summary: projectSummary({
-          phase: 'extract',
+          phase: 'pilot',
           extractionCount: 1,
           extractedSourceDocumentCount: 1,
           staleSourceDocumentCount: 1,
@@ -616,8 +621,8 @@ describe('Studio home', () => {
 
     const drifted = within(home().getByRole('button', { name: 'Drifted' }))
     expect(drifted.getByText('Re-run needed')).toBeInTheDocument()
-    // Every card carries the five-segment bar from the shared primitive.
-    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(5)
+    // Every card carries the six-segment bar from the shared primitive.
+    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(6)
   })
 
   it('lists persisted recent activity beside the cards, and nothing when empty', async () => {
@@ -686,7 +691,7 @@ describe('Studio home', () => {
           projectListResponse(
             [project],
             projectSummary({
-              phase: 'validate',
+              phase: 'review',
               extractedSourceDocumentCount: 3,
               reviewedSourceDocumentCount: 3,
               staleSourceDocumentCount: 2,
