@@ -152,7 +152,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   way: its box is OCR'd as a `text` crop read in the block's place. A table so
   replaced loses its cells. Page-sized scans with a text overlay, mixed
   native/scanned documents and rotated textless artwork take the scan path, cut as
-  [ingest-cuts.md](docs/ingest-cuts.md) describes. A native table with no
+  [ingest-cuts.md](docs/ingest-cuts.md) describes. Large textless images on digital
+  PDFs use artwork OCR; requests for book splitting retain
+  the conservative large-image scan route. A native table with no
   readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
   and the conversion incomplete.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
