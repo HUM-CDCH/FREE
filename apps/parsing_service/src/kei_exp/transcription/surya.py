@@ -16,6 +16,7 @@ from kei_exp.regions import Crop, region_info
 from kei_exp.transcription import html as html_export
 from kei_exp.transcription.types import (
     TRANSCRIBER_KNOBS,
+    ArtworkNeedsContext,
     ConversionError,
     Execution,
     PageRecord,
@@ -29,28 +30,32 @@ class _CompletionClient:
     sink is given, and the last attempt's prompt usage and finish reason kept here, before Surya reduces the
     response to its text and token count."""
 
-    def __init__(self, client, on_token: Callable[[str], None] | None = None) -> None:
+    def __init__(self, client, on_token: Callable[[str], None] | None = None, *, watch_artwork: bool = False) -> None:
         self.client = client
         self.on_token = on_token
+        self.watch_artwork = watch_artwork
+        self.figure_loop = False
         self.input_tokens: int | None = None
         self.finish_reason: str | None = None
         self.chat = self.completions = self
 
     def create(self, **kwargs):
         self.input_tokens = self.finish_reason = None
-        if self.on_token is None:
+        self.figure_loop = False
+        if self.on_token is None and not self.watch_artwork:
             response = self.client.chat.completions.create(**kwargs)
         else:
             with self.client.chat.completions.create(**kwargs, stream=True,
                                                      stream_options={"include_usage": True}) as stream:
-                response = _collect_completion(stream, self.on_token)
+                response = _collect_completion(stream, self.on_token, watch_artwork=self.watch_artwork)
+                self.figure_loop = response.figure_loop
             self.finish_reason = response.choices[0].finish_reason
         count = getattr(response.usage, "prompt_tokens", None)
         self.input_tokens = count if type(count) is int and count >= 0 else None
         return response
 
 
-def _collect_completion(stream, on_token: Callable[[str], None]):
+def _collect_completion(stream, on_token: Callable[[str], None] | None, *, watch_artwork: bool = False):
     """A streamed chat completion, collected into what Surya's `_generate_one` reads from a whole one: the joined
     text as `choices[0].message.content`, that choice's logprobs and finish reason, and the usage the server
     sends last (`None` when it does not, as for a whole completion). A stream that ends without a finish reason
@@ -58,19 +63,40 @@ def _collect_completion(stream, on_token: Callable[[str], None]):
     pieces: list[str] = []
     logprobs: list = []
     usage = finish_reason = None
+    figure_loop, checked, length = False, 0, 0
     for chunk in stream:
         usage = chunk.usage or usage
         for choice in chunk.choices:  # the usage chunk has none
             text = choice.delta.content if choice.delta else None
             if text:
                 pieces.append(text)
-                on_token(text)
+                length += len(text)
+                if on_token:
+                    on_token(text)
             if choice.logprobs and choice.logprobs.content:
                 logprobs.extend(choice.logprobs.content)
             finish_reason = choice.finish_reason or finish_reason
-    if finish_reason not in STOP_REASONS:
+        if watch_artwork and length >= 512 and length - checked >= 128:
+            from surya.inference.parsers import parse_full_page_html
+            from surya.inference.util import detect_repeat_token
+
+            raw = "".join(pieces).strip()
+            if not raw.endswith("</div>"):
+                continue  # wait for the whole block; an unfinished following text/table must not be discarded
+            checked = length
+            blocks = parse_full_page_html(raw)
+            # Only the observed empty, identical full-frame figure loop. Repeated prose, table rows and
+            # different picture boxes keep Surya's existing retries and layout recovery.
+            if len(blocks) > 1 and not html_to_text(raw).strip() and all(
+                block.label in {"Figure", "Image", "Picture", "Diagram"}
+                and block.bbox == (0, 0, 1000, 1000)
+                and (block.label, block.html) == (blocks[0].label, blocks[0].html) for block in blocks
+            ) and detect_repeat_token(raw):
+                figure_loop = True
+                break  # the caller's context manager closes the stream before any recovery starts
+    if not figure_loop and finish_reason not in STOP_REASONS:
         raise RuntimeError(f"Surya stream ended without a finish reason: {finish_reason!r}")
-    return SimpleNamespace(usage=usage, choices=[SimpleNamespace(
+    return SimpleNamespace(usage=usage, figure_loop=figure_loop, choices=[SimpleNamespace(
         message=SimpleNamespace(content="".join(pieces)),
         logprobs=SimpleNamespace(content=logprobs) if logprobs else None, finish_reason=finish_reason)])
 
@@ -85,10 +111,11 @@ class _InferenceManager:
     parsing and retry predicate; mirror only the concurrent retry loop, with a private client per item.
     """
 
-    def __init__(self, emit: Emit | None = None) -> None:
+    def __init__(self, emit: Emit | None = None, *, artwork_count: int = 0) -> None:
         from surya.inference import SuryaInferenceManager
         self.backend = SuryaInferenceManager().backend
         self.emit = emit
+        self.artwork_count = artwork_count
 
     def generate(self, batch):
         from surya.inference.backends.openai_client import _generate_one, _should_retry
@@ -104,7 +131,8 @@ class _InferenceManager:
             page = item.metadata["page_idx"] + 1 if item.prompt_type == PROMPT_TYPE_HIGH_ACCURACY_BBOX else None
             emit = self.emit if page is not None else None
             on_token = (lambda text: emit({"type": "token", "page": page, "text": text})) if emit else None
-            client = _CompletionClient(self.backend._client, on_token)
+            client = _CompletionClient(self.backend._client, on_token,
+                                       watch_artwork=page is not None and page <= self.artwork_count)
             retries, temperature, top_p = 0, 0.0, 0.1
             while True:
                 if emit:
@@ -115,7 +143,7 @@ class _InferenceManager:
                     temperature=temperature, top_p=top_p, timeout=settings.SURYA_INFERENCE_TIMEOUT_SECONDS,
                     request_logprobs_default=settings.SURYA_INFERENCE_LOGPROBS,
                 )
-                if not _should_retry(result, retries, 3):
+                if client.figure_loop or not _should_retry(result, retries, 3):
                     break
                 retries += 1
                 if result.error:
@@ -124,16 +152,23 @@ class _InferenceManager:
                 top_p = 0.1 if result.error else 0.95
             if emit:
                 emit({"type": "page_end", "page": page, "seconds": monotonic() - started,
-                      "stop_reason": "error" if result.error else STOP_REASONS[client.finish_reason],
-                      "output_tokens": result.token_count})
+                      "stop_reason": "error" if result.error or client.figure_loop else STOP_REASONS[client.finish_reason],
+                      "output_tokens": None if client.figure_loop else result.token_count})
             return BatchOutputItem(
-                raw=result.raw, token_count=result.token_count, error=result.error,
+                raw="" if client.figure_loop else result.raw, token_count=result.token_count,
+                error=result.error or client.figure_loop,
                 mean_token_prob=result.mean_token_prob, logprobs=result.logprobs,
-                metadata={**item.metadata, "input_tokens": client.input_tokens},
+                metadata={**item.metadata, "input_tokens": client.input_tokens, "artwork_context": client.figure_loop},
             )
 
         with ThreadPoolExecutor(max_workers=self.backend._client_parallel()) as executor:
-            return list(executor.map(process, batch))
+            outputs = list(executor.map(process, batch))
+        # Join every peer before the coordinator closes or replaces crop images. Partial figure markup never
+        # reaches RecognitionPredictor, whose layout fallback can turn this particular loop into spurious text.
+        ordinals = tuple(output.metadata["page_idx"] + 1 for output in outputs if output.metadata["artwork_context"])
+        if ordinals:
+            raise ArtworkNeedsContext(ordinals)
+        return outputs
 
 
 class Kept(NamedTuple):
@@ -290,8 +325,10 @@ class SuryaOcr:
         emit({"type": "phase", "name": "ocr", "total": len(images)})
         live = emit if execution.stream else None  # the stream knob: page events and tokens as they are generated
         try:
-            manager = KeptOutputs(_InferenceManager(live), images, live)
+            manager = KeptOutputs(_InferenceManager(live, artwork_count=len(execution.ocr_regions)), images, live)
             results = RecognitionPredictor(cast(SuryaInferenceManager, manager))(images)  # the manager's interface
+        except ArtworkNeedsContext:
+            raise
         except RuntimeError as error:  # Surya's SpawnError: server unreachable or serving another model, and kin
             raise ConversionError(f"Surya failed; output not written: {error}") from error
         emit({"type": "phase", "name": "export", "total": None})
@@ -304,9 +341,28 @@ class SuryaOcr:
         pages = []
         for number, (image, page, output) in enumerate(zip(images, results, kept), 1):
             blocks = page.blocks
+            reasons = []
+            if crops and number <= len(execution.ocr_regions):
+                target = execution.ocr_regions[number - 1].bbox
+                _, crop, _ = crops[number - 1]
+                if crop.bbox != target:  # the recovered input includes neighbouring native text
+                    assert crop.transform is not None
+                    kept_blocks = []
+                    x0, y0, x1, y1 = target
+                    for block in blocks:
+                        xs, ys = zip(*block.polygon)
+                        a, b, c, d = crop.transform.to_unit_points((min(xs), min(ys), max(xs), max(ys)))
+                        if c <= x0 or a >= x1 or d <= y0 or b >= y1:
+                            continue
+                        if not (a >= x0 and b >= y0 and c <= x1 and d <= y1) and not block.skipped \
+                                and html_to_text(block.html).strip():
+                            reasons.append(f"{where(crops, execution.pages, number)}: OCR text crosses the original "
+                                           "artwork boundary; ownership is ambiguous")
+                        kept_blocks.append(block)  # retain ambiguous text in diagnostics, refuse acceptance below
+                    blocks = kept_blocks
+                    page = page.model_copy(update={"blocks": blocks})
             html = "\n".join(block.html for block in blocks if not block.skipped)
             markdown, unreadable = html_export.markdown(converter, html, f"{execution.pdf.stem}-{number}")
-            reasons = []
             if output and output.capped:
                 reasons.append(f"{where(crops, execution.pages, number)} stopped at its {output.capped}")
             if number - 1 in manager.fallback and not blocks:

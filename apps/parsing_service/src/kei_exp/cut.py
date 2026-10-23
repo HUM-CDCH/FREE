@@ -339,12 +339,19 @@ def whole_pages(pages: PageSource, numbers: list[int], dpi: int) -> Iterator[Cro
         yield number, region, render_region(page, region, dpi)
 
 
-def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int, str]], dpi: int) -> Iterator[Crop]:
+def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int, str]], dpi: int,
+                  *, context_pt: float = 0) -> Iterator[Crop]:
     """One figure crop per (page, box, reading order) of a born-digital page's textless artwork, as each is
     rendered. The box needs no layout: it is the embedded object's own. Ink is the cut's measure (gray < 128)
-    on a 72 dpi preview of the whole page, which has no scanner border to measure within."""
+    on a 72 dpi preview of the whole page, which has no scanner border to measure within. A recovery may request
+    real page context around figures; the box and transform describe those actual pixels, clipped to the page."""
     for number, bbox, order, kind in regions:
         page = pages.page(number)
+        if kind == "figure" and context_pt:
+            width, height = page.get_size()
+            x0, y0, x1, y1 = bbox
+            bbox = (max(0, x0 - context_pt), max(0, y0 - context_pt),
+                    min(width, x1 + context_pt), min(height, y1 + context_pt))
         with page.render(72) as preview, preview.crop(bbox) as inside:
             total = sum(preview.histogram()[:128])
             ink = sum(inside.histogram()[:128]) / total if total else 0.0

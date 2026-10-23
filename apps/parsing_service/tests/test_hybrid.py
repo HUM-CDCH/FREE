@@ -77,7 +77,7 @@ def test_only_the_image_reaches_ocr_and_both_paths_keep_evidence(illustrated_pdf
 
     def recognize(request, crops, emit):
         calls.extend(crops)
-        assert request.transcriber == ("surya" if backend == "surya" else "vlm")
+        assert request.transcriber == "hybrid" and request.ocr_regions == execution.ocr_regions
         assert len(crops) == 1 and crops[0][0] == 1
         number, region, image = crops[0]
         assert region.bbox == (72, 292, 372, 442)
@@ -156,7 +156,7 @@ def test_large_artwork_keeps_all_pixels_native_text_and_source_coordinates(tmp_p
     monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", recognize)
     markdown = ocr.run(execution, lambda event: None)
     manifest = read_manifest(execution.result_dir)
-    assert manifest.status == "success" and manifest.recipe["text_rules"]["hybrid"] == 3
+    assert manifest.status == "success" and manifest.recipe["text_rules"]["hybrid"] == 4
     assert markdown.index("Native cover title.") < markdown.index("Native heading.") < markdown.index("Diagram text")
     first = read_page(execution.result_dir, 1, manifest)
     second = read_page(execution.result_dir, 2, manifest)
@@ -586,7 +586,7 @@ def test_a_hybrid_recipe_changes_with_native_text_rules_and_others_keep_their_fi
     native = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
     with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None):
         scan = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
-    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 3, "native": 3, "surya": 1}
+    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 4, "native": 3, "surya": 1}
     assert recipe(native, "0" * 64, None)["text_rules"] == 3
     assert recipe(scan, "0" * 64, None)["text_rules"] == 1
     before = {name: fingerprint(recipe(e, "0" * 64, None)) for name, e in
@@ -614,3 +614,67 @@ def test_a_vlm_crop_records_its_data_dependent_image_cap(illustrated_pdf, tmp_pa
         {"max_size": 1234, "scale": 0.5}, [replace(record(1, [], image=crops[0][2]), payload={}, text="t", markdown="t")]))
     ocr.run(execution, lambda _: None)
     assert read_manifest(execution.result_dir).effective == {"max_size": 1234, "scale": 0.5}
+
+
+@pytest.mark.parametrize("repeat", [False, True], ids=["recovers", "still-loops"])
+def test_artwork_context_recovery_is_selective_bounded_and_publishes_only_after_acceptance(
+        illustrated_pdf, tmp_path, monkeypatch, repeat):
+    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", result_dir=tmp_path / "result"))
+    # Distinct input ordinals on the same PDF page; the second input must keep its exact original pixels.
+    execution = replace(execution, ocr_regions=(*execution.ocr_regions, types.OcrRegion(1, (72, 500, 372, 650))))
+    native = Mock(return_value=Transcription({}, [
+        record(1, [block("Native above", (72, 60, 350, 80))], source_page=1),
+        replace(record(2, [block("Native second page", (72, 60, 350, 80))], source_page=2),
+                markdown="Native second page", text="Native second page")]))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", native)
+    calls = []
+    original_pixels = []
+
+    def recognize(request, crops, emit):
+        assert request == execution
+        assert not execution.result_dir.exists(), "a first-pass result was published before recovery"
+        calls.append(list(crops))
+        if len(calls) == 1:
+            original_pixels.extend((image.size, image.tobytes()) for _, _, image in crops)
+            raise types.ArtworkNeedsContext((1,))
+        assert len(calls) == 2 and crops[0][1].bbox == (48, 268, 396, 466)
+        assert crops[1] == calls[0][1]
+        assert (crops[1][2].size, crops[1][2].tobytes()) == original_pixels[1]
+        with pytest.raises(ValueError):
+            calls[0][0][2].getpixel((0, 0))  # only the replaced image was closed between batches
+        if repeat:
+            raise types.ArtworkNeedsContext((1,))
+        return Transcription({}, [record(n, [block(f"Artwork {n}", (100, 100, 200, 200))], image=image)
+                                  for n, (_, _, image) in enumerate(crops, 1)])
+
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", recognize)
+    if repeat:
+        with pytest.raises(types.IncompleteConversionError, match="recovery exhausted"):
+            ocr.run(execution, lambda _: None)
+        assert not execution.result_dir.exists()
+        for _, _, image in calls[-1]:
+            with pytest.raises(ValueError):
+                image.getpixel((0, 0))
+    else:
+        markdown = ocr.run(execution, lambda _: None)
+        assert all(text in markdown for text in ["Native above", "Native second page", "Artwork 1", "Artwork 2"])
+        manifest = read_manifest(execution.result_dir)
+        first = read_page(execution.result_dir, 1, manifest)
+        assert [crop.bbox_pt for crop in first.units[0].crops] == [(48, 268, 396, 466), (72, 500, 372, 650)]
+        segment = next(segment for segment in first.segments if segment.text == "Artwork 1")
+        assert segment.bbox_pt == pytest.approx(calls[1][0][1].transform.to_unit_points((100, 100, 200, 200)))
+    assert len(calls) == 2 and native.call_count == 1
+
+
+@pytest.mark.parametrize("box,expected", [((0, 0, 100, 100), (0, 0, 124, 124)),
+                                        ((500, 750, 595, 842), (476, 726, 595, 842))])
+def test_artwork_recovery_context_clips_to_the_page_and_records_actual_pixels(illustrated_pdf, box, expected):
+    from kei_exp.cut import artwork_crops
+
+    with PdfPages(illustrated_pdf) as pages:
+        crop, = artwork_crops(pages, [(2, box, 0, "figure")], 72, context_pt=24)
+        with crop[2] as image:
+            region = crop[1]
+            assert region.bbox == expected
+            assert image.size == (expected[2] - expected[0], expected[3] - expected[1])
+            assert region.transform.to_unit_points((0, 0, *image.size)) == expected

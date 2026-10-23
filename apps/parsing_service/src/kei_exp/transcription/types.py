@@ -29,8 +29,10 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # OCR HTML exported as UTF-8 (was guessed).
 # hybrid 3: that crop's white margin is 24 pt (`cut.TEXT_MARGIN`), not 15% of its long side; an OCR read whose only
 # content is an image placeholder no longer counts as text for a replaced block.
+# hybrid 4: repeated empty artwork can retry once with real page context; only text owned by the original
+# artwork is accepted. Surya full-page scans retain their previous policy.
 # surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 3, "surya": 1}
+TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 4, "surya": 1}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
@@ -103,6 +105,14 @@ class ConversionError(RuntimeError):
     """A run that produced no trustworthy output; the message is what the CLI prints before exit 1. An adapter raises
     it only when nothing can be reported (a page range outside the document, the backend's own runtime failure); any
     other loss is an incomplete outcome."""
+
+
+class ArtworkNeedsContext(ConversionError):
+    """Internal recovery signal after all OCR requests close: original, one-based artwork input ordinals."""
+
+    def __init__(self, ordinals: tuple[int, ...]) -> None:
+        self.ordinals = ordinals
+        super().__init__(f"Artwork inputs {ordinals} need page context after repeated empty figures")
 
 
 class IncompleteConversionError(ConversionError):
