@@ -156,7 +156,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   PDFs use artwork OCR; requests for book splitting retain
   the conservative large-image scan route. A native table with no
   readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
-  and the conversion incomplete.
+  and the conversion incomplete. Surya artwork that repeats identical empty,
+  full-frame figures is interrupted and gets one recovery batch: only looping
+  crops gain 24 pt of real page context. Other crop pixels stay unchanged.
+  Context outside the original artwork is excluded; a text block crossing that
+  boundary or another figure loop refuses publication. Scans and native-text
+  replacement crops keep their existing retry policy.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model

@@ -384,6 +384,39 @@ def test_the_sink_sees_every_attempt_and_the_first_piece_before_the_reply_is_com
     assert fake.early_arrival == [True], fake.early_arrival
 
 
+@pytest.mark.parametrize("live", [False, True])
+def test_repeated_empty_artwork_stops_before_retry_and_reports_every_original_input(fake, monkeypatch, live):
+    # Two regions on the same PDF page are separate inputs. Neither partial response may reach recognition,
+    # and every concurrent request must finish before the coordinator can replace its images.
+    from openai import OpenAI
+    from surya.inference.schema import BatchInputItem
+
+    figure = '<div data-bbox="0 0 1000 1000" data-label="Figure"><img/></div>'
+    replies = {f"figure-loop-{n}": [(figure * 24, usage(50, 16384))] * 4 for n in range(2)}
+    monkeypatch.setattr(fake, "surya_replies", replies)
+    before = len(fake.requests)
+    events = []
+    with OpenAI(base_url=fake.url.removesuffix("/chat/completions"), api_key="test") as client, \
+            Image.new("RGB", (16, 16)) as image:
+        backend = SimpleNamespace(_client=client, _client_parallel=lambda: 2,
+                                  start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+        with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
+            manager = _InferenceManager(events.append if live else None)
+        manager.artwork_count = 2
+        batch = [BatchInputItem(image=image, prompt_type="high_accuracy_bbox", prompt=f"figure-loop-{n}",
+                                max_tokens=16384, metadata={"page_idx": n}) for n in range(2)]
+        with pytest.raises(ConversionError, match="context") as raised:
+            manager.generate(batch)
+    assert raised.value.ordinals == (1, 2)
+    requests = fake.requests[before:]
+    assert len(requests) == 2 and all(request["stream"] for request in requests)
+    assert all(request["max_tokens"] == 16384 for request in requests)
+    assert all(request["temperature"] == 0 and request["top_p"] == 0.1 for request in requests)
+    if live:
+        assert sorted(e["page"] for e in events if e["type"] == "page_end") == [1, 2]
+        assert all(e["stop_reason"] == "error" for e in events if e["type"] == "page_end")
+
+
 # --- The token guard: Surya's real RecognitionPredictor over a fake inference manager with canned outputs ----------
 
 
@@ -556,3 +589,90 @@ def test_invalid_cli_flags_are_refused(flags, fake, scan_pdf, tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)  # the default output directory is scratch/MODEL, relative to here; never reached
     flags = [flag.format(url=fake.url) for flag in flags]
     assert exit_code(str(scan_pdf), *flags) == 2, f"Invalid CLI flags accepted: {flags}"
+
+
+@pytest.mark.parametrize("crossing", ["", "<p>Mixed native and artwork text</p>",
+                                      "<table><tr><td>Mixed table text</td></tr></table>"])
+def test_recovered_artwork_drops_only_disjoint_blocks_and_refuses_mixed_text(fake, digital_pdf, crossing):
+    from dataclasses import replace
+    from surya.recognition.schema import BlockOCRResult, PageOCRResult
+    from kei_exp.geometry import CropTransform
+    from kei_exp.regions import Region
+    from kei_exp.transcription.surya import SuryaOcr
+    from kei_exp.transcription.types import OcrRegion
+
+    execution = replace(resolve(RunParams(pdf=digital_pdf)), transcriber="hybrid", model="surya", url=fake.url,
+                        ocr_regions=(OcrRegion(1, (24, 24, 76, 76)),))
+    def result(label, box, html, *, skipped=False):
+        x0, y0, x1, y1 = box
+        return BlockOCRResult(label=label, polygon=[[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+                              reading_order=0, html=html, skipped=skipped)
+
+    blocks = [result("Text", (0, 0, 200, 200), "<p>Neighbouring native paragraph</p>"),
+              result("Text", (300, 300, 500, 500), "<p>Inside artwork</p>"),
+              result("Picture", (0, 0, 1000, 1000), "", skipped=True)]
+    if crossing:
+        blocks.append(result("Table" if "<table>" in crossing else "Text", (100, 100, 500, 500), crossing))
+    page = PageOCRResult(blocks=blocks, image_bbox=[0, 0, 1000, 1000])
+    with Image.new("RGB", (1000, 1000)) as image, \
+            patch("kei_exp.transcription.surya._InferenceManager", return_value=FakeSurya({})), \
+            patch("surya.recognition.RecognitionPredictor", return_value=lambda images: [page]):
+        crop = (1, Region("figure", (0, 0, 100, 100), 0, 1, CropTransform(0, 0, .1, .1, None)), image)
+        outcome = SuryaOcr().transcribe(execution, [crop], lambda _: None)
+        record, = outcome.pages
+        assert record.image is image and record.payload["image_bbox"] == [0, 0, 1000, 1000]
+        assert record.region["bbox"] == (0, 0, 100, 100)
+        assert "Neighbouring" not in record.text and "Inside artwork" in record.text
+        assert len(record.payload["blocks"]) == 2 + bool(crossing)
+        assert bool(record.incomplete) == bool(crossing)
+        if crossing:
+            assert "ownership is ambiguous" in record.incomplete
+            assert "Mixed" in record.text, "mixed text must remain available for diagnostics"
+
+
+@pytest.mark.parametrize("case", ["text-before-figures", "different-picture-boxes", "repeated-table-rows",
+                                  "scan", "native-text-replacement", "layout-block"])
+def test_artwork_recovery_does_not_replace_existing_text_table_scan_or_block_retries(fake, monkeypatch, case):
+    from openai import OpenAI
+    from surya.inference.schema import BatchInputItem
+
+    figure = '<div data-bbox="0 0 1000 1000" data-label="Figure"><img/></div>'
+    text = figure * 24
+    if case == "text-before-figures":
+        text = html("Visible source text") + text
+    elif case == "different-picture-boxes":
+        text = (figure + figure.replace("0 0 1000 1000", "0 0 500 500")) * 24
+    elif case == "repeated-table-rows":
+        text = '<div data-bbox="0 0 1000 1000" data-label="Table"><table>' + '<tr><td>1</td></tr>' * 80 + '</table></div>'
+    monkeypatch.setattr(fake, "surya_replies", {case: [(text, usage(50, 16000))] * 4})
+    before = len(fake.requests)
+    with OpenAI(base_url=fake.url.removesuffix("/chat/completions"), api_key="test") as client, \
+            Image.new("RGB", (16, 16)) as image:
+        backend = SimpleNamespace(_client=client, _client_parallel=lambda: 1,
+                                  start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+        with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
+            manager = _InferenceManager(artwork_count=0 if case == "scan" else 1)
+        output, = manager.generate([BatchInputItem(image=image, prompt_type="block" if case == "layout-block"
+                                                   else "high_accuracy_bbox", prompt=case, max_tokens=16384,
+                                                   metadata={"page_idx": 1 if case == "native-text-replacement" else 0})])
+    assert output.raw == text and not output.error
+    assert len(fake.requests[before:]) >= 1
+    assert not output.metadata["artwork_context"]
+
+
+@pytest.mark.parametrize("tail,closing", [
+    ('<div data-bbox="0 0 1000 1000" data-label="Text"><p>Real map label', '</p></div>'),
+    ('<div data-bbox="0 0 1000 1000" data-label="Table"><table><tr><td>Real table cell', '</td></tr></table></div>'),
+    ('<div data-bbox="0 0 1000 1000" data-label="Text">', '<p>Real map label</p></div>'),
+    ('<div data-bbox="0 0 1000 1000" data-label="', 'Text"><p>Real map label</p></div>'),
+])
+def test_artwork_loop_detection_does_not_discard_a_trailing_unfinished_block(tail, closing):
+    from kei_exp.transcription.surya import _collect_completion
+
+    figures = '<div data-bbox="0 0 1000 1000" data-label="Figure"><img/></div>' * 24
+    def chunk(text, finish=None):
+        return SimpleNamespace(usage=None, choices=[SimpleNamespace(delta=SimpleNamespace(content=text),
+                                                                   logprobs=None, finish_reason=finish)])
+    response = _collect_completion([chunk(figures + tail), chunk(closing, "stop")], None, watch_artwork=True)
+    assert not response.figure_loop
+    assert response.choices[0].message.content == figures + tail + closing
