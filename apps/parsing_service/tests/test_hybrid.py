@@ -109,6 +109,66 @@ def test_only_the_image_reaches_ocr_and_both_paths_keep_evidence(illustrated_pdf
     assert not second.units[0].crops
 
 
+def test_large_artwork_keeps_all_pixels_native_text_and_source_coordinates(tmp_path, monkeypatch):
+    # A faint diagram beside native prose: its pixels and the source coordinates of OCR evidence survive
+    # the hybrid path, while the surrounding native text stays in reading order.
+    path = tmp_path / "native.pdf"
+    text_pdf(path, [["Native cover title."], ["Native heading above the artwork."]])
+    illustrated = tmp_path / "large-artwork.pdf"
+    with pdfium.PdfDocument(path) as document:
+        page = document[1]
+        width, height = page.get_size()
+        with Image.new("RGB", (100, 100), (253, 253, 253)) as pixels:
+            pixels.putpixel((0, 99), (250, 250, 250))
+            bitmap = pdfium.PdfBitmap.from_pil(pixels)
+            image = pdfium.PdfImage.new(document)
+            image.set_bitmap(bitmap)
+            image.set_matrix(pdfium.PdfMatrix(450, 0, 0, .53 * width * height / 450, 50, 100))
+            page.insert_obj(image)
+            page.gen_content()
+            document.save(illustrated)
+            bitmap.close()
+        page.close()
+    execution = ocr.resolve(RunParams(pdf=illustrated, model="surya", result_dir=tmp_path / "result"))
+    assert execution.transcriber == "hybrid"
+    artwork, = execution.ocr_regions
+    with PdfPages(illustrated) as pages:
+        source = pages.page(2)
+        original = source.render(execution.crop_dpi, artwork.bbox)
+        original_transform = source.crop_transform(execution.crop_dpi, artwork.bbox)
+    native = Transcription({}, [
+        replace(record(1, [block("Native cover title.", (72, 60, 300, 80))], source_page=1),
+                markdown="Native cover title.", text="Native cover title."),
+        replace(record(2, [block("Native heading.", (72, 60, 300, 80))], source_page=2),
+                markdown="Native heading.", text="Native heading."),
+    ])
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", lambda *args: native)
+
+    def recognize(request, crops, emit):
+        crop, = crops
+        page, region, image = crop
+        assert page == 2 and region.kind == "figure" and region.bbox == artwork.bbox
+        assert image.size == original.size
+        assert image.tobytes() == original.tobytes()  # including the faint pixels at its edges
+        box = (0, 0, original.width, original.height)
+        return Transcription({}, [record(1, [block("Diagram text", box)], image=image)])
+
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", recognize)
+    markdown = ocr.run(execution, lambda event: None)
+    manifest = read_manifest(execution.result_dir)
+    assert manifest.status == "success" and manifest.recipe["text_rules"]["hybrid"] == 3
+    assert markdown.index("Native cover title.") < markdown.index("Native heading.") < markdown.index("Diagram text")
+    first = read_page(execution.result_dir, 1, manifest)
+    second = read_page(execution.result_dir, 2, manifest)
+    assert [segment.text for segment in first.segments] == ["Native cover title."]
+    assert [segment.text for segment in second.segments] == ["Native heading.", "Diagram text"]
+    rendered, = second.units[0].crops
+    assert rendered.bbox_pt == artwork.bbox
+    assert second.segments[1].bbox_pt == pytest.approx(original_transform.to_unit_points(
+        (0, 0, original.width, original.height)), abs=.01)
+    original.close()
+
+
 def test_an_incomplete_image_cannot_publish_a_successful_native_page(illustrated_pdf, tmp_path, monkeypatch):
     execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", pages=(1, 1),
                                     result_dir=tmp_path / "result"))

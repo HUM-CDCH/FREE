@@ -146,6 +146,53 @@ def test_a_page_sized_raster_with_some_embedded_text_still_takes_the_scan_path(d
     assert native_regions(tmp_path / "overlay.pdf") is None
 
 
+@pytest.mark.parametrize("share,page_source,overlay,rotation,pages,route", [
+    (.49, "pdf", False, 0, None, "hybrid"),
+    (.50, "pdf", False, 0, None, "hybrid"),
+    (.53, "pdf", False, 0, None, "hybrid"),
+    (.53, "ingest", False, 0, None, "surya"),
+    (.53, "pdf", True, 0, None, "surya"),
+    (1., "pdf", True, 0, None, "surya"),
+    (.53, "pdf", False, 90, None, "surya"),
+    (.53, "pdf", False, 0, (1, 1), "native"),
+    (.53, "pdf", False, 0, (2, 2), "hybrid"),
+])
+def test_large_artwork_preserves_native_prose_without_changing_scan_or_book_routes(
+        tmp_path, share, page_source, overlay, rotation, pages, route):
+    # A textless raster beside native prose is artwork even above half a page; overlapping native text
+    # remains a possible scan overlay. Book processing retains its original split/gutter route.
+    path = tmp_path / "native.pdf"
+    text_pdf(path, [["Native cover title."], ["Native second-page heading."]])
+    output = tmp_path / "artwork.pdf"
+    with pdfium.PdfDocument(path) as document:
+        page = document[1]
+        width, height = page.get_size()
+        image_width = width if share == 1 else 450
+        image_height = share * width * height / image_width
+        left = 0 if share == 1 else 50
+        bottom = 0 if share == 1 else (800 - image_height if overlay else 100)
+        with Image.new("RGB", (40, 60), "white") as pixels:
+            bitmap = pdfium.PdfBitmap.from_pil(pixels)
+            artwork = pdfium.PdfImage.new(document)
+            artwork.set_bitmap(bitmap)
+            artwork.set_matrix(pdfium.PdfMatrix(image_width, 0, 0, image_height, left, bottom))
+            page.insert_obj(artwork)
+            page.gen_content()
+            page.set_rotation(rotation)
+            document.save(output)
+            bitmap.close()
+        page.close()
+    execution = resolve(RunParams(pdf=output, model="surya", page_source=page_source, pages=pages))
+    assert execution.transcriber == route
+    if route == "hybrid":
+        region, = execution.ocr_regions
+        assert region.page == 2
+        assert region.bbox == pytest.approx((left, height - bottom - image_height,
+                                            left + image_width, height - bottom))
+    if page_source == "ingest":
+        assert execution.page_source == "ingest" and execution.cut == "auto"
+
+
 def test_resolve_makes_the_execution_choice_once_following_the_selected_range(digital_pdf, scan_pdf, mixed_pdf):
     # resolve() makes the execution choice once: native text for the digital PDF, the record's transcriber for the
     # scan and for a mixed selection, following the selected page range; a native execution carries no model,

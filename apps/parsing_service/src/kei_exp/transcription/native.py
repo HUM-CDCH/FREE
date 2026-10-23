@@ -31,12 +31,14 @@ from kei_exp.transcription.types import TRANSCRIBER_KNOBS, ConversionError, Exec
 from kei_exp.transcription.tables import table_of_html
 
 
-def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[OcrRegion, ...] | None:
+def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
+                   allow_large_raster_artwork: bool = False) -> tuple[OcrRegion, ...] | None:
     """Native PDF with its textless artwork, or None when any nonblank page requires the scan path; () when the
     selected pages need no OCR at all.
 
-    Keep the existing 5% artwork threshold and page-sized raster safeguard. A digital page with an image
-    table needs only that image read; an OCR overlay on a page-sized scan is not treated as digital prose.
+    Keep the 5% artwork threshold and scan-overlay safeguard. A large raster without native text on it may
+    use the artwork path when allowed; the default retains the conservative route for book splitting.
+    A digital page's image table needs OCR, while native text overlapping a large scan may be an OCR overlay.
     PDFium measures objects and text in canvas space, whose origin is the MediaBox's, not the displayed page's:
     a region is returned in displayed top-left points (what `PdfPage.render` crops and Docling's boxes use).
     """
@@ -70,17 +72,22 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
                         left, bottom, right, top = _canvas_bounds(obj)
                         left, bottom, right, top = max(left, x0), max(bottom, y0), min(right, x1), min(top, y1)
                         area = max(0, right - left) * max(0, top - bottom)
-                        # A page-sized scan with an OCR overlay still needs OCR. A substantial textless
-                        # form/image can be a table whose letters are outlines: native text loses its body
-                        # completely (Akita 2020, p4). Include embedded artwork rather than guessing its text.
-                        if obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2:
-                            return None
-                        if area >= width * height / 20 and not textpage.get_text_bounded(left, bottom, right, top).strip():
-                            # PDFium object bounds are unrotated; the crop renderer uses displayed page space.
-                            # Until the projection is supported, rotated artwork retains the established scan path.
-                            if page.get_rotation():
+                        # Artwork needs OCR of its own contents, regardless of its size. Native text on a
+                        # large raster may be a scan's OCR overlay, so retain the scan route in that case.
+                        if area < width * height / 20:
+                            continue
+                        large_raster = obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2
+                        if textpage.get_text_bounded(left, bottom, right, top).strip():
+                            if large_raster:
                                 return None
-                            page_regions.append(OcrRegion(index + 1, (left - x0, y1 - top, right - x0, y1 - bottom)))
+                            continue
+                        if large_raster and not allow_large_raster_artwork:
+                            return None
+                        # PDFium object bounds are unrotated; the crop renderer uses displayed page space.
+                        # Until the projection is supported, rotated artwork retains the scan path.
+                        if page.get_rotation():
+                            return None
+                        page_regions.append(OcrRegion(index + 1, (left - x0, y1 - top, right - x0, y1 - bottom)))
                     distinct = _distinct_regions(page_regions)
                     # A bounding union of overlapping objects can enclose native prose between them. Retain
                     # the scan path in that case rather than replace those original characters with OCR.

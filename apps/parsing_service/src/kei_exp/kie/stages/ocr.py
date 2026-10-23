@@ -84,7 +84,8 @@ def resolve(params: RunParams) -> Execution:
     if params.page_source not in ("pdf", "ingest"):
         raise ValueError(f"page_source must be pdf or ingest, not {params.page_source!r}")
     check_ingest(params.page_source, params.ingest)
-    regions = native_regions(params.pdf, params.pages)
+    # Large book rasters retain their scan route so the split and gutter settings still apply.
+    regions = native_regions(params.pdf, params.pages, allow_large_raster_artwork=params.page_source == "pdf")
     glyphs = regions is not None and undecodable_glyphs(params.pdf, params.pages)
     if regions == () and not glyphs:
         return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=NativeText.kind,
