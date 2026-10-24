@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from experiments.extraction import fixed_upstream, grounding_study, manifest, study
+from experiments.extraction import fixed_upstream, grounding_study, legacy_article, manifest, study
 from experiments.extraction.analyze import diagnostic
 from experiments.extraction.manifest import pin, read, write_new
 from kei_exp.kie.extract import run
@@ -24,6 +24,10 @@ def frozen(tmp_path, monkeypatch, request):
         from kei_exp.kie.extract import article, assembly
         original_root = article.document_root
         def historical_root(*args, **kwargs):
+            if version == 1:
+                kwargs.pop("start_page", None)
+                kwargs.pop("on_context", None)
+                return legacy_article.extract_records(*args, **kwargs)
             return original_root(*args, **kwargs, resolve_parts=False)
         monkeypatch.setattr(article, "document_root", historical_root)
         monkeypatch.setattr(article, "ARTICLE_VERSION", version)
@@ -52,6 +56,9 @@ def frozen(tmp_path, monkeypatch, request):
     reason = study.Capture(CountingChat(reasoning), directory / "calls", "reasoning")
     options = {"strategy": "article", "article": {"context": "bounded", "identity": "conservative",
                "identity_fields": ["site"], "prompt": "schema", "grounding": "semantic"}}
+    if version == 1:
+        options["article"].update(grounding="spans", grounding_schedule="unresolved",
+                                  grounding_routing="origin_lexical")
     request = run.ExtractRequest(schema=SCHEMA, options=options)
     count = grounding_study.RecordedCounts(WordCounter(), tmp_path / "counts", provider)
     artifact = run.extract(tmp_path, request, Router(fields, reason), counter={"fields": count, "reasoning": count})
@@ -93,6 +100,20 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     assert bundle["provenance"]["fresh_calls"] == 0
     assert bundle["value_origins"][0][1] == {"path": ["year"], "kind": "value",
         "sources": [{"unit": 1, "path": ["year"]}]}
+
+
+@pytest.mark.parametrize("frozen", [1], indirect=True)
+def test_preparation_replays_legacy_inventory_and_bound_values_offline(frozen, tmp_path):
+    parent, _, original, _ = frozen
+    bundle = fixed_upstream.prepare(parent, "Doc", tmp_path / "verification.json")
+    assert original["article_version"] == 1
+    assert bundle["records"] == [{"entry_no": None, "site": "Hill", "year": 1827, "finds": None,
+                                  "title": "Document", "filename": "bauer.pdf"}]
+    assert bundle["inventory"] == [{"label": "Hill", "identity": {"site": "Hill"},
+                                    "passages": ["p1_s0", "p1_s1"]}]
+    assert [call["stage"] for call in bundle["upstream_calls"]] == [
+        "document", "document", "inventory", "inventory", "record"]
+    assert bundle["provenance"]["upstream_requests_replayed"] == 5
 
 
 @pytest.mark.parametrize("version", [12, 13])

@@ -93,41 +93,6 @@ def partition(passages: Sequence[Passage], fits: Callable[[Sequence[Passage]], b
     return contexts
 
 
-def reconcile_values(values: Sequence[dict]) -> tuple[dict, list[dict]]:
-    """Exact array union; recursively merge objects; retain scalar conflicts separately and return null.
-
-    No 'first wins' or last-write rule can quietly turn contradictory units into a fact. The union drops equal list
-    items, genuine occurrences included, so production assembly is `assemble_document`; this stays for the research
-    replays of captured version 1 studies (`article.extract_records`, `experiments/extraction/fixed_upstream.py`).
-    """
-    conflicts = []
-
-    def combine(items, path):
-        present = [v for v in items if v is not None]
-        if not present:
-            return None
-        if all(isinstance(v, dict) for v in present):
-            keys = dict.fromkeys(k for v in present for k in v)
-            return {k: combine([v.get(k) for v in present], [*path, k]) for k in keys}
-        unique = []
-        for value in present:
-            if value not in unique:
-                unique.append(value)
-        if all(isinstance(v, list) for v in unique):
-            merged = []
-            for group in unique:
-                for item in group:
-                    if item not in merged:
-                        merged.append(item)
-            return merged
-        if len(unique) == 1:
-            return unique[0]
-        conflicts.append({"path": path, "candidates": unique})
-        return None
-
-    return combine(values, []) or {}, conflicts
-
-
 def printed_once_in(item, text: str) -> bool:
     """Whether `text` shows a list item as exactly one occurrence: every string and number of it printed as a bounded
     token (`stages.occurrences`: case and spacing aside, never inside a longer word or number), and at least one of them

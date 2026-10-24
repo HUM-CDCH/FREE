@@ -15,7 +15,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.assembly import PROMPT_VERSION, fingerprint
 from kei_exp.kie.extract.run import ExtractRequest, extract
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.article import inventory
+from experiments.extraction.legacy_article import inventory
 from kei_exp.kie.extract.catalog import discover
 from kei_exp.kie.extract.grounding import verify
 from kei_exp.kie.extract.stages import contains, extract_record, merge

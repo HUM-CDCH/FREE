@@ -22,15 +22,14 @@ export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string
   { section: 'input', title: 'Extraction input', keys: ['prompt', 'rendering'] },
   { section: 'evidence', title: 'Evidence', keys: ['grounding', 'evidence_policy', 'grounding_schedule', 'grounding_routing'] },
 ]
-/** Settings today's Article method ignores. Article extracts one document-level object: it keeps no record-identity
- *  inventory (`identity`, `identity_fields`), its model requests do not change with `prompt`, and it reads every source
- *  unit for values (`selection`). Their controls stay visible but read-only, and a saved value is kept and sent as
- *  saved: the contract still accepts it, and historical settings are research state. */
-export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([
-  'selection', 'identity', 'identity_fields', 'prompt', 'grounding_schedule', 'grounding_routing',
-])
-/** Said beside every retired control. */
-export const RETIRED_NOTE = 'No longer used by Article. A saved value is kept unchanged.'
+/** Detailed controls are retired, but saved settings remain part of the admitted method. Identity and prompt
+ *  still affect source budgeting; the other keys retain validation and diagnostic metadata. */
+export const ADDITIONAL_ARTICLE_KEYS = ['selection', 'identity', 'prompt', 'grounding_schedule', 'grounding_routing'] as const
+export type AdditionalArticleKey = typeof ADDITIONAL_ARTICLE_KEYS[number]
+export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([...ADDITIONAL_ARTICLE_KEYS, 'identity_fields'])
+/** The controls shown today, separate from the complete recorded-setting order used by summaries and deltas. */
+export const ARTICLE_CONTROL_SECTIONS = ARTICLE_SECTIONS.map(({ keys, ...section }) =>
+  ({ ...section, keys: keys.filter((key) => !RETIRED_ARTICLE_KEYS.has(key)) })).filter(({ keys }) => keys.length > 0)
 
 export const SECTION_OF = Object.fromEntries(
   ARTICLE_SECTIONS.flatMap(({ section, keys }) => keys.map((key) => [key, section])),
@@ -43,20 +42,14 @@ export const CONTROL_LABELS: Readonly<Record<ArticleKey, string>> = {
   grounding_schedule: 'Continue verification', grounding_routing: 'Unit order',
 }
 
-export const CONTROL_HINTS: Readonly<Record<ArticleKey, string>> = {
+export const CONTROL_HINTS: Readonly<Record<Exclude<ArticleKey, AdditionalArticleKey | 'identity_fields'>, string>> = {
   context: 'Full source reads the whole document at once; bounded source units split it into parts that fit a ceiling.',
   context_tokens: 'Tokens per request, including instructions and the output reserve; each served model can lower it.',
   grouping: 'How bounded units are formed: by token budget, or following headings, captions and tables.',
   overlap_passages: 'Whole earlier passages repeated as context. They never own records; not pages or sentences.',
-  selection: 'Article now reads every source unit for values, so this choice no longer changes what is read.',
-  identity: 'Article now extracts one document-level object, so there are no records to reconcile.',
-  identity_fields: 'Article now extracts one document-level object, so no fields key records.',
-  prompt: 'Article’s model requests no longer change with this choice.',
   rendering: 'Structured input labels blocks and table cells. It keeps the source characters and cannot recover missing OCR text or cells.',
   grounding: 'How each populated record value is checked against the source.',
   evidence_policy: 'All populated record fields, or only those your schema policies mark quoted.',
-  grounding_schedule: 'Article now checks each value where it was read first and stops at support, whichever is chosen.',
-  grounding_routing: 'Article now checks each value in the source unit it was read from first, whichever is chosen.',
 }
 
 type Choice<V> = Readonly<{ value: V; label: string }>
@@ -100,6 +93,11 @@ export function orderedArticle(article: Readonly<Partial<Record<ArticleKey, unkn
     article[key] === undefined || article[key] === null ? [] : [[key, article[key]]])) as ArticleSettings
 }
 
+/** Reset one saved setting without changing the rest of the draft; identity and its fields stay coherent. */
+export function resetArticleSetting(article: ArticleSettings, key: AdditionalArticleKey): ArticleSettings {
+  return orderedArticle({ ...article, [key]: REFERENCE_ARTICLE[key], ...(key === 'identity' ? { identity_fields: [] } : {}) })
+}
+
 /** Why choosing `value` would break a rule at this very control, or null. A parent choice that breaks a child stays
  *  available (the child is kept and shown invalid); the choice already selected is never disabled. */
 export function unavailableReason<K extends ArticleKey>(article: ArticleSettings, key: K, value: ArticleSettings[K] | undefined): string | null {
@@ -131,9 +129,9 @@ export function sectionSummary(article: ArticleSettings, section: ArticleSection
         ...(article.grouping ? ['Structure-aware'] : []),
         ...(article.overlap_passages > 0 ? [`${article.overlap_passages} previous passage${article.overlap_passages === 1 ? '' : 's'}`] : []),
       ].join(' · ')
-    // Retired settings (`RETIRED_ARTICLE_KEYS`) are left out: they no longer describe what Article does.
+    // Identity settings affect preliminary source budgeting, without defining document-level records.
     case 'identity':
-      return 'Not used by Article'
+      return 'Source budgeting'
     case 'input':
       return label('rendering', article.rendering)
     case 'evidence':
