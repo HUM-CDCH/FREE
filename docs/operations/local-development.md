@@ -319,8 +319,9 @@ builds `free-parsing_worker` and runs them.
 `test:live-model` and `test:system` are intentionally excluded from the three
 aggregates (`test:all`, `test:all:node`, and `test:ci`) because the former needs
 an external model and the latter builds and restarts a full Docker stack. The
-GitHub `verify` workflow runs `test:ci` on Linux for pull requests into `main`
-(the merge PRs from `dev`) and pushes to `main`, so the POSIX session-secret
-permission check is part of the required deterministic gate. Pull requests into
-and pushes to `dev` run its `fast` job instead: `pnpm typecheck`, `pnpm lint`
-and `pnpm test:unit`.
+GitHub `verify` workflow runs `test:ci` on Linux only for pull requests into
+`main` (the merge PRs from `dev`), pushes to `main` and `main`'s merge queue,
+so the POSIX session-secret permission check is part of the required
+deterministic gate. `dev` has no automatic CI: before review, run
+`pnpm typecheck`, `pnpm lint` and `pnpm test:unit` locally, plus the tiers
+your change touches.

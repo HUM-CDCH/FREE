@@ -212,27 +212,21 @@ describe('verify workflow', () => {
     [.../^ {4}env:\n((?: {6}.*\n)*)/m.exec(job(name))[1].matchAll(/^ {6}(\w+): (.*)$/gm)]
       .map(([, key, value]) => [key, value.replace(/^'(.*)'$/, '$1')]))
 
-  it('gates pull requests into and pushes to dev with the fast checks, and main with pnpm test:ci', () => {
-    for (const event of ['pull_request', 'push'])
-      assert.match(workflow, new RegExp(`^  ${event}:\\n    branches: \\[main, dev\\]$`, 'm'))
-    assert.match(workflow, /^  merge_group:$/m)
-    assert.ok(job('fast').includes("if: github.base_ref == 'dev' || github.ref == 'refs/heads/dev'\n"))
-    assert.ok(job('verify').includes("if: github.base_ref != 'dev' && github.ref != 'refs/heads/dev'\n"))
-    for (const command of ['pnpm typecheck', 'pnpm lint', 'pnpm test:unit'])
-      assert.match(job('fast'), new RegExp(`run: ${command}$`, 'm'))
-    assert.doesNotMatch(job('fast'), /services:|test:ci/)
+  it('gates pull requests into, pushes to and merge queues for main alone with pnpm test:ci', () => {
+    for (const event of ['pull_request', 'push', 'merge_group'])
+      assert.match(workflow, new RegExp(`^  ${event}:\\n    branches: \\[main\\]$`, 'm'))
+    assert.doesNotMatch(workflow, /^  fast:$/m)
+    assert.doesNotMatch(workflow, /^ +if: .*\bdev\b/m)
     assert.match(job('verify'), /run: pnpm test:ci$/m)
   })
 
-  it('installs the Parsing Service environment in both jobs', () => {
+  it('installs the Parsing Service environment', () => {
     const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-    for (const name of ['fast', 'verify']) {
-      assert.equal(skipsPython(jobEnvironment(name)), false, `${name} runs the Python tiers`)
-      // The interpreter the Parsing Service pins, and a fixed uv for its frozen sync during `pnpm install`.
-      assert.match(job(name), /uses: actions\/setup-python@v\d+\n {8}with:\n {10}python-version-file: apps\/parsing_service\/\.python-version$/m)
-      assert.match(job(name), /uses: astral-sh\/setup-uv@v\d+\n {8}with:\n {10}version: \d+\.\d+\.\d+$/m)
-      assert.ok(job(name).indexOf('setup-uv') < job(name).indexOf('pnpm install --frozen-lockfile'))
-    }
+    assert.equal(skipsPython(jobEnvironment('verify')), false, 'verify runs the Python tiers')
+    // The interpreter the Parsing Service pins, and a fixed uv for its frozen sync during `pnpm install`.
+    assert.match(job('verify'), /uses: actions\/setup-python@v\d+\n {8}with:\n {10}python-version-file: apps\/parsing_service\/\.python-version$/m)
+    assert.match(job('verify'), /uses: astral-sh\/setup-uv@v\d+\n {8}with:\n {10}version: \d+\.\d+\.\d+$/m)
+    assert.ok(job('verify').indexOf('setup-uv') < job('verify').indexOf('pnpm install --frozen-lockfile'))
     assert.match(scripts['test:unit'], /pnpm --filter parsing-service test$/)
   })
 

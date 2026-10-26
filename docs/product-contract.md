@@ -142,9 +142,10 @@ guarded `free_test_*` databases, or a stack it creates and removes itself.
 GitHub's `verify` workflow runs `pnpm test:ci` (the whole of `pnpm test:all`:
 the Parsing Service tiers, `test:service` and the Python-backed durable
 lifecycle and recovery checks included, on PyTorch's CPU wheels) on pull
-requests into and pushes to `main`; pull requests into and pushes to `dev` run
-its typecheck, lint and `pnpm test:unit`. `test:live-model` and `test:system`
-stay outside both. The
+requests into, pushes to and merge queues for `main`, and nowhere else. `dev`
+has no automatic CI: contributors run typecheck, lint, `pnpm test:unit` and
+the tiers their change touches locally before review. `test:live-model` and
+`test:system` stay outside CI. The
 [local development runbook](operations/local-development.md#verification)
 lists every tier with its prerequisites.
 

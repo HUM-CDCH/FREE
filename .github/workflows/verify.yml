@@ -2,10 +2,11 @@ name: verify
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main]
   push:
-    branches: [main, dev]
+    branches: [main]
   merge_group:
+    branches: [main]
 
 permissions:
   contents: read
@@ -15,59 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Pull requests into and pushes to dev: the checks CONTRIBUTING.md asks for before review, the Parsing Service's
-  # unit tests included. They need no database, stack or browser.
-  fast:
-    if: github.base_ref == 'dev' || github.ref == 'refs/heads/dev'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      CI: 'true'
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
-      # The Parsing Service's Python environment: `pnpm install` runs its `uv sync --frozen`, with PyTorch's CPU wheels
-      # on this Linux x86_64 runner.
-      - name: Install Python
-        uses: actions/setup-python@v6
-        with:
-          python-version-file: apps/parsing_service/.python-version
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: 0.13.5
-          enable-cache: true
-          cache-dependency-glob: apps/parsing_service/uv.lock
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 12.8.1
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Run the fast tier
-        run: pnpm test:unit
-
-  # Pull requests into and pushes to main, and merge queues: every deterministic tier, the Parsing Service's
-  # included.
+  # Pull requests into and pushes to main, and main's merge queue: every deterministic tier, the Parsing Service's
+  # included. dev has no hosted CI.
   verify:
-    if: github.base_ref != 'dev' && github.ref != 'refs/heads/dev'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
