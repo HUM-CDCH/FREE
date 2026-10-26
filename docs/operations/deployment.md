@@ -9,8 +9,10 @@ node scripts/free.mjs production
 
 It validates `.env`, renders the shared nginx application behavior for a host
 nginx into `.nginx/free-studio-locations.conf`, and builds the images. Only
-after a successful build does it stop Studio and the parsing API/worker
-(60-second grace period) and run
+after a successful build does it stop Studio, the parsing API/worker and,
+where they run, the bundled nginx and the evaluation watcher (60-second grace
+period); those two start again only once the migrated Studio is healthy. It
+then runs
 `docker compose -f compose.yaml -f compose.prod.yaml up --no-build -d --wait`
 with the deployment's overlays (`compose.nginx.yaml`, `compose.gpu.yaml`),
 returning once the configured health checks pass. Each built image is labelled
@@ -71,8 +73,8 @@ openssl pkey -in /srv/free-tls/studio.key -pubout -outform DER \
 The two SHA-256 outputs must match. Also validate the chain with the
 institution's or VPN's trust procedure.
 
-Generate the session secret and two independent database passwords once and
-retain them across restarts (run the hexadecimal command once per database):
+Generate the session secret and three independent database passwords once and
+retain them across restarts (run the hexadecimal command once per password):
 
 ```bash
 openssl rand -base64 32
@@ -87,6 +89,7 @@ STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_KEI_POSTGRES_PASSWORD=<separately-generated-hex-output>
+FREE_STUDIO_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
@@ -112,15 +115,27 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   certificate's SHA-256 fingerprint with or without colons.
 - `FREE_POSTGRES_PASSWORD` must be the generated hexadecimal value. Compose
   supplies this one value to PostgreSQL and interpolates it into Studio's
-  `DATABASE_URL`; restricting it to hexadecimal avoids URI-encoding and
-  Compose-interpolation ambiguity. Changing it does not update an existing
-  PostgreSQL volume's password, so retain it with that volume.
+  `FREE_ADMIN_DATABASE_URL`, which only Studio's entrypoint uses: it migrates
+  and prepares the roles below as `postgres`, then starts Studio without it.
+  Restricting it to hexadecimal avoids URI-encoding and Compose-interpolation
+  ambiguity. Changing it does not update an existing PostgreSQL volume's
+  password, so retain it with that volume. The value stays in the container's
+  configuration, where `docker inspect` and `docker exec` show it; only the
+  Studio server process and what it spawns run without it.
 - `FREE_KEI_POSTGRES_PASSWORD` is the password of the Parsing Service's own
   database role, `kei`, which owns only the `kei_dbos` schema: the service
   parses untrusted PDFs and must not be able to read Studio's tables or rewrite
   Studio's workflow inputs. Studio's entrypoint creates the role and its
   schema from this value at every start, so changing it takes effect at the
   next start. Use a generated hexadecimal value.
+- `FREE_STUDIO_POSTGRES_PASSWORD` is the password of `free_studio`, the role
+  Studio and the evaluation watcher run as. It reads and writes FREE's data but
+  cannot create databases or roles, create schemas in `free`, change the
+  migrated schemas or act as another role; it owns only Studio's `dbos` schema, and uses `kei_dbos` to
+  submit, read, cancel and delete kei's workflows. Studio's entrypoint creates
+  the role from this value at every start, and on the first start after an
+  upgrade gives it the `dbos` schema and the workflow history an earlier
+  Studio created there as `postgres`. Use a generated hexadecimal value.
 - `FREE_DEPLOYMENT_CLI_PROVIDERS` (optional; `codex-cli`, `claude-code`,
   comma-separated) offers the Codex CLI and Claude Code to every researcher as
   read-only deployment connections. They run on this server's own CLI login,
@@ -137,9 +152,19 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   before their next Catalog Extraction; admitted work, including a retried
   Extraction ID, keeps the method it was admitted with. Unsetting it again
   pauses new unified admissions; admitted unified work still runs and reads.
-- Studio's `DATABASE_URL` role must own database `free` or hold `CREATE` on it
-  (DBOS creates the `dbos` schema at launch) and `CREATEROLE` (the entrypoint
-  creates `kei`); Compose uses `postgres`.
+- `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
+  on it, and be able to create roles; Compose uses `postgres`. The entrypoint
+  refuses to prepare a `free_studio` or `kei` that is a superuser or owns
+  anything else, since an owner keeps its object's DDL whatever is revoked.
+  At every start it also revokes what either role was granted in `free` and
+  grants only what it needs again. Studio does not start, and the error names
+  the objects, while either role still holds a grant another role made, can
+  create schemas in `free` or objects in `free` outside its own schema
+  (`PUBLIC` included), or reaches FREE's tables or `extraction_runtime`
+  routines through `PUBLIC`. Neither the revocation nor the refusal looks at
+  privileges on other databases of the same server, including `PUBLIC`'s
+  default `CONNECT`; restrict those yourself if the server hosts more than
+  `free`.
 
 ### GPU and DGX Spark
 
@@ -173,9 +198,12 @@ requests would sit ahead of a small document's. `EXTRACT_MAX_MODEL_LEN`
 (default 32,768 tokens) and `EXTRACT_KV_CACHE_BYTES` (default 8G) size the
 extraction server; it loads the text model only. `KEI_NUEXTRACT_MODEL`
 (default `numind/NuExtract3-FP8`), `NUEXTRACT_MAX_MODEL_LEN` and
-`NUEXTRACT_KV_CACHE_BYTES` (default 4G) do the same for the NuExtract server,
-which runs its repository's processor code (`--trust-remote-code`); pin a
-reviewed model revision if that matters to the deployment.
+`NUEXTRACT_KV_CACHE_BYTES` (default 4G) do the same for the NuExtract server.
+Each server loads a fixed Hugging Face commit of its model and runs no code
+from the model repository. `KEI_EXTRACT_REVISION` and `KEI_NUEXTRACT_REVISION`
+default to the commits of the default models: set the matching commit whenever
+you change `KEI_EXTRACT_MODEL` or `KEI_NUEXTRACT_MODEL`, since a commit of
+another repository does not exist and the server does not start.
 `NUEXTRACT_MAX_NUM_SEQS` (default 4) sets how many requests the NuExtract
 server runs at once and, as the worker's `KEI_CATALOG_CHUNKS`, how many model
 calls a recipe or unified Catalog Extraction makes at once. Its reasoning
@@ -253,10 +281,10 @@ sent to a changed one.
 A parse of PDF bytes the Parsing Service already converted with the same
 effective settings reuses the earlier result instead of running OCR again; the
 match is on the fingerprint of the parse's recipe: its settings, library
-versions and text rules ([service contract](../../apps/parsing_service/README.md)). The OCR server's
-image (`VLLM_IMAGE`, default `vllm/vllm-openai:latest`) and its weights
-(`datalab-to/surya-ocr-2`) are not pinned, so the recipe cannot see a change to
-either.
+versions and text rules ([service contract](../../apps/parsing_service/README.md)). The recipe
+does not include the OCR server's image (`VLLM_IMAGE`) or the commit of its
+weights (`datalab-to/surya-ocr-2`, fixed in `compose.gpu.yaml`), so it cannot
+see a change to either.
 
 - **When the OCR server changes**, set a new `KEI_OCR_REVISION` in `.env` (any
   label, such as the date and what changed) and redeploy. This covers pulling a
@@ -614,12 +642,14 @@ then restore the dump:
 docker compose -f compose.yaml -f compose.prod.yaml up -d --wait db
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free \
   -c "CREATE ROLE kei LOGIN" \
+  -c "CREATE ROLE free_studio LOGIN" \
   -c "CREATE ROLE free_extraction_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db pg_restore -U postgres -d free < free.dump
 ```
 
 Then restore the volumes and start normally: migrations are already applied,
-and the entrypoint sets the `kei` role's password from `.env` again.
+and the entrypoint sets the `kei` and `free_studio` passwords from `.env`
+again.
 
 Migrations are forward-only. To upgrade, take the backup set, update the
 checkout and run `node scripts/free.mjs production`. On a GPU host,

@@ -11,12 +11,25 @@
 **/*.log
 **/.design-sync
 
+# Studio's image copies this whole context, so keys, certificates and local CLI
+# or agent logins never enter it. Deployment secrets are runtime mounts only.
+**/*.pem
+**/*.key
+**/*.crt
+**/*.pfx
+**/*.p12
+**/.agents
+**/.claude
+**/.codex
+**/.gemini
+**/.pi
+**/.mcp.json
+
 .git
 .certs
 .pnpm-store
 .omo
 .worktrees
-**/.claude/worktrees
 **/.codegraph
 .dev
 .scratch

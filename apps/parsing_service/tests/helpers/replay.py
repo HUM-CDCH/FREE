@@ -11,7 +11,6 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
 
 from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.kie.stages import ingest
@@ -91,9 +90,9 @@ def replay(recorded: dict, pdf: Path, workdir: Path) -> Replay:
             bbox = tuple(region["bbox"])
             rendered = Region(region["kind"], bbox, region["order"], region["ink"],
                               page.crop_transform(execution.crop_dpi, bbox))
-            image = Image.new("L", tuple(report["pages"][record.page - 1]["image_pixels"]))
+            size = tuple(report["pages"][record.page - 1]["image_pixels"])
             spread = book.page(unit).ingest.spread if book is not None else unit
-            inputs.append(Input(record.page, spread, unit if book is not None else 0, (unit, rendered, image)))
+            inputs.append(Input(record.page, spread, unit if book is not None else 0, (unit, rendered, size)))
     pages = sorted({item.page for item in inputs})
     return Replay(execution, Inventory(pages, inputs, book), outcome, source,
                   book.digest if book is not None else None, book)

@@ -14,6 +14,21 @@ from PIL import Image
 from kei_exp._pdfium import pdfium_lock
 import kei_exp.geometry as geometry
 from kei_exp.kie.ingest_model import Page as IngestPage
+from kei_exp.transcription.types import ConversionError
+
+# The most pixels PDFium may render for one page or crop: the size past which Pillow refuses to decode an image as a
+# decompression bomb (twice Image.MAX_IMAGE_PIXELS), so Docling's layout could not read it back anyway; an A0 page still
+# renders whole at 250 dpi. A page's size is the PDF's own claim, bounded by neither its bytes nor its page count: 553
+# bytes can declare a 14,400 pt page, a 20,000 x 20,000 px bitmap at the cut's 100 dpi. Docling's whole-page VLM render
+# caps its own size (vlm.py).
+MAX_RENDER_PIXELS = 178_956_970
+
+
+def check_render_size(width: int, height: int, number: int, dpi: float) -> None:
+    """ConversionError, before anything is allocated, when page `number` would render over the budget at dpi."""
+    if width * height > MAX_RENDER_PIXELS:
+        raise ConversionError(f"page {number} would render at {width} x {height} px at {dpi:g} dpi, over the limit of "
+                              f"{MAX_RENDER_PIXELS} pixels for one page or crop; output not written")
 
 
 class RenderablePage(Protocol):
@@ -28,6 +43,10 @@ class RenderablePage(Protocol):
 
     def crop_transform(self, dpi: float, bbox: geometry.PointBox | None = None) -> geometry.CropTransform:
         """How the image `render(dpi, bbox)` produces maps back to page points, rounding included."""
+        ...
+
+    def render_size(self, dpi: float, bbox: geometry.PointBox | None = None) -> tuple[int, int]:
+        """The exact pixel size of `render(dpi, bbox)`, known without rendering. ValueError as `render`."""
         ...
 
 
@@ -97,18 +116,16 @@ class PdfPage:
         return geometry.CropTransform(math.ceil(left * scale) * pt_per_px_x, math.ceil(top * scale) * pt_per_px_y,
                              pt_per_px_x, pt_per_px_y, None)
 
+    def render_size(self, dpi: float, bbox: geometry.PointBox | None = None) -> tuple[int, int]:
+        return _bitmap_size(*self.get_size(), bbox, dpi)
+
     def render(self, dpi: float, bbox: geometry.PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
         with pdfium_lock:
             page = self._document[self._number - 1]
             try:
-                crop = (0.0, 0.0, 0.0, 0.0)
-                if bbox is not None:
-                    width, height = page.get_size()
-                    left, top, right, bottom = bbox
-                    if left >= right or top >= bottom:
-                        raise ValueError(f"invalid page box {bbox}")
-                    crop = (left, height - bottom, width - right, top)
-                bitmap = page.render(scale=dpi / 72, crop=crop, grayscale=grayscale)
+                width, height = page.get_size()
+                check_render_size(*_bitmap_size(width, height, bbox, dpi), self._number, dpi)
+                bitmap = page.render(scale=dpi / 72, crop=_pdfium_crop(width, height, bbox), grayscale=grayscale)
                 try:
                     with bitmap.to_pil() as view:
                         return view.convert("L") if grayscale else view.copy()
@@ -116,6 +133,23 @@ class PdfPage:
                     bitmap.close()
             finally:
                 page.close()
+
+
+def _pdfium_crop(width: float, height: float, bbox: geometry.PointBox | None) -> tuple[float, float, float, float]:
+    """pypdfium2's crop of a top-left box on a page of width x height points: the margins left, bottom, right, top."""
+    if bbox is None:
+        return (0.0, 0.0, 0.0, 0.0)
+    left, top, right, bottom = bbox
+    if left >= right or top >= bottom:
+        raise ValueError(f"invalid page box {bbox}")
+    return (left, height - bottom, width - right, top)
+
+
+def _bitmap_size(width: float, height: float, bbox: geometry.PointBox | None, dpi: float) -> tuple[int, int]:
+    """The bitmap pypdfium2 asks for (page.py): the ceiled canvas less the ceiled crop."""
+    crop, scale = _pdfium_crop(width, height, bbox), dpi / 72
+    return (math.ceil(width * scale) - math.ceil(crop[0] * scale) - math.ceil(crop[2] * scale),
+            math.ceil(height * scale) - math.ceil(crop[1] * scale) - math.ceil(crop[3] * scale))
 
 
 @dataclass(frozen=True)
@@ -162,12 +196,18 @@ class BookPage:
                              (box[2] - box[0]) / width * 72 / self.dpi_x, (box[3] - box[1]) / height * 72 / self.dpi_y,
                              box)
 
+    def render_size(self, dpi: float, bbox: geometry.PointBox | None = None) -> tuple[int, int]:
+        return self._output_size(self.native_box(bbox), dpi)
+
     def render(self, dpi: float, bbox: geometry.PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
-        """Grayscale of bbox (or the whole page) at dpi, resampled by area from the native pixels of `native_box`."""
+        """Grayscale of bbox (or the whole page) at dpi, resampled by area from the native pixels of `native_box`.
+        The output size is checked first: Pillow's decompression check sees only the native pixels, and a small
+        PNG placed at a fraction of a dpi resamples to any size."""
         box = self.native_box(bbox)
+        size = self._output_size(box, dpi)
+        check_render_size(*size, self.ingest.index, dpi)
         with Image.open(self.path) as image:
             gray = (image if bbox is None else image.crop(box)).convert("L")
-        size = self._output_size(box, dpi)
         return gray if size == gray.size else gray.resize(size, Image.Resampling.BOX)
 
     def to_page_points(self, bbox: geometry.PointBox) -> geometry.PointBox:

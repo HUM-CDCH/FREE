@@ -27,13 +27,21 @@ services:
       # kei's own role on Studio's database; Studio's entrypoint creates it from the same password.
       KEI_SYSTEM_DATABASE_URL: "postgresql://kei:${FREE_KEI_POSTGRES_PASSWORD:?FREE_KEI_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
 
+  eval_watcher:
+    environment:
+      # Studio's restricted runtime role, which Studio's entrypoint prepares.
+      DATABASE_URL: "postgresql://free_studio:${FREE_STUDIO_POSTGRES_PASSWORD:?FREE_STUDIO_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
+
   studio:
     restart: unless-stopped
     # The FREE_ENTRA_* values and the client-certificate mount are duplicated
     # in compose.entra.yaml (Compose cannot share anchors across files); keep
     # the two blocks identical.
     environment:
-      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
+      # Studio's entrypoint migrates and prepares the roles as postgres, then
+      # starts Studio as the restricted free_studio role with neither of these.
+      FREE_ADMIN_DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
+      DATABASE_URL: "postgresql://free_studio:${FREE_STUDIO_POSTGRES_PASSWORD:?FREE_STUDIO_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
       FREE_KEI_POSTGRES_PASSWORD: "${FREE_KEI_POSTGRES_PASSWORD:?FREE_KEI_POSTGRES_PASSWORD must be set to a generated hexadecimal password}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be a canonical path such as /free}"

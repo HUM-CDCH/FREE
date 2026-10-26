@@ -21,8 +21,9 @@ describe('fixed eight-hour browser sessions', () => {
     const payload = sessions.issue(ACCOUNT_ID, identityTokenExpiresAt)
 
     expect(payload).toEqual({
-      version: 4,
+      version: 5,
       accountId: ACCOUNT_ID,
+      sessionId: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/),
       issuedAt: time,
       expiresAt: time + 8 * 60 * 60 * 1_000,
     })
@@ -42,7 +43,16 @@ describe('fixed eight-hour browser sessions', () => {
     expect(sessions.verify(cookieValue(cookie))).toBeNull()
   })
 
-  it.each([2, 3])('rejects version %i sessions issued under previous lifetime rules', (version) => {
+  it('gives sessions issued for one account at the same instant different IDs', () => {
+    const time = Date.UTC(2026, 7, 20)
+    const sessions = createSessionManager(SECRET, () => time)
+    const first = sessions.issue(ACCOUNT_ID, time + 3_600_000)!
+    const second = sessions.issue(ACCOUNT_ID, time + 3_600_000)!
+    expect(first.sessionId).not.toBe(second.sessionId)
+    expect(sessions.serialize(first)).not.toBe(sessions.serialize(second))
+  })
+
+  it.each([2, 3, 4])('rejects version %i sessions issued under previous rules', (version) => {
     const time = Date.UTC(2026, 7, 20)
     const sessions = createSessionManager(SECRET, () => time)
     const oldCookie = encodeSignedValue({

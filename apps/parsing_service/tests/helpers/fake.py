@@ -3,6 +3,7 @@ reasons, queued records outright, or one Surya-like block per crop; it remembers
 under the kind `fake` with a model record of its own for the duration of a test."""
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 
 from kei_exp.kie.stages.ocr import TRANSCRIBERS
 from kei_exp.models import MODELS, Model
@@ -32,18 +33,22 @@ class FakeTranscriber:
         if not self.blocks:
             emit({"type": "phase", "name": "vlm", "total": None})
             emit({"type": "token", "page": 1, "text": "x"})  # numbered by input ordinal, as every adapter does
-        if self.records is not None:
-            return Transcription(self.header, self.records)
+        if self.records is not None:  # each call's images its own, as an adapter's are: the OCR stage closes them
+            return Transcription(self.header, [replace(record, image=record.image.copy()) if record.image else record
+                                               for record in self.records])
+        offset = execution.batch[0] - 1 if execution.batch else 0  # numbered by the run's ordinal, as every adapter
         if self.blocks:
             pages = [PageRecord(page=number, region=region_info(crop), image=None, seconds=None, input_tokens=None,
                                 output_tokens=None, stop=None, capped=False, payload={"blocks": [dict(BLOCK)]},
                                 stats={}, markdown="text", text="x", incomplete=None, source_page=None)
-                     for number, crop in enumerate(crops or [], 1)]
+                     for number, crop in enumerate(crops or [], offset + 1)]
             return Transcription({"prompt": None, "scale": None, "max_size": None, "max_output_tokens": None,
                                   "generation_params": None, "errors": []}, pages)
         first, last = execution.pages or (1, 1)  # the one-page input of the conversion tests
-        inputs = [(n, region_info(crop), None) for n, crop in enumerate(crops, 1)] if crops is not None else \
-            [(n, None, first + n - 1) for n in range(1, last - first + 2)]
+        if execution.batch:
+            last = first + execution.batch[1] - 1
+        inputs = [(n, region_info(crop), None) for n, crop in enumerate(crops, offset + 1)] if crops is not None else \
+            [(n, None, first + n - 1) for n in range(offset + 1, last - first + 2)]
         return Transcription(self.header, [
             PageRecord(page=n, region=region, image=None, seconds=None, input_tokens=None, output_tokens=None,
                        stop=None, capped=False, payload={}, stats={}, markdown=self.markdown, text=self.markdown,

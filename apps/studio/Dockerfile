@@ -58,6 +58,13 @@ RUN sed -i 's/\r$//' /usr/local/bin/studio-entrypoint \
     && chmod +x /usr/local/bin/studio-entrypoint
 
 EXPOSE 5173
+# The entrypoint's workspace pnpm commands resolve the root from here, and the
+# host runs from the package cwd that `pnpm --filter studio start` would use.
+WORKDIR /workspace/apps/studio
+# Without pnpm as parent, keep its script PATH: provider status runs the
+# package-local `claude` executable by name.
+ENV PATH=/workspace/apps/studio/node_modules/.bin:/workspace/node_modules/.bin:$PATH
 ENTRYPOINT ["/usr/local/bin/studio-entrypoint"]
-# Run the built Hono host; Vite is never part of the hosted request path.
-CMD ["pnpm", "--filter", "studio", "start"]
+# Run the built Hono host as PID 1 so `docker stop`'s SIGTERM reaches its
+# shutdown handlers directly; Vite is never part of the hosted request path.
+CMD ["node", "dist/server/index.js"]

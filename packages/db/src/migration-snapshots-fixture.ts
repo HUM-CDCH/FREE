@@ -1,10 +1,10 @@
 /**
  * A temporary copy of this package's contract and migration history, planned forward by two migrations the way FREE
- * plans them: change the contract, emit it, `pnpm --filter db db:migration plan`, then advance the committed `db` ref
- * to the new head. Nothing under `packages/db` is written.
+ * plans them: change the contract, emit it, `pnpm --filter db db:migration plan --from <db ref>`, then advance the
+ * committed `db` ref to the new head. Nothing under `packages/db` is written.
  */
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join, resolve } from 'node:path'
 import { migrationDirectories } from './migration-snapshots.js'
@@ -27,12 +27,18 @@ export function planTwoMigrations() {
   const run = (file: string, args: string[]) =>
     execFileSync(file, args, { cwd: packageDirectory, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
   const contract = join(packageDirectory, 'src/prisma/contract.prisma')
+  const refs = join(migrations, 'refs')
+  const readRef = () => JSON.parse(readFileSync(join(refs, 'db.json'), 'utf8')) as { hash: string }
   /** Plans `column` through `pnpm --filter db db:migration plan`, or straight through prisma-next when `raw`. */
   const plan = (column: string, name: string, raw = false): PlannedMigration => {
     writeFileSync(contract, readFileSync(contract, 'utf8').replace('model EvaluationRound {\n', `model EvaluationRound {\n  ${column} String?\n`))
     run(bin('prisma-next'), ['contract', 'emit', '--no-color'])
     const before = new Set(migrationDirectories(migrations))
-    const args = ['plan', '--name', name, '--no-color']
+    // Plan from the scratch `db` ref's current hash, as local-development.md prescribes while a self-edge is the tip:
+    // without `--from`, the ref's snapshot sends the planner looking for a history leaf, and the self-edges leave none
+    // (`MIGRATION.NO_TARGET`).
+    const head = readRef().hash
+    const args = ['plan', '--name', name, '--from', head, '--no-color']
     if (raw) run(bin('prisma-next'), ['migration', ...args])
     else run(bin('tsx'), [join(packageRoot, 'src/migration-command.ts'), ...args])
     const directory = migrationDirectories(migrations).find((name) => !before.has(name))
@@ -43,6 +49,15 @@ export function planTwoMigrations() {
   }
   const remove = () => rmSync(packageDirectory, { recursive: true, force: true })
   try {
+    // `migrate --advance-ref` and `db init`/`db update` leave an ignored snapshot of the `db` ref's contract beside the
+    // ref, which a fresh checkout lacks. Emit the unchanged contract, the ref's own, as that snapshot, so planning meets
+    // the same refs in every checkout.
+    run(bin('prisma-next'), ['contract', 'emit', '--no-color'])
+    const emitted = join(packageDirectory, 'src/prisma/contract')
+    if (JSON.parse(readFileSync(`${emitted}.json`, 'utf8')).storage.storageHash !== readRef().hash)
+      throw new Error('The committed contract is not the contract the db ref names.')
+    copyFileSync(`${emitted}.json`, join(refs, 'db.contract.json'))
+    copyFileSync(`${emitted}.d.ts`, join(refs, 'db.contract.d.ts'))
     const first = plan('snapshotProbeA', 'snapshot_probe_a')
     const second = plan('snapshotProbeB', 'snapshot_probe_b')
     return { packageDirectory, migrations, first, second, plan, run, remove }

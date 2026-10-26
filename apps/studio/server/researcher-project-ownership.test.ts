@@ -147,6 +147,8 @@ function accountStore(): ResearcherAccountStore {
     findById: vi.fn(async (id) =>
       accounts.find((candidate) => candidate.id === id) ?? null,
     ),
+    revokeSession: vi.fn(async () => {}),
+    isSessionRevoked: vi.fn(async () => false),
   }
 }
 

@@ -6,7 +6,8 @@ import json
 import re
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Event, Thread
+from threading import Event, Lock, Thread, current_thread
+from time import sleep
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -323,7 +324,7 @@ class SuryaClient:
         self.fake.surya_replies.update({prompt: list(attempts)
                                         for prompt, attempts in {**REPLIES, **STREAMED_ONLY}.items()})
         with OpenAI(base_url=self.fake.url.removesuffix("/chat/completions"), api_key="test") as client, \
-                patch("kei_exp.transcription.surya.sleep"):
+                patch("kei_exp.transcription.surya.RETRY_BACKOFF", 0):
             backend = SimpleNamespace(_client=client, _client_parallel=lambda: 4,
                                       start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
             with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
@@ -415,6 +416,38 @@ def test_repeated_empty_artwork_stops_before_retry_and_reports_every_original_in
     if live:
         assert sorted(e["page"] for e in events if e["type"] == "page_end") == [1, 2]
         assert all(e["stop_reason"] == "error" for e in events if e["type"] == "page_end")
+
+
+def test_the_scheduler_keeps_its_parallelism_full_and_returns_the_batch_in_order(monkeypatch):
+    """A finished request's slot is refilled at once, never more than the backend's parallelism run together, the
+    calling thread is asked before every refill, and the outputs keep batch order whatever order they finished in."""
+    from surya.inference.backends import openai_client
+    from surya.inference.schema import BatchInputItem
+
+    lock, running, peak, finished, checks = Lock(), [0], [0], [], []
+
+    def generate_one(item, *, client, **options):
+        with lock:
+            running[0] += 1
+            peak[0] = max(peak[0], running[0])
+        sleep(0.02 * (8 - item.metadata["page_idx"]))  # the first page is the slowest
+        with lock:
+            running[0] -= 1
+            finished.append(item.metadata["page_idx"])
+        client.finish_reason = "stop"
+        return SimpleNamespace(raw=f"page {item.metadata['page_idx']}", token_count=2, error=False,
+                               mean_token_prob=1.0, logprobs=None)
+    monkeypatch.setattr(openai_client, "_generate_one", generate_one)
+    backend = SimpleNamespace(_client=object(), _client_parallel=lambda: 3,
+                              start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+    with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
+        manager = _InferenceManager(check=lambda: checks.append(current_thread()))
+    with Image.new("RGB", (16, 16)) as image:
+        outputs = manager.generate([BatchInputItem(image=image, prompt_type="high_accuracy_bbox", prompt="p",
+                                                   metadata={"page_idx": n}) for n in range(8)])
+    assert [output.raw for output in outputs] == [f"page {n}" for n in range(8)] and finished != sorted(finished)
+    assert peak[0] == 3 and len(finished) == 8
+    assert 1 < len(checks) and set(checks) == {current_thread()}
 
 
 # --- The token guard: Surya's real RecognitionPredictor over a fake inference manager with canned outputs ----------

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { executeSchemaSuggestion } from './_model_execution.js'
 import { generateSchemaEditJson } from './_schema_edit.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
 import type { ExecutionTarget, NuExtractExecutionTarget } from './_provider.js'
@@ -244,6 +245,53 @@ describe('generateSchemaWithModel', () => {
         message: 'NuExtract generation failed.',
         cause: failure,
       })
+  })
+
+  describe('reads a bounded NuExtract response', () => {
+    const MiB = 1024 * 1024
+    const suggest = (request: typeof fetch) =>
+      executeSchemaSuggestion(nuextractTarget, { instructions: '', guidance: 'Suggest.', documentParts: [] }, request)
+    /** `bytes` (16 MiB of spaces by default) served in 64 KiB pieces as the reader pulls them; cancelling stops it. */
+    function streamed(status: number, bytes = new Uint8Array(16 * MiB).fill(0x20)) {
+      const observed = { pulls: 0, cancelled: false }
+      let offset = 0
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          observed.pulls++
+          if (offset >= bytes.byteLength) return controller.close()
+          const piece = bytes.subarray(offset, offset + 64 * 1024)
+          offset += piece.byteLength
+          controller.enqueue(piece)
+        },
+        cancel() { observed.cancelled = true },
+      }, { highWaterMark: 0 })
+      return { observed, request: vi.fn(async () => new Response(body, { status })) as unknown as typeof fetch }
+    }
+
+    it('accepts a large chat completion within the budget', async () => {
+      // 3 MiB of content: far above what 8192 output tokens decode to, below the 4 MiB budget.
+      const content = `{"_description":"One record.","label":"string"}${' '.repeat(3 * MiB)}`
+      const completion = JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] })
+      const { request } = streamed(200, new TextEncoder().encode(completion))
+
+      await expect(suggest(request)).resolves.toEqual({ response: content })
+    })
+
+    it('stops reading a success body past the budget and cancels it', async () => {
+      const { observed, request } = streamed(200)
+
+      await expect(suggest(request)).rejects.toMatchObject({ status: 502, code: 'invalid_model_output' })
+      expect(observed.cancelled).toBe(true)
+      expect(observed.pulls).toBeLessThanOrEqual(4 * MiB / (64 * 1024) + 2)
+    })
+
+    it('fails an error status without reading its body', async () => {
+      const { observed, request } = streamed(503)
+
+      await expect(suggest(request)).rejects.toMatchObject({ status: 502, code: 'model_operation_failed' })
+      expect(observed.cancelled).toBe(true)
+      expect(observed.pulls).toBeLessThanOrEqual(1)
+    })
   })
 
   it('passes cancellation to the NuExtract request', async () => {

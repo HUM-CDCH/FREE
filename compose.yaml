@@ -116,9 +116,9 @@ services:
     profiles: ["eval"]
     init: true
     environment:
-      # The application principal, the same one Studio migrates with: the
-      # watcher reads projects and writes only evaluationRound.
-      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
+      # DATABASE_URL comes from the overlay: Studio's restricted runtime role,
+      # never the administrative one. The watcher reads projects and writes
+      # only evaluationRound.
       KEI_RUNS: /app/runs
       KEI_EXTRACT_URL: "${KEI_EXTRACT_URL:-http://extraction_model:8000/v1/chat/completions}"
       KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
@@ -138,8 +138,10 @@ services:
       - parsing-runs:/app/runs
       - parsing-models:/models
       - eval-out:/app/eval-out
+    # A healthy Studio has finished the migrations the watcher's first query
+    # reads; the launcher stops the watcher with Studio before migrating.
     depends_on:
-      db:
+      studio:
         condition: service_healthy
     networks:
       - app

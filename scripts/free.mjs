@@ -435,6 +435,8 @@ export function developmentComposeEnvironment(
     FREE_POSTGRES_PASSWORD: 'postgres',
     // Studio's entrypoint creates kei's role with it; kei's worker connects with it.
     FREE_KEI_POSTGRES_PASSWORD: 'kei-development',
+    // Studio's restricted runtime role, which its entrypoint creates; Studio and the watcher connect with it.
+    FREE_STUDIO_POSTGRES_PASSWORD: 'studio-development',
     FREE_SESSION_SECRET: sessionSecret,
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
@@ -458,12 +460,23 @@ function awaitChild(child) {
 }
 
 // Build failures leave the current deployment serving. Once images exist,
-// quiesce both schema consumers before Compose runs the migration dependency.
+// quiesce the schema consumers before Compose runs the migration dependency.
+// The services waiting for a healthy Studio stop with it, so `up` starts them
+// again only after the migrated replacement: an nginx container (development's,
+// or the bundled one) resolves Studio's address when it starts, and the
+// evaluation watcher reads the schema. The stop always selects the evaluation
+// profile: Compose stops only services of the profiles it loaded, and `up`
+// leaves a watcher an earlier evaluation-enabled start left running, so
+// disabling evaluation must still stop it. With no watcher it stops nothing.
 export async function startComposeStack(upArguments, environment, start = spawn) {
   const compose = upArguments.slice(0, upArguments.indexOf('up'))
+  const nginxContainer = compose.includes('compose.override.yaml') || compose.includes('compose.nginx.yaml')
+  const evaluation = compose.some((argument, index) => compose[index - 1] === '--profile' && argument === 'eval')
   for (const args of [
     [...compose, 'build'],
-    [...compose, 'stop', '--timeout', '60', 'studio', 'parsing_service', 'parsing_worker'],
+    [...(evaluation ? compose : ['compose', '--profile', 'eval', ...compose.slice(1)]),
+      'stop', '--timeout', '60', 'studio', 'parsing_service', 'parsing_worker',
+      ...(nginxContainer ? ['nginx'] : []), 'eval_watcher'],
     upArguments,
   ]) {
     const status = await awaitChild(start('docker', args, {
@@ -560,7 +573,7 @@ export function validateProductionEnvironment(
 
   appendSharedIssue('FREE_SESSION_SECRET')
 
-  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
+  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD', 'FREE_STUDIO_POSTGRES_PASSWORD']) {
     const password = environment[field]
     if (password === undefined || password === '')
       errors.push(`${field} is required in .env.`)

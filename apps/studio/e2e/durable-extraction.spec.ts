@@ -9,6 +9,7 @@ import type { DurableValue } from 'extraction/durable-contract'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { prepareInteractiveDocument,INTERACTIVE_SCHEMA_NODES } from './interactiveStack.js'
 import { E2E_ORIGIN,loginResearcher } from './auth.js'
+import { savedCorrectionHref } from '../src/durableReviewLinks.js'
 import { savedBatchSource,savedExtraction } from './durableFixtures.js'
 
 test.beforeEach(({page})=> {
@@ -253,8 +254,17 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await page.getByRole('button',{name:'More result actions'}).click()
     await page.getByRole('menuitem',{name:'Change inputs'}).click()
     await page.getByRole('button',{name:'Save pending inputs',exact:true}).click()
+    // The saved edits are read against the pending inputs as guidance for their later calls.
+    await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable`)).json()).pendingSelection?.id).toBeTruthy()
+    const pendingId=(await (await page.request.get(`/api/extractions/${id}/durable`)).json()).pendingSelection.id
+    const forPending=(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/feedback?target=${id}&selection=${pendingId}`)).json())
+      .filter((row:{extractionId:string;active:boolean})=>row.extractionId===id&&row.active)
+    expect(forPending.map((row:{valueId:string})=>row.valueId).sort()).toEqual(['flag','names','work'])
+    for(const row of forPending)expect(row).toMatchObject({included:true,targetCompatibility:'compatible',decision:{action:'EDITED'}})
     await page.locator('#rail-tab-history').click()
-    await expect(page.getByText('Corrections for the pending inputs',{exact:false})).toBeVisible()
+    await expect(page.getByRole('region',{name:'Saved results',exact:true})).toContainText('Results 1')
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('Changed inputs (version 2)')
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('First inputs')
     await page.locator('#rail-tab-results').click()
     await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
@@ -373,12 +383,20 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     // The value's link opens it and shows its correction Evidence on the source.
     await page.reload();await page.locator('#rail-tab-results').click()
     await expect(page.locator('.parsed-evidence-highlight')).toHaveCount(1)
-    await page.locator('#rail-tab-history').click()
-    await expect(page.getByText('In use · Has evidence',{exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Stop using',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Use',exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Use',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Stop using',exact:true})).toBeVisible()
+    // The Project's guidance: the edit is in use, has Evidence and fits this target; leaving it out and back in saves
+    // new revisions of the same correction.
+    const feedbackUrl=`/api/project-contexts/${fixture.projectContextId}/feedback`,origin={Origin:new URL(page.url()).origin}
+    const guidance=async(query='')=>(await (await page.request.get(`${feedbackUrl}?target=${id}${query}`)).json())
+      .find((row:{valueId:string;active:boolean})=>row.valueId===valueId&&row.active)
+    expect(await guidance()).toMatchObject({revision:1,included:true,candidate:{grounded:true},targetCompatibility:'compatible'})
+    for(const [included,revision] of [[false,2],[true,3]] as const) {
+      const toggled=await page.request.post(feedbackUrl,{headers:origin,data:{id:(await guidance()).id,expectedRevision:revision-1,included}})
+      expect(toggled.status(),await toggled.text()).toBe(200)
+      expect(await guidance()).toMatchObject({revision,included,candidate:{grounded:true}})
+    }
+    const stale=await page.request.post(feedbackUrl,{headers:origin,data:{id:(await guidance()).id,expectedRevision:1,included:false}})
+    expect(stale.status()).toBe(409)
+    expect((await (await page.request.get(valueUrl)).json()).values[0].correction.decision).toMatchObject({value:'Corrected title 505',evidence:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence]}]})
     const revision=randomUUID()
     await pool.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,$2,max("revisionNumber")+1,'RESEARCHER_EDIT',$3,'records' FROM public."schemaRevision" WHERE "extractionSchemaId"=$2`,
@@ -389,10 +407,15 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     // A settled view reads inputs changed elsewhere when the researcher comes back to it.
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
     await page.locator('#rail-tab-results').click()
-    await expect(page.getByText(/1 saved correction doesn’t fit the pending schema/)).toBeVisible()
+    await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toBeVisible()
+    // A string edit doesn't fit the pending number field: it stays saved and in use, but is not this target's guidance.
+    const pendingId=(await (await page.request.get(`/api/extractions/${id}/durable`)).json()).pendingSelection.id
+    expect(await guidance(`&selection=${pendingId}`)).toMatchObject({included:true,targetCompatibility:'incompatible'})
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
+    await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toHaveCount(0)
+    expect(await guidance()).toMatchObject({revision:3,included:true,targetCompatibility:'incompatible'})
     await page.locator('#rail-tab-history').click()
-    await expect(page.getByText(/1 correction doesn’t fit this schema/)).toBeVisible()
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText(/Changed inputs \(version 2\).*schema changed/)
     await page.locator('#rail-tab-results').click()
     const stillSaved=(await (await page.request.get(valueUrl)).json()).values[0]
     expect(stillSaved.modelValue).toBe('Saved title 505')
@@ -725,9 +748,11 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
     expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3])
     await second.locator('#rail-tab-history').click()
-    // Corrections list newest first: revisions 3, 2, 1.
-    const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(0).getAttribute('href')
-    await page.goto(historical!);await page.locator('#rail-tab-results').click()
+    await expect(second.getByRole('region',{name:'Saved results',exact:true})).toContainText('Results 1')
+    // The newest correction's own saved cut, opened through the link Studio gives a saved correction.
+    const undone=history.corrections.at(-1)
+    expect(undone).toMatchObject({extractionId:id,valueId:'work',snapshotVersion:1,feedbackVersion:3})
+    await page.goto(savedCorrectionHref(fixture.projectContextId,fixture.sourceDocumentId,undone));await page.locator('#rail-tab-results').click()
     await expect(page.getByRole('region',{name:'Review work'})).toContainText('a: 10 · b: 2')
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
     await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)

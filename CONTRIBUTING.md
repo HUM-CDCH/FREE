@@ -4,8 +4,9 @@
 
 - Work on a branch from `dev`, open a pull request against `dev`, get one
   review, then merge. `dev` reaches `main` through merge PRs, which run the
-  [`verify`](.github/workflows/verify.yml) workflow; a pull request against
-  `dev` runs no CI, so run `pnpm typecheck`, `pnpm lint`, `pnpm test` and the
+  full [`verify`](.github/workflows/verify.yml) workflow; a pull request
+  against `dev` runs only its fast checks (`pnpm typecheck`, `pnpm lint` and
+  `pnpm test:unit`), so also run the
   [tiers](docs/operations/local-development.md#verification) your change
   touches before asking for review.
 - Reviewers, human or agent, also check the diff against

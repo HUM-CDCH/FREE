@@ -17,8 +17,10 @@ from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.kie.ingest_model import IngestArtifact, Placement
 from kei_exp.kie.ingest_model import Page as IngestPage
 from kei_exp.kie.runner import convert
+from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import resolve
-from kei_exp.pages import BookPage, BookPages, PdfPages
+from kei_exp.pages import MAX_RENDER_PIXELS, BookPage, BookPages, PdfPages
+from kei_exp.transcription import surya
 from kei_exp.transcription.types import ConversionError, Execution, RunParams
 from tests.helpers.fake import FakeTranscriber, registered
 
@@ -407,3 +409,99 @@ def test_a_malformed_ingest_setting_is_refused_before_anything_runs(workspace, s
                           ingest={"split": "triptych"}))
     with pytest.raises(ValueError, match="page_source"):
         resolve(RunParams(pdf=scan_pdf, model="fake", page_source="pdf", ingest={"split": "single"}))
+
+
+# --- The render budget: a page's size is the PDF's claim, not its bytes ------------------------------------------
+
+
+@pytest.fixture
+def bitmaps(monkeypatch) -> list[tuple[int, int]]:
+    """Every bitmap PDFium is asked for, by FREE's renderer or Surya's own loader. A request over the budget fails
+    the test where PDFium would allocate it, so a regression never allocates the bitmap it is about."""
+    requested = []
+    native = pdfium.PdfPage.render
+
+    def render(page, *args, **kwargs):
+        def maker(width, height, **options):
+            requested.append((width, height))
+            assert width * height <= MAX_RENDER_PIXELS, f"PDFium was asked for a {width} x {height} px bitmap"
+            return pdfium.PdfBitmap.new_native(width, height, **options)
+        return native(page, *args, bitmap_maker=maker, **kwargs)
+    monkeypatch.setattr(pdfium.PdfPage, "render", render)
+    return requested
+
+
+def blank_pdf(path: Path, width: float, height: float) -> Path:
+    with pdfium.PdfDocument.new() as document:
+        document.new_page(width, height).close()
+        document.save(str(path))
+    return path
+
+
+@pytest.mark.parametrize("cut", ["auto", "none"])
+def test_a_tiny_pdf_declaring_a_huge_page_is_refused_before_pdfium_allocates(tmp_path, bitmaps, cut):
+    """553 bytes declaring a 14,400 pt square page: 20,000 x 20,000 px at the cut's 100 dpi, 38,400 x 38,400 RGB
+    through Surya's loader at 192 dpi. Neither the upload limit nor the page count bounds that."""
+    pdf = blank_pdf(tmp_path / "huge.pdf", 14_400, 14_400)
+    assert pdf.stat().st_size < 1024
+    execution = resolve(RunParams(pdf=pdf, model="surya", cut=cut))
+    assert execution.transcriber == "surya"
+    with pytest.raises(ConversionError, match="pixel"):
+        convert(execution, emit=lambda event: None)
+    assert bitmaps == []
+
+
+def test_an_ordinary_page_and_a_small_crop_of_a_huge_one_render_within_the_budget(tmp_path, bitmaps):
+    a4 = blank_pdf(tmp_path / "a4.pdf", 595.28, 841.89)
+    a0 = blank_pdf(tmp_path / "a0.pdf", 2383.94, 3370.39)
+    huge = blank_pdf(tmp_path / "huge.pdf", 14_400, 14_400)
+    with PdfPages(a4) as pages, pages.page(1).render(250) as whole:
+        assert whole.size == (2067, 2924)
+    with PdfPages(a0) as pages, pages.page(1).render(250) as whole:  # a poster's full-page figure, 97 Mpx
+        assert whole.size == (8278, 11703)
+    with PdfPages(huge) as pages:
+        page = pages.page(1)
+        with page.render(250, (7_000, 7_000, 7_576, 7_288)) as crop:  # 8 x 4 in of a 200 in page
+            assert abs(crop.width - 2000) <= 1 and abs(crop.height - 1000) <= 1  # PDFium ceils the crop offsets
+        with pytest.raises(ConversionError, match="pixel"):
+            page.render(250, (0, 0, 14_400, 2_000))  # a 200 x 28 in strip
+    assert bitmaps == [(2067, 2924), (8278, 11703), crop.size]
+    images = surya.whole_pages(a4, None, 192)
+    assert [image.size for image in images] == [(1588, 2246)] and bitmaps[-1] == (1588, 2246)
+
+
+@pytest.fixture
+def resizes(monkeypatch) -> list[tuple[int, int]]:
+    """Every size a book page render resamples to. A size over the budget fails the test before Pillow allocates."""
+    requested = []
+    native = Image.Image.resize
+
+    def resize(image, size, *args, **kwargs):
+        requested.append(tuple(size))
+        assert size[0] * size[1] <= MAX_RENDER_PIXELS, f"Pillow was asked for a {size[0]} x {size[1]} px resample"
+        return native(image, size, *args, **kwargs)
+    monkeypatch.setattr(Image.Image, "resize", resize)
+    return requested
+
+
+@pytest.mark.parametrize("cut", ["auto", "none"])
+def test_a_tiny_book_page_placed_at_a_huge_size_is_refused_before_it_is_resampled(tmp_path, resizes, bitmaps, cut):
+    """A 100 x 100 px bilevel book page placed over a 14,400 pt spread is 0.5 dpi: Pillow's decompression check sees
+    its 10,000 native pixels, while the cut's 100 dpi asks for 20,000 x 20,000 and the crop dpi for 50,000 x 50,000."""
+    Image.new("1", (100, 100), 1).save(tmp_path / "page.png")
+    book = BookPages(tmp_path, [single_page(100, 100, dpi=0.5)])
+    pdf = blank_pdf(tmp_path / "spread.pdf", 14_400, 14_400)
+    execution = Execution(pdf=pdf, transcriber="fake", model="fake", repo="fake/model", url="http://unused", cut=cut,
+                          layout_model="layout_heron_101" if cut == "auto" else None, crop_dpi=250,
+                          max_image_size=None, max_output_tokens=None, stream=False, pages=None, debug_dir=None,
+                          result_dir=tmp_path / "result", page_source="ingest", ingest_dir=tmp_path)
+    with registered(FakeTranscriber(knobs=frozenset(), blocks=True)) as fake, \
+            pytest.raises(ConversionError, match="pixel"):
+        ocr.run(execution, lambda event: None, book=book)
+    assert resizes == [] and bitmaps == [] and fake.calls == [] and not (tmp_path / "result").exists()
+
+
+def test_an_ordinary_book_page_crop_still_renders_at_its_rounded_size(page, resizes):
+    assert page.render(250, (0.05, 0.0, 12.05, 12.0)).size == (42, 42)
+    assert page.render(100).size == (200, 100)
+    assert resizes == [(42, 42), (200, 100)]

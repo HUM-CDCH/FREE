@@ -132,8 +132,16 @@ export async function collectPackages(ports: GarbagePorts, nowMs: number): Promi
       { modifiedBeforeMs: plan.modifiedBeforeMs })
     if (gone) removed += 1
   }
-  for (const name of plan.leftovers) await ports.packages.removeLeftover(name)
-  return { packages: removed, leftovers: plan.leftovers.length }
+  // A `.deleting` leftover is an interrupted removal's package, which the snapshot above did not list: the store
+  // removes it only through a fresh reference read of its own, and keeps it when that cannot settle.
+  let removedLeftovers = 0
+  for (const name of plan.leftovers) {
+    const gone = await ports.packages.removeLeftover(name,
+      (reference) => ports.references.packageIsReferenced(reference),
+      { modifiedBeforeMs: plan.modifiedBeforeMs })
+    if (gone) removedLeftovers += 1
+  }
+  return { packages: removed, leftovers: removedLeftovers }
 }
 
 export async function collectGarbageWorkflow(scheduledTime: Date, ports: GarbagePorts): Promise<GarbageSummary> {

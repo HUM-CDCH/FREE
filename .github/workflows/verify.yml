@@ -2,9 +2,9 @@ name: verify
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
   merge_group:
 
 permissions:
@@ -15,15 +15,67 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  # Pull requests into and pushes to dev: the checks CONTRIBUTING.md asks for before review, the Parsing Service's
+  # unit tests included. They need no database, stack or browser.
+  fast:
+    if: github.base_ref == 'dev' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     env:
       CI: 'true'
-      FREE_SKIP_PYTHON: '1'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # The Parsing Service's Python environment: `pnpm install` runs its `uv sync --frozen`, with PyTorch's CPU wheels
+      # on this Linux x86_64 runner.
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: apps/parsing_service/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.13.5
+          enable-cache: true
+          cache-dependency-glob: apps/parsing_service/uv.lock
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.8.1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Run the fast tier
+        run: pnpm test:unit
+
+  # Pull requests into and pushes to main, and merge queues: every deterministic tier, the Parsing Service's
+  # included.
+  verify:
+    if: github.base_ref != 'dev' && github.ref != 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CI: 'true'
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
       EXTRACTION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
       PROJECT_STORE_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_project_store
+      PARSING_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_parsing
     services:
       postgres:
         image: postgres:17
@@ -55,6 +107,20 @@ jobs:
           version="$(docker compose version --short)"
           test "${version#v}" = "2.40.0"
 
+      # The Parsing Service's Python environment: `pnpm install` runs its `uv sync --frozen`, with PyTorch's CPU wheels
+      # on this Linux x86_64 runner.
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: apps/parsing_service/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.13.5
+          enable-cache: true
+          cache-dependency-glob: apps/parsing_service/uv.lock
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -72,9 +138,15 @@ jobs:
           pnpm install --frozen-lockfile
           wait
 
-      - name: Create the extraction integration database
+      # The Parsing Service's PostgreSQL tests create and drop their own free_test_parsing_* databases from this one.
+      - name: Create the extraction and parsing integration databases
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction
+          docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_parsing
+
+      # The extraction tier's durable lifecycle and process-recovery checks run their Python side in the worker image.
+      - name: Build the Parsing Service worker image
+        run: docker build --tag free-parsing_worker apps/parsing_service
 
       - name: Get Playwright version
         id: playwright-version
