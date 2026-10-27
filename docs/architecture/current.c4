@@ -236,8 +236,8 @@ views {
   dynamic view schema_guided_extraction {
     title 'Schema Suggestion to reviewed Extraction — current'
     description '''
-      The Schema Suggestion Route serves Schema Suggestion. The Interaction Route
-      serves conversational schema edits. The included Parsing
+      The Schema Suggestion Route serves Schema Suggestion and conversational
+      schema edits. The included Parsing
       Service executes durable Extraction attempts against the pinned source
       generation and schema. Admission commits its public row, durable head and
       workflow enqueue together; saved durable Extractions stay readable

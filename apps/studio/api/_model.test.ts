@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { generateSchemaEditJson } from './_schema_edit.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
 import type { ExecutionTarget, NuExtractExecutionTarget } from './_provider.js'
 import { readAccountModelConfig } from './_model_config.js'
@@ -341,50 +340,6 @@ describe('generateSchemaWithModel', () => {
   })
 })
 
-describe('interactive model operations', () => {
-  it.each(['prompt', 'schema'] as const)('does not request schema-free JSON on a %s route', async (jsonOutput) => {
-    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
-
-    const result = await generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, { ...generalTarget, jsonOutput })
-
-    expect(generateTextMock.mock.calls[0][0]).toMatchObject({
-      reasoning: 'none',
-      messages: [{ role: 'user', content: 'schema prompt' }],
-    })
-    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('output')
-    expect(result.text).toBe('{"fields":{},"additions":[]}')
-  })
-
-  it('requests bounded JSON with reasoning disabled on a native route', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
-
-    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, { ...generalTarget, jsonOutput: 'native' })
-
-    expect(generateTextMock.mock.calls[0][0]).toMatchObject({
-      output: expect.anything(),
-      reasoning: 'none',
-      messages: [{ role: 'user', content: 'schema prompt' }],
-    })
-  })
-
-  it('passes the request signal to a schema edit, so a key wait ends when the browser leaves', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
-    const controller = new AbortController()
-
-    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, controller.signal, generalTarget)
-
-    expect(generateTextMock.mock.calls[0][0]).toMatchObject({ abortSignal: controller.signal })
-  })
-
-  it('rejects a length-truncated schema edit before parsing', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"fields":', finishReason: 'length' })
-
-    await expect(generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, generalTarget)).rejects.toMatchObject({
-      code: 'invalid_model_output',
-    })
-  })
-})
-
 describe("a model call reads its caller's configuration", () => {
   const connectionId = '51000000-0000-4000-8009-0000000000c1'
   const config = {
@@ -402,10 +357,10 @@ describe("a model call reads its caller's configuration", () => {
   }
 
   it('uses an injected reader and never the stored configuration', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","name":"string"}', finishReason: 'stop' })
     const readConfig = vi.fn(async () => config)
 
-    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, undefined, { ...isolated, readConfig })
+    await generateSchemaWithModel(CALLER, { document, instruction: '' }, undefined, { ...isolated, readConfig })
 
     expect(readConfig).toHaveBeenCalledOnce()
     expect(readConfig).toHaveBeenCalledWith()
@@ -413,10 +368,10 @@ describe("a model call reads its caller's configuration", () => {
   })
 
   it("reads the caller's account by default", async () => {
-    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","name":"string"}', finishReason: 'stop' })
     vi.mocked(readAccountModelConfig).mockResolvedValueOnce(config)
 
-    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, undefined, isolated)
+    await generateSchemaWithModel(CALLER, { document, instruction: '' }, undefined, isolated)
 
     expect(readAccountModelConfig).toHaveBeenCalledOnce()
     expect(readAccountModelConfig).toHaveBeenCalledWith(CALLER.researcherAccountId)

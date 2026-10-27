@@ -314,8 +314,8 @@ user action carries a client-minted ID (*Client IDs*).
     acknowledgement, and would repeat after a crash between its commit and
     its checkpoint.
 - **Edit proposals (`proposeSchemaEdit`).** `edit_schema` takes an
-  `operation_id`. One step wraps `proposeSchemaEdit` with its bounded repair.
-  The output is the proposal and its base Schema Revision. Nothing is saved
+  `operation_id`. One step wraps `proposeSchemaEdit`'s Schema Suggestion call
+  (ADR 0022). The output is the proposal and its base Schema Revision. Nothing is saved
   until the researcher applies it through the revision path.
 - **Typed results.** Model steps return expected failures (`ApiError`s) as
   typed results instead of throwing, so the handlers answer with the same

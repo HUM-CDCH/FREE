@@ -13,7 +13,7 @@ import { killStudio } from './studioRestart.js'
 test.describe.configure({ mode: 'serial' })
 
 const TEMPLATE = '{"_description":"One catalogue entry.","heading":"string","year_of_record":"integer"}'
-const RENAME_TITLE = '{"fields":{"title":{"name":"heading","type":"string","removed":false},"year":{"name":"year","type":"integer","removed":false}},"additions":[]}'
+const RENAME_TITLE = '{"_description":"One interactive record.","heading":"string","year":"integer"}'
 const STILL_WORKING = (instruction: string) => `Still working on an earlier request: “${instruction}”`
 const pathOf = (url: string) => new URL(url).pathname
 

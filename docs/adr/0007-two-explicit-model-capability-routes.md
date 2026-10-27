@@ -7,6 +7,8 @@
 > Amended by [0013](0013-per-researcher-model-configuration.md): both routes belong to each Researcher Account; an unset Schema Suggestion Route follows the Interaction Route; and the NuExtract protocol is derived from the connection (vLLM) and the model ID (NuExtract), never stored or chosen.
 >
 > Amended by [0012](0012-one-durable-execution-layer.md): the document chat was deleted, so the Interaction Route serves conversational Extraction Schema editing (edit proposals) only.
+>
+> Amended by [0022](0022-schema-edits-run-through-schema-suggestion.md): edit proposals run through Schema Suggestion, so the Interaction Route serves no model work of its own and is the default an unset Schema Suggestion Route follows.
 
 FREE exposes exactly two machine-wide Capability Routes for now: the Extraction
 Route serves Extraction and Schema Suggestion, while the Interaction Route

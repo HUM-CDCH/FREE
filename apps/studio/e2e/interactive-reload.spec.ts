@@ -10,7 +10,7 @@ const extractionDatabaseReady = () =>
 
 const TEMPLATE = '{"_description":"One catalogue entry.","heading":"string","year_of_record":"integer"}'
 // Every field is named, so the edit workflow's bounded repair (a second model call) has nothing to ask for.
-const RENAME_TITLE = '{"fields":{"title":{"name":"heading","type":"string","removed":false},"year":{"name":"year","type":"integer","removed":false}},"additions":[]}'
+const RENAME_TITLE = '{"_description":"One interactive record.","heading":"string","year":"integer"}'
 const STILL_WORKING = (instruction: string) => `Still working on an earlier request: “${instruction}”`
 
 let stack: InteractiveDocument | undefined
