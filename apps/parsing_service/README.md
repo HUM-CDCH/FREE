@@ -144,7 +144,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
-- A PDF with text on every selected nonblank page parses natively; substantial
+- A PDF with painted text on every selected nonblank page parses natively (a
+  page whose only text is invisible, render mode 3, counts as blank); substantial
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
   discovery order. A native block whose text keeps an undecodable font glyph's

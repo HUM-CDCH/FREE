@@ -326,8 +326,12 @@ FIGURE_LAYER = ("text", "Words the figure prints", 100, 400, INVISIBLE)  # an OC
     pytest.param([[FIGURE, FIGURE_LAYER]], "surya", id="an OCR-layered figure that is all the page prints"),
     pytest.param([[("path", 72, 300, 300, 200), ("text", "Outlined words", 100, 400, INVISIBLE)]], "surya",
                  id="outlined glyphs under a search layer"),
+    pytest.param([[("text", "Slug", 700, 400, FILL), ("image", 72, 100, 100, 100)]], "surya",
+                 id="painted text off the displayed page prints nothing on it"),
+    pytest.param([[("text", "Slug", 700, 400, FILL), ("path", 72, 300, 300, 200)]], "surya",
+                 id="painted text off the page beside outlines"),
     pytest.param([[("text", "Clipping text", 72, 780, CLIP), ("image", 72, 100, 100, 50)]], "native",
-                 id="clipping text still counts as printed"),
+                 id="a clipping-only (mode 7) line is unchanged: still counted as the page's text"),
 ])
 def test_only_painted_text_makes_a_page_native(tmp_path, pages, route):
     # Pages are routed on the text they print. Unpainted glyphs neither make a page native nor, alone, nonblank;
