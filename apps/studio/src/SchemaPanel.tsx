@@ -984,11 +984,13 @@ function SchemaPanel({
         return
       }
       const originalSchemaRevisionId = modelContext.schemaRevisionId
+      // The whole conversation goes with the message: the instructions before the first schema, then this chat.
       const response = await requestSchemaEdit(
         modelContext,
         userMsg,
         controller.signal,
         operationId,
+        [...instructions.history, ...chat],
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -1096,6 +1098,7 @@ function SchemaPanel({
         text,
         controller.signal,
         crypto.randomUUID(),
+        instructions.history,
       )
       if (askAbortRef.current !== controller) return
       instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)

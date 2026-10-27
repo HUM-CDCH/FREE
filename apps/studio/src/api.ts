@@ -2,7 +2,7 @@ import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
-import { schemaChatReplySchema, type SchemaChatReply } from '../shared/schemaChat.contract'
+import { schemaChatReplySchema, type ChatHistory, type SchemaChatReply } from '../shared/schemaChat.contract'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
@@ -192,11 +192,14 @@ export async function requestSchemaChat(
   message: string,
   signal: AbortSignal | undefined,
   operationId: string,
+  history: ChatHistory = [],
 ): Promise<SchemaChatReply> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
   form.append('source_representation_revision_id', context.sourceRepresentationRevisionId)
   form.append('message', message)
+  // The whole conversation before the message goes with it, so a follow-up can refer to it.
+  if (history.length) form.append('history', JSON.stringify(history))
   // The operation ID makes the POST repeatable.
   form.append('operation_id', operationId)
   return postModelForm('/schema_chat', form, (data) => schemaChatReplySchema.parse(data), signal)
@@ -290,6 +293,7 @@ export async function requestSchemaEdit(
   instruction: string,
   signal: AbortSignal | undefined,
   operationId: string,
+  history: ChatHistory = [],
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -301,6 +305,7 @@ export async function requestSchemaEdit(
       context.sourceRepresentationRevisionId,
     )
   form.append('instruction', instruction)
+  if (history.length) form.append('history', JSON.stringify(history))
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
   return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)

@@ -7,7 +7,7 @@ import { operationFailureOf, type OperationResult } from './_model_operation.js'
 import { EXCERPT_THRESHOLD, schemaSourceWindows } from './_schema.js'
 import type { answerFromWindow, answerSchemaChat, combineWindowAnswers, SchemaChatQuestion } from './_schema_chat.js'
 import { modelStep, StepFailure } from './_schema_generation_workflow.js'
-import type { SchemaChatReply } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, SchemaChatReply } from '../shared/schemaChat.contract.js'
 
 export const ANSWER_SCHEMA_CHAT = 'answerSchemaChat'
 /** DBOS patch: a run past it lets an edit chat message ask a question, answered across a long source's windows. */
@@ -20,6 +20,8 @@ export type SchemaChatInput = Readonly<{
   projectContextId: string
   sourceRepresentationRevisionId: string
   message: string
+  /** The chat before the message, oldest first. */
+  history: ChatHistory
   temperature: number | null
 }>
 export type SchemaChatAnswered = { reply: SchemaChatReply }
@@ -76,10 +78,10 @@ export async function answerSchemaChatWorkflow(
   }
   if (source === null) return { ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' }
   const caller = { researcherAccountId: input.owner }
-  const question = { message: input.message, context: null }
+  const question = { message: input.message, context: null, history: input.history }
   try {
     const answer = await modelStep(ports.steps, 'answerIfQuestion', (signal) =>
-      ports.answer(caller, source, input.message, { ...(input.temperature === null ? {} : { temperature: input.temperature }), signal }))
+      ports.answer(caller, source, { message: input.message, history: input.history }, { ...(input.temperature === null ? {} : { temperature: input.temperature }), signal }))
     if (answer === null) return { ok: true, reply: { kind: 'instruction' } }
     return {
       ok: true,

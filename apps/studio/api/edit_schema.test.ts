@@ -68,7 +68,7 @@ describe('POST /api/edit_schema', () => {
       },
       input: {
         operationId: OPERATION, owner: ACCOUNT, projectContextId: PROJECT, extractionSchemaId: SCHEMA, baseSchemaRevisionId: SCHEMA_REVISION,
-        sourceRepresentationRevisionId: SOURCE_REVISION, instruction: 'Rename title to heading', temperature: null,
+        sourceRepresentationRevisionId: SOURCE_REVISION, instruction: 'Rename title to heading', history: [], temperature: null,
       },
     }])
 
@@ -90,6 +90,17 @@ describe('POST /api/edit_schema', () => {
     const failed = await createPostEditSchema(store(), () => failure.client)(form(base))
     expect(failed.status).toBe(409)
     await expect(failed.json()).resolves.toMatchObject({ error: { code: 'model_key_required' } })
+  })
+
+  it('records the chat history the form sends, and refuses a malformed one with 422', async () => {
+    const { enqueued, client } = operations()
+    const history = [{ role: 'user', text: 'Which fields hold dates?' }, { role: 'assistant', text: 'None yet.' }]
+    expect((await createPostEditSchema(store(), () => client)(form({ ...base, history: JSON.stringify(history) }))).status).toBe(200)
+    expect(enqueued[0]!.input).toMatchObject({ history })
+
+    const refused = operations()
+    expect((await createPostEditSchema(store(), () => refused.client)(form({ ...base, history: '{"role":"user"}' }))).status).toBe(422)
+    expect(refused.enqueued).toEqual([])
   })
 
   it('a missing operation_id is 422', async () => {

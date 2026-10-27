@@ -328,6 +328,10 @@ user action carries a client-minted ID (*Client IDs*).
   again across its windows, as above. The page keeps an instruction for
   generation. These are not model operations: a reload neither lists nor
   reopens them.
+- **Chat history.** `edit_schema` and `schema_chat` also take `history`, the
+  conversation before the message as JSON. The workflow input records it beside
+  the instruction (chat text, like the instruction itself, never document text
+  or keys), and every request of the operation reads it.
 - **Typed results.** Model steps return expected failures (`ApiError`s) as
   typed results instead of throwing, so the handlers answer with the same
   status codes. DBOS revives a recorded error only as a plain `Error`.

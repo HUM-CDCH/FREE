@@ -7,12 +7,14 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget, GeneralExecutionTarget } from './_provider.js'
-import { schemaSourceExcerpts } from './_schema.js'
+import { chatHistoryText, schemaSourceExcerpts } from './_schema.js'
 import { answerOf, suggestOrAnswer, type SchemaModelInput } from './_schema_suggestion.js'
 import { traceModelCall } from '../server/tracing.js'
+import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
-/** A schema chat message: the researcher's text and, after the first schema, that schema as the model reads it. */
-export type SchemaChatQuestion = Readonly<{ message: string; context: string | null }>
+/** A schema chat message: the researcher's text, the chat before it and, after the first schema, that schema as the
+ *  model reads it. */
+export type SchemaChatQuestion = Readonly<{ message: string; context: string | null; history: ChatHistory }>
 export type SchemaChatCall = Readonly<{ temperature?: number; signal?: AbortSignal }>
 type ChatSource = Readonly<{ markdown: string; pageSpans?: readonly SourcePageSpan[] }>
 
@@ -20,8 +22,9 @@ const ANSWER_INSTRUCTIONS =
   'Answer the researcher from the supplied source document. Return only one JSON object, with no Markdown fences or commentary.'
 const NO_SOURCE = 'No source document accompanies this message.'
 
-function questionText({ message, context }: SchemaChatQuestion): string {
-  return `${context ? `${context}\n\n` : ''}The researcher's chat message:\n${message.trim()}`
+function questionText({ message, context, history }: SchemaChatQuestion): string {
+  const conversation = chatHistoryText(history)
+  return `${context ? `${context}\n\n` : ''}${conversation ? `${conversation}\n\n` : ''}The researcher's latest chat message:\n${message.trim()}`
 }
 
 /**
@@ -117,13 +120,13 @@ async function answerRoute(caller: ModelCaller, call: SchemaChatCall, dependenci
 export function answerSchemaChat(
   caller: ModelCaller,
   source: ChatSource,
-  message: string,
+  message: Pick<SchemaChatQuestion, 'message' | 'history'>,
   call: SchemaChatCall = {},
   dependencies: ModelDependencies = {},
 ): Promise<string | null> {
   return traceModelCall('schema-chat', async () => {
     const { answer } = await schemaChatRoutes(caller, call.temperature, dependencies)
-    return answer ? answerIfQuestion(answer, source, { message, context: null }, call) : null
+    return answer ? answerIfQuestion(answer, source, { ...message, context: null }, call) : null
   })
 }
 

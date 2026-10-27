@@ -21,6 +21,8 @@ import type { ScalarFieldType } from 'extraction/allowed-values'
 import type { ModelCaller } from './_model_execution.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { respondToSchemaEdit } from './_schema_chat.js'
+import { chatHistoryText } from './_schema.js'
+import { chatHistorySchema, type ChatHistory } from '../shared/schemaChat.contract.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
 type SchemaEditOptions = {
@@ -33,6 +35,8 @@ type SchemaEditOptions = {
   /** A chat message may ask a question instead: answer it (`answered`) rather than propose a change. */
   answerable?: boolean
   respond?: typeof respondToSchemaEdit
+  /** The chat before this message, oldest first, which the model reads with it. */
+  history?: ChatHistory
 }
 
 export { parseSchemaNodes } from 'extraction/schema'
@@ -77,6 +81,21 @@ export async function ownedSourceScope(
       'Project model context was not found.',
     )
   return { sourceDocumentId: descriptor.sourceDocumentId }
+}
+
+/** The form's `history`: the chat before the message, as JSON (422 when malformed); none when absent. */
+export function formChatHistory(form: FormData): ChatHistory {
+  const value = form.get('history')
+  if (value === null) return []
+  let parsed: unknown
+  try {
+    parsed = typeof value === 'string' ? JSON.parse(value) : null
+  } catch {
+    parsed = null
+  }
+  const history = chatHistorySchema.safeParse(parsed)
+  if (!history.success) throw new ApiError(422, 'invalid_request', 'history must be a JSON list of chat messages.')
+  return history.data
 }
 
 /** A generation's base, when the form names one: both fields or neither (422 otherwise). */
@@ -136,7 +155,7 @@ export async function proposeSchemaEdit(
     document: source
       ? { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans }
       : { file: null, pages: null, markdown: NO_SOURCE },
-    instruction: schemaRevisionInstruction(definition, instruction),
+    instruction: schemaRevisionInstruction(definition, instruction, options.history),
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     signal: options.signal,
   }
@@ -144,7 +163,7 @@ export async function proposeSchemaEdit(
   try {
     if (options.answerable) {
       const reply = await (options.respond ?? respondToSchemaEdit)(
-        options.caller, input, { message: instruction, context: schemaChatContext(definition) })
+        options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [] })
       if ('answer' in reply) return { status: 'answered', answer: reply.answer }
       template = reply.template
     } else {
@@ -176,15 +195,16 @@ function isModelProposalFailure(error: ApiError): boolean {
 }
 
 /** The Schema Suggestion instruction for an edit: the current template, its field notes and the change request. */
-export function schemaRevisionInstruction(definition: SchemaDefinition, request: string): string {
+export function schemaRevisionInstruction(definition: SchemaDefinition, request: string, history: ChatHistory = []): string {
   const notes = enumerateFieldPaths(definition.schemaNodes)
     .filter(({ node }) => node.description)
     .map(({ path, node }) => `- ${path.join('.')}: ${node.description}`)
+  const conversation = chatHistoryText(history)
   return `Revise the researcher's current extraction schema according to the change request, and return the complete revised schema in the same template form.
 
 Current schema:
 ${JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}
-${notes.length ? `\nField notes from the current schema:\n${notes.join('\n')}\n` : ''}
+${notes.length ? `\nField notes from the current schema:\n${notes.join('\n')}\n` : ''}${conversation ? `\n${conversation}\n` : ''}
 Change request:
 ${request.trim()}
 

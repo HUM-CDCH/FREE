@@ -42,7 +42,7 @@ const nuextract = dependencies({
 const nuextractAlone = dependencies({ schemaSuggestion: { connectionId: VLLM, modelId: 'numind/NuExtract3-FP8' }, interaction: null })
 
 const input = { document: { file: null, pages: null, markdown: '# Register\n\n42 burials.' }, instruction: 'Revise the schema…' }
-const question = { message: 'How many burials are there?', context: 'The researcher\'s current extraction schema:\n{}' }
+const question = { message: 'How many burials are there?', context: 'The researcher\'s current extraction schema:\n{}', history: [] }
 const sent = (call: number) => JSON.stringify(generateTextMock.mock.calls[call]![0])
 
 function stubNuExtract(content: string) {
@@ -109,14 +109,23 @@ describe('respondToSchemaEdit', () => {
 describe('answerSchemaChat', () => {
   it('answers a question, or gives null for an instruction', async () => {
     generateTextMock.mockResolvedValueOnce({ text: '{"answer":"42 burials."}', finishReason: 'stop' })
-    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, 'How many burials?', {}, nuextract)).resolves.toBe('42 burials.')
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'How many burials?', history: [] }, {}, nuextract)).resolves.toBe('42 burials.')
     generateTextMock.mockResolvedValueOnce({ text: '{"answer":null}', finishReason: 'stop' })
-    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, 'Focus on dates', {}, general)).resolves.toBeNull()
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Focus on dates', history: [] }, {}, general)).resolves.toBeNull()
   })
 
   it('keeps every message as an instruction when nothing can answer it', async () => {
-    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, 'How many burials?', {}, nuextractAlone)).resolves.toBeNull()
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'How many burials?', history: [] }, {}, nuextractAlone)).resolves.toBeNull()
     expect(generateTextMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('the conversation', () => {
+  it('goes before the latest message in every question the model reads', async () => {
+    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"Grave 7."}', finishReason: 'stop' })
+    const history = [{ role: 'user' as const, text: 'Which grave is oldest?' }, { role: 'assistant' as const, text: 'Grave 7.' }]
+    await answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Where is it?', history }, {}, general)
+    expect(sent(0)).toContain('Researcher: Which grave is oldest?\\nAssistant: Grave 7.\\n\\nThe researcher\'s latest chat message:\\nWhere is it?')
   })
 })
 
