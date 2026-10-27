@@ -801,14 +801,14 @@ export function DocumentWorkspace({
     active: effectiveRailOpen && railTab === 'results',
     dimLink: marks ? publishedDim : null,
   })
-  const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => {
+  const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
     const mark = container && [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
       .find(element => element.dataset.evidenceAnchorId === anchor.anchor_id)
     if (documentView === 'markdown' && container && mark) scrollWithinPane(container, mark)
     else {
       setDocumentView('pdf')
-      selectPdfEvidence(anchor, precision)
+      selectPdfEvidence(anchor, link)
     }
   }, [documentView, selectPdfEvidence])
 

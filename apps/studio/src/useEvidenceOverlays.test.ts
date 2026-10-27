@@ -6,6 +6,7 @@ import { decodeParsedDocument } from 'extraction/parsed-document'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import parsedFixture from './assets/parsed_document.v2.json'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
+import { verifiedEvidenceBbox } from './evidenceNavigation'
 
 afterEach(() => {
   cleanup()
@@ -281,6 +282,52 @@ describe('marks select their values', () => {
   })
 })
 
+describe('part marks', () => {
+  it('a value\'s parts in one passage share its mark in their field\'s colour, and each boxes its own quote on a text layer', () => {
+    // The fixture's one passage, renamed as a segment's anchor and holding two values' quotes; spans count code points.
+    const block = '𝛼 Alpha Beta Gamma'
+    const parsedDocument = decodeParsedDocument(JSON.parse(JSON.stringify(parsedFixture).replaceAll('"bundled-anchor"', '"a_s1"').replace('"Unit 7"', JSON.stringify(block))))
+    const anchor = parsedDocument.evidence_index.anchors[0]!
+    const occurrence = anchor.producer_observations[0]!, bbox = verifiedEvidenceBbox(parsedDocument, occurrence)!
+    const page = parsedDocument.pages.find((each) => each.page_number === occurrence.page_number)!
+    const part = (name: string, start: number) => ({ key: `v#["${name}"]`, link: { resultPath: ['records', 0, 's', name], evidenceAnchorId: anchor.anchor_id,
+      precision: 'segment', grounding: { textSpans: [{ segment: anchor.anchor_id.slice(2), start, end: start + 3 }] } } as EvidenceLink })
+    const parts = [part('a', 2), part('b', [...block].length - 3)]
+    const describe = new Map(parts.map(({ key }) => [key, { name: key, value: key, word: null, style: 'link' as const, anchorId: anchor.anchor_id, color: '#e15759' }]))
+    const render = (layer: string) => {
+      const container = document.createElement('div')
+      container.innerHTML = `<div class="page" data-page-number="${occurrence.page_number}">${layer}</div>`
+      document.body.append(container)
+      renderHook(() => useEvidenceOverlays({
+        containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+        attempt: { extractionId: 'x' }, active: true, marks: { describe, selected: 'v', onSelect: vi.fn(), savedLinks: parts },
+      }))
+      return [...container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')]
+    }
+    // No text layer (a scanned page): one block mark naming both parts, selected with its value.
+    const [shared, ...rest] = render('')
+    expect(rest).toHaveLength(0)
+    expect(shared!.getAttribute('aria-label')).toBe('v#["a"]: v#["a"]; v#["b"]: v#["b"]')
+    expect(shared!.getAttribute('aria-current')).toBe('true')
+    expect(shared!.style.getPropertyValue('--color-ev')).toBe('#e15759')
+    // A text layer in page points: the block's text in one span over its box; a range's rect spans its characters.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('textLayer') ? new DOMRect(0, 0, page.width_pt, page.height_pt)
+        : new DOMRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
+    })
+    let range = [0, 0]
+    vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
+      getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
+    }) as unknown as Range)
+    const narrowed = render(`<div class="textLayer"><span>${block}</span></div>`)
+    expect(narrowed.map((mark) => mark.getAttribute('aria-label'))).toEqual(['v#["a"]: v#["a"]', 'v#["b"]: v#["b"]'])
+    // A range's offsets are UTF-16 units: "Alp" starts at 3, "mma" 3 before the end.
+    expect(parseFloat(narrowed[0]!.style.left)).toBeCloseTo(((bbox.x0 + 3 - 1) / page.width_pt) * 100)
+    expect(parseFloat(narrowed[1]!.style.left)).toBeCloseTo(((bbox.x0 + block.length - 3 - 1) / page.width_pt) * 100)
+  })
+})
+
 describe('mark precision, focus and navigation ownership', () => {
   function fixture(precision: EvidenceLink['precision'] = 'segment') {
     const parsedDocument = decodeParsedDocument(parsedFixture)
@@ -306,7 +353,7 @@ describe('mark precision, focus and navigation ownership', () => {
   })
   it('selecting a page-only link navigates to its page without drawing a focus rectangle', () => {
     const { result, anchor, container, viewer } = fixture('input')
-    act(() => result.current(anchor, 'input'))
+    act(() => result.current(anchor, { resultPath: ['x'], evidenceAnchorId: anchor.anchor_id, precision: 'input' }))
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
     expect(viewer.scrollPageIntoView).toHaveBeenCalledExactlyOnceWith({ pageNumber: anchor.producer_observations[0].page_number })
   })

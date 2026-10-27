@@ -14,6 +14,7 @@ import ExtractionResultExportControl from './ExtractionResultExportControl'
 // Hidden for now with its use in the history panel below.
 // import { ProjectFeedback } from './ProjectFeedback'
 import ReviewRow from './ReviewRow'
+import type { PartPick } from './ui/ReviewedValueDisplay'
 import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
 import ResultsHeader, { type StatusLine } from './ResultsHeader'
@@ -21,7 +22,7 @@ import ResultsMenu from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
-import { durableRailModel, durableRailRow, type RunProgress } from './durableRailModel'
+import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
 import { evidenceQuote } from './evidenceQuote'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 import { shownValue, stateLabel, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
@@ -33,6 +34,8 @@ import {savedCorrectionHref,type SavedReviewCut} from './durableReviewLinks'
 import { keyAction } from './reviewKeys'
 
 type Value=DurablePage['values'][number]
+/** A value whose parts (nested fields, table cells, list entries) carry their own Evidence links. */
+const composite=(value:Value)=>value.node.type==='object'||value.node.type==='array'
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
 const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
@@ -61,7 +64,7 @@ function statusLine(state:DurableState,model:RailModel,article:boolean,finalized
   }
 }
 
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false}:{
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
   newer?:boolean;
@@ -71,15 +74,17 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   keyboardRoot:RefObject<HTMLDivElement|null>;
   menuOpen:boolean;detailsOpen:boolean;exportOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer'|'dialog')=>void;
   projectId:string;sourceDocumentId:string;article:boolean;
+  /** The open value's chosen part, whose Evidence the row shows, and its parts to pick from. */
+  part?:ValuePart;pick?:PartPick;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
   const headingRef=useRef<HTMLHeadingElement>(null)
   useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen&&!exportOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen,exportOpen])
   useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
-  const row=durableRailRow(state.context.value,document)
+  const row=durableRailRow(state.context.value,document,part)
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
-  const quote=row.link&&document?evidenceQuote(document,row.link.evidenceAnchorId,row.link.grounding?.raw??null,value.modelValue):null
+  const quote=row.link&&document?evidenceQuote(document,row.link.evidenceAnchorId,row.link.grounding?.raw??null,part?part.value:value.modelValue):null
   const position=queuePosition(queue,value.id)
   // An edit is guidance for the model's later calls by default (`reviewDraft`): the researcher's fix reaches its context.
   const decide=(action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',edited?:unknown)=> {
@@ -90,7 +95,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     send({type:'edit',draft:{...state.context.draft,choices}})
     send({type:'save',action:'APPROVED'})
   }
-  const common={onChoose,quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
+  const common={pick,onChoose,quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
     onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
@@ -279,7 +284,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:CurrentResultSchema|null;
   onSchema?:()=>void;controlled?:boolean;
   /** Names the export file; falls back to the pinned source's own name, then the Extraction's id. */
-  sourceDocumentName?:string;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
+  sourceDocumentName?:string;onEvidence:(id:string,occurrenceIds?:readonly string[],link?:EvidenceLink)=>void;readOnly?:boolean;
   /** The workspace's channel: requests to select a value come in; this view's marks and one-by-one's dimming go out. */
   selection:SelectionChannel;headerExtras?:React.ReactNode;
   onPinnedDocument?:(id:string,source:PinnedExtractionSource|null)=>void;
@@ -369,20 +374,29 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const foundKey=JSON.stringify(state&&!state.recordsFinal?state.discovery?.found??[]:[])
   const found=useMemo(()=>JSON.parse(foundKey) as {segment:string}[],[foundKey])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
+  // Top-level fields in schema order name their colours.
+  const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
+  // The open composite value's parts as the model read them; an edited value's no longer sit at the model's paths. The
+  // chosen part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
+  const reviewParts=useMemo(()=>review&&composite(review.value)&&review.value.correction?.decision.action!=='EDITED'?valueParts(review.value):[],[review])
+  const [part,setPart]=useState<string|null>(null)
+  const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null
+  const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null:review?.value.links[0]??null
   // What one-by-one follows on the source for a value: its link, once the source is there and the rail is open.
-  const followKeyFor=useCallback((value:Value,version:number)=>railOpen&&focus&&document
-    ?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${version}:${value.id}:${value.links[0]?.evidenceAnchorId??''}:${value.links[0]?.precision??''}`:null,
+  const followKeyFor=useCallback((value:Value,version:number,link:EvidenceLink|null)=>railOpen&&focus&&document
+    ?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${version}:${value.id}:${link?JSON.stringify(link.resultPath):''}:${link?.evidenceAnchorId??''}:${link?.precision??''}`:null,
   [railOpen,focus,document,sourceRevisionId])
   // Collapsed, one-by-one follows nothing; expanding follows its value again.
-  const followKey=review?followKeyFor(review.value,review.version):null
+  const followKey=review?followKeyFor(review.value,review.version,activeLink):null
   // A request pending this commit may select another value: the follow waits for it rather than scroll back to this one.
   const requestTaken=Boolean(request&&request.extractionId===id&&page&&railOpen)
-  const followRef=useRef({review,onEvidence,requestTaken})
-  useEffect(()=>{followRef.current={review,onEvidence,requestTaken}})
+  const followRef=useRef({onEvidence,requestTaken,activeLink,reviewId:review?.value.id})
+  useEffect(()=>{followRef.current={onEvidence,requestTaken,activeLink,reviewId:review?.value.id}})
   // A chosen value shows in its record, whichever way the researcher last toggled it.
   const reveal=(record:string)=>setToggledRecords(previous=>{if(previous.get(record)!==false)return previous;const next=new Map(previous);next.delete(record);return next})
   const selectValue=useCallback((key:string,fromMark=false)=> {
     selectionFromMark.current=fromMark&&focus?key:null
+    setPart(null)
     const generation=++selectedGeneration.current
     const value=page?.values.find(each=>each.id===key)
     if(value)reveal(value.recordId)
@@ -402,8 +416,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     // A value the page lacks may be the open review's, read on its own.
     const value=page?.values.find(each=>each.id===key)??(review?.value.id===key&&review.version===page?.snapshotVersion?review.value:undefined)
     const link=value?.links[0],own=value?.correction?.decision.evidence[0] as {anchorId:string;occurrenceIds:string[]}|undefined
-    if(focus&&value&&link&&(!document||followKeyFor(value,page!.snapshotVersion)!==followKey))return
-    if(link)followRef.current.onEvidence(link.evidenceAnchorId,undefined,link.precision)
+    if(focus&&value&&link&&(!document||followKeyFor(value,page!.snapshotVersion,link)!==followKey))return
+    if(link)followRef.current.onEvidence(link.evidenceAnchorId,undefined,link)
     else if(own)followRef.current.onEvidence(own.anchorId,own.occurrenceIds)
   },[page,selectValue,focus,document,followKeyFor,followKey,review])
   // A value link's or a mark's request is taken once: for this Extraction, once its values are read and the rail is
@@ -414,13 +428,16 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the channel's request, taken once as it arrives
     if(request.navigate)choose(request.key)
     else {
-      pendingReveal.current=request.key
-      const linkedKeys=request.linkedKeys??[request.key]
+      // A part's mark selects its value and that part.
+      const valueId=markValueId(request.key)
+      pendingReveal.current=valueId
+      const linkedKeys=(request.linkedKeys??[request.key]).map(markValueId)
       setPassageKeys([...linkedKeys])
       const records=new Set(page.values.filter(value=>linkedKeys.includes(value.id)).map(value=>value.recordId))
       setToggledRecords(previous=>{const next=new Map(previous);records.forEach(record=>next.set(record,true));return next})
       setFocus(false)
-      selectValue(request.key,true)
+      selectValue(valueId,true)
+      setPart(request.key===valueId?null:request.key)
     }
   },[request,id,page,railOpen,selection,choose,selectValue])
   // The selected row has expanded and its record is now open. Move only the
@@ -438,23 +455,29 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     if(!model||!page||!id)return
     const rows=[...model.document,...model.records.flatMap(record=>record.rows)]
     if(review){const row=durableRailRow(review.value,document),index=rows.findIndex(each=>each.key===row.key);if(index<0)rows.push(row);else rows[index]=row}
-    const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision}]))
+    const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision,color:fieldColor(fieldOrder,row.name)}]))
     const displayed=review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values
     const anchors=new Set(document?.evidence_index.anchors.map(anchor=>anchor.anchor_id)??[])
-    const savedLinks=[...displayed.flatMap(value=>[
-      ...value.links.flatMap(link=>sourceEvidenceLinks(link,anchors).map(link=>({key:value.id,link}))),
+    const savedLinks=[...displayed.flatMap(value=> {
+      // A composite value's link to one of its parts is that part's mark, named by it; a link no part names stays the value's.
+      const parts=new Map(composite(value)?valueParts(value).map(part=>[JSON.stringify(part.path),part]):[])
+      return [...value.links.flatMap(link=> {
+        const part=parts.get(JSON.stringify(link.resultPath)),parent=describe.get(value.id)
+        if(part&&parent)describe.set(part.key,{...parent,name:part.name,value:shownValue(part.value),anchorId:link.evidenceAnchorId,precision:link.precision})
+        return sourceEvidenceLinks(link,anchors).map(each=>({key:part?.key??value.id,link:each}))
+      }),
       ...(value.correction?.decision.evidence??[]).map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:value.id,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
-    ]),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
+    ]}),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
-    selection.publish({marks:{describe,selected:review?.value.id??null,savedLinks,extractionId:id}})
-  },[model,page,selection,review,document,found,id])
+    selection.publish({marks:{describe,selected:review?chosenPart??review.value.id:null,savedLinks,extractionId:id}})
+  },[model,page,selection,review,document,found,id,chosenPart,fieldOrder])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
-    const {review,onEvidence,requestTaken}=followRef.current,link=review?.value.links[0]??null
+    const {reviewId,onEvidence,requestTaken,activeLink:link}=followRef.current
     selection.publish({dim:followKey?link:null})
-    const fromMark=selectionFromMark.current===review?.value.id
+    const fromMark=selectionFromMark.current===reviewId
     selectionFromMark.current=null
-    if(followKey&&link&&!fromMark&&!requestTaken)onEvidence(link.evidenceAnchorId,undefined,link.precision)
+    if(followKey&&link&&!fromMark&&!requestTaken)onEvidence(link.evidenceAnchorId,undefined,link)
   },[followKey,selection])
   useEffect(()=> {
     if(id&&page)onReviewProgress?.({extractionId:id,snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion,
@@ -551,13 +574,20 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // results shown do not hold opens above the list.
   const shownVersion=review?page.values.find(value=>value.id===review.value.id):undefined
   const inline=Boolean(shownVersion)
-  const valueReview=review&&<ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
+  // Picking a part of the open value shows its Evidence once, as choose does a value's; one by one, the follow does.
+  const pick:PartPick|undefined=review&&reviewParts.length?{valueId:review.value.id,selected:chosenPart,
+    parts:new Map(reviewParts.map(each=>[each.key,each])),onPick:key=> {
+      setPart(key)
+      const link=key===null?review.value.links[0]:reviewParts.find(each=>each.key===key)?.link
+      if(!focus&&link)onEvidence(link.evidenceAnchorId,undefined,link)
+    }}:undefined
+  const valueReview=review&&<ValueReview part={reviewParts.find(each=>each.key===chosenPart)} pick={pick} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
     menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
   const linkedKeys=new Set(passageKeys.filter(key=>page.values.some(value=>value.id===key)))
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
-  const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
-    editing={false} node={page.values.find(value=>value.id===row.key)?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
+  const renderValue=(row:RailRow,pinnedRow:boolean)=><div style={evidenceColorVars(fieldColor(fieldOrder,row.name))}>{inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
+    editing={false} node={page.values.find(value=>value.id===row.key)?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>}</div>
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
     onKeyDown={event=>{if(event.key==='Escape'&&menuOpen&&!event.defaultPrevented){event.preventDefault();setMenuOpen(false)}}}>
     <ResultsHeader status={statusLine(state,model,article,Boolean(page.finalization))}
@@ -616,11 +646,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       <RunDiagnostics page={page}/>
-      {review&&(focus||!inline)&&<div data-result-key={review.value.id} className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
+      {review&&(focus||!inline)&&<div data-result-key={review.value.id} style={evidenceColorVars(fieldColor(fieldOrder,review.value.node.name))} className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
-          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} hovered={hovered} onHover={selection.hover} isOpen={isOpen}
+          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} hovered={hovered?.map(markValueId)??null} onHover={selection.hover} isOpen={isOpen}
           onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}/>)}
     </div>
   </div>

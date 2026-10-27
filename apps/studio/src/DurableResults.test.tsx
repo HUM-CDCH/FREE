@@ -360,7 +360,7 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document:decodeParsedDocument(rawDocument),currentSchema:null,selection}
   const view=render(<Results {...props} onEvidence={onEvidence}/>)
   fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,expect.objectContaining({precision:'segment'}))
   expect(new Set(selection.snapshot().marks!.describe.keys())).toEqual(new Set(['value','other']))
   view.rerender(<Results {...props} onEvidence={replacement}/>)
   expect(replacement).not.toHaveBeenCalled()
@@ -370,7 +370,7 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   expect(replacement).not.toHaveBeenCalled()
   expect(screen.queryByRole('button',{name:'Leave one-by-one review, back to the list'})).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button',{name:/To check title First title/}))
-  expect(replacement).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
+  expect(replacement).toHaveBeenCalledExactlyOnceWith('anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it('starts no read of the latest values while the rail is collapsed, and catches up once it opens',async()=>{
@@ -411,7 +411,7 @@ it('follows nothing on the document while the rail is collapsed, and the one-by-
   const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document,currentSchema:null,onEvidence,selection}
   const view=render(<Results {...props}/>)
   fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(first,undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(first,undefined,expect.objectContaining({precision:'segment'}))
   expect(selection.snapshot().dim).toEqual(value.links[0])
   view.rerender(<Results {...props} railOpen={false}/>)
   expect(selection.snapshot().dim).toBeNull()
@@ -422,7 +422,7 @@ it('follows nothing on the document while the rail is collapsed, and the one-by-
   expect(selection.snapshot().dim).toBeNull()
   view.rerender(<Results {...props}/>)
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith(second,undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith(second,undefined,expect.objectContaining({precision:'segment'}))
   expect(selection.snapshot().dim).toEqual(next.links[0])
 })
 
@@ -441,7 +441,7 @@ it('defers native Evidence navigation until its pinned source arrives and follow
   fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   expect(onEvidence).not.toHaveBeenCalled()
   await act(async()=>source.resolve({sourceRevisionId:'pinned',document,markdown:'# Saved source'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(anchor,undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(anchor,undefined,expect.objectContaining({precision:'segment'}))
   view.rerender(<Results {...props} onEvidence={replacement}/>)
   expect(replacement).not.toHaveBeenCalled()
 })
@@ -990,6 +990,55 @@ it('changes a chosen reading only through Undo, which returns the value to To ch
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'PENDING',expectedRevision:1})))
 })
 
+/** `skelet = {art, dele: [{nr, note}]}`, its art and its first note linked. */
+const skeletArt={evidenceAnchorId:'a_p1_s0',resultPath:['records',0,'skelet','art'],precision:'segment'}
+const skeletNote={evidenceAnchorId:'a_p1_s2_r1_c1',resultPath:['records',0,'skelet','dele',0,'note'],precision:'cell'}
+const openSkelet=async(correction:unknown=null)=> {
+  const node={id:'skelet',name:'skelet',type:'object',children:[{id:'art',name:'art',type:'string'},
+    {id:'dele',name:'dele',type:'array',children:[{id:'nr',name:'nr',type:'string'},{id:'note',name:'note',type:'string'}]}]}
+  const value={id:'v1',recordId:'document',fieldId:'skelet',path:['records',0,'skelet'],selectionId:'original',schemaRevisionId:'schema',node,
+    modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},evidence:[],links:[skeletArt,skeletNote],grounding:'grounded',processing:'saved',lineage:[],correction,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  const onEvidence=vi.fn(),selection=createSelectionChannel()
+  selection.select('v1',true,'extraction')
+  render(<Results attempt={article} document={null} currentSchema={null} selection={selection} onEvidence={onEvidence}/>)
+  await screen.findByRole('region',{name:'Review skelet'})
+  return {onEvidence,marks:()=>selection.snapshot().marks!,selection}
+}
+
+it('picks a part of a composite value: its mark, its Evidence, and back to the whole value',async()=>{
+  const {onEvidence,marks,selection}=await openSkelet()
+  expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s0',undefined,skeletArt)
+  // Each linked part is its own mark; the open value outlines them all.
+  const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
+  expect(marks().describe.get(tooth)).toMatchObject({name:'skelet › dele › #1 › note',value:'Tooth',anchorId:'a_p1_s2_r1_c1',precision:'cell'})
+  expect(marks().selected).toBe('v1')
+  const note=()=>screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
+  fireEvent.click(note())
+  expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s2_r1_c1',undefined,skeletNote)
+  expect(note()).toHaveAttribute('aria-pressed','true')
+  expect(marks().selected).toBe(tooth)
+  // A part with no link shows none; picking the chosen part again chooses the whole value.
+  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1'})).toHaveAttribute('title','No Evidence linked')
+  fireEvent.click(note())
+  expect(marks().selected).toBe('v1')
+  // A part's mark selects its value and that part.
+  act(()=>{selection.select(tooth,false,'extraction')})
+  await waitFor(()=>expect(note()).toHaveAttribute('aria-pressed','true'))
+  expect(marks().selected).toBe(tooth)
+})
+
+it('offers no parts to pick in an edited value, whose parts no longer sit at the model\'s paths',async()=>{
+  const {marks,selection}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Human',dele:[]},included:true,evidence:[]}})
+  expect(screen.queryByRole('button',{name:/skelet › /})).not.toBeInTheDocument()
+  // Its part marks stay, and select the whole value.
+  const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
+  act(()=>{selection.select(tooth,false,'extraction')})
+  await waitFor(()=>expect(marks().selected).toBe('v1'))
+})
+
 /** a and b link to their own anchors; c has only its correction's Evidence. */
 const linkedPage=()=>{
   const page=reviewPage(),link=(id:string)=>[{evidenceAnchorId:`${id}-anchor`,resultPath:['records',0,id],precision:'segment'}]
@@ -1032,15 +1081,15 @@ it('scrolls once per value link in one-by-one: the follow for another linked val
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
   fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('a-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('a-anchor',undefined,expect.objectContaining({precision:'segment'}))
   onEvidence.mockClear()
   act(()=>{selection.select('b',true,'extraction')})
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // Nothing the follow follows changes, so choose scrolls.
   act(()=>{selection.select('b',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // The follow follows model links only.
   act(()=>{selection.select('c',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(3)
@@ -1059,7 +1108,7 @@ it('scrolls a value link in one-by-one once, when the pinned source it waits for
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   expect(onEvidence).not.toHaveBeenCalled()
   await act(async()=>source.resolve({sourceRevisionId:'pinned',document,markdown:'# Saved source'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it('reads a value its page lacks on its own, and one-by-one follows it once it arrives',async()=>{
@@ -1077,12 +1126,12 @@ it('reads a value its page lacks on its own, and one-by-one follows it once it a
   const z={...reviewValue('z','Off-page title'),links:[{evidenceAnchorId:'z-anchor',resultPath:['records',0,'z'],precision:'segment'}]}
   await act(async()=>lookup.resolve({...page,values:[z]}))
   expect(screen.getByRole('heading',{name:'Off-page title'})).toBeVisible()
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('z-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('z-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // The same link again: the open review holds the value, so choose scrolls to it once.
   act(()=>{selection.select('z',true,'extraction')})
   await act(async()=>{})
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith('z-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith('z-anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it('holds a value link that arrives while the rail is collapsed, and scrolls to it once on expand',async()=>{
@@ -1099,7 +1148,7 @@ it('holds a value link that arrives while the rail is collapsed, and scrolls to 
   view.rerender(<Results {...props}/>)
   // One scroll, to the value asked for: none back to the one shown before.
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // In the list, expanding chooses the value, as a click does.
   fireEvent.click(screen.getByRole('button',{name:'Leave one-by-one review, back to the list'}))
   view.rerender(<Results {...props} railOpen={false}/>)
@@ -1107,7 +1156,7 @@ it('holds a value link that arrives while the rail is collapsed, and scrolls to 
   expect(onEvidence).toHaveBeenCalledOnce()
   view.rerender(<Results {...props}/>)
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith('a-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith('a-anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it.each(['on','off'] as const)('takes a pending value link %s its page once under StrictMode when the values are already read',async(where)=>{
@@ -1122,7 +1171,7 @@ it.each(['on','off'] as const)('takes a pending value link %s its page once unde
   selection.select(where==='on'?'b':'z',true,'extraction')
   render(<StrictMode><DurableResults reader={reader} attempt={article} document={null} currentSchema={null} onEvidence={onEvidence} selection={selection}/></StrictMode>)
   expect(await screen.findByRole('region',{name:where==='on'?'Review b':'Review z'})).toBeVisible()
-  if(where==='on')expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  if(where==='on')expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   else expect(durableRequest).toHaveBeenCalledOnce()
   release();reader.dispose()
 })
