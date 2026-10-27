@@ -3,6 +3,7 @@ import type { SchemaSource } from 'db'
 import { parseSchemaDefinition } from 'extraction/schema'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract.js'
+import type { ChatHistory } from '../shared/schemaChat.contract.js'
 import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
 import { schemaChatContext, type proposeSchemaEdit } from './_schema_edit.js'
@@ -24,6 +25,8 @@ export type SchemaEditInput = Readonly<{
   /** Null for a schema-only edit. */
   sourceRepresentationRevisionId: string | null
   instruction: string
+  /** The chat before the instruction, oldest first; absent from a run admitted before the chat sent it. */
+  history?: ChatHistory
   temperature: number | null
 }>
 export type SchemaEditProposed = { baseSchemaRevisionId: string; response: SchemaEditResponse }
@@ -77,6 +80,7 @@ export async function proposeSchemaEditWorkflow(
         // The model boundary adds the step's cancel signal (Task 2).
         signal: AbortSignal.timeout(MODEL_OPERATION_TIMEOUT_MS),
         generate: ports.generate,
+        history: input.history ?? [],
         ...(answerable ? { answerable, respond: ports.respond } : {}),
       })
       return { ok: true, baseSchemaRevisionId: input.baseSchemaRevisionId, response }
@@ -89,7 +93,7 @@ export async function proposeSchemaEditWorkflow(
   if (!answerWindow || !combineAnswers) return proposed
   try {
     const answer = await answerFromWindows({ steps: ports.steps, answerWindow, combineAnswers }, caller, source!.markdown,
-      { message: input.instruction, context: schemaChatContext(definition) }, input.temperature)
+      { message: input.instruction, context: schemaChatContext(definition), history: input.history ?? [] }, input.temperature)
     return { ok: true, baseSchemaRevisionId: input.baseSchemaRevisionId, response: { status: 'answered', answer } }
   } catch (error) {
     if (error instanceof StepFailure) return { ok: false, ...error.failure }

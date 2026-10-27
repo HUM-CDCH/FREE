@@ -8,7 +8,7 @@ import {
 } from './_http.js'
 import { json, parseTemperature } from './_http.js'
 import { awaitOperation, startOrJoinOperation, type ModelOperationClient } from './_model_operation.js'
-import { formContextIdentity, ownedSourceScope } from './_schema_edit.js'
+import { formChatHistory, formContextIdentity, ownedSourceScope } from './_schema_edit.js'
 import { ANSWER_SCHEMA_CHAT, type SchemaChatAnswered, type SchemaChatInput } from './_schema_chat_workflow.js'
 
 const FIELDS = [
@@ -16,6 +16,7 @@ const FIELDS = [
   'source_representation_revision_id',
   'operation_id',
   'message',
+  'history',
   'temperature',
 ] as const
 
@@ -48,6 +49,7 @@ export function createPostSchemaChat(
         projectContextId,
         sourceRepresentationRevisionId,
         message: message.trim(),
+        history: formChatHistory(form),
         temperature,
       }
       const workflowID = `chat:${operationId}`

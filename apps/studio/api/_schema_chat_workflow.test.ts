@@ -11,6 +11,7 @@ const input: SchemaChatInput = {
   projectContextId: '51000000-0000-4000-8000-000000000001',
   sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
   message: 'How many burials are there?',
+  history: [{ role: 'user', text: 'What is this register?' }, { role: 'assistant', text: 'A burial register.' }],
   temperature: null,
 }
 const SOURCE: SchemaSource = { markdown: '# Register\n\n42 burials.', pageSpans: [] }
@@ -43,7 +44,7 @@ describe('answerSchemaChatWorkflow', () => {
 
     expect(readSource).toHaveBeenCalledExactlyOnceWith(input.sourceRepresentationRevisionId)
     expect(names).toEqual(['answerIfQuestion'])
-    expect(answer.mock.calls[0]!.slice(0, 3)).toEqual([{ researcherAccountId: OWNER }, SOURCE, input.message])
+    expect(answer.mock.calls[0]!.slice(0, 3)).toEqual([{ researcherAccountId: OWNER }, SOURCE, { message: input.message, history: input.history }])
   })
 
   it('an instruction is the reply `instruction`, and nothing else runs', async () => {

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { mkId } from 'extraction/schema'
+import type { ChatHistory } from '../shared/schemaChat.contract'
 
 /** A chat message before the first schema; one with an `answer` asked a question and is not an instruction. */
 export type SchemaInstruction = { id: string; text: string; answer?: string }
@@ -8,6 +9,8 @@ export type SchemaInstructions = {
   readonly items: readonly SchemaInstruction[]
   readonly draft: string
   readonly text: string
+  /** The conversation as the model reads it: each message, then its answer or that it was kept as an instruction. */
+  readonly history: ChatHistory
   readonly count: number
   readonly countLabel: string
   readonly open: boolean
@@ -52,6 +55,10 @@ export function useSchemaInstructions(): SchemaInstructions {
     items,
     draft,
     text: kept.map((instruction) => instruction.text).join('\n\n'),
+    history: items.flatMap((item): ChatHistory => [
+      { role: 'user', text: item.text },
+      { role: 'assistant', text: item.answer ?? 'Recorded as an instruction for schema generation.' },
+    ]),
     count: kept.length,
     countLabel:
       kept.length > 0
