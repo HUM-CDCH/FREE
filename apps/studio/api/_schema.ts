@@ -1,5 +1,6 @@
 import type { SourcePageSpan } from 'db'
 import type { SourceCoverage, SourceOmission } from '../shared/schemaSuggestionSource.contract.js'
+import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
 // Superseded by a free-text chat instruction (see schemaPrompt below) — schema
 // generation no longer takes highlighted-passage annotations as input. Left in
@@ -47,6 +48,13 @@ When a field can only take one of a small closed set of values, give that field 
 Required JSON envelope:
 {"template":{"_description":"A sentence defining one complete source record."}}
 Write a source-specific record definition in "_description" and add the actual requested extraction fields as its siblings inside "template". The example shows only the required metadata; it does not replace the requested fields. "_description" contains a sentence, never a type label.`
+}
+
+/** The schema chat before the message a request answers, oldest first; empty when there is none. */
+export function chatHistoryText(history: ChatHistory): string {
+  if (history.length === 0) return ''
+  return `Conversation so far, oldest first (the researcher's latest message may refer to it):
+${history.map(({ role, text }) => `${role === 'user' ? 'Researcher' : 'Assistant'}: ${text.trim()}`).join('\n')}`
 }
 
 /** What lets a chat's Schema Suggestion request answer a question instead of returning a schema. */

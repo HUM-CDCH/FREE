@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
 import { deriveSchemaProposal } from '../shared/schemaChanges.js'
 import { ApiError } from './_http'
-import { parseSchemaNodes, proposeSchemaEdit, schemaEditBetween } from './_schema_edit'
+import { formChatHistory, parseSchemaNodes, proposeSchemaEdit, schemaEditBetween } from './_schema_edit'
 
 const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000c' }
 const SOURCE = { markdown: '# Burial register', pageSpans: [{ pageNumber: 1, start: 0, end: 17 }] }
@@ -36,6 +36,35 @@ async function applied(template: Record<string, unknown>): Promise<SchemaNode[]>
 }
 
 describe('proposeSchemaEdit', () => {
+  it('sends the whole conversation before the message with it, oldest first', async () => {
+    const generate = answering({ _description: 'One numbered burial entry.', title: 'string' })
+    const respond = vi.fn().mockResolvedValue({ answer: 'Both.' })
+    const history = [
+      { role: 'user' as const, text: 'Which fields hold dates?' },
+      { role: 'assistant' as const, text: 'None yet.' },
+    ]
+    await proposeSchemaEdit(definition, 'Add one for them', SOURCE, { caller: CALLER, generate, history })
+    const instruction = (generate.mock.calls[0] as unknown as [unknown, { instruction: string }])[1].instruction
+    expect(instruction).toContain('Conversation so far, oldest first')
+    expect(instruction).toContain('Researcher: Which fields hold dates?\nAssistant: None yet.')
+    expect(instruction.indexOf('Assistant: None yet.')).toBeLessThan(instruction.indexOf('Change request:\nAdd one for them'))
+
+    await proposeSchemaEdit(definition, 'And the burials?', SOURCE, { caller: CALLER, generate, answerable: true, respond, history })
+    expect(respond.mock.calls[0]![2]).toMatchObject({ message: 'And the burials?', history })
+  })
+
+  it('reads the form\'s history as a JSON list of chat messages, and refuses anything else', () => {
+    const form = (history?: string) => {
+      const data = new FormData()
+      if (history !== undefined) data.append('history', history)
+      return data
+    }
+    expect(formChatHistory(form())).toEqual([])
+    expect(formChatHistory(form('[{"role":"user","text":"Hi"}]'))).toEqual([{ role: 'user', text: 'Hi' }])
+    expect(() => formChatHistory(form('not json'))).toThrow(ApiError)
+    expect(() => formChatHistory(form('[{"role":"system","text":"x"}]'))).toThrow(ApiError)
+  })
+
   it('as a chat reply, answers a question with no proposal, and proposes from a revised schema otherwise', async () => {
     const generate = answering({})
     const respond = vi.fn()

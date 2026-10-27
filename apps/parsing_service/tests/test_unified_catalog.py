@@ -876,28 +876,67 @@ def test_a_dense_table_gives_one_entry_per_row_and_each_value_its_own_cell():
     assert_accounted(source, result)
 
 
-def test_list_items_locate_repeated_partial_quotes_in_their_own_table_rows():
+PARTS = {"recordDescription": "One numbered entry.", "schemaNodes": [
+    {"id": "parts", "name": "parts", "type": "array", "children": [
+        {"id": "number", "name": "number", "type": "string"},
+        {"id": "description", "name": "description", "type": "string"}]}]}
+
+
+# Its own text, none, or text every row prints: without its own, an item is the row its number is printed in once.
+@pytest.mark.parametrize("item_text", [lambda number: number, lambda number: None,
+                                       lambda number: "Bone fragments, probably tibia"],
+                         ids=["own", "none", "every_row"])
+def test_list_items_locate_repeated_partial_quotes_in_their_own_table_rows(item_text):
     table = replace(table_passage([["A-1", "Bone fragments, probably tibia", ""],
                                   ["A-2", "Bone fragments, probably tibia", ""]]), id="p1_s1", index=1)
     source = replace(evidence("1. Remains A-1 and A-2."), passages=(
         passage("p1_s0", "1. Remains A-1 and A-2."), table))
-    schema = {"recordDescription": "One numbered entry.", "schemaNodes": [
-        {"id": "parts", "name": "parts", "type": "array", "children": [
-            {"id": "number", "name": "number", "type": "string"},
-            {"id": "description", "name": "description", "type": "string"}]}]}
 
     def entry(record, user, reply_schema):
-        return {"parts": [{"_item_text": number, "number": candidate(number, number),
+        return {"parts": [{"_item_text": item_text(number), "number": candidate(number, number),
                            "description": candidate("Bone fragments, probably tibia", "Bone fragments,")}
                           for number in ["A-1", "A-2"]]}
 
-    result, _ = extract(source, Model(source, entry=entry), schema=schema)
+    result, _ = extract(source, Model(source, entry=entry), schema=PARTS)
     assert result["records"][0]["parts"] == [
         {"number": "A-1", "description": "Bone fragments, probably tibia"},
         {"number": "A-2", "description": "Bone fragments, probably tibia"}]
     links = [link for link in result["evidence"] if link["path"][-1] == "description"]
     assert [link["cell"] for link in links] == ["r0_c1", "r1_c1"]
-    assert all(link["precision"] == "cell" for link in links)
+    assert all(link["precision"] == "cell" and not link["alternatives"] for link in links)
+    numbers = [link for link in result["evidence"] if link["path"][-1] == "number"]
+    assert [link["cell"] for link in numbers] == ["r0_c0", "r1_c0"]
+    assert [link["item"] for link in links] == [link["spans"] for link in numbers]
+
+
+def test_an_item_whose_values_name_different_rows_is_no_row():
+    table = replace(table_passage([["A-1", "Skull", ""], ["A-2", "Tibia", ""]]), id="p1_s1", index=1)
+    source = replace(evidence("1. Remains."), passages=(passage("p1_s0", "1. Remains."), table))
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": None, "number": candidate("A-1", "A-1"),
+                           "description": candidate("Tibia", "Tibia")}]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=PARTS)
+    links = [link for link in result["evidence"] if link["path"][2] == "parts"]
+    assert [link["cell"] for link in links] == ["r0_c0", "r1_c1"]
+    assert all(link["item"] is None for link in links)
+
+
+def test_a_value_also_printed_in_a_merged_cell_names_no_row():
+    plain = table_passage([["A-1", "Tibia"], ["", "Tibia"], ["Note", "A-1"]])
+    cells = [cell.model_copy(update={"rowspan": 2}) if cell.cell_id == "r0_c0" else cell
+             for cell in plain.table.cells if cell.cell_id != "r1_c0"]
+    table = replace(plain, id="p1_s1", index=1, table=plain.table.model_copy(update={"cells": cells}))
+    source = replace(evidence("1. Remains."), passages=(passage("p1_s0", "1. Remains."), table))
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": None, "number": candidate("A-1", "A-1"),
+                           "description": candidate("Tibia", "Tibia")}]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=PARTS)
+    # "A-1" in the cell merged over two rows names none of them, so its other printing names no row either.
+    assert all(link["item"] is None for link in result["evidence"] if link["path"][2] == "parts")
 
 
 def test_a_table_item_value_can_continue_verbatim_into_the_next_page():
