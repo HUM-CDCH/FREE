@@ -74,7 +74,10 @@ RECORD_VERSION = 1  # the execution record's layout
 # 5: an item's unique single-row table occurrence takes priority over repeats in prose; its quoted values are
 # located in that row's individual cells first, including repeated partial quotes. A verbatim value continuing
 # across segments may extend its partial quote, with every segment kept in the value's evidence.
-ENTRY_VERSION = 5
+# 6: an item whose own text is not located (no `_item_text`, or one printed in several rows) is the table row its
+# values name, when each value printed in exactly one single-row cell names the same row; its values are then looked
+# for in that row first, so a value printed in every row ("Tand, human") is its own row's cell.
+ENTRY_VERSION = 6
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
 # items, a single window's included). 3: an item two windows returned is joined only when their shared source
@@ -506,9 +509,30 @@ class _Checker:
                     table_places = [spans for spans in places if self._item_row(spans)]
                     own = table_places if len(table_places) == 1 else places
                     spot = _key(own[0]) if len(own) == 1 else None
-                found += [each for child in node.children or []
-                          for each in self._field((*path, index, child.name), child, entry.get(child.name), inner,
-                                                  spot)]
+
+                def children(spot: tuple | None) -> list[_Found]:
+                    return [each for child in node.children or []
+                            for each in self._field((*path, index, child.name), child, entry.get(child.name), inner,
+                                                    spot)]
+                leaves = children(spot)
+                if item is None and spot is None:
+                    # Its own text not located, an item is the table row its values name. A value of the item (not of
+                    # a list inside it) printed in one table place only, a single-row cell, names that row; others
+                    # abstain. At least one must name a row, and all that do the same one.
+                    rows: dict[tuple, list[list[Span]]] = {}
+                    for leaf in leaves:
+                        nested = any(isinstance(step, int) for step in leaf.path[len(path) + 1:])
+                        if leaf.support != "literal" or nested:
+                            continue
+                        tabled = [spans for spans in (leaf.spans, *leaf.alternatives)
+                                  if any(span.segment_id in self.tables for span in spans)]
+                        if len(tabled) == 1 and self._item_row(tabled[0]):
+                            rows.setdefault(tuple(self._item_row(tabled[0])), []).append(tabled[0])
+                    if len(rows) == 1:
+                        # Its first cell: what the model quotes as an item's own text is mostly its number.
+                        (cells,) = rows.values()
+                        leaves = children(_key(min(cells, key=lambda spans: spans[0].start)))
+                found += leaves
         return found
 
     def _item_row(self, spans: list[Span]) -> list[tuple[int, int]]:
