@@ -36,7 +36,7 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
-    expect(names).toEqual(['suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage','reconcileDurableExtractions'])
+    expect(names).toEqual(['suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'answerSchemaChat', 'collectGarbage','reconcileDurableExtractions'])
   })
 
   it('registers the durable Extraction reconciler as its only Extraction workflow', async () => {

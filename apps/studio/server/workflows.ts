@@ -16,6 +16,8 @@ import {
 import { generateSchemaWithModel } from '../api/_schema_suggestion.js'
 import { registerReprocessWorkflow, REPROCESS_SOURCE, type ReprocessWorkflowPorts } from '../api/_reprocess_workflow.js'
 import { proposeSchemaEdit } from '../api/_schema_edit.js'
+import { answerFromWindow, answerSchemaChat, combineWindowAnswers, respondToSchemaEdit } from '../api/_schema_chat.js'
+import { ANSWER_SCHEMA_CHAT, registerSchemaChatWorkflow } from '../api/_schema_chat_workflow.js'
 import { PROPOSE_SCHEMA_EDIT, registerSchemaEditWorkflow } from '../api/_schema_edit_workflow.js'
 import { registerSchemaGenerationWorkflow, SUGGEST_SCHEMA } from '../api/_schema_generation_workflow.js'
 import { sourceInboxRoot } from '../api/_source_inbox.js'
@@ -28,7 +30,7 @@ import { registerDurableExtractionReconciler } from './durable-extraction-workfl
 /** Every Studio workflow's explicit name. A bundler renames unnamed functions (M0R 2: `job$1`), and a workflow started
  *  under one build must be recoverable by another. */
 export const STUDIO_WORKFLOW_NAMES: readonly string[] = [
-  SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT,
+  SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT, ANSWER_SCHEMA_CHAT,
   COLLECT_GARBAGE, DURABLE_RECONCILE,
 ]
 
@@ -81,6 +83,20 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
       readSource: (id) => worker.readRevisionSchemaSource(id),
       propose: proposeSchemaEdit,
       generate: generateSchemaWithModel,
+      respond: respondToSchemaEdit,
+      answerWindow: answerFromWindow,
+      combineAnswers: combineWindowAnswers,
+      patched: (name) => DBOS.patch(name),
+    }
+  })
+  registerSchemaChatWorkflow(() => {
+    const worker = createInternalProjectWorkerStore()
+    return {
+      steps: dbosSteps,
+      readSource: (id) => worker.readRevisionSchemaSource(id),
+      answer: answerSchemaChat,
+      answerWindow: answerFromWindow,
+      combineAnswers: combineWindowAnswers,
     }
   })
   collectGarbage = registerGarbageWorkflow(options.garbagePorts ?? (() => garbagePorts()))

@@ -20,6 +20,7 @@ import {
 import type { ScalarFieldType } from 'extraction/allowed-values'
 import type { ModelCaller } from './_model_execution.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
+import { respondToSchemaEdit } from './_schema_chat.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
 type SchemaEditOptions = {
@@ -29,6 +30,9 @@ type SchemaEditOptions = {
   /** The browser's request: when it goes away the model call, and any wait for a key, ends. */
   signal?: AbortSignal
   generate?: typeof generateSchemaWithModel
+  /** A chat message may ask a question instead: answer it (`answered`) rather than propose a change. */
+  answerable?: boolean
+  respond?: typeof respondToSchemaEdit
 }
 
 export { parseSchemaNodes } from 'extraction/schema'
@@ -128,17 +132,24 @@ export async function proposeSchemaEdit(
     return { status: 'refused', message: `Duplicate field paths: ${duplicates.join(', ')}` }
   }
 
-  const generate = options.generate ?? generateSchemaWithModel
+  const input = {
+    document: source
+      ? { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans }
+      : { file: null, pages: null, markdown: NO_SOURCE },
+    instruction: schemaRevisionInstruction(definition, instruction),
+    ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    signal: options.signal,
+  }
   let template: Record<string, unknown>
   try {
-    template = (await generate(options.caller, {
-      document: source
-        ? { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans }
-        : { file: null, pages: null, markdown: NO_SOURCE },
-      instruction: schemaRevisionInstruction(definition, instruction),
-      ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-      signal: options.signal,
-    })).template
+    if (options.answerable) {
+      const reply = await (options.respond ?? respondToSchemaEdit)(
+        options.caller, input, { message: instruction, context: schemaChatContext(definition) })
+      if ('answer' in reply) return { status: 'answered', answer: reply.answer }
+      template = reply.template
+    } else {
+      template = (await (options.generate ?? generateSchemaWithModel)(options.caller, input)).template
+    }
   } catch (error) {
     if (error instanceof ApiError && isModelProposalFailure(error)) return FAILED
     throw error
@@ -150,6 +161,11 @@ export async function proposeSchemaEdit(
     return FAILED
   }
   return { status: 'proposed', ...schemaEditBetween(definition.schemaNodes, revised.schemaNodes), issues: [] }
+}
+
+/** The current schema as an edit chat's question reads it. */
+export function schemaChatContext(definition: SchemaDefinition): string {
+  return `The researcher's current extraction schema:\n${JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}`
 }
 
 const NO_SOURCE = 'No source document accompanies this schema edit; revise the schema from the change request alone.'

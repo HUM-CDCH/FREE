@@ -33,10 +33,10 @@ export const GC_POLICY: GarbagePolicy = {
   historyBatch: 1000,
 }
 export const TERMINAL_STATUSES = ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'] as const
-export const STUDIO_WORKFLOW_PREFIXES = ['suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
+export const STUDIO_WORKFLOW_PREFIXES = ['suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:', 'chat:'] as const
 export const SWEEP_PREFIX = 'sched-collectGarbage-'
 export const STUDIO_MAINTENANCE_PREFIXES = [SWEEP_PREFIX, 'studio:durable-reconcile:', 'sched-reconcileDurableExtractions-', 'durable-dispatch:'] as const
-const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:']
+const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:', 'chat:']
 const KEI_CONVERT = 'kei-convert:'
 const LIVE = LIVE_WORKFLOW_STATUSES
 const TERMINAL = new Set<string>(TERMINAL_STATUSES)

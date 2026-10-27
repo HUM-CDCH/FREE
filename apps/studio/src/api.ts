@@ -2,6 +2,7 @@ import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
+import { schemaChatReplySchema, type SchemaChatReply } from '../shared/schemaChat.contract'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
@@ -183,6 +184,22 @@ export async function requestSchema(
 
   const done = await postModelForm('/generate_schema', form, decodeSchemaDone, signal)
   return { template: done.template, sourceCoverage: done.sourceCoverage }
+}
+
+/** A chat message before the first schema: a question's answer, or `instruction` for a message kept for generation. */
+export async function requestSchemaChat(
+  context: SourceModelContext,
+  message: string,
+  signal: AbortSignal | undefined,
+  operationId: string,
+): Promise<SchemaChatReply> {
+  const form = new FormData()
+  form.append('project_context_id', context.projectContextId)
+  form.append('source_representation_revision_id', context.sourceRepresentationRevisionId)
+  form.append('message', message)
+  // The operation ID makes the POST repeatable.
+  form.append('operation_id', operationId)
+  return postModelForm('/schema_chat', form, (data) => schemaChatReplySchema.parse(data), signal)
 }
 
 /** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */

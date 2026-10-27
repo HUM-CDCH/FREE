@@ -49,6 +49,14 @@ Required JSON envelope:
 Write a source-specific record definition in "_description" and add the actual requested extraction fields as its siblings inside "template". The example shows only the required metadata; it does not replace the requested fields. "_description" contains a sentence, never a type label.`
 }
 
+/** What lets a chat's Schema Suggestion request answer a question instead of returning a schema. */
+export function schemaAnswerClause(message: string): string {
+  return `The researcher's chat message was:
+${message.trim()}
+
+If that message asks a question (about the source document or the extraction schema) instead of asking for the schema to be generated or changed, do not return a schema. Answer the question from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.`
+}
+
 /** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
 export const EXCERPT_THRESHOLD = 48_000
 const EXCERPT_BUDGET = 46_000

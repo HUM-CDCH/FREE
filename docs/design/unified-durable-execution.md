@@ -131,7 +131,8 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `reconcileDurableExtractions` | `durable-dispatch:<extractionId>` at admission; `studio:durable-reconcile:<extractionId>:<controlVersion>` after a control; a schedule every minute | same transaction as Extraction admission, on `studio` | — (enqueues durable attempts and history cleanup) |
 | `suggestSchemaBatch` | `suggest:<batchId>:<attempt>` | same transaction as create/retry, on `suggest` | merged proposal/draft, or a typed failure |
 | `suggestSchema` | `suggestion:<operationId>` | workflow-first on `studio` | template and base revision, or a typed failure |
-| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal and base revision, or a typed failure |
+| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal (or a question's answer) and base revision, or a typed failure |
+| `answerSchemaChat` | `chat:<operationId>` | workflow-first on `studio` | a question's answer or `instruction`, or a typed failure |
 | `collectGarbage` | 10-minute schedule on `gc` | — | sweep summary |
 | kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
 | kei `extractDurableV1` | `kei-durable:<extractionId>:<attemptId>` | enqueued by the reconciler on `kei-extract`, priority 1 (interactive) or 10 (batch) | the attempt's acknowledgement |
@@ -316,7 +317,17 @@ user action carries a client-minted ID (*Client IDs*).
 - **Edit proposals (`proposeSchemaEdit`).** `edit_schema` takes an
   `operation_id`. One step wraps `proposeSchemaEdit`'s Schema Suggestion call
   (ADR 0022). The output is the proposal and its base Schema Revision. Nothing is saved
-  until the researcher applies it through the revision path.
+  until the researcher applies it through the revision path. Past patch
+  `schema-chat-answers`, the message may ask a question instead (ADR 0023): the
+  output is its answer, and a long source's question, first answered from
+  excerpts, is answered again in `answerWindow:<n>` steps and combined in a
+  `combineAnswers` step.
+- **Chat messages before the first schema (`answerSchemaChat`).**
+  `schema_chat` takes an `operation_id`. One `answerIfQuestion` step answers a
+  question or replies `instruction`; a long source's question is answered
+  again across its windows, as above. The page keeps an instruction for
+  generation. These are not model operations: a reload neither lists nor
+  reopens them.
 - **Typed results.** Model steps return expected failures (`ApiError`s) as
   typed results instead of throwing, so the handlers answer with the same
   status codes. DBOS revives a recorded error only as a plain `Error`.
