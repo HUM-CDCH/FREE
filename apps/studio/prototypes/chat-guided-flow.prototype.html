@@ -1,0 +1,874 @@
+<!doctype html>
+<!--
+  PROTOTYPE: throwaway, do not ship.
+  Question: if chat guides the researcher from Schema Suggestion to Run extraction
+  (they type, the model answers in text or offers approval buttons, like Claude Code's
+  permission prompts), what should that look like?
+  Three structurally different variants, switchable with ?variant=A|B|C, the bottom bar, or ← →.
+  The chat also converses (ADR 0023): a question is answered from the Source Document (in its
+  language; every window of a long source), is never kept as a generation instruction, and leaves
+  any open approval open. Anything else is an instruction or an edit proposal.
+  No model or backend: replies come from a scripted stub; state lives in memory.
+  Open the file in a browser; no build needed.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE · Chat-guided flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  /* Tokens copied from apps/studio/src/index.css */
+  :root {
+    --canvas:#faf6f2; --surface:#fff; --surface-muted:#f5efe9; --ink:#33302c; --ink-muted:#6c6259; --ink-faint:#776b60;
+    --line:#eadfd6; --line-strong:#d9cabc; --accent:#a34828; --accent-soft:#f4ddd3; --accent-ghost:#fbf1ec;
+    --ev:#4f8aa8; --ev-soft:#d9eaf3; --ev-ghost:#eef6fa; --green:#3e7c4f; --green-soft:#e7f1e9;
+    --stale:#b8860b; --stale-soft:#fdf6e0; --stale-ink:#8a6400; --danger:#9e2b33; --danger-soft:#fbe7ea;
+    --shadow-page:0 0 0 1px rgb(60 50 40/.07),0 1px 4px rgb(60 50 40/.06),0 12px 36px -16px rgb(60 50 40/.28);
+    --shadow-float:0 6px 20px -2px rgb(40 35 30/.25);
+    --sans:"Albert Sans",ui-sans-serif,system-ui,sans-serif; --serif:"Source Serif 4",Georgia,serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body { background:var(--canvas); color:var(--ink); font:13px/1.5 var(--sans); -webkit-font-smoothing:antialiased; overflow:hidden; }
+  button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  button:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  b,strong { font-weight:700; }
+  code,.mono { font-family:var(--mono); font-size:11.5px; }
+  .overline { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-muted); }
+  .muted { color:var(--ink-muted); } .faint { color:var(--ink-faint); } .small { font-size:12px; } .compact { font-size:11px; }
+  .scroll { overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+  .row { display:flex; align-items:center; gap:8px; } .grow { flex:1; min-width:0; }
+
+  .btn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong); background:var(--surface); border-radius:4px; padding:5px 10px; font-size:11.5px; font-weight:600; transition:background .15s, border-color .15s; }
+  .btn:hover { background:var(--surface-muted); border-color:var(--ink-faint); }
+  .btn-green { background:var(--green); border-color:var(--green); color:#fff; } .btn-green:hover { background:#356b44; border-color:#356b44; }
+  .btn-out-green { color:var(--green); border-color:rgb(62 124 79/.4); } .btn-out-green:hover { background:var(--green-soft); border-color:var(--green); }
+  .btn-out-danger { color:var(--danger); border-color:rgb(158 43 51/.4); } .btn-out-danger:hover { background:var(--danger-soft); border-color:var(--danger); }
+  .btn-ghost { border-color:transparent; color:var(--ink-muted); } .btn-ghost:hover { color:var(--ink); background:var(--surface-muted); border-color:transparent; }
+  .pill { display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:999px; background:var(--surface-muted); font-size:11px; font-weight:600; color:var(--ink-muted); white-space:nowrap; }
+  .pill-accent { background:var(--accent-soft); color:var(--accent); } .pill-green { background:var(--green-soft); color:var(--green); }
+  .pill-stale { background:var(--stale-soft); color:var(--stale-ink); } .pill-ev { background:var(--ev-soft); color:#2f5f78; } .pill-danger { background:var(--danger-soft); color:var(--danger); }
+
+  /* Shared studio chrome */
+  .topbar { height:40px; display:flex; align-items:center; gap:10px; padding:0 14px; border-bottom:1px solid var(--line); background:var(--surface); }
+  .mono-mark { width:22px; height:22px; border-radius:3px; background:var(--accent); color:#fff; display:grid; place-items:center; font:700 11px var(--serif); }
+  .nav { background:var(--surface); border-right:1px solid var(--line); padding:12px 10px; display:flex; flex-direction:column; gap:4px; }
+  .nav-item { padding:5px 8px; border-radius:3px; font-size:12.5px; display:flex; gap:6px; align-items:center; }
+  .nav-item.cur { background:var(--accent-ghost); color:var(--accent); font-weight:600; }
+  .doc { background:var(--canvas); padding:24px; display:flex; justify-content:center; }
+  .page { width:min(560px,100%); background:#fffdf9; box-shadow:var(--shadow-page); padding:44px 52px; font:14px/1.75 var(--serif); color:#2d2a26; height:max-content; }
+  .page h3 { font:600 15px var(--serif); margin-bottom:10px; } .page p { margin-bottom:12px; }
+  .ev { border-bottom:2px dotted var(--ev); background:var(--ev-ghost); }
+  .ev.chk { border-bottom-style:dashed; border-color:var(--stale); background:var(--stale-soft); }
+  .scan { background:linear-gradient(transparent 0, var(--accent-ghost) 0); outline:1px dashed var(--accent-soft); }
+
+  /* Messages */
+  .msg { margin:10px 0; max-width:100%; }
+  .msg-user { display:flex; justify-content:flex-end; }
+  .msg-user > div { background:var(--surface); border:1px solid var(--line-strong); border-radius:10px 10px 2px 10px; padding:6px 10px; max-width:85%; white-space:pre-wrap; }
+  .msg-model { color:var(--ink); }
+  .msg-model p + p { margin-top:6px; }
+  .who { font-size:10.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin-bottom:2px; }
+
+  .composer { display:flex; align-items:flex-end; gap:8px; border:1px solid var(--line-strong); border-radius:12px; background:var(--surface); padding:8px 8px 8px 12px; }
+  .composer:focus-within { border-color:var(--ink-faint); }
+  .composer textarea { flex:1; border:0; outline:0; resize:none; font:13px/1.5 var(--sans); color:var(--ink); background:transparent; max-height:120px; min-height:20px; }
+  .send { width:26px; height:26px; border-radius:50%; background:var(--ink); color:var(--canvas); font-weight:700; display:grid; place-items:center; flex-shrink:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .chip { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:3px 10px; font-size:11.5px; color:var(--ink-muted); }
+  .chip:hover { color:var(--ink); border-color:var(--line-strong); background:var(--surface-muted); }
+
+  /* Permission card (Claude-Code-style approval) */
+  .perm { border:1px solid var(--line-strong); border-left:3px solid var(--accent); border-radius:4px; background:var(--surface); margin:10px 0; }
+  .perm-head { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--line); font-weight:700; }
+  .perm-body { padding:8px 10px; display:flex; flex-direction:column; gap:8px; }
+  .kv { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; font-size:12px; }
+  .kv dt { color:var(--ink-faint); } .kv dd { font-family:var(--mono); font-size:11.5px; overflow-wrap:anywhere; }
+  .opts { display:flex; flex-direction:column; gap:4px; }
+  .opt { display:flex; align-items:baseline; gap:8px; text-align:left; padding:6px 8px; border:1px solid var(--line); border-radius:4px; background:var(--surface); }
+  .opt:hover, .opt.cur { background:var(--surface-muted); border-color:var(--line-strong); }
+  .opt .num { font-family:var(--mono); font-size:11px; color:var(--ink-faint); width:12px; flex-shrink:0; }
+  .opt.green { background:var(--green); border-color:var(--green); color:#fff; } .opt.green .num { color:#dbe9df; } .opt.green:hover { background:#356b44; }
+  .opt.danger { color:var(--danger); }
+  .opt .hint { display:block; font-size:11.5px; color:var(--ink-muted); font-weight:400; }
+  .opt.green .hint { color:#dbe9df; }
+  .perm.resolved { border-left-color:var(--line-strong); background:transparent; }
+  .perm.resolved .perm-head { border:0; font-weight:600; color:var(--ink-muted); }
+
+  .fields { border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+  .field { display:flex; align-items:center; gap:8px; padding:4px 8px; border-top:1px solid var(--line); font-size:12px; }
+  .field:first-child { border-top:0; }
+  .field .nm { font-family:var(--mono); font-size:11.5px; font-weight:600; }
+  .field.add { background:var(--green-soft); } .field.remove { background:var(--danger-soft); } .field.remove .nm { text-decoration:line-through; color:var(--danger); } .field.rename { background:var(--stale-soft); }
+  .mark { font-family:var(--mono); font-weight:700; width:10px; }
+
+  .progress { border:1px solid var(--line); border-radius:4px; padding:8px 10px; background:var(--surface); margin:10px 0; }
+  .bar { height:4px; background:var(--surface-muted); border-radius:2px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:var(--ink); transition:width .2s; }
+  .spin { width:11px; height:11px; border:2px solid var(--line-strong); border-top-color:var(--ink); border-radius:50%; animation:spin .8s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .fade { animation:fadeup .2s ease; } @keyframes fadeup { from { opacity:0; transform:translateY(6px); } }
+
+  /* Variant switcher (prototype-only chrome, intentionally not FREE-styled) */
+  #switcher { position:fixed; left:50%; bottom:12px; transform:translateX(-50%); z-index:100; display:flex; align-items:center; gap:4px; background:#111; color:#fff; border-radius:999px; padding:4px; box-shadow:0 8px 24px rgb(0 0 0/.35); font:600 12px system-ui,sans-serif; }
+  #switcher button { color:#fff; padding:6px 10px; border-radius:999px; } #switcher button:hover { background:#333; }
+  #switcher .lbl { padding:0 8px; min-width:230px; text-align:center; }
+  #statepanel { position:fixed; right:12px; bottom:56px; z-index:100; width:340px; max-height:60vh; overflow:auto; background:#111; color:#b9f3c4; font:11px/1.45 ui-monospace,monospace; padding:10px; border-radius:8px; white-space:pre-wrap; }
+
+  /* ---------- Variant A: rail copilot ---------- */
+  #app { height:calc(100% - 40px); }
+  .A { display:grid; grid-template-columns:190px 1fr 400px; height:100%; }
+  .A .rail { background:var(--surface); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .A .rail-head { padding:10px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
+  .A .status { padding:6px 14px; border-bottom:1px solid var(--line); background:var(--surface-muted); font-size:12px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .A .stream { flex:1; min-height:0; padding:4px 14px 10px; }
+  .A .foot { padding:8px 14px 56px; border-top:1px solid var(--line); background:var(--surface-muted); }
+
+  /* ---------- Variant B: conversation desk ---------- */
+  .B { display:grid; grid-template-columns:230px 1fr 380px; height:100%; }
+  .B .steps { background:var(--surface); border-right:1px solid var(--line); padding:16px 14px; }
+  .B .step { display:flex; gap:10px; padding:8px 0; position:relative; }
+  .B .dot { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--line-strong); display:grid; place-items:center; font-size:10px; flex-shrink:0; background:var(--surface); z-index:1; }
+  .B .step:not(:last-child)::after { content:""; position:absolute; left:8.5px; top:26px; bottom:-8px; width:1px; background:var(--line); }
+  .B .step.done .dot { background:var(--green); border-color:var(--green); color:#fff; }
+  .B .step.cur .dot { border-color:var(--accent); } .B .step.cur .dot::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--accent); }
+  .B .step.cur .t { color:var(--accent); font-weight:700; }
+  .B .step .t { font-weight:600; } .B .step .s { font-size:11.5px; color:var(--ink-muted); }
+  .B .center { display:flex; flex-direction:column; min-height:0; }
+  .B .stream { flex:1; min-height:0; }
+  .B .stream-in { max-width:700px; margin:0 auto; padding:16px 24px; }
+  .B .tool { font-size:12px; color:var(--ink-muted); margin:6px 0; display:flex; gap:6px; }
+  .B .tool .ln { font-family:var(--mono); }
+  .B .dock { max-width:700px; width:100%; margin:0 auto; padding:0 24px 60px; }
+  .B .ask { border:1px solid var(--accent); border-radius:8px; background:var(--surface); box-shadow:var(--shadow-float); overflow:hidden; }
+  .B .ask-head { padding:10px 12px 6px; }
+  .B .ask .opts { padding:0 8px 8px; }
+  .B .ask .opt { border:0; padding:6px 8px; background:transparent; }
+  .B .ask .opt.cur { background:var(--accent-ghost); }
+  .B .ask .opt.cur::before { content:"❯"; color:var(--accent); font-weight:700; margin-left:-2px; }
+  .B .ask .opt::before { display:inline-block; width:8px; } .B .ask .opt:not(.cur)::before { content:""; }
+  .B .ask-foot { border-top:1px solid var(--line); padding:6px 12px; font-size:11px; color:var(--ink-faint); display:flex; gap:10px; align-items:center; }
+  .B .ask-foot input { flex:1; border:0; outline:0; font:12px var(--sans); background:transparent; color:var(--ink); }
+  .B .ws { background:var(--surface); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .B .tabs { display:flex; gap:2px; padding:8px 10px 0; border-bottom:1px solid var(--line); }
+  .B .tab { padding:6px 10px; font-size:12px; font-weight:600; color:var(--ink-muted); border-bottom:2px solid transparent; }
+  .B .tab.cur { color:var(--accent); border-color:var(--accent); }
+  .B .ws-body { flex:1; min-height:0; padding:12px; }
+  .B .ws .page { padding:22px 24px; font-size:12px; box-shadow:none; border:1px solid var(--line); }
+
+  /* ---------- Variant C: workspace + command bar ---------- */
+  .C { display:grid; grid-template-columns:190px 1fr 360px; height:100%; }
+  .C .docwrap { position:relative; min-height:0; display:flex; flex-direction:column; }
+  .C .doc { flex:1; min-height:0; padding-bottom:220px; }
+  .C .rail { background:var(--surface); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .C .tabs { display:flex; gap:2px; padding:8px 10px 0; border-bottom:1px solid var(--line); }
+  .C .tab { padding:6px 10px; font-size:12px; font-weight:600; color:var(--ink-muted); border-bottom:2px solid transparent; display:flex; gap:6px; align-items:center; }
+  .C .tab.cur { color:var(--accent); border-color:var(--accent); }
+  .C .rail-body { flex:1; min-height:0; padding:12px; }
+  .C .applybar { border-top:1px solid var(--line); padding:8px 12px; display:flex; gap:8px; background:var(--accent-ghost); align-items:center; }
+  .C .cmd { position:absolute; left:50%; transform:translateX(-50%); bottom:60px; width:min(620px,calc(100% - 32px)); z-index:20; }
+  .C .pop { background:var(--surface); border:1px solid var(--line-strong); border-radius:10px; box-shadow:var(--shadow-float); margin-bottom:8px; max-height:52vh; display:flex; flex-direction:column; }
+  .C .pop-body { padding:10px 14px; min-height:0; }
+  .C .pop-head { display:flex; align-items:center; gap:8px; padding:6px 10px 6px 14px; border-bottom:1px solid var(--line); }
+  .C .hopts { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .C .cmd .composer { box-shadow:var(--shadow-float); }
+  .C .plan { position:absolute; top:14px; right:14px; width:260px; background:var(--surface); border:1px solid var(--line-strong); border-radius:6px; box-shadow:var(--shadow-float); padding:10px 12px; z-index:10; }
+  .C .pstep { display:flex; gap:8px; align-items:flex-start; padding:3px 0; font-size:12px; }
+  .C .pstep .ic { width:14px; text-align:center; flex-shrink:0; }
+  .C .pstep.done { color:var(--ink-muted); } .C .pstep.done .ic { color:var(--green); }
+  .C .pstep.running { font-weight:700; } .C .pstep.running .ic { color:var(--accent); }
+  .rec { border-top:1px solid var(--line); padding:6px 0; font-size:12px; }
+  .tag { font-size:10.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); text-align:right; margin-top:2px; }
+  .src { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:6px; font-size:11.5px; color:var(--ink-faint); }
+  .cite-btn { font-family:var(--mono); font-size:11px; padding:0 6px; border:1px solid var(--line); border-radius:3px; color:var(--ink-muted); }
+  .cite-btn:hover { color:var(--ink); border-color:var(--line-strong); background:var(--surface-muted); }
+  .follow { margin-top:6px; }
+  .answer { border-left:2px solid var(--line-strong); padding-left:10px; }
+  .reading { color:var(--ink-faint); font-style:italic; display:flex; align-items:center; gap:6px; }
+  .cite { background:var(--accent-soft); outline:2px solid var(--accent); border-radius:2px; }
+  .rec:first-child { border-top:0; }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="mono-mark">F</div><b>Danish Letters</b><span class="muted small">/ Letters_1843.pdf</span><span class="grow"></span><span class="pill pill-stale">PROTOTYPE · stub model, no persistence</span></div>
+<div id="app"></div>
+<div id="switcher"></div>
+<pre id="statepanel" hidden></pre>
+<script>
+// ======================================================================
+// Scripted engine shared by all variants. Variants only differ in render.
+// ======================================================================
+const DOC = 'Letters_1843.pdf'
+const BASE_FIELDS = [
+  { name: 'sender', type: 'string' },
+  { name: 'recipient', type: 'string' },
+  { name: 'date_written', type: 'date' },
+  { name: 'place_written', type: 'string' },
+  { name: 'mentioned_people', type: 'array<string>' },
+  { name: 'summary', type: 'string' },
+]
+const SAMPLE = [
+  ['H. C. Andersen', 'Henriette Wulff', '1843-03-02', 'Copenhagen'],
+  ['Henriette Wulff', 'H. C. Andersen', '1843-03-19', 'Copenhagen'],
+  ['H. C. Andersen', 'Edvard Collin', '1843-04-11', 'Paris'],
+  ['Jonas Collin', 'H. C. Andersen', '1843-05-02', 'Copenhagen'],
+  ['H. C. Andersen', 'B. S. Ingemann', '1843-06-20', 'Gisselfeld'],
+]
+const STAGES = [
+  ['start', 'Describe', 'What to extract'],
+  ['suggest', 'Suggest schema', 'Schema Suggestion'],
+  ['review', 'Review schema', 'Apply a revision'],
+  ['strategy', 'Article or Catalog', 'Record Scope'],
+  ['run', 'Run extraction', 'Asks before running'],
+  ['results', 'Review results', 'Values to check'],
+]
+
+let S, seq = 0, timer = null
+
+function reset() {
+  clearInterval(timer)
+  S = {
+    stage: 'start', messages: [], pending: null, redirect: null, instructions: [], cite: null, answering: null,
+    schema: null, rev: 0, proposal: null, strategy: null, suggest: null, run: null,
+    allow: { suggest: false }, plan: null, ws: 'document', expanded: false, cursor: 0,
+  }
+  say(`Hi. **Danish Letters** has 3 Source Documents. Ask me anything about *${DOC}*, tell me what you want to extract, or ask me to suggest a schema.`)
+}
+
+const say = (text, extra = {}) => S.messages.push({ id: ++seq, role: 'model', text, ...extra })
+const userSays = (text, tag) => S.messages.push({ id: ++seq, role: 'user', text, tag })
+const instruction = () => S.instructions.join(' · ')
+function ask(p) {
+  if (S.pending) S.pending.resolved = 'Superseded'
+  p.id = ++seq
+  S.pending = p
+  S.cursor = 0
+  S.messages.push({ id: p.id, role: 'model', card: p })
+}
+function bumpPending() {
+  if (!S.pending) return
+  S.messages = S.messages.filter(m => m.card !== S.pending)
+  S.messages.push({ id: ++seq, role: 'model', card: S.pending })
+}
+function planStep(key, status) {
+  const s = S.plan?.find(s => s.key === key)
+  if (s) s.status = status
+}
+function tick(fn, ms) {
+  clearInterval(timer)
+  timer = setInterval(() => { if (fn()) clearInterval(timer); render() }, ms)
+}
+
+function choose(id, key) {
+  const p = S.pending
+  if (!p || p.id !== Number(id)) return
+  const opt = p.options.find(o => o.key === key)
+  p.resolved = opt.label
+  S.pending = null
+  HANDLERS[p.kind](key)
+  render()
+}
+const choosePending = key => S.pending?.options.some(o => o.key === key) ? choose(S.pending.id, key) : fallback()
+
+const HANDLERS = {
+  plan(k) {
+    if (k === 'edit') { S.redirect = 'plan'; say('What should the plan do differently?'); return }
+    S.plan.approved = k
+    if (k === 'auto') S.allow.suggest = true
+    S.allow.suggest ? runSuggestion() : askSuggest()
+  },
+  suggest(k) {
+    if (k === 'no') { S.redirect = 'suggest'; say('OK. What should I focus on? For example *"only the letters, with sender and date"*.'); return }
+    if (k === 'always') S.allow.suggest = true
+    runSuggestion()
+  },
+  proposal(k) {
+    if (k === 'apply') return applyProposal()
+    if (k === 'discard') { S.proposal = null; S.stage = S.schema ? 'done' : 'start'; say('Discarded the proposal. Nothing was saved.'); return }
+    S.redirect = 'proposal'
+    say('What should I change? Try *"add a field for language"*, *"remove summary"* or *"rename place_written to place"*.')
+  },
+  strategy(k) {
+    S.strategy = k
+    planStep('strategy', 'done')
+    say(`Saved **${cap(k)}** with revision ${S.rev}.`)
+    askRun()
+  },
+  run(k) {
+    if (k === 'no') { S.stage = 'ready'; planStep('run', 'todo'); say('No problem. Say *"run"* when you are ready, or ask me to change the schema first.'); return }
+    startRun(k === 'batch' ? 3 : 1)
+  },
+  result(k) {
+    if (k === 'review') { S.ws = 'results'; planStep('results', 'done'); say(`Opened **Results** in *One by one* at the first of ${S.run.toCheck} values to check. The Evidence is highlighted on the page.`); return }
+    if (k === 'export') { say(`Exported \`danish-letters_rev${S.rev}.xlsx\` *(stub)*.`); askResult(); return }
+    S.redirect = 'proposal'; S.stage = 'schema-edit'
+    say(`Tell me what to change. I will propose revision ${S.rev + 1}, then ask before re-running.`)
+  },
+}
+
+function askPlan() {
+  S.plan = [
+    { key: 'suggest', label: `Suggest a schema from ${DOC}`, status: 'todo' },
+    { key: 'review', label: 'You review and apply it', status: 'todo' },
+    { key: 'strategy', label: 'You choose Article or Catalog', status: 'todo' },
+    { key: 'run', label: 'Run extraction', status: 'todo' },
+    { key: 'results', label: 'You review the values to check', status: 'todo' },
+  ]
+  say('Here is how I would get there. I always stop for you to review the schema and before running an extraction.')
+  ask({
+    kind: 'plan', title: 'Plan', question: 'Go ahead with this plan?', steps: S.plan.map(s => s.label),
+    options: [
+      { key: 'auto', label: 'Approve plan', hint: 'Start the Schema Suggestion now; still ask at review and run', tone: 'green' },
+      { key: 'step', label: 'Approve, but ask before every step' },
+      { key: 'edit', label: 'Change the plan…', tone: 'esc' },
+    ],
+  })
+}
+
+function askSuggest() {
+  S.stage = 'start'
+  ask({
+    kind: 'suggest', title: 'Run Schema Suggestion', question: `Run Schema Suggestion on ${DOC}?`,
+    detail: [['Source', `${DOC} · 38 pages, read in 4 windows`], ['Instructions', S.instructions.length ? `${S.instructions.length} kept: ${instruction()}` : '—'], ['Model', 'Configured model · ~40 s']],
+    options: [
+      { key: 'yes', label: 'Yes', tone: 'green' },
+      { key: 'always', label: "Yes, and don't ask again for Schema Suggestions" },
+      { key: 'no', label: 'No, tell FREE what to change', tone: 'esc' },
+    ],
+  })
+}
+
+function runSuggestion() {
+  S.stage = 'suggesting'; S.ws = 'document'
+  planStep('suggest', 'running')
+  S.suggest = { w: 0, n: 4 }
+  S.messages.push({ id: ++seq, role: 'model', progress: 'suggest' })
+  tick(() => { if (++S.suggest.w >= S.suggest.n) { finishSuggestion(); return true } }, 700)
+}
+
+function finishSuggestion() {
+  planStep('suggest', 'done'); planStep('review', 'running')
+  const fields = BASE_FIELDS.map(f => ({ ...f, change: 'add' }))
+  if (/language/i.test(instruction())) fields.push({ name: 'language', type: 'string', change: 'add' })
+  S.proposal = { rev: S.rev + 1, fields }
+  S.stage = 'proposal'; S.ws = 'schema'
+  say(`I read all 4 windows. Most pages are letters, so I suggest **${fields.length} fields** per letter. You can apply it as is or tell me what to change.`)
+  askProposal()
+}
+
+function askProposal() {
+  const rev = S.proposal.rev
+  ask({
+    kind: 'proposal', title: `Proposed schema · revision ${rev}`, question: `Apply this as revision ${rev}?`,
+    fields: S.proposal.fields.map(f => ({ ...f })),
+    options: [
+      { key: 'apply', label: `Apply as revision ${rev}`, tone: 'green' },
+      { key: 'change', label: 'Change something…' },
+      { key: 'discard', label: 'Discard proposal', tone: 'danger' },
+    ],
+  })
+}
+
+function applyProposal() {
+  S.schema = S.proposal.fields.filter(f => f.change !== 'remove').map(({ name, type }) => ({ name, type }))
+  S.rev = S.proposal.rev; S.proposal = null
+  planStep('review', 'done')
+  if (S.strategy) { say(`Applied revision ${S.rev}.`); return askRun() }
+  S.stage = 'strategy'; planStep('strategy', 'running')
+  say(`Applied revision ${S.rev}. One more choice before extracting; FREE saves it with the revision.`)
+  ask({
+    kind: 'strategy', title: 'Choose Record Scope', question: 'Is each Source Document one record, or does it hold many?',
+    options: [
+      { key: 'catalog', label: 'Catalog: many records per document', hint: 'Each letter in the PDF becomes its own record', tone: 'green' },
+      { key: 'article', label: 'Article: one record per document', hint: 'The whole PDF becomes one object' },
+    ],
+  })
+}
+
+function askRun() {
+  S.stage = 'ready'; planStep('run', 'running')
+  ask({
+    kind: 'run', title: 'Run extraction', question: 'Run the extraction now?',
+    detail: [['Schema', `revision ${S.rev} · ${S.schema.length} fields`], ['Strategy', cap(S.strategy)], ['Source', DOC], ['Estimate', '~2 min · about 14 records']],
+    options: [
+      { key: 'one', label: `Yes, run on ${DOC}`, tone: 'green' },
+      { key: 'batch', label: 'Run on all 3 Source Documents', hint: 'Batch Extraction: one Extraction per document' },
+      { key: 'no', label: 'Not yet', tone: 'esc' },
+    ],
+  })
+}
+
+function startRun(docs) {
+  S.stage = 'running'; S.ws = 'results'
+  S.run = { k: 0, n: 14 * docs, docs, toCheck: 0, paused: false }
+  S.messages.push({ id: ++seq, role: 'model', progress: 'run', run: S.run })
+  tick(() => {
+    if (S.run.paused) return
+    if (++S.run.k % 5 === 2) S.run.toCheck++
+    if (S.run.k >= S.run.n) { finishRun(); return true }
+  }, 200)
+}
+
+function finishRun() {
+  S.stage = 'done'; planStep('run', 'done'); planStep('results', 'running')
+  const r = S.run
+  say(`Done. **${r.n} records** from ${r.docs === 1 ? DOC : r.docs + ' Source Documents'}. Every value has Evidence; **${r.toCheck} values to check** where the reading was uncertain.`)
+  askResult()
+}
+
+function askResult() {
+  ask({
+    kind: 'result', title: 'Extraction finished', question: 'What next?',
+    options: [
+      { key: 'review', label: `Review the ${S.run.toCheck} values to check`, tone: 'green' },
+      { key: 'export', label: 'Export results (.xlsx)' },
+      { key: 'edit', label: 'Change the schema and re-run' },
+    ],
+  })
+}
+
+function guessType(n) {
+  if (/date|year|when/.test(n)) return 'date'
+  if (/people|names|persons|list|places/.test(n)) return 'array<string>'
+  if (/count|number|amount/.test(n)) return 'number'
+  return 'string'
+}
+
+function editProposal(text) {
+  const t = text.toLowerCase()
+  const fields = (S.proposal ? S.proposal.fields : S.schema.map(f => ({ ...f, change: null }))).map(f => ({ ...f }))
+  let m, did = false
+  if ((m = t.match(/rename\s+(\w+)\s+to\s+(\w+)/))) {
+    const f = fields.find(f => f.name.includes(m[1]))
+    if (f) { f.from = f.from || f.name; f.name = m[2]; if (f.change !== 'add') f.change = 'rename'; did = true }
+  } else if ((m = t.match(/(?:remove|drop|delete)\s+(?:the\s+)?(?:field\s+)?(\w+)/))) {
+    const f = fields.find(f => f.name.includes(m[1]))
+    if (f) { if (f.change === 'add' && S.schema === null) fields.splice(fields.indexOf(f), 1); else f.change = 'remove'; did = true }
+  } else if ((m = t.match(/add\s+(?:a\s+|an\s+)?(?:new\s+)?(?:field\s+)?(?:for\s+)?(?:the\s+)?([a-z][a-z ]{1,30}?)(?:\s+field)?\s*(?:[.,!]|$)/))) {
+    const name = m[1].trim().split(/\s+/).slice(0, 3).join('_')
+    fields.push({ name, type: guessType(name), change: 'add' }); did = true
+  }
+  if (!did) return false
+  S.proposal = { rev: S.proposal ? S.proposal.rev : S.rev + 1, fields }
+  S.stage = 'proposal'; S.ws = 'schema'
+  if (S.plan) { planStep('review', 'running') }
+  say('Updated the proposal. Changes are marked.')
+  askProposal()
+  return true
+}
+
+// ---- Conversation: questions are answered from the source (ADR 0023) ----
+const has = name => (S.proposal?.fields || S.schema || []).some(f => f.name === name && f.change !== 'remove')
+const QA = [
+  { re: /uncertain|to check|doubt|不确定|要检查/, when: () => S.run && S.stage !== 'running',
+    en: () => `${S.run.toCheck} values to check. Most are **date_written** where the heading is abbreviated (*"d. 2 Marts"*), and two **recipient** values where the salutation uses a nickname (*"Jette"*).`,
+    zh: () => `有 ${S.run.toCheck} 个值需要检查，大多是 **date_written**（信头日期是缩写，如 *"d. 2 Marts"*），还有两个 **recipient**（称呼用了昵称 *"Jette"*）。`, pages: [4, 11], cite: 'date' },
+  { re: /who (wrote|sent)|sender|author|谁写|写信人|寄信/, field: 'sender',
+    en: 'Most letters are by **H. C. Andersen**; a few replies are from Henriette Wulff and Jonas Collin.',
+    zh: '大部分信是 **H. C. Andersen** 写的，少数回信来自 Henriette Wulff 和 Jonas Collin。', pages: [4, 9, 17], cite: 'sender',
+    follow: { en: 'Add a sender field', zh: '加一个 sender 字段', text: 'add a field for sender' } },
+  { re: /who.*(mention|named|in the)|people|persons|提到|哪些人|人物/, field: 'mentioned_people',
+    en: 'Besides the correspondents: **Edvard and Jonas Collin**, **B. S. Ingemann**, and Henriette\'s sister **"Jette"**. Names are often abbreviated.',
+    zh: '除了通信双方，还提到 **Edvard 和 Jonas Collin**、**B. S. Ingemann**，以及 Henriette 的妹妹 **"Jette"**。人名常有缩写。', pages: [4, 6, 12], cite: 'people',
+    follow: { en: 'Track mentioned people', zh: '记录提到的人物', text: 'add a field for mentioned people' } },
+  { re: /when|date|year|日期|什么时候|哪年|时间/, field: 'date_written',
+    en: 'Every letter has a heading date, from **2 March** to **28 December 1843**, written in Danish (*"d. 2 Marts 1843"*).',
+    zh: '每封信都有信头日期，从 **1843 年 3 月 2 日**到 **12 月 28 日**，用丹麦语写（*"d. 2 Marts 1843"*）。', pages: [4, 38], cite: 'date',
+    follow: { en: 'Add a date field', zh: '加一个日期字段', text: 'add a field for date written' } },
+  { re: /where|place|city|地点|哪里|在哪/, field: 'place_written',
+    en: 'Mostly **Copenhagen** (*"Kjøbenhavn"*), then Paris and Gisselfeld. The place is in the heading, before the date.',
+    zh: '大多写于**哥本哈根**（*"Kjøbenhavn"*），其次是巴黎和 Gisselfeld。地点写在信头日期前。', pages: [4, 21], cite: 'place',
+    follow: { en: 'Add a place field', zh: '加一个地点字段', text: 'add a field for place written' } },
+  { re: /how many|count|多少|几封/,
+    en: 'About **14 letters** over 38 pages, most 2–3 pages long. That suggests **Catalog**: one record per letter.',
+    zh: '38 页里大约有 **14 封信**，多数 2–3 页。这适合用 **Catalog**：每封信一条记录。', pages: [1, 38] },
+  { re: /language|danish|语言|丹麦/, field: 'language',
+    en: 'All in **Danish** with 19th-century spelling (*"Kjære"*, *"igaar"*); a few French phrases.',
+    zh: '全部是**丹麦语**，19 世纪拼写（*"Kjære"*、*"igaar"*），夹杂少量法语。', pages: [4],
+    follow: { en: 'Add a language field', zh: '加一个语言字段', text: 'add a field for language' } },
+]
+const zh = t => /[一-鿿]/.test(t)
+function isQuestion(t) {
+  if (/\b(add|remove|rename|delete|drop|suggest|run|apply|extract)\b|添加|加一个|删除|生成|运行/.test(t)) return false
+  if (/\b(article|catalog)\b/.test(t) && !/\?/.test(t)) return false
+  return /[?？]\s*$/.test(t) || /^(who|what|when|where|which|how|why|is|are|does|do|did|can|could)\b/.test(t) || /吗|呢|什么|哪|谁|几|多少/.test(t)
+}
+const tagLast = tag => { const m = [...S.messages].reverse().find(m => m.role === 'user'); if (m) m.tag = tag }
+const questionCount = () => S.messages.filter(m => m.tag === 'question').length
+function answerQuestion(text) {
+  const t = text.toLowerCase(), lang = zh(text) ? 'zh' : 'en'
+  const qa = QA.find(q => q.re.test(t) && (!q.when || q.when()))
+  const read = { w: 0, n: 4 }
+  S.answering = read
+  const msg = { id: ++seq, role: 'model', reading: read }
+  S.messages.push(msg)
+  const step = () => {
+    if (++read.w < read.n) { render(); return setTimeout(step, 350) }
+    S.answering = null
+    msg.reading = null
+    if (qa) {
+      const pick = v => typeof v === 'function' ? v() : v
+      msg.text = pick(qa[lang])
+      msg.answer = { pages: qa.pages, cite: qa.cite, follow: qa.follow && !has(qa.field) ? { label: qa.follow[lang], text: qa.follow.text } : null }
+    } else {
+      msg.text = lang === 'zh' ? '文档里没有提到这一点。我读了全部 4 个 window，没有找到相关内容。' : "The document doesn't say. I read all 4 windows and found nothing about that."
+      msg.answer = { pages: [] }
+    }
+    bumpPending()
+    render()
+  }
+  setTimeout(step, 350)
+}
+
+function fallback() {
+  say("*(Prototype: there is no model behind this.)* I didn't catch that. Try one of the suggestions under the chat.")
+  bumpPending()
+}
+
+function onSend(raw) {
+  const text = raw.trim()
+  if (!text) return
+  userSays(text)
+  const t = text.toLowerCase()
+  if (/^(start over|reset|restart)/.test(t)) { reset(); return render() }
+  if (/\b(article|catalog)\b/.test(t) && /\?|what|difference|explain/.test(t)) {
+    say('**Article**: the whole Source Document becomes one record (good for a single essay or report). **Catalog**: FREE finds the repeated records in the document and extracts each one (good for a PDF with many letters, entries or rows).')
+    bumpPending(); return render()
+  }
+  if (isQuestion(t)) { tagLast('question'); answerQuestion(text); return render() }
+  const r = S.redirect
+  S.redirect = null
+  if (r === 'suggest' || r === 'plan') { S.instructions.push(text); tagLast('instruction'); r === 'plan' ? askPlan() : askSuggest(); return render() }
+  if (r === 'proposal') { if (!editProposal(text)) { S.redirect = 'proposal'; fallback() } return render() }
+  switch (S.stage) {
+    case 'start':
+      // Before the first schema, anything that is not a question is kept as a generation instruction.
+      if (!/^suggest( a)? schema\.?$/.test(t)) { S.instructions.push(text); tagLast('instruction') }
+      if (S.pending) S.pending.resolved = 'Answered in chat', S.pending = null
+      if (variant === 'C' && !S.plan) askPlan()
+      else if (S.allow.suggest) runSuggestion()
+      else askSuggest()
+      break
+    case 'proposal':
+      if (/^(apply|looks good|ok|yes|good|great)/.test(t)) choosePending('apply')
+      else if (!editProposal(text)) fallback()
+      break
+    case 'strategy':
+      if (/catalog|many/.test(t)) choosePending('catalog')
+      else if (/article|one/.test(t)) choosePending('article')
+      else fallback()
+      break
+    case 'ready':
+      if (/all|batch|every/.test(t)) choosePending('batch')
+      else if (/run|go|yes|start/.test(t)) S.pending ? choosePending('one') : startRun(1)
+      else if (!editProposal(text)) fallback()
+      break
+    case 'running':
+      if (/pause|stop|wait/.test(t)) { S.run.paused = true; say('Paused. Records already read are saved; say *"resume"* to continue.') }
+      else if (/resume|continue/.test(t)) { S.run.paused = false; say('Resumed.') }
+      else say('The extraction is still running. I can pause it, or answer when it finishes.')
+      break
+    case 'done': case 'schema-edit':
+      if (/review|check/.test(t)) choosePending('review')
+      else if (/export/.test(t)) choosePending('export')
+      else if (!editProposal(text)) fallback()
+      break
+    default: fallback()
+  }
+  render()
+}
+
+function chips() {
+  if (S.redirect === 'proposal') return ['Add a field for language', 'Remove summary', 'Rename place_written to place']
+  if (S.redirect) return ['Only letters, with sender, recipient and date']
+  return {
+    start: ['Who is mentioned in these letters?', '这批信是什么语言写的？', 'I want sender, recipient and date from each letter', 'Suggest a schema'],
+    suggesting: [],
+    proposal: ['Is there a date on every letter?', 'Looks good, apply it', 'Add a field for language', 'Remove summary'],
+    strategy: ['How many letters are in this PDF?', "What's the difference between Article and Catalog?", 'Catalog', 'Article'],
+    ready: ['Where were the letters written?', 'Run it', 'Run on all documents', 'Add a field for seal'],
+    running: [S.run?.paused ? 'Resume' : 'Pause', 'Who wrote most of the letters?'],
+    done: ['Which values are uncertain?', 'Review the values to check', 'Add a field for language', 'Start over'],
+    'schema-edit': ['Add a field for language', 'Remove summary'],
+  }[S.stage] || []
+}
+
+// ======================================================================
+// Shared render helpers
+// ======================================================================
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '—'
+const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>').replace(/`(.+?)`/g, '<code>$1</code>')
+const act = (a, inner, cls = '', extra = '') => `<button data-act="${esc(a)}" class="${cls}" ${extra}>${inner}</button>`
+
+function fieldsHtml(fields, marks = true) {
+  return `<div class="fields">${fields.map(f => `<div class="field ${marks ? f.change || '' : ''}">
+    ${marks ? `<span class="mark">${{ add: '+', remove: '−', rename: '~' }[f.change] || ''}</span>` : ''}
+    <span class="nm">${esc(f.name)}</span>${f.from ? `<span class="faint compact">was ${esc(f.from)}</span>` : ''}
+    <span class="grow"></span><span class="pill">${esc(f.type)}</span></div>`).join('')}</div>`
+}
+const kvHtml = d => d ? `<dl class="kv">${d.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''
+const stepsHtml = steps => steps ? `<ol style="padding-left:18px" class="small">${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>` : ''
+
+function optsHtml(p, { numbered = true, cursor = -1 } = {}) {
+  return `<div class="opts">${p.options.map((o, i) => act(`choose:${p.id}:${o.key}`,
+    `${numbered ? `<span class="num">${i + 1}</span>` : ''}<span>${esc(o.label)}${o.hint ? `<span class="hint">${esc(o.hint)}</span>` : ''}${o.tone === 'esc' ? ' <span class="faint compact">(esc)</span>' : ''}</span>`,
+    `opt ${o.tone === 'green' || o.tone === 'danger' ? o.tone : ''} ${i === cursor ? 'cur' : ''}`)).join('')}</div>`
+}
+
+function progressHtml(kind, r = S.run) {
+  if (kind === 'suggest') {
+    const { w, n } = S.suggest, done = w >= n
+    return `<div class="progress"><div class="row">${done ? '<span style="color:var(--green)">✓</span>' : '<span class="spin"></span>'}
+      <b>Schema Suggestion</b><span class="muted small">${done ? `read ${n} windows` : `reading window ${w + 1} of ${n}`}</span></div>
+      <div class="bar"><i style="width:${(w / n) * 100}%"></i></div></div>`
+  }
+  const done = r.k >= r.n
+  return `<div class="progress"><div class="row">${done ? '<span style="color:var(--green)">✓</span>' : r.paused ? '❚❚' : '<span class="spin"></span>'}
+    <b>Extraction</b><span class="muted small grow">${done ? `${r.n} records read` : `Reading records · ${r.k} of ${r.n}`}</span>
+    ${r.toCheck ? `<span class="pill pill-stale">${r.toCheck} to check</span>` : ''}
+    ${done ? '' : r === S.run && act('pause', r.paused ? '▶ Resume' : '❚❚ Pause', 'btn btn-ghost')}</div>
+    <div class="bar"><i style="width:${(r.k / r.n) * 100}%"></i></div></div>`
+}
+
+function userHtml(m) {
+  const n = m.tag === 'instruction' ? S.instructions.indexOf(m.text) + 1 : 0
+  return `<div class="msg fade"><div class="msg-user"><div>${esc(m.text)}</div></div>${m.tag ? `<div class="tag">${m.tag === 'question' ? 'Question' : `Instruction ${n} of ${S.instructions.length}`}</div>` : ''}</div>`
+}
+function modelTextHtml(m, who = '') {
+  if (m.reading) return `<div class="msg"><div class="reading"><span class="spin"></span>Reading the document… window ${m.reading.w + 1} of ${m.reading.n}</div></div>`
+  if (!m.answer) return `<div class="msg msg-model fade">${who}<p>${fmt(m.text)}</p></div>`
+  const a = m.answer
+  return `<div class="msg msg-model fade">${who}<div class="answer"><p>${fmt(m.text)}</p>
+    <div class="src">▤ ${DOC} · read 4 windows${a.pages.map(pg => ' ' + act(`cite:${a.cite || ''}`, `p. ${pg}`, 'cite-btn')).join('')}</div>
+    ${a.follow ? `<div class="follow">${act(`chip:${a.follow.text}`, `+ ${esc(a.follow.label)}`, 'btn btn-out-green')}</div>` : ''}</div></div>`
+}
+
+function composerHtml(placeholder = 'Ask about the source, or describe what to extract…') {
+  return `<div class="composer"><textarea id="composer" rows="1" placeholder="${esc(placeholder)}"></textarea>${act('send', '↑', 'send', 'aria-label="Send"')}</div>`
+}
+const chipsHtml = () => { const c = chips(); return c.length ? `<div class="chips">${c.map(x => act(`chip:${x}`, esc(x), 'chip')).join('')}</div>` : '' }
+
+function docHtml() {
+  const read = S.stage === 'done' || S.stage === 'schema-edit' || (S.run && S.run.k > 0)
+  const scanning = S.stage === 'suggesting'
+  const ev = (s, chk, key) => key && S.cite === key ? `<span class="cite">${s}</span>` : read ? `<span class="ev ${chk ? 'chk' : ''}">${s}</span>` : s
+  return `<div class="page ${scanning ? 'scan' : ''}">
+    <div class="overline" style="margin-bottom:14px">Page 4 of 38</div>
+    <h3>${ev('Kjøbenhavn', false, 'place')}, ${ev('d. 2 Marts 1843', true, 'date')}</h3>
+    <p>Kjære ${ev('Henriette', false, 'people')}! Tak for Deres venlige Brev, som jeg modtog igaar Aften. Jeg har talt med ${ev('Collin', false, 'people')} om Reisen, og han mener at vi bør vente til Foraaret.</p>
+    <p>${ev('Ingemann', false, 'people')} skriver at han har læst mit nye Eventyr høit for sin Kone; de lo begge. Jeg længes efter Paris, men Pengene slaae ikke til.</p>
+    <p>Hils Deres Fader og ${ev('Jette', true, 'people')} fra mig.</p>
+    <p style="text-align:right">Deres hengivne<br>${ev('H. C. Andersen', false, 'sender')}</p>
+  </div>`
+}
+
+function resultsHtml() {
+  if (!S.run) return `<div class="muted small" style="padding:20px 4px">No Extraction yet. The chat will ask before running one.</div>`
+  const shown = Math.min(S.run.k, 8)
+  const names = S.schema.map(f => f.name)
+  return `<div class="row" style="margin-bottom:8px"><span style="font-size:20px;font-weight:700">${S.run.toCheck}</span><span class="muted small grow">to check · ${S.run.k} of ${S.run.n} records</span><span class="pill">rev ${S.rev} · ${cap(S.strategy)}</span></div>
+  ${Array.from({ length: shown }, (_, i) => {
+    const s = SAMPLE[i % SAMPLE.length], vals = { sender: s[0], recipient: s[1], date_written: s[2], place_written: s[3] }
+    return `<div class="rec"><div class="row"><b class="grow">Letter ${i + 1}</b>${i % 5 === 1 ? '<span class="pill pill-stale">◐ to check</span>' : '<span class="pill pill-ev">✓ Evidence</span>'}</div>
+      <div class="muted compact mono">${names.slice(0, 3).map(n => `${esc(n)}: ${esc(vals[n] || '…')}`).join(' · ')}</div></div>`
+  }).join('')}${S.run.k > shown ? `<div class="faint compact" style="padding-top:6px">+ ${S.run.k - shown} more</div>` : ''}`
+}
+
+function schemaPanelHtml() {
+  if (S.proposal) return `<div class="row" style="margin-bottom:8px"><span class="overline grow">Proposal · revision ${S.proposal.rev}</span><span class="pill pill-accent">unsaved</span></div>${fieldsHtml(S.proposal.fields)}`
+  if (S.schema) return `<div class="row" style="margin-bottom:8px"><span class="overline grow">Revision ${S.rev}</span>${S.strategy ? `<span class="pill">${cap(S.strategy)}</span>` : '<span class="pill pill-stale">choose scope</span>'}</div>${fieldsHtml(S.schema, false)}`
+  if (S.stage === 'suggesting') return `<div class="row muted small"><span class="spin"></span> Waiting for Schema Suggestion…</div>`
+  return `<div class="muted small" style="padding:20px 4px">No schema yet. Describe what you want in the chat.</div>`
+}
+
+const navHtml = () => `<nav class="nav"><div class="overline" style="padding:0 8px 6px">Sources</div>
+  <div class="nav-item cur">▤ Letters_1843.pdf</div><div class="nav-item">▤ Letters_1844.pdf</div><div class="nav-item">▤ Parish_register.pdf</div></nav>`
+
+function stageIndex() {
+  return { start: 0, suggesting: 1, proposal: 2, strategy: 3, ready: 4, running: 4, done: 5, 'schema-edit': 2 }[S.stage]
+}
+
+// ======================================================================
+// Variant A: Rail copilot. The right rail becomes the chat; approvals are
+// inline permission cards in the stream, resolved cards collapse to a line.
+// ======================================================================
+function renderA() {
+  const stream = S.messages.map(m => {
+    if (m.role === 'user') return userHtml(m)
+    if (m.progress) return progressHtml(m.progress, m.run)
+    if (m.card) {
+      const p = m.card
+      if (p.resolved) return `<div class="perm resolved"><div class="perm-head"><span>${p.resolved === 'Superseded' ? '↷' : '✓'}</span><span class="grow">${esc(p.title)}</span><span class="compact">${esc(p.resolved)}</span></div></div>`
+      return `<div class="perm fade"><div class="perm-head"><span style="color:var(--accent)">⏵</span>${esc(p.title)}</div><div class="perm-body">
+        ${kvHtml(p.detail)}${p.fields ? fieldsHtml(p.fields) : ''}${stepsHtml(p.steps)}
+        <div><b>${esc(p.question)}</b></div>${optsHtml(p)}</div></div>`
+    }
+    return modelTextHtml(m, '<div class="who">FREE</div>')
+  }).join('')
+  const st = `<div class="status"><span class="faint">Schema</span>${S.schema ? `<span class="pill">rev ${S.rev} · ${S.schema.length} fields</span>` : '<span class="pill">none</span>'}
+    <span class="faint">Scope</span><span class="pill">${cap(S.strategy)}</span>
+    ${S.run ? `<span class="faint">Run</span><span class="pill ${S.stage === 'done' ? 'pill-green' : ''}">${S.run.k}/${S.run.n}</span>` : ''}</div>`
+  return `<div class="A">${navHtml()}<main class="doc scroll">${docHtml()}</main>
+    <aside class="rail"><div class="rail-head"><span class="overline grow">Assistant</span><span class="pill pill-accent">${STAGES[stageIndex()][1]}</span></div>
+      ${st}<div class="stream scroll" id="stream">${stream}</div>
+      <div class="foot">${chipsHtml()}${composerHtml(S.pending ? 'Choose above, or type to answer differently…' : 'Message FREE…')}</div></aside></div>`
+}
+
+// ======================================================================
+// Variant B: Conversation desk. Chat is the page; a stage stepper on the left,
+// a workspace preview on the right. Approvals never sit in the stream: they
+// dock over the composer like a terminal prompt (1/2/3, ↑↓, Enter, Esc).
+// ======================================================================
+function renderB() {
+  const cur = stageIndex()
+  const summary = i => [
+    [S.instructions.length && `${S.instructions.length} instruction${S.instructions.length > 1 ? 's' : ''}`, questionCount() && `${questionCount()} answered`].filter(Boolean).join(' · ') || 'Ask or describe',
+    S.suggest ? (S.suggest.w >= S.suggest.n ? 'Read 4 windows' : `Window ${S.suggest.w + 1} of 4`) : DOC,
+    S.schema ? `Revision ${S.rev} · ${S.schema.length} fields` : 'Apply a revision',
+    S.strategy ? cap(S.strategy) : 'Record Scope',
+    S.run ? `${S.run.k} of ${S.run.n} records` : 'Asks before running',
+    S.run && S.stage === 'done' ? `${S.run.toCheck} to check` : 'Values to check',
+  ][i]
+  const steps = STAGES.map(([, t], i) => `<div class="step ${i < cur ? 'done' : i === cur ? 'cur' : ''}"><span class="dot">${i < cur ? '✓' : ''}</span><div><div class="t">${t}</div><div class="s">${esc(summary(i))}</div></div></div>`).join('')
+  const stream = S.messages.map(m => {
+    if (m.role === 'user') return userHtml(m)
+    if (m.progress) return progressHtml(m.progress, m.run)
+    if (m.card) {
+      const p = m.card
+      if (!p.resolved) return `<div class="tool"><span class="ln" style="color:var(--accent)">⏺</span><span>${esc(p.title)} · <i>waiting for you below</i></span></div>`
+      return `<div class="tool"><span class="ln">⏺</span><div><b>${esc(p.title)}</b>${p.fields ? ` <span class="faint">(${p.fields.length} fields)</span>` : ''}<div class="ln">⎿ ${esc(p.resolved)}</div></div></div>`
+    }
+    return modelTextHtml(m)
+  }).join('')
+  const p = S.pending
+  const dock = p
+    ? `<div class="ask fade"><div class="ask-head"><div class="overline" style="color:var(--accent)">${esc(p.title)}</div>
+        <div style="margin:4px 0 8px"><b>${esc(p.question)}</b></div>${kvHtml(p.detail)}${p.fields ? fieldsHtml(p.fields) : ''}${stepsHtml(p.steps)}</div>
+        ${optsHtml(p, { cursor: S.cursor })}
+        <div class="ask-foot"><span>↑↓ Enter · 1–${p.options.length} · Esc</span><span>│</span><input id="askinput" placeholder="…or type to tell FREE something else"></div></div>`
+    : `${chipsHtml()}${composerHtml()}`
+  const tab = S.ws
+  const body = tab === 'schema' ? schemaPanelHtml() : tab === 'results' ? resultsHtml() : docHtml()
+  return `<div class="B"><aside class="steps"><div class="overline" style="margin-bottom:10px">From source to results</div>${steps}</aside>
+    <section class="center"><div class="stream scroll" id="stream"><div class="stream-in">${stream}</div></div><div class="dock">${p ? chipsHtml() : ''}${dock}</div></section>
+    <aside class="ws"><div class="tabs">${['document', 'schema', 'results'].map(t => act(`ws:${t}`, cap(t), `tab ${t === tab ? 'cur' : ''}`)).join('')}</div><div class="ws-body scroll">${body}</div></aside></div>`
+}
+
+// ======================================================================
+// Variant C: Workspace + command bar. Studio stays primary (doc + rail);
+// chat is a floating command bar whose popover shows only the latest turn.
+// The first request returns a plan; its steps light up as work proceeds,
+// and proposals land in the real Schema panel with an Apply / Discard bar.
+// ======================================================================
+function renderC() {
+  const lastUser = S.messages.map(m => m.role).lastIndexOf('user')
+  const visible = S.expanded ? S.messages : S.messages.slice(Math.max(0, lastUser))
+  const turn = visible.map(m => {
+    if (m.role === 'user') return userHtml(m)
+    if (m.progress) return progressHtml(m.progress, m.run)
+    if (m.card) {
+      const p = m.card
+      if (p.resolved) return `<div class="faint small" style="margin:4px 0">✓ ${esc(p.title)} · ${esc(p.resolved)}</div>`
+      return `<div class="fade" style="margin-top:6px"><b>${esc(p.question)}</b>${kvHtml(p.detail) ? `<div style="margin-top:6px">${kvHtml(p.detail)}</div>` : ''}
+        ${p.kind === 'proposal' ? '<div class="small muted" style="margin-top:4px">The proposal is open in the Schema panel →</div>' : ''}
+        <div class="hopts">${p.options.map(o => act(`choose:${p.id}:${o.key}`, esc(o.label), `btn ${o.tone === 'green' ? 'btn-green' : o.tone === 'danger' ? 'btn-out-danger' : o.tone === 'esc' ? 'btn-ghost' : ''}`, o.hint ? `title="${esc(o.hint)}"` : '')).join('')}</div></div>`
+    }
+    return modelTextHtml(m)
+  }).join('')
+  const plan = S.plan && S.plan.approved ? `<div class="plan fade"><div class="row" style="margin-bottom:6px"><span class="overline grow">Plan</span><span class="faint compact">${S.plan.filter(s => s.status === 'done').length}/${S.plan.length}</span></div>
+    ${S.plan.map(s => `<div class="pstep ${s.status}"><span class="ic">${s.status === 'done' ? '✓' : s.status === 'running' ? '●' : '○'}</span><span>${esc(s.label)}</span></div>`).join('')}</div>` : ''
+  const tab = S.ws === 'results' ? 'results' : 'schema'
+  const proposalPending = S.pending?.kind === 'proposal'
+  const applybar = proposalPending ? `<div class="applybar"><span class="small grow"><b>Proposal</b> from chat</span>
+    ${act(`choose:${S.pending.id}:discard`, 'Discard', 'btn btn-out-danger')}${act(`choose:${S.pending.id}:apply`, `✓ Apply rev ${S.proposal.rev}`, 'btn btn-green')}</div>` : ''
+  const runBtn = S.stage === 'ready' && S.pending?.kind === 'run' ? act(`choose:${S.pending.id}:one`, '▶ Run extraction', 'btn btn-green') : ''
+  return `<div class="C">${navHtml()}
+    <section class="docwrap"><main class="doc scroll">${docHtml()}</main>${plan}
+      <div class="cmd"><div class="pop"><div class="pop-head"><span class="who grow" style="margin:0">FREE</span>
+        ${act('expand', S.expanded ? 'Latest turn only' : `Show conversation (${S.messages.length})`, 'btn btn-ghost')}</div>
+        <div class="pop-body scroll" id="stream">${turn}</div></div>
+        ${chipsHtml()}${composerHtml('Ask FREE to… (⌘K)')}</div></section>
+    <aside class="rail"><div class="tabs">${act('ws:schema', `Schema${S.proposal ? ' <span class="pill pill-accent">1</span>' : ''}`, `tab ${tab === 'schema' ? 'cur' : ''}`)}${act('ws:results', `Results${S.run && S.stage === 'done' ? ` <span class="pill pill-stale">${S.run.toCheck}</span>` : ''}`, `tab ${tab === 'results' ? 'cur' : ''}`)}
+      <span class="grow"></span>${runBtn}</div>
+      <div class="rail-body scroll">${tab === 'results' ? resultsHtml() : schemaPanelHtml()}</div>${applybar}</aside></div>`
+}
+
+// ======================================================================
+// Shell: render, switcher, events
+// ======================================================================
+const VARIANTS = {
+  A: { name: 'Rail copilot (inline approvals)', render: renderA },
+  B: { name: 'Conversation desk (docked prompt)', render: renderB },
+  C: { name: 'Workspace + command bar (plan)', render: renderC },
+}
+const KEYS = Object.keys(VARIANTS)
+let variant = (new URLSearchParams(location.search).get('variant') || 'A').toUpperCase()
+if (!VARIANTS[variant]) variant = 'A'
+let showState = false
+
+function render() {
+  const ta = document.getElementById('composer')
+  const draft = ta?.value ?? '', focused = document.activeElement === ta
+  document.getElementById('app').innerHTML = VARIANTS[variant].render()
+  const nta = document.getElementById('composer')
+  if (nta) { nta.value = draft; if (focused) nta.focus() }
+  const stream = document.getElementById('stream')
+  if (stream) stream.scrollTop = stream.scrollHeight
+  const i = KEYS.indexOf(variant)
+  document.getElementById('switcher').innerHTML = `${act('prev', '←')}<span class="lbl">${variant} · ${VARIANTS[variant].name}</span>${act('next', '→')}${act('reset', '↺ reset')}${act('state', '{ } state')}`
+  const sp = document.getElementById('statepanel')
+  sp.hidden = !showState
+  if (showState) sp.textContent = JSON.stringify({ ...S, messages: `${S.messages.length} messages`, pending: S.pending && { kind: S.pending.kind, options: S.pending.options.map(o => o.key) } }, null, 2)
+}
+
+function setVariant(v) {
+  variant = v
+  const u = new URL(location.href)
+  u.searchParams.set('variant', v)
+  history.replaceState(null, '', u)
+  render()
+}
+const cycle = d => setVariant(KEYS[(KEYS.indexOf(variant) + d + KEYS.length) % KEYS.length])
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]')
+  if (!el) return
+  const [a, ...rest] = el.dataset.act.split(':'), arg = rest.join(':')
+  if (a === 'choose') { const [id, key] = arg.split(':'); return choose(id, key) }
+  if (a === 'chip') return onSend(arg)
+  if (a === 'send') { const ta = document.getElementById('composer'); const v = ta.value; ta.value = ''; return onSend(v) }
+  if (a === 'ws') { S.ws = arg; return render() }
+  if (a === 'cite') { S.cite = arg || null; if (variant === 'B') S.ws = 'document'; return render() }
+  if (a === 'expand') { S.expanded = !S.expanded; return render() }
+  if (a === 'pause') { S.run.paused = !S.run.paused; say(S.run.paused ? 'Paused. Records already read are saved.' : 'Resumed.'); return render() }
+  if (a === 'prev') return cycle(-1)
+  if (a === 'next') return cycle(1)
+  if (a === 'reset') { reset(); return render() }
+  if (a === 'state') { showState = !showState; return render() }
+})
+
+document.addEventListener('keydown', e => {
+  const t = e.target
+  const typing = t.matches?.('input, textarea, [contenteditable]')
+  if (t.id === 'composer' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const v = t.value; t.value = ''; return onSend(v) }
+  if (t.id === 'askinput' && e.key === 'Enter') { e.preventDefault(); const v = t.value; return onSend(v) }
+  if (typing) return
+  if (e.key === 'ArrowLeft') return cycle(-1)
+  if (e.key === 'ArrowRight') return cycle(1)
+  // Variant B's terminal-style prompt
+  const p = S.pending
+  if (variant !== 'B' || !p) return
+  if (/^[1-9]$/.test(e.key) && p.options[e.key - 1]) return choose(p.id, p.options[e.key - 1].key)
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); S.cursor = (S.cursor + (e.key === 'ArrowDown' ? 1 : -1) + p.options.length) % p.options.length; return render() }
+  if (e.key === 'Enter') return choose(p.id, p.options[S.cursor].key)
+  if (e.key === 'Escape') { const o = p.options.find(o => o.tone === 'esc'); if (o) choose(p.id, o.key) }
+})
+
+reset()
+render()
+</script>
+</body>
+</html>
