@@ -1,6 +1,7 @@
 # 0022: Schema edits run through Schema Suggestion
 
-Date: 2026-10-27. Status: accepted; amends [0007](0007-two-explicit-model-capability-routes.md).
+Date: 2026-10-27. Status: accepted; amends [0007](0007-two-explicit-model-capability-routes.md); amended by
+[0023](0023-schema-chat-answers-questions.md): the edit chat may answer a question instead of proposing.
 
 ## Context
 

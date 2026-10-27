@@ -36,6 +36,24 @@ async function applied(template: Record<string, unknown>): Promise<SchemaNode[]>
 }
 
 describe('proposeSchemaEdit', () => {
+  it('as a chat reply, answers a question with no proposal, and proposes from a revised schema otherwise', async () => {
+    const generate = answering({})
+    const respond = vi.fn()
+      .mockResolvedValueOnce({ answer: 'Status is open or closed.' })
+      .mockResolvedValueOnce({ template: { _description: 'One numbered burial entry.', title: 'string' }, raw: '', pages: null, sourceCoverage: { complete: true } })
+    await expect(proposeSchemaEdit(definition, 'What can status be?', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
+      .resolves.toEqual({ status: 'answered', answer: 'Status is open or closed.' })
+    const [caller, input, question] = respond.mock.calls[0]!
+    expect(caller).toBe(CALLER)
+    expect(input).toMatchObject({ document: { markdown: SOURCE.markdown } })
+    expect(question).toMatchObject({ message: 'What can status be?' })
+    expect(question.context).toContain('"status"')
+
+    await expect(proposeSchemaEdit(definition, 'Keep only the title', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
+      .resolves.toMatchObject({ status: 'proposed' })
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('accepts a typed repeating scalar field from the browser', () => {
     const repeatingDates = [{ id: 'dates', name: 'dates', type: 'array', itemType: 'date' }]
 

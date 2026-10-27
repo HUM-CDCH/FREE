@@ -41,7 +41,7 @@ export type SchemaGenerationPorts = Readonly<{
   patched?(name: string): Promise<boolean>
 }>
 
-class StepFailure extends Error {
+export class StepFailure extends Error {
   readonly failure: OperationFailure
   constructor(failure: OperationFailure) {
     super(failure.message)
@@ -50,7 +50,7 @@ class StepFailure extends Error {
 }
 
 /** One model call in its own step with its own ten-minute signal; a failure is checkpointed as a typed result. */
-async function modelStep<T>(steps: WorkflowSteps, name: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function modelStep<T>(steps: WorkflowSteps, name: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const result = await steps.step(name, async (): Promise<OperationResult<{ value: T }>> => {
     try {
       return { ok: true, value: await run(AbortSignal.timeout(MODEL_OPERATION_TIMEOUT_MS)) }

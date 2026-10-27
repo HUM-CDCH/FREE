@@ -131,4 +131,42 @@ describe('proposeSchemaEditWorkflow', () => {
     await expect(proposeSchemaEditWorkflow(input, noDocument.ports)).resolves.toMatchObject({ ok: false, status: 404 })
     expect(noDocument.names).toEqual([])
   })
+
+  it('past schema-chat-answers the message may ask a question: a short source\'s answer is the outcome of the one step', async () => {
+    const answered = { status: 'answered' as const, answer: 'Each report has one title.' }
+    const { names, propose, ports: p } = ports({ patched: async (name) => name === 'schema-chat-answers' })
+    vi.mocked(propose).mockResolvedValue(answered as never)
+
+    await expect(proposeSchemaEditWorkflow(input, p)).resolves.toEqual({ ok: true, baseSchemaRevisionId: input.baseSchemaRevisionId, response: answered })
+
+    expect(names).toEqual(['proposeSchemaEdit'])
+    expect((vi.mocked(propose).mock.calls[0]! as unknown as [unknown, string, unknown, { answerable?: boolean }])[3].answerable).toBe(true)
+  })
+
+  it('a long source\'s question, first answered from excerpts, is answered again from every window and combined', async () => {
+    const long: SchemaSource = { markdown: `${'a'.repeat(40_000)}\n\n${'b'.repeat(40_000)}`, pageSpans: [] }
+    const answerWindow = vi.fn<(caller: unknown, window: { index: number }, question: unknown) => Promise<string>>(async (_caller, window) => `part ${window.index}`)
+    const combineAnswers = vi.fn(async (_caller: unknown, answers: readonly string[]) => answers.join(' + '))
+    const { names, propose, ports: p } = ports({
+      patched: async () => true,
+      readSource: async () => long,
+      answerWindow: answerWindow as never,
+      combineAnswers: combineAnswers as never,
+    })
+    vi.mocked(propose).mockResolvedValue({ status: 'answered', answer: 'from excerpts' } as never)
+
+    await expect(proposeSchemaEditWorkflow(input, p)).resolves.toEqual({
+      ok: true, baseSchemaRevisionId: input.baseSchemaRevisionId, response: { status: 'answered', answer: 'part 1 + part 2' },
+    })
+    expect(names).toEqual(['proposeSchemaEdit', 'answerWindow:1', 'answerWindow:2', 'combineAnswers'])
+    const question = answerWindow.mock.calls[0]![2] as { message: string; context: string }
+    expect(question.message).toBe(input.instruction)
+    expect(question.context).toContain('"title"')
+  })
+
+  it('a run before schema-chat-answers never lets the message ask a question', async () => {
+    const { propose, ports: p } = ports({ patched: async () => false })
+    await proposeSchemaEditWorkflow(input, p)
+    expect((vi.mocked(propose).mock.calls[0]! as unknown as [unknown, string, unknown, { answerable?: boolean }])[3].answerable).toBeUndefined()
+  })
 })

@@ -67,4 +67,6 @@ with `source_suggestion_failed` (a missing key with `model_key_required`), and
 a merge stopped for length with `unexpected_failure`. Ollama connections get
 `truncate: false`, so an over-long prompt fails instead of being cut. Schema
 editing proposals come from the Schema Suggestion Route (ADR 0022) and never
-change the pinned Schema Revision.
+change the pinned Schema Revision. The schema chat answers questions about the
+source instead of proposing or recording them (ADR 0023), on the Interaction
+Route when Schema Suggestion is NuExtract.

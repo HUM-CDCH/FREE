@@ -3,7 +3,8 @@
 Date: 2026-09-26. Status: accepted; amends the job-backend part of
 [0009](0009-own-parsing-and-extraction-service-in-free.md); amended by
 [0017](0017-durable-extraction-control-and-call-checkpoints.md) for
-Extractions. Design:
+Extractions, and by [0023](0023-schema-chat-answers-questions.md): the schema chat
+answers questions about the source again. Design:
 [unified durable execution](../design/unified-durable-execution.md).
 
 ## Context

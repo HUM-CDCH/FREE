@@ -20,14 +20,16 @@ import type {
   SchemaSaveState,
 } from './schemaSaveCoordinator'
 // The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
-const { requestSchemaEdit, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
+const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
   requestSchemaEdit: vi.fn(),
+  requestSchemaChat: vi.fn(),
   deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
   listModelOperations: vi.fn<() => Promise<ModelOperation[]>>(async () => []),
 }))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
   requestSchemaEdit,
+  requestSchemaChat,
   deleteModelOperation,
   listModelOperations,
 }))
@@ -2345,7 +2347,7 @@ describe('chat composer and drawer (redesign §7)', () => {
   it('the instructions composer clears and scrolls back to its start after a send, so its placeholder reads from the beginning', () => {
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
     const input = screen.getByPlaceholderText(/Add a generation instruction/) as HTMLTextAreaElement
-    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations")…')
+    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…')
     let scrollTop = 0
     Object.defineProperty(input, 'scrollTop', { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value } })
     fireEvent.change(input, { target: { value: 'Focus on the burials and their grave goods, layer by layer, with dates' } })
@@ -2397,6 +2399,48 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(screen.queryByRole('button', { name: 'Show conversation' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('with a source, a question before the first schema is answered and is not an instruction', async () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockResolvedValueOnce({ kind: 'answer', answer: 'The register lists 42 burials.' })
+    requestSchemaChat.mockResolvedValueOnce({ kind: 'instruction' })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('The register lists 42 burials.')).toBeInTheDocument()
+    expect(screen.getByText('Question')).toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[0]!.slice(0, 2)).toEqual([
+      { projectContextId: modelContext.projectContextId, sourceRepresentationRevisionId: modelContext.sourceRepresentationRevisionId },
+      'How many burials are there?',
+    ])
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Message 1 of 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('a message the model could not reply to goes back to the composer, unrecorded', async () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn(), sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockRejectedValueOnce(new Error('No model is configured.'))
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Could not send the message: No model is configured.')).toBeInTheDocument()
+    expect(input).toHaveValue('How many burials are there?')
+    expect(screen.getByRole('button', { name: 'Generate schema' })).toBeEnabled()
+  })
+
+  it('an edit chat question is answered in the conversation, with no proposal', async () => {
+    renderPanel({ durableScope: true })
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'Gender takes woman or man.' })
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'What values can gender take?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Gender takes woman or man.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
   })
 
   it('a removed instruction leaves the conversation and the generation', () => {
