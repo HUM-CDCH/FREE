@@ -1,5 +1,7 @@
 # FREE repository context
 
+If the docs and the existing code disagree, follow the existing code, and list every mismatch in your final reply.
+
 - Read `docs/product-contract.md` before changing authentication, persistence,
   deployment, database lifecycle, or verification. It is the normative product
   and safety contract.
