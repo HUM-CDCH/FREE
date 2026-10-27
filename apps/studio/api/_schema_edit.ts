@@ -1,55 +1,37 @@
-import { z } from 'zod'
-import {
-  fieldEditSchema,
-  schemaAdditionSchema,
-  type FieldEdit,
-  type SchemaAddition,
-  type SchemaEditIssue,
-  type SchemaEditResponse,
+import type {
+  FieldEdit,
+  SchemaAddition,
+  SchemaEditResponse,
 } from '../shared/schemaEdit.contract.js'
 import type {
   ResearcherProjectStore,
   SchemaRevisionRecord,
+  SchemaSource,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
   duplicateFieldKeys,
   enumerateFieldPaths,
+  schemaDefinitionToTemplate,
+  templateToSchemaDefinition,
+  type SchemaDefinition,
   type SchemaNode,
 } from 'extraction/schema'
-import {
-  FIELD_TYPES,
-  SCALAR_FIELD_TYPES,
-  type ScalarFieldType,
-} from 'extraction/allowed-values'
-import { parseUnknownJson } from './_model_output.js'
-import { executeEditPrompt, type ModelCaller, type ModelDependencies } from './_model_execution.js'
-import type { ExecutionTarget } from './_provider.js'
+import type { ScalarFieldType } from 'extraction/allowed-values'
+import type { ModelCaller } from './_model_execution.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
-import { traceModelCall } from '../server/tracing.js'
-
-const modelEnvelopeSchema = z.object({
-  fields: z.record(z.string(), z.unknown()),
-  additions: z.unknown(),
-}).passthrough()
-
-export { parseSchemaNodes } from 'extraction/schema'
-
-type Generate = (
-  prompt: string,
-  temperature?: number,
-  target?: ExecutionTarget,
-) => Promise<string>
 
 type SchemaEditOptions = {
-  /** Whose configuration the default model call resolves. */
+  /** Whose configuration the model call resolves. */
   caller: ModelCaller
   temperature?: number
   /** The browser's request: when it goes away the model call, and any wait for a key, ends. */
   signal?: AbortSignal
-  target?: ExecutionTarget
-  generate?: Generate
+  generate?: typeof generateSchemaWithModel
 }
+
+export { parseSchemaNodes } from 'extraction/schema'
 
 type SourceContextStore = Pick<
   ResearcherProjectStore,
@@ -130,192 +112,137 @@ export async function loadOwnedSchemaRevision(
   return revision
 }
 
+/**
+ * A schema edit proposal through Schema Suggestion: the model receives the current schema as a template, its field
+ * notes and the researcher's change request (with the source, when one is named) and returns the whole revised
+ * template, which is compared with the current tree to give the per-field proposal the researcher reviews.
+ */
 export async function proposeSchemaEdit(
-  nodes: readonly SchemaNode[],
+  definition: SchemaDefinition,
   instruction: string,
-  documentMarkdown: string | null,
+  source: SchemaSource | null,
   options: SchemaEditOptions,
 ): Promise<SchemaEditResponse> {
-  const fields = enumerateFieldPaths(nodes)
-  const duplicates = duplicateFieldKeys(fields)
+  const duplicates = duplicateFieldKeys(enumerateFieldPaths(definition.schemaNodes))
   if (duplicates.length) {
     return { status: 'refused', message: `Duplicate field paths: ${duplicates.join(', ')}` }
   }
 
-  const expected = new Map(fields.map((field) => [field.id, field]))
-  const generate = options.generate ?? (async (prompt, temperature, target) =>
-    (await generateSchemaEditJson(options.caller, prompt, temperature, options.signal, target)).text)
-
+  const generate = options.generate ?? generateSchemaWithModel
+  let template: Record<string, unknown>
   try {
-    const initial = await traceModelCall('schema-edit', async () => readEnvelope(await generate(
-      schemaEditPrompt(fields.map(({ id, node }) => toPromptField(id, node)), instruction, documentMarkdown),
-      options.temperature,
-      options.target,
-    )))
-    const unknownIssues = unknownFieldIssues(initial.fields, expected)
-    const additions = validatedAdditions(initial.additions, unknownIssues)
-    const accepted = new Map<string, FieldEdit>()
-    let unresolved = validateExpected(initial.fields, expected, accepted)
-
-    if (unresolved.size) {
-      try {
-        const retryIds = [...unresolved.keys()]
-        const retryExpected = new Map(retryIds.map((id) => [id, expected.get(id)!]))
-        const retry = await traceModelCall('schema-edit-repair', async () => readEnvelope(await generate(
-          retryPrompt(retryIds.map((id) => toPromptField(id, expected.get(id)!.node)), instruction),
-          options.temperature,
-          options.target,
-        )))
-        unknownIssues.push(...unknownFieldIssues(retry.fields, retryExpected))
-        unresolved = validateExpected(retry.fields, retryExpected, accepted)
-      } catch (error) {
-        if (error instanceof ApiError && !isModelProposalFailure(error)) throw error
-        // The validated first-pass subset remains a useful partial proposal.
-      }
-    }
-
-    const issues: SchemaEditIssue[] = [
-      ...unknownIssues,
-      ...[...unresolved].map(([id, kind]) => ({ kind, key: expected.get(id)!.key })),
-    ]
-    if (expected.size > 0 && accepted.size === 0 && additions.length === 0) {
-      return { status: 'failed', message: 'The model returned no usable schema proposal entries.' }
-    }
-    return { status: 'proposed', fields: Object.fromEntries(accepted), additions, issues }
+    template = (await generate(options.caller, {
+      document: source
+        ? { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans }
+        : { file: null, pages: null, markdown: NO_SOURCE },
+      instruction: schemaRevisionInstruction(definition, instruction),
+      ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+      signal: options.signal,
+    })).template
   } catch (error) {
-    if (error instanceof ApiError && !isModelProposalFailure(error)) throw error
-    return { status: 'failed', message: 'Schema edit generation failed.' }
+    if (error instanceof ApiError && isModelProposalFailure(error)) return FAILED
+    throw error
   }
+  let revised: SchemaDefinition
+  try {
+    revised = templateToSchemaDefinition(template)
+  } catch {
+    return FAILED
+  }
+  return { status: 'proposed', ...schemaEditBetween(definition.schemaNodes, revised.schemaNodes), issues: [] }
 }
+
+const NO_SOURCE = 'No source document accompanies this schema edit; revise the schema from the change request alone.'
+const FAILED: SchemaEditResponse = { status: 'failed', message: 'Schema edit generation failed.' }
 
 function isModelProposalFailure(error: ApiError): boolean {
   return error.code === 'invalid_model_output' || error.code === 'model_operation_failed'
 }
 
-async function readEnvelope(text: string): Promise<z.infer<typeof modelEnvelopeSchema>> {
-  const parsed = await parseUnknownJson(text, 'Edit schema model returned invalid JSON.')
-  return modelEnvelopeSchema.parse(parsed)
+/** The Schema Suggestion instruction for an edit: the current template, its field notes and the change request. */
+export function schemaRevisionInstruction(definition: SchemaDefinition, request: string): string {
+  const notes = enumerateFieldPaths(definition.schemaNodes)
+    .filter(({ node }) => node.description)
+    .map(({ path, node }) => `- ${path.join('.')}: ${node.description}`)
+  return `Revise the researcher's current extraction schema according to the change request, and return the complete revised schema in the same template form.
+
+Current schema:
+${JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}
+${notes.length ? `\nField notes from the current schema:\n${notes.join('\n')}\n` : ''}
+Change request:
+${request.trim()}
+
+Keep every field, its name, its type and its nesting exactly as they are unless the change request asks to change them, and keep "_description" unless the change request is about what one record is. Return the whole schema, including the unchanged fields, never only the changed ones.`
 }
 
-function validateExpected(
-  raw: Record<string, unknown>,
-  expected: ReadonlyMap<string, unknown>,
-  accepted: Map<string, FieldEdit>,
-): Map<string, 'missing' | 'invalid'> {
-  const unresolved = new Map<string, 'missing' | 'invalid'>()
-  for (const key of expected.keys()) {
-    const parsed = fieldEditSchema.safeParse(raw[key])
-    if (parsed.success) accepted.set(key, parsed.data)
-    else unresolved.set(key, Object.hasOwn(raw, key) ? 'invalid' : 'missing')
-  }
-  return unresolved
-}
-
-function unknownFieldIssues(raw: Record<string, unknown>, expected: ReadonlyMap<string, unknown>): SchemaEditIssue[] {
-  return Object.keys(raw)
-    .filter((key) => !expected.has(key))
-    .map((key) => ({ kind: 'unknown-key', key }))
-}
-
-function validatedAdditions(raw: unknown, issues: SchemaEditIssue[]): SchemaAddition[] {
-  if (raw === undefined) return []
-  if (!Array.isArray(raw)) {
-    issues.push({ kind: 'invalid', key: 'additions' })
-    return []
-  }
+/**
+ * The proposal that turns `current` into `revised`. Fields are matched by name level by level. A field left unmatched
+ * is renamed when it is its level's only unmatched pair, or when the revision has an unmatched field of the same shape
+ * in its place; any other is removed, and an unmatched revised field is added (an added group's own fields follow it
+ * as further additions). Unchanged fields are left out.
+ */
+export function schemaEditBetween(
+  current: readonly SchemaNode[],
+  revised: readonly SchemaNode[],
+): { fields: Record<string, FieldEdit>; additions: SchemaAddition[] } {
+  const fields: Record<string, FieldEdit> = {}
   const additions: SchemaAddition[] = []
-  raw.forEach((item, index) => {
-    const parsed = schemaAdditionSchema.safeParse(item)
-    if (parsed.success) additions.push(parsed.data)
-    else issues.push({ kind: 'invalid', key: `additions[${index}]` })
-  })
-  return additions
-}
-
-type PromptField =
-  | { id: string; name: string; type: Exclude<SchemaNode['type'], 'array'>; description?: string; allowedValues?: string[] }
-  | { id: string; name: string; type: 'array'; itemType: ScalarFieldType | null; description?: string }
-
-type PromptFieldValue =
-  | { name: string; type: Exclude<SchemaNode['type'], 'array'>; description?: string; allowedValues?: string[] }
-  | { name: string; type: 'array'; itemType: ScalarFieldType | null; description?: string }
-
-function toPromptField(id: string, node: SchemaNode): PromptField {
-  const description = node.description
-  if (node.type !== 'array') {
-    const allowedValues = node.type === 'string' ? node.allowedValues : undefined
-    return {
-      id,
-      name: node.name,
-      type: node.type,
-      ...(description && { description }),
-      ...(allowedValues && { allowedValues }),
+  const add = (node: SchemaNode, parentPath: readonly string[]) => {
+    const path = [...parentPath, node.name]
+    additions.push({ path, ...nodeShape(node), ...(node.description && { description: node.description }) })
+    node.children?.forEach((child) => add(child, path))
+  }
+  const compare = (level: readonly SchemaNode[], next: readonly SchemaNode[], parentPath: readonly string[]) => {
+    const unmatched = next.filter((node) => !level.some((old) => old.name === node.name))
+    const orphans = level.filter((old) => !next.some((node) => node.name === old.name))
+    const renames = new Map<SchemaNode, SchemaNode>()
+    if (orphans.length === 1 && unmatched.length === 1) renames.set(orphans[0]!, unmatched[0]!)
+    else for (const old of orphans) {
+      const node = next[level.indexOf(old)]
+      if (node && unmatched.includes(node) && sameShape(old, node)) renames.set(old, node)
     }
-  }
-  return {
-    id,
-    name: node.name,
-    type: node.type,
-    itemType: node.children === undefined ? node.itemType : null,
-    ...(description && { description }),
-  }
-}
-
-function promptFieldValue(field: PromptField): PromptFieldValue {
-  return field.type === 'array'
-    ? { name: field.name, type: field.type, itemType: field.itemType, ...(field.description && { description: field.description }) }
-    : {
-        name: field.name,
-        type: field.type,
-        ...(field.description && { description: field.description }),
-        ...(field.allowedValues && { allowedValues: field.allowedValues }),
+    const renamedTo = new Set(renames.values())
+    for (const old of level) {
+      const node = next.find((candidate) => candidate.name === old.name) ?? renames.get(old)
+      if (!node) {
+        fields[old.id] = { name: old.name, removed: true, ...nodeShape(old) }
+        continue
       }
-}
-
-function schemaEditPrompt(fields: readonly PromptField[], instruction: string, markdown: string | null): string {
-  const source = markdown === null ? '' : `\n\nSOURCE DOCUMENT MARKDOWN:\n${markdown}\nEND SOURCE DOCUMENT MARKDOWN`
-  return `Edit the extraction schema according to the researcher instruction.
-
-Researcher instruction: ${JSON.stringify(instruction)}
-Existing fields, keyed by opaque field ids that must be echoed exactly and never rewritten, even when the field's own "name" is being changed:
-${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}${source}
-
-Return one JSON object:
-{"fields":{"opaque-field-id":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false,"description":"optional researcher note","allowedValues":["optional","closed","set"]}},"additions":[{"path":["existing_parent","new_scalar"],"type":"string"},{"path":["existing_parent","new_dates"],"type":"array","itemType":"date"}]}
-
-Rules:
-- fields must contain every supplied opaque field id exactly once, including unchanged and removed fields; the id itself is never renamed, only the "name" value inside it
-- additions must always be present; use [] when no fields are added
-- apply the researcher instruction to every relevant field; preserve only properties unrelated to that instruction
-- a field's "description", where present, is a researcher note recorded directly on that field (added via the schema editor's per-field description button); treat it as additional guidance alongside the researcher instruction when deciding that field's name, type, and allowed values
-- "description" is optional on every field entry and addition; set it to change or add the note (an empty string clears it), and either omit it or set it to null to leave the field's current note untouched
-- "allowedValues" is optional and meaningful only when type is "string"; use it to pin a field to a fixed list of options (for example when the researcher instruction or the field's own description asks for a closed set of choices) — 2 or more values sets that closed set, an empty array clears an existing one back to free text, and either omitting it or setting it to null leaves the field's current allowed values untouched; additions may set it the same way
-- itemType is allowed only when type is array; every array field and array addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
-- removed is true only for a removed existing field
-- additions use full structural paths in the post-edit namespace (i.e. using each field's current "name", including any rename applied in this same edit) and must not invent root path segments that are not existing or explicitly added fields
-- return JSON only`
-}
-
-function retryPrompt(fields: readonly PromptField[], instruction: string): string {
-  return `Repair only the missing or invalid field entries for this schema edit.
-Researcher instruction: ${JSON.stringify(instruction)}
-Required opaque field ids and current values:
-${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}
-Return {"fields":{...},"additions":[]} with every listed field id exactly once, unchanged. Use name, type (${FIELD_TYPES.join('|')}), removed, itemType for arrays (scalar type or null for records), and optionally description and, for string fields, allowedValues (2+ values, or [] to clear). JSON only.`
-}
-
-/** Edit proposals use the Interaction Route; their envelope is interpreted by proposeSchemaEdit. */
-export async function generateSchemaEditJson(
-  caller: ModelCaller,
-  prompt: string,
-  temperature?: number,
-  signal?: AbortSignal,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<{ text: string }> {
-  const result = await executeEditPrompt(caller, prompt, temperature, signal, target, dependencies)
-  if (result.finishReason === 'length') {
-    throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')
+      // A template carries a group's note but not a scalar's: a note the revision does not mention is kept.
+      const edit: FieldEdit = { name: node.name, removed: false, description: node.description ?? null, ...nodeShape(node, old) }
+      if (changesField(old, edit)) fields[old.id] = edit
+      if (old.children && node.children) compare(old.children, node.children, [...parentPath, node.name])
+    }
+    for (const node of unmatched) if (!renamedTo.has(node)) add(node, parentPath)
   }
-  return { text: result.text }
+  compare(current, revised, [])
+  return { fields, additions }
+}
+
+type NodeShape =
+  | { type: 'array'; itemType: ScalarFieldType | null }
+  | { type: 'string'; allowedValues?: string[] }
+  | { type: Exclude<SchemaNode['type'], 'array' | 'string'> }
+
+/** A node's type as an edit or an addition gives it; a closed set the revision dropped from `old` is cleared ([]). */
+function nodeShape(node: SchemaNode, old?: SchemaNode): NodeShape {
+  if (node.type === 'array') return { type: 'array', itemType: node.children ? null : node.itemType }
+  if (node.type === 'string') {
+    const allowedValues = node.allowedValues ?? (old?.allowedValues ? [] : undefined)
+    return { type: 'string', ...(allowedValues && { allowedValues }) }
+  }
+  return { type: node.type }
+}
+
+function sameShape(left: SchemaNode, right: SchemaNode): boolean {
+  return left.type === right.type && (left.children === undefined) === (right.children === undefined) && left.itemType === right.itemType
+}
+
+function changesField(old: SchemaNode, edit: FieldEdit): boolean {
+  if (edit.name !== old.name || edit.type !== old.type) return true
+  if (edit.description != null && edit.description !== (old.description ?? '')) return true
+  if (edit.type === 'array') return edit.itemType !== (old.children ? null : old.itemType)
+  if (edit.type === 'string' && edit.allowedValues != null)
+    return JSON.stringify(edit.allowedValues.length ? edit.allowedValues : undefined) !== JSON.stringify(old.allowedValues)
+  return false
 }

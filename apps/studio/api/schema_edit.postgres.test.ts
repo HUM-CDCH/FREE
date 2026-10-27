@@ -22,7 +22,8 @@ import { startScriptedModelServer, type ScriptedModelServer } from '../test/supp
 import { suggestionResearcherStore } from '../test/support/suggestionWorkflow.js'
 import { deploymentModels } from './_deployment_models.js'
 import { createModelKeyCache } from './_model_keys.js'
-import { generateSchemaEditJson, proposeSchemaEdit } from './_schema_edit.js'
+import { proposeSchemaEdit } from './_schema_edit.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { registerSchemaEditWorkflow, type SchemaEditPorts } from './_schema_edit_workflow.js'
 import { createPostEditSchema } from './edit_schema.js'
 
@@ -33,7 +34,8 @@ const packages = createCanonicalPackageStore(packageRoot)
 const schemas = testSchemas()
 const dropped: string[] = [schemas.schema, schemas.keiSchema]
 const scopes: InteractiveScope[] = []
-const ENVELOPE = '{"fields":{},"additions":[]}'
+// The seeded base schema, unchanged: an edit that proposes nothing.
+const ENVELOPE = '{"_description":"One catalogue entry."}'
 const PROPOSED = { status: 'proposed', fields: {}, additions: [], issues: [] }
 
 let server: ScriptedModelServer
@@ -42,10 +44,10 @@ const worker = createInternalProjectWorkerStore(db, { packages })
 const ports: SchemaEditPorts = {
   steps: dbosSteps,
   readSchemaTree: (schemaId, revisionId) => worker.readSchemaRevisionTree(schemaId, revisionId),
-  readMarkdown: (id) => worker.readRevisionMarkdown(id),
+  readSource: (id) => worker.readRevisionSchemaSource(id),
   propose: proposeSchemaEdit,
-  generateJson: (caller, prompt, temperature, signal, target) =>
-    generateSchemaEditJson(caller, prompt, temperature, signal, target, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
+  generate: (caller, input) =>
+    generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
 }
 
 type Base = { extractionSchemaId: string; schemaRevisionId: string }

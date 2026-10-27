@@ -168,7 +168,7 @@ A Researcher Account's choice of Model Connection and model for a related family
 _Avoid_: task route, model setting, project model
 
 **Schema Suggestion Route**:
-The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
+The Capability Route used for Schema Suggestion, including the edit proposals of the schema panel's chat. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
@@ -192,7 +192,7 @@ A Researcher Account's choice of the Parsing Service's OCR model (text recogniti
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:
-The Capability Route used for conversational Extraction Schema editing: the schema panel's "Describe a change to the schema…" and the edit proposals it returns. The Model Configuration page calls it the *Assistant model*.
+The Capability Route an unset Schema Suggestion Route follows. It runs no model work of its own: conversational Extraction Schema editing (the schema panel's "Describe a change to the schema…") is a Schema Suggestion request. The Model Configuration page calls it the *Assistant model*.
 _Avoid_: chat model, chat route
 
 **Model Attribution**:
