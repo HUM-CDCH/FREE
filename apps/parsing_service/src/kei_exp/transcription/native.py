@@ -57,10 +57,19 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
             try:
                 textpage = page.get_textpage()
                 try:
-                    text = textpage.get_text_bounded().strip()
+                    # Only painted characters show that a page prints text: an unpainted glyph (render mode 3)
+                    # prints nothing, so a hidden note must not route a page natively and lose its raster's OCR.
+                    invisible = pdfium.raw.FPDF_TEXTRENDERMODE_INVISIBLE
+                    # (A broken ToUnicode map can report a code past Unicode's last, which still prints.)
+                    printed = any((glyph := pdfium.raw.FPDFText_GetTextObject(textpage, char))
+                                  and pdfium.raw.FPDFTextObj_GetTextRenderMode(glyph) != invisible
+                                  and not chr(min(pdfium.raw.FPDFText_GetUnicode(textpage, char), 0x10FFFF)).isspace()
+                                  for char in range(textpage.count_chars()))
                     objects = list(page.get_objects())
-                    if not text:
-                        if objects:
+                    if not printed:
+                        # Unpainted text alone prints nothing, like a blank page.
+                        if any(obj.type != pdfium.raw.FPDF_PAGEOBJ_TEXT
+                               or pdfium.raw.FPDFTextObj_GetTextRenderMode(obj.raw) != invisible for obj in objects):
                             return None
                         continue
                     width, height = page.get_size()
