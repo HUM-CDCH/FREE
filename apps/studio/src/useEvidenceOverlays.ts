@@ -54,14 +54,33 @@ const squeezed = (text: string) => {
   }
   return { text: out, at }
 }
-/** The box, in page points, of `link`'s quoted text inside `occurrence`'s block; none when the page's text layer lacks it. */
-function narrowBox(container: HTMLElement, document: ParsedDocument, occurrence: EvidenceOccurrence, link: EvidenceLink): Box | null {
+/** A page's text layer as read once: its frame and each text run with its box in page points. */
+type TextLayer = { frame: DOMRect; runs: { node: Text; box: Box }[] }
+/** The box, in page points, of `link`'s quoted text inside `occurrence`'s block; none when the page's text layer lacks it.
+ *  `layers` keeps each text layer read during one paint: reading every run's box again for each link froze long documents. */
+function narrowBox(container: HTMLElement, document: ParsedDocument, occurrence: EvidenceOccurrence, link: EvidenceLink,
+  layers: Map<Element, TextLayer | null> = new Map()): Box | null {
   const spans = quoteSpans(link)
   if (!spans.length) return null
   const page = container.querySelector(`.page[data-page-number="${occurrence.page_number}"]`)
+  const layer = page?.querySelector('.textLayer')
   const bbox = verifiedEvidenceBbox(document, occurrence)
   const size = document.pages.find(each => each.page_number === occurrence.page_number)
-  if (!page || !bbox || !size) return null
+  if (!layer || !bbox || !size) return null
+  const toPt = (frame: DOMRect, rect: DOMRect): Box => ({ x0: (rect.left - frame.left) / frame.width * size.width_pt, y0: (rect.top - frame.top) / frame.height * size.height_pt,
+    x1: (rect.right - frame.left) / frame.width * size.width_pt, y1: (rect.bottom - frame.top) / frame.height * size.height_pt })
+  if (!layers.has(layer)) {
+    const frame = layer.getBoundingClientRect()
+    const entry: TextLayer | null = frame.width && frame.height ? { frame, runs: [] } : null
+    const walker = window.document.createTreeWalker(layer, NodeFilter.SHOW_TEXT)
+    if (entry) for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement
+      if (parent && (node as Text).data.trim()) entry.runs.push({ node: node as Text, box: toPt(frame, parent.getBoundingClientRect()) })
+    }
+    layers.set(layer, entry)
+  }
+  const read = layers.get(layer)
+  if (!read) return null
   const start = Math.min(...spans.map(span => span.start)), end = Math.max(...spans.map(span => span.end))
   const anchor = document.evidence_index.anchors.find(each => each.anchor_id === link.evidenceAnchorId)
   const found = anchor?.kind === 'text' ? document.content_stream.find(each => each.block_id === anchor.block_id) : undefined
@@ -75,19 +94,10 @@ function narrowBox(container: HTMLElement, document: ParsedDocument, occurrence:
   const whole = block ? squeezed(block).text : '', before = chars ? squeezed(chars.slice(0, start).join('')).text.length : 0
   let nth = 0
   for (let at = whole.indexOf(target); at >= 0 && at < before; at = whole.indexOf(target, at + 1)) nth++
-  const layer = page.querySelector('.textLayer')
-  const frame = layer?.getBoundingClientRect()
-  if (!layer || !frame?.width || !frame.height) return null
-  const toPt = (rect: DOMRect): Box => ({ x0: (rect.left - frame.left) / frame.width * size.width_pt, y0: (rect.top - frame.top) / frame.height * size.height_pt,
-    x1: (rect.right - frame.left) / frame.width * size.width_pt, y1: (rect.bottom - frame.top) / frame.height * size.height_pt })
-  const nodes: Text[] = []
-  const walker = window.document.createTreeWalker(layer, NodeFilter.SHOW_TEXT)
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const parent = node.parentElement
-    if (!parent || !(node as Text).data.trim()) continue
-    const box = toPt(parent.getBoundingClientRect()), x = (box.x0 + box.x1) / 2, y = (box.y0 + box.y1) / 2
-    if (x >= bbox.x0 - 3 && x <= bbox.x1 + 3 && y >= bbox.y0 - 3 && y <= bbox.y1 + 3) nodes.push(node as Text)
-  }
+  const nodes = read.runs.filter(({ box }) => {
+    const x = (box.x0 + box.x1) / 2, y = (box.y0 + box.y1) / 2
+    return x >= bbox.x0 - 3 && x <= bbox.x1 + 3 && y >= bbox.y0 - 3 && y <= bbox.y1 + 3
+  }).map(({ node }) => node)
   let text = ''
   const where: [Text, number, number][] = []
   for (const node of nodes) {
@@ -103,7 +113,7 @@ function narrowBox(container: HTMLElement, document: ParsedDocument, occurrence:
   const first = where[index]!, last = where[index + target.length - 1]!
   const range = window.document.createRange()
   range.setStart(first[0], first[1]); range.setEnd(last[0], last[2])
-  const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0).map(toPt)
+  const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0).map(rect => toPt(read.frame, rect))
   if (!rects.length) return null
   return { x0: Math.max(0, Math.min(...rects.map(r => r.x0)) - 1), y0: Math.max(0, Math.min(...rects.map(r => r.y0)) - 1),
     x1: Math.min(size.width_pt, Math.max(...rects.map(r => r.x1)) + 1), y1: Math.min(size.height_pt, Math.max(...rects.map(r => r.y1)) + 1) }
@@ -307,6 +317,7 @@ export function useEvidenceOverlays({
       const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
         .map((element) => [element.dataset.markId!, element]))
       // One mark per occurrence, carrying every value its passage supports.
+      const layers = new Map<Element, TextLayer | null>()
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'];box:Box|null }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue
@@ -316,7 +327,7 @@ export function useEvidenceOverlays({
           // Correction Evidence names its explicitly selected occurrences; model Evidence marks every occurrence.
           if (occurrenceIds && !occurrenceIds.includes(occurrence.occurrence_id)) continue
           // A link whose quoted text the page shows is its own mark there, boxed to that text; else it shares the block's.
-          const box = occurrenceIds ? null : narrowBox(container, parsedDocument, occurrence, link)
+          const box = occurrenceIds ? null : narrowBox(container, parsedDocument, occurrence, link, layers)
           const id = box ? `${occurrence.occurrence_id}#${narrowKey(link)}` : occurrence.occurrence_id
           const entry = byOccurrence.get(id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [],resultPath:link.resultPath, box }
           if (!entry.keys.includes(key)) entry.keys.push(key)
