@@ -184,9 +184,10 @@ Inspect each running container rather than inferring its version from the
 generic default.
 
 On ARM64/GB10, Surya returned corrupt repeated text on vLLM 0.32.0 while 0.31.0
-passed the same real-scan compatibility check. Extraction on 0.32.0 passed
-nested-schema and grammar micro-tests but failed the real-corpus quality and
-warm-latency gates; startup compatibility alone does not justify promotion.
+passed the same real-scan compatibility check. The tested combination of OCR
+0.31.0, NuExtract/Qwen 0.32.0 and worker xgrammar 0.2.8 passed nested-schema and
+grammar micro-tests but failed real-corpus quality and warm-latency gates. That
+comparison does not isolate the cause; micro-tests alone do not justify promotion.
 A deployment can advance its extraction roles separately through service-level
 `image` overrides in deployment overlays, after their acceptance checks pass. Preserve the tested checkpoint, quantization,
 MTP, eager-execution and memory settings together with the image digest.
@@ -299,8 +300,12 @@ sent to a changed one.
    tag to a digest changes the Compose configuration hash for every role that
    inherits it, even with identical image bytes; the portable launcher then
    recreates and reloads those servers. Drain work before applying that change.
-2. Validate startup and inference on the target hardware, one server at a time
-   with the deployment's shared-memory budgets. Exercise real scanned/native/
+2. Isolate validation from serving work. Use separate hardware, or close FREE
+   admissions, drain workflows and model requests, and stop the role under test
+   before starting its candidate on a shared host. Restore the baseline and
+   verify it before reopening admissions after each trial. Validate startup
+   and inference one server at a time with the deployment's shared-memory
+   budgets. Exercise real scanned/native/
    hybrid parsing, scientific values, strict nested schemas and enums, exact
    token counts, and bounded-whitespace grammar recovery. The worker's pinned
    `xgrammar` generates the recovery grammar; test it against each selected
@@ -308,7 +313,8 @@ sent to a changed one.
 3. Compare real-document output, Evidence and warm operation latency against
    the running baseline before promotion. Report cold startup separately;
    health checks alone do not validate extraction quality or capacity.
-4. Block new admissions, let existing work finish, then recheck it is drained.
+4. For rollout, block new FREE admissions without stopping other applications
+   on a shared proxy. Let existing work finish, then recheck it is drained.
    Keep admissions closed throughout the remaining maintenance steps.
 5. Upgrade the worker first, after testing its grammar generator against the
    retained instruction server. Then replace only the intended model servers,
@@ -664,7 +670,7 @@ them.
 
 ## Back up and restore
 
-Stop `studio` and `parsing_worker` first, so nothing writes while the backup
+Stop `studio`, `parsing_service` and `parsing_worker` first, so nothing writes while the backup
 runs. The backup set is:
 
 - `pg_dump -Fc free`, for example
@@ -705,8 +711,9 @@ configuration changed: Compose recreates a container whose hash differs from
 its `com.docker.compose.config-hash` label, and a recreated model server loads
 its model again. Installed app-only wrappers keep model containers unchanged.
 
-For a compatible application rollback, drain work and release the known-good
-checkout with its matching configuration, retaining current durable state. A
+For a compatible application rollback, prepare a release branch at the
+known-good commit, drain work, and release it with its matching configuration,
+retaining current durable state. A
 prepared release branch is not proof of compatibility: check migrations,
 workflow state and artifact formats first. If they are incompatible, prefer a
 forward fix or stop the application and restore the complete matching backup
@@ -716,5 +723,8 @@ recovery, after verifying the complete backup set, stop the application
 processes and remove the stopped database container with
 `docker compose … rm -sf db`. Verify its database volume name before removing
 that volume (`docker volume rm <project>_postgres-data` for the default named
-volume), then recreate only `db` and follow the restore commands above. Restore
-the matching artifact volumes before starting the older application.
+volume), then recreate only `db` and follow the restore commands above. Verify
+the names of the artifact volumes covered by the backup set, remove and recreate
+only those volumes, and restore their matching archives into the empty volumes
+before starting the older application. Do not overlay a snapshot onto artifact
+files left from the newer database.
