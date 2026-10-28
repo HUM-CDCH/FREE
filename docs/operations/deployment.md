@@ -184,9 +184,11 @@ Inspect each running container rather than inferring its version from the
 generic default.
 
 On ARM64/GB10, Surya returned corrupt repeated text on vLLM 0.32.0 while 0.31.0
-passed the same real-scan compatibility check. A deployment can advance its
-extraction roles separately through service-level `image` overrides in
-deployment overlays, after their acceptance checks pass. Preserve the tested checkpoint, quantization,
+passed the same real-scan compatibility check. Extraction on 0.32.0 passed
+nested-schema and grammar micro-tests but failed the real-corpus quality and
+warm-latency gates; startup compatibility alone does not justify promotion.
+A deployment can advance its extraction roles separately through service-level
+`image` overrides in deployment overlays, after their acceptance checks pass. Preserve the tested checkpoint, quantization,
 MTP, eager-execution and memory settings together with the image digest.
 NVFP4 with MTP requires its own validation; it does not validate the generic
 FP8 instruction-model default without MTP. Promote a stable release only after

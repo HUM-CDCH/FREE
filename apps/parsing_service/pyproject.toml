@@ -25,7 +25,7 @@ dependencies = [
     "opentelemetry-instrumentation-requests>=0.63b0",
     # The worker generates recovery EBNF here (kie/extract/llm.py bounded_grammar). Validate it against
     # each selected instruction-server parser; the worker and server use separate Python environments.
-    "xgrammar==0.2.8",
+    "xgrammar==0.2.7",
 ]
 
 [project.scripts]
