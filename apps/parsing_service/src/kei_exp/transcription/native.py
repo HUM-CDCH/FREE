@@ -57,14 +57,25 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
             try:
                 textpage = page.get_textpage()
                 try:
-                    text = textpage.get_text_bounded().strip()
+                    x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
+                    # Only painted characters on the displayed page show that it prints text: an unpainted glyph
+                    # (render mode 3) prints nothing, so a hidden note must not route a page natively and lose its
+                    # raster's OCR. (A broken ToUnicode map can report a code past Unicode's last, which still prints.)
+                    invisible = pdfium.raw.FPDF_TEXTRENDERMODE_INVISIBLE
+                    printed = any((glyph := pdfium.raw.FPDFText_GetTextObject(textpage, char))
+                                  and pdfium.raw.FPDFTextObj_GetTextRenderMode(glyph) != invisible
+                                  and not chr(min(pdfium.raw.FPDFText_GetUnicode(textpage, char), 0x10FFFF)).isspace()
+                                  and (box := textpage.get_charbox(char))[0] < x1 and box[2] > x0
+                                  and box[1] < y1 and box[3] > y0
+                                  for char in range(textpage.count_chars()))
                     objects = list(page.get_objects())
-                    if not text:
-                        if objects:
+                    if not printed:
+                        # Unpainted text alone prints nothing, like a blank page.
+                        if any(obj.type != pdfium.raw.FPDF_PAGEOBJ_TEXT
+                               or pdfium.raw.FPDFTextObj_GetTextRenderMode(obj.raw) != invisible for obj in objects):
                             return None
                         continue
                     width, height = page.get_size()
-                    x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
                     page_regions: list[OcrRegion] = []
                     for obj in objects:
                         if obj.type not in {pdfium.raw.FPDF_PAGEOBJ_IMAGE, pdfium.raw.FPDF_PAGEOBJ_FORM}:
