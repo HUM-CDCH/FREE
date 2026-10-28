@@ -98,6 +98,19 @@ worker shows the places it has completed, and the planner the record starts
 earlier windows found, as DBOS events Studio reads for display only; nothing in
 a run reads them back, and failing to write them never fails a call.
 
+NuExtract entry calls also stream at the captured transport, including a new physical
+Retry of an already finalized request. Guard `nuextract-item-text-v1` stops a run
+of adjacent identical array objects only when their nonempty `_item_text` is found
+in the source, the run exceeds both 32 items and twice the overlapping source
+occurrences plus eight, and its objects occupy at least 2048 UTF-8 bytes. It
+saves an explicit failed call with no finish reason or invented usage; it never
+removes values or repairs JSON. A buffered response gets the same check but
+cannot be stopped early. Alternating items, scalar repetition and unclosed
+strings are not detected, and legitimate expansions may still trip the heuristic.
+Successful checkpoints stay unchanged; an unchanged Retry can fail again.
+Before deployment, verify on the target vLLM build that streamed prompt usage
+matches preflight counts and closing a response releases the server request.
+
 ## Discovery guidance amendment (2026-10-07)
 
 New record-boundary discovery inputs exclude field-value correction examples;

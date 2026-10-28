@@ -147,7 +147,7 @@ transaction, or none of them. The Parsing Service's worker runs each attempt
 calls only the deployment's extraction models; Model Connections, Capability
 Routes and researchers' keys never reach it. An Extraction has no overall
 deadline; each chat model call times out after waiting `KEI_EXTRACT_TIMEOUT`
-seconds for its reply, or for the next piece of a streamed discovery reply.
+seconds for its reply, or for the next piece of a streamed discovery or NuExtract entry reply.
 
 A deployment may select the Codex CLI ([ADR 0021](adr/0021-deployment-owned-codex-extraction.md)) for both extraction roles using its own operator login, with no researcher
 key or Model Connection entering the worker. It uses the same admission, captures, checkpoints, evidence and

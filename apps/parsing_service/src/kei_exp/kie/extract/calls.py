@@ -184,10 +184,11 @@ def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str
             return None, [Call(stage, record, None, None, 0.0, None, False,
                 f"{counted} input + {max_tokens} output tokens exceed the served context {context}; "
                 "complete source was not sent", counted, context, max_tokens)]
+    started = time.monotonic()
     try:
         reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
     except ModelOutputError as error:  # a fake or a client that already judged the reply
-        return None, [Call(stage, record, None, None, 0.0, None, False, str(error),
+        return None, [Call(stage, record, None, None, time.monotonic() - started, None, False, str(error),
                            counted, counter.context_tokens if counter else None, max_tokens)]
     if "responses" in CAPTURE:
         span.set_attributes({"llm.output_messages.0.message.role": "assistant",
