@@ -55,10 +55,11 @@ def test_runaway_fails_call_and_closes_before_exhausting_stream():
     assert response.closed and response.read < len(response.pieces)
 
 
-def test_supported_unicode_duplicates_and_arbitrary_boundaries():
+@pytest.mark.parametrize("count", [40, 600])
+def test_supported_unicode_duplicates_and_arbitrary_boundaries(count):
     value = item("café   au lait", nested=[{"x": "escaped \\\" , }"}])
-    text = "[" + ",".join([value] * 40) + "]"
-    guard = _ItemRepetitionGuard(("cafe\u0301\u00a0au\nlait ") * 40, 0)
+    text = "[" + ",".join([value] * count) + "]"
+    guard = _ItemRepetitionGuard(("cafe\u0301\u00a0au\nlait ") * count, 0)
     for char in text:
         guard.feed(char)
 
