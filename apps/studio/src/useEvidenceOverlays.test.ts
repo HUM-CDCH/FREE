@@ -311,7 +311,9 @@ describe('part marks', () => {
     expect(shared!.getAttribute('aria-current')).toBe('true')
     expect(shared!.style.getPropertyValue('--color-ev')).toBe('#e15759')
     // A text layer in page points: the block's text in one span over its box; a range's rect spans its characters.
+    let runReads = 0
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'SPAN') runReads++
       return this.classList.contains('textLayer') ? new DOMRect(0, 0, page.width_pt, page.height_pt)
         : new DOMRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
     })
@@ -322,6 +324,8 @@ describe('part marks', () => {
     }) as unknown as Range)
     const narrowed = render(`<div class="textLayer"><span>${block}</span></div>`)
     expect(narrowed.map((mark) => mark.getAttribute('aria-label'))).toEqual(['v#["a"]: v#["a"]', 'v#["b"]: v#["b"]'])
+    // The paint reads the layer's runs once, not once per link: per link, a long document's paint froze the page.
+    expect(runReads).toBe(1)
     // A range's offsets are UTF-16 units: "Alp" starts at 3, "mma" 3 before the end.
     expect(parseFloat(narrowed[0]!.style.left)).toBeCloseTo(((bbox.x0 + 3 - 1) / page.width_pt) * 100)
     expect(parseFloat(narrowed[1]!.style.left)).toBeCloseTo(((bbox.x0 + block.length - 3 - 1) / page.width_pt) * 100)
