@@ -23,9 +23,9 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "dbos[otel]==3.1.0",
     "opentelemetry-instrumentation-requests>=0.63b0",
-    # Pinned to the extraction server's xgrammar: the EBNF the worker writes for a whitespace-loop recovery must
-    # parse on the server (kie/extract/llm.py bounded_grammar).
-    "xgrammar==0.2.7",
+    # Version the worker's recovery-grammar generator. Validate its EBNF against the selected instruction
+    # server's parser; the worker and server use separate Python environments.
+    "xgrammar==0.2.8",
 ]
 
 [project.scripts]
