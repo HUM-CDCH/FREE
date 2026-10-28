@@ -92,7 +92,9 @@ KEI_EXTRACT_URL=http://<vllm-host>:8000/v1/chat/completions
 KEI_EXTRACT_MODEL=<served-model-name>
 ```
 
-On ARM64 hosts such as DGX Spark, set `VLLM_IMAGE` to an ARM64 build of vLLM.
+The GPU overlay already pins a multi-platform vLLM image including Linux ARM64.
+Use `VLLM_IMAGE` only to select another tested `repository@sha256:…` reference; validate
+any per-service image override in its deployment overlay separately.
 
 **Extraction can use Codex without a local GPU model.** Start with an available Codex model:
 
