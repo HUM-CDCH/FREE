@@ -23,8 +23,8 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "dbos[otel]==3.1.0",
     "opentelemetry-instrumentation-requests>=0.63b0",
-    # Version the worker's recovery-grammar generator. Validate its EBNF against the selected instruction
-    # server's parser; the worker and server use separate Python environments.
+    # The worker generates recovery EBNF here (kie/extract/llm.py bounded_grammar). Validate it against
+    # each selected instruction-server parser; the worker and server use separate Python environments.
     "xgrammar==0.2.8",
 ]
 

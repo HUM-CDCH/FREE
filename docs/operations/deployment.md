@@ -185,8 +185,8 @@ generic default.
 
 On ARM64/GB10, Surya returned corrupt repeated text on vLLM 0.32.0 while 0.31.0
 passed the same real-scan compatibility check. A deployment can advance its
-extraction roles separately through existing per-service image fields, after
-their acceptance checks pass. Preserve the tested checkpoint, quantization,
+extraction roles separately through service-level `image` overrides in
+deployment overlays, after their acceptance checks pass. Preserve the tested checkpoint, quantization,
 MTP, eager-execution and memory settings together with the image digest.
 NVFP4 with MTP requires its own validation; it does not validate the generic
 FP8 instruction-model default without MTP. Promote a stable release only after
@@ -293,13 +293,16 @@ sent to a changed one.
 1. Freeze the candidate image by digest and record the previous per-role
    images, checkpoint revisions, commands and settings. Retain the old images
    and configuration for recovery. Do not update checkpoints, prompts or
-   unrelated packages in the same comparison.
+   unrelated packages in the same comparison. Changing a default image from a
+   tag to a digest changes the Compose configuration hash for every role that
+   inherits it, even with identical image bytes; the portable launcher then
+   recreates and reloads those servers. Drain work before applying that change.
 2. Validate startup and inference on the target hardware, one server at a time
    with the deployment's shared-memory budgets. Exercise real scanned/native/
    hybrid parsing, scientific values, strict nested schemas and enums, exact
    token counts, and bounded-whitespace grammar recovery. The worker's pinned
-   `xgrammar` generates the recovery grammar; align and test it with the
-   server image's version. These are separate environments.
+   `xgrammar` generates the recovery grammar; test it against each selected
+   server image's parser. These are separate environments.
 3. Compare real-document output, Evidence and warm operation latency against
    the running baseline before promotion. Report cold startup separately;
    health checks alone do not validate extraction quality or capacity.
@@ -706,5 +709,10 @@ prepared release branch is not proof of compatibility: check migrations,
 workflow state and artifact formats first. If they are incompatible, prefer a
 forward fix or stop the application and restore the complete matching backup
 set into an empty database and volumes before starting the older checkout.
-Restoration loses writes made after that snapshot. Removing the database
-volume is disaster recovery, not a routine application rollback.
+Restoration loses writes made after that snapshot. Only for this incompatible
+recovery, after verifying the complete backup set, stop the application
+processes and remove the stopped database container with
+`docker compose … rm -sf db`. Verify its database volume name before removing
+that volume (`docker volume rm <project>_postgres-data` for the default named
+volume), then recreate only `db` and follow the restore commands above. Restore
+the matching artifact volumes before starting the older application.
