@@ -54,7 +54,7 @@ type RightRailProps = {
   boundaries?: SchemaPanelProps['boundaries']
   /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
-  onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
+  onSelectEvidence: (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => void
   /** The workspace's channel: requests to select a value come in; Results' marks and dimming go out. */
   selection: SelectionChannel
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
@@ -112,13 +112,13 @@ function RightRail({
 }: RightRailProps) {
   const { parsedDocument } = inspection
   // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
-  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=> {
+  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],link?:EvidenceLink)=> {
     if(!open)return
     const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
     if(!anchor)return
-    if(!occurrenceIds)onSelectEvidence(anchor,precision)
-    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
-    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
+    if(!occurrenceIds)onSelectEvidence(anchor,link)
+    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},link)
+    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},link)
   },[open,parsedDocument,onSelectEvidence])
   // Collapsing or expanding takes away the button that was showing, so the one now shown takes the focus; a mount
   // moves none.

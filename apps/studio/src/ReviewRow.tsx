@@ -10,7 +10,7 @@ import {
 } from './ui/icons'
 import { Button } from './ui'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
-import ReviewedValueDisplay from './ui/ReviewedValueDisplay'
+import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
 function RowGlyph({ row }: { row: RailRow }) {
   switch (row.kind) {
@@ -71,11 +71,13 @@ export type ReviewRowProps = {
   onUndo: () => void
   onReviewFromHere?: () => void
   onTypedEdit?: (value: unknown) => void
+  /** The open value's parts, each pickable to show only its Evidence. */
+  pick?: PartPick
 }
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
-  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit, pick }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -106,7 +108,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
       </button>
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
-          {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} />}
+          {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} path={row.resultPath} pick={pick} />}
           {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>

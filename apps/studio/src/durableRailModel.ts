@@ -1,5 +1,7 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import type { SchemaNode } from 'extraction/schema'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import { evidenceCheck, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
@@ -16,12 +18,52 @@ export type RunProgress = {
   startPage: number | null
 }
 
+/** One scalar part of an object or list value (a nested field, a table cell, a list entry) at its full result path, with
+ *  the model link located to exactly that path. `key` names it among the marks: its value's id and its path. */
+export type ValuePart = { key: string; path: readonly (string | number)[]; name: string; value: unknown; link: EvidenceLink | null }
+
+export const partKey = (valueId: string, path: readonly (string | number)[]) => `${valueId}#${JSON.stringify(path)}`
+/** The value a mark key names, itself or through one of its parts (value ids are digests, never with `#`). */
+export const markValueId = (key: string) => key.split('#', 1)[0]!
+/** Whether the mark keyed `key` is the selection `selected`'s: the value itself, or one of its parts. */
+export const ownsMark = (selected: string, key: string) => key === selected || key.startsWith(`${selected}#`)
+
+/** The parts of an object or list value as the model read it, in schema order; a scalar value has none. */
+export function valueParts(value: RetainedValue): ValuePart[] {
+  const parts: ValuePart[] = []
+  const part = (path: (string | number)[], name: string[], at: unknown) => parts.push({key: partKey(value.id, path), path,
+    name: name.join(' › '), value: at, link: value.links.find(link => JSON.stringify(link.resultPath) === JSON.stringify(path)) ?? null})
+  const walk = (node: SchemaNode, at: unknown, path: (string | number)[], name: string[]) => {
+    const field = (from: unknown, child: string) => from && typeof from === 'object' ? (from as Record<string, unknown>)[child] : null
+    if (node.type === 'object') for (const child of node.children) walk(child, field(at, child.name), [...path, child.name], [...name, child.name])
+    else if (node.type === 'array') (Array.isArray(at) ? at : []).forEach((item, index) => {
+      if (!node.children) part([...path, index], [...name, `#${index + 1}`], item)
+      else for (const child of node.children) walk(child, field(item, child.name), [...path, index, child.name], [...name, `#${index + 1}`, child.name])
+    })
+    else part(path, name, at)
+  }
+  if (value.node.type === 'object' || value.node.type === 'array') walk(value.node, value.modelValue, [...value.path], [value.node.name])
+  return parts
+}
+
+/** One colour per top-level field, in schema order and cycling, so neighbouring values' marks and rows tell apart; a part
+ *  keeps its field's. Never the only signal: a mark's name and a row's label say the field. */
+const FIELD_COLORS = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#b07aa1', '#c9a227', '#9c755f']
+export const fieldColor = (fields: readonly string[], name: string) => {
+  const index = fields.indexOf(name)
+  return index < 0 ? undefined : FIELD_COLORS[index % FIELD_COLORS.length]
+}
+/** The Evidence tokens a field's colour overrides on its marks and rail rows; none keeps the one Evidence colour. */
+export const evidenceColorVars = (color: string | undefined): Record<string, string> => color ? {'--color-ev': color,
+  '--color-ev-soft': `color-mix(in srgb, ${color} 24%, white)`, '--color-ev-ghost': `color-mix(in srgb, ${color} 12%, white)`} : {}
+
 /** Identity, producing types and model links come from the fixed saved page.
- * Display paths never identify a correction or transfer a decision. */
-export function durableRailRow(value: RetainedValue, document: ParsedDocument | null): RailRow {
+ * Display paths never identify a correction or transfer a decision. With `part`, the row's Evidence is that part's: its
+ * own link (or none), page and chip; the decision stays the whole value's. */
+export function durableRailRow(value: RetainedValue, document: ParsedDocument | null, part?: ValuePart): RailRow {
   const correction = value.correction?.decision
   const action = correction?.action
-  const link = value.links[0] ?? null
+  const link = part ? part.link : value.links[0] ?? null
   const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
   const page = anchor?.producer_observations[0]?.page_number ?? null
   const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments)}))}))
@@ -30,13 +72,13 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
   const origin = link ? linkOrigin(link) : null
   // A linked scalar keeps the shared row's own words ("p.{n} · Verifier-supported"), also while the run goes on.
-  const source = disagreement ? 'Readings differ · not checked' : link ? value.node.type === 'array' || value.node.type === 'object' ? 'Evidence links parts of this value' : undefined
+  const source = disagreement ? 'Readings differ · not checked' : link ? !part && (value.node.type === 'array' || value.node.type === 'object') ? 'Evidence links parts of this value' : undefined
     : value.grounding === 'provisional' ? 'Evidence is still being checked' : 'No Evidence linked'
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
     kind, link, decision: value.processing === 'saved' ? {
-      resultPath: value.path, evidenceAnchorId: link?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
+      resultPath: value.path, evidenceAnchorId: value.links[0]?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
       action: action && action !== 'PENDING' ? action : 'APPROVED',
       reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,

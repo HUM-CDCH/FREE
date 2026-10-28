@@ -1,7 +1,7 @@
 import { rowText } from './reviewVocabulary'
 import { expect, it } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
-import { durableRailModel, durableRailRow, type RetainedValue } from './durableRailModel'
+import { durableRailModel, durableRailRow, markValueId, ownsMark, valueParts, type RetainedValue } from './durableRailModel'
 
 const value=(overrides:Partial<RetainedValue>={}):RetainedValue=>({
   id:'saved-value',recordId:'source-bound-record',fieldId:'flag',path:['records',0,'flag'],
@@ -82,4 +82,22 @@ it('keeps disagreements to check with their readings, and shows a chosen reading
   expect(chosen.value).toBe(false)
   expect(durableRailModel({values:[approved]} as DurablePage,null).counts).toMatchObject({toCheck:0,approved:1,required:1})
   expect(rowText(durableRailRow({...saved,correction:{decision:{action:'REJECTED'}} as RetainedValue['correction']},null))).toBe('false or true')
+})
+
+it('names each scalar part of a composite value with its own link, and keys it back to its value',()=> {
+  const node={id:'skelet',name:'skelet',type:'object' as const,children:[{id:'art',name:'art',type:'string' as const},
+    {id:'dele',name:'dele',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},{id:'note',name:'note',type:'string' as const}]}]}
+  const cell={evidenceAnchorId:'a_p1_s2_r1_c1',resultPath:['records',0,'skelet','dele',0,'note'],precision:'cell'} as unknown as RetainedValue['links'][number]
+  const saved=value({id:'v1',fieldId:'skelet',path:['records',0,'skelet'],node,modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},links:[cell]})
+  const parts=valueParts(saved)
+  expect(parts.map(part=>[part.name,part.value,part.link])).toEqual([['skelet › art','Human',null],
+    ['skelet › dele › #1 › nr','1',null],['skelet › dele › #1 › note','Tooth',cell]])
+  const key=parts[2]!.key
+  expect(markValueId(key)).toBe('v1')
+  expect([ownsMark('v1',key),ownsMark('v1','v10'),ownsMark(key,'v1')]).toEqual([true,false,false])
+  // A part's row is that part's Evidence; the decision stays the whole value's.
+  expect(durableRailRow(saved,null,parts[0]).chip?.text).toBe('no evidence')
+  expect(durableRailRow(saved,null,parts[2]).link).toBe(cell)
+  expect(durableRailRow(saved,null,parts[0]).decision?.evidenceAnchorId).toBe('a_p1_s2_r1_c1')
+  expect(valueParts(value())).toEqual([])
 })

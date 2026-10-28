@@ -1,5 +1,6 @@
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { RailMarks } from './useEvidenceOverlays'
+import { evidenceColorVars, ownsMark } from './durableRailModel'
 
 type Marks = RailMarks
 
@@ -38,11 +39,11 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
     // A record start discovery found has no value to select: filled as on the page, with no underline or pointer.
     const keys = span.keys.filter((key) => marks!.describe.has(key))
     const infos = keys.map((key) => marks!.describe.get(key)!)
-    const selected = marks!.selected !== null && keys.includes(marks!.selected)
-    const hovered = keys.some((key) => marks!.hovered?.includes(key))
+    const selected = marks!.selected !== null && keys.some((key) => ownsMark(marks!.selected!, key))
+    const hovered = keys.some((key) => marks!.hovered?.some((each) => ownsMark(each, key)))
     parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{decode(span.start, span.end)}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{decode(span.start, span.end)}</span> : (
-      <button key={span.start} type="button" className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''}${hovered ? ' hovered' : ''} whitespace-pre-wrap text-left font-mono`}
+      <button key={span.start} type="button" style={evidenceColorVars(infos[0]!.color)} className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''}${hovered ? ' hovered' : ''} whitespace-pre-wrap text-left font-mono`}
         data-evidence-anchor-id={span.anchorId}
         aria-label={infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; ')} aria-current={selected || undefined}
         onClick={(event) => marks!.onSelect(keys, event.currentTarget)}

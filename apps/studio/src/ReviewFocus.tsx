@@ -8,7 +8,7 @@ import { DECISION_WORD, type ReviewAction, rowText, stateLabel, reviewedValueSum
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
-import ReviewedValueDisplay from './ui/ReviewedValueDisplay'
+import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
 const Kbd = ({ children }: { children: string }) =>
   <kbd aria-hidden="true" className="rounded border border-current/30 px-1 font-mono text-compact font-normal opacity-80">{children}</kbd>
@@ -32,7 +32,7 @@ export type EndCard =
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card.
  */
 export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
-  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
+  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit, pick }: {
   article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
@@ -56,6 +56,8 @@ export default function ReviewFocus({ article, items, position, current, recordL
   onContinue: (index: number) => void
   onBack: () => void
   onTypedEdit?: (value: unknown) => void
+  /** The open value's parts, each pickable to show only its Evidence. */
+  pick?: PartPick
 }) {
   if (end || !current) {
     const card = end ?? { kind: 'caught-up' as const, line: '', next: null }
@@ -107,7 +109,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         ) : (
           <>
             <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{current.value && typeof current.value === 'object' ? reviewedValueSummary(node, current.value) : rowText(current)}</h2>
-            {current.value !== null && typeof current.value === 'object' && <ReviewedValueDisplay node={node} value={current.value} />}
+            {current.value !== null && typeof current.value === 'object' && <ReviewedValueDisplay node={node} value={current.value} path={current.resultPath} pick={pick} />}
           </>
         )}
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
