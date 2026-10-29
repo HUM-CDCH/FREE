@@ -263,6 +263,31 @@ describe('kei-exp translation', () => {
     ])
   })
 
+  it.each([['native', 'footnote'], ['surya', 'Footnote']])(
+    'preserves a %s footnote separately from its caption without changing text Evidence', (transcriber, label) => {
+      const { manifest, pages } = suryaRun([
+        segment({ label: 'Text', text: 'Résultat¹', bbox_pt: [72, 50, 400, 80] }),
+        segment({ label: 'Caption', text: 'Figure 1. Étude', bbox_pt: [72, 400, 400, 430] }),
+        segment({ label, text: '¹ Café : quantité inconnue.', bbox_pt: [72, 700, 400, 730] }),
+      ])
+      manifest.recipe.transcriber = transcriber
+      const original = structuredClone(pages)
+      const legacyPages = structuredClone(pages)
+      legacyPages[0].segments[2].label = 'Caption'
+      const legacy = translate(manifest, legacyPages)
+      const { document, markdown } = translate(manifest, pages)
+
+      expect(document.content_stream.map((block) => block.kind)).toEqual(['paragraph', 'caption', 'footnote'])
+      expect(document.pages[0].ordered_content).toEqual(['b_p1_s0', 'b_p1_s1', 'b_p1_s2'])
+      expect(decoder.decode(markdown)).toBe('Résultat¹\n\nFigure 1. Étude\n\n¹ Café : quantité inconnue.\n')
+      expect(markdown).toEqual(legacy.markdown)
+      expect(document.evidence_index).toEqual(legacy.document.evidence_index)
+      expect(pages).toEqual(original)
+      expectSpansSliceBack(document, markdown)
+      expectBoxesWithinPages(document)
+    },
+  )
+
   it('maps Surya labels, keeps geometry coarse where it must, and renders spans while writing', () => {
     const { manifest, pages } = suryaRun(
       [
