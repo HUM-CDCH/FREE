@@ -19,6 +19,7 @@ const blockSchema = z.discriminatedUnion('kind', [
   z.object({ ...commonBlock, kind: z.literal('code'), text: z.string(), language: z.string().nullable() }).strict(),
   z.object({ ...commonBlock, kind: z.literal('formula'), text: z.string() }).strict(),
   z.object({ ...commonBlock, kind: z.literal('caption'), text: z.string() }).strict(),
+  z.object({ ...commonBlock, kind: z.literal('footnote'), text: z.string() }).strict(),
   z.object({ ...commonBlock, kind: z.literal('table'), table_id: z.string().min(1) }).strict(),
   z.object({ ...commonBlock, kind: z.literal('page_break'), next_page: z.int().positive() }).strict(),
 ])
