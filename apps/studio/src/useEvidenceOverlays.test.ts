@@ -104,7 +104,9 @@ describe('focused Evidence navigation', () => {
       setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
       getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
     }) as unknown as Range)
-    const { result, rerender } = renderHook(({ railOpen }) => useEvidenceOverlays({ containerRef: { current: container }, viewerRef: { current: viewer as never },
+    // Refs stay the same across renders, as the workspace's do.
+    const containerRef = { current: container }, viewerRef = { current: viewer as never }
+    const { result, rerender } = renderHook(({ railOpen }) => useEvidenceOverlays({ containerRef, viewerRef,
       parsedDocument, attempt: null, active: false, railOpen }), { initialProps: { railOpen: true } })
 
     act(() => result.current(anchor, link))
