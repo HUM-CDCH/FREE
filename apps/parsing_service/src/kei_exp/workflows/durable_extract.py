@@ -194,10 +194,11 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             body.pop("max_whitespace",None)
             if http_request is None:
                 raise ValueError("capture lacks the exact HTTP request")
-            # Discovery's reply is streamed so the records it finds show while it is generated (transport only: the
-            # saved request is sent unchanged, and the call is read and saved as an unstreamed one).
+            # Discovery streams progress; NuExtract entries stream for the transport guard. The saved request
+            # stays unchanged apart from stream and usage options.
             shown=Shown() if body["stage"]=="discovery" else None
-            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None)
+            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None,
+                                stage=body["stage"])
         if not lease.call("begin_call", capture):
             return {"ok": True, "boundary": True}
         started = monotonic()

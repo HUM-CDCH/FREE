@@ -34,7 +34,8 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
   const cases:{method:string;terminal:string;id:string;attempt:string;workflow:string;source:unknown}[]=[]
   const scenarios=[...['article','generic','recipe','unified'].flatMap(method=>['complete','stop','failure'].map(terminal=>({method,terminal}))),
     {method:'article',terminal:'queued-pause'},{method:'article',terminal:'after-queued-pause'},
-    {method:'unified',terminal:'truncation'},{method:'unified',terminal:'truncation-exhausted'}]
+    {method:'unified',terminal:'truncation'},{method:'unified',terminal:'truncation-exhausted'},
+    {method:'unified',terminal:'repetition-recovery'}]
   for(const [index,{method,terminal}] of scenarios.entries()) {
     const schemaRevisionId=randomUUID(),id=randomUUID()
     const nodes=method==='recipe'?[
@@ -55,7 +56,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     await admin.query('BEGIN')
     try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
       sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:tree,strategy,catalogRecipe:recipe,
-      preprocessId:`kei-exp:durable-${method}-${terminal}-${suffix}:g1`,requestedModels:null,requestedSettings:settings});await admin.query('COMMIT')}
+      preprocessId:`kei-exp:durable-${method}-${terminal}-${suffix}:g1`,requestedModels:terminal==='repetition-recovery'?{fields:'nuextract',reasoning:'instruct'}:null,requestedSettings:settings});await admin.query('COMMIT')}
     catch(error){await admin.query('ROLLBACK');throw error}
     const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
     const attempt=(await admin.query('SELECT "workflowId" FROM extraction_runtime.attempt WHERE id=$1',[head.attemptId])).rows[0]
@@ -68,7 +69,14 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
       const buffers=[];for await(const chunk of request)buffers.push(chunk)
       const input=JSON.parse(Buffer.concat(buffers).toString()) as {id:string;action?:string}
       if(!cases.some(value=>value.id===input.id)){response.writeHead(404).end();return}
-      if(input.action)await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:input.action})
+      if(input.action==='change-model') {
+        const current=await repository.read(input.id)
+        const saved=await repository.saveSelection(input.id,{expectedVersion:current.controlVersion,
+          schemaRevisionId:current.selection.schemaRevisionId,method:{models:{fields:'instruct',reasoning:'instruct'},
+            settings:{unified:{defaults:1}}}})
+        await repository.adoptSelection(input.id,{expectedVersion:saved.controlVersion,selectionId:saved.selectionId,reprocessValueIds:[]})
+        await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:'resume'})
+      } else if(input.action)await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:input.action})
       const state=await repository.read(input.id),page=await repository.page(input.id),history=await repository.history(input.id)
       const attempt=history.attempts.at(-1)
       response.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify({state,page,history,attempt}))
@@ -86,6 +94,6 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     {timeout:300000,maxBuffer:4*1024*1024}).catch((error:{stdout?:string;stderr?:string})=> {
       console.info(error.stdout);throw new Error('Guarded four-method lifecycle verification failed.')
     })
-  assert.match(stdout,/15 passed/)
+  assert.match(stdout,/16 passed/)
   console.info('Article, generic, recipe and unified native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
 })
