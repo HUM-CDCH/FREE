@@ -54,8 +54,12 @@ recipe path's source line.
   through the crop's transform, whose origin the margin moves out (`CropTransform.to_unit_points`, then
   `unit_to_page_points` on a book page). A line gets no range if its read loops, hits its token limit or comes back
   empty (#321's guard covers full-page reads only), or if it aligns to the segment's text as well elsewhere; a block
-  gets no lines unless they cover 90% of its text and lie inside its box. No check depends on a quote, so a block's
-  lines serve every link that cites it.
+  gets no lines unless they cover 90% of its text and lie inside its box. Cover and a unique alignment do not show a
+  correct split, so each range must also pass a conservative local alignment of its reading to that range and a check
+  of its boundaries against its neighbours' (edge words included); a cut or range either check is unsure of is not
+  published, so a quote touching it keeps the paragraph mark. This quality gate's algorithm is left to the
+  implementation, which must show that it rejects the garbled newspaper block that passed the cover check; the probes
+  do not establish it. No check depends on a quote, so a block's lines serve every link that cites it.
 - **The detector** is the worker's first text-line detector and first local Surya model (Docling's layout detectors
   already run in-process; Surya is otherwise an OCR-server client). Once it passes the gate below, it runs
   process-local (`DetectionPredictor.local()`, not Surya's autostarted server) on the CPU, where the worker runs all
