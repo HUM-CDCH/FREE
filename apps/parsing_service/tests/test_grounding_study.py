@@ -87,7 +87,7 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     _, bundles, original, _ = frozen
     bundle = read(bundles / "Doc.json")
     assert bundle["records"] == original["records"] and bundle["inventory"] == original["inventory"]
-    # Versions 10 and 11 made no resolution call; version 14 did. All replay without a fresh call.
+    # Versions 10 and 11 made no resolution call; version 15 did. All replay without a fresh call.
     expected = {"document", "record"} | ({"arbitration"} if original["article_version"] >= 12 else set())
     assert {call["stage"] for call in bundle["upstream_calls"]} == expected
     assert bundle["provenance"]["fresh_calls"] == 0
@@ -95,8 +95,8 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
         "sources": [{"unit": 1, "path": ["year"]}]}
 
 
-@pytest.mark.parametrize("version", [12, 13])
-def test_preparation_refuses_an_artifact_whose_resolution_version_14_cannot_reproduce(frozen, tmp_path, version):
+@pytest.mark.parametrize("version", [12, 13, 14])
+def test_preparation_refuses_an_artifact_whose_resolution_version_15_cannot_reproduce(frozen, tmp_path, version):
     parent, _, _, _ = frozen
     result = parent / "cells/Doc--bounded--0/result.json"
     saved = read(result)
