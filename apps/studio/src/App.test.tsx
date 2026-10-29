@@ -1176,6 +1176,69 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
   })
 
+  it('keeps the selected value when its correction Evidence shares the clicked passage with another value', async () => {
+    const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id, name: id, type: 'string' }, modelValue, evidence: [], links: [{ resultPath: ['records', 0, id], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null })
+    // parish's only Evidence on the page is its correction's, in place's passage.
+    const parish = { ...linked('parish', 'Elmbrooke'), links: [], grounding: 'ungrounded', correction: { revision: 1,
+      decision: { action: 'EDITED', value: 'Elmbrook', included: true, evidence: [{ anchorId: 'bundled-anchor', occurrenceIds: ['bundled-occurrence'] }] } } }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 2, toCheck: 1, approved: 0, edited: 1, rejected: 0 }, values: [linked('place', 'Harlow'), parish], total: 2, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: 1, feedbackVersion: 0 })
+        ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
+    const passage = await screen.findByRole('button', { name: /^place: Harlow; parish: / })
+    fireEvent.click(passage)
+    expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /^Edited parish/ }))
+    expect(screen.getByRole('region', { name: 'Review parish' })).toBeVisible()
+    fireEvent.click(passage)
+    expect(screen.getByRole('region', { name: 'Review parish' })).toBeVisible()
+  })
+
+  it('picks the selected value\'s part from a passage that also holds its correction Evidence, also from a sibling part', async () => {
+    const node = { id: 'site', name: 'site', type: 'object', children: [{ id: 'place', name: 'place', type: 'string' },
+      { id: 'note', name: 'note', type: 'string' }, { id: 'kind', name: 'kind', type: 'string' }] }
+    // site's unedited place is linked to the passage its correction Evidence names too; its unedited note to none.
+    const site = { id: 'site', recordId: 'record', fieldId: 'site', path: ['records', 0, 'site'],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node, modelValue: { place: 'Harlow', note: 'Dry', kind: 'Pit' }, evidence: [], links: [{ resultPath: ['records', 0, 'site', 'place'], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], historicalCorrection: null, correction: { revision: 1,
+        decision: { action: 'EDITED', value: { place: 'Harlow', note: 'Dry', kind: 'Ditch' }, included: true, evidence: [{ anchorId: 'bundled-anchor', occurrenceIds: ['bundled-occurrence'] }] } } }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 1, toCheck: 0, approved: 0, edited: 1, rejected: 0 }, values: [site], total: 1, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: 1, feedbackVersion: 0 })
+        ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
+    const passage = await screen.findByRole('button', { name: /^site › place: Harlow, Edited; site: / })
+    const place = () => screen.getByRole('button', { name: 'site › place: Harlow' })
+    fireEvent.click(await screen.findByRole('button', { name: /^Edited site/ }))
+    expect(place()).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(passage)
+    expect(place()).toHaveAttribute('aria-pressed', 'true')
+    // With the note chosen, the passage picks its sibling place, not the whole value.
+    fireEvent.click(screen.getByRole('button', { name: 'site › note: Dry' }))
+    expect(place()).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(passage)
+    expect(place()).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('hides the Markdown marks while the rail is collapsed, and marks the selected value again on expand', async () => {
     const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
       selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,

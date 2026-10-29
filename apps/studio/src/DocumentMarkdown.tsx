@@ -1,6 +1,6 @@
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { RailMarks } from './useEvidenceOverlays'
-import { evidenceColorVars, ownsMark } from './durableRailModel'
+import { evidenceColorVars, markValueId, ownsMark } from './durableRailModel'
 
 type Marks = RailMarks
 
@@ -38,7 +38,8 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
     parts.push(decode(at, span.start))
     // A record start discovery found has no value to select: filled as on the page, with no underline or pointer.
     const keys = span.keys.filter((key) => marks!.describe.has(key))
-    const infos = keys.map((key) => marks!.describe.get(key)!)
+    // A value's correction Evidence in its own model passage names it once; two values that read alike stay two.
+    const infos = keys.filter((key) => !key.endsWith('#correction') || !keys.includes(markValueId(key))).map((key) => marks!.describe.get(key)!)
     const selected = marks!.selected !== null && keys.some((key) => ownsMark(marks!.selected!, key))
     const hovered = keys.some((key) => marks!.hovered?.some((each) => ownsMark(each, key)))
     parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{decode(span.start, span.end)}</span>

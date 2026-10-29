@@ -73,11 +73,13 @@ export type ReviewRowProps = {
   onTypedEdit?: (value: unknown) => void
   /** The open value's parts, each pickable to show only its Evidence. */
   pick?: PartPick
+  /** A decision is saving or the review is a saved one: the row and its edit wait, picking a part never does. */
+  locked?: boolean
 }
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
-  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit, pick }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit, pick, locked = false }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -90,7 +92,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
   const style = row.chip?.style ?? 'neutral'
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
-      <button ref={rowRef} type="button" aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
+      <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
         aria-label={`${stateLabel(row)} ${row.name} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
@@ -133,9 +135,11 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
           {!editing && canDecide && row.kind === 'to-check' && row.disagreement && onChoose && <DisagreementChoice parts={row.disagreement} onChoose={onChoose}/>}
           {editing ? (
-            <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
-              onTypedSave={onTypedEdit}
-              saveLabel="Save edit" onSave={(value) => onDecide('EDITED', value)} />
+            <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
+              <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
+                onTypedSave={onTypedEdit}
+                saveLabel="Save edit" onSave={(value) => onDecide('EDITED', value)} />
+            </fieldset>
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
               <div role="group" aria-label={`Decision for ${row.name}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">

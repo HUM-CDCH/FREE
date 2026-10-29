@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, renderHook } from '@testing-library/react'
+import { act, cleanup, fireEvent, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -74,6 +74,48 @@ describe('focused Evidence navigation', () => {
       top: 100 + top - 300,
       behavior: 'auto',
     })
+  })
+
+  it.each([[false, 1], [true, 0]])('shows the focus again once the text layer narrows it, unless the researcher scrolled since (scrolled: %s)', (scrolled, scrolls) => {
+    const block = 'Alpha Beta Gamma'
+    const parsedDocument = decodeParsedDocument(JSON.parse(JSON.stringify(parsedFixture).replaceAll('"bundled-anchor"', '"a_s1"').replace('"Unit 7"', JSON.stringify(block))))
+    const anchor = parsedDocument.evidence_index.anchors[0]!
+    const occurrence = anchor.producer_observations[0]!, bbox = verifiedEvidenceBbox(parsedDocument, occurrence)!
+    const page = parsedDocument.pages.find((each) => each.page_number === occurrence.page_number)!
+    const link = { resultPath: ['records', 0, 'gamma'], evidenceAnchorId: anchor.anchor_id, precision: 'segment',
+      grounding: { textSpans: [{ segment: 's1', start: 11, end: 16 }] } } as EvidenceLink
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${occurrence.page_number}"></div>`
+    container.scrollTo = vi.fn()
+    document.body.append(container)
+    const listeners = new Map<string, () => void>()
+    const viewer = { scrollPageIntoView: vi.fn(), eventBus: {
+      on: (event: string, paint: () => void) => listeners.set(event, paint), off: (event: string) => listeners.delete(event) } }
+    // The block's focus shows in the pane; the quote's box, once the text layer has drawn, lies below it.
+    let focusRect = new DOMRect(10, 100, 200, 60)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('parsed-evidence-focus') ? focusRect
+        : this.classList.contains('textLayer') ? new DOMRect(0, 0, page.width_pt, page.height_pt)
+          : this.tagName === 'SPAN' ? new DOMRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0) : new DOMRect(0, 0, 500, 600)
+    })
+    let range = [0, 0]
+    vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
+      getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
+    }) as unknown as Range)
+    const { result } = renderHook(() => useEvidenceOverlays({ containerRef: { current: container }, viewerRef: { current: viewer as never },
+      parsedDocument, attempt: null, active: false }))
+
+    act(() => result.current(anchor, link))
+    expect(container.scrollTo).not.toHaveBeenCalled()
+    if (scrolled) fireEvent.wheel(container)
+    container.querySelector('.page')!.insertAdjacentHTML('afterbegin', `<div class="textLayer"><span>${block}</span></div>`)
+    focusRect = new DOMRect(10, 900, 40, 12)
+    act(() => listeners.get('textlayerrendered')!())
+    expect(container.scrollTo).toHaveBeenCalledTimes(scrolls)
+    // Later renders that leave the focus as it is never scroll the source again.
+    act(() => listeners.get('pagerendered')!())
+    expect(container.scrollTo).toHaveBeenCalledTimes(scrolls)
   })
 })
 
@@ -279,6 +321,43 @@ describe('marks select their values', () => {
     rerender({ marks: { ...marks, hovered: [key] } })
     expect(container.querySelector('button.evidence-mark')).toBe(mark)
     expect(mark.className).toMatch(/\bhovered\b/)
+  })
+})
+
+describe('correction marks', () => {
+  it('names a value once when its model and correction Evidence share a passage, lit while one of its parts is chosen', () => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const link: EvidenceLink = { resultPath: ['records', 0, 'site'], evidenceAnchorId: anchor.anchor_id }
+    const edited = { name: 'site', value: 'Elmbrooke', word: 'Edited', style: 'link' as const, anchorId: anchor.anchor_id }
+    renderHook(() => useEvidenceOverlays({
+      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+      attempt: { extractionId: 'x' }, active: true, marks: { describe: new Map([['v', edited], ['v#correction', edited]]), selected: 'v#["x"]',
+        onSelect: vi.fn(), savedLinks: [{ key: 'v', link }, { key: 'v#correction', link, occurrenceIds: [anchor.producer_observations[0].occurrence_id] }] },
+    }))
+    const [mark, ...rest] = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
+    expect(rest).toHaveLength(0)
+    expect(mark!.getAttribute('aria-label')).toBe('site: Elmbrooke, Edited')
+    expect(mark!.getAttribute('aria-current')).toBe('true')
+  })
+
+  it('names two values that read alike in one passage, from two records, twice', () => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const harlow = { name: 'place', value: 'Harlow', word: null, style: 'link' as const, anchorId: anchor.anchor_id }
+    const link = (record: number): EvidenceLink => ({ resultPath: ['records', record, 'place'], evidenceAnchorId: anchor.anchor_id })
+    renderHook(() => useEvidenceOverlays({
+      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+      attempt: { extractionId: 'x' }, active: true, marks: { describe: new Map([['v', harlow], ['w', harlow]]), selected: null,
+        onSelect: vi.fn(), savedLinks: [{ key: 'v', link: link(0) }, { key: 'w', link: link(1) }] },
+    }))
+    expect(container.querySelector('button.evidence-mark')!.getAttribute('aria-label')).toBe('place: Harlow; place: Harlow')
   })
 })
 

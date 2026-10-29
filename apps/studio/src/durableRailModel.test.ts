@@ -1,7 +1,7 @@
 import { rowText } from './reviewVocabulary'
 import { expect, it } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
-import { durableRailModel, durableRailRow, markValueId, ownsMark, valueParts, type RetainedValue } from './durableRailModel'
+import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, valueParts, type RetainedValue } from './durableRailModel'
 
 const value=(overrides:Partial<RetainedValue>={}):RetainedValue=>({
   id:'saved-value',recordId:'source-bound-record',fieldId:'flag',path:['records',0,'flag'],
@@ -100,4 +100,30 @@ it('names each scalar part of a composite value with its own link, and keys it b
   expect(durableRailRow(saved,null,parts[2]).link).toBe(cell)
   expect(durableRailRow(saved,null,parts[0]).decision?.evidenceAnchorId).toBe('a_p1_s2_r1_c1')
   expect(valueParts(value())).toEqual([])
+})
+
+it('links an edited value\'s parts only where the model read the same item at the same path',()=> {
+  const node={id:'skelet',name:'skelet',type:'object' as const,children:[{id:'art',name:'art',type:'string' as const},
+    {id:'dele',name:'dele',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},{id:'note',name:'note',type:'string' as const}]}]}
+  const link=(...path:(string|number)[])=>({evidenceAnchorId:'a_p1_s1',resultPath:['records',0,'skelet',...path],precision:'cell'}) as unknown as RetainedValue['links'][number]
+  const links=[link('art'),link('dele',0,'nr'),link('dele',0,'note'),link('dele',1,'nr'),link('dele',1,'note')]
+  const linked=(edit:unknown)=>valueParts(value({id:'v1',fieldId:'skelet',path:['records',0,'skelet'],node,links,
+    modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'},{nr:'2',note:'Tooth'}]},
+    correction:{revision:1,decision:{action:'EDITED',value:edit,included:true,evidence:[]}}} as Partial<RetainedValue>))
+    .map(part=>[part.name,part.value,part.link!==null])
+  // Dropping the first row: row #1 is the model's second, though its note reads the same.
+  expect(linked({art:'Human',dele:[{nr:'2',note:'Tooth'}]})).toEqual([['skelet › art','Human',true],
+    ['skelet › dele › #1 › nr','2',false],['skelet › dele › #1 › note','Tooth',false]])
+  // Inserting a row first: no row sits where the model read it.
+  expect(linked({art:'Human',dele:[{nr:'0',note:'Tooth'},{nr:'1',note:'Tooth'},{nr:'2',note:'Tooth'}]}).filter(([,,kept])=>kept))
+    .toEqual([['skelet › art','Human',true]])
+  // An edited cell and art: their rows and art lose their links; an unchanged row keeps them, whatever its keys' order.
+  expect(linked({art:'Animal',dele:[{note:'Tooth',nr:'1'},{nr:'2',note:'Molar'}]}).filter(([,,kept])=>kept))
+    .toEqual([['skelet › dele › #1 › nr','1',true],['skelet › dele › #1 › note','Tooth',true]])
+})
+
+it('lights a value\'s correction Evidence with the value and with each of its parts, never another value\'s',()=> {
+  const part=partKey('v1',['records',0,'skelet','art'])
+  expect([ownsMark('v1','v1#correction'),ownsMark(part,'v1#correction'),ownsMark(part,'v1'),ownsMark(partKey('v10',[]),'v1#correction')])
+    .toEqual([true,true,false,false])
 })
