@@ -20,6 +20,7 @@ import {
   type ParsedEvidenceAnchor,
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
+import { markValueId } from './durableRailModel'
 import { createSelectionChannel } from './selectionChannel'
 import { scrollWithinPane } from './scrollWithinPane'
 import DocumentMarkdown from './DocumentMarkdown'
@@ -785,7 +786,11 @@ export function DocumentWorkspace({
     hovered,
     onHover: selection.hover,
     onSelect: (keys: string[]) => {
-      const key = publishedMarks.selected && keys.includes(publishedMarks.selected) ? publishedMarks.selected : keys[0]
+      // A passage holding the selection keeps it; else it picks a part of the selected value there (also from a sibling
+      // part), else keeps that value by its correction Evidence there.
+      const selected = publishedMarks.selected, value = selected && markValueId(selected)
+      const key = selected && keys.includes(selected) ? selected
+        : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
       if (!key) return
       setRailOpen(true)
       setRailTab('results')
@@ -799,6 +804,7 @@ export function DocumentWorkspace({
     attempt: inspectedAttempt,
     marks,
     active: effectiveRailOpen && railTab === 'results',
+    railOpen: effectiveRailOpen,
     dimLink: marks ? publishedDim : null,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {

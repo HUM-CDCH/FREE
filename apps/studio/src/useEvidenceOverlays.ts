@@ -12,7 +12,7 @@ import {
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 import { scrollWithinPane } from './scrollWithinPane'
-import { evidenceColorVars, ownsMark } from './durableRailModel'
+import { evidenceColorVars, markValueId, ownsMark } from './durableRailModel'
 
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision']; color?: string }
@@ -242,6 +242,7 @@ export function useEvidenceOverlays({
   parsedDocument,
   attempt,
   active,
+  railOpen = true,
   dimLink = null,
   marks = null,
 }: {
@@ -250,12 +251,17 @@ export function useEvidenceOverlays({
   parsedDocument: ParsedDocument | null
   attempt: Pick<ExtractionAttempt, 'extractionId'> | null
   active: boolean
+  /** Whether the rail shows (on any tab): collapsing it ends a pending follow, so a collapsed rail scrolls nothing. */
+  railOpen?: boolean
   /** The one-by-one value's link: its page is dimmed around it when it is located to a cell or a segment. */
   dimLink?: EvidenceLink | null
   /** The rail's saved values: model and correction Evidence paint as marks that select them. */
   marks?: RailMarks | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
+  // Ends the focus's pending follow; its outline keeps repainting.
+  const stopFollow = useRef<(() => void) | null>(null)
+  useEffect(() => { if (!railOpen) stopFollow.current?.() }, [railOpen])
   // The focus's anchor and the spans it is boxed to: two parts of one passage are two focuses.
   const focusedAnchor = useRef<string | null>(null)
   // An Evidence click changes the selected value without navigating the source.
@@ -337,7 +343,9 @@ export function useEvidenceOverlays({
       for (const [id, { occurrence, anchorId, keys,resultPath,box }] of byOccurrence) {
         const element = previous.get(id)
         previous.delete(id)
-        const infos = keys.map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
+        // A value's correction Evidence in its own model passage names it once; two values that read alike stay two.
+        const infos = keys.filter((key) => !key.endsWith('#correction') || !keys.includes(markValueId(key)))
+          .map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
         const style = infos[0]?.style ?? 'link'
         const decided = infos.length > 0 && infos.every((info) => info.word !== null)
         const current = marks?.selected !== null && marks?.selected !== undefined && keys.some((key) => ownsMark(marks.selected!, key))
@@ -419,11 +427,25 @@ export function useEvidenceOverlays({
         }
         return firstFocus
       }
-      viewer.eventBus?.on('pagerendered', paintFocus)
-      viewer.eventBus?.on('textlayerrendered', paintFocus)
-      stopFocusedPaint.current = () => { viewer.eventBus?.off('pagerendered', paintFocus); viewer.eventBus?.off('textlayerrendered', paintFocus) }
-      const firstFocus = paintFocus()
-      if (firstFocus) scrollWithinPane(container, firstFocus)
+      // The text layer narrows the focus to its quote after the first paint: show it again, unless the researcher has
+      // scrolled the source or collapsed the rail since (pdf.js's own scrolling is no wheel, key, pointer or touch).
+      const intents = ['wheel', 'keydown', 'pointerdown', 'touchstart']
+      let focus = paintFocus(), moved = false
+      const move = () => { moved = true }
+      stopFollow.current = move
+      const repaint = () => {
+        const box = focus?.style.cssText
+        focus = paintFocus()
+        if (box && focus && focus.style.cssText !== box && !moved) scrollWithinPane(container, focus)
+      }
+      viewer.eventBus?.on('pagerendered', repaint)
+      viewer.eventBus?.on('textlayerrendered', repaint)
+      for (const type of intents) container.addEventListener(type, move, { passive: true })
+      stopFocusedPaint.current = () => {
+        viewer.eventBus?.off('pagerendered', repaint); viewer.eventBus?.off('textlayerrendered', repaint)
+        for (const type of intents) container.removeEventListener(type, move)
+      }
+      if (focus) scrollWithinPane(container, focus)
       else viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     },
     [containerRef, parsedDocument, viewerRef],

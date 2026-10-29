@@ -95,7 +95,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     send({type:'edit',draft:{...state.context.draft,choices}})
     send({type:'save',action:'APPROVED'})
   }
-  const common={pick,onChoose,quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
+  const common={pick,onChoose,quote,editing,node:value.node,locked:busy||readOnly,onDecide:decide,onEdit:()=>setEditing(true),
     onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
@@ -121,7 +121,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     return()=>root.removeEventListener('keydown',keys)
   })
   return <section aria-label={`Review ${value.node.name}`} className="space-y-2">
-    <fieldset disabled={busy||readOnly} className="m-0 min-w-0 border-0 p-0">
+    <div>
       {focus?<ReviewFocus {...common} article={article} current={row} items={position?.items??[]} position={position}
         recordLabel={recordLabel} label={recordLabel} upNext={queue.filter(item=>item.key!==value.id&&item.row.kind==='to-check').slice(0,3)}
         end={null} headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
@@ -130,13 +130,13 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
       {editing&&!readOnly&&document&&<details className="mx-3 mb-2 text-secondary">
         <summary className="cursor-pointer text-compact text-ink-muted">Link Evidence for your edit (optional)</summary>
         <label className="mt-1 block">Link correction Evidence from this source
-          <select className={`${inputClass} mt-1`} value={state.context.draft.evidence[0]?JSON.stringify([state.context.draft.evidence[0].anchorId,state.context.draft.evidence[0].occurrenceIds[0]]):''} onChange={event=> {
+          <select disabled={busy} className={`${inputClass} mt-1`} value={state.context.draft.evidence[0]?JSON.stringify([state.context.draft.evidence[0].anchorId,state.context.draft.evidence[0].occurrenceIds[0]]):''} onChange={event=> {
             const selected=event.target.value?JSON.parse(event.target.value) as [string,string]:null
             send({type:'edit',draft:{...state.context.draft,evidence:selected?[{anchorId:selected[0],occurrenceIds:[selected[1]]}]:[]}})
           }}><option value="">No correction Evidence linked</option>{document.evidence_index.anchors.flatMap(anchor=>anchor.producer_observations.map(occurrence=><option key={`${anchor.anchor_id}:${occurrence.occurrence_id}`} value={JSON.stringify([anchor.anchor_id,occurrence.occurrence_id])}>Page {occurrence.page_number} · {anchor.anchor_id} · {occurrence.occurrence_id}</option>))}</select>
         </label>
       </details>}
-    </fieldset>
+    </div>
     {newer&&<p role="status" className="mx-3 text-compact text-stale-ink">A newer version of this value was saved. Close this one and open the value again to review it.</p>}
     {value.historicalCorrection&&<p className="mx-3 text-compact"><a className={linkClass} href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open the earlier correction</a></p>}
     {state.context.error&&<div className="mx-3 space-y-2"><p role="alert" className="text-secondary text-danger">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
@@ -376,9 +376,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   // Top-level fields in schema order name their colours.
   const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
-  // The open composite value's parts as the model read them; an edited value's no longer sit at the model's paths. The
-  // chosen part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
-  const reviewParts=useMemo(()=>review&&composite(review.value)&&review.value.correction?.decision.action!=='EDITED'?valueParts(review.value):[],[review])
+  // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
+  // part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
+  const reviewParts=useMemo(()=>review&&composite(review.value)?valueParts(review.value):[],[review])
   const [part,setPart]=useState<string|null>(null)
   const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null
   const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null:review?.value.links[0]??null
@@ -459,14 +459,19 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     const displayed=review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values
     const anchors=new Set(document?.evidence_index.anchors.map(anchor=>anchor.anchor_id)??[])
     const savedLinks=[...displayed.flatMap(value=> {
-      // A composite value's link to one of its parts is that part's mark, named by it; a link no part names stays the value's.
-      const parts=new Map(composite(value)?valueParts(value).map(part=>[JSON.stringify(part.path),part]):[])
+      // A composite value's link to one of its parts is that part's mark, named by it; a link no part names, or one to a
+      // part an edit changed (so it has no link), stays the value's.
+      const parts=new Map(composite(value)?valueParts(value).filter(part=>part.link).map(part=>[JSON.stringify(part.path),part]):[])
+      // The correction's Evidence is its own mark, named as its value: it lights with any part chosen (`ownsMark`).
+      const parent=describe.get(value.id),own=value.correction?.decision.evidence??[]
+      if(parent&&own.length)describe.set(`${value.id}#correction`,{...parent,anchorId:own[0].anchorId,precision:undefined})
       return [...value.links.flatMap(link=> {
-        const part=parts.get(JSON.stringify(link.resultPath)),parent=describe.get(value.id)
-        if(part&&parent)describe.set(part.key,{...parent,name:part.name,value:shownValue(part.value),anchorId:link.evidenceAnchorId,precision:link.precision})
+        const part=parts.get(JSON.stringify(link.resultPath))
+        // The part's mark takes its own link's style (rule, doubtful); the decision word stays the value's.
+        if(part&&parent)describe.set(part.key,{...parent,name:part.name,value:shownValue(part.value),style:durableRailRow(value,document,part).chip?.style??'neutral',anchorId:link.evidenceAnchorId,precision:link.precision})
         return sourceEvidenceLinks(link,anchors).map(each=>({key:part?.key??value.id,link:each}))
       }),
-      ...(value.correction?.decision.evidence??[]).map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:value.id,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
+      ...own.map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:`${value.id}#correction`,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
     ]}),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
     selection.publish({marks:{describe,selected:review?chosenPart??review.value.id:null,savedLinks,extractionId:id}})

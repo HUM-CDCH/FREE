@@ -8,6 +8,7 @@ import { decodeParsedDocument } from 'extraction/parsed-document'
 import rawDocument from './assets/parsed_document.v2.json'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { DurableResults } from './DurableResults'
+import { ownsMark } from './durableRailModel'
 import { durableRequest, readDurable, readDurableHistory, readDurableHistorySummary, readValues } from './durableExtractionApi'
 import { createDurableReader, type DurableReader } from './durableReader'
 import { createSelectionChannel, type SelectionChannel } from './selectionChannel'
@@ -993,17 +994,17 @@ it('changes a chosen reading only through Undo, which returns the value to To ch
 /** `skelet = {art, dele: [{nr, note}]}`, its art and its first note linked. */
 const skeletArt={evidenceAnchorId:'a_p1_s0',resultPath:['records',0,'skelet','art'],precision:'segment'}
 const skeletNote={evidenceAnchorId:'a_p1_s2_r1_c1',resultPath:['records',0,'skelet','dele',0,'note'],precision:'cell'}
-const openSkelet=async(correction:unknown=null)=> {
+const openSkelet=async(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],readOnly=false)=> {
   const node={id:'skelet',name:'skelet',type:'object',children:[{id:'art',name:'art',type:'string'},
     {id:'dele',name:'dele',type:'array',children:[{id:'nr',name:'nr',type:'string'},{id:'note',name:'note',type:'string'}]}]}
   const value={id:'v1',recordId:'document',fieldId:'skelet',path:['records',0,'skelet'],selectionId:'original',schemaRevisionId:'schema',node,
-    modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},evidence:[],links:[skeletArt,skeletNote],grounding:'grounded',processing:'saved',lineage:[],correction,historicalCorrection:null}
+    modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},evidence:[],links,grounding:'grounded',processing:'saved',lineage:[],correction,historicalCorrection:null}
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   selection.select('v1',true,'extraction')
-  render(<Results attempt={article} document={null} currentSchema={null} selection={selection} onEvidence={onEvidence}/>)
+  render(<Results attempt={article} document={null} currentSchema={null} selection={selection} onEvidence={onEvidence} readOnly={readOnly}/>)
   await screen.findByRole('region',{name:'Review skelet'})
   return {onEvidence,marks:()=>selection.snapshot().marks!,selection}
 }
@@ -1030,13 +1031,59 @@ it('picks a part of a composite value: its mark, its Evidence, and back to the w
   expect(marks().selected).toBe(tooth)
 })
 
-it('offers no parts to pick in an edited value, whose parts no longer sit at the model\'s paths',async()=>{
-  const {marks,selection}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Human',dele:[]},included:true,evidence:[]}})
-  expect(screen.queryByRole('button',{name:/skelet › /})).not.toBeInTheDocument()
-  // Its part marks stay, and select the whole value.
+it('lets a part be picked in a saved review',async()=>{
+  const {marks}=await openSkelet(null,undefined,true)
+  const note=screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
+  expect(note).toBeEnabled()
+  fireEvent.click(note)
+  expect(marks().selected).toBe(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key)
+})
+
+it('lets a part be picked while a decision saves; the decisions and moves wait',async()=>{
+  const {marks}=await openSkelet()
+  vi.mocked(durableRequest).mockReturnValue(new Promise(()=>{}))
+  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  await screen.findByText('Saving your decision…')
+  const note=screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
+  expect(note).toBeEnabled()
+  fireEvent.click(note)
+  expect(note).toHaveAttribute('aria-pressed','true')
+  expect(marks().selected).toBe(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key)
+  expect(screen.getByRole('button',{name:/Approve and next/})).toBeDisabled()
+  expect(screen.getByRole('button',{name:/Previous/})).toBeDisabled()
+  expect(screen.getByRole('button',{name:/skelet, to check/})).toBeDisabled()
+})
+
+it('styles each part\'s mark by its own link, not by the whole value\'s',async()=>{
+  const ruleArt={...skeletArt,linkedBy:'lexical'},doubtfulNote={...skeletNote,verbatim:false}
+  const {marks}=await openSkelet(null,[ruleArt,doubtfulNote])
+  const key=(link:unknown)=>marks().savedLinks!.find(saved=>saved.link===link)!.key
+  expect(marks().describe.get('v1')!.style).toBe('rule')
+  expect(marks().describe.get(key(ruleArt))!.style).toBe('rule')
+  expect(marks().describe.get(key(doubtfulNote))!.style).toBe('doubtful')
+})
+
+it('keys a value\'s correction Evidence as its own mark, named by the value and lit with it',async()=>{
+  const {marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Human',dele:[]},included:true,evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
+  const own=marks().savedLinks!.find(saved=>saved.occurrenceIds)!
+  expect(own.key).toBe('v1#correction')
+  expect(marks().describe.get(own.key)).toMatchObject({name:'skelet',anchorId:'a_p1_s1'})
+  expect(ownsMark(marks().selected!,own.key)).toBe(true)
+})
+
+it('offers an edited value\'s parts to pick, linked only where the model read the same; its correction Evidence lights with a part',async()=>{
+  const {onEvidence,marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Animal',dele:[{nr:'1',note:'Tooth'}]},included:true,
+    evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
+  // The edited art has no link; its model link stays the whole value's mark.
+  expect(screen.getByRole('button',{name:'skelet › art: Animal'})).toHaveAttribute('title','No Evidence linked')
+  expect(marks().savedLinks!.find(saved=>saved.link===skeletArt)!.key).toBe('v1')
   const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
-  act(()=>{selection.select(tooth,false,'extraction')})
-  await waitFor(()=>expect(marks().selected).toBe('v1'))
+  expect(tooth).not.toBe('v1')
+  fireEvent.click(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'}))
+  expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s2_r1_c1',undefined,skeletNote)
+  expect(marks().selected).toBe(tooth)
+  expect(ownsMark(tooth,'v1#correction')&&marks().savedLinks!.some(saved=>saved.key==='v1#correction')).toBe(true)
 })
 
 /** a and b link to their own anchors; c has only its correction's Evidence. */

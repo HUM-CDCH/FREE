@@ -47,6 +47,20 @@ describe('the Markdown view', () => {
 })
 
 describe('the values in one passage', () => {
+  it('names a value once when its model and correction Evidence share the passage, lit while one of its parts is chosen', () => {
+    const edited = { name: 'orientation', value: 'N–S', word: 'Edited', style: 'link' as const, anchorId: 'a1' }
+    const link = { resultPath: ['records', 0, 'orientation'], evidenceAnchorId: 'a1' }
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: new Map([['v', edited], ['v#correction', edited]]),
+      selected: 'v#["records",0,"orientation","x"]', onSelect: vi.fn(), savedLinks: [{ key: 'v', link }, { key: 'v#correction', link, occurrenceIds: ['o1'] }] }} />)
+    expect(screen.getByRole('button', { name: 'orientation: N–S, Edited' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('names two values that read alike in one passage, from two records, twice', () => {
+    const harlow = { name: 'place', value: 'Harlow', word: null, style: 'link' as const, anchorId: 'a1' }
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: new Map([['v', harlow], ['w', harlow]]), selected: null, onSelect: vi.fn() }} />)
+    expect(screen.getByRole('button', { name: 'place: Harlow; place: Harlow' })).toBeInTheDocument()
+  })
+
   it('selects all linked fields directly from their shared mark', () => {
     const two = new Map([...describe_, [JSON.stringify(['records', 0, 'site']), { name: 'site', value: 'Elmbrooke', word: null, style: 'link' as const, anchorId: 'a1' }]])
     const onSelect = vi.fn()
