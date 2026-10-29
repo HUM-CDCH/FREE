@@ -173,7 +173,11 @@ result that is not exactly one record.
 
 Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry
-continues a failed Extraction with its saved work. Pause and Stop are refused
+continues a failed Extraction with its saved work and may repeat the same model
+failure. After failure, Change inputs can save and apply an available instruction
+model for fields before Resume: it handles remaining work and re-reads provisional
+records while saved values, Evidence and producing inputs remain historical. A
+different model does not guarantee complete lists. Pause and Stop are refused
 once an Extraction is complete. Revised inputs are saved as a separate
 selection and adopted only at a drained boundary. Studio offers no Resume
 while an Extraction is pausing; a Resume an API client sends meanwhile runs

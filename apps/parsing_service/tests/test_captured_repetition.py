@@ -173,3 +173,10 @@ def test_nested_array_runs_do_not_share_adjacency():
     value = item()
     _ItemRepetitionGuard("anchor", 0).feed("[[" + ",".join([value] * 25) + "],[" +
                                           ",".join([value] * 25) + "]]")
+
+
+def test_compressed_quantity_can_trip_the_guard_without_changing_values():
+    """One source phrase can support many real items: this remains an explicit failure."""
+    value = item('a box of 40 beads')
+    with pytest.raises(ModelOutputError, match='nuextract-item-text-v1'):
+        _ItemRepetitionGuard('a box of 40 beads', 0).feed('[' + ','.join([value] * 40) + ']')
