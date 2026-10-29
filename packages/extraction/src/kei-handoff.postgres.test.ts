@@ -101,23 +101,29 @@ test('submitting a child twice enqueues one kei workflow on its lane with its pr
   await handoff.submitConversion(submission)
   await handoff.submitConversion(submission)
   await heldFor(submission.workflowId)
-  // Listed as a scope's kei work is found: by kei's prefix and the parent's attributes.
-  const rows = await client.listWorkflows({ workflow_id_prefix: keiConvertWorkflowId(''), attributes, loadInput: true })
-  assert.equal(rows.length, 1)
-  const [row] = rows
-  assert.equal(row?.workflowID, submission.workflowId)
-  assert.equal(row?.workflowName, 'convert')
-  assert.equal(row?.status, 'PENDING')
-  assert.equal(row?.queueName, 'kei-convert-small')
-  assert.equal(row?.priority, 1)
-  assert.equal(row?.timeoutMS, 600_000)
-  assert.equal(typeof row?.deadlineEpochMS, 'number')
-  assert.equal(row?.applicationName, 'kei')
-  assert.equal(row?.authenticatedUser, 'researcher@example.test')
-  assert.deepEqual(row?.attributes, attributes)
-  assert.deepEqual(row?.input, [submission.request])
-  await standIn.answer(submission.workflowId, cleanup)
-  assert.equal((await settled(submission.workflowId)).state, 'SUCCESS')
+  try {
+    // Listed as a scope's kei work is found: by kei's prefix and the parent's attributes.
+    const rows = await client.listWorkflows({ workflow_id_prefix: keiConvertWorkflowId(''), attributes, loadInput: true })
+    assert.equal(rows.length, 1)
+    const [row] = rows
+    assert.equal(row?.workflowID, submission.workflowId)
+    assert.equal(row?.workflowName, 'convert')
+    assert.equal(row?.status, 'PENDING')
+    assert.equal(row?.queueName, 'kei-convert-small')
+    assert.equal(row?.priority, 1)
+    // This handoff keeps the standalone one-request default: four times the four-request reference's 600_000 floor
+    // (spec, *kei deadlines*).
+    assert.equal(row?.timeoutMS, 2_400_000)
+    assert.equal(typeof row?.deadlineEpochMS, 'number')
+    assert.equal(row?.applicationName, 'kei')
+    assert.equal(row?.authenticatedUser, 'researcher@example.test')
+    assert.deepEqual(row?.attributes, attributes)
+    assert.deepEqual(row?.input, [submission.request])
+  } finally {
+    // The held child fills kei-convert-small's one slot; a failed assertion still frees it for the later cases.
+    await standIn.answer(submission.workflowId, cleanup)
+    assert.equal((await settled(submission.workflowId)).state, 'SUCCESS')
+  }
 })
 
 test('a poll returns live within its window while kei works, then the finished output', async () => {
