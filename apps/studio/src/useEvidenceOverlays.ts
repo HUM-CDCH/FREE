@@ -242,6 +242,7 @@ export function useEvidenceOverlays({
   parsedDocument,
   attempt,
   active,
+  railOpen = true,
   dimLink = null,
   marks = null,
 }: {
@@ -250,12 +251,17 @@ export function useEvidenceOverlays({
   parsedDocument: ParsedDocument | null
   attempt: Pick<ExtractionAttempt, 'extractionId'> | null
   active: boolean
+  /** Whether the rail shows (on any tab): collapsing it ends a pending follow, so a collapsed rail scrolls nothing. */
+  railOpen?: boolean
   /** The one-by-one value's link: its page is dimmed around it when it is located to a cell or a segment. */
   dimLink?: EvidenceLink | null
   /** The rail's saved values: model and correction Evidence paint as marks that select them. */
   marks?: RailMarks | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
+  // Ends the focus's pending follow; its outline keeps repainting.
+  const stopFollow = useRef<(() => void) | null>(null)
+  useEffect(() => { if (!railOpen) stopFollow.current?.() }, [railOpen])
   // The focus's anchor and the spans it is boxed to: two parts of one passage are two focuses.
   const focusedAnchor = useRef<string | null>(null)
   // An Evidence click changes the selected value without navigating the source.
@@ -422,10 +428,11 @@ export function useEvidenceOverlays({
         return firstFocus
       }
       // The text layer narrows the focus to its quote after the first paint: show it again, unless the researcher has
-      // scrolled the source since (pdf.js's own scrolling is no wheel, key, pointer or touch).
+      // scrolled the source or collapsed the rail since (pdf.js's own scrolling is no wheel, key, pointer or touch).
       const intents = ['wheel', 'keydown', 'pointerdown', 'touchstart']
       let focus = paintFocus(), moved = false
       const move = () => { moved = true }
+      stopFollow.current = move
       const repaint = () => {
         const box = focus?.style.cssText
         focus = paintFocus()

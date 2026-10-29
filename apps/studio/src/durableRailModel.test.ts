@@ -127,3 +127,34 @@ it('lights a value\'s correction Evidence with the value and with each of its pa
   expect([ownsMark('v1','v1#correction'),ownsMark(part,'v1#correction'),ownsMark(part,'v1'),ownsMark(partKey('v10',[]),'v1#correction')])
     .toEqual([true,true,false,false])
 })
+
+it('never lends an edited list item another item\'s passage: equal items, inserts, drops and reorders lose theirs',()=> {
+  // Each model item has its own passage, named by its model index.
+  const notes={id:'notes',name:'notes',type:'array' as const,itemType:'string' as const}
+  const passages=(model:unknown,edit?:unknown,node:RetainedValue['node']=notes)=>{
+    const read=(at:unknown,path:(string|number)[]):(string|number)[][]=>Array.isArray(at)?at.flatMap((item,index)=>read(item,[...path,index]))
+      :at&&typeof at==='object'?Object.entries(at).flatMap(([name,child])=>read(child,[...path,name])):[path]
+    const links=read(model,[]).map(path=>({evidenceAnchorId:`p:${path.join('.')}`,resultPath:['records',0,node.name,...path],precision:'cell'}) as unknown as RetainedValue['links'][number])
+    return valueParts(value({id:'v1',fieldId:node.name,path:['records',0,node.name],node,links,modelValue:model,
+      correction:edit===undefined?null:{revision:1,decision:{action:'EDITED',value:edit,included:true,evidence:[]}}} as Partial<RetainedValue>))
+      .map(part=>[part.value,part.link?.evidenceAnchorId??null])
+  }
+  // Unchanged, each equal item keeps its own passage, edited or not.
+  expect(passages(['A','A'])).toEqual([['A','p:0'],['A','p:1']])
+  expect(passages(['A','A'],['A','A'])).toEqual([['A','p:0'],['A','p:1']])
+  // Dropping one of two equal items: the one left may be either.
+  expect(passages(['A','A'],['A'])).toEqual([['A',null]])
+  // Inserting or dropping an item: no index names the model's item any more.
+  expect(passages(['A','B'],['X','A','B'])).toEqual([['X',null],['A',null],['B',null]])
+  expect(passages(['A','B','C'],['A','C'])).toEqual([['A',null],['C',null]])
+  // Reordering: an item left alone keeps its passage, unless an equal item could have taken its place.
+  expect(passages(['A','B','C'],['B','A','C'])).toEqual([['B',null],['A',null],['C','p:2']])
+  expect(passages(['A','A','B'],['A','B','A'])).toEqual([['A',null],['B',null],['A',null]])
+  // Editing an item into a copy of another: neither is surely the model's.
+  expect(passages(['A','B'],['A','A'])).toEqual([['A',null],['A',null]])
+  // A nested list follows its row; an unchanged row elsewhere keeps its nested passages.
+  const rows={id:'dele',name:'dele',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},notes]}
+  const model=[{nr:'1',notes:['A','A']},{nr:'2',notes:['B']}]
+  expect(passages(model,[{nr:'1',notes:['A']},{nr:'2',notes:['B']}],rows)).toEqual([['1',null],['A',null],['2','p:1.nr'],['B','p:1.notes.0']])
+  expect(passages(model,[{nr:'1',notes:['A','A']},{nr:'2',notes:['B']}],rows)).toEqual([['1','p:0.nr'],['A','p:0.notes.0'],['A','p:0.notes.1'],['2','p:1.nr'],['B','p:1.notes.0']])
+})

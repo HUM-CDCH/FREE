@@ -76,7 +76,8 @@ describe('focused Evidence navigation', () => {
     })
   })
 
-  it.each([[false, 1], [true, 0]])('shows the focus again once the text layer narrows it, unless the researcher scrolled since (scrolled: %s)', (scrolled, scrolls) => {
+  // The rail open on its Evidence tab is no Results tab (`active: false`), yet its navigation follows the quote.
+  it.each([[false, false, 1], [true, false, 0], [false, true, 0]])('shows the focus again once the text layer narrows it, unless the researcher scrolled or collapsed the rail since (scrolled: %s, collapsed: %s)', (scrolled, collapsed, scrolls) => {
     const block = 'Alpha Beta Gamma'
     const parsedDocument = decodeParsedDocument(JSON.parse(JSON.stringify(parsedFixture).replaceAll('"bundled-anchor"', '"a_s1"').replace('"Unit 7"', JSON.stringify(block))))
     const anchor = parsedDocument.evidence_index.anchors[0]!
@@ -103,16 +104,20 @@ describe('focused Evidence navigation', () => {
       setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
       getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
     }) as unknown as Range)
-    const { result } = renderHook(() => useEvidenceOverlays({ containerRef: { current: container }, viewerRef: { current: viewer as never },
-      parsedDocument, attempt: null, active: false }))
+    const { result, rerender } = renderHook(({ railOpen }) => useEvidenceOverlays({ containerRef: { current: container }, viewerRef: { current: viewer as never },
+      parsedDocument, attempt: null, active: false, railOpen }), { initialProps: { railOpen: true } })
 
     act(() => result.current(anchor, link))
+    const blockBox = container.querySelector<HTMLElement>('.parsed-evidence-focus')!.style.cssText
     expect(container.scrollTo).not.toHaveBeenCalled()
     if (scrolled) fireEvent.wheel(container)
+    if (collapsed) rerender({ railOpen: false })
     container.querySelector('.page')!.insertAdjacentHTML('afterbegin', `<div class="textLayer"><span>${block}</span></div>`)
     focusRect = new DOMRect(10, 900, 40, 12)
     act(() => listeners.get('textlayerrendered')!())
     expect(container.scrollTo).toHaveBeenCalledTimes(scrolls)
+    // Collapsed, the selected value keeps its outline, narrowed to the quote.
+    expect(container.querySelector<HTMLElement>('.parsed-evidence-focus')!.style.cssText).not.toBe(blockBox)
     // Later renders that leave the focus as it is never scroll the source again.
     act(() => listeners.get('pagerendered')!())
     expect(container.scrollTo).toHaveBeenCalledTimes(scrolls)

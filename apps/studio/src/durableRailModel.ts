@@ -30,13 +30,14 @@ export const markValueId = (key: string) => key.split('#', 1)[0]!
 export const ownsMark = (selected: string, key: string) => key === selected || key.startsWith(`${selected}#`) || key === `${markValueId(selected)}#correction`
 
 /** The parts of an object or list value as shown (an edit or the chosen readings, else the model's), in schema order; a
- *  scalar value has none. A part keeps the model's link to its path only where the model read the same there: once an
- *  edit inserts or drops a list item an index names another item, so every part of a changed item has none. */
+ *  scalar value has none. A part keeps the model's link to its path only where the model read the same there. In an
+ *  edited list an index can name another item, so an item keeps its links only where the list keeps its length and the
+ *  item reads once in the model's and once in the edit, at the same index; no insert, drop or reorder of equal items. */
 export function valueParts(value: RetainedValue): ValuePart[] {
   const parts: ValuePart[] = []
   // Two readings are the same whatever their keys' order; an unedited value's parts are the model's own.
-  // shortcut: parts match the model's by index and equal value, so an identical row after a deleted one links the deleted
-  // row's passage, and editing one cell unlinks its whole row; upgrade when an edit carries each item's model index.
+  // shortcut: an edited list's moved, resized or repeated items and a row with one edited cell lose their links; upgrade
+  // when an edit carries each item's model index.
   const json = (at: unknown) => JSON.stringify(at, (_, each) => each && typeof each === 'object' && !Array.isArray(each)
     ? Object.fromEntries(Object.entries(each).sort(([a], [b]) => a < b ? -1 : 1)) : each)
   const same = (a: unknown, b: unknown) => a === b || json(a) === json(b)
@@ -45,11 +46,15 @@ export function valueParts(value: RetainedValue): ValuePart[] {
   const walk = (node: SchemaNode, at: unknown, read: unknown, path: (string | number)[], name: string[], kept: boolean) => {
     const field = (from: unknown, child: string) => from && typeof from === 'object' ? (from as Record<string, unknown>)[child] : null
     if (node.type === 'object') for (const child of node.children) walk(child, field(at, child.name), field(read, child.name), [...path, child.name], [...name, child.name], kept)
-    else if (node.type === 'array') (Array.isArray(at) ? at : []).forEach((item, index) => {
-      const model = Array.isArray(read) ? read[index] : undefined, keep = kept && same(item, model)
-      if (!node.children) part([...path, index], [...name, `#${index + 1}`], item, model, keep)
-      else for (const child of node.children) walk(child, field(item, child.name), field(model, child.name), [...path, index, child.name], [...name, `#${index + 1}`, child.name], keep)
-    })
+    else if (node.type === 'array') {
+      const items = Array.isArray(at) ? at : [], reads = Array.isArray(read) ? read : [], unchanged = same(items, read)
+      items.forEach((item, index) => {
+        const model = reads[index], once = (list: unknown[]) => list.filter(each => same(each, item)).length === 1
+        const keep = kept && (unchanged || items.length === reads.length && same(item, model) && once(items) && once(reads))
+        if (!node.children) part([...path, index], [...name, `#${index + 1}`], item, model, keep)
+        else for (const child of node.children) walk(child, field(item, child.name), field(model, child.name), [...path, index, child.name], [...name, `#${index + 1}`, child.name], keep)
+      })
+    }
     else part(path, name, at, read, kept)
   }
   if (value.node.type === 'object' || value.node.type === 'array') walk(value.node, reviewedValue(value), value.modelValue, [...value.path], [value.node.name], true)
