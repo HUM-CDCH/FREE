@@ -18,9 +18,8 @@
  * column, `boxes_pt`) has one occurrence per place: `o_p{page}_s{index}`
  * first, then `o_p{page}_s{index}_{n}` for its n-th further box.
  *
- * Two departures from the agreed mapping table: a list segment's non-empty
- * lines become one item each (Surya's `ListGroup` carries a whole list), and
- * `Footnote` maps to `caption` as the previous parser did.
+ * A list segment's non-empty lines become one item each (Surya's `ListGroup`
+ * carries a whole list). Footnotes retain their own class and their original text.
  */
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
@@ -131,6 +130,7 @@ type Kind =
   | 'heading'
   | 'list'
   | 'caption'
+  | 'footnote'
   | 'formula'
   | 'code'
   | 'table'
@@ -156,7 +156,7 @@ const KIND_OF_LABEL: ReadonlyMap<string, Kind> = new Map<string, Kind>([
   ['listitem', 'list'],
   ['listgroup', 'list'],
   ['caption', 'caption'],
-  ['footnote', 'caption'],
+  ['footnote', 'footnote'],
   ['formula', 'formula'],
   ['equation', 'formula'],
   ['code', 'code'],
@@ -284,7 +284,8 @@ function blockOf(
           .filter((item) => item !== ''),
       }
     case 'caption':
-      return { ...common, kind: 'caption', text }
+    case 'footnote':
+      return { ...common, kind, text }
     case 'formula':
       return { ...common, kind: 'formula', text }
     case 'code':
