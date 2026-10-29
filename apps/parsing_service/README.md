@@ -168,7 +168,11 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   crops gain 24 pt of real page context. Other crop pixels stay unchanged.
   Context outside the original artwork is excluded; a text block crossing that
   boundary or another figure loop refuses publication. Scans and native-text
-  replacement crops keep their existing retry policy.
+  replacement crops keep their existing retry policy. Any Surya input whose
+  full-page generation produced looping or token-capped text and whose final
+  recognition holds no text at all, read before artwork ownership filtering, is
+  incomplete: lost text and a textless input are indistinguishable there. Text
+  lost while other text survives is not detected.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
