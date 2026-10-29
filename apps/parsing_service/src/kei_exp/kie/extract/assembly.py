@@ -67,7 +67,9 @@ PROMPT_VERSION = 16
 # repeat beside an equal item labelled another's leaves with it.
 # 14: a list item's answer names the work its source gives it to before its label; another's item leaves only where
 # its part prints that work, and an item kept unsettled (UNSURE, or another's without it) is named for review.
-ARTICLE_VERSION = 14
+# 15: a list item whose values its source gives to a group (an average, range or total over several items) is
+# another's, given to that group, and leaves where its part prints the group.
+ARTICLE_VERSION = 15
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
