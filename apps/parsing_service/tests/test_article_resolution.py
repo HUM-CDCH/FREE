@@ -673,8 +673,10 @@ def test_an_attempt_planned_again_under_a_changed_resolution_prompt_asks_it_anew
         monkeypatch):
     """A durable call capture is keyed by its exact request, system prompt included, and the admitted method pins no
     prompt: an attempt planned again after the resolution prompt changed (a version 14 attempt resumed on version 15)
-    replays every field and grounding call it saved, never reuses the earlier prompt's resolution reply, and asks the
-    changed prompt once. Its result is the changed prompt's decision, with no trace of the earlier one."""
+    replays the calls whose requests are unchanged, never reuses the earlier prompt's resolution reply, and asks the
+    changed prompt anew. Its result is the changed prompt's decision, with no trace of the earlier one. This fixture
+    has one resolution request and unchanged grounding requests, hence one more call; a part whose resolution
+    changes may change its grounding requests too."""
     source, request = occurrence_input(monkeypatch, "semantic")
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     changed = " A changed resolution prompt."

@@ -95,8 +95,9 @@ settle what it can.
   artifact is refused and must be run again: version 13 sizes, counts and decides its list parts differently, and
   versions 14 and 15 ask about list items differently. A durable call is captured under its exact request, system
   prompt included, and the admitted method pins no prompt, so an attempt planned again after the prompt changed
-  reuses its field and grounding calls and asks the changed resolution prompt anew (one more call); an earlier
-  prompt's reply is never reused.
+  replays only the calls whose requests are unchanged: each resolution request is asked anew under the changed
+  prompt, and grounding requests built from a changed resolution are new calls too. An earlier prompt's reply is
+  never reused.
 - What the runtime guarantees: an item leaves only labelled OTHER with an `of` printed in its part, or as a
   REPEAT beside an equal item labelled OWN or OTHER (never beside UNSURE alone); every item that leaves is in
   `dropped_items` with its `of`, and every OTHER item kept and every UNSURE item is in `uncertain_items`. What
