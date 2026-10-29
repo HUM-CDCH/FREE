@@ -32,7 +32,9 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # hybrid 4: repeated empty artwork can retry once with real page context; only text owned by the original
 # artwork is accepted. Surya full-page scans retain their previous policy.
 # surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 4, "surya": 1}
+# surya 2: an input whose full-page generation produced looping or token-capped text and whose final recognition
+# holds no text (before artwork ownership filtering) is incomplete, not an empty success. Hybrid recipes record it.
+TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 4, "surya": 2}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
@@ -132,7 +134,8 @@ class PageRecord:
     """
     page: int                      # input ordinal
     region: dict | None            # region_info(crop); None for whole pages
-    image: Image.Image | None      # exactly what the model received, in the mode to save; None when not kept
+    image: Image.Image | None      # the input given to the backend, in the mode to save, before its own resizing
+                                   # (Surya scales to fit); None when not kept
     seconds: float | None          # generation time when the backend reports one
     input_tokens: int | None
     output_tokens: int | None
