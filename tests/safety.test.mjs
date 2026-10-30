@@ -382,7 +382,7 @@ function assertOwnedParsingTopology(config, gpu) {
     const nuSeqs = services.nuextract_model.command[services.nuextract_model.command.indexOf('--max-num-seqs') + 1]
     assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, nuSeqs)
     assert.equal(services.parsing_service.environment.KEI_CATALOG_CHUNKS, undefined)
-    // The worker sends a call's priority only to the extraction servers that schedule by it; any other would refuse it.
+    // The worker sends a call's priority only to the extraction servers that schedule by it.
     const scheduled = ['nuextract_model', 'extraction_model'].filter(name =>
       services[name].command[services[name].command.indexOf('--scheduling-policy') + 1] === 'priority')
     assert.deepEqual(services.parsing_worker.environment.KEI_PRIORITY_URLS.split(','),

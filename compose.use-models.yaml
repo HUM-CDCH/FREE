@@ -19,8 +19,8 @@ services:
     environment:
       <<: *parsing-gpu-env
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
-      # The provider's servers schedule by priority (compose.gpu.yaml); until they are recreated with it, an empty
-      # value in .env sends none.
+      # The provider's servers schedule by priority (compose.gpu.yaml), and ignore it until recreated with it; an
+      # empty value in .env sends none.
       KEI_PRIORITY_URLS: "${KEI_PRIORITY_URLS-http://nuextract_model:8000/v1/chat/completions,http://extraction_model:8000/v1/chat/completions}"
     networks: [models]
 

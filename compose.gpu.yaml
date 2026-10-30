@@ -140,8 +140,8 @@ services:
       # boot, and `restart: unless-stopped` then restarts it in a loop.
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
       # The servers above schedule by priority: each durable call asks with its page's distance from the page the
-      # researcher read at start. A server without --scheduling-policy priority refuses a nonzero one, so they are
-      # recreated before this worker (an app-only release does not); an empty value in .env sends none.
+      # researcher read at start. Until they are recreated with --scheduling-policy priority (an app-only release
+      # does not) they ignore it and serve in arrival order; an empty value in .env sends none.
       KEI_PRIORITY_URLS: "${KEI_PRIORITY_URLS-http://nuextract_model:8000/v1/chat/completions,http://extraction_model:8000/v1/chat/completions}"
     depends_on:
       ocr_model:
