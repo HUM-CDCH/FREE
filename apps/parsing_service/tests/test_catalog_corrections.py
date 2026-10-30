@@ -120,10 +120,11 @@ def test_verifier_confirms_an_unchanged_scalar_without_a_correction_issue():
     assert not any(i['code'] == 'verification_corrected' for i in result['issues'])
 
 
-def test_verifier_null_rejects_a_scalar_without_retrying():
+@pytest.mark.parametrize('reply', [None, candidate(None, 'The first sentence.')])
+def test_verifier_null_rejects_a_scalar_without_retrying(reply):
     source = evidence('1. The first sentence.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
-                  verdict=lambda *_: None)
+                  verdict=lambda *_: reply)
     result, _ = extract(source, model, schema=SCHEMA, defaults=5)
     assert result['records'][0]['description'] is None
     assert any(r['reason'] == 'verification_rejected' for r in result['rejected'])

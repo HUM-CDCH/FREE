@@ -882,6 +882,8 @@ class _Run:
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
+                        if isinstance(value, dict) and "value" in value and value["value"] is None:
+                            value = None
                         if value is None or isinstance(value, str):
                             if found.kind == "candidate":
                                 found.kind, found.reason = VERDICTS[value or "unsupported"]
