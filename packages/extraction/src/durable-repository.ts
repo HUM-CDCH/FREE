@@ -42,6 +42,8 @@ function executionDefinition(raw:unknown) {
   return parseExtractionSchema(raw)
 }
 export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
+/** The document History list shows the newest this many Extractions and says when there are more. */
+export const DOCUMENT_HISTORY_LIMIT = 100
 /** The page a planned record starts on: its first source range's segment (`p{page}_s{n}`). */
 function firstPage(scope: unknown): number | null {
   const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
@@ -336,6 +338,44 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       finalizations:(await client.query('SELECT * FROM extraction_runtime.finalization WHERE "extractionId"=$1 ORDER BY "createdAt"',[id])).rows,
       effective:(await client.query('SELECT e.* FROM extraction_runtime.effective e JOIN extraction_runtime.selection s ON s.id=e.id WHERE s."extractionId"=$1',[id])).rows,
     }},'REPEATABLE READ') },
+    /** The document History list: its live Extractions newest first, at most DOCUMENT_HISTORY_LIMIT, each with its
+     *  lifecycle, pins, the schema revisions its results and inputs used, and its finalized reviews; never values. */
+    documentHistory(projectId: string, sourceDocumentId: string) { return runtimeTransaction(source,async client=> {
+      const owns=await client.query(`SELECT 1 FROM public."sourceDocument" d JOIN public."projectContext" p ON p.id=d."projectContextId"
+        WHERE d.id=$1 AND p.id=$2 AND p."researcherAccountId"=$3`,[sourceDocumentId,projectId,owner])
+      if(!owns.rowCount) throw new DurableNotFound('That Source Document was not found in this Project.')
+      const rows=(await client.query<{id:string;createdAt:Date;strategy:'ARTICLE'|'CATALOG';batchExtractionId:string|null;sourceRevisionNumber:number;currentSource:boolean}>(
+        `SELECT e.id,e."createdAt",e.strategy,e."batchExtractionId",r."revisionNumber" AS "sourceRevisionNumber",
+          r.id=(SELECT c.id FROM public."sourceRepresentationRevision" c WHERE c."sourceDocumentId"=$1
+            ORDER BY c."revisionNumber" DESC,c.id DESC LIMIT 1) AS "currentSource"
+        FROM public.extraction e JOIN extraction_runtime.head h ON h.id=e.id AND NOT h.deleted
+        JOIN public."sourceRepresentationRevision" r ON r.id=e."sourceRepresentationRevisionId"
+        WHERE e."sourceDocumentId"=$1 ORDER BY e."createdAt" DESC,e.id DESC LIMIT $2`,[sourceDocumentId,DOCUMENT_HISTORY_LIMIT+1])).rows
+      const shown=rows.slice(0,DOCUMENT_HISTORY_LIMIT), ids=shown.map(row=>row.id)
+      const heads=new Map((await client.query('SELECT * FROM extraction_runtime.head WHERE id=ANY($1)',[ids])).rows
+        .map(row=>{const head=durableHeadSchema.parse(row);return [head.id,head] as const}))
+      const selections=new Map((await client.query<{id:string;schemaRevisionId:string;revisionNumber:number}>(`SELECT i.id,r.id AS "schemaRevisionId",r."revisionNumber"
+        FROM extraction_runtime.selection i JOIN public."schemaRevision" r ON r.id=i."schemaRevisionId" WHERE i."extractionId"=ANY($1)`,[ids])).rows
+        .map(row=>[row.id,{schemaRevisionId:row.schemaRevisionId,revisionNumber:row.revisionNumber}] as const))
+      // Saved results name their inputs through their snapshot's selection; reading it never reads the values.
+      const published=(await client.query<{extractionId:string;selectionId:string}>(`SELECT DISTINCT "extractionId","selectionId"
+        FROM extraction_runtime.snapshot WHERE "extractionId"=ANY($1)`,[ids])).rows
+      const finalizations=(await client.query<{extractionId:string;snapshotVersion:number;feedbackVersion:number;createdAt:Date}>(
+        `SELECT "extractionId","snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
+        WHERE "extractionId"=ANY($1) ORDER BY "createdAt" DESC`,[ids])).rows
+      return {truncated:rows.length>DOCUMENT_HISTORY_LIMIT,extractions:shown.map(row=> {
+        const head=heads.get(row.id)!
+        const used=new Set([...published.filter(each=>each.extractionId===row.id).map(each=>each.selectionId),head.selectionId])
+        const revisions=[...new Map([...used].flatMap(id=>selections.get(id)??[]).map(each=>[each.schemaRevisionId,each])).values()]
+          .sort((left,right)=>left.revisionNumber-right.revisionNumber||left.schemaRevisionId.localeCompare(right.schemaRevisionId))
+        const pending=head.pendingSelectionId&&head.pendingSelectionId!==head.selectionId?selections.get(head.pendingSelectionId)??null:null
+        return {extractionId:row.id,createdAt:row.createdAt.toISOString(),status:durableStatus(head),strategy:row.strategy,
+          batchExtractionId:row.batchExtractionId,sourceRevisionNumber:row.sourceRevisionNumber,currentSource:row.currentSource,
+          schemaRevisions:revisions,pendingSchemaRevision:pending,
+          finalizations:finalizations.filter(each=>each.extractionId===row.id)
+            .map(({snapshotVersion,feedbackVersion,createdAt})=>({snapshotVersion,feedbackVersion,createdAt:createdAt.toISOString()}))}
+      })}
+    },'REPEATABLE READ') },
     finalize(id: string, input: {snapshotVersion:number;feedbackVersion:number}) { return owned(id,async(client,head)=> {
       const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]

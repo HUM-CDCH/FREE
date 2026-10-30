@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { ReactNode } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -81,6 +82,7 @@ function renderRail({
   schema = testSchema(),
   onSelectEvidence = vi.fn(),
   selection = createSelectionChannel(),
+  documentHistory,
 }: {
   open?: boolean
   tab?: RailTab
@@ -91,6 +93,7 @@ function renderRail({
   schema?: SchemaEditorController
   onSelectEvidence?: (anchor: ParsedEvidenceAnchor) => void
   selection?: SelectionChannel
+  documentHistory?: (visible: boolean) => ReactNode
 } = {}) {
   const rail = (open: boolean) => (
     <RightRail
@@ -108,6 +111,7 @@ function renderRail({
       sourceRepresentationId="source-representation"
       onSelectEvidence={onSelectEvidence}
       selection={selection}
+      documentHistory={documentHistory}
     />
   )
   const view = render(rail(open))
@@ -144,8 +148,19 @@ describe('RightRail Results', () => {
     cleanup()
     renderRail({ tab: 'history', extraction: { ...defaultController, attempt } })
     expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
-    expect(vi.mocked(DurableResults).mock.lastCall![0].historySlot).toBe(screen.getByRole('tabpanel'))
+    expect(screen.getByRole('tabpanel')).toContainElement(vi.mocked(DurableResults).mock.lastCall![0].historySlot as HTMLElement)
     expect(vi.mocked(DurableResults).mock.lastCall![0].historyShown).toBe(true)
+  })
+
+  it('puts the document History above the shown Extraction’s, told when it is visible', () => {
+    const documentHistory = vi.fn((visible: boolean) => <p>Document history {String(visible)}</p>)
+    renderRail({ tab: 'history', extraction: { ...defaultController, attempt }, documentHistory })
+    const panel = screen.getByRole('tabpanel')
+    expect(panel.firstElementChild).toHaveTextContent('Document history true')
+    expect(panel.lastElementChild).toBe(vi.mocked(DurableResults).mock.lastCall![0].historySlot)
+    cleanup()
+    renderRail({ tab: 'results', extraction: { ...defaultController, attempt }, documentHistory })
+    expect(documentHistory).toHaveBeenLastCalledWith(false)
   })
 
   it('says how to start when there is no Extraction, and offers Reconnect for an unanswered admission', () => {

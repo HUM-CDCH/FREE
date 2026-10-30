@@ -236,5 +236,7 @@ export const documentReopenResponseSchema = z
       .nullable(),
     latestAttempt: reopenedExtractionSchema.nullable(),
     latestReviewed: reopenedExtractionSchema.nullable(),
+    /** The Extraction the document opens on without a routed one: the newest on its current Source Representation. */
+    newestAttempt: reopenedExtractionSchema.nullable(),
   })
   .strict()

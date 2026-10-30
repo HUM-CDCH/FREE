@@ -52,8 +52,12 @@ type RightRailProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   recordScope?: SchemaPanelProps['recordScope']
   boundaries?: SchemaPanelProps['boundaries']
-  /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
+  /** Controls the Results header shows beside the attempt details: "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
+  /** The document's Extractions, above the shown one's own History; read only while `visible`. */
+  documentHistory?: (visible: boolean) => ReactNode
+  /** Set while Results shows an Extraction that is not the document's latest: opens the latest. */
+  onOpenLatest?: (() => void) | null
   onSelectEvidence: (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => void
   /** The workspace's channel: requests to select a value come in; Results' marks and dimming go out. */
   selection: SelectionChannel
@@ -104,6 +108,8 @@ function RightRail({
   recordScope,
   boundaries,
   resultsHeaderExtras,
+  documentHistory,
+  onOpenLatest = null,
   onSelectEvidence,
   selection,
   onPinnedDocument,
@@ -286,6 +292,7 @@ function RightRail({
           onEvidence={selectNativeEvidence}
           selection={selection}
           headerExtras={resultsHeaderExtras}
+          onOpenLatest={onOpenLatest}
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
@@ -302,7 +309,10 @@ function RightRail({
           {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'Press ▶ Run extraction above.'}</p>}
         </div>}
       </div>
-      {shown && <div ref={setHistorySlot} id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'} />}
+      {shown && <div id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'}>
+        {documentHistory && <div className="p-3 pb-0">{documentHistory(open && activeTab === 'history')}</div>}
+        <div ref={setHistorySlot} />
+      </div>}
     </div>
     </>
   )
