@@ -78,7 +78,7 @@ def test_recipe_proposals_keep_their_existing_contract():
 def test_a_missing_verifier_value_is_not_an_explicit_null(reply):
     source = evidence('1. Reference: 42')
     model = Model(source, entry=lambda *_: {'reference': candidate('42', 'Reference: 42')}, verdict=lambda *_: reply)
-    result, _ = extract(source, model, schema=SCHEMA, defaults=6)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
     assert [(proposal['value'], proposal['reason']) for proposal in result['proposed']] == [('42', 'verification_unresolved')]
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'ungrounded' and not value['evidence']

@@ -668,7 +668,7 @@ queue.
     extraction's request waits behind those already queued, about one round.
   - **Unified Catalog** (`FREE_CATALOG_METHOD=unified`) uses
     `KEI_CATALOG_CHUNKS` without contiguous chunks: it bounds how many of its
-    calls wait at once. Entries are read nearest the start page first and
+    calls execute at once per model role. Entries are read nearest the start page first and
     assembled in source order.
     - **Defaults 1 and 2.** Discovery asks its windows that many at a time,
       so a planning round yields at most that many discovery calls; the
@@ -681,11 +681,14 @@ queue.
       reads discovery's windows first.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
-      `NeedsCall`. So the round reads windows and entries one after another
-      and stops once that many of them wait; the workflow runs the captured
-      calls, up to that many per role at once. A run that is not durable
-      waits on every call, so it reads that many windows and entries at once
-      on threads.
+      `NeedsCall`. The round visits every known entry in start-page priority,
+      preserving that order when admitting captured calls. An entry waiting
+      for verification does not block another entry's extraction. Discovery
+      keeps its bounded frontier; the workflow alone limits executing calls,
+      up to that many per role at once. Planning more entries can finalize
+      more inputs and their correction examples before execution. A run that
+      is not durable waits on every call, so it reads that many windows and
+      entries at once on threads.
     - **Article verification.** Each planning round captures all independent
       grounding batches or routed source units for the record. The workflow's
       existing per-role limit bounds the calls it runs. A dependent fallback
