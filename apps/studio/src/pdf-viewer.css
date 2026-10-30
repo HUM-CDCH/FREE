@@ -258,6 +258,7 @@
   cursor: pointer;
   pointer-events: auto;
 }
+.evidence-mark.preview { border: 1px dashed var(--color-ev); background: var(--color-ev-ghost); }
 .evidence-mark.rule { border-bottom-style: dotted; }
 .evidence-mark.doubtful { border-bottom-style: dashed; }
 .evidence-mark.decided { border-bottom-width: 1px; }

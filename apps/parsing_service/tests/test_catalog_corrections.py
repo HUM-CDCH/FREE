@@ -1,6 +1,7 @@
 """Catalog completeness: page cuts do not hide starts, and verification can repair a scalar."""
 import pytest
 
+from kei_exp.kie.extract.retained import processing_complete
 from tests.test_unified_catalog import Model, candidate, evidence, extract
 
 
@@ -51,6 +52,9 @@ def test_invalid_correction_never_becomes_an_accepted_value(correction):
     result, _ = extract(source, model, schema=SCHEMA, defaults=5)
     assert result['records'][0]['description'] is None
     assert any(p['reason'] == 'verification_unresolved' for p in result['proposed'])
+    # An answered verification is an evidence doubt, never failed processing (a durable run would end FAILED).
+    assert result['processing']['verification']['undecided'] == 0
+    assert processing_complete(result) and not result['complete']
 
 
 def test_old_admissions_keep_verdict_only_verification():
@@ -120,15 +124,27 @@ def test_verifier_confirms_an_unchanged_scalar_without_a_correction_issue():
     assert not any(i['code'] == 'verification_corrected' for i in result['issues'])
 
 
-@pytest.mark.parametrize('reply', [None, candidate(None, 'The first sentence.')])
+@pytest.mark.parametrize('reply', [None, candidate(None, ''), candidate(None, 'null'),
+                                   candidate(None, 'Another line.')])
 def test_verifier_null_rejects_a_scalar_without_retrying(reply):
-    source = evidence('1. The first sentence.')
+    source = evidence('1. The first sentence. Another line.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
                   verdict=lambda *_: reply)
     result, _ = extract(source, model, schema=SCHEMA, defaults=5)
     assert result['records'][0]['description'] is None
     assert any(r['reason'] == 'verification_rejected' for r in result['rejected'])
     assert len([c for c in result['calls'] if c['stage'] == 'verification']) == 1
+
+
+@pytest.mark.parametrize('quote', ['The first sentence.', '1. The first sentence. Another line.'])
+def test_verifier_null_quoting_the_candidate_leaves_it_for_review(quote):
+    source = evidence('1. The first sentence. Another line.')
+    model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
+                  verdict=lambda *_: candidate(None, quote))
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    assert result['records'][0]['description'] is None
+    assert [(p['value'], p['reason']) for p in result['proposed']] == [('The first sentence.', 'verification_unclear')]
+    assert not result['rejected'] and result['completeness']['processing']
 
 
 @pytest.mark.parametrize('reply', [None, candidate('Invented.', 'Invented.')])

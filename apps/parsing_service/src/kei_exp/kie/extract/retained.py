@@ -4,7 +4,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from kei_exp.kie.extract.durable import digest
-from kei_exp.kie.extract.schema import Schema, conform
+from kei_exp.kie.extract.schema import Schema, conform, typed
 
 
 def record_identity(source_revision: str, scope) -> str:
@@ -168,6 +168,32 @@ def publish_completion(lease, complete, issues=()):
     return lease.call("publish_snapshot", identity, selection, [], coverage)
 
 
+def _reviewable_scalars(fields, nodes, proposals, record):
+    """The durable review keeps a single doubtful scalar, without promoting its proposed spans to Evidence.
+    The accepted-only artifact stays unchanged. Lists keep their existing occurrence identities; competing
+    proposals stay in diagnostics rather than choosing a reading on the researcher's behalf."""
+    choices = {}
+    for proposal in proposals:
+        path = proposal["path"]
+        if path[:2] == ["records", record]:
+            choices.setdefault(tuple(path[2:]), []).append(proposal["value"])
+
+    def fill(values, children, path=()):
+        out = dict(values) if isinstance(values, dict) else {}
+        for node in children:
+            key = (*path, node.name)
+            if node.type == "object":
+                nested = fill(out.get(node.name), node.children or [], key)
+                if nested:
+                    out[node.name] = nested
+            elif node.type != "array" and out.get(node.name) is None:
+                proposed = choices.get(key, [])
+                if proposed and all(typed(value, node) and value == proposed[0] for value in proposed):
+                    out[node.name] = proposed[0]
+        return out
+    return fill(fields, nodes)
+
+
 def publish_final(lease, result):
     records = result["records"]
     metadata = {key: value for key, value in result.items() if key != "records"}
@@ -187,6 +213,9 @@ def publish_final(lease, result):
             scope = "document"
         if scope is None:
             raise ValueError("record has no canonical source scope")
+        if result["strategy"] == "catalog" and result.get("options", {}).get("unified"):
+            fields = _reviewable_scalars(fields, Schema.model_validate(lease.state["selection"]["schemaTree"]).record_nodes,
+                                        result.get("proposed", []), index)
         publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata, disagreements=result.get("disagreements", ()))
     publish_completion(lease, processing_complete(result), result.get("issues", ()))
 

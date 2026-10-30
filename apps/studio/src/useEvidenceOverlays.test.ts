@@ -140,6 +140,26 @@ describe('saved Evidence marks across reads', () => {
 
 
 
+  it('keeps a shared occurrence provisional until every highlighted value is verified', () => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]!
+    const { container, containerRef, viewerRef } = viewerWithPage(anchor)
+    const verified = { name: 'title', value: 'Unit 7', word: null, style: 'link' as const, anchorId: anchor.anchor_id }
+    const preview = { ...verified, name: 'unit (preview, not verified)', style: 'preview' as const }
+    const describe = new Map<string, typeof verified | typeof preview>([['title', verified], ['unit', preview]])
+    const savedLinks = ['title', 'unit'].map((key) => ({ key,
+      link: { resultPath: ['records', 0, key], evidenceAnchorId: anchor.anchor_id } }))
+    const { rerender } = renderHook(({ describe }) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument, attempt: running, active: true,
+      marks: { describe, selected: null, onSelect: vi.fn(), savedLinks },
+    }), { initialProps: { describe } })
+    const mark = container.querySelector('.parsed-evidence-highlight')!
+    expect(mark.classList.contains('preview')).toBe(true)
+    expect(mark.getAttribute('aria-label')).toContain('not verified')
+    rerender({ describe: new Map([['title', verified], ['unit', { ...verified, name: 'unit' }]]) })
+    expect(container.querySelector('.parsed-evidence-highlight')!.classList.contains('link')).toBe(true)
+  })
+
   it('a focused Evidence survives a poll of the same Extraction and clears for another one', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]

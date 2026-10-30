@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from kei_exp.kie.extract.calls import Call, complete
+from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import GroundingChoice
 from kei_exp.kie.extract.schema import Schema, describe
@@ -181,8 +182,13 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     Every claim is verified by the model, a uniquely found value included. Every batch carries the record's fields,
     counted in its size, so splitting never separates a claim from its record. Generic Catalog uses a character cap;
     Article adds its record identity and a served counter, verifying within the context minus an output reserve.
-    `on_batch`, when given, runs after each batch's reply with the links that batch made (Article retains them while
-    the run goes on): none after a failed reply; a batch split or refused before any call has no reply and no call.
+    `on_batch`, when given, runs after each batch's reply with the links that batch made (Article retains them once
+    the round has read every saved reply): none after a failed reply; a batch split or refused before any call has
+    no reply and no call.
+    Under durable planning a batch whose call is not answered yet (`NeedsCall`) does not end the round: the batches
+    after it are independent of it, so they are captured in the same planning round and run beside it, and a reply
+    already saved is read (and `on_batch` run) meanwhile; the round yields once every batch is captured or read. The
+    fallback round is grouped from the whole precise round's unsupported claims, so it starts once they have all replied.
     """
     prefix: tuple[str | int, ...] = ("records", record)
     if quoted and span_ids:
@@ -262,8 +268,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         record_fields = f"Record fields (lists are shown per claim): {json.dumps(own, ensure_ascii=False)}\n\n"
     calls: list[Call] = []
     issues: list[Issue] = []
+    waiting = False  # a batch captured for the durable workflow to run: its reply is read next planning round
     while batches or retry:
         if not batches:  # the claims the precise round left unsupported, offered what it hid
+            if waiting:  # grouped from every batch's reply: an unanswered one would regroup them, changing the calls
+                break
             for claim in retry:
                 eligible[claim] = fallback.pop(claim)
             batches, retry = [retry[n:n + batch_size] for n in range(0, len(retry), batch_size)], []
@@ -311,8 +320,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                                      else f"{size} characters exceed {budget}") + "; complete evidence was not sent",
                                     record, claims[batch[0]][0]))
             continue
-        answer, attempts = complete(chat, stage="grounding", record=record, system=instruction, user=user,
-                                   schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
+        try:
+            answer, attempts = complete(chat, stage="grounding", record=record, system=instruction, user=user,
+                                       schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
+        except NeedsCall:  # the batches after it do not depend on its reply: captured now, they run beside it
+            waiting = True
+            continue
         calls += attempts
         if not attempts[-1].ok:
             issues += ([Issue("call_failed", attempts[-1].error or "grounding failed", record, claims[claim][0])
@@ -369,6 +382,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                                    "quote": candidate.text, "attribution": "model_attested"})
         if on_batch is not None:
             on_batch(links[made_before:])
+    if waiting:
+        raise NeedsCall()
     return links, calls, issues
 
 
