@@ -1,7 +1,6 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
 import { linkOrigin } from './linkOrigin'
 import { DECISION_WORD, type ReviewAction, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
@@ -31,7 +30,7 @@ export type EndCard =
  * One by one: the same rail as a card for the current value, its record's queue,
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card.
  */
-export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
+export default function ReviewFocus({ article, items, position, current, recordLabel, label, editing, node, upNext, end,
   headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit, pick, locked = false }: {
   article: boolean
   items: readonly QueueItem[]
@@ -39,7 +38,6 @@ export default function ReviewFocus({ article, items, position, current, recordL
   current: RailRow | null
   recordLabel: string
   label: string
-  quote: EvidenceQuote | null
   editing: boolean
   node: SchemaNode | null
   upNext: readonly QueueItem[]
@@ -84,7 +82,6 @@ export default function ReviewFocus({ article, items, position, current, recordL
   const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
   const precision = current.link?.precision === 'input' ? ' · located to the whole page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
   const source = `${current.retained?.source ?? `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}`}${precision}`
-  const style = current.chip?.style === 'rule' ? 'border-dotted' : current.chip?.style === 'doubtful' ? 'border-dashed' : 'border-solid'
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -119,14 +116,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
-      <figure className="m-0">
-        <figcaption className="mb-1.5 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</figcaption>
-        {quote && current.link?.precision !== 'input' && (
-          <blockquote className="m-0 font-serif text-content leading-[1.6] text-ink">
-            {quote.before}{quote.hit && <mark className={`border-b-2 border-ev bg-ev-soft text-ink ${style}`}>{quote.hit}</mark>}{quote.after}
-          </blockquote>
-        )}
-      </figure>
+      <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
       {current.doubt && (
         <div className="flex items-start gap-1.5 rounded-md border border-dashed border-ev px-2.5 py-2 text-secondary text-ink">
           <DoubtGlyph /><span><b>Doubtful link.</b> {current.doubt}. Check that this is the right passage.</span>

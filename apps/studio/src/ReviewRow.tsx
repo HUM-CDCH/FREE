@@ -1,7 +1,6 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { EvidenceQuote } from './evidenceQuote'
 import { linkOrigin } from './linkOrigin'
 import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import {
@@ -32,7 +31,6 @@ const chipStyles = {
   doubtful: 'border-dashed border-ev bg-ev-ghost text-ink',
   neutral: 'border-transparent bg-surface-muted text-ink-muted',
 } as const
-const markStyles = { link: 'border-solid', rule: 'border-dotted', doubtful: 'border-dashed', neutral: 'border-solid' } as const
 
 const grid = 'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 rounded-md px-2 py-1.5 text-left'
 
@@ -58,7 +56,6 @@ export type ReviewRowProps = {
   pinned: boolean
   rowRef?: Ref<HTMLButtonElement>
   onSelect: () => void
-  quote: EvidenceQuote | null
   /** Decisions are open here: not saved, not saving, not a read-only attempt. */
   canDecide: boolean
   saved: boolean
@@ -78,7 +75,7 @@ export type ReviewRowProps = {
 }
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
-export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
+export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, canDecide, saved, editing, node,
   onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit, pick, locked = false }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
@@ -117,11 +114,6 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
               <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
               {row.link && row.decision && groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action) &&
                 <p className="m-0 text-compact text-ink-muted">{groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action)}</p>}
-              {quote && row.link?.precision !== 'input' && (
-                <p className="m-0 font-serif text-content leading-relaxed text-ink">
-                  {quote.before}{quote.hit && <mark className={`border-b-2 border-ev bg-ev-soft text-ink ${markStyles[style]}`}>{quote.hit}</mark>}{quote.after}
-                </p>
-              )}
               {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Doubtful link.</b> {row.doubt}.</span></p>}
             </>
           )}
