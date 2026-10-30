@@ -220,7 +220,9 @@ function HistoryAudit({id}:{id:string}) {
 
 /** This Extraction's history in plain words: its inputs and finalized reviews; its intermediate results and the exact
  *  producing inputs and calls stay one disclosure away for audit. */
-function History({id,shown,current,onSnapshot}:{id:string;shown:boolean;current:number;onSnapshot:(version:number,feedbackVersion?:number)=>void}) {
+/** `current` is the shown snapshot: an intermediate row is it only with the live decisions (`live`), a finalized review
+ *  only when it is the shown pair (`review`). */
+function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:boolean;current:number;live:boolean;review:string|null;onSnapshot:(version:number,feedbackVersion?:number)=>void}) {
   const [history,setHistory]=useState<DurableHistorySummary|null>(null),[error,setError]=useState<string|null>(null),[open,setOpen]=useState(true)
   const [audit,setAudit]=useState(false)
   // The saved versions are read once the tab is shown; a read it stops waiting for is abandoned, and tried again when
@@ -237,7 +239,7 @@ function History({id,shown,current,onSnapshot}:{id:string;shown:boolean;current:
     {history&&<div className="space-y-3 pt-2 text-secondary">
       {history.finalizations.length>0&&<section aria-label="Finalized reviews"><h3 className="m-0 text-compact font-semibold">Finalized reviews</h3>
         <ul className="m-0 list-none space-y-1 p-0">{[...history.finalizations].reverse().map(finalization=><li key={finalization.id} className="flex items-center justify-between gap-2">
-          <span>Results {finalization.snapshotVersion}{savedAt(finalization.createdAt)&&<span className="text-ink-muted"> · {savedAt(finalization.createdAt)}</span>}</span>
+          <span aria-current={finalization.id===review||undefined} className={finalization.id===review?'font-semibold':undefined}>Results {finalization.snapshotVersion}<span className="font-normal text-ink-muted">{savedAt(finalization.createdAt)&&` · ${savedAt(finalization.createdAt)}`}{finalization.id===review&&' · shown'}</span></span>
           <Button aria-label={`Open finalized review of results ${finalization.snapshotVersion}`} onClick={()=>onSnapshot(finalization.snapshotVersion,finalization.feedbackVersion)}>Open</Button>
         </li>)}</ul></section>}
       {history.selections.length>0&&<section aria-label="Inputs"><h3 className="m-0 text-compact font-semibold">Schema and model used</h3>
@@ -252,8 +254,8 @@ function History({id,shown,current,onSnapshot}:{id:string;shown:boolean;current:
       {/* The run's intermediate saves: for audit, one disclosure away; Results shows the latest. */}
       {history.snapshots.length>0&&<details><summary className="cursor-pointer text-compact text-ink-muted">Intermediate results ({history.snapshots.length})</summary>
         <p className="m-0 mt-1 text-compact text-ink-muted">Saved while the run went on. Opening one shows it in Results.</p>
-        <ul className="m-0 mt-1 list-none space-y-1 p-0">{[...history.snapshots].reverse().map(snapshot=><li key={snapshot.id} aria-current={snapshot.version===current||undefined} className="flex items-center justify-between gap-2">
-          <span className={snapshot.version===current?'font-semibold':undefined}>Results {snapshot.version} <span className="font-normal text-ink-muted">· {snapshot.valueCount} {snapshot.valueCount===1?'value':'values'}{snapshot.version===current&&' · shown'}</span></span>
+        <ul className="m-0 mt-1 list-none space-y-1 p-0">{[...history.snapshots].reverse().map(snapshot=><li key={snapshot.id} aria-current={live&&snapshot.version===current||undefined} className="flex items-center justify-between gap-2">
+          <span className={live&&snapshot.version===current?'font-semibold':undefined}>Results {snapshot.version} <span className="font-normal text-ink-muted">· {snapshot.valueCount} {snapshot.valueCount===1?'value':'values'}{live&&snapshot.version===current&&' · shown'}</span></span>
           <Button aria-label={`Open results ${snapshot.version}`} onClick={()=>onSnapshot(snapshot.version)}>Open</Button>
         </li>)}</ul>
       </details>}
@@ -576,7 +578,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const latest=latestPage.snapshotVersion===page.snapshotVersion&&latestPage.feedbackVersion===page.feedbackVersion
   // An earlier cut names itself in the status line: the run's word and details stay the latest state's.
   const status=statusLine(state,model,article,Boolean(page.finalization))
-  if(page.snapshotVersion!==latestPage.snapshotVersion)status.rest=[status.rest,`· Results ${page.snapshotVersion} of ${latestPage.snapshotVersion}`].filter(Boolean).join(' ')
+  if(page.snapshotVersion<latestPage.snapshotVersion)status.rest=[status.rest,`· Results ${page.snapshotVersion} of ${latestPage.snapshotVersion}`].filter(Boolean).join(' ')
   const recordOf=(key:string)=>model.records.find(record=>record.rows.some(row=>row.key===key))?.label??'Document'
   // The open review stays in its row while newer results arrive (moving it would lose an open edit); only a value the
   // results shown do not hold opens above the list.
@@ -626,7 +628,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {detailsOpen&&<div className="space-y-1 text-secondary">
         <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 [&>dd]:m-0 [&>dt]:text-ink-muted">
           {attempt.createdAt&&<><dt>Started</dt><dd>{savedAt(attempt.createdAt)}</dd></>}
-          {quiet&&<><dt>Schema</dt><dd>revision {quiet.revisionNumber}</dd></>}
+          {quiet&&<><dt>Schema</dt><dd>{resultSchemaLabel(quiet)}</dd></>}
           <dt>Inputs</dt><dd>version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}</dd>
           {state.failure&&<><dt>Failure</dt><dd>{state.failure.code}</dd></>}
         </dl>
@@ -653,7 +655,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         {/* Hidden for now: "Corrections the model learns from". Restore with the import above; while hidden, `unfit`
             stays 0, so the pending schema's "corrections don't fit" note stays hidden too.
         <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${latestPage.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/> */}
-        <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} current={page.snapshotVersion} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
+        <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} current={page.snapshotVersion} live={page.feedbackVersion===latestPage.feedbackVersion} review={page.finalization?.id??null} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       <RunDiagnostics page={page}/>
