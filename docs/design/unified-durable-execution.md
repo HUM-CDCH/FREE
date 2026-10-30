@@ -686,6 +686,12 @@ queue.
       calls, up to that many per role at once. A run that is not durable
       waits on every call, so it reads that many windows and entries at once
       on threads.
+    - **Article verification.** Each planning round captures all independent
+      grounding batches or routed source units for the record. The workflow's
+      existing per-role limit bounds the calls it runs. A dependent fallback
+      round waits for all replies needed to form its unchanged requests.
+      Available links are saved as one union when the round yields or finishes;
+      a control boundary leaves the preceding saved cut intact.
     - **Finished-entry reuse while retained.** An entry whose record a
       round saved is kept in the planning process (`tokens.compiled`): later
       rounds at the same key list it without repeating its capture lookups,

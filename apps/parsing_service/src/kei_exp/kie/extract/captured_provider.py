@@ -126,6 +126,8 @@ class CapturedChat:
                 reply = _reply(response,started,())
                 if guard is not None:
                     guard.feed(reply.text)
+                if self.on_text is not None:
+                    self.on_text(reply.text)
                 return reply
             response.raise_for_status()
             text,finish,usage=[],None,{}

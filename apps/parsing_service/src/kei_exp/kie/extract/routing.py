@@ -12,6 +12,7 @@ from collections import Counter
 from collections.abc import Sequence
 
 from kei_exp.kie.extract.contexts import Context
+from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.schema import Schema, describe
 from kei_exp.kie.extract.stages import contains, leaves
 
@@ -122,6 +123,10 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
 
     A refusal is recorded separately from an attempted comparison. Missing/invalid
     replies and NONE do not end search. Success stops only that full record path.
+    Under durable planning a unit whose check waits on a call (`NeedsCall`) does not
+    end the round: the round's other units are independent of it, so their checks are
+    captured, and their saved replies read, in the same planning round. The next round
+    routes each claim by this round's outcomes, so it starts once every unit has replied.
     """
     by_path = {tuple(item["path"]): item for item in origins}
     routes = {}
@@ -150,9 +155,14 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
                 batches.setdefault(unit, set()).add(path)
         if not batches:
             break
+        waiting = False  # a unit's check captured for the durable workflow to run: read next planning round
         for unit, paths in batches.items():
-            found, attempts, problems = verifier(contexts[unit].passages, fields, schema, chat,
-                record=record, skip_paths=frozenset(all_paths - paths), **verification)
+            try:
+                found, attempts, problems = verifier(contexts[unit].passages, fields, schema, chat,
+                    record=record, skip_paths=frozenset(all_paths - paths), **verification)
+            except NeedsCall:
+                waiting = True
+                continue
             supported = {link.path for link in found}
             refused = {issue.path for issue in problems if issue.code == "grounding_exceeds_budget"}
             if any(issue.code == "no_evidence" for issue in problems):
@@ -163,6 +173,8 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
             links += found
             calls += attempts
             issues += problems
+        if waiting:  # the next round's units follow this round's outcomes: an unanswered one would reroute them
+            raise NeedsCall()
     for route in routes.values():
         route["coverage"] = ("stopped_after_support" if route["supported"] else
                              "partial" if route["refused"] else "attempted_all")

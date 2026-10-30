@@ -15,7 +15,7 @@ import { scrollWithinPane } from './scrollWithinPane'
 import { evidenceColorVars, markValueId, ownsMark } from './durableRailModel'
 
 /** What the rail says about one value, for its mark on the page. */
-export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision']; color?: string }
+export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral' | 'preview'; anchorId: string; precision?: EvidenceLink['precision']; color?: string }
 
 /** The rail's values for the marks: a key `describe` names is a value a mark selects. */
 export type RailMarkState = {
@@ -346,7 +346,7 @@ export function useEvidenceOverlays({
         // A value's correction Evidence in its own model passage names it once; two values that read alike stay two.
         const infos = keys.filter((key) => !key.endsWith('#correction') || !keys.includes(markValueId(key)))
           .map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
-        const style = infos[0]?.style ?? 'link'
+        const style = infos.some((info) => info.style === 'preview') ? 'preview' : infos[0]?.style ?? 'link'
         const decided = infos.length > 0 && infos.every((info) => info.word !== null)
         const current = marks?.selected !== null && marks?.selected !== undefined && keys.some((key) => ownsMark(marks.selected!, key))
         const hovered = keys.some((key) => marks?.hovered?.some((each) => ownsMark(each, key)))

@@ -1,6 +1,7 @@
 """Catalog completeness: page cuts do not hide starts, and verification can repair a scalar."""
 import pytest
 
+from kei_exp.kie.extract.retained import processing_complete
 from tests.test_unified_catalog import Model, candidate, evidence, extract
 
 
@@ -27,12 +28,13 @@ def test_budget_discovery_still_splits_a_long_source_without_losing_entries():
     assert [r['material'] for r in result['records']] == [f'M{n}' for n in range(1, 11)]
 
 
-def test_verification_completes_the_description_with_source_evidence():
+@pytest.mark.parametrize('defaults', [5, 6])
+def test_verification_completes_the_description_with_source_evidence(defaults):
     complete = 'The first sentence. The continuation is also part of the description.'
     source = evidence('1. ' + complete)
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
                   verdict=lambda *_: candidate(complete, complete))
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=defaults)
     assert result['records'][0]['description'] == complete
     assert any(p['reason'] == 'verification_corrected' for p in result['rejected'])
     assert len([c for c in result['calls'] if c['stage'] == 'verification']) == 1
@@ -44,13 +46,17 @@ def test_verification_completes_the_description_with_source_evidence():
     candidate('Text from another record.', 'Text from another record.'),
     candidate('Invented text.', 'The first sentence.'),
 ])
-def test_invalid_correction_never_becomes_an_accepted_value(correction):
+@pytest.mark.parametrize('defaults', [5, 6])
+def test_invalid_correction_never_becomes_an_accepted_value(correction, defaults):
     source = evidence('1. The first sentence.\n2. Text from another record.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
                   verdict=lambda *_: correction)
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=defaults)
     assert result['records'][0]['description'] is None
     assert any(p['reason'] == 'verification_unresolved' for p in result['proposed'])
+    # An answered verification is an evidence doubt, never failed processing (a durable run would end FAILED).
+    assert result['processing']['verification']['undecided'] == 0
+    assert processing_complete(result) and not result['complete']
 
 
 def test_old_admissions_keep_verdict_only_verification():
@@ -69,14 +75,15 @@ def test_disabled_verification_keeps_the_original_proposal():
     assert result['proposed'][0]['value'] == 'The first sentence.'
 
 
-def test_nested_scalar_corrections_preserve_the_field_path():
+@pytest.mark.parametrize('defaults', [5, 6])
+def test_nested_scalar_corrections_preserve_the_field_path(defaults):
     schema = {'recordDescription': SCHEMA['recordDescription'], 'schemaNodes': [
         {'id': 'details', 'name': 'details', 'type': 'object', 'children': SCHEMA['schemaNodes']}]}
     source = evidence('1. First sentence. Second sentence.')
     full = 'First sentence. Second sentence.'
     model = Model(source, entry=lambda *_: {'details': {'description': candidate('First sentence.', 'First sentence.')}},
                   verdict=lambda *_: candidate(full, full))
-    result, _ = extract(source, model, schema=schema, defaults=5)
+    result, _ = extract(source, model, schema=schema, defaults=defaults)
     assert result['records'][0]['details']['description'] == full
     assert result['evidence'][0]['path'] == ['records', 0, 'details', 'description']
 
@@ -111,24 +118,38 @@ def test_disabled_verification_does_not_retry_source_rejected_candidates():
     assert result['records'][0]['description'] is None
 
 
-def test_verifier_confirms_an_unchanged_scalar_without_a_correction_issue():
+@pytest.mark.parametrize('defaults', [5, 6])
+def test_verifier_confirms_an_unchanged_scalar_without_a_correction_issue(defaults):
     source = evidence('1. The first sentence.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
                   verdict=lambda *_: candidate('The first sentence.', 'The first sentence.'))
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=defaults)
     assert result['records'][0]['description'] == 'The first sentence.'
     assert not any(i['code'] == 'verification_corrected' for i in result['issues'])
 
 
-@pytest.mark.parametrize('reply', [None, candidate(None, 'The first sentence.')])
-def test_verifier_null_rejects_a_scalar_without_retrying(reply):
-    source = evidence('1. The first sentence.')
+@pytest.mark.parametrize('defaults', [5, 6])
+@pytest.mark.parametrize('reply', [None, candidate(None, ''), candidate(None, 'null'),
+                                   candidate(None, 'Another line.')])
+def test_verifier_null_rejects_a_scalar_without_retrying(reply, defaults):
+    source = evidence('1. The first sentence. Another line.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
                   verdict=lambda *_: reply)
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=defaults)
     assert result['records'][0]['description'] is None
     assert any(r['reason'] == 'verification_rejected' for r in result['rejected'])
     assert len([c for c in result['calls'] if c['stage'] == 'verification']) == 1
+
+
+@pytest.mark.parametrize('quote', ['The first sentence.', '1. The first sentence. Another line.'])
+def test_verifier_null_quoting_the_candidate_leaves_it_for_review(quote):
+    source = evidence('1. The first sentence. Another line.')
+    model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
+                  verdict=lambda *_: candidate(None, quote))
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    assert result['records'][0]['description'] is None
+    assert [(p['value'], p['reason']) for p in result['proposed']] == [('The first sentence.', 'verification_unclear')]
+    assert not result['rejected'] and result['completeness']['processing']
 
 
 @pytest.mark.parametrize('reply', [None, candidate('Invented.', 'Invented.')])
@@ -158,3 +179,35 @@ def test_scalar_drafts_do_not_anchor_verification_of_a_mixed_record():
     shapes = list(request['schema']['properties'].values())
     assert any(s.get('type') == ['object', 'null'] for s in shapes)
     assert any(s.get('enum') == ['supported', 'unsupported', 'unclear'] for s in shapes)
+
+
+@pytest.mark.parametrize('defaults, shape', [
+    (5, {'type': ['object', 'null'], 'properties': {'value': {'type': ['string', 'null'], 'x-free-type': 'string'},
+                                                   'quote': {'type': 'string'}},
+         'required': ['value', 'quote'], 'additionalProperties': False}),
+    (6, {'type': ['object', 'null'], 'properties': {'value': {'type': ['string', 'null'], 'x-free-type': 'string'}},
+         'required': ['value'], 'additionalProperties': False})])
+def test_a_text_fields_reread_is_generated_once_only_from_defaults_6(defaults, shape):
+    """Defaults 5 requests stay as admitted (resumed runs replay them); defaults 6 asks for the text alone."""
+    source = evidence('1. The first sentence.')
+    model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
+                  verdict=lambda *_: candidate('The first sentence.', 'The first sentence.'))
+    result, chat = extract(source, model, schema=SCHEMA, defaults=defaults)
+    request = next(c for c in chat.calls if c['system'].startswith('You check values'))
+    assert request['schema']['properties']['C1'] == shape
+    assert ('A text field returns only "value"' in request['system']) == (defaults == 6)
+    assert result['prompt_version'] == defaults + 1
+    assert result['records'][0]['description'] == 'The first sentence.'
+
+
+def test_a_typed_field_keeps_value_and_quote_and_its_contradictory_null_under_defaults_6():
+    from tests.test_unified_catalog import fields
+    source = evidence('1. Site. Gilded')
+    def verify(path, value, record):
+        return candidate(None, 'Gilded') if path == 'gilded' else fields(record, '', {'properties': {path: None}})[path]
+    result, chat = extract(source, Model(source, verdict=verify), defaults=6)
+    request = next(c for c in chat.calls if c['system'].startswith('You check values'))
+    assert [list(shape['properties']) for shape in request['schema']['properties'].values()] == [
+        ['value'], ['value'], ['value', 'quote']]
+    assert result['records'][0]['site'] == 'Site' and result['records'][0]['gilded'] is None
+    assert [(p['path'][-1], p['reason']) for p in result['proposed']] == [('gilded', 'verification_unclear')]

@@ -23,6 +23,8 @@ import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
 import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
+import { provisionalMarks } from './provisionalMarks'
+import type { MarkInfo } from './useEvidenceOverlays'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 import { shownValue, stateLabel, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -371,9 +373,14 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // A resumed or retried run reads again: its records open as they are read, and stay open once it settles.
   else if(opening&&!opening.live&&state&&ACTIVE.has(state.status))setOpening({...opening,live:true})
   const reviewedRecord=review?.value.recordId
-  // The record starts discovery has found while it still looks: marked on the source until the records are listed.
-  const foundKey=JSON.stringify(state&&!state.recordsFinal?state.discovery?.found??[]:[])
+  // Once discovery finishes, the saved plan keeps its starts visible until the run settles (also after reload).
+  const foundKey=JSON.stringify(!pinned&&state&&ACTIVE.has(state.status)?state.recordsFinal
+    ?(state.records??[]).flatMap(record=>record.segment?[{segment:record.segment}]:[])
+    :state.discovery?.found??[]:[])
   const found=useMemo(()=>JSON.parse(foundKey) as {segment:string}[],[foundKey])
+  const displayed=useMemo(()=>page?(review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values):[],[page,review])
+  const previewing=!pinned&&Boolean(state&&ACTIVE.has(state.status))
+  const previews=useMemo(()=>previewing&&document?provisionalMarks(document,displayed):[],[previewing,document,displayed])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   // Top-level fields in schema order name their colours.
   const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
@@ -456,8 +463,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     if(!model||!page||!id)return
     const rows=[...model.document,...model.records.flatMap(record=>record.rows)]
     if(review){const row=durableRailRow(review.value,document),index=rows.findIndex(each=>each.key===row.key);if(index<0)rows.push(row);else rows[index]=row}
-    const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision,color:fieldColor(fieldOrder,row.name)}]))
-    const displayed=review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values
+    const describe=new Map<string,MarkInfo>(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision,color:fieldColor(fieldOrder,row.name)}]))
     const anchors=new Set(document?.evidence_index.anchors.map(anchor=>anchor.anchor_id)??[])
     const savedLinks=[...displayed.flatMap(value=> {
       // A composite value's link to one of its parts is that part's mark, named by it; a link no part names, or one to a
@@ -474,9 +480,16 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       }),
       ...own.map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:`${value.id}#correction`,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
     ]}),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
+    for(const preview of previews) {
+      // Drawing hints only: never fed to review, export or the saved value's Evidence.
+      if(savedLinks.some(saved=>saved.key===preview.key))continue
+      describe.set(preview.key,{name:`${preview.name} (preview, not verified)`,value:preview.value,word:null,
+        style:'preview',anchorId:preview.link.evidenceAnchorId,color:fieldColor(fieldOrder,preview.field)})
+      savedLinks.push({key:preview.key,link:preview.link})
+    }
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
     selection.publish({marks:{describe,selected:review?chosenPart??review.value.id:null,savedLinks,extractionId:id}})
-  },[model,page,selection,review,document,found,id,chosenPart,fieldOrder])
+  },[model,page,selection,review,document,found,id,chosenPart,fieldOrder,previews,displayed])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
     const {reviewId,onEvidence,requestTaken,activeLink:link}=followRef.current
@@ -608,6 +621,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);const first=nextToCheck(queue,null);if(first)selectValue(first)}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
+    {previews.length>0&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">Preview highlights show matching text. Citations are still being checked.</p>}
     <ResultSchemaNotice page={page} state={state} current={currentSchema} controlled={controlled} readOnly={readOnly} onSchema={onSchema}/>
     {menuOpen&&<ResultsMenu items={[
       {label:'Export…',disabled:exportState?.status==='pending'?'Exporting…':page.total===0?'Nothing saved to export yet':null,onSelect:()=>{setMenuOpen(false);setExportOpen(true)}},

@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import DocumentMarkdown from './DocumentMarkdown'
+import type { MarkInfo } from './useEvidenceOverlays'
 
 afterEach(cleanup)
 
@@ -38,6 +39,29 @@ describe('the Markdown view', () => {
     const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
     fireEvent.click(mark)
     expect(onSelect).toHaveBeenCalledWith([key], mark)
+  })
+
+  it('labels an early text match as an unverified preview and lets it select its saved value',()=>{
+    const onSelect=vi.fn()
+    const preview=new Map([[key,{...describe_.get(key)!,name:'orientation (preview, not verified)',style:'preview' as const}]])
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{describe:preview,selected:null,onSelect}}/>)
+    const mark=screen.getByRole('button',{name:'orientation (preview, not verified): NE–SW'})
+    expect(mark).toHaveClass('preview')
+    expect(mark).not.toHaveClass('decided')
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([key],mark)
+  })
+
+  it('keeps a shared passage provisional until every highlighted value is verified', () => {
+    const previewKey = 'preview'
+    const marks = { describe: new Map<string, MarkInfo>([...describe_, [previewKey, {
+      ...describe_.get(key)!, name: 'axis (preview, not verified)', style: 'preview' as const,
+    }]]), selected: null, onSelect: vi.fn() }
+    const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={marks} />)
+    expect(screen.getByRole('button', { name: /orientation: NE–SW; axis \(preview, not verified\)/ }).classList.contains('preview')).toBe(true)
+    marks.describe.set(previewKey, { ...describe_.get(key)!, name: 'axis' })
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={marks} />)
+    expect(screen.getByRole('button', { name: 'orientation: NE–SW; axis: NE–SW' })).toHaveClass('link')
   })
 
   it('says when there is no Markdown', () => {
