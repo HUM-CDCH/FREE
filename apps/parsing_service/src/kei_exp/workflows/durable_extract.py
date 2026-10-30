@@ -172,7 +172,7 @@ def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call],
 
 
 @DBOS.step(name="invokeExtractionCaptureV1")
-def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
+def invoke_capture(extraction: str, attempt: str, capture: str, priority: int = 0) -> dict:
     with Lease(coordinator(), extraction, attempt) as lease:
         saved = lease.call("read_call", capture)
         if saved["checkpoint"] is not None:
@@ -195,7 +195,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             if http_request is None:
                 raise ValueError("capture lacks the exact HTTP request")
             # Discovery streams progress; NuExtract entries stream for the transport guard. The saved request
-            # stays unchanged apart from stream and usage options.
+            # stays unchanged apart from stream and usage options, and the call's priority for a server that
+            # schedules by it (config.PRIORITY_URLS).
+            if request["provider"].get("url") in config.PRIORITY_URLS:
+                http_request={**http_request,"priority":priority}
             shown=Shown() if body["stage"]=="discovery" else None
             client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None,
                                 stage=body["stage"])
@@ -248,8 +251,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
 
 @DBOS.workflow(name="extractionCallV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
                serialization_type=WorkflowSerializationFormat.PORTABLE)
-def call_workflow(extraction: str, attempt: str, capture: str) -> dict:
-    return invoke_capture(extraction, attempt, capture)
+def call_workflow(extraction: str, attempt: str, capture: str, priority: int = 0) -> dict:
+    # `priority` (0 for a call started before calls had one) is its place in the model server's queue, never its
+    # identity: a recovered workflow's recorded child start is matched by name alone.
+    return invoke_capture(extraction, attempt, capture, priority)
 
 
 @DBOS.step(name="planExtractionCallsV1")
@@ -281,7 +286,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
             if planner.discovery is not None:
                 show("discovery", discovery_event(planner.discovery))
             # Planning visits work in source priority; preserve it when admitting calls.
-            return {"pending": list(planner.pending), "roles": planner.roles}
+            return {"pending": list(planner.pending), "roles": planner.roles, "priorities": planner.priorities}
         except Boundary:
             return {"boundary": True}
         return {"result": result, "scopes": planner.scopes}
@@ -365,8 +370,11 @@ def extract_workflow(request: dict) -> dict:
             if capture in ended:  # its call ended without saving an output: planning it again would never end
                 return stop(False, {"code": "capture_replanned"})
             if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
+                # A round recorded before calls had a priority has none.
+                priority = work.get("priorities", {}).get(capture, 0)
                 with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
-                    running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture))
+                    running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture,
+                                                                  priority))
         if not running:  # a method that yields must have planned a call
             return stop(False, {"code": "nothing_planned"}, compile_saved=False)
         if not wait():

@@ -90,6 +90,9 @@ services:
       - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
       # GB10 with multiple resident models: graph execution stalled; eager serving passed concurrent extraction.
       - --enforce-eager
+      # Waiting requests go nearest the researcher's page first (parsing_worker's KEI_PRIORITY_URLS).
+      - --scheduling-policy
+      - priority
     depends_on:
       ocr_model:
         condition: service_healthy
@@ -117,6 +120,8 @@ services:
       - "${EXTRACT_KV_CACHE_BYTES:-8G}"
       - --max-num-seqs
       - "4"
+      - --scheduling-policy
+      - priority
     depends_on:
       nuextract_model:
         condition: service_healthy
@@ -134,6 +139,10 @@ services:
       # kei accepts 1 to 64 (MAX_CATALOG_CHUNKS): NUEXTRACT_MAX_NUM_SEQS above 64 stops the worker at
       # boot, and `restart: unless-stopped` then restarts it in a loop.
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+      # The servers above schedule by priority: each durable call asks with its page's distance from the page the
+      # researcher read at start. A server without --scheduling-policy priority refuses a nonzero one, so they are
+      # recreated before this worker (an app-only release does not); an empty value in .env sends none.
+      KEI_PRIORITY_URLS: "${KEI_PRIORITY_URLS-http://nuextract_model:8000/v1/chat/completions,http://extraction_model:8000/v1/chat/completions}"
     depends_on:
       ocr_model:
         condition: service_healthy

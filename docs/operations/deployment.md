@@ -710,6 +710,11 @@ checkout and run `node scripts/free.mjs production`. On a GPU host,
 configuration changed: Compose recreates a container whose hash differs from
 its `com.docker.compose.config-hash` label, and a recreated model server loads
 its model again. Installed app-only wrappers keep model containers unchanged.
+The worker sends each extraction call's priority to the servers that
+`KEI_PRIORITY_URLS` names, and a vLLM server started without
+`--scheduling-policy priority` refuses a nonzero one: when that flag is new,
+recreate `nuextract_model`, then `extraction_model`, before the worker, or set
+`KEI_PRIORITY_URLS=` (empty) in `.env` until they are.
 
 For a compatible application rollback, prepare a release branch at the
 known-good commit, drain work, and release it with its matching configuration,
