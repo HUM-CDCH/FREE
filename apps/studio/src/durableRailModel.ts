@@ -116,7 +116,8 @@ const placeholder = (ordinal: number, name: string): RailRow => ({
   link: null, decision: null, chip: null, evidence: null, doubt: null, changed: false, page: null,
 })
 
-export function durableRailModel(page: DurablePage, document: ParsedDocument | null, progress: RunProgress | null = null): RailModel {
+export function durableRailModel(page: DurablePage, document: ParsedDocument | null, progress: RunProgress | null = null,
+  fieldOrder: readonly string[] = []): RailModel {
   const planned = new Map(progress?.records?.map(record => [record.ordinal, record]) ?? [])
   const groups = new Map<string, RailRecord>()
   const documentRows: RailRow[] = []
@@ -134,6 +135,12 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
     record.rows.push(row)
     if (row.kind === 'to-check') record.toCheck++
   }
+  // Saved values arrive in id order: show each record's fields, and the document's, in schema order; a field the
+  // schema does not name keeps its place after them (a stable sort).
+  const rank = (row: RailRow) => { const at = fieldOrder.indexOf(row.name); return at < 0 ? fieldOrder.length : at }
+  const bySchema = (a: RailRow, b: RailRow) => rank(a) - rank(b)
+  documentRows.sort(bySchema)
+  for (const record of groups.values()) record.rows.sort(bySchema)
   const read = new Set([...groups.values()].map(record => record.index))
   const waiting = [...planned.values()].filter(record => !read.has(record.ordinal)).map((record): RailRecord => {
     const reading = progress!.reading.has(record.ordinal)
