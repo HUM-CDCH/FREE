@@ -71,6 +71,46 @@ describe('answerOf', () => {
 })
 
 describe('respondToSchemaEdit', () => {
+  it('keeps scalar note edits in the general route\'s single response and still answers questions', async () => {
+    const fieldDescriptions = [{ path: ['name'], description: 'Copy the complete name.' }]
+    generateTextMock.mockResolvedValueOnce({ text: JSON.stringify({
+      template: { _description: 'One burial.', name: 'string' }, fieldDescriptions,
+    }), finishReason: 'stop' })
+    await expect(respondToSchemaEdit(CALLER, { ...input, edit: true }, { ...question, message: 'Copy the complete name' }, general))
+      .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions })
+    expect(generateTextMock).toHaveBeenCalledOnce()
+    expect(sent(0)).toContain('fieldDescriptions')
+    expect(sent(0)).toContain('array of exact field names')
+
+    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"The name field copies the name."}', finishReason: 'stop' })
+    await expect(respondToSchemaEdit(CALLER, { ...input, edit: true }, question, general))
+      .resolves.toEqual({ answer: 'The name field copies the name.' })
+    expect(generateTextMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps NuExtract selected for scalar note edits, in the same template-generation call', async () => {
+    const fieldDescriptions = [{ path: ['name'], description: 'Copy the complete name.' }]
+    const request = stubNuExtract(JSON.stringify({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions }))
+    await expect(respondToSchemaEdit(CALLER, { ...input, edit: true }, question, nuextractAlone))
+      .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions })
+    expect(generateTextMock).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledOnce()
+    const body = JSON.parse(request.mock.calls[0]![1].body)
+    expect(body.chat_template_kwargs.mode).toBe('template-generation')
+    expect(body.messages[0].content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('fieldDescriptions') })
+    expect(body.messages[0].content[1]).toEqual({ type: 'text', text: input.document.markdown })
+  })
+
+  it('keeps an explicit scalar note clear in NuExtract\'s single response', async () => {
+    const fieldDescriptions = [{ path: ['name'], clear: true }]
+    const request = stubNuExtract(JSON.stringify({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions }))
+    await expect(respondToSchemaEdit(CALLER, { ...input, edit: true }, { ...question, message: 'Clear the name note' }, nuextractAlone))
+      .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions })
+    expect(generateTextMock).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledOnce()
+    expect(JSON.parse(request.mock.calls[0]![1].body).messages[0].content[0].text).toContain('"clear": true')
+  })
+
   it('on a general route one Schema Suggestion request answers a question or returns the schema', async () => {
     generateTextMock.mockResolvedValueOnce({ text: '{"answer":"42 burials."}', finishReason: 'stop' })
     await expect(respondToSchemaEdit(CALLER, input, question, general)).resolves.toEqual({ answer: '42 burials.' })

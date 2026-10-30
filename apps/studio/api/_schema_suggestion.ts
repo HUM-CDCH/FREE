@@ -4,6 +4,7 @@ import { EXCERPT_THRESHOLD, schemaAnswerClause, schemaPrompt, schemaSourceExcerp
 import { ApiError } from './_http.js'
 import { parseTemplate, parseUnknownJson } from './_model_output.js'
 import { traceModelCall } from '../server/tracing.js'
+import { parseSchemaEditOutput, schemaEditPrompt } from './_schema_edit_output.js'
 import {
   executeSchemaSuggestion,
   resolveModelTarget,
@@ -23,6 +24,8 @@ import {
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
+  /** An edit may carry scalar note changes beside its compact template, in the same model reply. */
+  readonly edit?: true
   /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
   readonly window?: boolean
   readonly temperature?: number
@@ -51,6 +54,7 @@ export function generateSchemaWithModel(...call: Parameters<typeof suggestSchema
 
 type SchemaSuggested = {
   readonly template: Record<string, unknown>
+  readonly fieldDescriptions?: unknown
   readonly raw: string
   readonly pages: number | null
   readonly sourceCoverage: SourceCoverage
@@ -75,20 +79,26 @@ async function suggestSchema(
  */
 export async function suggestOrAnswer(
   resolved: ExecutionTarget,
-  { document, instruction, window, temperature, signal }: SchemaModelInput,
+  { document, instruction, edit, window, temperature, signal }: SchemaModelInput,
   chat: SchemaChatMessage | null,
   dependencies: ModelDependencies = {},
 ): Promise<SchemaSuggested | { readonly answer: string }> {
   const answerable = chat !== null && resolved.profile === 'general'
   const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
+  const guidance = edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction)
   const generated = await executeSchemaSuggestion(resolved, {
-    instructions: answerable
+    instructions: edit
+      ? 'Revise the researcher\'s extraction schema' + (answerable ? ' or answer their question' : '') + '. ' +
+        'Return only one JSON object, with no Markdown or commentary. ' +
+        (answerable ? 'For a question, return only {"answer":"<your answer>"}. Otherwise, ' : '') +
+        'return the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
+      : answerable
       ? 'Propose a compact extraction schema grounded in the supplied source document, or answer the researcher\'s question about it. ' +
         'Return only one JSON object, with no Markdown or commentary.'
       : 'Propose a compact extraction schema grounded in the supplied source document. ' +
         'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
-    guidance: answerable ? `${schemaPrompt(instruction)}\n\n${schemaAnswerClause(chat.message)}` : schemaPrompt(instruction),
+    guidance: answerable ? `${guidance}\n\n${schemaAnswerClause(chat.message)}` : guidance,
     documentParts: documentParts.parts,
     temperature,
     signal,
@@ -97,11 +107,12 @@ export async function suggestOrAnswer(
     const answer = await answerOf(generated.response)
     if (answer !== null) return { answer }
   }
-  const parsed = await parseTemplate(generated.response)
+  const output = edit ? await parseSchemaEditOutput(generated.response) : { template: await parseTemplate(generated.response) }
+  const parsed = output.template
   if (typeof parsed._description !== 'string' || parsed._description.trim().length === 0)
     throw new ApiError(502, 'invalid_model_output', 'The generated Extraction Schema has no root record description.')
   return {
-    template: parsed,
+    ...output,
     raw: generated.response,
     pages: documentParts.pages ?? document.pages,
     sourceCoverage: excerpts?.sourceCoverage ?? { complete: true },
