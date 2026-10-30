@@ -679,6 +679,9 @@ queue.
       `unified-prefix:<attempt>:<count>` and shows their candidates;
       verification waits until discovery has ended, so the reasoning model
       reads discovery's windows first.
+    - **Defaults 6 (single pass).** Verification is off, so nothing waits for
+      discovery: an entry's checked values are final once its own entry calls,
+      and any arbitration between disagreeing located values, have returned.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
       `NeedsCall`. The round visits every known entry in start-page priority,

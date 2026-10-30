@@ -86,7 +86,7 @@ fallback.
 2026-10-06. The results rail follows the latest saved results while a run
 reads, instead of staying on the first saved cut; only an explicitly opened
 cut (a finalized review, a saved-correction link, History's "Open") stays put.
-A finished unified Catalog entry retains its verified Evidence links at once.
+A finished unified Catalog entry retains its verified (from defaults 6, code-located) Evidence links at once.
 Article captures independent grounding batches in one planning round and retains
 the union of their available replies when that round yields or finishes; a pause
 or stop leaves the preceding saved cut intact. Pause, Resume, Retry and Stop take the run button's place.

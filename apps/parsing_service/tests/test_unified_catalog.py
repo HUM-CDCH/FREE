@@ -83,7 +83,7 @@ class Model:
                 answer[label] = (self.verdict(path, None, record) if self.verdict else
                                  fields(record, user, {"properties": {path: None}}).get(path))
             return answer
-        if system.startswith("Several verified candidate"):
+        if system.startswith("Several "):  # verified, or with a single pass located, candidates
             return {"choice": self.choice}
         if system.startswith("You extract fields that describe"):
             return (self.document_fields or title)(section(user, "SOURCE"))

@@ -242,8 +242,16 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   values anchoring its answer, and returns each complete value with a source quote;
   code checks the field type and the quoted record text before acceptance. List
   identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
-  corrected passages. Earlier admissions retain their pinned defaults and prompts.
-  New admissions use the latest version only where Studio's
+  corrected passages. Defaults 6 drops that compulsory verification: the entry call
+  is shown the requested value structure, code checks each value once (type, quoted
+  record text, table row, list item occurrence) and links a located value `lexical`,
+  never as verified; a value whose quote is missing or found nowhere stays a proposal
+  without Evidence, one printed neither in its located quote nor in source text
+  enclosing that quote stays rejected. Located
+  values that disagree still go to arbitration; `verification: true` adds verdicts on
+  the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
+  New admissions use Studio's `UNIFIED_CATALOG_DEFAULTS_VERSION` (5; version 6 is chosen
+  explicitly) only where Studio's
   `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 

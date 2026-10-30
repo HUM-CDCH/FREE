@@ -468,7 +468,9 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
           <p className="text-[11px] text-ink-faint">One method for every new single and batch Catalog Extraction.</p>
           <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
           {page.path === 'catalog.unified.verification' && !(shown.verification ?? defaults.verification) &&
-            <p className="text-[11px] text-ink-muted">Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.</p>}
+            <p className="text-[11px] text-ink-muted">{'single_pass' in defaults
+              ? 'Off reads each value once: a value code locates in its own entry is linked by rule, unverified; one without a locatable quote stays for review without Evidence.'
+              : 'Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.'}</p>}
         </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
