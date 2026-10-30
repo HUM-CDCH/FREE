@@ -61,10 +61,9 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 7  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 6  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6 (defaults 5): verification may correct a scalar, with its complete source quote.
-# 7 (defaults 6): verification re-reads a printed text scalar as its exact value alone, which is its quote.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -108,10 +107,6 @@ NEAR = 40
 # record whose reply passed the 4096-token reserve was read again in halves, and an item at their cut was lost.
 # 5: discovery uses the token budget across page breaks; the same verification call may correct scalar candidates
 # with source-grounded values. Its reply reserve is 4096 to hold complete passages; list identities stay unchanged.
-# 6: version 5, but a printed text field is re-read as its exact value alone, checked as its own quote, so its text
-# is generated once instead of twice; other scalars keep value and quote. Measured on one excavation report (30
-# October 2026, Qwen3.8-27B, version 5's 7 graves): version 5's verification replies were 4.4 times version 4's
-# output tokens and doubled the run's wall clock.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
@@ -123,14 +118,13 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
             5: {"reserves": {**_RESERVES, "verification": 4096}, "overlap": 3, "headings": True,
                 "verification": True, "splits": 6, "windows": "budget", "pipelined": True,
                 "entry_reply": "context", "corrections": True}}
-DEFAULTS[6] = {**DEFAULTS[5], "corrections": "value"}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6]
+    defaults: Literal[1, 2, 3, 4, 5]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -239,7 +233,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": {5: 6, 6: PROMPT_VERSION}.get(options.defaults, 5),
+            "models": chat.models, "prompt_version": PROMPT_VERSION if options.defaults >= 5 else 5,
             "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -337,8 +331,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
 
     def read(entries: list[dict]) -> list:
         """Every entry's work, nearest the start page first; the first failure in entry order is raised, and an entry
-        never read is None. Durable planning reads them in turn until `chunks` entries wait on a call (`NeedsCall`, or
-        `Boundary` when no call may start): an entry whose calls are all answered lets the next one in. A run that is
+        never read is None. Durable planning reads every entry in turn: one that waits on a call (`NeedsCall`, or
+        `Boundary` when no call may start) lets the next one in, and the workflow runs `chunks` calls of each role at
+        once (durable_extract), so an entry waiting on its verification holds no entry back. A run that is
         not durable reads `chunks` entries at once, and its first failure stops the rest. Until discovery is complete,
         verification waits, so that the reasoning model reads discovery's windows; candidates are shown meanwhile."""
         def one(number: int) -> _Work:
@@ -368,8 +363,6 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                     works[number] = one(number)
                 except (NeedsCall, Boundary) as waiting:  # the entries after it are still compiled
                     raised[number] = waiting
-                    if len(raised) == max(1, chunks):
-                        break
                 except BaseException as error:  # noqa: BLE001 - raised below, the first in entry order
                     raised[number] = error
                     break
@@ -431,10 +424,10 @@ class _Found:
     repaired: bool = False            # its quote or value is the source's text a model copied nearly verbatim
 
 
-def _leaf(node: Node, quoted: bool = True) -> dict:
+def _leaf(node: Node) -> dict:
     return {"type": ["object", "null"], "properties": {
-        "value": json_schema([node])["properties"][node.name], **({"quote": {"type": "string"}} if quoted else {})},
-        "required": ["value", "quote"] if quoted else ["value"], "additionalProperties": False}
+        "value": json_schema([node])["properties"][node.name], "quote": {"type": "string"}},
+        "required": ["value", "quote"], "additionalProperties": False}
 
 
 def candidates_schema(nodes: list[Node]) -> dict:
@@ -680,14 +673,6 @@ VERIFY_COMPLETE = (
     "and exclude other fields. Do not summarize or invent. Return null if the record supplies no value. "
     "For list-item fields, return supported, unsupported, or unclear without changing the item identity. "
     "Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
-VERIFY_VALUE = (
-    "You check values extracted from one source record. A record is: {description}\n{notes}"
-    "For each scalar field, read the source afresh and return the final complete value. A text field returns only "
-    "\"value\": its exact source text, copied character for character, which is also its quote. Any other scalar "
-    "field returns \"value\" and an exact \"quote\" containing that entire value. Include the whole descriptive "
-    "passage across paragraphs or pages, and exclude other fields. Do not summarize or invent. Return null if the "
-    "record supplies no value. For list-item fields, return supported, unsupported, or unclear without changing the "
-    "item identity. Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
@@ -867,9 +852,7 @@ class _Run:
                     nodes[key] = node
         if self.effective.get("corrections") and self.effective["verification"]:
             scalars(self.nodes)
-        own = {key for key, node in nodes.items() if self.effective.get("corrections") == "value"
-               and node.type in ("string", "verbatim-string") and node.allowed_values is None}  # value is its quote
-        system = (VERIFY_VALUE if own else VERIFY_COMPLETE if nodes else VERIFY).format(
+        system = (VERIFY_COMPLETE if nodes else VERIFY).format(
             description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
@@ -886,7 +869,7 @@ class _Run:
                     for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
                 verdict = {"type": "string", "enum": list(VERDICTS)}
                 schema = {"type": "object", "properties": {
-                    label: _leaf(nodes[found.path], found.path not in own) if found.path in nodes else verdict
+                    label: _leaf(nodes[found.path]) if found.path in nodes else verdict
                     for label, found in zip(labels, group, strict=True)},
                           "required": labels, "additionalProperties": False}
                 answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
@@ -898,8 +881,6 @@ class _Run:
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
-                        if found.path in own and isinstance(value, dict) and "value" in value:
-                            value = {"value": value.get("value"), "quote": value.get("value")}
                         # The checker sees only this request's record text, never context or unseen windows.
                         view = _view([*window.before, *window.primary, *window.after], self.texts)
                         checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
