@@ -4,7 +4,7 @@ import { ExtractionError } from 'extraction'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { z } from 'zod'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import { documentHistoryResponseSchema } from '../shared/documentHistory.contract.js'
+import { documentHistoryResponseSchema, valueHistoryResponseSchema } from '../shared/documentHistory.contract.js'
 import { ApiError, json, noStore, noStoreError, parseJsonRequest, persistenceUnavailable } from './_http.js'
 import { requestDurableReconciliation } from '../server/durable-extraction-workflow.js'
 import { studioDbos } from '../server/dbos.js'
@@ -56,10 +56,12 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
       const feedback=/^\/api\/project-contexts\/([0-9a-f-]+)\/feedback$/.exec(url.pathname)
       if(feedback && request.method==='POST') return json(await setFeedbackIncluded(store.researcherAccountId,z.uuid().parse(feedback[1]),z.object({id:z.uuid(),expectedRevision:z.number().int().positive(),included:z.boolean()}).strict().parse(await parseJsonRequest(request))),{headers:noStore})
       if(feedback && request.method==='GET') return json(await repository.feedback(z.uuid().parse(feedback[1]),url.searchParams.has('target')?z.uuid().parse(url.searchParams.get('target')):undefined,url.searchParams.has('selection')?z.uuid().parse(url.searchParams.get('selection')):undefined),{headers:noStore})
-      const documentHistory=/^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)\/history$/.exec(url.pathname)
+      const documentHistory=/^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)\/history(\/value)?$/.exec(url.pathname)
       if(documentHistory && request.method==='GET') {
         const [projectId,sourceDocumentId]=[documentHistory[1],documentHistory[2]].map(id=>canonicalUuidSchema.parse(id))
-        return json(documentHistoryResponseSchema.parse(await repository.documentHistory(projectId!,sourceDocumentId!)),{headers:noStore})
+        if(!documentHistory[3]) return json(documentHistoryResponseSchema.parse(await repository.documentHistory(projectId!,sourceDocumentId!)),{headers:noStore})
+        const extractionId=canonicalUuidSchema.parse(url.searchParams.get('extractionId')), valueId=z.string().min(1).max(512).parse(url.searchParams.get('valueId'))
+        return json(valueHistoryResponseSchema.parse(await repository.valueHistory(projectId!,sourceDocumentId!,extractionId,valueId)),{headers:noStore})
       }
       const match=/^\/api\/extractions\/([0-9a-f-]+)\/durable(?:\/(control|selection|adopt|values|history|finalize|source))?(?:\/([^/]+))?$/.exec(url.pathname)
       if(!match) throw new ApiError(404,'not_found','API route not found.')

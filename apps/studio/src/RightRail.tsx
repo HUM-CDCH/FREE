@@ -58,6 +58,7 @@ type RightRailProps = {
   documentHistory?: (visible: boolean) => ReactNode
   /** Set while Results shows an Extraction that is not the document's latest: opens the latest. */
   onOpenLatest?: (() => void) | null
+  onValueHistory?: (extractionId: string, valueId: string, name: string) => void
   onSelectEvidence: (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => void
   /** The workspace's channel: requests to select a value come in; Results' marks and dimming go out. */
   selection: SelectionChannel
@@ -110,6 +111,7 @@ function RightRail({
   resultsHeaderExtras,
   documentHistory,
   onOpenLatest = null,
+  onValueHistory,
   onSelectEvidence,
   selection,
   onPinnedDocument,
@@ -295,6 +297,7 @@ function RightRail({
           selection={selection}
           headerExtras={resultsHeaderExtras}
           onOpenLatest={onOpenLatest}
+          onValueHistory={onValueHistory}
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}

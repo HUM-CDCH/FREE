@@ -540,6 +540,25 @@ it('says when the shown Extraction is not the document\'s latest, and opens the 
   expect(screen.queryByRole('button',{name:'Open latest'})).not.toBeInTheDocument()
 })
 
+it('opens an open value\'s history from its review, read-only too, and offers none without one',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'one',schemaRevisionId:'schema-one',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,finalization:null,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},
+    status:'COMPLETED',values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,
+    snapshotVersion:1,selection:{id:'one',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page)
+  vi.mocked(readValues).mockResolvedValue(page)
+  const onValueHistory=vi.fn()
+  const attempt={extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt
+  const view=render(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly onValueHistory={onValueHistory}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
+  fireEvent.click(screen.getByRole('button',{name:'History of this value'}))
+  expect(onValueHistory).toHaveBeenCalledExactlyOnceWith('extraction','value','title')
+  view.rerender(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
+  expect(screen.queryByRole('button',{name:'History of this value'})).not.toBeInTheDocument()
+})
+
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
   const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema-one',
     node:{id:'title',name:'title',type:'string'},modelValue:'Original title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}

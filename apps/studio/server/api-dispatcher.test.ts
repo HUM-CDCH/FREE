@@ -76,6 +76,10 @@ describe('eager API dispatcher', () => {
         'durable_extractions',
       ],
       [
+        '/api/project-contexts/project/source-documents/document/history/value',
+        'durable_extractions',
+      ],
+      [
         '/api/project-contexts/project/source-ingestions',
         'source_ingestions',
       ],
