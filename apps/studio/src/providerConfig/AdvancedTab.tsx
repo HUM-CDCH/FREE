@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
-  CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
-  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
+  canonicalUnified, CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
+  UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
@@ -30,7 +30,7 @@ type Props = {
   unifiedCatalog?: boolean
   /** A pending input editor changes only the current Extraction's strategy. */
   extractionStrategy?: AdvancedStrategy
-  /** The unified defaults version shown: an Extraction's own, else the latest that new Extractions use. */
+  /** An Extraction's own unified defaults version; absent, the account's, where verification on is Pro mode. */
   unifiedDefaults?: UnifiedCatalogSettings['defaults']
 }
 
@@ -64,7 +64,7 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
 export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy,
-  unifiedDefaults = UNIFIED_CATALOG_DEFAULTS_VERSION }: Props) {
+  unifiedDefaults }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -154,7 +154,8 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
         {strategy === 'article'
           ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
           : unifiedView
-            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} unifiedDefaults={unifiedDefaults} />
+            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue}
+                unifiedDefaults={unifiedDefaults ?? UNIFIED_CATALOG_DEFAULTS_VERSION} pinned={unifiedDefaults !== undefined} />
             : <CatalogSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />}
       </section>
     </GuideProvider>
@@ -412,13 +413,15 @@ function retiredCatalog(catalog: CatalogSettings | undefined): string[] {
 
 /** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
  *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
-function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
-  & { unifiedDefaults: UnifiedCatalogSettings['defaults'] }) {
+function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults, pinned }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
+  & { unifiedDefaults: UnifiedCatalogSettings['defaults']; pinned: boolean }) {
   const catalog = draft.extractionSettings.catalog
   const unified = catalog?.unified
   const custom = unified !== undefined
   const shown = unified ?? {}
-  const defaults = UNIFIED_CATALOG_DEFAULTS[unifiedDefaults]
+  const method = canonicalUnified(pinned ? { ...shown, defaults: unifiedDefaults } : shown)
+  // The version admitted, Pro mode's included, so placeholders and reply reserves are that version's.
+  const defaults = UNIFIED_CATALOG_DEFAULTS[method.defaults]
   const retired = retiredCatalog(catalog)
   const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
   const number = (key: 'input_tokens' | 'output_tokens' | 'overlap', unit: string, hint: string, placeholder: string) => {
@@ -426,15 +429,16 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
     return <NumberField path={path} label={UNIFIED_LABELS[key]} hint={hint} unit={unit} value={shown[key]} placeholder={placeholder}
       edit={editor.numberEdits[path]} disabled={!custom} error={issueAt(path)} onText={editor.setNumber} />
   }
+  // The account's verification switch is Pro mode: on, new Extractions run the version that reads every value twice.
+  const label = (key: keyof typeof UNIFIED_LABELS) => key === 'verification' && !pinned ? 'Pro mode' : UNIFIED_LABELS[key]
   const toggle = (key: 'headings' | 'verification') => (
     <label className="flex items-center gap-2 text-[12px] text-ink">
       <input type="checkbox" role="switch" aria-checked={shown[key] ?? defaults[key]} checked={shown[key] ?? defaults[key]}
         data-setting={`catalog.unified.${key}`} onChange={(event) => editor.setUnified(key, event.target.checked)} />
-      {UNIFIED_LABELS[key]}
+      {label(key)}
     </label>
   )
   const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
-  const method = { defaults: unifiedDefaults, ...shown }
   const changed = JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null)
   // One control per view, as for the other strategies: the dialog fits the viewport without an inner scroll area.
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
@@ -444,7 +448,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
     ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
     ['headings', toggle('headings')],
     ['verification', toggle('verification')],
-  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${UNIFIED_LABELS[key]}`, control }))
+  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${label(key)}`, control }))
   return (
     <>
       <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${unifiedDefaults}`}</p>
@@ -467,10 +471,11 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
           </div>
           <p className="text-[11px] text-ink-faint">One method for every new single and batch Catalog Extraction.</p>
           <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
-          {page.path === 'catalog.unified.verification' && !(shown.verification ?? defaults.verification) &&
-            <p className="text-[11px] text-ink-muted">{'single_pass' in defaults
+          {page.path === 'catalog.unified.verification' && (!pinned && method.defaults === UNIFIED_CATALOG_PRO_VERSION
+            ? <p className="text-[11px] text-ink-muted">{`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}: a second call reads every value again and may correct it, completing long passages; about twice the calls and time.`}</p>
+            : !(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">{'single_pass' in defaults
               ? 'Off reads each value once: a value code locates in its own entry is linked by rule, unverified; one without a locatable quote stays for review without Evidence.'
-              : 'Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.'}</p>}
+              : 'Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.'}</p>)}
         </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>

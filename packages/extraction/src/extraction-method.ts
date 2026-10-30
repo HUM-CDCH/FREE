@@ -117,7 +117,10 @@ export const UNIFIED_CATALOG_DEFAULTS = {
   6: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
     single_pass: true },
 } as const
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 5 as const
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 6 as const
+/** Pro mode: an account preference with verification on is admitted under this version, whose verification call reads
+ *  every value again and may correct it; the latest reads each value once. */
+export const UNIFIED_CATALOG_PRO_VERSION = 5 as const
 
 /** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
@@ -242,9 +245,13 @@ function canonicalRecipe(recipe: RecipeCatalogSettings | null | undefined): Reci
 }
 
 /** The unified method as admitted, compared and sent: the defaults version and the set overrides, in option order. A
- *  method that names its version keeps it; an account preference takes the latest. */
-function canonicalUnified(preference: UnifiedCatalogPreference | UnifiedCatalogSettings | null | undefined): UnifiedCatalogSettings {
-  return present<UnifiedCatalogSettings>({ defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference }, UNIFIED_KEYS)!
+ *  method that names its version keeps it; an account preference takes the latest, or with verification on (Pro mode)
+ *  `UNIFIED_CATALOG_PRO_VERSION`, whose own default it is. */
+export function canonicalUnified(preference: UnifiedCatalogPreference | UnifiedCatalogSettings | null | undefined): UnifiedCatalogSettings {
+  // Verification stays explicit, so admission still refuses Pro mode where the fields model cannot verify.
+  const pro = preference?.verification === true && (preference as Partial<UnifiedCatalogSettings> | null | undefined)?.defaults === undefined
+  return present<UnifiedCatalogSettings>({ defaults: pro ? UNIFIED_CATALOG_PRO_VERSION : UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference },
+    UNIFIED_KEYS)!
 }
 
 /** Saved settings as stored: an explicit Article in full, Catalog members only when they carry a value. */
