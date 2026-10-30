@@ -9,6 +9,7 @@ import {
   type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
+import { gliformerIssues } from './gliformer-compatibility.js'
 import { parseSchemaDefinition } from './schema.js'
 
 const FIXTURES = new URL('../../../apps/parsing_service/tests/fixtures/contracts/', import.meta.url)
@@ -270,8 +271,10 @@ test('legacy Catalog preferences refuse new unified Catalog admission until migr
   const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
   assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG', null, true).settings, { unified: { defaults: 6, overlap: 2 } })
   // Pro mode: the account's verification on admits the version whose verification call reads every value again.
-  assert.deepEqual(accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG', null, true).settings,
-    { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0 } })
+  const pro = accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG', null, true).settings
+  assert.deepEqual(pro, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
+  // A native fields model cannot verify, so its admission still refuses Pro mode.
+  assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: pro }, []).includes('verification must be Auto or off'))
   assert.deepEqual(accountMethod(account({ unified: { verification: false } }), 'CATALOG', null, true).settings,
     { unified: { defaults: 6, verification: false } })
   // A method that names its version keeps its own verification.

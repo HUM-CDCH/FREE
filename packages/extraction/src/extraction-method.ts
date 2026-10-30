@@ -248,10 +248,10 @@ function canonicalRecipe(recipe: RecipeCatalogSettings | null | undefined): Reci
  *  method that names its version keeps it; an account preference takes the latest, or with verification on (Pro mode)
  *  `UNIFIED_CATALOG_PRO_VERSION`, whose own default it is. */
 export function canonicalUnified(preference: UnifiedCatalogPreference | UnifiedCatalogSettings | null | undefined): UnifiedCatalogSettings {
-  const { verification, ...rest } = preference ?? {}
-  const pro = verification === true && (preference as Partial<UnifiedCatalogSettings> | null | undefined)?.defaults === undefined
-  return present<UnifiedCatalogSettings>(pro ? { defaults: UNIFIED_CATALOG_PRO_VERSION, ...rest }
-    : { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference }, UNIFIED_KEYS)!
+  // Verification stays explicit, so admission still refuses Pro mode where the fields model cannot verify.
+  const pro = preference?.verification === true && (preference as Partial<UnifiedCatalogSettings> | null | undefined)?.defaults === undefined
+  return present<UnifiedCatalogSettings>({ defaults: pro ? UNIFIED_CATALOG_PRO_VERSION : UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference },
+    UNIFIED_KEYS)!
 }
 
 /** Saved settings as stored: an explicit Article in full, Catalog members only when they carry a value. */

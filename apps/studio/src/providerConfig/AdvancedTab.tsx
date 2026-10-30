@@ -419,7 +419,9 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
   const unified = catalog?.unified
   const custom = unified !== undefined
   const shown = unified ?? {}
-  const defaults = UNIFIED_CATALOG_DEFAULTS[unifiedDefaults]
+  const method = canonicalUnified(pinned ? { ...shown, defaults: unifiedDefaults } : shown)
+  // The version admitted, Pro mode's included, so placeholders and reply reserves are that version's.
+  const defaults = UNIFIED_CATALOG_DEFAULTS[method.defaults]
   const retired = retiredCatalog(catalog)
   const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
   const number = (key: 'input_tokens' | 'output_tokens' | 'overlap', unit: string, hint: string, placeholder: string) => {
@@ -437,7 +439,6 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
     </label>
   )
   const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
-  const method = canonicalUnified(pinned ? { ...shown, defaults: unifiedDefaults } : shown)
   const changed = JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null)
   // One control per view, as for the other strategies: the dialog fits the viewport without an inner scroll area.
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
