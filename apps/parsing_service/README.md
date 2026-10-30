@@ -246,7 +246,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   is shown the requested value structure, code checks each value once (type, quoted
   record text, table row, list item occurrence) and links a located value `lexical`,
   never as verified; a value whose quote is missing or found nowhere stays a proposal
-  without Evidence, one whose located quote does not print it stays rejected. Located
+  without Evidence, one printed neither in its located quote nor in source text
+  enclosing that quote stays rejected. Located
   values that disagree still go to arbitration; `verification: true` adds verdicts on
   the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
   New admissions use the latest version only where Studio's

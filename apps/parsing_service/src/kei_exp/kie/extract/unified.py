@@ -118,8 +118,8 @@ NEAR = 40
 # requested value structure; code grounds each candidate, and verification is off, so no call reads the scalars
 # again. A located candidate is accepted with code's link (`linked_by` lexical), never called verified; one whose
 # quote is missing or found nowhere stays in the record, a proposal without Evidence, as does a value of a field whose
-# evidence policy is not `quoted`; a located quote that does not print its value still rejects it. Arbitration of
-# disagreeing located scalars is kept.
+# evidence policy is not `quoted`; a value printed neither in its located quote nor in source text enclosing it is
+# still rejected. Arbitration of disagreeing located scalars is kept.
 # Switching verification on judges the fixed candidates (`VERIFY`); nothing re-extracts them.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
