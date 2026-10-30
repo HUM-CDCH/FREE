@@ -222,7 +222,7 @@ it('shows requested and effective methods with their producing selections, and n
   vi.mocked(readDurableHistory).mockResolvedValue(history as never)
   vi.mocked(durableRequest).mockResolvedValue([])
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   expect(await screen.findByText(/model served-second · schema changed/)).toBeVisible()
   expect(screen.getByText(/model not recorded yet · schema changed/)).toBeVisible()
   expect(screen.getByRole('region',{name:'Inputs'})).not.toHaveTextContent(/schema-|resolved-/)
@@ -447,6 +447,32 @@ it('defers native Evidence navigation until its pinned source arrives and follow
   expect(replacement).not.toHaveBeenCalled()
 })
 
+it('names an older snapshot in the status line and marks only the shown cut in History',async()=>{
+  const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'one',schemaRevisionId:'schema-one',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page=(snapshotVersion:number,feedbackVersion:number,finalization:{id:string}|null=null)=>({snapshotVersion,feedbackVersion,finalization,
+    reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},status:'COMPLETED',values:[base],total:1,next:null,coverage:{}}) as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,
+    snapshotVersion:2,selection:{id:'one',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page:page(2,3)} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],snapshots:[{id:'one',version:1,valueCount:1},{id:'two',version:2,valueCount:1}],
+    finalizations:[{id:'final',snapshotVersion:1,feedbackVersion:1,createdAt:'2026-10-05T00:00:00.000Z'}]} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page(2,3))
+  vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?page(1,Number(query.feedbackVersion??3),query.feedbackVersion===1?{id:'final'}:null):page(2,3))
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
+  openDetails(await screen.findByText('This extraction'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
+  expect((await screen.findAllByText(/· Results 1 of 2$/))[0]).toBeVisible()
+  const intermediate=()=>screen.getByRole('button',{name:'Open results 1'}).closest('li')!
+  await waitFor(()=>expect(intermediate()).toHaveAttribute('aria-current','true'))
+  expect(intermediate()).toHaveTextContent('· shown')
+  expect(screen.getByLabelText('Finalized reviews')).not.toHaveTextContent('· shown')
+  fireEvent.click(screen.getByRole('button',{name:'Open finalized review of results 1'}))
+  await waitFor(()=>expect(screen.getByLabelText('Finalized reviews')).toHaveTextContent('· shown'))
+  expect(screen.getByLabelText('Finalized reviews').querySelector('[aria-current]')).not.toBeNull()
+  expect(intermediate()).not.toHaveAttribute('aria-current')
+})
+
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
   const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema-one',
     node:{id:'title',name:'title',type:'string'},modelValue:'Original title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
@@ -459,7 +485,7 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?oldPage:newPage)
   const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   await screen.findByText('Original title')
   fireEvent.click(screen.getByRole('button',{name:/To check title/}))
@@ -555,7 +581,7 @@ it.skip('keeps the producing call guidance and budget omissions inspectable afte
     request:{examples:[{id:'consumed',value:'Captured example'}],omissions:[{id:'oversized',reason:'budget'}],budget:{counted:200,context:256,reserve:56}},
   }]} as never)
   const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   openDetails(await screen.findByText('Technical details (for audit)'))
   const call=(await screen.findByText('Call · article · input selection 1 · decisions 1')).closest('details')!
   call.open=true;fireEvent(call,new Event('toggle'))
@@ -624,7 +650,7 @@ it('keeps the last explicitly selected snapshot when an older selection finishes
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?new Promise(resolve=>{finishOld=resolve}):latest)
   render(<Results attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
     currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   fireEvent.click(screen.getByRole('button',{name:'Open results 2'}))
   await act(async()=>finishOld({...latest,snapshotVersion:1,values:[{...latest.values[0],modelValue:'Old version'}]}))
@@ -876,7 +902,7 @@ it('keeps a cut the researcher opens while the review is being saved',async()=> 
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}
     onReviewFinalized={onReviewFinalized} historySlot={historySlot()} historyShown/>)
   fireEvent.click(await screen.findByRole('button',{name:'Save review'}))
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
   const reads=vi.mocked(readDurable).mock.calls.length

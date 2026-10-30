@@ -20,10 +20,9 @@ function shown({ids=['old'],revisionId='old',status='COMPLETED',readOnly=false,c
   return <ResultSchemaNotice page={page} state={state} current={current} controlled={controlled} readOnly={readOnly}/>
 }
 
-it('quietly names a matching producing revision',()=>{
-  render(shown({ids:['current'],head:'current'}))
-  expect(screen.getByText('Made with schema revision 14 (Catalog).')).toBeVisible()
-  expect(screen.queryByText(/The current schema/)).not.toBeInTheDocument()
+it('leaves a matching producing revision to the status line',()=>{
+  const {container}=render(shown({ids:['current'],head:'current'}))
+  expect(container).toBeEmptyDOMElement()
 })
 it('keeps an empty historical snapshot tied to its own selection',()=>{
   render(shown({ids:[],head:'current'}))
