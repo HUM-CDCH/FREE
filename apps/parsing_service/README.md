@@ -189,8 +189,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   retained there, never published beside the run or served by this API. A
   request may name `start_page`, the page the researcher is reading: the unified
   Catalog reads the records nearest it first and Article its bounded value
-  contexts, the admitted source range unchanged. Changing the schema reruns
-  Extraction without rerunning OCR.
+  contexts, the admitted source range unchanged. Each call also asks its model
+  server (when `KEI_PRIORITY_URLS` names it) with a vLLM priority: its page's
+  distance from `start_page` in steps of 8 pages, 0 to 3; a call that reads no
+  one page (discovery, the document's root) 0, and every call of a run without
+  `start_page` (a batch member) 3. Changing the schema reruns Extraction
+  without rerunning OCR.
 - Extraction calls take one of two roles. `fields` reads values off the source
   (document, record and grounded entry calls); `reasoning` decides over labelled
   text (discovery, grounding, arbitration). `GET /api/extraction-models` lists

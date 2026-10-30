@@ -174,3 +174,33 @@ def test_planned_catalog_calls_start_nearest_the_requested_page(monkeypatch, tmp
     assert run_loop(monkeypatch, scheduled, chunks=2) == {'status': 'ACK'}
     assert [record(capture) for capture in first_batch] == expected[:2]
     assert scheduled.peak == {'fields': 2}
+
+
+def test_planned_catalog_calls_carry_their_entrys_distance_from_the_start_page_as_priority(monkeypatch, tmp_path):
+    from tests.test_durable_entry_reuse import answer
+
+    document = evidence(*(f'{n}. Site{n}. Material: m{n}.' for n in range(1, 21)))
+    selected = request(defaults=5, start_page=20)
+    lease = MemoryLease(selected.schema_.model_dump(by_alias=True, exclude_none=True))
+    lease.state['intent'], lease.state['source']['runId'] = 'RUN', document.run_id
+    lease.state['effective']['options'] = {'start_page': 20}  # as `worker.effective` pins it
+    chat = CountingChat(Model(document))
+    monkeypatch.setattr(worker, 'Lease', lambda *_: nullcontext(lease))
+    monkeypatch.setattr(worker, 'coordinator', lambda: None)
+    monkeypatch.setattr(worker, 'effective', lambda _: (selected, Router(chat, chat)))
+    monkeypatch.setattr(worker.runs, 'directory_of', lambda _: tmp_path)
+    monkeypatch.setattr(worker, 'load', lambda _: document)
+    monkeypatch.setattr(unified, 'counters_for', lambda _: {role: Counter() for role in ('fields', 'reasoning')})
+    monkeypatch.setattr(worker, 'show', lambda *_: None)
+    plan = unwrap(worker.plan_next)
+    pending = plan('distance', 'attempt')
+    assert set(pending['priorities'].values()) == {0}  # discovery reads no one page
+    while all(role == 'reasoning' for role in pending['roles'].values()):
+        for capture in pending['pending']:
+            answer(lease, chat, capture, Counter())
+        pending = plan('distance', 'attempt')
+    units = {unit['id']: unit for unit in lease.units.values()}
+    page = {capture: units[capture]['input']['request']['body']['record'] + 1 for capture in pending['pending']}
+    assert sorted(page.values()) == list(range(1, 21))
+    assert {capture: pending['priorities'][capture] for capture in page} == {
+        capture: (20 - page[capture]) // 8 for capture in page}  # pages 1-4 at 2, 5-12 at 1, 13-20 at 0

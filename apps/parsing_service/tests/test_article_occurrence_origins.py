@@ -114,6 +114,29 @@ def test_normalized_reading_positions_survive_null_items_and_later_page_first(mo
         ("records", 0, "fees", 0): "p1_s0", ("records", 0, "fees", 1): "p2_s0"}
 
 
+@pytest.mark.parametrize("start_page,read_for", [(3, [3, 1, 9]), (None, [None, None, None])])
+def test_each_value_context_is_read_for_its_page_nearest_the_start_page(monkeypatch, start_page, read_for):
+    source = replace(evidence(passages(["Fee 10."]) + passages(["Fee 10."], page=2) + passages(["Fee 10."], page=3)
+                              + passages(["Fee 10."], page=9)), page_count=9)
+    first, second, third, ninth = source.passages
+    contexts = [Context((first,)), Context((second, third)), Context((ninth,))]
+    monkeypatch.setattr(article, "source_contexts", lambda *_: contexts)
+    monkeypatch.setattr(article, "partition", lambda *_args, **_kwargs: contexts)
+    request = run.ExtractRequest(schema={"recordDescription": "One document of charges.", "recordScope": "document",
+        "schemaNodes": [{"id": "fees", "name": "fees", "type": "array", "itemType": "integer"}]},
+        options={"strategy": "article", "article": {"context": "bounded"}, "start_page": start_page})
+    pages, extract_record = [], article.extract_record
+
+    def recorded(*args, page=None, **kwargs):
+        pages.append(page)
+        return extract_record(*args, page=page, **kwargs)
+    monkeypatch.setattr(article, "extract_record", recorded)
+    chat = CountingChat(occurrence_reply)
+    run.dispatch(None, source, request, Router(chat, chat),
+        counter={role: WordCounter() for role in ("fields", "reasoning")})
+    assert pages == read_for  # in the order the contexts are read: nearest the start page first
+
+
 def test_an_unsupported_origin_still_searches_other_contexts(monkeypatch):
     source, request = occurrence_input(monkeypatch, "spans")
     checked = []

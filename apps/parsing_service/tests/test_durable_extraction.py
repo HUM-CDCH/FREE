@@ -47,7 +47,8 @@ class MemoryLease:
         self.state = {"selection":{"id":str(uuid4()),"schemaRevisionId":str(uuid4()),"schemaTree":tree},
                       "generation": 1,
                       "source":{"generation":"g1","sourceRevisionId":str(uuid4())},
-                      "effective":{"models":{role:{"model":"fake/extractor"} for role in ("fields","reasoning")}}}
+                      "effective":{"models":{role:{"model":"fake/extractor"} for role in ("fields","reasoning")},
+                                    "options":{}}}
         self.units, self.plans, self.publications = {}, {}, {}
         self.candidates, self.historical, self.intent = [], {}, "RUN"
 
@@ -558,13 +559,51 @@ def test_format_fallback_is_a_separate_capture_with_the_original_input():
     parent["checkpoint"]={"outputDigest":"refusal","output":{"formatRefused":True,"parsed":None,
       "calls":[asdict(calls.Call("record",0,None,None,0.0,None,False,"format refused",recovered=True))]}}
     lease.candidates=[{"id":"new correction that must not recompose the fallback"}]
+    lease.state["effective"]["options"]={"start_page":1}
+    planner=CapturePlanner(lease,{"fields":Counter()})
     with pytest.raises(NeedsCall):
-        CapturePlanner(lease,{"fields":Counter()}).complete(chat,**args)
+        planner.complete(chat,**args,page=20)
     fallback=list(lease.units.values())[1]
     before=deepcopy(parent["input"]["request"])
     before["body"]["httpRequest"].pop("response_format")
     assert fallback["input"]["request"]==before
     assert fallback["descriptor"]["derivedFrom"]==parent["id"]
+    assert planner.priorities=={fallback["id"]:2}  # the parent's page, 19 pages from the start
+
+
+@pytest.mark.parametrize("start,page,priority", [(None, 5, 3), (None, None, 3), (10, None, 0), (10, 10, 0),
+                                                 (10, 17, 0), (10, 2, 1), (10, 33, 2), (10, 34, 3), (10, 300, 3)])
+def test_a_calls_priority_is_its_pages_distance_from_the_start_page_and_never_changes_what_it_saves(start, page,
+                                                                                                    priority):
+    from kei_exp.kie.extract.llm import OpenAIChat
+    def planned(options, **where):
+        lease=MemoryLease({"recordDescription":"document","schemaNodes":[]})
+        lease.state["selection"]["id"],lease.state["effective"]["options"]="one selection",options
+        planner=CapturePlanner(lease,{"fields":Counter()})
+        with pytest.raises(NeedsCall):
+            planner.complete(OpenAIChat(model="fake/extractor",max_tokens=10),stage="record",record=0,
+                             system="fixed instructions",user="fixed source",schema={"type":"object"},**where)
+        (unit,)=lease.units.items()
+        return planner.priorities[unit[1]["id"]],(unit[0],unit[1]["descriptor"],unit[1]["input"])
+    found,saved=planned({} if start is None else {"start_page":start},page=page)
+    assert found==priority
+    assert saved==planned({})[1]  # the same capture key, descriptor and finalized input as a call with no page
+
+
+def test_an_article_record_call_is_planned_with_the_page_it_is_read_for():
+    from kei_exp.kie.extract.llm import OpenAIChat
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import extract_record
+    tree={"recordDescription":"An article","recordScope":"document",
+          "schemaNodes":[{"id":"year","name":"year","type":"integer"}]}
+    lease=MemoryLease(tree)
+    lease.state["effective"]["options"]={"start_page":1}
+    planner=CapturePlanner(lease,{"fields":Counter()})
+    chat=OpenAIChat(model="fake/extractor")
+    with pytest.raises(NeedsCall):
+        extract_record(passages(["Published in 2020."]),Schema.model_validate(tree),Router(chat,chat,planner),
+                       budget=48000,record=0,counter=Counter(),document=True,page=12)
+    assert list(planner.priorities.values())==[1]
 
 
 @pytest.mark.parametrize("recovery_ok", [True, False])

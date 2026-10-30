@@ -154,6 +154,40 @@ def test_article_resolution_transport_failures_are_saved_before_fallback(monkeyp
         assert "do-not-log-provider-details" not in json.dumps(committed)
 
 
+@pytest.mark.parametrize("scheduled", [True, False])
+def test_a_call_asks_with_its_priority_only_a_server_that_schedules_by_it_and_saves_its_request_unchanged(
+        monkeypatch, scheduled):
+    from kei_exp.kie.extract import captured_provider
+    from tests.test_extract_llm import response
+    saved = {"digest": "fixed", "request": {
+        "composer": 1, "provider": {"model": "fixture/model", "url": "http://model", "timeout": 5},
+        "budget": {"context": 4096, "counted": 120, "reserve": 256},
+        "body": {"stage": "record", "record": 0, "system": "s", "user": "u", "schema": {}, "max_tokens": 256,
+                 "max_whitespace": None, "httpRequest": {"model": "fixture/model", "messages": []}}}}
+    committed, posted = [], []
+
+    class Lease:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            if routine == "read_call":
+                return {"checkpoint": None, "intent": "RUN", "input": deepcopy(saved)}
+            if routine == "commit_output":
+                committed.append(args[1:])
+                return {}
+            return True
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
+    monkeypatch.setattr(worker.config, "PRIORITY_URLS", frozenset({"http://model"} if scheduled else {"http://other"}))
+    monkeypatch.setattr(captured_provider.requests, "post", lambda url, json, **_: posted.append(json) or response(
+        200, {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "usage": {}}))
+    assert inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture", 2)["capture"] == "capture"
+    assert posted == [{**saved["request"]["body"]["httpRequest"], **({"priority": 2} if scheduled else {})}]
+    assert committed[0][0] == "fixed"  # the output is saved against the request as it was finalized
+
+
 @pytest.mark.parametrize("checkpoint", [False, True])
 @pytest.mark.parametrize("stage", ["discovery", "record", "arbitration"])
 def test_recoverable_reply_allows_the_planner_to_continue(monkeypatch, checkpoint, stage):
@@ -319,10 +353,10 @@ def test_a_server_that_ignores_the_stream_is_read_as_the_unstreamed_reply(monkey
 class Calls:
     """Durable calls run by a fake scheduler: the earliest started call ends first; `fails` end unsaved."""
 
-    def __init__(self, roles, *, fails=(), boundary=lambda calls: False):
-        self.roles, self.fails, self.boundary = roles, set(fails), boundary
+    def __init__(self, roles, *, fails=(), boundary=lambda calls: False, priorities=None):
+        self.roles, self.fails, self.boundary, self.priorities = roles, set(fails), boundary, priorities
         self.left, self.running, self.ended, self.peak, self.events = list(roles), [], {}, {}, []
-        self.started = None
+        self.started, self.sent = None, {}
 
     def plan(self, extraction, attempt):
         self.events.append(("plan", len(self.running)))
@@ -330,10 +364,12 @@ class Calls:
             return {"boundary": True}
         if not self.left:
             return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": {}}
-        return {"pending": list(self.left), "roles": {capture: self.roles[capture] for capture in self.left}}
+        work = {"pending": list(self.left), "roles": {capture: self.roles[capture] for capture in self.left}}
+        return work if self.priorities is None else {**work, "priorities": self.priorities}  # None: a round from before
 
-    def start(self, workflow, extraction, attempt, capture):
+    def start(self, workflow, extraction, attempt, capture, priority):
         assert self.started == f"kei-call:{attempt}:{capture}"
+        self.sent[capture] = priority
         self.running.append(capture)
         role = self.roles[capture]
         self.peak[role] = max(self.peak.get(role, 0), sum(self.roles[each] == role for each in self.running))
@@ -375,6 +411,16 @@ def test_a_call_is_started_as_soon_as_another_of_its_role_ends_and_never_more_th
     plans = [event for event in calls.events if event[0] == "plan"]
     assert len(plans) == len(roles) + 1 and all(running == 3 for _, running in plans[1:-3])  # one ended per round
     assert calls.events[-2:] == [("publish", 0), ("ack", 0, True, None)]
+
+
+def test_each_call_starts_with_its_planned_priority_and_a_round_recorded_before_priorities_starts_them_at_0(monkeypatch):
+    roles = {"d0": "reasoning", "e0": "fields", "e1": "fields"}
+    calls = Calls(roles, priorities={"d0": 0, "e0": 3, "e1": 1})
+    assert run_loop(monkeypatch, calls) == {"status": "ACK"}
+    assert calls.sent == {"d0": 0, "e0": 3, "e1": 1}
+    old = Calls(roles)
+    assert run_loop(monkeypatch, old) == {"status": "ACK"}
+    assert old.sent == dict.fromkeys(roles, 0)
 
 
 @pytest.mark.parametrize("ending,failure", [("boundary", None), ("failure", {"code": "capture_failed"})])

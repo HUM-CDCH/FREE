@@ -283,7 +283,7 @@ def scheduled(monkeypatch, lease, chat, ground, *, chunks, delay):
         pending.append(0)
         return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": planner.scopes}
 
-    def start(workflow, extraction, attempt, capture):
+    def start(workflow, extraction, attempt, capture, priority):
         def call():
             sleep(delay)
             answered(lease, chat, capture)

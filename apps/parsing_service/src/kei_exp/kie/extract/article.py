@@ -290,9 +290,12 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     answered: list[tuple[list[Call], list[Issue]] | None] = [None] * len(groups)
     for index in context_order(groups, start_page):
         group = groups[index]
+        # The context's page nearest the start page, as `context_order` measures it, sets its call's priority.
+        page = None if start_page is None else min((passage.page for passage in group.passages),
+                                                   key=lambda page: abs(page - start_page), default=None)
         fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
             counter=counters["fields"], structured=structured, document=True,
-            bounded_document=method.context == "bounded")
+            bounded_document=method.context == "bounded", page=page)
         fields, invalid = _typed_reading(fields, schema.record_nodes)
         candidates[index], answered[index] = fields, (attempts, problems + invalid)
         if on_context is not None:

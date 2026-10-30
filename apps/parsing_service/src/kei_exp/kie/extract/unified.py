@@ -156,7 +156,7 @@ class _Budget:
         return self.counters[ROLE[stage]].request_tokens(system, user, schema) <= self.stages[stage]["input_tokens"]
 
     def ask(self, stage: str, record: int | None, system: str, user: str, schema: dict, calls: list,
-            issues: list, unit: str | None = None) -> dict | None:
+            issues: list, unit: str | None = None, page: int | None = None) -> dict | None:
         """One counted call; None when it failed or its reply is not the object asked.
         A request the server refused (an HTTP 500 on this request) is a failed call of this window, so the window is
         halved or fails alone; a backend that is not ready (`failures.classify`) ends the step for its retry."""
@@ -170,7 +170,7 @@ class _Budget:
                     max(floor, counter.context_tokens - counter.request_tokens(system, user, schema))
             answer, attempts = complete(self.chat, stage=stage, record=record, system=system, user=user,
                                         schema=schema, max_tokens=ceiling, counter=counter,
-                                        minimum_reply_tokens=floor, unit=unit)
+                                        minimum_reply_tokens=floor, unit=unit, page=page)
             # Durable recovery reuses the finalized parent input in CapturePlanner; it must not be recomposed here.
             recovery = (bounded(self.chat.fields, MAX_WHITESPACE) if self.chat.runtime is None and stage == "entry"
                         and len(attempts) == 1 and looped(attempts[-1])
@@ -179,7 +179,7 @@ class _Budget:
                 clock = time.monotonic()
                 answer, again = complete(replace(self.chat, fields=recovery), stage=stage, record=record,
                     system=system, user=user, schema=schema, max_tokens=ceiling, counter=counter,
-                    minimum_reply_tokens=floor, unit=unit)
+                    minimum_reply_tokens=floor, unit=unit, page=page)
                 if again[-1].ok:
                     attempts[-1] = replace(attempts[-1], recovered=True)
                 attempts += again
@@ -339,6 +339,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         def one(number: int) -> _Work:
             entry = entries[number]
             unit = f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None
+            page = pages.get(entry["ranges"][0]["segment"]) if entry.get("ranges") else None  # as `work_order` reads it
             # A finished entry is a function of these, its counts and its saved replies: an earlier round of the
             # attempt that read and saved it leaves nothing to read or save again (a phase change, verification once
             # discovery is complete, is another key).
@@ -346,7 +347,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                                          counters.values()) if durable else (None, None)
             if kept is not None:  # its scope is listed with every entry's (`plan_records`)
                 return kept
-            work = run.entry(number, entry, verify=complete, unit=unit)
+            work = run.entry(number, entry, verify=complete, unit=unit, page=page)
             if not work.failed and not work.undecided:
                 # A finished entry's accepted values are verified: their links are the final artifact's, so the
                 # researcher sees them on the source while the other entries are still read.
@@ -749,6 +750,7 @@ class _Work:
     conflicts: list = field(default_factory=list)
     native: list[dict] | None = None
     unit: str | None = None  # the entry's capture identity apart from its number (`calls.complete`)
+    page: int | None = None  # the entry's first page, for its calls' priority (`calls.complete`)
 
 
 class _Run:
@@ -772,7 +774,7 @@ class _Run:
         while queue:
             window, depth = queue.pop(0)
             user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
-            answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit)
+            answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit, out.page)
             if answer is None and len(window.primary) > 1 and depth < self.effective["splits"]:
                 halves = split(window, self.texts, fits, overlap=self.effective["overlap"])
                 queue[0:0] = [(half, depth + 1) for half in halves]
@@ -787,10 +789,11 @@ class _Run:
         out.windows += len(replies)
         return replies
 
-    def entry(self, number: int, entry: dict, *, verify: bool = True, unit: str | None = None) -> _Work:
+    def entry(self, number: int, entry: dict, *, verify: bool = True, unit: str | None = None,
+              page: int | None = None) -> _Work:
         """The entry's windows read and checked, then (with `verify`) its candidates verified and settled; without, its
-        record holds the candidates. `unit` names it for the capture identity of its calls."""
-        out = _Work(unit=unit)
+        record holds the candidates. `unit` names it for the capture identity of its calls, `page` for their priority."""
+        out = _Work(unit=unit, page=page)
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
             out.native = []
             if entry["end"] not in ("validated", "source_end"):
@@ -873,7 +876,7 @@ class _Run:
                     for label, found in zip(labels, group, strict=True)},
                           "required": labels, "additionalProperties": False}
                 answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
-                                         out.unit) \
+                                         out.unit, out.page) \
                     if self.budget.fits("verification", system, user, schema) else None
                 if answer is not None and all(label in answer and (
                         (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
@@ -943,7 +946,7 @@ class _Run:
             schema = {"type": "object", "properties": {"choice": {"type": "string", "enum": [*labels, "NONE"]}},
                       "required": ["choice"], "additionalProperties": False}
             answer = self.budget.ask("arbitration", number, ARBITRATION, user, schema, out.calls, out.issues,
-                                     out.unit) \
+                                     out.unit, out.page) \
                 if self.budget.fits("arbitration", ARBITRATION, user, schema) else None
             choice = answer.get("choice") if answer else None
             chosen = labels.index(choice) if choice in labels else None
