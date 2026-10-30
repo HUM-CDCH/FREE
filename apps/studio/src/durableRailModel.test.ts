@@ -112,6 +112,16 @@ it('names each scalar part of a composite value with its own link, and keys it b
   expect(valueParts(value())).toEqual([])
 })
 
+it('shows a single-pass list leaf code located as rule-linked, and an uncited leaf beside it as without Evidence',()=> {
+  const node={id:'finds',name:'finds',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},{id:'note',name:'note',type:'string' as const}]}
+  const located={evidenceAnchorId:'a_p1_s2',resultPath:['records',0,'finds',0,'nr'],verbatim:true,lexicalHits:1,
+    grounding:{linkedBy:'lexical',support:'literal',textSpans:[],alternatives:[],precision:'segment',raw:'x1',itemSpans:null}} as unknown as RetainedValue['links'][number]
+  const saved=value({id:'v1',fieldId:'finds',path:['records',0,'finds'],node,modelValue:[{nr:'x1',note:'Bowl'}],links:[located]})
+  const [nr,note]=valueParts(saved)
+  expect(durableRailRow(saved,null,nr).chip).toEqual({text:'linked · rule',style:'rule'})
+  expect(durableRailRow(saved,null,note).chip?.text).toBe('no evidence')
+})
+
 it('links an edited value\'s parts only where the model read the same item at the same path',()=> {
   const node={id:'skelet',name:'skelet',type:'object' as const,children:[{id:'art',name:'art',type:'string' as const},
     {id:'dele',name:'dele',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},{id:'note',name:'note',type:'string' as const}]}]}
