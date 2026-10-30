@@ -1220,8 +1220,9 @@ export function DocumentWorkspace({
                 visible={visible} refreshKey={`${inspectedAttempt?.extractionId}:${latestAttempt?.extractionId}:${latestAttempt?.executionStatus}`}
                 shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
                 currentSchemaRevision={currentSchemaRevision} onOpen={(extractionId, cut) => {
-                  // Opening the routed Extraction again re-inspects it after a run or "Review now" showed the latest.
-                  setSelectedInspectionId(extractionId)
+                  // Opening the routed Extraction again re-inspects it after a run or "Review now" showed the latest; another
+                  // one is pinned by its route once it opens.
+                  if (extractionId === persistedExtraction?.extractionId) setSelectedInspectionId(extractionId)
                   onOpenExtraction(extractionId, cut)
                 }} /> : undefined}
               currentSchemaRevision={currentSchemaRevision}
