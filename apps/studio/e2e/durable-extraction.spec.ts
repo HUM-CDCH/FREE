@@ -830,6 +830,31 @@ for(const source of ['same source','new source revision'] as const) {
   })
 }
 
+test('an open value\'s History lists its latest reading in each Extraction, opens one, and returns to the whole document',async({page})=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const nodes=[{id:'title',name:'title',type:'string' as const}]
+    const earlier=await savedExtraction(fixture,nodes,['Earlier titel'])
+    const correction=await page.request.post(`/api/extractions/${earlier.id}/durable/values/title`,{headers:{Origin:E2E_ORIGIN},
+      data:{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Earlier title'}})
+    expect(correction.ok(),await correction.text()).toBe(true)
+    await savedExtraction(fixture,nodes,['Current title'],'PAUSED',{schemaRevisionId:earlier.schemaRevisionId})
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Current title/}).click()
+    await page.getByRole('button',{name:'History of this value',exact:true}).click()
+    const readings=page.getByRole('list',{name:'Readings of title'}).getByRole('listitem')
+    await expect(readings).toHaveCount(2)
+    await expect(readings.first()).toContainText('Current title')
+    await expect(readings.first()).toHaveAttribute('aria-current','true')
+    await expect(readings.nth(1)).toContainText(/Earlier title.*Extracted: Earlier titel.*Edited/)
+    await readings.nth(1).getByRole('button',{name:/^Open Extraction of /}).click()
+    await expect(page).toHaveURL(new RegExp(`extractionId=${earlier.id}`))
+    await expect(readings.nth(1)).toHaveAttribute('aria-current','true')
+    await page.getByRole('button',{name:'Whole document',exact:true}).click()
+    await expect(page.getByRole('list',{name:'Extractions of this document'}).getByRole('listitem')).toHaveCount(2)
+  } finally {await fixture.close()}
+})
+
 test('a late post-save page response keeps the newer field and its unsaved browser draft',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   const held=Promise.withResolvers<void>(),requested=Promise.withResolvers<void>()

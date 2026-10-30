@@ -53,6 +53,27 @@ describe('document history',()=> {
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({error:{code:'not_found'}})
   })
+  const valueRequest=(query:string)=>new Request(`https://localhost/api/project-contexts/${project}/source-documents/${document}/history/value?${query}`)
+  const traced={truncated:false,untraceableRevisions:1,unmatched:2,readings:[{extractionId:id,createdAt:'2026-10-28T10:00:00.000Z',status:'COMPLETED',
+    snapshotVersion:3,schemaRevision:{schemaRevisionId:project,revisionNumber:2},node:{id:'title-node',name:'title',type:'string'},processing:'saved',
+    modelValue:'Old title',decision:{action:'EDITED',value:'New title'},decisionIncompatible:false}]}
+  it('reads one value\'s history from an owned Extraction of the document uncached',async()=> {
+    const valueHistory=vi.fn().mockResolvedValue(traced)
+    vi.mocked(createDurableRepository).mockReturnValue({valueHistory} as never)
+    const response=await createResearcherApiHandlers(store).GET(valueRequest(`extractionId=${id}&valueId=v%3Atitle`))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
+    expect(await response.json()).toEqual(traced)
+    expect(valueHistory).toHaveBeenCalledWith(project,document,id,'v:title')
+  })
+  it('refuses a missing or malformed Extraction or value before reading, and conceals one outside the document',async()=> {
+    const valueHistory=vi.fn().mockRejectedValue(new DurableNotFound('That Extraction was not found for this Source Document.'))
+    vi.mocked(createDurableRepository).mockReturnValue({valueHistory} as never)
+    for(const query of ['valueId=title',`extractionId=${id}`,`extractionId=${id}&valueId=`,'extractionId=NOT-A-UUID&valueId=title',`extractionId=${id}&valueId=${'x'.repeat(513)}`])
+      expect((await createResearcherApiHandlers(store).GET(valueRequest(query))).status).toBe(422)
+    expect(valueHistory).not.toHaveBeenCalled()
+    expect((await createResearcherApiHandlers(store).GET(valueRequest(`extractionId=${id}&valueId=title`))).status).toBe(404)
+  })
 })
 
 describe('discovery progress',()=> {

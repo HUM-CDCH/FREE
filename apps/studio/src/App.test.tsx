@@ -3491,6 +3491,33 @@ describe('updated latest reviewed extraction', () => {
     expect(screen.getByRole('button', { name: 'Open latest' })).toBeVisible()
   })
 
+  it('follows an open value into History and back to the whole document', async () => {
+    const sourceDocumentId = '51000000-0000-4000-8001-000000000001', extractionId = reopened.persistedExtraction!.extractionId
+    const historyUrls: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes(`/source-documents/${sourceDocumentId}/history`)) historyUrls.push(url)
+      if (url.includes('/history/value?')) return Promise.resolve(Response.json({ truncated: false, untraceableRevisions: 0, unmatched: 0, readings: [{
+        extractionId, createdAt: '2026-08-08T00:00:00.000Z', status: 'COMPLETED', snapshotVersion: 1,
+        schemaRevision: { schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, revisionNumber: 1 },
+        node: { id: 'place', name: 'place', type: 'string' }, processing: 'saved', modelValue: 'Elmbrooke', decision: null, decisionIncompatible: false }] }))
+      if (url.endsWith(`/source-documents/${sourceDocumentId}/history`)) return Promise.resolve(Response.json({ truncated: false, extractions: [] }))
+      return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')))
+    }))
+    render(<DocumentWorkspace {...reopened} sourceDocumentId={sourceDocumentId} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /To check place/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'History of this value' }))
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
+    const readings = await screen.findByRole('list', { name: 'Readings of place' })
+    expect(readings).toHaveTextContent('Elmbrooke')
+    expect(within(readings).getByText('Shown')).toBeVisible()
+    expect(historyUrls).toContain(`/api/project-contexts/${reopened.projectContextId}/source-documents/${sourceDocumentId}/history/value?extractionId=${extractionId}&valueId=place`)
+    fireEvent.click(screen.getByRole('button', { name: 'Whole document' }))
+    expect(await screen.findByText('No Extractions of this document yet.')).toBeVisible()
+  })
+
   it('keeps the live cut when the latest attempt is itself the latest reviewed', async () => {
     const requests = stubLatestReviewed()
     const latest = { ...reopened.persistedExtraction!, finalizedReview: finalizedA.finalizedReview }

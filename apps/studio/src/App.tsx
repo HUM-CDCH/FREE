@@ -11,6 +11,7 @@ import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import DocumentHistory from './DocumentHistory'
+import ValueHistory from './ValueHistory'
 import type { RailTab } from './RightRail'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
@@ -295,6 +296,8 @@ export function DocumentWorkspace({
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>(() => routedValue ? 'results' : 'schema')
+  // The History tab follows one value when set, until "Whole document"; it belongs to the document it was opened on.
+  const [valueScope, setValueScope] = useState<{ sourceDocumentId: string; extractionId: string; valueId: string; name: string } | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished. The
   // run is "started here" from the request on: `admittingRef` while its admission is awaited (an admission already
@@ -735,6 +738,12 @@ export function DocumentWorkspace({
   const reviewedOnAnotherSource = latestReviewedExtraction &&
     latestReviewedExtraction.sourceRepresentationRevisionId !== sourceRepresentationId
   // A routed Extraction that is not the latest is inspected read-only; a new run or "Review now" inspects the latest.
+  /** Opens an Extraction from History. Opening the routed one again re-inspects it after a run or "Review now" showed the
+   *  latest; another one is pinned by its route once it opens. */
+  const openFromHistory = (extractionId: string, cut?: SavedReviewCut) => {
+    if (extractionId === persistedExtraction?.extractionId) setSelectedInspectionId(extractionId)
+    onOpenExtraction(extractionId, cut)
+  }
   const pinnedAttempt = persistedExtraction && selectedInspectionId === persistedExtraction.extractionId &&
     persistedExtraction.extractionId !== latestAttempt?.extractionId ? persistedExtraction : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
@@ -1216,15 +1225,18 @@ export function DocumentWorkspace({
               }}
               latestReader={latestReader}
               onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
-              documentHistory={sourceDocumentId ? (visible) => <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+              onValueHistory={sourceDocumentId ? (extractionId, valueId, name) => {
+                setValueScope({ sourceDocumentId, extractionId, valueId, name })
+                setRailTab('history')
+              } : undefined}
+              documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
+                ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+                  extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible}
+                  shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => setValueScope(null)} />
+                : <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
                 visible={visible} refreshKey={`${inspectedAttempt?.extractionId}:${latestAttempt?.extractionId}:${latestAttempt?.executionStatus}`}
                 shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
-                currentSchemaRevision={currentSchemaRevision} onOpen={(extractionId, cut) => {
-                  // Opening the routed Extraction again re-inspects it after a run or "Review now" showed the latest; another
-                  // one is pinned by its route once it opens.
-                  if (extractionId === persistedExtraction?.extractionId) setSelectedInspectionId(extractionId)
-                  onOpenExtraction(extractionId, cut)
-                }} /> : undefined}
+                currentSchemaRevision={currentSchemaRevision} onOpen={openFromHistory} /> : undefined}
               currentSchemaRevision={currentSchemaRevision}
               runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
