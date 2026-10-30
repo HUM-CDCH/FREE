@@ -25,4 +25,9 @@ test('each producer version projects onto the rail link without inventing precis
     alternatives: [], precision: 'input', raw: 'yes', item: null })
   assert.deepEqual(unifiedEvidenceLink(unified, 'a_p1_s0').grounding,
     { linkedBy: 'verification', support: 'supporting', textSpans: [span], alternatives: [], precision: 'input', raw: 'yes', itemSpans: null })
+  // A single-pass unified link: only code located it, and it keeps its spans rather than reading as a plain link.
+  const located = unifiedEvidenceSchema.parse({ ...plain, support: 'literal', spans: [span], alternatives: [],
+    precision: 'segment', raw: 'Book', item: [span] })
+  assert.deepEqual(unifiedEvidenceLink(located, 'a_p1_s0').grounding,
+    { linkedBy: 'lexical', support: 'literal', textSpans: [span], alternatives: [], precision: 'segment', raw: 'Book', itemSpans: [span] })
 })

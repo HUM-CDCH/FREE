@@ -127,13 +127,16 @@ export function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }
 export function groundingDetail(link: EvidenceLink, action?: ReviewAction): string | null {
   const grounding = link.grounding
   if (!grounding || action === 'EDITED' || action === 'REJECTED') return null
-  const parts = [grounding.linkedBy === 'verification'
-    ? (grounding.support === 'literal' ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
+  const literal = 'support' in grounding && grounding.support === 'literal'
+  const parts = ['support' in grounding
+    ? grounding.linkedBy === 'verification'
+      ? (literal ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
+      : (literal ? 'Located by code; the value is printed in the entry' : 'Located by code in a supporting passage; no verifier checked it')
     : grounding.linkedBy === 'key' ? 'Read after its printed key'
       : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
         : 'Entry number from the segmentation']
   const others = grounding.alternatives.length
   if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
-  if (grounding.linkedBy !== 'verification' && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
+  if (!('support' in grounding) && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
   return parts.join(' · ')
 }

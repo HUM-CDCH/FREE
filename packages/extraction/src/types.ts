@@ -49,11 +49,11 @@ export type EvidenceGrounding = Readonly<{
   normalized: Readonly<{ value: string; rule: 'glossary'; keySpan: TextSpan; expansionSpan: TextSpan }> | null
 }>
 
-/** Version 3 evidence: a separate verification request accepted the value; `literal` spans print the value itself,
- *  `supporting` spans are the passage that supports a yes/no, a label or a derived value. `itemSpans` locate the list
- *  item the value belongs to. */
+/** Version 3 evidence: a separate verification request accepted the value (`verification`), or with a single pass only
+ *  code located it (`lexical`); `literal` spans print the value itself, `supporting` spans are the passage that
+ *  supports a yes/no, a label or a derived value. `itemSpans` locate the list item the value belongs to. */
 export type VerifiedGrounding = Readonly<{
-  linkedBy: 'verification'
+  linkedBy: 'verification' | 'lexical'
   support: 'literal' | 'supporting'
   textSpans: readonly TextSpan[]
   alternatives: readonly (readonly TextSpan[])[]
