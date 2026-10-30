@@ -747,6 +747,8 @@ export function DocumentWorkspace({
   const pinnedAttempt = persistedExtraction && selectedInspectionId === persistedExtraction.extractionId &&
     persistedExtraction.extractionId !== latestAttempt?.extractionId ? persistedExtraction : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
+  // History lists read again when the shown or the latest Extraction, or the latest one's status, changes.
+  const historyRefreshKey = `${inspectedAttempt?.extractionId}:${latestAttempt?.extractionId}:${latestAttempt?.executionStatus}`
   // One reader per Extraction: the latest one's, and the inspected one's while that is another.
   const latestReader = useKeyedController(latestAttempt?.extractionId ?? null, () => createDurableReader(latestAttempt!))
   const inspectedId = inspectedAttempt && inspectedAttempt.extractionId !== latestAttempt?.extractionId ? inspectedAttempt.extractionId : null
@@ -1231,10 +1233,14 @@ export function DocumentWorkspace({
               } : undefined}
               documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
                 ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
-                  extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible}
-                  shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => setValueScope(null)} />
+                  extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible} refreshKey={historyRefreshKey}
+                  shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => {
+                    setValueScope(null)
+                    // Its control leaves with it: focus stays in the History panel.
+                    requestAnimationFrame(() => document.getElementById('rail-panel-history')?.focus())
+                  }} />
                 : <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
-                visible={visible} refreshKey={`${inspectedAttempt?.extractionId}:${latestAttempt?.extractionId}:${latestAttempt?.executionStatus}`}
+                visible={visible} refreshKey={historyRefreshKey}
                 shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
                 currentSchemaRevision={currentSchemaRevision} onOpen={openFromHistory} /> : undefined}
               currentSchemaRevision={currentSchemaRevision}

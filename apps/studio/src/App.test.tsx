@@ -3500,7 +3500,7 @@ describe('updated latest reviewed extraction', () => {
       if (url.includes('/history/value?')) return Promise.resolve(Response.json({ truncated: false, untraceableRevisions: 0, unmatched: 0, readings: [{
         extractionId, createdAt: '2026-08-08T00:00:00.000Z', status: 'COMPLETED', snapshotVersion: 1,
         schemaRevision: { schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, revisionNumber: 1 },
-        node: { id: 'place', name: 'place', type: 'string' }, processing: 'saved', modelValue: 'Elmbrooke', decision: null, decisionIncompatible: false }] }))
+        node: { id: 'place', name: 'place', type: 'string' }, processing: 'saved', modelValue: 'Elmbrooke', disagreement: null, decision: null, decisionIncompatible: false }] }))
       if (url.endsWith(`/source-documents/${sourceDocumentId}/history`)) return Promise.resolve(Response.json({ truncated: false, extractions: [] }))
       return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')))
     }))

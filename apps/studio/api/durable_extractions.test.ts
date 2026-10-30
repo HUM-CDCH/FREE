@@ -56,7 +56,7 @@ describe('document history',()=> {
   const valueRequest=(query:string)=>new Request(`https://localhost/api/project-contexts/${project}/source-documents/${document}/history/value?${query}`)
   const traced={truncated:false,untraceableRevisions:1,unmatched:2,readings:[{extractionId:id,createdAt:'2026-10-28T10:00:00.000Z',status:'COMPLETED',
     snapshotVersion:3,schemaRevision:{schemaRevisionId:project,revisionNumber:2},node:{id:'title-node',name:'title',type:'string'},processing:'saved',
-    modelValue:'Old title',decision:{action:'EDITED',value:'New title'},decisionIncompatible:false}]}
+    modelValue:'Old title',disagreement:null,decision:{action:'EDITED',value:'New title'},decisionIncompatible:false}]}
   it('reads one value\'s history from an owned Extraction of the document uncached',async()=> {
     const valueHistory=vi.fn().mockResolvedValue(traced)
     vi.mocked(createDurableRepository).mockReturnValue({valueHistory} as never)

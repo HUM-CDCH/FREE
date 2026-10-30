@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { valueDisagreementSchema } from 'extraction/durable-contract'
 import { schemaNodeSchema } from 'extraction/schema'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 
@@ -52,6 +53,8 @@ export const valueHistoryResponseSchema = z.object({
     node: schemaNodeSchema,
     processing: z.enum(['saved', 'absent', 'unprocessed', 'failed']),
     modelValue: z.unknown(),
+    disagreement: valueDisagreementSchema.nullable(),
+    /** `value`, when present, is the value review shows: an edit, or the readings chosen at a Value Disagreement. */
     decision: z.object({ action: z.enum(['APPROVED', 'EDITED', 'REJECTED', 'PENDING']), value: z.unknown().optional() }).strict().nullable(),
     /** A saved decision that no longer fits the value's field. */
     decisionIncompatible: z.boolean(),

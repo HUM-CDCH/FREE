@@ -418,10 +418,12 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           if(!reading) return []
           const value=durableValueSchema.parse(reading.value)
           const {correction,correctionCompatibility}=reviewProjection(corrections.get(row.id) ?? null,value)
-          const decision=correction?.decision as {action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING';value?:unknown} | undefined
+          const decision=correction?.decision as {action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING';value?:unknown;choices?:unknown} | undefined
           return [{extractionId:row.id,createdAt:row.createdAt.toISOString(),status:durableStatus(heads.get(row.id)!),snapshotVersion:reading.snapshotVersion,
             schemaRevision:{schemaRevisionId:value.schemaRevisionId,revisionNumber:reading.revisionNumber},node:value.node,processing:value.processing,
-            modelValue:value.modelValue,decision:decision ? {action:decision.action,...(decision.action==='EDITED' ? {value:decision.value} : {})} : null,
+            // An edit, or the readings chosen at a Value Disagreement, gives the value review shows (`reviewedValue`).
+            modelValue:value.modelValue,disagreement:value.disagreement ?? null,
+            decision:decision ? {action:decision.action,...(decision.action==='EDITED' || decision.choices ? {value:decision.value} : {})} : null,
             decisionIncompatible:correctionCompatibility==='incompatible'}]
         })}
     },'REPEATABLE READ') },

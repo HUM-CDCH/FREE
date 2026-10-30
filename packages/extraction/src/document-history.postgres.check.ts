@@ -120,7 +120,10 @@ test('value history follows one value by identity across the document\'s Extract
   await read(deleted, [value(deleted.selectionId, 'Deleted title')])
   await admin.query('UPDATE extraction_runtime.head SET deleted=true WHERE id=$1', [deleted.id])
   await read(renamed, [value(renamed.selectionId, 'New title', { ...title, name: 'heading' })])
-  await read(without, [value(without.selectionId, 'Other', title, 'v-other')])
+  // Readings differ at the whole value: the model gives none, the researcher chooses one.
+  const disputed = { ...value(without.selectionId, null as never, title, 'v-disputed'), disagreement: [{ path: [], alternatives: [
+    { value: 'Harbour', segments: ['p1_s0'] }, { value: 'Quay', segments: ['p2_s0'] }] }] }
+  await read(without, [value(without.selectionId, 'Other', title, 'v-other'), disputed])
   // The same bare identity on another Source Representation is not the same value.
   await read(elsewhere, [value(elsewhere.selectionId, 'Elsewhere title')])
   await admin.query('UPDATE public.extraction SET "sourceRepresentationRevisionId"=$2 WHERE id=$1', [elsewhere.id, await reprocess()])
@@ -134,13 +137,18 @@ test('value history follows one value by identity across the document\'s Extract
   const revisionNumber = (await admin.query('SELECT "revisionNumber" FROM public."schemaRevision" WHERE id=$1', [history.revisions.article])).rows[0].revisionNumber
   assert.deepEqual({ ...latest, createdAt: undefined, status: undefined }, { extractionId: renamed.id, createdAt: undefined, status: undefined, snapshotVersion: 1,
     schemaRevision: { schemaRevisionId: history.revisions.article, revisionNumber }, node: { ...title, name: 'heading' }, processing: 'saved',
-    modelValue: 'New title', decision: { action: 'EDITED', value: 'Fixed title' }, decisionIncompatible: false })
+    modelValue: 'New title', disagreement: null, decision: { action: 'EDITED', value: 'Fixed title' }, decisionIncompatible: false })
   assert.equal(earlier!.node.name, 'title')
   assert.equal(earlier!.modelValue, 'Old title')
   assert.equal(earlier!.decision, null)
   // Review shows the same decision on the same value.
   const reviewed = (await owner.page(renamed.id, { valueId: 'v-title' })).values[0]!
   assert.deepEqual(latest!.decision, { action: reviewed.correction!.decision.action, value: reviewed.correction!.decision.value })
+  // A chosen reading is the value review shows.
+  await owner.saveCorrection(without.id, 'v-disputed', { expectedRevision: 0, snapshotVersion: 1, action: 'APPROVED', choices: [{ path: [], value: 'Quay' }] }, async () => ({}))
+  const chosen = await owner.valueHistory(history.projectContextId, d1.sourceDocumentId, without.id, 'v-disputed')
+  assert.deepEqual([chosen.readings.map(each => each.extractionId), chosen.unmatched], [[without.id], 3])
+  assert.deepEqual([chosen.readings[0]!.decision, chosen.readings[0]!.disagreement], [{ action: 'APPROVED', value: 'Quay' }, disputed.disagreement])
   // An anchor on the other Source Representation sees only its own.
   const there = await owner.valueHistory(history.projectContextId, d1.sourceDocumentId, elsewhere.id, 'v-title')
   assert.deepEqual([there.readings.map(each => each.modelValue), there.untraceableRevisions, there.unmatched], [['Elsewhere title'], 1, 0])
