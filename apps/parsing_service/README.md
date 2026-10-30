@@ -234,8 +234,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   counted input leaves, its reserve the floor (an explicit `output_tokens` or a
   native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
   within the counted token budget, retaining internal sections and lists as record content.
-  The existing verification call may correct a
-  scalar field's incomplete or incorrect value, with a complete source quote;
+  The existing verification call reads scalar fields afresh, without the draft
+  values anchoring its answer, and returns each complete value with a source quote;
   code checks the field type and the quoted record text before acceptance. List
   identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
   corrected passages. Earlier admissions retain their pinned defaults and prompts.

@@ -76,8 +76,13 @@ class Model:
             return (self.entry_fields or fields)(section(user, "RECORD"), user, schema)
         if system.startswith("You check values"):
             candidates = re.findall(r"^(C\d+): (\S+) = (.*) \(quoted: (.*)\)$", user, re.M)
-            return {label: (self.verdict or (lambda *_: "supported"))(path, json.loads(value), section(user, "RECORD"))
-                    for label, path, value, _ in candidates}
+            answer = {label: (self.verdict or (lambda *_: "supported"))(
+                path, json.loads(value), section(user, "RECORD")) for label, path, value, _ in candidates}
+            for label, path in re.findall(r"^(C\d+): (\S+)$", user, re.M):
+                record = section(user, "RECORD")
+                answer[label] = (self.verdict(path, None, record) if self.verdict else
+                                 fields(record, user, {"properties": {path: None}}).get(path))
+            return answer
         if system.startswith("Several verified candidate"):
             return {"choice": self.choice}
         if system.startswith("You extract fields that describe"):

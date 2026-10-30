@@ -667,12 +667,13 @@ VERIFY = ("You check values extracted from one record of a source document. A re
           "For each candidate answer \"supported\" when the record text states that value for that field of this "
           "record, \"unsupported\" when it does not (it says something else, or the value belongs to another record or "
           "only to the context), or \"unclear\". Judge only from the text shown. Return only the JSON object.")
-CORRECT = (" Check completeness as well as correctness: descriptive fields contain their whole passage, "
-           "including continuations across paragraphs or pages, without summarizing. Each field contains "
-           "only its own section, excluding other fields. Where the response schema permits a correction, "
-           "return {\"value\": the complete corrected value, \"quote\": the exact source passage containing "
-           "the entire value} instead of a verdict. Never invent text. Keep the verdict when no correction "
-           "is needed. List items retain their existing identities and take verdicts only.")
+VERIFY_COMPLETE = (
+    "You check values extracted from one source record. A record is: {description}\n{notes}"
+    "For each scalar field, read the source afresh and return the final complete value and an exact quote "
+    "containing that entire value. Include the whole descriptive passage across paragraphs or pages, "
+    "and exclude other fields. Do not summarize or invent. Return null if the record supplies no value. "
+    "For list-item fields, return supported, unsupported, or unclear without changing the item identity. "
+    "Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
@@ -848,43 +849,50 @@ class _Run:
                 key = (*path, node.name)
                 if node.type == "object":
                     scalars(node.children or [], key)
-                elif node.type != "array":
+                elif node.type != "array" and evidence_policy(self.nodes, key) == "quoted":
                     nodes[key] = node
-        if self.effective.get("corrections"):
+        if self.effective.get("corrections") and self.effective["verification"]:
             scalars(self.nodes)
-        system = VERIFY.format(description=self.schema.record_description, notes=_notes(self.nodes))
-        if nodes:
-            system += CORRECT
+        system = (VERIFY_COMPLETE if nodes else VERIFY).format(
+            description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
-            batch = [found for found in out.found if found.kind == "candidate" and found.window == index]
+            batch = [found for found in out.found if found.window == index and (
+                found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
+                found.reason in ("no_quote", "quote_not_in_source", "value_not_in_quote"))]
             pending = [batch] if batch else []
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
                 user = _user(window, self.texts, "RECORD", self.tables) + "\n\n### CANDIDATES\n" + "\n".join(
-                    f"{label}: {'.'.join(str(step) for step in _field_path(found.path))} = "
-                    f"{json.dumps(found.value, ensure_ascii=False)} (quoted: {json.dumps(found.quote, ensure_ascii=False)})"
+                    f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
+                    ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
+                     f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
                     for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
                 verdict = {"type": "string", "enum": list(VERDICTS)}
                 schema = {"type": "object", "properties": {
-                    label: {"anyOf": [verdict, _leaf(nodes[found.path])]} if found.path in nodes else verdict
+                    label: _leaf(nodes[found.path]) if found.path in nodes else verdict
                     for label, found in zip(labels, group, strict=True)},
                           "required": labels, "additionalProperties": False}
                 answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
                                          out.unit) \
                     if self.budget.fits("verification", system, user, schema) else None
-                if answer is not None and all(isinstance(answer.get(label), str) and answer[label] in VERDICTS
-                        or found.path in nodes and isinstance(answer.get(label), dict)
+                if answer is not None and all(label in answer and (
+                        (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
+                        else isinstance(answer[label], str) and answer[label] in VERDICTS)
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
-                        if isinstance(value, str):
-                            found.kind, found.reason = VERDICTS[value]
+                        if value is None or isinstance(value, str):
+                            if found.kind == "candidate":
+                                found.kind, found.reason = VERDICTS[value or "unsupported"]
                             continue
                         # The checker sees only this request's record text, never context or unseen windows.
                         view = _view([*window.before, *window.primary, *window.after], self.texts)
                         checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
                         corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
+                        if corrected.kind == "candidate" and found.kind == "candidate" and corrected.value == found.value:
+                            found.kind = "accepted"
+                            continue
                         out.found.append(corrected)
                         if corrected.kind == "candidate":
                             corrected.kind = "accepted"
@@ -893,12 +901,14 @@ class _Run:
                                 "verification replaced a candidate with a source-grounded correction",
                                 number, ("records", number, *found.path)))
                         else:
-                            found.kind, found.reason = "proposed", "verification_unresolved"
+                            if found.kind == "candidate":
+                                found.kind, found.reason = "proposed", "verification_unresolved"
                             out.undecided += 1
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
                 else:
-                    group[0].kind, group[0].reason = "proposed", "verification_unresolved"
+                    if group[0].kind == "candidate":
+                        group[0].kind, group[0].reason = "proposed", "verification_unresolved"
                     out.undecided += 1
 
     def _settle(self, number: int, out: _Work, view: BlockText) -> list[dict]:

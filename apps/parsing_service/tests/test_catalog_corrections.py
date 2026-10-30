@@ -87,3 +87,73 @@ def test_a_verifier_cannot_change_a_list_items_identity():
     result, _ = extract(source, model, defaults=5)
     assert all(row['name'] is None for row in result['records'][0]['finds'])
     assert [row['count'] for row in result['records'][0]['finds']] == [1, 2]
+
+
+@pytest.mark.parametrize('verdict', ['supported', 'correction'])
+def test_source_rejected_scalar_requires_a_valid_correction(verdict):
+    full = 'The source description continues here.'
+    source = evidence('1. ' + full)
+    checked = []
+    def verify(*_):
+        checked.append(True)
+        return candidate(full, full) if verdict == 'correction' else 'supported'
+    model = Model(source, entry=lambda *_: {'description': candidate(full, 'source')}, verdict=verify)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    assert checked, 'source-rejected scalar candidates need the existing verification call too'
+    assert result['records'][0]['description'] == (full if verdict == 'correction' else None)
+
+
+def test_disabled_verification_does_not_retry_source_rejected_candidates():
+    source = evidence('1. The source description continues here.')
+    model = Model(source, entry=lambda *_: {'description': candidate('The source description continues here.', 'source')},
+                  verdict=lambda *_: pytest.fail('verification is disabled'))
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5, verification=False)
+    assert result['records'][0]['description'] is None
+
+
+def test_verifier_confirms_an_unchanged_scalar_without_a_correction_issue():
+    source = evidence('1. The first sentence.')
+    model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
+                  verdict=lambda *_: candidate('The first sentence.', 'The first sentence.'))
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    assert result['records'][0]['description'] == 'The first sentence.'
+    assert not any(i['code'] == 'verification_corrected' for i in result['issues'])
+
+
+def test_verifier_null_rejects_a_scalar_without_retrying():
+    source = evidence('1. The first sentence.')
+    model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
+                  verdict=lambda *_: None)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    assert result['records'][0]['description'] is None
+    assert any(r['reason'] == 'verification_rejected' for r in result['rejected'])
+    assert len([c for c in result['calls'] if c['stage'] == 'verification']) == 1
+
+
+@pytest.mark.parametrize('reply', [None, candidate('Invented.', 'Invented.')])
+def test_failed_correction_preserves_the_original_source_rejection(reply):
+    source = evidence('1. A description.')
+    original = candidate('Different words.', 'A description.')
+    model = Model(source, entry=lambda *_: {'description': original}, verdict=lambda *_: reply)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    assert not result['proposed']
+    assert any(r['value'] == original['value'] and r['reason'] == 'value_not_in_quote' for r in result['rejected'])
+
+
+def test_scalar_drafts_do_not_anchor_verification_of_a_mixed_record():
+    from tests.test_unified_catalog import fields
+    source = evidence('1. Site. Find: Bowl (1)')
+    draft = 'Unprinted draft that must not anchor the verifier'
+    def entry(record, user, schema):
+        answer = fields(record, user, schema)
+        answer['site'] = candidate(draft, 'Site')
+        return answer
+    result, chat = extract(source, Model(source, entry=entry), defaults=5)
+    assert result['records'][0]['site'] == 'Site'
+    assert result['records'][0]['finds'] == [{'name': 'Bowl', 'count': 1}]
+    request = next(c for c in chat.calls if c['system'].startswith('You check values'))
+    assert draft not in request['user']
+    assert 'finds.name = "Bowl"' in request['user']
+    shapes = list(request['schema']['properties'].values())
+    assert any(s.get('type') == ['object', 'null'] for s in shapes)
+    assert any(s.get('enum') == ['supported', 'unsupported', 'unclear'] for s in shapes)
