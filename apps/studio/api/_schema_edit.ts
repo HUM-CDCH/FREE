@@ -21,6 +21,7 @@ import type { ScalarFieldType } from 'extraction/allowed-values'
 import type { ModelCaller } from './_model_execution.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { respondToSchemaEdit } from './_schema_chat.js'
+import { withFieldDescriptions } from './_schema_edit_output.js'
 import { chatHistoryText } from './_schema.js'
 import { chatHistorySchema, type ChatHistory } from '../shared/schemaChat.contract.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
@@ -138,7 +139,8 @@ export async function loadOwnedSchemaRevision(
 /**
  * A schema edit proposal through Schema Suggestion: the model receives the current schema as a template, its field
  * notes and the researcher's change request (with the source, when one is named) and returns the whole revised
- * template, which is compared with the current tree to give the per-field proposal the researcher reviews.
+ * template with scalar note changes beside it, which are compared with the current tree to give the per-field
+ * proposal the researcher reviews.
  */
 export async function proposeSchemaEdit(
   definition: SchemaDefinition,
@@ -156,18 +158,23 @@ export async function proposeSchemaEdit(
       ? { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans }
       : { file: null, pages: null, markdown: NO_SOURCE },
     instruction: schemaRevisionInstruction(definition, instruction, options.history),
+    edit: true as const,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     signal: options.signal,
   }
   let template: Record<string, unknown>
+  let fieldDescriptions: unknown
   try {
     if (options.answerable) {
       const reply = await (options.respond ?? respondToSchemaEdit)(
         options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [] })
       if ('answer' in reply) return { status: 'answered', answer: reply.answer }
       template = reply.template
+      fieldDescriptions = reply.fieldDescriptions
     } else {
-      template = (await (options.generate ?? generateSchemaWithModel)(options.caller, input)).template
+      const reply = await (options.generate ?? generateSchemaWithModel)(options.caller, input)
+      template = reply.template
+      fieldDescriptions = reply.fieldDescriptions
     }
   } catch (error) {
     if (error instanceof ApiError && isModelProposalFailure(error)) return FAILED
@@ -176,6 +183,7 @@ export async function proposeSchemaEdit(
   let revised: SchemaDefinition
   try {
     revised = templateToSchemaDefinition(template)
+    revised.schemaNodes = withFieldDescriptions(revised.schemaNodes, fieldDescriptions)
   } catch {
     return FAILED
   }
@@ -244,10 +252,10 @@ export function schemaEditBetween(
         fields[old.id] = { name: old.name, removed: true, ...nodeShape(old) }
         continue
       }
-      // A template carries a group's note but not a scalar's: a note the revision does not mention is kept.
+      // Absent notes stay unchanged; an edit's scalar-note sidecar can also supply text or an explicit empty clear.
       const edit: FieldEdit = { name: node.name, removed: false, description: node.description ?? null, ...nodeShape(node, old) }
       if (changesField(old, edit)) fields[old.id] = edit
-      if (old.children && node.children) compare(old.children, node.children, [...parentPath, node.name])
+      if (node.children) compare(old.children ?? [], node.children, [...parentPath, node.name])
     }
     for (const node of unmatched) if (!renamedTo.has(node)) add(node, parentPath)
   }

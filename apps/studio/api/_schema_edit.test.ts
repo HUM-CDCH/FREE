@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
-import { deriveSchemaProposal } from '../shared/schemaChanges.js'
+import { deriveSchemaProposal, replaySchemaChanges } from '../shared/schemaChanges.js'
 import { ApiError } from './_http'
 import { formChatHistory, parseSchemaNodes, proposeSchemaEdit, schemaEditBetween } from './_schema_edit'
 
@@ -24,8 +24,8 @@ const definition: SchemaDefinition = {
 }
 
 /** A generate port that answers with `template`, as generateSchemaWithModel does once it has parsed the reply. */
-function answering(template: Record<string, unknown>) {
-  return vi.fn(async () => ({ template, raw: JSON.stringify(template), pages: null, sourceCoverage: { complete: true as const } }))
+function answering(template: Record<string, unknown>, fieldDescriptions?: unknown) {
+  return vi.fn(async () => ({ template, fieldDescriptions, raw: JSON.stringify(template), pages: null, sourceCoverage: { complete: true as const } }))
 }
 
 /** The schema the researcher would have after applying every proposed change. */
@@ -69,7 +69,9 @@ describe('proposeSchemaEdit', () => {
     const generate = answering({})
     const respond = vi.fn()
       .mockResolvedValueOnce({ answer: 'Status is open or closed.' })
-      .mockResolvedValueOnce({ template: { _description: 'One numbered burial entry.', title: 'string' }, raw: '', pages: null, sourceCoverage: { complete: true } })
+      .mockResolvedValueOnce({ template: { _description: 'One numbered burial entry.', title: 'string' },
+        fieldDescriptions: [{ path: ['title'], description: 'Copy the full heading.' }],
+        raw: '', pages: null, sourceCoverage: { complete: true } })
     await expect(proposeSchemaEdit(definition, 'What can status be?', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
       .resolves.toEqual({ status: 'answered', answer: 'Status is open or closed.' })
     const [caller, input, question] = respond.mock.calls[0]!
@@ -79,7 +81,7 @@ describe('proposeSchemaEdit', () => {
     expect(question.context).toContain('"status"')
 
     await expect(proposeSchemaEdit(definition, 'Keep only the title', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
-      .resolves.toMatchObject({ status: 'proposed' })
+      .resolves.toMatchObject({ status: 'proposed', fields: { title: { description: 'Copy the full heading.' } } })
     expect(generate).not.toHaveBeenCalled()
   })
 
@@ -126,6 +128,7 @@ describe('proposeSchemaEdit', () => {
     expect(input.document).toMatchObject({ markdown: SOURCE.markdown, pageSpans: SOURCE.pageSpans })
     expect(input.temperature).toBe(0.2)
     expect(input.signal).toBe(signal)
+    expect(input).toMatchObject({ edit: true })
     expect(input.instruction).toContain('"_description": "One numbered burial entry."')
     expect(input.instruction).toContain('"status": [\n    "open",\n    "closed"\n  ]')
     expect(input.instruction).toContain('- title: The entry heading')
@@ -155,6 +158,108 @@ describe('proposeSchemaEdit', () => {
     })
 
     expect(response).toEqual({ status: 'proposed', fields: {}, additions: [], issues: [] })
+  })
+
+  it('proposes a scalar description-only edit without changing IDs, structure or record description', async () => {
+    const response = await proposeSchemaEdit(definition, 'Copy the title exactly', null, {
+      caller: CALLER,
+      generate: answering({
+        _description: definition.recordDescription,
+        title: 'string', status: ['open', 'closed'], count: 'string', notes: 'string', grave: { plot: 'string' },
+      }, [{ path: ['title'], description: 'Copy the full title exactly as written.' }]),
+    })
+    expect(response).toEqual({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the full title exactly as written.' } },
+      additions: [], issues: [],
+    })
+    if (response.status !== 'proposed') throw new Error('Expected proposal')
+    expect(deriveSchemaProposal(definition.schemaNodes, response).nodes).toEqual([
+      { ...definition.schemaNodes[0], description: 'Copy the full title exactly as written.' },
+      ...definition.schemaNodes.slice(1),
+    ])
+  })
+
+  it('sets nested and added scalar notes, clears an existing note, and preserves null or omitted notes with structural edits', async () => {
+    const current: SchemaDefinition = {
+      recordDescription: 'One entry.',
+      schemaNodes: [
+        { id: 'title', name: 'title', type: 'string', description: 'Old title rule', evidencePolicy: 'quoted' },
+        { id: 'count', name: 'count', type: 'integer', description: 'Old count rule' },
+        { id: 'status', name: 'status', type: 'string', allowedValues: ['open', 'closed'], description: 'Old status rule' },
+        { id: 'items', name: 'items', type: 'array', description: 'One item', children: [
+          { id: 'name', name: 'name', type: 'string' },
+        ] },
+      ],
+    }
+    const response = await proposeSchemaEdit(current, 'Revise the notes and add dates', null, {
+      caller: CALLER,
+      generate: answering({
+        _description: current.recordDescription,
+        heading: 'string', count: 'integer', status: ['open', 'closed'],
+        items: [{ _description: 'One item', name: 'string' }], dates: ['date'],
+      }, [
+        { path: ['heading'], clear: true },
+        { path: ['count'], description: null },
+        { path: ['items', 'name'], description: 'Use the name in the item entry.' },
+        { path: ['dates'], description: 'Include every explicit date.' },
+      ]),
+    })
+    if (response.status !== 'proposed') throw new Error('Expected proposal')
+    expect(deriveSchemaProposal(current.schemaNodes, response).nodes).toEqual([
+      { id: 'title', name: 'heading', type: 'string', evidencePolicy: 'quoted' },
+      current.schemaNodes[1], current.schemaNodes[2],
+      { ...current.schemaNodes[3], children: [
+        { id: 'name', name: 'name', type: 'string', description: 'Use the name in the item entry.' },
+      ] },
+      { id: expect.any(String), name: 'dates', type: 'array', itemType: 'date', description: 'Include every explicit date.' },
+    ])
+  })
+
+  it.each(['object', 'array'] as const)('keeps new children and their notes through review when a scalar becomes %s', async (type) => {
+    const current: SchemaDefinition = { recordDescription: 'One entry.', schemaNodes: [
+      { id: 'title', name: 'title', type: 'string', evidencePolicy: 'quoted' },
+      { id: 'year', name: 'year', type: 'integer' },
+    ] }
+    const response = await proposeSchemaEdit(current, 'Make title a group with a name field', null, {
+      caller: CALLER,
+      generate: answering({
+        _description: current.recordDescription,
+        title: type === 'object' ? { name: 'string' } : [{ name: 'string' }],
+        year: 'integer',
+      }, [{ path: ['title', 'name'], description: 'Copy the full name.' }]),
+    })
+    if (response.status !== 'proposed') throw new Error('Expected proposal')
+    expect(response.additions).toEqual([{ path: ['title', 'name'], type: 'string', description: 'Copy the full name.' }])
+    const proposal = deriveSchemaProposal(current.schemaNodes, response)
+    expect(proposal.issues).toEqual([])
+    expect(proposal.changes.find(({ kind }) => kind === 'added')?.dependsOn).toEqual(['title'])
+    const replay = replaySchemaChanges(current.schemaNodes, proposal.changes, new Set(proposal.changes.map(({ id }) => id)))
+    expect(replay.hasChanges).toBe(true)
+    expect(replay.appliedCount).toBe(2)
+    expect(replay.nodes).toEqual([
+      { id: 'title', name: 'title', type, evidencePolicy: 'quoted', children: [
+        { id: expect.any(String), name: 'name', type: 'string', description: 'Copy the full name.' },
+      ] },
+      current.schemaNodes[1],
+    ])
+    expect(proposal.nodes).toEqual(replay.nodes)
+  })
+
+  it.each([
+    [{ path: ['unknown'], description: 'Do not guess.' }],
+    [{ path: ['heading'], description: 'First' }, { path: ['heading'], description: 'Second' }],
+    [{ path: ['heading'], clear: true, description: null }],
+    [{ path: ['title'], description: 'The old name must not be guessed after a rename.' }],
+    [{ path: ['grave'], description: 'Groups use the template.' }],
+    [{ path: ['title'], description: 42 }],
+    [{ path: 'title', description: 'Not a path array.' }],
+  ])('fails the whole proposal when a scalar note cannot be safely mapped: %j', async (...entries) => {
+    const response = await proposeSchemaEdit(definition, 'Rename title and revise its note', null, {
+      caller: CALLER,
+      generate: answering({ _description: definition.recordDescription, heading: 'string', grave: { plot: 'string' } }, entries),
+    })
+    expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
   })
 
   it('turns a revised template into the edits that reproduce it, keeping each surviving field', async () => {

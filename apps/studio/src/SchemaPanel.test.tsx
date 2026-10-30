@@ -223,6 +223,47 @@ afterEach(() => {
 })
 
 describe.sequential('SchemaPanel schema proposal review', () => {
+  it('shows and selectively accepts a scalar note-only proposal, then flushes that note in the saved definition', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the full heading exactly.' } },
+      additions: [], issues: [],
+    })
+    expect(screen.getByLabelText('Previous note')).toHaveTextContent('Research rule')
+    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the full heading exactly.')
+    expect(setup.edits).toHaveLength(0)
+    const accept = screen.getByRole('checkbox', { name: 'Accept change to title' })
+    fireEvent.click(accept)
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+    fireEvent.click(accept)
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0]).toEqual({ recordDescription: 'One test record.', schemaNodes: [
+      { ...nodes[0], description: 'Copy the full heading exactly.' }, nodes[1],
+    ] })
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: 'title' })).getByText('Copy the full heading exactly.')).toBeInTheDocument()
+    await act(async () => {
+      expect(await setup.schema.flush()).toMatchObject(setup.edits[0])
+    })
+    expect(setup.schema.snapshot().draft?.schemaNodes).toEqual(setup.edits[0].schemaNodes)
+  })
+
+  it('shows a proposed scalar note clear before it can be applied', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: '' } },
+      additions: [], issues: [],
+    })
+    expect(screen.getByLabelText('Previous note')).toHaveTextContent('Research rule')
+    expect(screen.getByText('Note removed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(setup.edits[0].schemaNodes[0]).toEqual({ id: 'title', name: 'title', type: 'string' })
+  })
+
   it('each edit request carries a new operation ID', async () => {
     renderPanel()
     const input = screen.getByPlaceholderText('Describe a change to the schema…')
@@ -1388,6 +1429,24 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     await waitFor(() => expect(setup.edits).toHaveLength(1))
     expect(setup.edits[0]!.schemaNodes.map((node) => node.name)).toEqual(['heading', 'gender'])
+    expect(requestSchemaEdit).not.toHaveBeenCalled()
+  })
+
+  it('reopens a description-only proposal after reload without another model request', async () => {
+    const restored: ModelOperation = {
+      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
+      status: 'SUCCEEDED', instruction: 'Copy the complete heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
+      baseSchemaRevisionId: modelContext.schemaRevisionId,
+      response: { status: 'proposed', fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the complete heading.' } }, additions: [], issues: [] },
+    }
+    listModelOperations.mockResolvedValueOnce([restored])
+    const setup = renderPanel({ durableScope: true })
+    const apply = await screen.findByRole('button', { name: 'Apply changes' })
+    expect(apply).toBeEnabled()
+    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the complete heading.')
+    fireEvent.click(apply)
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0].schemaNodes).toEqual([{ ...nodes[0], description: 'Copy the complete heading.' }, nodes[1]])
     expect(requestSchemaEdit).not.toHaveBeenCalled()
   })
 
