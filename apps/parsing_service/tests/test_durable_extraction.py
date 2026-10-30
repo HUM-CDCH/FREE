@@ -11,7 +11,7 @@ import pytest
 
 from kei_exp.kie.extract import calls, run, unified
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
-from kei_exp.kie.extract.models import ROLE, Router
+from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract import retained
 from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
@@ -811,8 +811,8 @@ def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves(
 @pytest.mark.parametrize("chunks",[1,2])
 def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks):
     """Each entry of the windows read so far is read, and shown with its candidates, before discovery has read the
-    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. A round plans
-    at most `chunks` calls per role however many pages there are, and the result is a plain run's."""
+    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. However many
+    entries a round plans, the workflow runs `chunks` calls per role (`drive`), and the result is a plain run's."""
     from tests.test_unified_catalog import untimed
     source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
     request=unified_request(defaults=3)
@@ -822,8 +822,6 @@ def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks
     last_window=len(answered)-1-answered[::-1].index("discovery")
     assert answered.index("entry")<last_window<answered.index("verification")
     assert any("discovery" in each["planned"].values() and 0 in each["saved"] for each in rounds)
-    assert all(sum(ROLE[stage]==role for stage in each["planned"].values())<=chunks
-               for each in rounds for role in ("fields","reasoning"))
     # discovery keeps `chunks` windows asked until none is left to ask
     assert all(list(each["planned"].values()).count("discovery")==min(chunks,12-each["answered"].count("discovery"))
                for each in rounds if each["answered"].count("discovery")<12)

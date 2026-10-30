@@ -44,10 +44,10 @@ function executionDefinition(raw:unknown) {
 export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
 /** The document History list shows the newest this many Extractions and says when there are more. */
 export const DOCUMENT_HISTORY_LIMIT = 100
-/** The page a planned record starts on: its first source range's segment (`p{page}_s{n}`). */
-function firstPage(scope: unknown): number | null {
+/** The canonical segment and page a planned record starts on, kept after discovery for source markers. */
+function recordStart(scope: unknown): { segment: string | null; page: number | null } {
   const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
-  return segmentPage(segment)
+  return { segment: typeof segment === 'string' ? segment : null, page: segmentPage(segment) }
 }
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
@@ -142,7 +142,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         WHERE c."extractionId"=$1 AND c."selectionId"=$2 AND o.id IS NULL AND jsonb_typeof(i.request->'body'->'record')='number'`,
         [id, head.selectionId])).rows.map(row => row.record as number)
       const listed = plan ?? partial
-      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
+      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, ...recordStart(unit.scope) })) : null
       const feedbackVersion = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0]?.version as number ?? 0
       return { protocol:1 as const, projectId:head.projectId, extractionId:id, strategy:head.strategy, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, schemaRevisions:await resultSchemaRevisions(client,head),source:head.sourcePin,

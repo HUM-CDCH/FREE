@@ -280,7 +280,8 @@ def plan_next(extraction: str, attempt: str) -> dict:
         except NeedsCall:
             if planner.discovery is not None:
                 show("discovery", discovery_event(planner.discovery))
-            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles}
+            # Planning visits work in source priority; preserve it when admitting calls.
+            return {"pending": list(planner.pending), "roles": planner.roles}
         except Boundary:
             return {"boundary": True}
         return {"result": result, "scopes": planner.scopes}

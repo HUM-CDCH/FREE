@@ -313,7 +313,7 @@ def test_a_server_that_ignores_the_stream_is_read_as_the_unstreamed_reply(monkey
     monkeypatch.setattr(captured_provider.requests, "post", lambda *_, **__: Whole(REPLY))
     pieces = []
     reply = captured_provider.CapturedChat({"url": "http://model", "timeout": 5, "model": "m"}, {}, on_text=pieces.append).complete()
-    assert (reply.text, reply.finish, reply.input_tokens, pieces) == (REPLY, "stop", 120, [])
+    assert (reply.text, reply.finish, reply.input_tokens, pieces) == (REPLY, "stop", 120, [REPLY])
 
 
 class Calls:

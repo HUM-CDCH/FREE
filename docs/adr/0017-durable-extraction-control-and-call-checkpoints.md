@@ -86,9 +86,10 @@ fallback.
 2026-10-06. The results rail follows the latest saved results while a run
 reads, instead of staying on the first saved cut; only an explicitly opened
 cut (a finalized review, a saved-correction link, History's "Open") stays put.
-A finished unified Catalog entry, and each Article grounding batch, retains its
-verified Evidence links at once, so values are marked on the source as they
-are read. Pause, Resume, Retry and Stop take the run button's place.
+A finished unified Catalog entry retains its verified Evidence links at once.
+Article captures independent grounding batches in one planning round and retains
+the union of their available replies when that round yields or finishes; a pause
+or stop leaves the preceding saved cut intact. Pause, Resume, Retry and Stop take the run button's place.
 
 Discovery's reply is streamed by the transport only: the captured request is
 sent unchanged plus the provider's `stream` and usage options, and the call is
@@ -96,7 +97,23 @@ read, checked and committed exactly as an unstreamed one (a server that ignores
 the stream answers once and is read as before). While it is generated, the
 worker shows the places it has completed, and the planner the record starts
 earlier windows found, as DBOS events Studio reads for display only; nothing in
-a run reads them back, and failing to write them never fails a call.
+a run reads them back, and failing to write them never fails a call. Once discovery
+finishes, its saved record starts keep the Catalog marks visible while entries
+are read.
+
+During a live Article or Catalog run, a saved provisional string value may also
+highlight its unique, exact occurrence in the pinned source as a dashed preview.
+Repeated text, partial words and missing text do not create previews. They are
+labelled not verified, stay separate from saved Evidence and review decisions,
+and disappear when verification replaces them or the run settles. Reloading
+reconstructs them from the saved values and source; previews never enter an
+export.
+
+A unified Catalog's final saved values also retain a single, schema-valid scalar
+proposal when no accepted value occupies that field. It remains ungrounded and
+has no Evidence until reviewed; its proposed quote and reason stay in diagnostics.
+Competing proposals never choose a winner, and this projection never reconstructs
+list identities. The accepted-only extraction artifact remains unchanged.
 
 NuExtract entry calls also stream at the captured transport, including a new
 physical Retry of an already finalized request. Guard `nuextract-item-text-v1`

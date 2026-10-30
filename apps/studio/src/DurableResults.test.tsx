@@ -155,6 +155,52 @@ it('shows the record starts discovery has found on the source while it still loo
   expect(selection.snapshot().marks!.describe.size).toBe(0)
 })
 
+it.each(['ARTICLE','CATALOG'] as const)('shows provisional %s values on the document and replaces previews with verified links',async strategy=>{
+  const document=decodeParsedDocument(rawDocument)
+  const block=document.content_stream.find(each=>'text' in each)!
+  if(!('text' in block))throw new Error('fixture has no source text')
+  block.text='Title: An unambiguous early title.'
+  const anchor=document.evidence_index.anchors.find(each=>each.kind==='text'&&each.block_id===block.block_id)!
+  const value={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'An unambiguous early title',evidence:[],links:[],grounding:'provisional',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[value.node]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:1,inFlight:1},records:null,reading:[]}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  const selection=createSelectionChannel()
+  vi.useFakeTimers()
+  try {
+    await act(async()=>{render(<Results attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} document={document} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)})
+    expect(selection.snapshot().marks?.savedLinks).toEqual([{key:'value',link:{resultPath:value.path,evidenceAnchorId:anchor.anchor_id}}])
+    expect(selection.snapshot().marks?.describe.get('value')).toMatchObject({name:'title (preview, not verified)',style:'preview'})
+    expect(screen.getByText('Preview highlights show matching text. Citations are still being checked.')).toBeVisible()
+    expect(value.links).toEqual([])
+    const link={resultPath:value.path,evidenceAnchorId:anchor.anchor_id,precision:'segment'}
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,snapshotVersion:2},page:{...page,snapshotVersion:2,values:[{...value,links:[link]}]}} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(selection.snapshot().marks?.describe.get('value')).toMatchObject({name:'title',style:'link'})
+    expect(selection.snapshot().marks?.savedLinks).toEqual([{key:'value',link}])
+    expect(screen.queryByText('Preview highlights show matching text. Citations are still being checked.')).toBeNull()
+    // A failed or stopped run never leaves a display-only hint looking like settled evidence.
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'FAILED',snapshotVersion:3},page:{...page,snapshotVersion:3}} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(selection.snapshot().marks?.savedLinks).toEqual([])
+  } finally {vi.useRealTimers()}
+})
+
+it('keeps discovered record starts on the source while their values are still being read',async()=>{
+  const empty={snapshotVersion:0,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:0,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:1,inFlight:1},
+    records:[{ordinal:0,page:1,segment:'p1_s0'},{ordinal:1,page:2,segment:'p2_s0'}],recordsFinal:true,reading:[0]}
+  vi.mocked(readDurable).mockResolvedValue({state,page:empty} as never)
+  const selection=createSelectionChannel()
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
+  expect(await screen.findByText('Reading records')).toBeVisible()
+  await waitFor(()=>expect(selection.snapshot().marks?.savedLinks?.map(saved=>saved.link.evidenceAnchorId)).toEqual(['a_p1_s0','a_p2_s0']))
+  expect(selection.snapshot().marks!.describe.size).toBe(0)
+})
+
 it('lists the records found so far, with no total, while a pipelined run reads them and discovery still looks',async()=>{
   const value={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
     node:{id:'title',name:'title',type:'string'},modelValue:'Early title',evidence:[],links:[],grounding:'provisional',processing:'saved',lineage:[],correction:null,historicalCorrection:null}

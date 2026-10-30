@@ -331,8 +331,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
 
     def read(entries: list[dict]) -> list:
         """Every entry's work, nearest the start page first; the first failure in entry order is raised, and an entry
-        never read is None. Durable planning reads them in turn until `chunks` entries wait on a call (`NeedsCall`, or
-        `Boundary` when no call may start): an entry whose calls are all answered lets the next one in. A run that is
+        never read is None. Durable planning reads every entry in turn: one that waits on a call (`NeedsCall`, or
+        `Boundary` when no call may start) lets the next one in, and the workflow runs `chunks` calls of each role at
+        once (durable_extract), so an entry waiting on its verification holds no entry back. A run that is
         not durable reads `chunks` entries at once, and its first failure stops the rest. Until discovery is complete,
         verification waits, so that the reasoning model reads discovery's windows; candidates are shown meanwhile."""
         def one(number: int) -> _Work:
@@ -362,8 +363,6 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                     works[number] = one(number)
                 except (NeedsCall, Boundary) as waiting:  # the entries after it are still compiled
                     raised[number] = waiting
-                    if len(raised) == max(1, chunks):
-                        break
                 except BaseException as error:  # noqa: BLE001 - raised below, the first in entry order
                     raised[number] = error
                     break
@@ -882,15 +881,20 @@ class _Run:
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
+                        # The checker sees only this request's record text, never context or unseen windows.
+                        view = _view([*window.before, *window.primary, *window.after], self.texts)
+                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
                         if isinstance(value, dict) and "value" in value and value["value"] is None:
-                            value = None
+                            # A null quoting the candidate's own printed value contradicts itself: left for review.
+                            quote = value.get("quote")
+                            value = "unclear" if isinstance(quote, str) and quote.strip() and found.spans and any(
+                                all(any(s.segment_id == q.segment_id and q.start <= s.start and s.end <= q.end
+                                        for q in spans) for s in found.spans)
+                                for spans in checker._places(quote)) else None
                         if value is None or isinstance(value, str):
                             if found.kind == "candidate":
                                 found.kind, found.reason = VERDICTS[value or "unsupported"]
                             continue
-                        # The checker sees only this request's record text, never context or unseen windows.
-                        view = _view([*window.before, *window.primary, *window.after], self.texts)
-                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
                         corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
                         if corrected.kind == "candidate" and found.kind == "candidate" and corrected.value == found.value:
                             found.kind = "accepted"
@@ -902,10 +906,8 @@ class _Run:
                             out.issues.append(Issue("verification_corrected",
                                 "verification replaced a candidate with a source-grounded correction",
                                 number, ("records", number, *found.path)))
-                        else:
-                            if found.kind == "candidate":
-                                found.kind, found.reason = "proposed", "verification_unresolved"
-                            out.undecided += 1
+                        elif found.kind == "candidate":  # an answered check: a doubt for review, not failed processing
+                            found.kind, found.reason = "proposed", "verification_unresolved"
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
                 else:

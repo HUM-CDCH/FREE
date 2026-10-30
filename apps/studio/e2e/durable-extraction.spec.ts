@@ -17,6 +17,38 @@ test.beforeEach(({page})=> {
   page.on('requestfailed',request=>console.error('durable browser request failed:',request.url(),request.failure()?.errorText))
 })
 
+for(const strategy of ['ARTICLE','CATALOG'] as const)test(`early ${strategy} previews mark the source without saving Evidence`,async({page},testInfo)=>{
+  const source=decodeParsedDocument(JSON.parse(await readFile(new URL('../src/assets/parsed_document.v2.json',import.meta.url),'utf8')))
+  // The synthetic PDF's Unit 7 text, measured from its printed text layer.
+  const bbox={x0:72,y0:64.102,x1:100.732,y1:74.277}
+  source.content_stream[0]!.bbox=bbox
+  source.evidence_index.anchors[0]!.producer_observations[0]!.bbox=bbox
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false,sourceDocument:source})
+  try {
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'RUNNING',
+      {provisional:true,...(strategy==='CATALOG'?{records:[['Unit 7']]}:{})})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await expect(page.getByText('Preview highlights show matching text. Citations are still being checked.')).toBeVisible()
+    const preview=page.getByRole('button',{name:'title (preview, not verified): Unit 7',exact:true})
+    await expect(preview).toBeVisible()
+    await expect(preview).toHaveClass(/preview/)
+    await page.screenshot({path:testInfo.outputPath('pdf-preview.png')})
+    await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
+    await expect(page.getByLabel('Parsed Markdown').getByRole('button',{name:'title (preview, not verified): Unit 7'})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('markdown-preview.png')})
+    await page.reload();await page.locator('#rail-tab-results').click()
+    await expect(preview).toBeVisible()
+    const saved=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
+    expect(saved.values[0].evidence).toEqual([])
+    expect(saved.values[0].links).toEqual([])
+    expect(saved.values[0].grounding).toBe('provisional')
+    expect(saved.values[0].correction).toBeNull()
+    await pool.query(`UPDATE extraction_runtime.head SET acknowledgement='FAILED' WHERE id=$1`,[id])
+    await expect(preview).toHaveCount(0)
+  } finally {await fixture.close()}
+})
+
 test('results identify an older schema and a new Article admission survives reload',async({page},testInfo)=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
