@@ -703,7 +703,8 @@ export function DocumentWorkspace({
       pendingReportRef.current = extractionId
       showToast(ADMISSION_UNCERTAIN, { durationMs: 6000 })
     },
-    onAdmitted: (attempt)=>onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current),
+    // The researcher asked for this run, so it is what they now inspect; a refused one leaves the routed view.
+    onAdmitted: (attempt)=>{setSelectedInspectionId(null);onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current)},
   })
 
   /** The boundaries choice is one-shot: once a run is acknowledged or ends, the next one returns to model discovery. A
@@ -837,8 +838,6 @@ export function DocumentWorkspace({
       // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the schema header before extraction.')
       const strategy = strategyOf(revision.recordScope)
-      // The researcher asked for this run, so it is what they now inspect.
-      setSelectedInspectionId(null)
       const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
       for (let round = 0; round < 2; round += 1) {
         // An Apply elsewhere aborts a read in flight, which then resolves null although the settings are ready: read
@@ -1217,10 +1216,14 @@ export function DocumentWorkspace({
               }}
               latestReader={latestReader}
               onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
-              documentHistory={sourceDocumentId ? (visible) => <DocumentHistory projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+              documentHistory={sourceDocumentId ? (visible) => <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
                 visible={visible} refreshKey={`${inspectedAttempt?.extractionId}:${latestAttempt?.extractionId}:${latestAttempt?.executionStatus}`}
                 shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
-                currentSchemaRevision={currentSchemaRevision} onOpen={onOpenExtraction} /> : undefined}
+                currentSchemaRevision={currentSchemaRevision} onOpen={(extractionId, cut) => {
+                  // Opening the routed Extraction again re-inspects it after a run or "Review now" showed the latest.
+                  setSelectedInspectionId(extractionId)
+                  onOpenExtraction(extractionId, cut)
+                }} /> : undefined}
               currentSchemaRevision={currentSchemaRevision}
               runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}

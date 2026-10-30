@@ -148,7 +148,9 @@ function RightRail({
     ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
     : 0
   const shown = inspection.attempt ?? extraction.attempt
-  const activeTab = (!showDeveloperUi && tab === 'evidence') || (!shown && tab === 'history') ? 'schema' : tab
+  // History lists the document's Extractions even when none is shown, e.g. all read an earlier source text.
+  const historyAvailable = Boolean(shown || documentHistory)
+  const activeTab = (!showDeveloperUi && tab === 'evidence') || (!historyAvailable && tab === 'history') ? 'schema' : tab
   // Results renders its guidance and saved versions into this tab's body.
   const [historySlot, setHistorySlot] = useState<HTMLDivElement | null>(null)
   // The tab names the shown Extraction's lifecycle; its review counts live in the Results header.
@@ -181,7 +183,7 @@ function RightRail({
       badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
     },
     { key: 'results', label: 'Results', badge: resultsBadge },
-    ...(shown ? [{ key: 'history' as const, label: 'History', icon: (
+    ...(historyAvailable ? [{ key: 'history' as const, label: 'History', icon: (
       <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.6h2.6M8 5v3l2 1.5" />
       </svg>
@@ -309,7 +311,7 @@ function RightRail({
           {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'Press ▶ Run extraction above.'}</p>}
         </div>}
       </div>
-      {shown && <div id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'}>
+      {historyAvailable && <div id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'}>
         {documentHistory && <div className="p-3 pb-0">{documentHistory(open && activeTab === 'history')}</div>}
         <div ref={setHistorySlot} />
       </div>}

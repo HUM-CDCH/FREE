@@ -71,4 +71,15 @@ describe('document History', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Stored research state could not be read.')
     expect(readDocumentHistory).toHaveBeenCalledTimes(2)
   })
+
+  it('says when the document has no Extractions, and ignores a read answered after it was left', async () => {
+    const late = Promise.withResolvers<History>()
+    vi.mocked(readDocumentHistory).mockReturnValueOnce(late.promise).mockResolvedValueOnce({ truncated: false, extractions: [] })
+    const view = render(<DocumentHistory {...props} onOpen={vi.fn()} />)
+    view.rerender(<DocumentHistory {...props} refreshKey="b" onOpen={vi.fn()} />)
+    expect(await screen.findByText('No Extractions of this document yet.')).toBeVisible()
+    late.resolve(history)
+    await late.promise
+    expect(screen.getByText('No Extractions of this document yet.')).toBeVisible()
+  })
 })

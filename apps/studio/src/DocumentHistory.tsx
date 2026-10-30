@@ -26,7 +26,7 @@ export default function DocumentHistory({ projectContextId, sourceDocumentId, vi
     if (!visible) return
     const controller = new AbortController()
     readDocumentHistory(projectContextId, sourceDocumentId, controller.signal).then(
-      (read) => { setHistory(read); setError(null) },
+      (read) => { if (!controller.signal.aborted) { setHistory(read); setError(null) } },
       (cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'The document history could not be read.') },
     )
     return () => controller.abort()
@@ -41,6 +41,7 @@ export default function DocumentHistory({ projectContextId, sourceDocumentId, vi
       {error && <p role="alert" className="text-secondary text-danger">{error}</p>}
       {!history && !error && <p className="m-0 pt-2 text-secondary text-ink-muted">Loading…</p>}
       {history && <div className="space-y-2 pt-2 text-secondary">
+        {history.extractions.length === 0 && <p className="m-0 text-compact text-ink-muted">No Extractions of this document yet.</p>}
         {currentUnused && <p className="m-0 text-compact text-ink-muted">Not run yet with the current schema revision (rev {currentSchemaRevision.revisionNumber}, shared across the Project).</p>}
         <ol aria-label="Extractions of this document" className="m-0 list-none space-y-2 p-0">
           {history.extractions.map((extraction) => {

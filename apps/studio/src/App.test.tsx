@@ -2320,6 +2320,31 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByRole('button',{name:'▶ Resume extraction'})).toBeVisible()
     })
 
+    it('History opens the routed Extraction again after an unrouted run showed the new one', async () => {
+      const bodies = stubRuns('SUCCEEDED')
+      const previousFetch = vi.mocked(fetch).getMockImplementation()!
+      const oldId = catalogAttempts.SUCCEEDED.extractionId, onOpenExtraction = vi.fn()
+      const sourceDocumentId = catalogAttempts.SUCCEEDED.sourceDocumentId
+      const listed = (extractionId: string, createdAt: string) => ({ extractionId, createdAt, status: 'COMPLETED', strategy: 'CATALOG',
+        batchExtractionId: null, sourceRevisionNumber: 1, currentSource: true, finalizations: [], pendingSchemaRevision: null,
+        schemaRevisions: [{ schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, revisionNumber: 1 }] })
+      vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).endsWith(`/source-documents/${sourceDocumentId}/history`)
+        ? Promise.resolve(Response.json({ truncated: false, extractions: [listed(bodies[0]!.id, '2026-08-13T00:00:00.000Z'), listed(oldId, '2026-08-12T00:00:00.000Z')] }))
+        : previousFetch(input, init)))
+      await renderWorkspace({ ...catalogAttempts.SUCCEEDED, sourceRepresentation: reopened.persistedExtraction!.sourceRepresentation,
+        extractionSchema: reopened.persistedExtraction!.extractionSchema }, { sourceDocumentId, onOpenExtraction })
+      fireEvent.click(tabStripRun('ARTICLE'))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(await screen.findByText('Elmbrooke')).toBeVisible()
+      expect(screen.queryByRole('button', { name: 'Open latest' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('tab', { name: 'History' }))
+      fireEvent.click(await screen.findByRole('button', { name: /^Open Extraction of / }))
+      // The route stays on the reopened Extraction, so nothing navigates: History pins it again.
+      expect(onOpenExtraction).toHaveBeenCalledExactlyOnceWith(oldId, undefined)
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
+    })
+
     it.each([
       ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
       ['keeps Model discovery', undefined, 'Model discovery'],
@@ -3441,6 +3466,29 @@ describe('updated latest reviewed extraction', () => {
     // The later unfinalized work in the same visible Extraction is one click away.
     expect(screen.getByRole('button', { name: 'Show the latest results' })).toBeVisible()
     expect(requests.some((url) => url.includes(`/api/extractions/${reopened.persistedExtraction!.extractionId}/durable/values?`) && url.includes('feedbackVersion'))).toBe(false)
+  })
+
+  it('keeps a routed older Extraction shown when a run from it is refused', async () => {
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+        posts.push(init.body)
+        return Promise.resolve(Response.json({ error: { code: 'method_changed', message: 'Stale.' } }, { status: 409 }))
+      }
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: 3, feedbackVersion: 4 }) ??
+        (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} newestExtraction={{ ...reopened.persistedExtraction!, executionStatus: 'COMPLETED' }}
+      persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} latestReviewedExtraction={finalizedA} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
+    expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+    expect(posts).toHaveLength(2)
+    expect(screen.getByText(/Showing saved results 1/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Open latest' })).toBeVisible()
   })
 
   it('keeps the live cut when the latest attempt is itself the latest reviewed', async () => {

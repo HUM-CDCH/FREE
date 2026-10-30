@@ -163,6 +163,15 @@ describe('RightRail Results', () => {
     expect(documentHistory).toHaveBeenLastCalledWith(false)
   })
 
+  it('keeps the document History when no Extraction is shown, e.g. all read an earlier source text', () => {
+    renderRail({ tab: 'history', documentHistory: (visible) => <p>Document history {String(visible)}</p> })
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Document history true')
+    cleanup()
+    renderRail({ tab: 'history' })
+    expect(screen.queryByRole('tab', { name: 'History' })).not.toBeInTheDocument()
+  })
+
   it('says how to start when there is no Extraction, and offers Reconnect for an unanswered admission', () => {
     const reconnect = vi.fn()
     renderRail({ tab: 'results', extraction: { ...defaultController, monitorError: 'Unable to update status. The extraction may still be running.', reconnect } })
