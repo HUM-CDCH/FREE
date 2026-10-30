@@ -18,6 +18,16 @@ it('keeps unrelated records and corrections distinct when their display position
   expect(model.counts.toCheck).toBe(2)
 })
 
+it('shows each record and the document fields in schema order, not saved id order',()=> {
+  const field=(id:string,name:string,recordId='record',extra:Partial<RetainedValue>={})=>value({id,recordId,fieldId:name,path:['records',0,name],node:{id:name,name,type:'string'},...extra})
+  const values=[field('a','year'),field('b','removed'),field('c','site'),field('d','finds'),
+    field('e','reporter','document',{node:{id:'reporter',name:'reporter',type:'string',valueSource:'document'}}),
+    field('f','catalogue','document',{node:{id:'catalogue',name:'catalogue',type:'string',valueSource:'document'}})]
+  const model=durableRailModel({values} as DurablePage,null,null,['catalogue','site','finds','year','reporter'])
+  expect(model.records[0].rows.map(row=>row.name)).toEqual(['site','finds','year','removed'])
+  expect(model.document.map(row=>row.name)).toEqual(['catalogue','reporter'])
+})
+
 it('reviews saved ungrounded and provisional whole typed values without inventing child decisions',()=> {
   const original={title:'Book',selected:false}
   const node={id:'work',name:'work',type:'object' as const,children:[{id:'title',name:'title',type:'string' as const},{id:'selected',name:'selected',type:'boolean' as const}]}

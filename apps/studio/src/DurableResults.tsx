@@ -370,7 +370,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const progress=useMemo<RunProgress|null>(()=>state?{records:state.records,reading:new Set(state.status==='RUNNING'?state.reading:[]),
     fields:(state.selection?.schemaTree?.schemaNodes??[]).filter((node:{valueSource?:unknown})=>!node.valueSource).map((node:{name:string})=>node.name),
     startPage:state.selection?.resolved?.startPage??null}:null,[state])
-  const model=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress):null,[page,document,progress,pinned])
+  // Top-level fields in schema order: the order the rail shows them in, and the names of their colours.
+  const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
+  const model=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress,fieldOrder):null,[page,document,progress,pinned,fieldOrder])
   // The export's fields are the shown values' own producing fields, never today's schema reinterpreting them.
   const exportFields=useMemo(()=>page?durableSchemaNodes(page.values,state?.selection?.schemaTree?.schemaNodes):[],[page,state?.selection?.schemaTree?.schemaNodes])
   // Records open as a run reads them; a settled Extraction opens only its first record with a value to check, chosen
@@ -389,8 +391,6 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const previewing=!pinned&&Boolean(state&&ACTIVE.has(state.status))
   const previews=useMemo(()=>previewing&&document?provisionalMarks(document,displayed):[],[previewing,document,displayed])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
-  // Top-level fields in schema order name their colours.
-  const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
   // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
   // part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
   const reviewParts=useMemo(()=>review&&composite(review.value)?valueParts(review.value):[],[review])
