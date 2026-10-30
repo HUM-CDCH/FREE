@@ -83,6 +83,7 @@ export function projectContextFixture(): ProjectStoreReads {
         extractionSchema: null,
         latestAttempt: null,
         latestReviewed: null,
+        newestAttempt: null,
       }
     },
     async getSourceRepresentation(projectContextId, sourceRepresentationId) {

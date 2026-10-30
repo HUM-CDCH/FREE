@@ -519,6 +519,27 @@ it('names an older snapshot in the status line and marks only the shown cut in H
   expect(intermediate()).not.toHaveAttribute('aria-current')
 })
 
+it('says when the shown Extraction is not the document\'s latest, and opens the latest',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'one',schemaRevisionId:'schema-one',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,finalization:null,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},
+    status:'COMPLETED',values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,
+    snapshotVersion:1,selection:{id:'one',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page)
+  vi.mocked(readValues).mockResolvedValue(page)
+  const onOpenLatest=vi.fn()
+  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null,createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}} readOnly onOpenLatest={onOpenLatest}/>)
+  expect((await screen.findAllByText(/· Extraction .+ · not the latest$/))[0]).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:'Open latest'}))
+  expect(onOpenLatest).toHaveBeenCalledOnce()
+  view.rerender(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null,createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  expect(screen.queryByText(/not the latest/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:'Open latest'})).not.toBeInTheDocument()
+})
+
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
   const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema-one',
     node:{id:'title',name:'title',type:'string'},modelValue:'Original title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}

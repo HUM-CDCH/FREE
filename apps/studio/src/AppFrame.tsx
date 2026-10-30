@@ -234,6 +234,8 @@ export default function AppFrame({
         persistedExtraction: openDocument.latestAttempt,
         routeExtractionId: route.kind==='document'?route.extractionId:undefined,
         latestReviewedExtraction: openDocument.latestReviewed,
+        newestExtraction: openDocument.newestAttempt ?? null,
+        sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
         persistedReviewCut: route.kind === 'document' && route.extractionId === openDocument.latestAttempt?.extractionId
           ? route.reviewCut ?? null
           : null,

@@ -39,6 +39,7 @@ describe('eager API dispatcher', () => {
       source_documents: scopedModule(),
       source_ingestions: scopedModule(),
       document_reopen: scopedModule(),
+      durable_extractions: scopedModule(),
       schema_revisions: scopedModule(),
       extraction_schemas: scopedModule(),
       extraction_models: scopedModule(),
@@ -69,6 +70,10 @@ describe('eager API dispatcher', () => {
       [
         '/api/project-contexts/project/source-documents/document/reopen',
         'document_reopen',
+      ],
+      [
+        '/api/project-contexts/project/source-documents/document/history',
+        'durable_extractions',
       ],
       [
         '/api/project-contexts/project/source-ingestions',

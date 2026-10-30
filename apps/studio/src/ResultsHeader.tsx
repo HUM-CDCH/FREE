@@ -17,6 +17,8 @@ export type StatusLine = {
   schemaRevision?: number
   /** "Why?" after the rest, a link to the drawer's Extraction section. */
   why?: boolean
+  /** Opens the document's latest Extraction while another one is shown. */
+  onLatest?: () => void
   /** A failed run's message, on a second line with "Show details". */
   failure?: string
   /** The date of a saved review, as the line's title. */
@@ -96,6 +98,7 @@ export default function ResultsHeader({
             ? <><span className="@max-[344px]:hidden">{status.rest}</span><span className="hidden @max-[344px]:inline">{status.rest.replace(/^· Catalog /, '').replace(/ ·$/, '')}</span></>
             : status.rest}</span>}
           {status.schemaRevision !== undefined && <button type="button" className={linkButton} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
+          {status.onLatest && <button type="button" className={linkButton} onClick={status.onLatest}>Open latest</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
         {/* Snapshot, export and revision controls take a second row when the status would be squeezed. */}

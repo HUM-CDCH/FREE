@@ -806,7 +806,7 @@ async function appendSavedTitle(extractionId:string,title:string) {
 }
 
 for(const source of ['same source','new source revision'] as const) {
-  test(`Latest reviewed opens its finalized pair after later work on the ${source}`,async({page})=> {
+  test(`a finalized review opens on its pair after later work on the ${source}, and Open latest returns`,async({page})=> {
     const fixture=await prepareInteractiveDocument(page,{hasKey:false})
     try {
       const nodes=[{id:'title',name:'title',type:'string' as const}]
@@ -828,8 +828,17 @@ for(const source of ['same source','new source revision'] as const) {
       const current=await savedExtraction(currentFixture,nodes,['Current attempt title'],'PAUSED',{schemaRevisionId:reviewed.schemaRevisionId})
       await fixture.open();await page.locator('#rail-tab-results').click()
       await expect(page.getByText('Current attempt title',{exact:true})).toBeVisible()
-      if(source==='same source')await page.getByRole('combobox',{name:'Extraction snapshot'}).selectOption(reviewed.id)
-      else {
+      if(source==='same source') {
+        // The document History lists both, the latest first, and opens the review by its address.
+        await page.locator('#rail-tab-history').click()
+        const listed=page.getByRole('list',{name:'Extractions of this document'}).getByRole('listitem')
+        await expect(listed).toHaveCount(2)
+        await expect(listed.first()).toContainText('Latest')
+        await expect(listed.first()).toHaveAttribute('aria-current','true')
+        await listed.nth(1).getByRole('button',{name:/^Open the review finalized /}).click()
+        await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
+        await page.locator('#rail-tab-results').click()
+      } else {
         await page.getByRole('button',{name:'Open latest reviewed',exact:true}).click()
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await page.locator('#rail-tab-results').click()
@@ -841,10 +850,14 @@ for(const source of ['same source','new source revision'] as const) {
       await expect(page.getByText('Later unfinalized title',{exact:true})).toHaveCount(0)
       expect((await (await page.request.get(`${root}/values`)).json()).snapshotVersion).toBe(2)
       expect((await (await page.request.get(`/api/extractions/${current.id}/durable/values`)).json()).values[0].modelValue).toBe('Current attempt title')
-      if(source==='new source revision') {
-        await page.reload();await page.locator('#rail-tab-results').click()
-        await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
-      }
+      await expect(page.getByText(/· not the latest$/).filter({visible:true})).toBeVisible()
+      await page.reload();await page.locator('#rail-tab-results').click()
+      await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+      await page.getByRole('button',{name:'Open latest',exact:true}).click()
+      await expect(page).toHaveURL(new RegExp(`extractionId=${current.id}`))
+      await page.locator('#rail-tab-results').click()
+      await expect(page.getByText('Current attempt title',{exact:true})).toBeVisible()
+      await expect(page.getByText(/not the latest/)).toHaveCount(0)
     } finally {await fixture.close()}
   })
 }
