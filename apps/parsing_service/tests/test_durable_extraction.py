@@ -330,7 +330,7 @@ def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its
     assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
 
 
-@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3)])
+@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3),(6,"budget",3)])
 def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
     """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
     source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")

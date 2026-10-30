@@ -171,7 +171,7 @@ def saved(attempt, round_):
             for value in attempt.lease.publications[identity]["values"]}
 
 
-@pytest.mark.parametrize("defaults", [3, 4])
+@pytest.mark.parametrize("defaults", [3, 4, 6])
 def test_an_unrelated_completion_does_not_read_or_save_a_finished_entry_again(monkeypatch, defaults):
     attempt = Attempt(monkeypatch, unified_request(defaults=defaults), pages(12, 3), chunks=2)
     expected(attempt.finish(), 12)
@@ -200,7 +200,7 @@ def test_discovery_completing_verifies_the_entries_read_before_it(monkeypatch):
         assert verified and all(attempt.lease.units[key]["checkpoint"] for key in verified)
 
 
-SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (1, 2, 3, 4) for chunks in (1, 2)
+SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (1, 2, 3, 4, 6) for chunks in (1, 2)
              for order in ("first", "last", "key", "reverse-key") for per_page in (1, 4)]
 
 
