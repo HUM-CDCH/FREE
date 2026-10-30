@@ -1168,7 +1168,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
     expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
-    expect(screen.getByText('Service defaults, version 5')).toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 6')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     setting('Input token ceiling')
     const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })
@@ -1185,11 +1185,13 @@ describe('Advanced', () => {
     setting('Window overlap')
     fireEvent.change(screen.getByRole('textbox', { name: 'Window overlap' }), { target: { value: '0' } })
     setting('Verification')
+    // From defaults 6 a single pass is the default; the switch adds verdicts on the fixed candidates.
+    expect(screen.getByText(/Off reads each value once/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
-    expect(screen.getByText(/Off keeps typed values as proposals/)).toBeInTheDocument()
+    expect(screen.queryByText(/Off reads each value once/)).not.toBeInTheDocument()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: false } })
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: true } })
   })
 
   it('retired Catalog controls are shown, never converted, and replaced only by an applied unified group', async () => {

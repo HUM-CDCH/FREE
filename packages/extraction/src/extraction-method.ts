@@ -117,7 +117,7 @@ export const UNIFIED_CATALOG_DEFAULTS = {
   6: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
     single_pass: true },
 } as const
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 5 as const
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 6 as const
 
 /** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
