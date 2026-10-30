@@ -503,9 +503,9 @@ class _Checker:
     """Checks one window's candidates against `view`: an entry's whole text, or a document window's shown text."""
 
     def __init__(self, view: BlockText, shown: tuple[int, int], window: int, nodes: list[Node],
-                 tables: dict[str, PageTable] | None = None, *, repair: bool = True):
+                 tables: dict[str, PageTable] | None = None, *, repair: bool = True, enclosing: bool = False):
         self.view, self.shown, self.window, self.nodes = view, shown, window, nodes
-        self.tables, self.repair = tables or {}, repair
+        self.tables, self.repair, self.enclosing = tables or {}, repair, enclosing
 
     def reply(self, answer: dict) -> list[_Found]:
         return [found for node in self.nodes for found in self._field((node.name,), node, answer.get(node.name))]
@@ -654,10 +654,11 @@ class _Checker:
                     literal += [each for each in self._places(text, within, numeric) if each not in literal]
         if not literal and free and len(quoted) == 1:
             # A page break can divide the printed value beyond its quoted cell. Locate the complete value in
-            # contiguous source text, enclosing that quote; never infer or join a table continuation.
+            # contiguous source text, enclosing that quote; never infer or join a table continuation. A single pass
+            # (`enclosing`) also takes a whole passage quoted by part of it: nothing reads that value again.
             for text in forms(typed):
                 for spans in self._places(text):
-                    if len(spans) < 2:
+                    if len(spans) < 2 and not self.enclosing:
                         continue
                     start, end = raw_range(self.view, spans)
                     if any(start <= a and b <= end for a, b in (raw_range(self.view, quote) for quote in quoted)):
@@ -861,7 +862,7 @@ class _Run:
             if answer is not None:
                 first, last = (*window.before, *window.primary)[0], (*window.primary, *window.after)[-1]
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
-                found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
+                found += _Checker(view, shown, index, self.nodes, self.tables, enclosing=single).reply(answer)
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
@@ -878,9 +879,10 @@ class _Run:
         for each in out.found:
             if each.kind == "rejected" and each.reason in UNCITED:
                 each.kind = "proposed"
-        _renumbered(out.found, _kept_in_items)
+        kept = _kept_in_items(out.found)
+        _renumbered(out.found, kept)
         from kei_exp.kie.extract.retained import _reviewable_scalars
-        out.record = _reviewable_scalars(conform(_placed(out.found, _kept_in_items), self.nodes), self.nodes,
+        out.record = _reviewable_scalars(conform(_placed(out.found, kept), self.nodes), self.nodes,
                                          [{"path": ["records", number, *each.path], "value": each.value}
                                           for each in out.found if each.kind == "proposed" and each.item is None],
                                          number)
@@ -1008,7 +1010,8 @@ class _Run:
                 if position != chosen:
                     found.kind, found.reason = "proposed", "competing_value"
             if chosen is None:
-                out.issues.append(Issue("competitors_unresolved", f"{len(candidates)} verified values disagree",
+                read = "verified" if self.effective["verification"] else "located"
+                out.issues.append(Issue("competitors_unresolved", f"{len(candidates)} {read} values disagree",
                                         number, ("records", number, *path)))
             contest.append({"path": ["records", number, *path], "outcome": "unresolved" if chosen is None
                             else "arbitrated", "chosen": chosen,
@@ -1062,11 +1065,15 @@ def _accepted(leaf: _Found) -> bool:
     return leaf.kind == "accepted"
 
 
-def _kept_in_items(leaf: _Found) -> bool:
-    """A single pass's record keeps an accepted value, and a proposal inside a list item: its item stays whole, with
-    Evidence or without (a partial item, at a null position, stays out). A scalar field's proposals are settled as
-    `retained._reviewable_scalars` settles them."""
-    return leaf.kind == "accepted" or leaf.kind == "proposed" and leaf.item is not None and None not in leaf.path
+def _kept_in_items(found: list[_Found]) -> Callable[[_Found], bool]:
+    """What a single pass's record keeps: an accepted value, and a proposal inside a list item code located by another
+    of its values, so the item stays whole, with Evidence where it has it. An item none of whose values code located
+    has no occurrence to tell it from an equal item another window read, nor a place in the list: it stays a proposal,
+    as with verification (a partial item, at a null position, stays out too). A scalar field's proposals are settled
+    as `retained._reviewable_scalars` settles them."""
+    located = {leaf.item for leaf in found if leaf.kind == "accepted" and leaf.item is not None}
+    return lambda leaf: leaf.kind == "accepted" or (leaf.kind == "proposed" and leaf.item in located
+                                                     and None not in leaf.path)
 
 
 def _renumbered(found: list[_Found], kept: Callable[[_Found], bool] = _accepted) -> None:

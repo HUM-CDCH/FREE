@@ -50,6 +50,7 @@ def test_earlier_defaults_keep_their_prompts_and_execution_record(defaults, prom
 
 
 def test_a_value_whose_quote_is_missing_or_found_nowhere_stays_in_the_record_without_evidence():
+    """A scalar, or a leaf of an item code located by another value; an item with no located value stays a proposal."""
     source = evidence("1. Hill. Material: gold. Find: bead (2) Find: cup (1) Find: lid (3)")
 
     def entry(record, user, schema):
@@ -63,13 +64,13 @@ def test_a_value_whose_quote_is_missing_or_found_nowhere_stays_in_the_record_wit
     result, _ = extract(source, Model(source, entry=entry), defaults=6)
     record = result["records"][0]
     assert (record["site"], record["material"]) == ("Hill", "gold")
-    assert record["finds"] == [{"name": "bead", "count": 2}, {"name": "cup", "count": 1}, {"name": "lid", "count": 3}]
+    assert record["finds"] == [{"name": "bead", "count": 2}, {"name": "cup", "count": 1}]
     linked = sorted(tuple(link["path"][2:]) for link in result["evidence"])
     assert linked == [("finds", 0, "count"), ("finds", 0, "name"), ("finds", 1, "name"), ("label",)]
-    assert sorted((tuple(each["path"][2:]), each["reason"]) for each in result["proposed"]) == [
-        (("finds", 1, "count"), "quote_not_in_source"), (("finds", 2, "count"), "quote_not_in_source"),
-        (("finds", 2, "name"), "quote_not_in_source"), (("material",), "quote_not_in_source"),
-        (("site",), "no_quote")]
+    assert sorted(((tuple(each["path"][2:]), each["reason"]) for each in result["proposed"]), key=str) == sorted([
+        (("finds", 1, "count"), "quote_not_in_source"), (("finds", None, "count"), "quote_not_in_source"),
+        (("finds", None, "name"), "quote_not_in_source"), (("material",), "quote_not_in_source"),
+        (("site",), "no_quote")], key=str)
     assert not result["rejected"] and result["completeness"]["evidence"] is False
 
 
@@ -84,6 +85,32 @@ def test_a_misquoted_value_is_kept_for_review_never_repaired_or_linked(text, ans
     (proposal,) = result["proposed"]
     assert result["records"][0][proposal["path"][2]] == proposal["value"] and proposal["reason"] == "quote_not_in_source"
     assert not result["evidence"] and not [i for i in result["issues"] if i["code"] == "quote_repaired"]
+
+
+def test_items_read_by_two_windows_are_published_once_and_in_order_even_with_unlocated_values():
+    source = evidence("1. Adorf.\n" + "\n".join(f"Find: F{n} ({n}). " + "filler " * 60 for n in range(1, 7)))
+
+    def entry(record, user, schema):
+        answer = fields(record, user, schema)
+        for item in answer["finds"] or []:
+            item["count"]["quote"] = "nowhere"           # every count uncited, each item still located by its name
+            if item["name"]["value"] == "F3":
+                item["name"]["quote"] = "nowhere"        # F3: nothing of it located
+        return answer
+    result, _ = extract(source, Model(source, entry=entry), input_tokens=520, output_tokens=64, overlap=1, defaults=6)
+    assert result["processing"]["entries"]["windows"] >= 2
+    assert result["records"][0]["finds"] == [{"name": f"F{n}", "count": n} for n in (1, 2, 4, 5, 6)]
+    assert {each["value"] for each in result["proposed"] if each["path"][3] is None} == {"F3", 3}
+
+
+def test_a_whole_passage_quoted_by_part_of_it_is_located_whole():
+    """A single pass reads a value once: a complete passage printed in the entry, quoted by its start, is its own."""
+    source = evidence(f"1. Adorf. {catalog.PARAGRAPH}")
+    result, _ = extract(source, Model(source, entry=noted(candidate(catalog.PARAGRAPH, catalog.PARAGRAPH[:60]))),
+                        schema=NOTES, defaults=6)
+    assert result["records"][0]["notes"] == catalog.PARAGRAPH
+    (link,) = result["evidence"]
+    assert (link["raw"], link["support"], link["linked_by"]) == (catalog.PARAGRAPH, "literal", "lexical")
 
 
 def test_text_copied_nearly_verbatim_is_still_the_source_text_linked_by_code():
@@ -136,6 +163,8 @@ def test_disagreeing_located_readings_still_go_to_one_arbitration_that_names_the
     undecided, _ = extract(source, Model(source, entry=entry, choice="NONE"), **settings)
     assert undecided["records"][0]["material"] is None and undecided["competitors"][0]["outcome"] == "unresolved"
     assert {each["reason"] for each in undecided["proposed"]} == {"competing_value"}
+    assert [issue["detail"] for issue in undecided["issues"] if issue["code"] == "competitors_unresolved"] == \
+        ["2 located values disagree"]
 
 
 # Table rows, repeated values and list items are grounded by the same code: with a single pass, these scenarios of
