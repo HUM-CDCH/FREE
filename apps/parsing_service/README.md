@@ -250,9 +250,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   enclosing that quote stays rejected. Located
   values that disagree still go to arbitration; `verification: true` adds verdicts on
   the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
-  New admissions use Studio's `UNIFIED_CATALOG_DEFAULTS_VERSION` (5; version 6 is chosen
-  explicitly) only where Studio's
-  `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  New admissions use the latest version only where Studio's
+  `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
+  Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
 Limitations:

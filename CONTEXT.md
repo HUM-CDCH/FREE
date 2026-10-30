@@ -184,7 +184,7 @@ What one Extraction is admitted with and pinned to: its Extraction Strategy, rec
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
-The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence. It needs no recipe, language, numbering convention, field name or particular model.
+The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; an account's Pro mode admits version 5 instead, which reads every value a second time. It needs no recipe, language, numbering convention, field name or particular model.
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:

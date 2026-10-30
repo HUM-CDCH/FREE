@@ -60,10 +60,10 @@ test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found
   await ceiling.fill('')
   await showPage(dialog, 'Catalog: Window overlap')
   await dialog.getByRole('textbox', { name: 'Window overlap' }).fill('0')
-  await showPage(dialog, 'Catalog: Verification')
+  await showPage(dialog, 'Catalog: Pro mode')
   await expect(dialog.getByText(/Off reads each value once/)).toBeVisible()
-  await dialog.getByRole('switch', { name: 'Verification' }).click()
-  await expect(dialog.getByText(/Off reads each value once/)).toBeHidden()
+  await dialog.getByRole('switch', { name: 'Pro mode' }).click()
+  await expect(dialog.getByText(/Pro mode runs defaults version 5/)).toBeVisible()
   const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/model_config' &&
     response.request().method() === 'PUT')
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
@@ -104,8 +104,8 @@ test('the Catalog group reflows without horizontal scrolling at 360 px and the r
     await dialog.getByRole('button', { name: 'Customize' }).click()
     await showPage(dialog, 'Catalog: Input token ceiling')
     await expectOperableInViewport(page, dialog.getByRole('textbox', { name: 'Input token ceiling' }))
-    await showPage(dialog, 'Catalog: Verification')
-    await expectOperableInViewport(page, dialog.getByRole('switch', { name: 'Verification' }))
+    await showPage(dialog, 'Catalog: Pro mode')
+    await expectOperableInViewport(page, dialog.getByRole('switch', { name: 'Pro mode' }))
     // Every view fits without an inner scroll area, as the other Advanced settings do.
     for (const title of await pageSelector(dialog).locator('option').allTextContents()) {
       await showPage(dialog, title)

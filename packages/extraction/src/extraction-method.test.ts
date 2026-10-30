@@ -5,7 +5,7 @@ import {
   activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
-  storedSettings, UNIFIED_CATALOG_DEFAULTS, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
+  storedSettings, UNIFIED_CATALOG_DEFAULTS, UNIFIED_CATALOG_PRO_VERSION, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
   type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
@@ -269,6 +269,14 @@ test('legacy Catalog preferences refuse new unified Catalog admission until migr
   // Applying the unified group replaces the Catalog branch: nothing legacy is left to migrate.
   const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
   assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG', null, true).settings, { unified: { defaults: 6, overlap: 2 } })
+  // Pro mode: the account's verification on admits the version whose verification call reads every value again.
+  assert.deepEqual(accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG', null, true).settings,
+    { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0 } })
+  assert.deepEqual(accountMethod(account({ unified: { verification: false } }), 'CATALOG', null, true).settings,
+    { unified: { defaults: 6, verification: false } })
+  // A method that names its version keeps its own verification.
+  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { defaults: 6, verification: true } } }, 'CATALOG', null),
+    { models: null, settings: { unified: { defaults: 6, verification: true } } })
   assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
   assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
 })

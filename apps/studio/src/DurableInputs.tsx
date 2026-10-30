@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { activeMethod, canonicalExtractionSettings } from 'extraction/extraction-method'
+import { activeMethod, canonicalExtractionSettings, canonicalUnified } from 'extraction/extraction-method'
 import type { DurableRead } from 'extraction/durable-types'
 import type { ExtractionAttempt, ExtractionModelListing } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
@@ -64,9 +64,10 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
     setBusy(true);setError(null)
     try {
       const edited=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy,baseline.read.selection.resolved.catalogRecipe,unified)
-      // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under.
+      // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under
+      // (so verification stays that version's, never Pro mode's).
       const method=pinned!==undefined&&'unified' in edited.settings
-        ?{...edited,settings:{unified:{...edited.settings.unified,defaults:pinned}}}:edited
+        ?{...edited,settings:{unified:canonicalUnified({...editor.draft.extractionSettings.catalog?.unified,defaults:pinned})}}:edited
       await durableRequest(`${durableRoot(attempt.extractionId)}/selection`,{expectedVersion:baseline.controlVersion,schemaRevisionId:schemaId,method})
       onSaved()
     } catch(error){setError(error instanceof Error?error.message:'Unable to save pending inputs.')}
