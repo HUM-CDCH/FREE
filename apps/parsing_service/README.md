@@ -232,7 +232,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   an entry's calls are captured by where it starts and what it covers, not by
   its number. From `defaults` 4 an entry's reply may use the served context its
   counted input leaves, its reserve the floor (an explicit `output_tokens` or a
-  native fields model keeps the reserve). New admissions use it only where Studio's
+  native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
+  within the counted token budget, retaining internal sections and lists as record content.
+  The existing verification call reads scalar fields afresh, without the draft
+  values anchoring its answer, and returns each complete value with a source quote;
+  code checks the field type and the quoted record text before acceptance. List
+  identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
+  corrected passages. Earlier admissions retain their pinned defaults and prompts.
+  New admissions use the latest version only where Studio's
   `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 

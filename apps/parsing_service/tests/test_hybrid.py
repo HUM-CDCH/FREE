@@ -586,8 +586,8 @@ def test_a_hybrid_recipe_changes_with_native_text_rules_and_others_keep_their_fi
     native = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
     with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None):
         scan = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
-    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 4, "native": 3, "surya": 2}
-    assert recipe(native, "0" * 64, None)["text_rules"] == 3
+    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 4, "native": 4, "surya": 2}
+    assert recipe(native, "0" * 64, None)["text_rules"] == 4
     assert recipe(scan, "0" * 64, None)["text_rules"] == 2
 
     def fingerprints():
@@ -595,7 +595,7 @@ def test_a_hybrid_recipe_changes_with_native_text_rules_and_others_keep_their_fi
                 {"hybrid": hybrid, "native": native, "scan": scan}.items()}
 
     before = fingerprints()
-    monkeypatch.setitem(types.TEXT_RULES, "native", 4)
+    monkeypatch.setitem(types.TEXT_RULES, "native", 5)
     after = fingerprints()
     assert after["hybrid"] != before["hybrid"] and after["native"] != before["native"]
     assert after["scan"] == before["scan"]

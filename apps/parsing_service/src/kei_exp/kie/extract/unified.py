@@ -61,8 +61,9 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 5  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 6  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
+# 6 (defaults 5): verification may correct a scalar, with its complete source quote.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -104,6 +105,8 @@ NEAR = 40
 # its reserve the floor that still sizes the windows (`_Budget.ask`); an explicit reply override or a native fields
 # model keeps the reserve. Measured on one excavation report (13 October 2026, NuExtract3-FP8, 32768-token context): a
 # record whose reply passed the 4096-token reserve was read again in halves, and an item at their cut was lost.
+# 5: discovery uses the token budget across page breaks; the same verification call may correct scalar candidates
+# with source-grounded values. Its reply reserve is 4096 to hold complete passages; list identities stay unchanged.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
@@ -111,14 +114,17 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
             3: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
                 "windows": "page", "pipelined": True},
             4: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page", "pipelined": True, "entry_reply": "context"}}
+                "windows": "page", "pipelined": True, "entry_reply": "context"},
+            5: {"reserves": {**_RESERVES, "verification": 4096}, "overlap": 3, "headings": True,
+                "verification": True, "splits": 6, "windows": "budget", "pipelined": True,
+                "entry_reply": "context", "corrections": True}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4]
+    defaults: Literal[1, 2, 3, 4, 5]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -223,11 +229,12 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
-               if name in ("windows", "pipelined", "entry_reply")}
+               if name in ("windows", "pipelined", "entry_reply", "corrections")}
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
+            "models": chat.models, "prompt_version": PROMPT_VERSION if options.defaults >= 5 else 5,
+            "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
 
@@ -304,7 +311,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             raise NeedsCall() from None
 
     def discover() -> tuple[dict, bool]:
-        body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
+        description = schema.record_description + (DISCOVERY_SCOPE if options.defaults >= 5 else "")
+        body = discovery.discover(evidence, description, partial(budget.fits, "discovery"),
                                   ask, overlap=effective["overlap"],
                                   splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
                                   progress=partial(discovering, chat), frontier=pipelined,
@@ -645,6 +653,9 @@ class _Checker:
 
 # --- prompts -------------------------------------------------------------------------------------------------------
 
+DISCOVERY_SCOPE = (" Keep each record whole: its internal headings, tables, citations and numbered list items belong to it; "
+                   "they are neither new records nor record-free text. Only entries matching the record definition are peers. "
+                   "Use other only for text outside every record, not sections inside one.")
 ENTRY = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
          "Answer every field with null when the record does not give it, or with an object: \"value\" (typed as the "
          "field) and \"quote\" (the exact text of the record that states or supports the value, copied character "
@@ -656,6 +667,13 @@ VERIFY = ("You check values extracted from one record of a source document. A re
           "For each candidate answer \"supported\" when the record text states that value for that field of this "
           "record, \"unsupported\" when it does not (it says something else, or the value belongs to another record or "
           "only to the context), or \"unclear\". Judge only from the text shown. Return only the JSON object.")
+VERIFY_COMPLETE = (
+    "You check values extracted from one source record. A record is: {description}\n{notes}"
+    "For each scalar field, read the source afresh and return the final complete value and an exact quote "
+    "containing that entire value. Include the whole descriptive passage across paragraphs or pages, "
+    "and exclude other fields. Do not summarize or invent. Return null if the record supplies no value. "
+    "For list-item fields, return supported, unsupported, or unclear without changing the item identity. "
+    "Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
@@ -824,30 +842,75 @@ class _Run:
                 found.kind, found.reason = "proposed", f"evidence_policy_{policy}"
             elif not self.effective["verification"]:
                 found.kind, found.reason = "proposed", "verification_disabled"
-        system = VERIFY.format(description=self.schema.record_description, notes=_notes(self.nodes))
+        # Corrections address scalar fields; changing a list item would require rediscovering its identity.
+        nodes = {}
+        def scalars(children, path=()):
+            for node in children:
+                key = (*path, node.name)
+                if node.type == "object":
+                    scalars(node.children or [], key)
+                elif node.type != "array" and evidence_policy(self.nodes, key) == "quoted":
+                    nodes[key] = node
+        if self.effective.get("corrections") and self.effective["verification"]:
+            scalars(self.nodes)
+        system = (VERIFY_COMPLETE if nodes else VERIFY).format(
+            description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
-            batch = [found for found in out.found if found.kind == "candidate" and found.window == index]
+            batch = [found for found in out.found if found.window == index and (
+                found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
+                found.reason in ("no_quote", "quote_not_in_source", "value_not_in_quote"))]
             pending = [batch] if batch else []
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
                 user = _user(window, self.texts, "RECORD", self.tables) + "\n\n### CANDIDATES\n" + "\n".join(
-                    f"{label}: {'.'.join(str(step) for step in _field_path(found.path))} = "
-                    f"{json.dumps(found.value, ensure_ascii=False)} (quoted: {json.dumps(found.quote, ensure_ascii=False)})"
+                    f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
+                    ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
+                     f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
                     for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
-                schema = {"type": "object", "properties": {label: {"type": "string", "enum": list(VERDICTS)}
-                                                           for label in labels},
+                verdict = {"type": "string", "enum": list(VERDICTS)}
+                schema = {"type": "object", "properties": {
+                    label: _leaf(nodes[found.path]) if found.path in nodes else verdict
+                    for label, found in zip(labels, group, strict=True)},
                           "required": labels, "additionalProperties": False}
                 answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
                                          out.unit) \
                     if self.budget.fits("verification", system, user, schema) else None
-                if answer is not None and all(answer.get(label) in VERDICTS for label in labels):
+                if answer is not None and all(label in answer and (
+                        (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
+                        else isinstance(answer[label], str) and answer[label] in VERDICTS)
+                        for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
-                        found.kind, found.reason = VERDICTS[answer[label]]
+                        value = answer[label]
+                        if isinstance(value, dict) and "value" in value and value["value"] is None:
+                            value = None
+                        if value is None or isinstance(value, str):
+                            if found.kind == "candidate":
+                                found.kind, found.reason = VERDICTS[value or "unsupported"]
+                            continue
+                        # The checker sees only this request's record text, never context or unseen windows.
+                        view = _view([*window.before, *window.primary, *window.after], self.texts)
+                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
+                        corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
+                        if corrected.kind == "candidate" and found.kind == "candidate" and corrected.value == found.value:
+                            found.kind = "accepted"
+                            continue
+                        out.found.append(corrected)
+                        if corrected.kind == "candidate":
+                            corrected.kind = "accepted"
+                            found.kind, found.reason = "rejected", "verification_corrected"
+                            out.issues.append(Issue("verification_corrected",
+                                "verification replaced a candidate with a source-grounded correction",
+                                number, ("records", number, *found.path)))
+                        else:
+                            if found.kind == "candidate":
+                                found.kind, found.reason = "proposed", "verification_unresolved"
+                            out.undecided += 1
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
                 else:
-                    group[0].kind, group[0].reason = "proposed", "verification_unresolved"
+                    if group[0].kind == "candidate":
+                        group[0].kind, group[0].reason = "proposed", "verification_unresolved"
                     out.undecided += 1
 
     def _settle(self, number: int, out: _Work, view: BlockText) -> list[dict]:
@@ -1115,7 +1178,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     result = {
         "extraction_version": EXTRACTION_VERSION, "run_id": evidence.run_id, "generation": evidence.generation,
         "digest": evidence.digest, "strategy": "catalog", "model": chat.model, "models": chat.models,
-        "prompt_version": PROMPT_VERSION, "document_version": DOCUMENT_VERSION,
+        "prompt_version": execution["prompt_version"], "document_version": DOCUMENT_VERSION,
         "schema": schema.model_dump(by_alias=True, exclude_none=True),
         "options": request.options.dumped(), "started": started, "seconds": round(time.monotonic() - clock, 3),
         "execution": execution, "execution_sha256": digest(execution),
@@ -1146,7 +1209,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         result["native_fields"] = {"backend": "gliformer", "windows": native_windows}
     result["fingerprint"] = hashlib.sha256(canonical_json({
         "generation": evidence.generation, "digest": evidence.digest, "schema": result["schema"],
-        "options": result["options"], "models": chat.models, "prompt_version": PROMPT_VERSION,
+        "options": result["options"], "models": chat.models, "prompt_version": execution["prompt_version"],
         "document_version": DOCUMENT_VERSION,
         "execution_sha256": result["execution_sha256"], "discovery_sha256": result["discovery_sha256"]})).hexdigest()
     return result

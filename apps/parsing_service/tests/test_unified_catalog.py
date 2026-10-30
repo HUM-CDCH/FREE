@@ -76,8 +76,13 @@ class Model:
             return (self.entry_fields or fields)(section(user, "RECORD"), user, schema)
         if system.startswith("You check values"):
             candidates = re.findall(r"^(C\d+): (\S+) = (.*) \(quoted: (.*)\)$", user, re.M)
-            return {label: (self.verdict or (lambda *_: "supported"))(path, json.loads(value), section(user, "RECORD"))
-                    for label, path, value, _ in candidates}
+            answer = {label: (self.verdict or (lambda *_: "supported"))(
+                path, json.loads(value), section(user, "RECORD")) for label, path, value, _ in candidates}
+            for label, path in re.findall(r"^(C\d+): (\S+)$", user, re.M):
+                record = section(user, "RECORD")
+                answer[label] = (self.verdict(path, None, record) if self.verdict else
+                                 fields(record, user, {"properties": {path: None}}).get(path))
+            return answer
         if system.startswith("Several verified candidate"):
             return {"choice": self.choice}
         if system.startswith("You extract fields that describe"):
@@ -736,7 +741,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == unified.PROMPT_VERSION
+    assert result["prompt_version"] == 5  # this request is pinned to defaults 1
     assert_accounted(source, result)
 
 
