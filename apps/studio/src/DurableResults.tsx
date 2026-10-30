@@ -275,7 +275,7 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
@@ -296,6 +296,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   railOpen?:boolean;
   /** The History tab's body: guidance and saved versions render there, not in Results. */
   historySlot?:HTMLElement|null;historyShown?:boolean;onShowResults?:()=>void;onShowHistory?:()=>void;
+  /** Set while this is not the document's latest Extraction: the status line says so and opens the latest. */
+  onOpenLatest?:(()=>void)|null;
 }) {
   const id=attempt?.extractionId
   const article=attempt?.strategy==='ARTICLE'
@@ -579,6 +581,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // An earlier cut names itself in the status line: the run's word and details stay the latest state's.
   const status=statusLine(state,model,article,Boolean(page.finalization))
   if(page.snapshotVersion<latestPage.snapshotVersion)status.rest=[status.rest,`· Results ${page.snapshotVersion} of ${latestPage.snapshotVersion}`].filter(Boolean).join(' ')
+  if(onOpenLatest) {
+    const started=attempt?.createdAt?new Date(attempt.createdAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):null
+    status.rest=[status.rest,`·${started?` Extraction ${started} ·`:''} not the latest`].filter(Boolean).join(' ')
+    status.onLatest=onOpenLatest
+  }
   const recordOf=(key:string)=>model.records.find(record=>record.rows.some(row=>row.key===key))?.label??'Document'
   // The open review stays in its row while newer results arrive (moving it would lose an open edit); only a value the
   // results shown do not hold opens above the list.

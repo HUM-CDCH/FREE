@@ -2,6 +2,7 @@ import { authenticatedFetch } from './auth/authenticatedFetch'
 import { ApiRequestError } from './api'
 import type { DurableRead, DurablePage, DurableHistory, DurableHistorySummary } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import { documentHistoryResponseSchema } from '../shared/documentHistory.contract'
 export type PinnedExtractionSource={document:ParsedDocument;markdown:string}
 export type DurableReviewProgress={extractionId:string;snapshotVersion:number;feedbackVersion:number;required:number;toCheck:number;finalized:boolean}
 /** The Extraction's state; while discovery still looks for its records, the starts it has found so far. */
@@ -48,6 +49,9 @@ export async function durableRequest<T>(url:string,body?:unknown,signal?:AbortSi
   }
 }
 export const durableRoot=(id:string)=>`/api/extractions/${id}/durable`
+/** A Source Document's Extractions, as its History list shows them. */
+export const readDocumentHistory=async(projectContextId:string,sourceDocumentId:string,signal?:AbortSignal)=>documentHistoryResponseSchema.parse(
+  await durableRequest<unknown>(`/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/history`,undefined,signal))
 /** Every value of one saved cut (`query` names it), read in pages of the server's largest size. */
 export async function readValues(id:string,query:Record<string,string|number>,signal?:AbortSignal):Promise<DurablePage> {
   const at=(params:Record<string,string|number>)=>`${durableRoot(id)}/values?${new URLSearchParams(Object.entries({limit:500,...params}).map(([k,v])=>[k,String(v)]))}`

@@ -10,6 +10,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
+import DocumentHistory from './DocumentHistory'
 import type { RailTab } from './RightRail'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
@@ -136,6 +137,11 @@ export type DocumentWorkspaceProps = {
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['latestAttempt']
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
+  /** The Extraction the document opens on without a routed one. A routed older one on the same Source Representation is
+   *  inspected read-only while this one keeps the run controls. */
+  newestExtraction?: DocumentSnapshot['newestAttempt']
+  /** Names the document for its History list; absent shows no document History. */
+  sourceDocumentId?: string
   /** The explicit result/decision cut the route opened `persistedExtraction` on; absent opens its live cut. */
   persistedReviewCut?: SavedReviewCut | null
   /** The route's value link: Results selects the value once per arrival. Its Extraction is null until known. */
@@ -190,6 +196,8 @@ export function DocumentWorkspace({
   extractionSchema,
   persistedExtraction,
   latestReviewedExtraction = null,
+  newestExtraction = null,
+  sourceDocumentId,
   persistedReviewCut = null,
   routedValue = null,
   onOpenExtraction,
@@ -661,10 +669,12 @@ export function DocumentWorkspace({
       reviewNow && !reviewingLatest ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setSelectedInspectionId(null); setRailOpen(true); setRailTab('results') } } } : undefined,
     )
   }
+  // The newest Extraction on the shown Source Representation keeps the run controls.
+  const newestHere = newestExtraction && newestExtraction.sourceRepresentationRevisionId === sourceRepresentationId ? newestExtraction : null
   const extraction = useExtraction({
     schemaReady,
     indexing,
-    initialAttempt: persistedExtraction,
+    initialAttempt: newestHere ?? persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget,
     // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
@@ -693,7 +703,8 @@ export function DocumentWorkspace({
       pendingReportRef.current = extractionId
       showToast(ADMISSION_UNCERTAIN, { durationMs: 6000 })
     },
-    onAdmitted: (attempt)=>onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current),
+    // The researcher asked for this run, so it is what they now inspect; a refused one leaves the routed view.
+    onAdmitted: (attempt)=>{setSelectedInspectionId(null);onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current)},
   })
 
   /** The boundaries choice is one-shot: once a run is acknowledged or ends, the next one returns to model discovery. A
@@ -723,15 +734,9 @@ export function DocumentWorkspace({
     latestAttempt?.executionStatus === 'RUNNING'
   const reviewedOnAnotherSource = latestReviewedExtraction &&
     latestReviewedExtraction.sourceRepresentationRevisionId !== sourceRepresentationId
-  const inspectionChoices = latestAttempt && latestReviewedExtraction && !reviewedOnAnotherSource && latestAttempt.extractionId !== latestReviewedExtraction.extractionId
-    ? [
-        { extractionId: latestAttempt.extractionId, label: 'Latest attempt' },
-        { extractionId: latestReviewedExtraction.extractionId, label: 'Latest reviewed' },
-      ]
-    : []
-  const pinnedAttempt = !reviewedOnAnotherSource && selectedInspectionId === latestReviewedExtraction?.extractionId
-    ? latestReviewedExtraction
-    : null
+  // A routed Extraction that is not the latest is inspected read-only; a new run or "Review now" inspects the latest.
+  const pinnedAttempt = persistedExtraction && selectedInspectionId === persistedExtraction.extractionId &&
+    persistedExtraction.extractionId !== latestAttempt?.extractionId ? persistedExtraction : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
   // One reader per Extraction: the latest one's, and the inspected one's while that is another.
   const latestReader = useKeyedController(latestAttempt?.extractionId ?? null, () => createDurableReader(latestAttempt!))
@@ -746,14 +751,11 @@ export function DocumentWorkspace({
   useEffect(() => {
     railOnResultsRef.current = railOpen && railTab === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
   }, [railOpen, railTab, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
-  // "Latest reviewed" opens its finalized result/decision pair, not that Extraction's later live cut; a routed cut
-  // applies to the routed Extraction only. Ordinary inspection opens the live cut.
-  const reviewedChoice = pinnedAttempt && pinnedAttempt.extractionId !== latestAttempt?.extractionId ? pinnedAttempt : null
-  const inspectionCut: SavedReviewCut | null = reviewedChoice?.finalizedReview
-    ? { snapshotVersion: reviewedChoice.finalizedReview.snapshotVersion, feedbackVersion: reviewedChoice.finalizedReview.feedbackVersion }
-    : !reviewedChoice && inspectedAttempt?.extractionId === persistedExtraction?.extractionId
-      ? persistedReviewCut
-      : null
+  // A routed cut (a finalized review) applies to the routed Extraction only. Ordinary inspection opens the live cut.
+  const inspectionCut: SavedReviewCut | null = inspectedAttempt?.extractionId === persistedExtraction?.extractionId ? persistedReviewCut : null
+  // The document's latest is another Extraction: the latest here, or the newest on a later Source Representation.
+  const newerExtraction = pinnedAttempt ? latestAttempt
+    : newestExtraction && !newestHere && newestExtraction.extractionId !== inspectedAttempt?.extractionId ? newestExtraction : null
   const [retainedSource,setRetainedSource]=useState<{id:string;source:PinnedExtractionSource}|null>(null)
   const [durableReviewProgress,setDurableReviewProgress]=useState<DurableReviewProgress|null>(null)
   const onPinnedDocument=useCallback((id:string,source:PinnedExtractionSource|null)=> {
@@ -836,8 +838,6 @@ export function DocumentWorkspace({
       // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the schema header before extraction.')
       const strategy = strategyOf(revision.recordScope)
-      // The researcher asked for this run, so it is what they now inspect.
-      setSelectedInspectionId(null)
       const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
       for (let round = 0; round < 2; round += 1) {
         // An Apply elsewhere aborts a read in flight, which then resolves null although the settings are ready: read
@@ -1215,6 +1215,16 @@ export function DocumentWorkspace({
                 reader: inspectedId ? inspectedReader : latestReader,
               }}
               latestReader={latestReader}
+              onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
+              documentHistory={sourceDocumentId ? (visible) => <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+                visible={visible} refreshKey={`${inspectedAttempt?.extractionId}:${latestAttempt?.extractionId}:${latestAttempt?.executionStatus}`}
+                shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
+                currentSchemaRevision={currentSchemaRevision} onOpen={(extractionId, cut) => {
+                  // Opening the routed Extraction again re-inspects it after a run or "Review now" showed the latest; another
+                  // one is pinned by its route once it opens.
+                  if (extractionId === persistedExtraction?.extractionId) setSelectedInspectionId(extractionId)
+                  onOpenExtraction(extractionId, cut)
+                }} /> : undefined}
               currentSchemaRevision={currentSchemaRevision}
               runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
@@ -1231,13 +1241,6 @@ export function DocumentWorkspace({
               }
               resultsHeaderExtras={
                 <>
-                  {inspectionChoices.length > 1 && (
-                    <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''}
-                      onChange={(event) => setSelectedInspectionId(event.target.value)}
-                      className="rounded-[3px] border border-line bg-surface px-2 py-1 text-compact">
-                      {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
-                    </select>
-                  )}
                   {reviewedOnAnotherSource && latestReviewedExtraction && (
                     <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
                       ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }

@@ -172,6 +172,7 @@ const snapshotOf = (documentId: string) =>
     extractionSchema: null,
     latestAttempt: null,
     latestReviewed: null,
+    newestAttempt: null,
   }) satisfies DocumentSnapshot
 
 /** A reopen actor whose reads are resolved by the test, one per Source Document. */

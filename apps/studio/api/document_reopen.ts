@@ -110,6 +110,7 @@ async function reopenResponse(
   documentExtractions: {
     latestAttempt: ExtractionAttemptSnapshot | null
     latestReviewed: ExtractionAttemptSnapshot | null
+    newestAttempt: ExtractionAttemptSnapshot | null
   },
   schemaFor: (
     extraction: ExtractionAttemptSnapshot | null,
@@ -124,9 +125,10 @@ async function reopenResponse(
   const currentSchema = snapshot.extractionSchema
     ? storedDefinition(snapshot.extractionSchema.schemaTree, snapshot.extractionSchema.recordScope)
     : null
-  const [attemptSchema, reviewedSchema] = await Promise.all([
+  const [attemptSchema, reviewedSchema, newestSchema] = await Promise.all([
     schemaFor(documentExtractions.latestAttempt),
     schemaFor(documentExtractions.latestReviewed),
+    schemaFor(documentExtractions.newestAttempt),
   ])
   return documentReopenResponseSchema.parse({
     projectContext: {
@@ -176,6 +178,12 @@ async function reopenResponse(
       resourceVersion,
       reviewedSchema,
     ),
+    newestAttempt: extractionDto(
+      documentExtractions.newestAttempt,
+      snapshot.projectContext.projectContextId,
+      resourceVersion,
+      newestSchema,
+    ),
   })
 }
 
@@ -212,6 +220,10 @@ export function createGetDocumentReopen(
           .catch((cause) => {
             throw persistenceUnavailable(cause)
           })
+      const readUnrouted = () =>
+        module.readDocumentExtractions({ sourceDocumentId }).catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
       const readSnapshot = (
         pins?: Parameters<
           ResearcherProjectStore['getDocumentReopenSnapshot']
@@ -298,10 +310,14 @@ export function createGetDocumentReopen(
         return pending
       }
 
+      // A routed Extraction may not be the one the document opens on; the unrouted read names that one.
+      const newestAttempt = extractionId
+        ? ((await readUnrouted())?.latestAttempt ?? null)
+        : documentExtractions.latestAttempt
       return json(
         await reopenResponse(
           { ...snapshot, extractionSchema: currentSnapshot.extractionSchema },
-          documentExtractions,
+          { ...documentExtractions, newestAttempt },
           schemaFor,
           // The unpinned read names the document's current revision.
           currentSnapshot.sourceRepresentation.sourceRepresentationId,
