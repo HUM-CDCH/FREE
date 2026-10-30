@@ -736,7 +736,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == unified.PROMPT_VERSION
+    assert result["prompt_version"] == 5  # this request is pinned to defaults 1
     assert_accounted(source, result)
 
 

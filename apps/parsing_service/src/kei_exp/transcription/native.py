@@ -7,11 +7,12 @@ from math import isfinite
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from docling.datamodel.base_models import ConversionStatus, InputFormat
+from docling.datamodel.base_models import Cluster, ConversionStatus, InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.settings import DEFAULT_PAGE_RANGE
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+from docling.models.stages.page_assemble.page_assemble_model import PageAssembleModel, PageAssembleOptions
 from docling_core.types.doc import (
     ContentLayer,
     DocItem,
@@ -183,6 +184,65 @@ def _distinct_regions(regions: list[OcrRegion]) -> tuple[OcrRegion, ...]:
     return tuple(sorted(merged, key=lambda region: (region.page, region.bbox[1], region.bbox[0])))
 
 
+class NativePageAssembly(PageAssembleModel):
+    """Preserve native identifiers and let reading order see interleaved paragraph lines separately."""
+
+    def sanitize_text(self, lines: list[str]) -> str:
+        # Docling treats every alphanumeric suffix as a hyphenated word, including an identifier's digits.
+        # Only letters continuing in lowercase can be a split word; join other attached hyphens literally first.
+        joined: list[str] = []
+        for line in lines:
+            if (joined and joined[-1].endswith("-") and len(joined[-1]) > 1 and line
+                    and joined[-1][-2].isalnum()
+                    and not (joined[-1][-2].isalpha() and line[0].islower())):
+                joined[-1] += line
+            else:
+                joined.append(line)
+        return super().sanitize_text(joined)
+
+    def __call__(self, conv_res, page_batch):
+        for page in page_batch:
+            if page.predictions.layout is not None:
+                clusters = page.predictions.layout.clusters
+                # Container children are resolved by ID later; keep their original clusters intact.
+                contained = {child.id for cluster in clusters for child in cluster.children}
+                paragraphs = [c for c in clusters if c.label in {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH}
+                              and not c.children and c.id not in contained]
+                interleaved = {c.id for c in paragraphs
+                               if any(c.id != other.id and c.bbox.overlaps(other.bbox) for other in paragraphs)}
+                next_id = max((c.id for c in clusters), default=0) + 1
+                repaired = []
+                for cluster in clusters:
+                    if cluster.id not in interleaved or not cluster.cells:
+                        repaired.append(cluster)
+                        continue
+                    # Whole overlapping paragraphs can interleave their lines. Keeping the cells separate lets
+                    # Docling order those lines without guessing at new paragraph ownership or column boundaries.
+                    for cell in cluster.cells:
+                        repaired.append(Cluster(id=next_id, label=cluster.label, confidence=cluster.confidence,
+                            bbox=cell.rect.to_bounding_box().to_top_left_origin(page.size.height), cells=[cell]))
+                        next_id += 1
+                page.predictions.layout.clusters = repaired
+            for assembled in super().__call__(conv_res, [page]):
+                if assembled.assembled is None:
+                    yield assembled
+                    continue
+                # On one baseline, a gap wider than a character's height separates cells, not words.
+                # Retain that layout boundary as whitespace instead of flattening adjacent metadata fields.
+                for element in assembled.assembled.elements:
+                    cells = element.cluster.cells
+                    boxes = [c.rect.to_bounding_box().to_top_left_origin(page.size.height) for c in cells]
+                    if (element.cluster.label in {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH} and len(cells) > 1
+                            and max(b.t for b in boxes) < min(b.b for b in boxes)):
+                        normalized = [self.sanitize_text([c.text.replace("\x02", "-").strip()]) for c in cells]
+                        parts = [normalized[0]]
+                        for previous, box, text in zip(boxes, boxes[1:], normalized[1:]):
+                            separator = "\t" if box.l - previous.r > max(previous.height, box.height) else " "
+                            parts += [separator, text]
+                        element.text = "".join(parts)
+                yield assembled
+
+
 class PageBoundPipeline(StandardPdfPipeline):
     """Docling's standard pipeline with no item merged across a page break, so a page's export carries what is
     printed on it and nothing of its neighbour. The merge's provenance charspans cannot be trusted to slice a
@@ -192,6 +252,7 @@ class PageBoundPipeline(StandardPdfPipeline):
 
     def __init__(self, pipeline_options: PdfPipelineOptions) -> None:
         super().__init__(pipeline_options)
+        self.assemble_model = NativePageAssembly(options=PageAssembleOptions())
         predictor = self.reading_order_model.ro_model
         predict = predictor.predict_merges
 

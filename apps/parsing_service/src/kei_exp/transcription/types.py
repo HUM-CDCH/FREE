@@ -23,6 +23,8 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
 # native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
 # native 3: a block merged across a column break publishes every box it is printed in (`PageSegment.boxes_pt`).
+# native 4: line joins preserve identifier/compound hyphens; overlapping paragraphs retain their line order;
+# horizontally separated native cells retain their whitespace boundary.
 # hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
 # publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
 # hybrid 2: native blocks with undecodable font glyphs read by OCR in place, from a white-margined crop (`cut.TEXT_MARGIN`);
@@ -34,7 +36,7 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
 # surya 2: an input whose full-page generation produced looping or token-capped text and whose final recognition
 # holds no text (before artwork ownership filtering) is incomplete, not an empty success. Hybrid recipes record it.
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 4, "surya": 2}
+TEXT_RULES: dict[str, int] = {"native": 4, "hybrid": 4, "surya": 2}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
