@@ -741,7 +741,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 5  # this request is pinned to defaults 1
+    assert result["prompt_version"] == 8  # the reply schema is visible under every defaults version
     assert_accounted(source, result)
 
 
@@ -1433,6 +1433,11 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
     from kei_exp.kie.extract import llm
     from tests.test_extract_llm import response
 
+    class RenderedCounter(WordCounter):
+        def request_tokens(self, system, user, schema=None):
+            rendered = llm.OpenAIChat().tokenize_body(system=system, user=user, schema=schema)["messages"]
+            return super().request_tokens(*(message["content"] for message in rendered))
+
     source = evidence("1. Hill.", "2. Valley.")
     schema = {"recordDescription": "One numbered place.", "schemaNodes": [
         {"id": "site", "name": "site", "type": "string"}]}
@@ -1440,7 +1445,7 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
         site = record.split()[1].rstrip(".")
         return {"site": candidate(site, site)}
     model = Model(source, entry=entry)
-    counter, posted = WordCounter(), []
+    counter, posted = RenderedCounter(), []
     loop = '{"site":{"value":' + " \r" * 100 + ('"quote":' if internal else "")
     schemas = {}
     monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
@@ -1455,7 +1460,8 @@ def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, 
         failed = is_loop and (not bounded or not recovery_ok)
         text = loop if failed else dumps(model(system, user, schemas[system]))
         return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length" if failed else "stop"}],
-            "usage": {"prompt_tokens": counter.request_tokens(system, user), "completion_tokens": json["max_tokens"] if failed else 20}})
+            "usage": {"prompt_tokens": WordCounter().request_tokens(system, user),
+                      "completion_tokens": json["max_tokens"] if failed else 20}})
 
     monkeypatch.setattr(llm.requests, "post", post)
     result = unified.extract(None, source, request(schema), as_router(llm.OpenAIChat(model="fake/extractor")), counter=counter)

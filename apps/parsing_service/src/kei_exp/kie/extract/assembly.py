@@ -39,7 +39,8 @@ EXTRACTION_VERSION = 1
 # 14: Catalog discovery examples are domain-neutral structure, not from the development corpus.
 # 15: every grounding batch shows the record's fields, so a claim split from its record's name keeps its record.
 # 16: grounding offers precise cells first, then restores hidden evidence for unresolved claims.
-PROMPT_VERSION = 16
+# 17: instruction-model messages show the full reply schema, included in token counts.
+PROMPT_VERSION = 17
 # Article's own version, pinned in its fingerprint and artifact beside the shared PROMPT_VERSION (which the version 1
 # Catalog's frozen artifact also carries). 2: document scope, one root and no identity inventory; its prompt is
 # `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication. 3: document-level fields are

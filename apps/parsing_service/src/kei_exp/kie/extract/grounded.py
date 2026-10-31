@@ -57,7 +57,7 @@ from kei_exp.kie.segmentation import Segmentation
 from kei_exp.kie.segmentation_run import obtain
 
 EXTRACTION_VERSION = 2
-PROMPT_VERSION = 5  # Shared decoder preserves literal source control characters.
+PROMPT_VERSION = 6  # Instruction-model messages show the full reply schema, included in token counts.
 BUDGET_VERSION = 1
 GLOSSARY_LINES = 40              # the glossary allowance: at most this many entries the block's text uses
 

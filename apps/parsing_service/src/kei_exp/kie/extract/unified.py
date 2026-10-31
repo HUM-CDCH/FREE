@@ -63,11 +63,11 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 7  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 8  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6 (defaults 5): verification may correct a scalar, with its complete source quote.
 # 7 (defaults 6): the entry call shows the requested value structure and asks for complete values.
-PROMPT_VERSIONS = {5: 6, 6: 7}  # pinned per defaults version; earlier versions record 5
+# 8: every defaults version shows the full reply schema, included in token counts; replaces the unwrapped structure.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -82,7 +82,8 @@ RECORD_VERSION = 1  # the execution record's layout
 # 6: an item whose own text is not located (no `_item_text`, or one printed in several rows) is the table row its
 # values name, when each value printed in exactly one single-row cell names the same row; its values are then looked
 # for in that row first, so a value printed in every row ("Tand, human") is its own row's cell.
-ENTRY_VERSION = 6
+# 7: the entry prompt shows the full reply schema instead of a separate unwrapped value structure.
+ENTRY_VERSION = 7
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
 # items, a single window's included). 3: an item two windows returned is joined only when their shared source
@@ -249,7 +250,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": PROMPT_VERSIONS.get(options.defaults, 5),
+            "models": chat.models, "prompt_version": PROMPT_VERSION,
             "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -688,11 +689,10 @@ ENTRY = ("You extract structured data from one record of a source document. A re
          "item appears, or null. Read values from the RECORD text; EARLIER and LATER text belongs to the same record "
          "and is shown so that a value crossing the cut is whole; CONTEXT is not part of the record. Never invent a "
          "value. Return only the JSON object.")
-# Defaults 6 (`single_pass`): the entry call is the only reading of a value. Constrained decoding never shows the
-# model its reply schema, and notes list described fields only, so the value structure is shown; complete values are
-# asked here, as version 5's corrections asked them of a second reading.
+# Defaults 6 (`single_pass`): the entry call is the only reading of a value. Complete values are asked here, as
+# version 5's corrections asked them of a second reading. The shared LLM messages show the full reply schema.
 SINGLE_PASS = ("\nGive each value complete: a descriptive field's whole passage across paragraphs or pages, without "
-               "text of other fields.\nRequested value structure, before adding the value/evidence wrappers:\n{structure}")
+               "text of other fields.")
 VERIFY = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
           "For each candidate answer \"supported\" when the record text states that value for that field of this "
           "record, \"unsupported\" when it does not (it says something else, or the value belongs to another record or "
@@ -853,8 +853,7 @@ class _Run:
         system = ENTRY.format(description=self.schema.record_description, notes=_notes(self.nodes))
         single = self.effective.get("single_pass", False)
         if single:
-            system += SINGLE_PASS.format(structure=json.dumps(json_schema(self.nodes), ensure_ascii=False,
-                                                              separators=(",", ":")))
+            system += SINGLE_PASS
         replies = self._read("entry", number, units, system, candidates_schema(self.nodes), "RECORD", heading, out)
         view = _view(units, self.texts)
         found: list[_Found] = []
