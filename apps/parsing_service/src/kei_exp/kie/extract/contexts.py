@@ -93,41 +93,6 @@ def partition(passages: Sequence[Passage], fits: Callable[[Sequence[Passage]], b
     return contexts
 
 
-def reconcile_values(values: Sequence[dict]) -> tuple[dict, list[dict]]:
-    """Exact array union; recursively merge objects; retain scalar conflicts separately and return null.
-
-    No 'first wins' or last-write rule can quietly turn contradictory units into a fact. The union drops equal list
-    items, genuine occurrences included, so production assembly is `assemble_document`; this stays for the research
-    replays of captured version 1 studies (`article.extract_records`, `experiments/extraction/fixed_upstream.py`).
-    """
-    conflicts = []
-
-    def combine(items, path):
-        present = [v for v in items if v is not None]
-        if not present:
-            return None
-        if all(isinstance(v, dict) for v in present):
-            keys = dict.fromkeys(k for v in present for k in v)
-            return {k: combine([v.get(k) for v in present], [*path, k]) for k in keys}
-        unique = []
-        for value in present:
-            if value not in unique:
-                unique.append(value)
-        if all(isinstance(v, list) for v in unique):
-            merged = []
-            for group in unique:
-                for item in group:
-                    if item not in merged:
-                        merged.append(item)
-            return merged
-        if len(unique) == 1:
-            return unique[0]
-        conflicts.append({"path": path, "candidates": unique})
-        return None
-
-    return combine(values, []) or {}, conflicts
-
-
 def printed_once_in(item, text: str) -> bool:
     """Whether `text` shows a list item as exactly one occurrence: every string and number of it printed as a bounded
     token (`stages.occurrences`: case and spacing aside, never inside a longer word or number), and at least one of them
@@ -160,7 +125,7 @@ def assemble_document(values: Sequence[dict],
                       item_sources: dict[tuple, list[dict]] | None = None
                       ) -> tuple[dict, list[dict], list[dict], list[dict]]:
     """One document root from its readings' answers, in reading order: the root, its conflicts, the possible repeats
-    and the joined overlap items. Not `reconcile_values`, whose exact array union would collapse equal items into one.
+    and the joined overlap items. Every list occurrence is preserved unless joined through shared source.
 
     A list keeps every item one reading returned, equal ones included: they are separate occurrences. An item equal
     to one an earlier reading returned is that same occurrence only when the two readings were shown source in common
@@ -169,7 +134,7 @@ def assemble_document(values: Sequence[dict],
     two equal items printed in shared source are not two occurrences. Equal items kept from different readings are named (`{"path", "contexts",
     "indices"}`) as possible repeats, never merged. Objects merge field by field; a missing or null contribution never
     erases another reading's value. Equal scalars are one value; different ones are null, with their conflict
-    (`{"path", "candidates"}`) as `reconcile_values` reports it. Order is reading order, then each reply's own order.
+    (`{"path", "candidates"}`). Order is reading order, then each reply's own order.
     When supplied, `item_sources` records each assembled list item's conformed reading and item path. Nested lists
     stay inside their whole item, so their original positions remain unchanged.
     """

@@ -2,8 +2,8 @@
 import pytest
 
 from kei_exp.kie.extract import assembly, run
-from kei_exp.kie.extract.article import inventory, reconcile_identities
-from kei_exp.kie.extract.contexts import partition, reconcile_values
+from experiments.extraction.legacy_article import inventory, reconcile_identities, reconcile_values
+from kei_exp.kie.extract.contexts import partition
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import verify
