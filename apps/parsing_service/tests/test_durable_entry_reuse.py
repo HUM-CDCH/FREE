@@ -17,7 +17,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
 from tests.test_durable_extraction import Counter, MemoryLease
 from tests.test_extract_grounded import CountingChat
-from tests.test_unified_catalog import Model, evidence, request as unified_request, untimed
+from tests.test_unified_catalog import SCHEMA, Model, evidence, request as unified_request, untimed
 
 
 class Kept(Counter):
@@ -507,6 +507,40 @@ def test_pause_shows_and_stops_as_without_reuse(monkeypatch):
         plain, _ = paused(patched, False)
     reused, planner = paused(monkeypatch, True)
     assert reused == plain and planner.scopes
+
+
+def test_stop_after_resume_keeps_uninvoked_entries_without_repeating_saved_calls(monkeypatch):
+    schema = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
+    attempt = Attempt(monkeypatch, unified_request(schema=schema, defaults=1), pages(3, 3), chunks=1)
+    assert attempt.plan() is None
+    attempt.step()  # discovery finishes; the next round captures all three entries
+    assert attempt.plan() is None
+    assert len(attempt.planner.pending) == 3
+    entry = next(iter(attempt.planner.pending))
+    attempt.lease.intent = "PAUSE"
+    answer(attempt.lease, attempt.chat, entry, attempt.counter)  # the admitted entry drains
+    with pytest.raises(Boundary):
+        attempt.plan()
+    captured = {key: unit["id"] for key, unit in attempt.lease.units.items()}
+    saved = {unit["id"] for unit in attempt.lease.units.values() if unit["checkpoint"] is not None}
+    assert len(saved) == len(attempt.chat.calls) == 2
+
+    tokens.forget(attempt.lease.attempt)
+    attempt.lease.attempt = "resumed"
+    attempt.lease.intent = "RUN"
+    assert attempt.plan() is None
+    assert not saved.intersection(attempt.planner.pending)
+    assert {key: unit["id"] for key, unit in attempt.lease.units.items() if key in captured} == captured
+    verification = next(unit["id"] for unit in attempt.lease.units.values()
+                        if unit["descriptor"]["stage"] == "verification")
+    attempt.lease.intent = "STOP"
+    answer(attempt.lease, attempt.chat, verification, attempt.counter)  # only this resumed call was admitted
+    with pytest.raises(Boundary):
+        attempt.plan()
+    assert Tally(unit["descriptor"]["stage"] for unit in attempt.lease.units.values()) == {
+        "discovery": 1, "entry": 3, "verification": 1}
+    assert len(attempt.chat.calls) == 3
+    assert len({unit["id"] for unit in attempt.lease.units.values() if unit["checkpoint"] is not None}) == len(attempt.chat.calls)
 
 
 def test_new_guidance_reaches_only_new_captures(monkeypatch):
