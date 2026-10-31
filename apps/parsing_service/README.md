@@ -228,7 +228,7 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   2, with structural segmentation and code-verified span Evidence (see the
   [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
-  headings?, verification?}` runs the unified Catalog: result version 3, no
+  candidates?, headings?, verification?}` runs the unified Catalog: result version 3, no
   recipe and no character limits (a request naming either is refused). From
   `defaults` 3 a durable run reads the entries the windows already read decide
   while discovery asks the rest, lists them under its `unified-prefix:<attempt>:<count>`
@@ -243,14 +243,31 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   code checks the field type and the quoted record text before acceptance. List
   identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
   corrected passages. Defaults 6 drops that compulsory verification: the entry call
-  is shown the requested value structure, code checks each value once (type, quoted
+  is shown the full reply schema, code checks each value once (type, quoted
   record text, table row, list item occurrence) and links a located value `lexical`,
   never as verified; a value whose quote is missing or found nowhere stays a proposal
   without Evidence, one printed neither in its located quote nor in source text
   enclosing that quote stays rejected. Located
   values that disagree still go to arbitration; `verification: true` adds verdicts on
   the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
-  New admissions use the latest version only where Studio's
+  Defaults 7 builds on the same single pass, with heading context selected within counted
+  budgets. Discovery keeps all preceding record-free ranges as candidates. Primary
+  windows and overlap are fixed first; whole excerpts are considered newest first,
+  skipping an oversized one so smaller older excerpts can still fit. When the full
+  context does not fit, `candidates` (default 32, range 1–1024) bounds individual
+  measurements; older excerpts are omitted unmeasured. Split retries reconsider
+  kept and omitted context. Every omission is named in `context_omitted`.
+  Shown excerpts retain source order and source identities, marking the latest;
+  labels are metadata, never quotable evidence. A scalar outside lists may inherit
+  only a printed non-Boolean literal from shown context. Derived heading values
+  retain their supporting spans as proposals, never accepted Evidence. A candidate
+  whose spans all lie in shown context followed by an omitted excerpt stays a
+  `context_incomplete` proposal: the unseen excerpt could supersede it. Older
+  omissions do not prevent acceptance. List values and item occurrences still
+  require the entry's own text. Without verification, eligible literals are linked
+  `lexical`; `verification: true` checks applicability and supersession against the
+  same shown context, without re-extracting values.
+  Studio still admits defaults 6 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
@@ -269,6 +286,10 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
+- Under defaults 7 heading applicability is a model judgement, not a code check
+  of heading hierarchy. A stale heading the model accepts can still be wrong.
+  Standing headings can be omitted when requests have no room; long histories
+  repeat context references and one omission row per range per entry in artifacts.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership. For

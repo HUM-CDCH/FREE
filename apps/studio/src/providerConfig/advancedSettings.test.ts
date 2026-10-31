@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
 import { methodLines } from '../methodSummary'
 import {
-  ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle,
+  ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, orderedCatalog,
   resetArticleSetting, settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
 } from './advancedSettings'
 
@@ -149,4 +149,12 @@ describe('starting points', () => {
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])
   })
+})
+
+
+it('keeps the heading candidate override in Catalog drafts without changing Article scoped resets', () => {
+  expect(orderedCatalog({ unified: { verification: false, headings: true, candidates: 8, overlap: 0 } }))
+    .toEqual({ unified: { overlap: 0, candidates: 8, headings: true, verification: false } })
+  expect(Object.keys(orderedCatalog({ unified: { headings: true, candidates: 8, overlap: 0 } }).unified!))
+    .toEqual(['overlap', 'candidates', 'headings'])
 })

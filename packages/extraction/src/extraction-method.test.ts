@@ -283,3 +283,15 @@ test('legacy Catalog preferences refuse new unified Catalog admission until migr
   assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
   assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
 })
+
+
+test('heading candidate overrides survive saved settings and pinned defaults 7 methods', () => {
+  const settings: ExtractionSettings = { catalog: { unified: { candidates: 8, headings: true } } }
+  assert.deepEqual(canonicalExtractionSettings(settings), settings)
+  const pinned = { unified: { defaults: 7 as const, candidates: 8, headings: true } }
+  assert.deepEqual(storedSettings(pinned, 'CATALOG', null), pinned)
+  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, null, pinned)), {
+    strategy: 'catalog', ...pinned,
+  })
+  assert.deepEqual(canonicalIntent({ models: null, settings: pinned }, 'CATALOG', null), { models: null, settings: pinned })
+})

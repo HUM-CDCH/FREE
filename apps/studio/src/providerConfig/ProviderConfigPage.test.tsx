@@ -1251,6 +1251,14 @@ describe('Advanced', () => {
     fireEvent.change(ceiling, { target: { value: '' } })
     setting('Window overlap')
     fireEvent.change(screen.getByRole('textbox', { name: 'Window overlap' }), { target: { value: '0' } })
+    setting('Heading excerpts measured')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Heading excerpts measured' }), { target: { value: '0' } })
+    expect(screen.getByText(METHOD_MESSAGES.catalogCandidates, { selector: 'p' })).toBeVisible()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Heading excerpts measured' }), { target: { value: '8' } })
+    setting('Heading context')
+    fireEvent.click(screen.getByRole('switch', { name: 'Heading context' }))
+    setting('Heading excerpts measured')
+    expect(screen.getByText('Heading context is off, so no excerpt is measured or shown.')).toBeVisible()
     setting('Pro mode')
     // From defaults 6 a single pass is the default; Pro mode admits the version that reads every value again.
     expect(screen.getByText(/Off reads each value once/)).toBeInTheDocument()
@@ -1261,7 +1269,7 @@ describe('Advanced', () => {
     expect(screen.getByText('Unified Catalog, defaults version 5 with custom settings')).toBeInTheDocument()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: true } })
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, candidates: 8, headings: false, verification: true } })
   })
 
   it('retired Catalog controls are shown, never converted, and replaced only by an applied unified group', async () => {

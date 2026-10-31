@@ -387,7 +387,7 @@ function retiredCatalog(catalog: CatalogSettings | undefined): string[] {
   return lines
 }
 
-/** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
+/** The unified Catalog's six controls: one group for every new single and batch Catalog Extraction. Retired generic
  *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
 function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults, pinned }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
   & { unifiedDefaults: UnifiedCatalogSettings['defaults']; pinned: boolean }) {
@@ -400,7 +400,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
   const defaults = UNIFIED_CATALOG_DEFAULTS[method.defaults]
   const retired = retiredCatalog(catalog)
   const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
-  const number = (key: 'input_tokens' | 'output_tokens' | 'overlap', unit: string, hint: string, placeholder: string) => {
+  const number = (key: 'input_tokens' | 'output_tokens' | 'overlap' | 'candidates', unit: string, hint: string, placeholder: string) => {
     const path = `catalog.unified.${key}` as const
     return <NumberField path={path} label={UNIFIED_LABELS[key]} hint={hint} unit={unit} value={shown[key]} placeholder={placeholder}
       edit={editor.numberEdits[path]} disabled={!custom} error={issueAt(path)} onText={editor.setNumber} />
@@ -423,6 +423,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
     ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.${'entry_reply' in defaults ? ' An entry reply may also use the context its input leaves (not with a native fields model); a value here caps every reply at it.' : ''}`, 'Stage defaults')],
     ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
     ['headings', toggle('headings')],
+    ['candidates', number('candidates', 'excerpts, 1 to 1024', 'From defaults 7: how many earlier excerpts each request measures against its budget, latest first. Older ones are left out without being measured; a value read behind an omitted excerpt stays a proposal.', String(UNIFIED_CATALOG_DEFAULTS[7].candidates))],
     ['verification', toggle('verification')],
   ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${label(key)}`, control }))
   return (
@@ -447,6 +448,8 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
           </div>
           <p className="text-[11px] text-ink-faint">One method for every new single and batch Catalog Extraction.</p>
           <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
+          {page.path === 'catalog.unified.candidates' && !(shown.headings ?? defaults.headings) &&
+            <p className="text-[11px] text-ink-muted">Heading context is off, so no excerpt is measured or shown.</p>}
           {page.path === 'catalog.unified.verification' && (!pinned && method.defaults === UNIFIED_CATALOG_PRO_VERSION
             ? <p className="text-[11px] text-ink-muted">{`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}: a second call reads every value again and may correct it, completing long passages; about twice the calls and time.`}</p>
             : !(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">{'single_pass' in defaults

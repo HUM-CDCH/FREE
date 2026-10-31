@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
-import { methodLines, modelsLine, settingsHeadline } from './methodSummary'
+import { methodLines, modelsLine, settingsHeadline, unifiedLines } from './methodSummary'
 
 describe('method summaries', () => {
   it('say what was requested, service defaults, or that nothing was recorded', () => {
@@ -23,4 +23,11 @@ describe('method summaries', () => {
     expect(modelsLine(null)).toBe('Field values: deployment default · Reasoning: deployment default')
     expect(modelsLine({ fields: 'instruct' })).toBe('Field values: instruct · Reasoning: deployment default')
   })
+})
+
+
+it('shows the heading candidate ceiling with defaults 7 and with saved overrides', () => {
+  expect(unifiedLines({ defaults: 7 })).toContainEqual({ label: 'Heading excerpts measured', value: 'service default (32 excerpts; from defaults 7)' })
+  expect(unifiedLines({ defaults: 7, candidates: 1 })).toContainEqual({ label: 'Heading excerpts measured', value: '1 excerpt (from defaults 7)' })
+  expect(settingsHeadline({ unified: { defaults: 7 } })).toBe('Unified Catalog, defaults version 7')
 })

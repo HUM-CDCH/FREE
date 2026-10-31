@@ -25,6 +25,7 @@ it.each([
   {strategy:'CATALOG',settings:{unified:{defaults:1,input_tokens:8192,output_tokens:1024,overlap:0,headings:false,verification:false}},recipe:null},
   // A pinned version keeps its own verification: verification on never turns into Pro mode's version here.
   {strategy:'CATALOG',settings:{unified:{defaults:6,verification:true}},recipe:null},
+  {strategy:'CATALOG',settings:{unified:{defaults:7,candidates:8,verification:true}},recipe:null},
 ])('can save unchanged $strategy inputs with pinned settings $settings',async({strategy,settings,recipe})=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{catalogRecipe:recipe}},pendingSelection:null} as unknown as DurableRead
