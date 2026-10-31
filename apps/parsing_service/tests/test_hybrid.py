@@ -639,7 +639,7 @@ def test_artwork_context_recovery_is_selective_bounded_and_publishes_only_after_
     original_pixels = []
 
     def recognize(request, crops, emit):
-        assert request == execution
+        assert request == replace(execution, batch=(1, 2))  # both artwork inputs, one batch
         assert not execution.result_dir.exists(), "a first-pass result was published before recovery"
         calls.append(list(crops))
         if len(calls) == 1:
@@ -677,12 +677,12 @@ def test_artwork_context_recovery_is_selective_bounded_and_publishes_only_after_
 @pytest.mark.parametrize("box,expected", [((0, 0, 100, 100), (0, 0, 124, 124)),
                                         ((500, 750, 595, 842), (476, 726, 595, 842))])
 def test_artwork_recovery_context_clips_to_the_page_and_records_actual_pixels(illustrated_pdf, box, expected):
-    from kei_exp.cut import artwork_crops
+    from kei_exp.cut import artwork_crops, render_region
 
     with PdfPages(illustrated_pdf) as pages:
         crop, = artwork_crops(pages, [(2, box, 0, "figure")], 72, context_pt=24)
-        with crop[2] as image:
-            region = crop[1]
+        _, region, size = crop
+        with render_region(pages.page(2), region, 72) as image:
             assert region.bbox == expected
-            assert image.size == (expected[2] - expected[0], expected[3] - expected[1])
+            assert image.size == size == (expected[2] - expected[0], expected[3] - expected[1])
             assert region.transform.to_unit_points((0, 0, *image.size)) == expected

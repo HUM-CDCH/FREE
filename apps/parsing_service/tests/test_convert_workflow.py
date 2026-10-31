@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,16 +12,18 @@ from dbos import error as dbos_error
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
-from kei_exp import api, runs, runtime
+from kei_exp import api, cut, runs, runtime
 from kei_exp.failures import KeiFailure
 from kei_exp.kie import runner
-from kei_exp.models import DEFAULT_OCR_MODEL
-from kei_exp.regions import DEFAULT_LAYOUT_MODEL
+from kei_exp.kie.stages import ocr
+from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Region
+from kei_exp.transcription.types import RunParams
 from kei_exp.workflows import cancel, config, contracts
 from kei_exp.workflows import convert as workflow
 from tests.helpers import kei as kei_helper
 from tests.helpers.fake import FakeTranscriber, registered
-from tests.helpers.pdfs import mask
+from tests.helpers.pdfs import binary_pdf, mask
 
 WID = "kei-convert:ingest:project-1:attempt-1"
 FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
@@ -256,6 +259,89 @@ def test_the_cancel_sink_checks_only_on_the_steps_own_thread(monkeypatch):
     assert reads == []
     sink({"type": "region"})
     assert reads == ["w"]
+
+
+class SuryaRequests:
+    """Surya's requests as the OCR scheduler starts them, through the real Surya adapter and RecognitionPredictor:
+    only the leaf request (`_generate_one`), the backend's parallelism and the layout model are replaced. The first
+    request cancels the workflow and answers `first`; every other takes long enough to still be running when the
+    step reads the status. Each request records its page, temperature and whether the workflow was already
+    cancelled; each status read records its thread."""
+
+    TEXT = '<div data-bbox="0 0 1000 1000" data-label="Text"><p>synthetic</p></div>'
+
+    def __init__(self, monkeypatch, parallel: int, first: str = TEXT) -> None:
+        from surya import inference
+        from surya.inference.backends import openai_client
+        self.first, self.lock = first, threading.Lock()
+        self.cancelled, self.started, self.finished, self.running, self.peak = False, [], 0, 0, 0
+        self.reads: list[int] = []
+        backend = SimpleNamespace(_client=object(), _client_parallel=lambda: parallel,
+                                  start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+        monkeypatch.setattr(inference, "SuryaInferenceManager", lambda: SimpleNamespace(backend=backend))
+        monkeypatch.setattr(openai_client, "_generate_one", self.generate_one)
+        monkeypatch.setattr(cut, "find_regions", lambda page, number, layout_model: [
+            Region("page", (0.0, 0.0, *page.get_size()), 0, 1.0)])
+        monkeypatch.setattr(runtime, "loaded_model", lambda url: (True, MODELS["surya"].repo))
+        monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=self.read))
+        monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
+
+    def read(self, workflow_id):
+        self.reads.append(threading.get_ident())
+        return SimpleNamespace(status="CANCELLED" if self.cancelled else "PENDING")
+
+    def generate_one(self, item, *, client, temperature, **options):
+        with self.lock:
+            first = not self.started
+            self.started.append((item.metadata["page_idx"] + 1, temperature, self.cancelled))
+            self.cancelled = True
+            self.running += 1
+            self.peak = max(self.peak, self.running)
+        if not first:
+            time.sleep(0.2)
+        with self.lock:
+            self.running -= 1
+            self.finished += 1
+        client.finish_reason = "stop"
+        return SimpleNamespace(raw=self.first if first else self.TEXT, token_count=2, error=False,
+                               mean_token_prob=1.0, logprobs=None)
+
+
+@pytest.mark.parametrize("cut_mode", ["auto", "none"])
+def test_a_cancel_during_ocr_admits_no_further_request_and_drains_the_running_ones(roots, monkeypatch, cut_mode):
+    """Studio's conversion (stream off): the scheduler keeps its configured requests running and asks on the
+    step's own thread before admitting another, so a cancel during the first request of eight starts no other;
+    the request already running beside it finishes before the step stops, and nothing is published."""
+    requests = SuryaRequests(monkeypatch, parallel=2)
+    sha = kei_helper.stage_pdf(runs.INBOX, "p/eight.pdf", *[mask()] * 8)
+    params = workflow.prepare_run(WID, kei_helper.convert_request("p/eight.pdf", sha, cut=cut_mode),
+                                  {"model": "surya", "layout_model": DEFAULT_LAYOUT_MODEL})
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.convert_run(WID, params)
+    assert stopped.value.code == "cancelled"
+    assert sorted(page for page, _, _ in requests.started) == [1, 2], requests.started
+    assert requests.finished == len(requests.started) and requests.peak <= 2
+    assert set(requests.reads) == {threading.get_ident()}
+    assert not (runs.RUNS / params["id"] / "result").exists()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("cut_mode", ["auto", "none"])
+def test_a_cancel_during_ocr_starts_no_retry(tmp_path, monkeypatch, cut_mode, stream):
+    """A looping answer is one Surya retries at a higher temperature; once the workflow is cancelled that retry is
+    a new request like any other and is never sent, whether the run streams its pages or not."""
+    loop = "<p>again</p>" * 200
+    requests = SuryaRequests(monkeypatch, parallel=1, first=loop)
+    pdf = binary_pdf(tmp_path / "eight.pdf", *[mask()] * 8)
+    check = cancel.CancelCheck(WID, min_interval=0.0)
+    events = []
+    with pytest.raises(KeiFailure) as stopped:
+        ocr.run(ocr.resolve(RunParams(pdf=pdf, model="surya", cut=cut_mode, stream=stream)),
+                emit=check.sink(events.append))
+    assert stopped.value.code == "cancelled"
+    assert requests.started == [(1, 0.0, False)]
+    assert [event["type"] for event in events].count("page_start") == (1 if stream else 0)
+    assert set(requests.reads) == {threading.get_ident()}
 
 
 SECRET = "sk-test-cancel-status-read"

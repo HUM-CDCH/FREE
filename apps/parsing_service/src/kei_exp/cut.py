@@ -1,8 +1,8 @@
 """Layout-aware cuts: Docling layout boxes -> X-Y cut -> ink-profile snap -> region crops.
 
 See docs/ingest-cuts.md. Coordinates are source page points. Page sources own rendering and resource
-lifetimes; this module owns only layout preparation and its errors, not canonical post-OCR KIE layout. The regions
-and crops it yields, and the layout models it may run, are data in `kei_exp.regions`.
+lifetimes; this module owns only layout preparation and its errors, not canonical post-OCR KIE layout. The planned
+crops it yields, and the layout models it may run, are data in `kei_exp.regions`.
 """
 from collections.abc import Iterable, Iterator
 from dataclasses import replace
@@ -22,9 +22,9 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import DocumentConverter, ImageFormatOption
 from PIL import Image, ImageOps
 
-from kei_exp.geometry import PointBox
-from kei_exp.pages import PageSource, RenderablePage
-from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
+from kei_exp.geometry import CropTransform, PointBox
+from kei_exp.pages import PageSource, RenderablePage, check_render_size
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, CropPlan, Region
 
 # Surya reads no block in text cut flush to its glyphs: a native block's crop gets this much white around it, whatever
 # its size. On 594 real crops at 250 dpi (#239) a read with 13 pt of margin or more came back empty only for one crop
@@ -307,17 +307,39 @@ def find_regions(page: RenderablePage, number: int, layout_model: str = DEFAULT_
 
 
 def render_region(page: RenderablePage, region: Region, dpi: int) -> Image.Image:
-    """Only rendering geometry errors become cut failures; layout exceptions keep their identity."""
+    """The crop of a planned region (`cut_pages`, `whole_pages`, `artwork_crops`) at its plan's size: its box
+    rendered, a native text block's inside its white margin. Only rendering geometry errors become cut failures;
+    layout exceptions keep their identity."""
     try:
-        return page.render(dpi, region.bbox)
+        image = page.render(dpi, region.bbox)
     except ValueError as error:
         raise CutError(str(error)) from error
+    if region.kind != "text":
+        return image
+    assert region.transform is not None
+    try:
+        return ImageOps.expand(image, _margin(region.transform), fill="white")
+    finally:
+        image.close()  # the unmargined render, released as soon as the margined copy exists (`with` would not)
+
+
+def _plan(page: RenderablePage, number: int, region: Region, dpi: int) -> CropPlan:
+    """A region with its crop's render transform and exact size at dpi; ConversionError, before anything renders it,
+    for a crop over the render budget (`pages.MAX_RENDER_PIXELS`)."""
+    try:
+        region = replace(region, transform=page.crop_transform(dpi, region.bbox))
+        size = page.render_size(dpi, region.bbox)
+    except ValueError as error:
+        raise CutError(str(error)) from error
+    check_render_size(*size, number, dpi)
+    return number, region, size
 
 
 def cut_pages(pages: PageSource, numbers: list[int], dpi: int, *,
-              layout_model: str = DEFAULT_LAYOUT_MODEL) -> Iterator[Crop]:
-    """Cut the selected document pages in the supplied order, one crop at a time as it is rendered, so the caller
-    can say what it has before the last page is cut; the caller owns the source and exhausts this inside its life."""
+              layout_model: str = DEFAULT_LAYOUT_MODEL) -> Iterator[CropPlan]:
+    """Cut the selected document pages in the supplied order, one planned crop at a time as its page is cut, so the
+    caller can say what it has before the last page is cut; nothing is rendered at dpi (`render_region`). The caller
+    owns the source and exhausts this inside its life."""
     if layout_model not in LAYOUT_MODELS:
         raise CutError(f"unknown layout model {layout_model!r}")
     for number in numbers:
@@ -326,48 +348,52 @@ def cut_pages(pages: PageSource, numbers: list[int], dpi: int, *,
         except IndexError as error:
             raise CutError(str(error)) from error
         for region in find_regions(page, number, layout_model):
-            rendered = replace(region, transform=page.crop_transform(dpi, region.bbox))
-            yield number, rendered, render_region(page, region, dpi)
+            yield _plan(page, number, region, dpi)
 
 
-def whole_pages(pages: PageSource, numbers: list[int], dpi: int) -> Iterator[Crop]:
-    """One crop per book page for uncut image input, as each is rendered; whole-PDF transcription keeps its
-    backend path."""
+def whole_pages(pages: PageSource, numbers: list[int], dpi: int) -> Iterator[CropPlan]:
+    """One planned crop per book page for uncut image input; whole-PDF transcription keeps its backend path."""
     for number in numbers:
         page = pages.page(number)
-        region = Region("page", (0.0, 0.0, *page.get_size()), 0, 1.0, page.crop_transform(dpi))
-        yield number, region, render_region(page, region, dpi)
+        yield _plan(page, number, Region("page", (0.0, 0.0, *page.get_size()), 0, 1.0), dpi)
 
 
 def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int, str]], dpi: int,
-                  *, context_pt: float = 0) -> Iterator[Crop]:
-    """One figure crop per (page, box, reading order) of a born-digital page's textless artwork, as each is
-    rendered. The box needs no layout: it is the embedded object's own. Ink is the cut's measure (gray < 128)
-    on a 72 dpi preview of the whole page, which has no scanner border to measure within. A recovery may request
-    real page context around figures; the box and transform describe those actual pixels, clipped to the page."""
+                  *, context_pt: float = 0) -> Iterator[CropPlan]:
+    """One planned figure crop per (page, box, reading order) of a born-digital page's textless artwork. The box
+    needs no layout: it is the embedded object's own. Ink is the cut's measure (gray < 128) on a 72 dpi preview of
+    the whole page, which has no scanner border to measure within. A recovery may request real page context around
+    figures; the box and transform describe those actual pixels, clipped to the page. A native text block's crop is
+    planned inside its white margin (`TEXT_MARGIN`)."""
     for number, bbox, order, kind in regions:
         page = pages.page(number)
         if kind == "figure" and context_pt:
-            width, height = page.get_size()
-            x0, y0, x1, y1 = bbox
-            bbox = (max(0, x0 - context_pt), max(0, y0 - context_pt),
-                    min(width, x1 + context_pt), min(height, y1 + context_pt))
+            bbox = context_box(page, bbox, context_pt)
         with page.render(72) as preview, preview.crop(bbox) as inside:
             total = sum(preview.histogram()[:128])
             ink = sum(inside.histogram()[:128]) / total if total else 0.0
-        region = Region(kind, bbox, order, ink, page.crop_transform(dpi, bbox))
-        image = render_region(page, region, dpi)
+        number, region, (width, height) = _plan(page, number, Region(kind, bbox, order, ink), dpi)
         if kind == "text":
-            image, region = _margined(image, region)
-        yield number, region, image
+            # White around the crop, not more of the page, which would read neighbouring text twice; the transform
+            # moves its origin out by the margin so the crop's pixels still map to page points.
+            transform = region.transform
+            assert transform is not None and transform.source_px is None  # a pdfium crop: no native raster rectangle
+            pad = _margin(transform)
+            region = replace(region, transform=transform._replace(
+                origin_x=transform.origin_x - pad * transform.pt_per_px_x,
+                origin_y=transform.origin_y - pad * transform.pt_per_px_y))
+            width, height = width + 2 * pad, height + 2 * pad
+            check_render_size(width, height, number, dpi)  # the crop as it is allocated, margin included
+        yield number, region, (width, height)
 
 
-def _margined(image: Image.Image, region: Region) -> tuple[Image.Image, Region]:
-    """White around the crop, not more of the page, which would read neighbouring text twice; the transform moves
-    its origin out by the margin so the crop's pixels still map to page points."""
-    transform = region.transform
-    assert transform is not None and transform.source_px is None  # a pdfium crop: no native raster rectangle
-    pad = round(TEXT_MARGIN / transform.pt_per_px_x)
-    return ImageOps.expand(image, pad, fill="white"), replace(region, transform=transform._replace(
-        origin_x=transform.origin_x - pad * transform.pt_per_px_x,
-        origin_y=transform.origin_y - pad * transform.pt_per_px_y))
+def context_box(page: RenderablePage, bbox: PointBox, context_pt: float) -> PointBox:
+    """`bbox` with `context_pt` of real page around it, clipped to the page."""
+    width, height = page.get_size()
+    x0, y0, x1, y1 = bbox
+    return (max(0, x0 - context_pt), max(0, y0 - context_pt), min(width, x1 + context_pt), min(height, y1 + context_pt))
+
+
+def _margin(transform: CropTransform) -> int:
+    """The white margin of a native text block's crop, in its pixels."""
+    return round(TEXT_MARGIN / transform.pt_per_px_x)

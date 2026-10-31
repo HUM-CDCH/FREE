@@ -61,7 +61,7 @@ from kei_exp.transcription.vlm import (
     vlm_options,
 )
 from tests.helpers.fake import FakeTranscriber, registered
-from tests.helpers.synthetic import crop
+from tests.helpers.synthetic import crop, rendering
 
 OUTPUT = Path("scratch/fake/input.md")  # where main() writes the fake model's Markdown, under the working directory
 PAGE_RECORD = PageRecord(page=1, region=None, image=Image.new("RGBA", (8, 8), "blue"), seconds=0.5, input_tokens=10,
@@ -69,7 +69,7 @@ PAGE_RECORD = PageRecord(page=1, region=None, image=Image.new("RGBA", (8, 8), "b
                          stats={"input_tokens": 10, "output_tokens": 20, "stop": "length"}, markdown="partial",
                          text="partial", incomplete="page 1: VLM output incomplete (stop_reason=length).",
                          source_page=1)
-CROPS = [(1, Region("column", (0, 0, 10, 10), 0, 1.0), Image.new("L", (10, 10)))]
+CROPS = [(1, Region("column", (0, 0, 10, 10), 0, 1.0), (10, 10))]  # planned: the cut renders nothing
 
 
 @pytest.fixture
@@ -176,11 +176,11 @@ def test_the_cut_gets_the_layout_choice_and_its_crops_reach_the_transcriber(work
                                                                             layout_model):
     # Conversion passes the run's layout choice and the resulting crops to the existing OCR path.
     params = RunParams(pdf=Path("input.pdf"), model="fake", pages=(1, 1), layout_model=layout_model)
-    with patch("kei_exp.kie.stages.ocr.cut_pages", return_value=CROPS) as cutter:
+    with patch("kei_exp.kie.stages.ocr.cut_pages", return_value=CROPS) as cutter, rendering(CROPS):
         events = []
         assert convert(resolve(params), emit=events.append) == "complete output"
         cutter.assert_called_once_with(opened_pdf, [1], 250, layout_model=layout_model)
-    assert fake.calls[-1][1] == CROPS
+    assert [(page, region, image.size) for page, region, image in fake.calls[-1][1]] == CROPS
     # The cut phase counts pages, and a region says which crop it is, nothing about how many will follow.
     assert {"type": "phase", "name": "cut", "total": 1} in events, events
     region = next(event for event in events if event["type"] == "region")
@@ -218,7 +218,7 @@ def test_an_empty_cut_never_reaches_the_transcriber_and_its_report_records_the_r
 
 
 # --- The worker's hooks: an adopted result is returned with no cut and no transcription; else before_ocr goes first --
-PAGE_CROP = [crop(1, "page", (0.0, 0.0, 100.0, 100.0), 0, CropTransform(0.0, 0.0, 1.0, 1.0, None), (100, 100))]
+PAGE_CROP = [crop(1, "page", (0.0, 0.0, 100.0, 100.0), 0, CropTransform(0.0, 0.0, 1.0, 1.0, None), (348, 348))]
 
 
 def test_an_adopted_result_skips_the_cut_the_transcriber_and_before_ocr(workspace, fake, scanned):
@@ -274,7 +274,7 @@ def test_a_failed_debug_report_does_not_fail_an_accepted_run(workspace, fake, sc
     execution = resolve(RunParams(pdf=Path("input.pdf"), model="fake", cut="none",
                                   debug_dir=Path("debug"), result_dir=Path("result")))
     events = []
-    with patch.object(ocr, "write_report", side_effect=OSError("debug directory is gone")):
+    with patch("kei_exp.report.write_report", side_effect=OSError("debug directory is gone")):
         markdown = convert(execution, emit=events.append)
     assert markdown == "complete output"
     manifest = json.loads(Path("result/result.json").read_text(encoding="utf-8"))
@@ -289,7 +289,7 @@ def test_a_failed_debug_report_does_not_mask_an_incomplete_run(workspace, fake, 
     fake.records = [PAGE_RECORD]
     execution = resolve(RunParams(pdf=Path("input.pdf"), model="fake", cut="none", debug_dir=Path("debug")))
     events = []
-    with (patch.object(ocr, "write_report", side_effect=OSError("debug directory is gone")),
+    with (patch("kei_exp.report.write_report", side_effect=OSError("debug directory is gone")),
           pytest.raises(IncompleteConversionError, match="page 1")):
         convert(execution, emit=events.append)
     assert {"type": "log", "text": "Debug report not written: debug directory is gone"} in events, events

@@ -324,6 +324,26 @@ function authenticationFailurePage(
   )
 }
 
+function signOutNotRecordedPage(
+  logoutUrl: string,
+  expiresAt: number,
+  cookies: readonly string[],
+): Response {
+  let response = new Response(
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Sign-out not recorded</title><body><main><h1>Sign-out not recorded</h1><p>FREE Studio signed you out in this browser and dropped its copy of your model keys, but could not record the sign-out on the server. A copy of this session could still be used until ${new Date(expiresAt).toUTCString()}.</p><p><a href="${htmlAttribute(logoutUrl)}">Continue signing out of Microsoft</a></p></main></body></html>`,
+    {
+      status: 503,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+      },
+    },
+  )
+  for (const cookie of cookies) response = withCookie(response, cookie)
+  return response
+}
+
 function defaultClientHandler(): Response {
   return apiErrorResponse(new ApiError(404, 'not_found', 'Page not found.'))
 }
@@ -353,6 +373,7 @@ export async function createStudioApp(
   const backend = createAuthenticationBackend({
     store: options.accountStore,
     sessions,
+    now: options.now,
   })
   const identityProvider = options.identityProvider
   const callbackUri = new URL(
@@ -451,18 +472,15 @@ export async function createStudioApp(
   app.use('/api', apiBodyLimit)
   app.use('/api/*', apiBodyLimit)
 
-  // Sessions that signed out in this process, by a digest of their cookie, until they would have expired. Only key
-  // handoffs consult it: a handoff a page sent before signing out must not put its keys back after the eviction.
-  const signedOutSessions = new Map<string, number>()
-  const sessionDigest = (value: string) => createHash('sha256').update(value).digest('base64url')
+  // The guard above refused sessions signed out before it ran; a sign-out while it waited on the database must not
+  // let a handoff put the account's keys back after their eviction.
   const refuseSignedOutHandoff: MiddlewareHandler<StudioEnvironment> = async (
     context,
     next,
   ) => {
     const { value } = sessions.read(context.req.raw)
     // No cookie is cleared: this answer can arrive after the browser signed in again and holds a newer session.
-    if (value && signedOutSessions.has(sessionDigest(value)))
-      return authenticationRequired()
+    if (value && backend.revokedHere(value)) return authenticationRequired()
     // Nothing awaits between this check and the handoff's start (`keys.handoff` in api/model_keys.ts), and a
     // sign-out after that start voids the handoff's writes, so no key comes back either way.
     await next()
@@ -555,21 +573,28 @@ export async function createStudioApp(
 
   app.post('/auth/logout', async (context) => {
     // Sign-out clears Studio's copy of this account's keys; the page clears the browser's own copy. The signed
-    // cookie alone names the account, so eviction works with the database down.
-    const { value } = sessions.read(context.req.raw)
-    const session = value ? sessions.verify(value) : null
-    if (value && session) {
-      const now = (options.now ?? Date.now)()
-      for (const [digest, expiresAt] of signedOutSessions)
-        if (expiresAt <= now) signedOutSessions.delete(digest)
-      signedOutSessions.set(sessionDigest(value), session.expiresAt)
-      custody.keys.forgetAccount(session.accountId)
-    }
-    return externalRedirect(identityProvider.logoutUrl(signedOutUri), [
+    // cookie alone names the account, so eviction, the cookies and this process's refusal of the session hold
+    // with the database down; only the saved refusal, which outlives a restart, needs it.
+    const cookies = [
       transactions.clear(),
       sessions.clear(),
       signedOutCookie(basePath),
-    ])
+    ]
+    const { value } = sessions.read(context.req.raw)
+    const session = value ? sessions.verify(value) : null
+    if (value && session) {
+      custody.keys.forgetAccount(session.accountId)
+      try {
+        await backend.revoke(value, session)
+      } catch {
+        return signOutNotRecordedPage(
+          identityProvider.logoutUrl(signedOutUri),
+          session.expiresAt,
+          cookies,
+        )
+      }
+    }
+    return externalRedirect(identityProvider.logoutUrl(signedOutUri), cookies)
   })
 
   app.on(['GET', 'HEAD'], '/auth/signed-out', (context) =>

@@ -57,6 +57,8 @@ path:
   endpoint; because FREE retains no logout hint, Entra may ask the Researcher
   to select an account before redirecting to the public `/auth/signed-out`
   page;
+- a copy of a signed-out session cookie is refused, also after Studio restarts,
+  while other sessions of the same account keep working;
 - the browser back button cannot reopen protected UI after logout;
 - the exact `/free/auth/callback` and `/free/auth/signed-out` URIs work on the
   development Entra overlay or their hosted equivalents.
@@ -82,6 +84,13 @@ editor and in a Batch Schema Suggestion, in same-tab storage for up to 30
 minutes, and restores them after sign-in only for the same account and
 resource. No token-lifetime policy change or refresh-token storage is
 required.
+
+Logout saves the session's sign-out in PostgreSQL until the session would have
+expired; each later logout deletes the expired ones. If the database cannot
+save it, the browser is still signed out and Studio keeps refusing that session
+until it restarts, but the logout answers "Sign-out not recorded" (HTTP 503)
+with the time the session expires: a copy of the cookie could be used again
+after a restart until then.
 
 Removing enterprise-app assignment blocks the next sign-in, but an existing
 FREE session can remain usable for up to eight hours. FREE has no

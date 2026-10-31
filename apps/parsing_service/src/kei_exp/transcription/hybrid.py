@@ -7,7 +7,7 @@ records: one whole-page record per native page, its crops' outcomes attached unc
 from dataclasses import replace
 from html import escape
 
-from kei_exp.regions import Crop, splice
+from kei_exp.regions import CropPlan, splice
 from kei_exp.transcription import html as html_export
 from kei_exp.transcription.types import ConversionError, OcrRecord, PageRecord, Transcription, html_to_text
 
@@ -20,11 +20,12 @@ FURNITURE = frozenset({"PageHeader", "PageFooter"})
 HEADINGS = {"Title": "h1", "SectionHeader": "h2"}
 
 
-def supplement(native: Transcription, recognized: Transcription, crops: list[Crop],
+def supplement(native: Transcription, recognized: Transcription, crops: list[CropPlan],
                anchors: list[int]) -> Transcription:
     """Native's records with each crop's record attached to its page, read at its anchor (`regions.anchor`).
 
-    crops[n - 1] and anchors[n - 1] are the crop recognized's record n read. OCR text never makes a page with
+    crops[n - 1] and anchors[n - 1] are the crop recognized's record n read, as it was read: the crops' images are
+    already released. OCR text never makes a page with
     missing native evidence complete. ConversionError: native omitted a page that has a crop.
     """
     assert sorted(record.page for record in recognized.pages) == list(range(1, len(crops) + 1)), \
@@ -57,7 +58,7 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
                               output_tokens=_sum(s.record.output_tokens for s in supplements),
                               capped=any(s.record.capped for s in supplements)))
     unattributed = "; ".join(reason for reason in (native.unattributed, recognized.unattributed) if reason)
-    return Transcription({**native.header, "ocr": recognized.header}, merged, unattributed or None)
+    return Transcription({**native.header, "ocr": recognized.header}, merged, unattributed or None, recognized.advice)
 
 
 def _has_text(record: PageRecord) -> bool:

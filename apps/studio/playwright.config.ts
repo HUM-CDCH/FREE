@@ -27,11 +27,14 @@ process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2e-source-inbox-'))
 
 export default defineConfig({
+  // CI never runs a suite narrowed by a committed test.only.
+  forbidOnly: Boolean(process.env.CI),
   testDir: './e2e',
-  // The restart spec runs on the recovery config's restartable Studio (playwright.recovery.config.ts).
+  // The restart spec runs on the recovery config's restartable Studio (playwright.recovery.config.ts), and the unified
+  // Catalog spec on a Studio with its rollout gate on (playwright.unified-catalog.config.ts).
   testIgnore: ['real-service.spec.ts', 'real-service-gc.spec.ts',
     'interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts', 'durable-extraction.spec.ts', 'durable-service.spec.ts',
-    'guided-workflow-service.spec.ts'],
+    'guided-workflow-service.spec.ts', 'unified-catalog.spec.ts'],
   fullyParallel: true,
   // The mock OIDC and Studio hosts are shared by this suite; 12 default workers on a 24-core host intermittently
   // fail sign-in while many tests start together. Bound browser concurrency for a reproducible full gate.

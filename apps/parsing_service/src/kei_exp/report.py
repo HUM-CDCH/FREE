@@ -1,13 +1,18 @@
 """The debug report: one schema for every transcriber, written from the run's outcome before it is judged."""
 import json
+import logging
 from collections.abc import Iterable
 from importlib.metadata import version
 from pathlib import Path
 
+from PIL import Image
+
 from kei_exp.files import publish
 from kei_exp.progress import Emit
 from kei_exp.regions import region_info
-from kei_exp.transcription.types import Execution, Transcription
+from kei_exp.transcription.types import Execution, PageRecord, Transcription
+
+logger = logging.getLogger(__name__)
 
 
 def _total(values: Iterable[int | None]) -> int | None:
@@ -15,29 +20,72 @@ def _total(values: Iterable[int | None]) -> int | None:
     return sum(known) if known else None
 
 
+class Debug:
+    """One run's debug report, collected batch by batch (`kei_exp.kie.stages.ocr.transcribe`): each batch's images
+    are saved while they are open, before the batch releases them, and report.json is written from the run's
+    outcome last. Diagnostics only: the first failure is logged and reported as a `log` event, nothing more is
+    written, and nothing is raised, so it never stops an accepted result."""
+
+    def __init__(self, directory: Path, emit: Emit) -> None:
+        self.directory = directory
+        self.emit = emit
+        self.pixels: dict[int, list[int]] = {}  # the size of each record's saved page-N.png, by input ordinal
+        self.failed = False
+
+    def save(self, records: Iterable[PageRecord] = (), crops: Iterable[tuple[int, Image.Image]] = ()) -> None:
+        """page-N.png of each record that kept its image, exactly as the adapter handed it; ocr-N.png of each of
+        a hybrid run's OCR crops, by its ordinal."""
+        if self.failed:
+            return
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            for record in records:
+                if record.image is not None:
+                    record.image.save(self.directory / f"page-{record.page}.png")
+                    self.pixels[record.page] = list(record.image.size)
+            for ordinal, image in crops:
+                image.save(self.directory / f"ocr-{ordinal}.png")
+        except Exception as error:  # noqa: BLE001 - diagnostics only
+            self._fail(error)
+
+    def write(self, outcome: Transcription, execution: Execution, started: str, seconds: float) -> None:
+        if self.failed:
+            return
+        try:
+            write_report(outcome, execution, started, seconds, self.directory, self.emit, self.pixels)
+        except Exception as error:  # noqa: BLE001 - diagnostics only; the accepted result is already written
+            self._fail(error)
+
+    def _fail(self, error: Exception) -> None:
+        self.failed = True
+        logger.error("debug report not written to %s: %s", self.directory, error)
+        self.emit({"type": "log", "text": f"Debug report not written: {error}"})
+
+
 def write_report(outcome: Transcription, execution: Execution, started: str, seconds: float, directory: Path,
-                 emit: Emit) -> None:
-    """report.json and page-N.png for one run. Images are saved exactly as the adapter handed them."""
+                 emit: Emit, saved: dict[int, list[int]] | None = None) -> None:
+    """report.json for one run, and page-N.png of every record still holding its image, saved exactly as the
+    adapter handed it. `saved`: the sizes of page images already saved and released (`Debug.save`); a hybrid
+    run's ocr-N.png were saved with their batches."""
     directory.mkdir(parents=True, exist_ok=True)
     entries = []
     for page in outcome.pages:
         supplements = []
         for supplement in page.ocr:
-            _, _, image = supplement.crop
-            image.save(directory / f"ocr-{supplement.ordinal}.png")
+            _, _, image_px = supplement.crop
             record = supplement.record
             supplements.append({"crop": supplement.ordinal, "region": region_info(supplement.crop),
-                                "image_pixels": list(image.size), "incomplete": record.incomplete,
+                                "image_pixels": list(image_px), "incomplete": record.incomplete,
                                 "input_tokens": record.input_tokens, "output_tokens": record.output_tokens,
                                 "markdown": record.markdown, "text": record.text, **record.payload})
-        pixels = None
+        image_pixels = (saved or {}).get(page.page)
         if page.image is not None:
             page.image.save(directory / f"page-{page.page}.png")
-            pixels = list(page.image.size)
+            image_pixels = list(page.image.size)
         if page.stats:
-            emit({"type": "page_stats", "page": page.page, "image": pixels, **page.stats})
+            emit({"type": "page_stats", "page": page.page, "image": image_pixels, **page.stats})
         entries.append({
-            "page": page.page, "region": page.region, "image_pixels": pixels, "seconds": page.seconds,
+            "page": page.page, "region": page.region, "image_pixels": image_pixels, "seconds": page.seconds,
             "input_tokens": page.input_tokens, "output_tokens": page.output_tokens, "stop": page.stop,
             "capped": page.capped, "incomplete": page.incomplete, "source_page": page.source_page,
             "markdown": page.markdown, "text": page.text, **page.payload,

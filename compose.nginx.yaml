@@ -52,9 +52,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+    # nginx resolves studio once, when it starts: Compose restarts it after it
+    # recreates or restarts Studio, whose new container may take a new address.
     depends_on:
       studio:
         condition: service_healthy
+        restart: true
     networks:
       proxy:
         ipv4_address: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.10"

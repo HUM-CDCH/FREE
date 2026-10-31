@@ -28,6 +28,8 @@ process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2e-source-inbox-'))
 
 export default defineConfig({
+  // CI never runs a suite narrowed by a committed test.only.
+  forbidOnly: Boolean(process.env.CI),
   testDir: './e2e',
   testMatch: 'schema-order-lifecycle.spec.ts',
   workers: 1,

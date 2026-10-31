@@ -18,6 +18,12 @@ export type EntraResearcherIdentity = Pick<
 export type ResearcherAccountStore = {
   findOrCreate(identity: EntraResearcherIdentity): Promise<ResearcherAccountRecord>
   findById(id: string): Promise<ResearcherAccountRecord | null>
+  /**
+   * Sign-out: refuses the session cookie with this digest until `expiresAt`, when the session expires anyway. Also
+   * deletes the sign-outs that expired before `purgeBefore`; no other path deletes them.
+   */
+  revokeSession(digest: string, expiresAt: Date, purgeBefore: Date): Promise<void>
+  isSessionRevoked(digest: string): Promise<boolean>
 }
 
 const ACCOUNT_FIELDS = [
@@ -77,6 +83,16 @@ export function createResearcherAccountStore(
       return (await database.orm.public.ResearcherAccount.select(
         ...ACCOUNT_FIELDS,
       ).first({ id })) as ResearcherAccountRecord | null
+    },
+
+    async revokeSession(digest, expiresAt, purgeBefore) {
+      // A repeated sign-out of the same cookie keeps the saved row.
+      await database.orm.public.RevokedSession.upsert({ create: { digest, expiresAt }, update: {} })
+      await database.orm.public.RevokedSession.where((row) => row.expiresAt.lt(purgeBefore)).deleteCount()
+    },
+
+    async isSessionRevoked(digest) {
+      return (await database.orm.public.RevokedSession.select('digest').first({ digest })) !== null
     },
   }
 }

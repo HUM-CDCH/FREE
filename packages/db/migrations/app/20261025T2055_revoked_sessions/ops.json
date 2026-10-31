@@ -1,0 +1,79 @@
+[
+  {
+    "id": "table.revokedSession",
+    "label": "Create table \"revokedSession\"",
+    "summary": "Creates table \"revokedSession\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "revokedSession"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"revokedSession\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"revokedSession\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"revokedSession\"",
+        "sql": "CREATE TABLE \"public\".\"revokedSession\" (\n  \"digest\" text NOT NULL,\n  \"expiresAt\" timestamptz(6) NOT NULL,\n  PRIMARY KEY (\"digest\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"revokedSession\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"revokedSession\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.revokedSession.revokedSession_expiresAt_idx",
+    "label": "Create index \"revokedSession_expiresAt_idx\" on \"revokedSession\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "revokedSession_expiresAt_idx",
+        "table": "revokedSession"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"revokedSession_expiresAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"revokedSession_expiresAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"revokedSession_expiresAt_idx\"",
+        "sql": "CREATE INDEX \"revokedSession_expiresAt_idx\" ON \"public\".\"revokedSession\" (\"expiresAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"revokedSession_expiresAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"revokedSession_expiresAt_idx\""
+        ]
+      }
+    ]
+  }
+]

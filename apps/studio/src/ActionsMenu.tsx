@@ -11,8 +11,9 @@ export type ActionItem = {
 }
 
 /** A "⋯" (or custom) trigger and a `role="menu"` list: arrow keys move between items (from the trigger, ArrowDown to the
- *  first and ArrowUp to the last), Escape closes and returns focus, a blur or a pointer press outside closes. Items only
- *  receive focus through the arrow keys, so the trigger keeps its place in the tab order. `align` names the trigger edge
+ *  first and ArrowUp to the last), Escape closes and returns focus, a blur or a pointer press outside closes. Opening
+ *  with Enter or Space focuses the first enabled item; otherwise items only receive focus through the arrow keys. Items
+ *  stay out of the tab order, so Tab leaves the menu for the next control and closes it. `align` names the trigger edge
  *  the list lines up with: `right` (the default) opens it leftwards, `left` rightwards, for a trigger near the left edge. */
 export default function ActionsMenu({ label, items, trigger, triggerClassName = '', align = 'right' }: {
   label: string
@@ -25,6 +26,13 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLUListElement>(null)
   const root = useRef<HTMLDivElement>(null)
+  const focusFirstItem = useRef(false)
+  // A keyboard open focuses the first enabled item once the list has mounted; with none, focus stays on the trigger.
+  useEffect(() => {
+    if (!open || !focusFirstItem.current) return
+    focusFirstItem.current = false
+    menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus()
+  }, [open])
   // A click does not focus a button in Safari, or in Firefox on macOS, so a blur alone would miss an outside press.
   useEffect(() => {
     if (!open) return
@@ -72,7 +80,11 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
         aria-expanded={open}
         className={`grid h-7 min-w-7 cursor-pointer place-items-center rounded-[3px] border border-line bg-surface px-1 text-ink-muted outline-none transition-colors hover:border-line-strong hover:text-ink ${triggerClassName}`}
         onMouseDown={(event) => open && event.preventDefault()}
-        onClick={() => setOpen((current) => !current)}
+        onClick={(event) => {
+          // Enter and Space click a button with `detail` 0; a pointer click counts its clicks.
+          focusFirstItem.current = !open && event.detail === 0
+          setOpen((current) => !current)
+        }}
       >
         {trigger ?? <span aria-hidden="true">⋯</span>}
       </button>

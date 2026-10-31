@@ -56,6 +56,11 @@ services:
       KEI_SYSTEM_DATABASE_URL: "postgresql://kei:${FREE_KEI_POSTGRES_PASSWORD:-kei-development}@db:5432/free"
     develop: *parsing-watch
 
+  eval_watcher:
+    environment:
+      # Studio's restricted runtime role, which Studio's entrypoint prepares.
+      DATABASE_URL: "postgresql://free_studio:${FREE_STUDIO_POSTGRES_PASSWORD:-studio-development}@db:5432/free"
+
   studio:
     command: ["pnpm", "--filter", "studio", "dev", "--host", "0.0.0.0", "--strictPort"]
     environment:
@@ -64,7 +69,10 @@ services:
       # nginx container and Studio join it, so any peer in this block is the
       # reverse proxy.
       FREE_STUDIO_PROXY_ADDRESS: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.0/24"
-      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
+      # Studio's entrypoint migrates and prepares the roles as postgres, then
+      # starts Studio as the restricted free_studio role with neither of these.
+      FREE_ADMIN_DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
+      DATABASE_URL: "postgresql://free_studio:${FREE_STUDIO_POSTGRES_PASSWORD:-studio-development}@db:5432/free"
       FREE_KEI_POSTGRES_PASSWORD: "${FREE_KEI_POSTGRES_PASSWORD:-kei-development}"
       # `pnpm dev` generates and persists this per machine. Without it the dev
       # server mints a session secret per boot, so every restart silently
@@ -260,8 +268,11 @@ services:
         read_only: true
         bind:
           create_host_path: false
+    # nginx resolves studio once, when it starts: Compose restarts it after it
+    # recreates or restarts Studio, whose new container may take a new address.
     depends_on:
       studio:
         condition: service_healthy
+        restart: true
     networks:
       - proxy

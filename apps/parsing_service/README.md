@@ -340,7 +340,11 @@ shown while generated, but only a validated completed reply becomes a checkpoint
 ## Verification
 
 From the FREE root, install once with `pnpm --filter parsing-service install:python`.
-All commands use this directory's locked Python environment.
+All commands use this directory's locked Python environment. The service never runs
+torch on a GPU (layout and native parsing use the CPU, OCR is a model server), so
+on Linux x86_64, the image's platform, the lock takes torch, torchvision and
+torchaudio from PyTorch's CPU index, without CUDA libraries; other platforms,
+Linux aarch64 included, keep PyPI's wheels.
 
 | Command after `pnpm --filter parsing-service` | Requirements and effects |
 | --- | --- |

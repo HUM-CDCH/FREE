@@ -61,6 +61,7 @@ type ProviderEntry = ProviderDescriptor & {
 export type ProviderTable = { [K in ProviderKind]: ProviderEntry & { kind: K } }
 
 const MAX_DISCOVERY_BYTES = 1024 * 1024
+const MAX_DISCOVERY_PAGES = 20
 const MAX_MODELS = 10_000
 const MAX_MODEL_TEXT = 512
 const MAX_MESSAGE_TEXT = 512
@@ -189,46 +190,76 @@ async function productionClaudeStatus(signal: AbortSignal): Promise<void> {
 }
 
 
+/** One response of a model list: its models, and the query parameters that request the next page, if there is one. */
+type CatalogPage = { models: readonly ModelDescriptor[]; next: Record<string, string> | null }
+
+/**
+ * Lists the models page by page while the provider's own parser finds a next page. The 1 MiB, model and text bounds
+ * hold across all pages, and probeConnection's deadline across all requests; a list that would pass them is refused
+ * whole, never shown as if it were complete.
+ */
 function httpDiscovery(
   resource: string,
   headers: (credential: string | null) => Record<string, string>,
-  parse: (value: unknown) => readonly ModelDescriptor[],
+  parse: (value: unknown) => CatalogPage,
 ) {
   return async (
     connection: ModelConnection,
     credential: string | null,
     context: DiscoveryContext,
   ): Promise<DiscoveryObservation> => {
-    let response: Response
-    try {
-      response = await context.fetch(appendProviderResource(connection.baseUrl!, resource), {
-        method: 'GET',
-        headers: headers(credential),
-        signal: context.signal,
-      })
-    } catch (error) {
-      if (context.signal.aborted) throw error
-      return observation('unreachable', 'The provider could not be reached.')
-    }
+    const models: ModelDescriptor[] = []
+    let bytesRead = 0
+    let next: Record<string, string> | null = null
+    for (let page = 0; page === 0 || next; page++) {
+      if (page === MAX_DISCOVERY_PAGES) {
+        return observation('invalid_response', `The provider listed more than ${MAX_DISCOVERY_PAGES} pages of models.`)
+      }
+      let url = appendProviderResource(connection.baseUrl!, resource)
+      if (next) {
+        const paged = new URL(url)
+        for (const [name, value] of Object.entries(next)) paged.searchParams.set(name, value)
+        url = paged.href
+      }
+      let response: Response
+      try {
+        response = await context.fetch(url, {
+          method: 'GET',
+          headers: headers(credential),
+          signal: context.signal,
+        })
+      } catch (error) {
+        if (context.signal.aborted) throw error
+        return observation('unreachable', 'The provider could not be reached.')
+      }
 
-    const body = await readBoundedBody(response)
-    if (body.exceeded) {
-      return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.')
-    }
-    if (!response.ok) {
-      return response.status === 401 || response.status === 403
-        ? observation('authentication_failed', 'The provider rejected authentication.')
-        : observation('discovery_failed', 'The provider could not list models.')
-    }
+      const body = await readBoundedBody(response, MAX_DISCOVERY_BYTES - bytesRead)
+      if (body.exceeded) {
+        return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.')
+      }
+      bytesRead += body.bytes.byteLength
+      if (!response.ok) {
+        return response.status === 401 || response.status === 403
+          ? observation('authentication_failed', 'The provider rejected authentication.')
+          : observation('discovery_failed', 'The provider could not list models.')
+      }
 
-    let value: unknown
-    try {
-      value = JSON.parse(new TextDecoder().decode(body.bytes))
-    } catch {
-      return observation('invalid_response', 'The provider returned invalid JSON.')
+      let value: unknown
+      try {
+        value = JSON.parse(new TextDecoder().decode(body.bytes))
+      } catch {
+        return observation('invalid_response', 'The provider returned invalid JSON.')
+      }
+      try {
+        const listed = parse(value)
+        for (const model of listed.models) models.push(model)
+        next = listed.next
+      } catch {
+        return observation('invalid_response', 'The provider returned an invalid model catalog.')
+      }
     }
     try {
-      const catalog = boundedCatalog(parse(value))
+      const catalog = boundedCatalog(models)
       return {
         status: 'connected',
         message: boundText(`Connected. ${catalog.length} model${catalog.length === 1 ? '' : 's'} available.`, MAX_MESSAGE_TEXT),
@@ -240,7 +271,8 @@ function httpDiscovery(
   }
 }
 
-async function readBoundedBody(response: Response): Promise<{ bytes: Uint8Array; exceeded: boolean }> {
+/** At most `limit` bytes of the body; a longer body is cancelled at the first piece past it, and marked `exceeded`. */
+export async function readBoundedBody(response: Response, limit: number): Promise<{ bytes: Uint8Array; exceeded: boolean }> {
   if (response.body === null) return { bytes: new Uint8Array(), exceeded: false }
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -250,7 +282,7 @@ async function readBoundedBody(response: Response): Promise<{ bytes: Uint8Array;
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      const remaining = MAX_DISCOVERY_BYTES - size
+      const remaining = limit - size
       if (remaining > 0) {
         const kept = value.byteLength <= remaining ? value : value.subarray(0, remaining)
         chunks.push(kept)
@@ -324,30 +356,43 @@ function stringField(value: unknown, field: string): string {
   return result
 }
 
-function openAiCatalog(value: unknown): ModelDescriptor[] {
-  return arrayField(value, 'data').map((item) => {
+/** OpenAI-style `/models` lists everything in one response. */
+function openAiCatalog(value: unknown): CatalogPage {
+  const models = arrayField(value, 'data').map((item) => {
     const id = stringField(item, 'id')
     const candidate = record(item).display_name
     return { id, label: typeof candidate === 'string' && candidate ? candidate : id }
   })
+  return { models, next: null }
 }
 
-function ollamaCatalog(value: unknown): ModelDescriptor[] {
-  return arrayField(value, 'models').map((item) => {
+/** Anthropic pages with `has_more`; the next page starts after this page's `last_id`. */
+function anthropicCatalog(value: unknown): CatalogPage {
+  const { models } = openAiCatalog(value)
+  return { models, next: record(value).has_more === true ? { after_id: stringField(value, 'last_id') } : null }
+}
+
+function ollamaCatalog(value: unknown): CatalogPage {
+  const models = arrayField(value, 'models').map((item) => {
     const data = record(item)
     const id = typeof data.name === 'string' ? data.name : data.model
     if (typeof id !== 'string') throw new Error('expected model name')
     return { id, label: id }
   })
+  return { models, next: null }
 }
 
-function googleCatalog(value: unknown): ModelDescriptor[] {
-  return arrayField(value, 'models').map((item) => {
+/** Google pages with `nextPageToken`, sent back as `pageToken`; its absence ends the list. */
+function googleCatalog(value: unknown): CatalogPage {
+  const models = arrayField(value, 'models').map((item) => {
     const data = record(item)
     const name = stringField(data, 'name')
     const id = name.startsWith('models/') ? name.slice('models/'.length) : name
     return { id, label: typeof data.displayName === 'string' && data.displayName ? data.displayName : id }
   })
+  const token = record(value).nextPageToken
+  if (token !== undefined && typeof token !== 'string') throw new Error('expected page token')
+  return { models, next: token ? { pageToken: token } : null }
 }
 
 async function discoverCodex(
@@ -478,7 +523,7 @@ export const providerTable = {
     discover: httpDiscovery(
       'models',
       (credential) => ({ accept: 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': credential! }),
-      openAiCatalog,
+      anthropicCatalog,
     ),
     createModel: (connection, modelId, credential) =>
       createAnthropic({ baseURL: connection.baseUrl!, apiKey: credential! })(modelId),
@@ -519,7 +564,9 @@ export const providerTable = {
     supportsNuextract: false,
     temperatureSupported: false,
     discover: discoverClaude,
-    createModel: (_connection, modelId) => claudeCode(modelId, { tools: [], settingSources: [] }),
+    // `persistSession: false`: the CLI would otherwise keep each prompt and reply as a transcript under its own config
+    // directory, outside Project deletion and artifact garbage collection.
+    createModel: (_connection, modelId) => claudeCode(modelId, { tools: [], settingSources: [], persistSession: false }),
   },
   'openai-compatible': {
     kind: 'openai-compatible',

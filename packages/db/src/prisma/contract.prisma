@@ -17,6 +17,15 @@ model ResearcherAccount {
   @@unique([tenantId, objectId])
 }
 
+// A signed-out session's cookie, by digest, refused until the session would have expired. It names no account, so
+// deleting an account never waits on its sign-outs.
+model RevokedSession {
+  digest    String       @id
+  expiresAt Timestamptz6
+
+  @@index([expiresAt])
+}
+
 // Durable control and immutable call/review history belong to each Extraction.
 namespace extraction_runtime {
   model Protocol {

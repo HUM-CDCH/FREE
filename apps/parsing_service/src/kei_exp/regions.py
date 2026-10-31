@@ -30,9 +30,12 @@ class Region:
 
 
 Crop = tuple[int, Region, Image.Image]  # source page number, region, rendered crop
+# A crop before it is rendered and after it is released: source page number, region with its render transform, and
+# the exact pixel size of its image (`kei_exp.cut`). Planned crops are what a run keeps; only a batch's are rendered.
+CropPlan = tuple[int, Region, tuple[int, int]]
 
 
-def region_info(crop: Crop | None) -> dict | None:
+def region_info(crop: Crop | CropPlan | None) -> dict | None:
     """The report's description of a crop: its source page plus the Region fields, ink share included; the render
     transform belongs to the result files, not the debug report."""
     if crop is None:

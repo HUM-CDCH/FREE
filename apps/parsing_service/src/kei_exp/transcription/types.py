@@ -15,7 +15,7 @@ from PIL import Image
 from kei_exp.files import load_dotenv
 from kei_exp.geometry import PointBox
 from kei_exp.progress import Emit
-from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Crop
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Crop, CropPlan
 
 load_dotenv()
 DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/completions")
@@ -103,6 +103,10 @@ class Execution:
     ingest: dict | None = None               # the requested IngestConfig settings; None for defaults and native runs
     ocr_regions: tuple[OcrRegion, ...] = ()   # hybrid only: native text plus these image/form crops
     ocr_text: bool = False                    # hybrid only: also OCR native blocks with undecodable glyphs
+    # The run's input ordinals (first, last) one transcriber call is given: the OCR stage transcribes a run batch by
+    # batch (`kei_exp.kie.stages.ocr.transcribe`). Its crops are exactly those inputs; whole pages, the pages at
+    # those positions of `pages`. Records, events and messages number every input by its run ordinal. None: all.
+    batch: tuple[int, int] | None = None
 
 
 class ConversionError(RuntimeError):
@@ -156,7 +160,7 @@ class PageRecord:
 class OcrRecord:
     """One image-only OCR input and its unchanged backend outcome, attached to its native page."""
     ordinal: int                   # the crop: its position in the run's OCR regions (artwork, then text), 1-based
-    crop: Crop
+    crop: CropPlan                 # as it was read; its image is released with its batch
     record: PageRecord
     anchor: int                    # reads before this index of the native page's blocks (len: after the last)
 
@@ -172,6 +176,7 @@ class Transcription:
                                    # generation_params, errors (plus docling_status for VLMs)
     pages: list[PageRecord]
     unattributed: str | None = None
+    advice: str | None = None      # what to change when anything is incomplete, said once after every reason
 
     @property
     def incomplete(self) -> str | None:
@@ -179,6 +184,8 @@ class Transcription:
         reasons = [record.incomplete for record in self.pages if record.incomplete]
         if self.unattributed:
             reasons.append(self.unattributed)
+        if self.advice and reasons:
+            reasons.append(self.advice)
         return "; ".join(reasons) or None
 
 

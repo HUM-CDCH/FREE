@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
@@ -171,6 +172,23 @@ describe('provider table', () => {
         },
       },
     })
+  })
+
+  it('launches Claude Code without session transcripts, so no prompt or reply outlives the call', async () => {
+    const model = providerTable['claude-code'].createModel({ ...connection, provider: 'claude-code', baseUrl: null }, 'sonnet')
+    let launched: readonly string[] | undefined
+    // Only the launch is replaced: the installed wrapper and Agent SDK build the real CLI arguments, and a child that
+    // exits at once ends the call before any CLI or network runs.
+    Object.assign((model as unknown as { settings: object }).settings, {
+      spawnClaudeCodeProcess: ({ args }: { args: string[] }) => {
+        launched = args
+        return spawn(process.execPath, ['-e', 'process.exit(1)'], { stdio: ['pipe', 'pipe', 'pipe'] })
+      },
+    })
+
+    await generateText({ model, prompt: 'Suggest fields.', maxRetries: 0 }).catch(() => undefined)
+
+    expect(launched).toContain('--no-session-persistence')
   })
 
   it.each([
@@ -458,6 +476,85 @@ describe('probeConnection', () => {
     expect(fast.catalog.map(({ id }) => id)).toEqual(['fast-model'])
     expect(slow.catalog.map(({ id }) => id)).toEqual(['slow-model'])
     expect(failing).toMatchObject({ status: 'authentication_failed', catalog: [] })
+  })
+
+  describe('follows Google and Anthropic model-list pages', () => {
+    const google = { ...connection, provider: 'google' as const, baseUrl: 'https://gateway.example/v1beta' }
+    const anthropic = { ...connection, provider: 'anthropic' as const, baseUrl: 'https://gateway.example/v1' }
+    const googlePage = (names: string[], nextPageToken?: string) =>
+      Response.json({ models: names.map((name) => ({ name: `models/${name}` })), ...(nextPageToken ? { nextPageToken } : {}) })
+    const anthropicPage = (ids: string[], hasMore: boolean) =>
+      Response.json({ data: ids.map((id) => ({ id })), has_more: hasMore, first_id: ids[0], last_id: ids.at(-1) })
+
+    it('lists every Google page, sending each nextPageToken as pageToken with the key', async () => {
+      const request = vi.fn(async (url: string) => {
+        const token = new URL(url).searchParams.get('pageToken')
+        return token === null ? googlePage(['gemini-a'], 'page/2+') : token === 'page/2+' ? googlePage(['gemini-b'], 'p3') : googlePage(['gemini-c'])
+      })
+      const result = await probeConnection(google, 'secret', { fetch: request as never })
+
+      expect(request.mock.calls.map(([url]) => url)).toEqual([
+        'https://gateway.example/v1beta/models',
+        'https://gateway.example/v1beta/models?pageToken=page%2F2%2B',
+        'https://gateway.example/v1beta/models?pageToken=p3',
+      ])
+      for (const [, init] of request.mock.calls as unknown as [string, RequestInit][])
+        expect(init.headers).toMatchObject({ 'x-goog-api-key': 'secret' })
+      expect(result).toMatchObject({ status: 'connected', message: 'Connected. 3 models available.' })
+      expect(result.catalog.map(({ id }) => id)).toEqual(['gemini-a', 'gemini-b', 'gemini-c'])
+    })
+
+    it('lists every Anthropic page, continuing after the last ID while has_more', async () => {
+      const request = vi.fn(async (url: string) =>
+        new URL(url).searchParams.get('after_id') === 'claude-b' ? anthropicPage(['claude-c'], false) : anthropicPage(['claude-a', 'claude-b'], true))
+      const result = await probeConnection(anthropic, 'secret', { fetch: request as never })
+
+      expect(request.mock.calls.map(([url]) => url)).toEqual([
+        'https://gateway.example/v1/models',
+        'https://gateway.example/v1/models?after_id=claude-b',
+      ])
+      expect(result.catalog.map(({ id }) => id)).toEqual(['claude-a', 'claude-b', 'claude-c'])
+    })
+
+    it('rejects a continuation without its cursor rather than show a partial list', async () => {
+      const result = await probeConnection(anthropic, 'secret', {
+        fetch: async () => Response.json({ data: [{ id: 'claude-a' }], has_more: true, last_id: null }),
+      })
+      expect(result).toMatchObject({ status: 'invalid_response', catalog: [] })
+    })
+
+    it('stops after 20 pages and reports the list as unusable, not complete', async () => {
+      let page = 0
+      const request = vi.fn(async () => googlePage([`gemini-${page}`], `token-${++page}`))
+      const result = await probeConnection(google, 'secret', { fetch: request })
+
+      expect(request).toHaveBeenCalledTimes(20)
+      expect(result).toMatchObject({ status: 'invalid_response', catalog: [] })
+    })
+
+    it('bounds bytes and models across all pages, not per page', async () => {
+      const padded = (id: string, more: boolean) =>
+        new Response(JSON.stringify({ data: [{ id, display_name: id }], has_more: more, last_id: id, padding: 'x'.repeat(600_000) }))
+      const bytes = await probeConnection(anthropic, 'secret', {
+        fetch: async (url) => padded(new URL(String(url)).searchParams.has('after_id') ? 'claude-b' : 'claude-a', true),
+      })
+      const many = (offset: number) => Array.from({ length: 6_000 }, (_, index) => `m${offset + index}`)
+      const models = await probeConnection(google, 'secret', {
+        fetch: async (url) => new URL(String(url)).searchParams.has('pageToken') ? googlePage(many(6_000)) : googlePage(many(0), 'next'),
+      })
+
+      expect(bytes).toMatchObject({ status: 'invalid_response', catalog: [] })
+      expect(models).toMatchObject({ status: 'invalid_response', catalog: [] })
+    })
+
+    it('keeps one wall-clock deadline across pages', async () => {
+      const request = vi.fn(async (url: string) =>
+        new URL(url).searchParams.has('pageToken') ? Promise.withResolvers<Response>().promise : googlePage(['gemini-a'], 'next'))
+      const result = await probeConnection(google, 'secret', { fetch: request as never, timeoutMs: 20 })
+
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(result).toMatchObject({ status: 'timed_out', catalog: [] })
+    })
   })
 
   it('returns the exact static Claude aliases after an auth check', async () => {

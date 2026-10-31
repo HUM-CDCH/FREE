@@ -116,6 +116,7 @@ const completeProductionEnvironment = (certificatePath) => ({
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
   FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
+  FREE_STUDIO_POSTGRES_PASSWORD: 'e'.repeat(64),
   FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
   FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
@@ -143,6 +144,7 @@ test('production: missing or weak values are rejected before startup', () => {
   assert.ok(errors.some((error) => error.includes('STUDIO_ORIGIN')))
   assert.ok(errors.some((error) => error.includes('FREE_SESSION_SECRET')))
   assert.ok(errors.some((error) => error.includes('FREE_POSTGRES_PASSWORD')))
+  assert.ok(errors.some((error) => error.includes('FREE_STUDIO_POSTGRES_PASSWORD')))
   assert.ok(errors.some((error) => error.includes('FREE_ENTRA_TENANT_ID')))
 })
 
@@ -364,6 +366,13 @@ function assertOwnedParsingTopology(config, gpu) {
       assert.equal(server.ports, undefined, `${name} stays private`)
     }
     for (const name of servers) assert.equal(services[name].image, services.ocr_model.image, name)
+    // Each server loads one immutable Hugging Face commit (vLLM loads the tokenizer and processor at the same one)
+    // and runs no code from the model repository.
+    for (const name of servers) {
+      const command = services[name].command
+      assert.match(command[command.indexOf('--revision') + 1], /^[0-9a-f]{40}$/, name)
+      assert.ok(!command.includes('--trust-remote-code'), name)
+    }
     // The worker asks for the model each server serves: vLLM's model id is the repo it was started with.
     assert.equal(services.extraction_model.command[0], services.parsing_worker.environment.KEI_EXTRACT_MODEL)
     assert.equal(services.nuextract_model.command[0], services.parsing_worker.environment.KEI_NUEXTRACT_MODEL)
@@ -439,7 +448,7 @@ test('database tooling: package exposes only supported operator commands', () =>
     'db:reset',
     'db:init',
     'db:verify',
-    'db:kei-role',
+    'db:roles',
   ])
     assert.equal(typeof scripts[supported], 'string', supported)
 
@@ -496,23 +505,103 @@ test('development: mock and real Entra Compose profiles render exclusively', () 
   )
 })
 
-test('kei role: only Studio receives the kei password, after migrations', () => {
-  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
-  assert.equal(typeof services.studio.environment.FREE_KEI_POSTGRES_PASSWORD, 'string')
-  assert.notEqual(services.studio.environment.FREE_KEI_POSTGRES_PASSWORD, '')
-  for (const [name, service] of Object.entries(services))
-    if (name !== 'studio')
+test('database roles: only Studio\'s entrypoint receives the administrative URL and the kei password', () => {
+  const development = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}), null, process.env,
+    ['--profile', 'eval']).services
+  const production = renderProductionCompose({
+    ...completeProductionEnvironment('/tmp/free-test-client.pem'), FREE_DEVELOPER_EVAL: '1',
+  }).services
+  for (const [services, adminPassword, runtimePassword] of [
+    [development, 'postgres', 'studio-development'],
+    [production, 'a'.repeat(64), 'e'.repeat(64)],
+  ]) {
+    const admin = new URL(services.studio.environment.FREE_ADMIN_DATABASE_URL)
+    assert.deepEqual([admin.username, admin.password, admin.host, admin.pathname], ['postgres', adminPassword, 'db:5432', '/free'])
+    // Studio and the evaluation watcher run as the restricted runtime role on the same database.
+    for (const name of ['studio', 'eval_watcher']) {
+      const runtime = new URL(services[name].environment.DATABASE_URL)
+      assert.deepEqual([runtime.username, runtime.password, runtime.host, runtime.pathname],
+        ['free_studio', runtimePassword, 'db:5432', '/free'], name)
+    }
+    for (const [name, service] of Object.entries(services)) {
+      if (name === 'studio') continue
+      assert.equal(service.environment?.FREE_ADMIN_DATABASE_URL, undefined, name)
       assert.equal(service.environment?.FREE_KEI_POSTGRES_PASSWORD, undefined, name)
+      if (name !== 'db')
+        assert.ok(Object.values(service.environment ?? {}).every((value) => !String(value).includes(`:${adminPassword}@`)),
+          `${name} holds no administrative database credential`)
+    }
+  }
+})
 
-  const production = readFileSync(resolve(ROOT, 'compose.prod.yaml'), 'utf8')
-  assert.ok(production.includes('FREE_KEI_POSTGRES_PASSWORD:?'), 'production must require the kei password')
+test('studio entrypoint: migrates and prepares roles as the administrator, then starts Studio without that access', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'free-entrypoint-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  // A stand-in pnpm records each database command with the credentials it sees, and fails when told to.
+  const bin = join(directory, 'bin')
+  const log = join(directory, 'calls.jsonl')
+  spawnSync('mkdir', [bin])
+  writeFileSync(join(bin, 'pnpm'), `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs')
+const pick = ['DATABASE_URL', 'FREE_ADMIN_DATABASE_URL', 'FREE_KEI_POSTGRES_PASSWORD']
+appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args: process.argv.slice(2),
+  env: Object.fromEntries(pick.map((name) => [name, process.env[name]])) }) + '\\n')
+process.exit(process.env.FREE_TEST_FAIL === process.argv.at(-1) ? 3 : 0)
+`, { mode: 0o755 })
+  const run = (extra = {}) => spawnSync('sh', [resolve(ROOT, 'docker/studio-entrypoint.sh'),
+    process.execPath, '-e', 'process.stdout.write(JSON.stringify(process.env))'], {
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      CODEX_HOME: join(directory, 'codex'),
+      FREE_ADMIN_DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
+      DATABASE_URL: 'postgresql://free_studio:runtime-secret@db:5432/free',
+      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret',
+      ...extra,
+    },
+    encoding: 'utf8',
+  })
+  const calls = () => readFileSync(log, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
 
-  const entrypoint = readFileSync(resolve(ROOT, 'docker/studio-entrypoint.sh'), 'utf8')
-  const init = entrypoint.indexOf('db:init')
-  const keiRole = entrypoint.indexOf('db:kei-role')
-  const exec = entrypoint.indexOf('exec "$@"')
-  assert.ok(init !== -1 && exec !== -1, 'the entrypoint migrates, then starts Studio')
-  assert.ok(init < keiRole && keiRole < exec, 'the kei role is ensured after migrations and before Studio starts')
+  const started = run()
+  assert.equal(started.status, 0, started.stderr)
+  assert.deepEqual(calls(), [
+    { args: ['--filter', 'db', 'db:init'], env: {
+      DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
+      FREE_ADMIN_DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
+      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret' } },
+    { args: ['--filter', 'db', 'db:roles'], env: {
+      DATABASE_URL: 'postgresql://free_studio:runtime-secret@db:5432/free',
+      FREE_ADMIN_DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
+      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret' } },
+  ])
+  // The process the entrypoint execs, and so every child it spawns, has only the runtime role's URL.
+  const studio = JSON.parse(started.stdout)
+  assert.equal(studio.DATABASE_URL, 'postgresql://free_studio:runtime-secret@db:5432/free')
+  assert.equal(studio.FREE_ADMIN_DATABASE_URL, undefined)
+  assert.equal(studio.FREE_KEI_POSTGRES_PASSWORD, undefined)
+  assert.ok(!JSON.stringify(studio).includes('admin-secret') && !JSON.stringify(studio).includes('kei-secret'))
+
+  // A failed role preparation never starts Studio.
+  rmSync(log)
+  const refused = run({ FREE_TEST_FAIL: 'db:roles' })
+  assert.notEqual(refused.status, 0)
+  assert.equal(refused.stdout, '')
+  assert.deepEqual(calls().map(({ args }) => args.at(-1)), ['db:init', 'db:roles'])
+})
+
+test('services that need a migrated Studio start after it, and each nginx container restarts with it', () => {
+  const development = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  const production = renderProductionCompose({
+    ...completeProductionEnvironment('/tmp/free-test-client.pem'),
+    FREE_NGINX: 'container', FREE_DEVELOPER_EVAL: '1',
+    FREE_TLS_CERT_PATH: '/tmp/free-test-client.pem', FREE_TLS_KEY_PATH: '/tmp/free-test-client.pem',
+  }).services
+  // nginx resolves the upstream once; Compose restarts it after recreating or restarting Studio.
+  for (const services of [development, production])
+    assert.deepEqual(services.nginx.depends_on.studio,
+      { condition: 'service_healthy', required: true, restart: true })
+  assert.deepEqual(Object.keys(production.eval_watcher.depends_on), ['studio'])
+  assert.equal(production.eval_watcher.depends_on.studio.condition, 'service_healthy')
 })
 
 test('development enables both CLI deployment connections; the base file leaves them to the operator', () => {

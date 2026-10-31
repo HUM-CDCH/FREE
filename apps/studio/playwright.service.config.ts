@@ -16,6 +16,8 @@ process.env.FREE_PLAYWRIGHT_SERVICE_URL = 'http://127.0.0.1:30764'
 process.env.FREE_PLAYWRIGHT_SOURCE_INBOX = resolve(state, 'source-inbox')
 
 export default defineConfig({
+  // CI never runs a suite narrowed by a committed test.only.
+  forbidOnly: Boolean(process.env.CI),
   testDir: './e2e',
   testMatch: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'real-service-reuse.spec.ts', 'durable-service.spec.ts',
     'guided-workflow-service.spec.ts'],
