@@ -62,8 +62,8 @@ services:
       - "24576"
       - --max-num-seqs
       - "${OCR_MAX_NUM_SEQS:-4}"
-      # Surya 2's multi-token prediction head, as surya-ocr's own vLLM launcher runs it: on GB10 the same text,
-      # 1.6x the pages per second at 4 requests (docs/operations/deployment.md#gpu-and-dgx-spark)
+      # Surya 2's multi-token prediction head, as surya-ocr's own vLLM launcher runs it: on GB10 1.6x the pages per
+      # second at 4 requests, output not byte-identical (docs/operations/deployment.md#gpu-and-dgx-spark)
       - --speculative-config
       - '{"method":"mtp","num_speculative_tokens":2}'
 

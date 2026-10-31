@@ -210,8 +210,10 @@ The OCR server runs Surya 2 with its multi-token prediction (MTP) head,
 `--speculative-config` with two speculative tokens, as surya-ocr's own vLLM
 launcher does. On GB10 with vLLM 0.31.0 the measurement showed:
 
-- the same page text as serving without MTP;
-- 1.6 times the pages per second at four concurrent requests, and 1.9 times at one;
+- at four concurrent requests: 1.6 times the pages per second, and the same
+  page text as serving without MTP on 24 of 24 pages;
+- one request at a time: 1.9 times, and the same page text on 13 of 14 pages,
+  with one table cell gaining a fragment;
 - about four minutes to start.
 
 The output is not byte-identical. Box coordinates and confidences can differ
