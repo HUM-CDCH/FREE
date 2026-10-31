@@ -69,7 +69,10 @@ PROMPT_VERSION = 16
 # its part prints that work, and an item kept unsettled (UNSURE, or another's without it) is named for review.
 # 15: a list item whose values its source gives to a group (an average, range or total over several items) is
 # another's, given to that group, and leaves where its part prints the group.
-ARTICLE_VERSION = 15
+# 16: an `of` that reached its length limit is printed up to its last word, which may be cut; a string item printed
+# again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
+# `of` is asked as the shortest excerpt naming the work.
+ARTICLE_VERSION = 16
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

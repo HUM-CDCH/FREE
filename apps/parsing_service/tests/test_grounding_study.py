@@ -17,7 +17,7 @@ from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_r
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
-@pytest.fixture(params=(10, 11, 14))
+@pytest.fixture(params=(10, 11, 16))
 def frozen(tmp_path, monkeypatch, request):
     version = request.param
     if version < 12:
@@ -87,7 +87,7 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     _, bundles, original, _ = frozen
     bundle = read(bundles / "Doc.json")
     assert bundle["records"] == original["records"] and bundle["inventory"] == original["inventory"]
-    # Versions 10 and 11 made no resolution call; version 15 did. All replay without a fresh call.
+    # Versions 10 and 11 made no resolution call; version 16 did. All replay without a fresh call.
     expected = {"document", "record"} | ({"arbitration"} if original["article_version"] >= 12 else set())
     assert {call["stage"] for call in bundle["upstream_calls"]} == expected
     assert bundle["provenance"]["fresh_calls"] == 0
