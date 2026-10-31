@@ -38,6 +38,7 @@ export const METHOD_MESSAGES = {
   inputTokens: 'Enter a whole number of tokens from 512 to 1,048,576, or leave Auto.',
   replyTokens: 'Enter a whole number of tokens from 64 to 65,536, or use the stage defaults.',
   catalogOverlap: 'Choose from 0 to 4 source lines.',
+  catalogCandidates: 'Choose from 1 to 1024 context excerpts.',
   migration: 'Review the unified Catalog settings and apply them before starting a Catalog Extraction.',
 } as const
 
@@ -101,7 +102,9 @@ export type RecipeCatalogSettings = z.output<typeof recipeCatalogSettingsSchema>
  *  the floor (4). Version 5 uses budget-sized discovery windows and source-grounded scalar corrections in the
  *  existing verification call. Version 6 reads each value once (`single_pass`): the entry call is shown the value
  *  structure, verification is off, code accepts what it locates and keeps a value without a locatable quote
- *  ungrounded. Auto input is the served context minus the stage's reserve. New admissions use
+ *  ungrounded. Version 7 adds counted heading selection and literal scalar inheritance; derived or incomplete
+ *  context stays proposed. The candidate ceiling defaults to 32 excerpts. Auto input is the served context minus the
+ *  stage's reserve. New admissions use
  *  `UNIFIED_CATALOG_DEFAULTS_VERSION`; an Extraction keeps the one it was admitted under. */
 const UNIFIED_BASE = {
   reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
@@ -116,17 +119,20 @@ export const UNIFIED_CATALOG_DEFAULTS = {
     windows: 'budget', pipelined: true, entry_reply: 'context', corrections: true },
   6: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
     single_pass: true },
+  7: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
+    single_pass: true, heading_context: true, candidates: 32 },
 } as const
 export const UNIFIED_CATALOG_DEFAULTS_VERSION = 6 as const
 /** Pro mode: an account preference with verification on is admitted under this version, whose verification call reads
  *  every value again and may correct it; the latest reads each value once. */
 export const UNIFIED_CATALOG_PRO_VERSION = 5 as const
 
-/** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
+/** The unified Catalog's six controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
   input_tokens: wholeNumber(METHOD_MESSAGES.inputTokens, 512).max(1_048_576, METHOD_MESSAGES.inputTokens).optional(),
   output_tokens: wholeNumber(METHOD_MESSAGES.replyTokens, 64).max(65_536, METHOD_MESSAGES.replyTokens).optional(),
   overlap: wholeNumber(METHOD_MESSAGES.catalogOverlap, 0).max(4, METHOD_MESSAGES.catalogOverlap).optional(),
+  candidates: wholeNumber(METHOD_MESSAGES.catalogCandidates, 1).max(1_024, METHOD_MESSAGES.catalogCandidates).optional(),
   headings: z.boolean().optional(),
   verification: z.boolean().optional(),
 }).strict()
@@ -134,10 +140,10 @@ export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceS
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
  *  and the overrides, so it stays identifiable when every control is left to the defaults. */
 export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.extend({
-  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
+  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
-const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'headings', 'verification'] as const
+const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
 
 /** New Catalog admissions use the unified method only where the deployment enables it; until its release gates
  *  pass, the default remains the legacy generic and recipe Catalog. */

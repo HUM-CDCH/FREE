@@ -242,7 +242,8 @@ def test_a_record_cut_by_the_end_of_the_supplied_source_ends_at_the_source_end()
         answer = model.discover(user)
         return {**answer, "ends_inside_record": True} if "und weiter" in section(user, "WINDOW") else answer
     result, _ = extract(source, Model(source, discovery=excerpt), overlap=0, input_tokens=520, output_tokens=64)
-    assert result["processing"]["discovery"]["windows"] > 1 and result["discovery"]["version"] == discovery.VERSION
+    assert result["processing"]["discovery"]["windows"] > 1
+    assert result["discovery"]["version"] == 8  # historical defaults retain discovery version 8
     ends = [entry["end"] for entry in result["discovery"]["entries"]]
     assert ends == ["validated"] * 5 + ["source_end"]
     assert result["completeness"]["boundaries"] is True and result["complete"] is True
@@ -485,13 +486,14 @@ def labelled(source: Evidence, result: dict) -> list[tuple[str | None, list[str]
     return [(entry["label"], [text(source, row) for row in entry["ranges"]]) for entry in result["entries"]]
 
 
-def one_window(lines: list[str], places: list[list]) -> tuple[Evidence, dict]:
+def one_window(lines: list[str], places: list[list], *, heading_context: bool = False) -> tuple[Evidence, dict]:
     """Discovery over one page read as one window whose reply names `places`."""
     source = evidence("\n".join(lines))
 
     def ask(record, system, user, schema, calls, issues):
         return {"places": places, "begins_inside_record": False, "ends_inside_record": False}
-    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0)
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0,
+                                heading_context=heading_context)
     assert len(result["windows"]) == 1 and all(entry["end"] == "validated" for entry in result["entries"])
     assert_accounted(source, {"discovery": result})
     return source, result
@@ -726,23 +728,53 @@ def test_a_read_prefix_of_windows_yields_its_final_entries_and_nothing_raised():
     assert read(3, failed="Material: Stein.")["entries"] == whole["entries"][:1]  # page 2's halves still unanswered
 
 
-def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
+@pytest.mark.parametrize("defaults", [1, 7])
+def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them(defaults):
     """A place is its line's id, kind and label on one line; start text is copied only for a place inside a line."""
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz. 2. Bdorf. Material: Stein.")
 
     def compact(user):
         return {"places": [["L1", "other", None], ["L2", "record", "1."], ["L2", "record", "2.", "2. Bdorf"]],
                 "begins_inside_record": False, "ends_inside_record": False}
-    result, chat = extract(source, Model(source, discovery=compact))
+    result, chat = extract(source, Model(source, discovery=compact), defaults=defaults)
     asked = next(call for call in chat.calls if call["system"].startswith("You find where records begin"))
     assert "on one line, without indentation" in asked["system"]
+    if defaults == 7:
+        assert "include that label in the copied start" in asked["system"]
+        assert "Omit the fourth item for a place at the line's start" in asked["system"]
     place = asked["schema"]["properties"]["places"]["items"]
     assert [item.get("enum") for item in place["prefixItems"]] == [["L1", "L2"], ["record", "other"], None, None]
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 8  # the reply schema is visible under every defaults version
+    assert result["prompt_version"] == (9 if defaults == 7 else 8)  # the reply schema is visible under every defaults version
     assert_accounted(source, result)
+
+
+def test_a_printed_label_before_the_copied_start_is_rejected_without_moving_the_boundary():
+    source, result = one_window(["1. Adorf. Material: Holz."], [["L1", "record", "1.", "Adorf."]],
+                                heading_context=True)
+    assert labelled(source, result) == [(None, ["Adorf. Material: Holz."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == ["1."]
+    assert [issue.code for issue in result["issues"]] == ["label_not_in_source"]
+
+
+def test_numbered_subitems_remain_inside_their_discovered_parent_records(tmp_path):
+    source = load(catalogue.write("early-nested", tmp_path))
+    description = "One numbered entry of an archaeological catalogue."
+
+    def ask(record, system, user, schema, calls, issues):
+        assert description in system and "numbered subitems or details within a record continue it" in system
+        return {"places": [["L1", "other", None], ["L2", "record", "1."], ["L5", "record", "2."],
+                           ["L7", "record", "3."]], "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, description, lambda *_: True, ask, overlap=0, splits=0, heading_context=True)
+    assert labelled(source, result) == [
+        ("1.", ["1. Adorf. FA: G. Funde:", "1. Gefäß.", "2. Beil."]),
+        ("2.", ["2. Bdorf. FA: G.", "1. Urne."]),
+        ("3.", ["3. Cdorf. FA: EF."]),
+    ]
+    assert not result["issues"]
+    assert_accounted(source, {"discovery": result})
 
 
 def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
