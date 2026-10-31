@@ -158,6 +158,7 @@ function snapshot(sourceDocument = beretning, projectContext = project) {
     extractionSchema: null,
     latestAttempt: null,
     latestReviewed: null,
+    newestAttempt: null,
   }
 }
 
@@ -220,6 +221,7 @@ function hydratedSnapshot() {
       },
     },
     latestReviewed: null,
+    newestAttempt: null,
   }
 }
 
@@ -247,27 +249,31 @@ const failureResponse = (
 /** The persisted per-project summary as the list contract ships it. */
 function projectSummary(
   overrides: Partial<{
-    phase: 'ingest' | 'chat' | 'approve' | 'extract' | 'validate'
+    phase: 'upload' | 'schema' | 'pilot' | 'approve' | 'batch' | 'review'
     extractionCount: number
     extractedSourceDocumentCount: number
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
+    pendingExtractionSourceDocumentCount: number
     schemaDraftCount: number
     currentSchemaRevisionId: string | null
     schemaStabilised: boolean
+    currentSchemaRevisionReviewed: boolean
     lastActivityAt: string
     runningBatch: { completedMemberCount: number; memberCount: number } | null
   }> = {},
 ) {
   return {
-    phase: 'chat' as const,
+    phase: 'schema' as const,
     extractionCount: 0,
     extractedSourceDocumentCount: 0,
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
+    pendingExtractionSourceDocumentCount: 1,
     schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
+    currentSchemaRevisionReviewed: false,
     lastActivityAt: project.createdAt,
     runningBatch: null,
     ...overrides,
@@ -490,8 +496,8 @@ describe('Studio home', () => {
         name: 'From source to structured data, with the evidence to prove it',
       }),
     ).toBeVisible()
-    // The five workflow phases, named per the design.
-    for (const phase of ['Ingest', 'Chat', 'Approve', 'Extract', 'Validate'])
+    // The six workflow steps, named as the workflow bar names them.
+    for (const phase of ['Upload', 'Create schema', 'Pilot', 'Approve', 'Batch extract', 'Review'])
       expect(home().getByText(phase)).toBeInTheDocument()
     expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
 
@@ -544,7 +550,7 @@ describe('Studio home', () => {
           projectListResponse(
             [project],
             projectSummary({
-              phase: 'validate',
+              phase: 'review',
               extractionCount: 3,
               extractedSourceDocumentCount: 3,
               reviewedSourceDocumentCount: 2,
@@ -560,27 +566,28 @@ describe('Studio home', () => {
 
   it('shows the phase bar and state line for each summary state', async () => {
     const states = [
-      { name: 'Chatting', summary: projectSummary({ phase: 'chat' }) },
+      { name: 'Chatting', summary: projectSummary({ phase: 'schema' }) },
       {
         name: 'Running',
         summary: projectSummary({
-          phase: 'extract',
+          phase: 'batch',
           runningBatch: { completedMemberCount: 31, memberCount: 42 },
         }),
       },
       {
         name: 'Reviewed',
         summary: projectSummary({
-          phase: 'validate',
+          phase: 'review',
           extractionCount: 2,
           extractedSourceDocumentCount: 2,
           reviewedSourceDocumentCount: 2,
+          pendingExtractionSourceDocumentCount: 0,
         }),
       },
       {
         name: 'Drifted',
         summary: projectSummary({
-          phase: 'extract',
+          phase: 'pilot',
           extractionCount: 1,
           extractedSourceDocumentCount: 1,
           staleSourceDocumentCount: 1,
@@ -616,8 +623,8 @@ describe('Studio home', () => {
 
     const drifted = within(home().getByRole('button', { name: 'Drifted' }))
     expect(drifted.getByText('Re-run needed')).toBeInTheDocument()
-    // Every card carries the five-segment bar from the shared primitive.
-    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(5)
+    // Every card carries the six-segment bar from the shared primitive.
+    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(6)
   })
 
   it('lists persisted recent activity beside the cards, and nothing when empty', async () => {
@@ -686,7 +693,7 @@ describe('Studio home', () => {
           projectListResponse(
             [project],
             projectSummary({
-              phase: 'validate',
+              phase: 'review',
               extractedSourceDocumentCount: 3,
               reviewedSourceDocumentCount: 3,
               staleSourceDocumentCount: 2,
@@ -1295,6 +1302,106 @@ describe('Project Context navigation', () => {
     ).toBeInTheDocument()
   })
 
+  it('opens the only Source Document in the schema builder from "Next: Create schema"', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes()
+
+    const page = await screen.findByRole('region', { name: 'Project' })
+    fireEvent.click(
+      await within(page).findByRole('button', { name: /^Next: Create schema/ }),
+    )
+    expect(location.pathname).toBe(documentPath())
+    expect(location.search).toContain('fromSchemaBuilder=1')
+  })
+
+  it('brings the document picker into focus from "Next: Create schema", even on the Schemas tab', async () => {
+    renderRoutes(
+      studioFetch(undefined, {
+        ...detail,
+        sourceDocuments: [
+          { ...beretning, pageCount: 6 },
+          { ...historical, pageCount: 2 },
+        ],
+      }),
+    )
+    const page = await openProjectPage()
+    const next = await within(page).findByRole('button', {
+      name: /^Next: Create schema/,
+    })
+    fireEvent.click(next)
+    expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
+    const picker = within(page).getByRole('region', { name: 'From a document' })
+    await waitFor(() => expect(picker).toHaveFocus())
+
+    // The spreadsheet route stays folded away until asked for.
+    const spreadsheet = within(page).getByRole('button', {
+      name: 'Or suggest a schema from a spreadsheet of examples',
+    })
+    expect(spreadsheet).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      within(page).queryByText('How should I format my spreadsheet?'),
+    ).not.toBeInTheDocument()
+    fireEvent.click(spreadsheet)
+    expect(spreadsheet).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      within(page).getByText('How should I format my spreadsheet?'),
+    ).toBeInTheDocument()
+
+    // Already on the tab, the button still visibly does something.
+    spreadsheet.focus()
+    fireEvent.click(next)
+    await waitFor(() => expect(picker).toHaveFocus())
+  })
+
+  it('imports an Excel codebook from the Schemas tab as a new Extraction Schema named after the workbook', async () => {
+    const extractionSchemaId = '51000000-0000-4000-8003-000000000009'
+    const column = { id: 'site-column', column: 1, name: 'site', type: 'string', include: true,
+      examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
+    const writes: Array<{ url: string; method: string; body: Record<string, unknown> }> = []
+    const base = studioFetch()
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes(vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/schema_import_preview?'))
+        return Response.json({ worksheets: ['Codebook'], columns: url.includes('worksheet=') ? [column] : [] })
+      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        writes.push({ url, method: 'POST', body })
+        return Response.json({ revision: {
+          schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
+          origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
+          recordDescription: body.recordDescription, recordScope: 'document', schemaNodes: body.schemaNodes,
+        } }, { status: 201 })
+      }
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        writes.push({ url, method: 'PATCH', body })
+        return Response.json({ extractionSchema: { extractionSchemaId, name: body.name, createdAt: '2026-08-14T10:00:00.000Z' } })
+      }
+      return base(input)
+    }))
+
+    const page = await screen.findByRole('region', { name: 'Project' })
+    fireEvent.click(await within(page).findByRole('button', { name: 'Or import an Excel codebook…' }))
+    fireEvent.change(screen.getByLabelText('Excel codebook file'), {
+      target: { files: [new File(['bytes'], 'Site codebook.xlsx')] },
+    })
+    await screen.findByRole('option', { name: 'Codebook' })
+    fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
+    fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+
+    await waitFor(() => expect(writes).toHaveLength(2))
+    expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
+    expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
+    expect(writes[1]).toMatchObject({
+      url: `/api/extraction-schemas/${extractionSchemaId}`,
+      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Schema' },
+    })
+    expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
+  })
+
   it('opens the Sources tab for a Source Document list path', async () => {
     history.replaceState(null, '', `/projects/${projectContextId}/documents`)
     renderRoutes()
@@ -1892,6 +1999,7 @@ describe('Source Ingestions on the Project Context page', () => {
     completedAt?: string
     sourceDocumentId?: string
     failure?: { code: string; message: string }
+    retryable?: true
     /** false: only answered when the tab names it (outside every window). */
     windowed: boolean
   }
@@ -1919,11 +2027,13 @@ describe('Source Ingestions on the Project Context page', () => {
     const posts: { name: string; layout: FormDataEntryValue | null; ingestionKey: FormDataEntryValue | null }[] = []
     const listings: string[][] = []
     const dismissed: string[] = []
+    const retried: string[] = []
     const reads = { branch: 0, list: 0 }
     const control = {
       listing: (): Response | Promise<Response> | undefined => undefined,
       branch: (): Response | Promise<Response> | undefined => undefined,
       dismiss: (): Response | undefined => undefined,
+      retry: (): Response | undefined => undefined,
     }
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -1937,6 +2047,17 @@ describe('Source Ingestions on the Project Context page', () => {
         if (!rows.has(workflowId))
           rows.set(workflowId, { workflowId, name: file.name, status: 'queued', createdAt: '2026-08-12T10:00:00.000Z', windowed: true })
         return Response.json({ workflowId }, { status: 202 })
+      }
+      if (init?.method === 'POST' && url.endsWith('/retry')) {
+        const workflowId = decodeURIComponent(url.split('/').at(-2)!)
+        retried.push(workflowId)
+        const refused = control.retry()
+        if (refused) return refused
+        const old = rows.get(workflowId)!
+        const admitted = `${workflowId}:retry`
+        rows.delete(workflowId)
+        rows.set(admitted, { workflowId: admitted, name: old.name, status: 'queued', createdAt: '2026-08-12T12:00:00.000Z', windowed: true })
+        return Response.json({ workflowId: admitted }, { status: 202 })
       }
       if (init?.method === 'DELETE' && url.includes('/source-ingestions/')) {
         const workflowId = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1))
@@ -1972,7 +2093,7 @@ describe('Source Ingestions on the Project Context page', () => {
       rows.set(workflowId, { ...row, ...change })
     }
     return {
-      fetch, posts, listings, dismissed, reads, control,
+      fetch, posts, listings, dismissed, retried, reads, control, set,
       parse: (name: string) => set(name, { status: 'parsing' }),
       succeed: (name: string, n: number, change: Partial<Row> = {}) => {
         const document = documentOf(n, name)
@@ -2149,6 +2270,36 @@ describe('Source Ingestions on the Project Context page', () => {
     fireEvent.click(within(page).getByRole('button', { name: 'Dismiss Broken.pdf' }))
     await waitFor(() => expect(within(page).queryByText('kei refused the PDF.')).not.toBeInTheDocument())
     expect(studio.dismissed).toEqual([workflowOf('Broken.pdf')])
+  })
+
+  it('Retry admits a retained failure again without the file chooser', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'Timed out.' }, retryable: true as const }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    const chooser = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    expect(within(page).queryByRole('button', { name: 'Upload Broken.pdf again' })).not.toBeInTheDocument()
+    fireEvent.click(await within(page).findByRole('button', { name: 'Retry Broken.pdf' }))
+    await waitFor(() => expect(within(page).queryByText('Timed out.')).not.toBeInTheDocument())
+    await waitFor(() => expect(within(page).getByRole('status')).toHaveTextContent('Broken.pdf: queued.'))
+    expect(studio.retried).toEqual([workflowOf('Broken.pdf')])
+    expect(studio.posts).toEqual([])
+    expect(chooser).not.toHaveBeenCalled()
+    chooser.mockRestore()
+  })
+
+  it('a Retry Studio can no longer serve says so, and the row offers Upload again', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'Timed out.' }, retryable: true as const }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    studio.control.retry = () => {
+      studio.set('Broken.pdf', { retryable: undefined })
+      return failureResponse('source_not_retained', 'Studio no longer holds this PDF. Upload it again.', 410)
+    }
+    fireEvent.click(await within(page).findByRole('button', { name: 'Retry Broken.pdf' }))
+    expect(await within(page).findByText('Studio no longer holds this PDF. Upload it again.')).toBeInTheDocument()
+    expect(await within(page).findByRole('button', { name: 'Upload Broken.pdf again' })).toBeInTheDocument()
   })
 
   it('Upload again opens the file chooser', async () => {
@@ -2590,6 +2741,7 @@ describe('routed Source Document reopening', () => {
           },
           latestAttempt: null,
           latestReviewed: null,
+          newestAttempt: null,
         })
       }),
     )

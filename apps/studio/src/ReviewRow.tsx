@@ -1,7 +1,6 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { EvidenceQuote } from './evidenceQuote'
 import { linkOrigin } from './linkOrigin'
 import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import {
@@ -10,7 +9,7 @@ import {
 } from './ui/icons'
 import { Button } from './ui'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
-import ReviewedValueDisplay from './ui/ReviewedValueDisplay'
+import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
 function RowGlyph({ row }: { row: RailRow }) {
   switch (row.kind) {
@@ -32,7 +31,6 @@ const chipStyles = {
   doubtful: 'border-dashed border-ev bg-ev-ghost text-ink',
   neutral: 'border-transparent bg-surface-muted text-ink-muted',
 } as const
-const markStyles = { link: 'border-solid', rule: 'border-dotted', doubtful: 'border-dashed', neutral: 'border-solid' } as const
 
 const grid = 'grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 rounded-md px-2 py-1.5 text-left'
 
@@ -58,7 +56,6 @@ export type ReviewRowProps = {
   pinned: boolean
   rowRef?: Ref<HTMLButtonElement>
   onSelect: () => void
-  quote: EvidenceQuote | null
   /** Decisions are open here: not saved, not saving, not a read-only attempt. */
   canDecide: boolean
   saved: boolean
@@ -71,11 +68,15 @@ export type ReviewRowProps = {
   onUndo: () => void
   onReviewFromHere?: () => void
   onTypedEdit?: (value: unknown) => void
+  /** The open value's parts, each pickable to show only its Evidence. */
+  pick?: PartPick
+  /** A decision is saving or the review is a saved one: the row and its edit wait, picking a part never does. */
+  locked?: boolean
 }
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
-export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
-  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
+export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, canDecide, saved, editing, node,
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit, pick, locked = false }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -88,7 +89,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
   const style = row.chip?.style ?? 'neutral'
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
-      <button ref={rowRef} type="button" aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
+      <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
         aria-label={`${stateLabel(row)} ${row.name} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
@@ -106,18 +107,13 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
       </button>
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
-          {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} />}
+          {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} path={row.resultPath} pick={pick} />}
           {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>
               <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
               {row.link && row.decision && groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action) &&
                 <p className="m-0 text-compact text-ink-muted">{groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action)}</p>}
-              {quote && row.link?.precision !== 'input' && (
-                <p className="m-0 font-serif text-content leading-relaxed text-ink">
-                  {quote.before}{quote.hit && <mark className={`border-b-2 border-ev bg-ev-soft text-ink ${markStyles[style]}`}>{quote.hit}</mark>}{quote.after}
-                </p>
-              )}
               {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Doubtful link.</b> {row.doubt}.</span></p>}
             </>
           )}
@@ -131,9 +127,11 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
           {!editing && canDecide && row.kind === 'to-check' && row.disagreement && onChoose && <DisagreementChoice parts={row.disagreement} onChoose={onChoose}/>}
           {editing ? (
-            <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
-              onTypedSave={onTypedEdit}
-              saveLabel="Save edit" onSave={(value) => onDecide('EDITED', value)} />
+            <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
+              <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
+                onTypedSave={onTypedEdit}
+                saveLabel="Save edit" onSave={(value) => onDecide('EDITED', value)} />
+            </fieldset>
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
               <div role="group" aria-label={`Decision for ${row.name}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">

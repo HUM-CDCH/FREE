@@ -16,7 +16,7 @@ function unavailableUnlessKnown(error: unknown): never {
     throw new ApiError(
       409,
       'schema_not_ready_to_stabilise',
-      'Review at least one pilot Extraction against this Schema Revision before stabilising it.',
+      'Review at least one pilot Extraction against this Schema Revision before approving it for Batch Extraction.',
       { cause: error },
     )
   throw error

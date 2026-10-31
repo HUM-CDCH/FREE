@@ -4,7 +4,9 @@ over canned outputs; the server launcher; the CLI's refusals. Every cut runs the
 takes a couple of minutes. Every output and debug directory is under tmp_path: nothing lands in runs/ or scratch/."""
 import json
 import re
+from base64 import b64decode
 from collections.abc import Iterator
+from io import BytesIO
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
 from types import SimpleNamespace
@@ -19,7 +21,7 @@ from kei_exp.kie.runner import convert
 from kei_exp.kie.stages.ocr import resolve
 from kei_exp.models import MODELS
 from kei_exp.transcription.specs import VLM_SPECS
-from kei_exp.transcription.surya import KeptOutputs, _InferenceManager, where
+from kei_exp.transcription.surya import ADVICE, KeptOutputs, _InferenceManager, where
 from kei_exp.transcription.types import ConversionError, RunParams
 from kei_exp.transcription.vlm import vlm_options
 
@@ -50,9 +52,20 @@ class _Handler(BaseHTTPRequestHandler):
         if payload["model"] == MODELS["infinity_parser"].repo:
             text = "```markdown\n" + text + "\n```"
         usage = {"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75}
+        finish_reason = fake.finish_reason
         prompt = payload["messages"][0]["content"][1]["text"]
+        first = payload["messages"][0]["content"][0]
+        if prompt not in fake.surya_replies and first.get("type") == "image_url":
+            # Surya's own prompts are the same for every input: route by the input's colour instead
+            with Image.open(BytesIO(b64decode(first["image_url"]["url"].split(",", 1)[1]))) as image:
+                prompt = image.convert("RGB").getpixel((0, 0))
         if prompt in fake.surya_replies:
-            text, usage = fake.surya_replies[prompt].pop(0)
+            text, usage, *finish = fake.surya_replies[prompt].pop(0)
+            finish_reason = finish[0] if finish else finish_reason
+        if usage == "error":  # a transport failure before any completion
+            self.send_response(500)
+            self.end_headers()
+            return
         self.send_response(200)
         # Text goes out in pieces, with a logprob per piece when the request asks for them, so the streamed and
         # the whole completion carry the same information.
@@ -73,14 +86,14 @@ class _Handler(BaseHTTPRequestHandler):
                     fake.early_arrival.append(fake.token_seen.wait(5))
             if usage == "cut":
                 return  # the connection closes with no finish reason, usage or [DONE]
-            self.wfile.write(sse({"choices": [{"delta": {}, "finish_reason": fake.finish_reason}]}))
+            self.wfile.write(sse({"choices": [{"delta": {}, "finish_reason": finish_reason}]}))
             self.wfile.write(sse({"choices": [], "usage": usage}))
             self.wfile.write(b"data: [DONE]\n\n")
         else:
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             choice = {"index": 0, "message": {"role": "assistant", "content": text},
-                      "finish_reason": fake.finish_reason}
+                      "finish_reason": finish_reason}
             if logprobs:
                 choice["logprobs"] = {"content": logprobs}
             self.wfile.write(json.dumps({"id": "test", "created": 0, "choices": [choice], "usage": usage}).encode())
@@ -89,13 +102,14 @@ class _Handler(BaseHTTPRequestHandler):
 class FakeVllm:
     """A vLLM stand-in on a free port: one canned completion per record, whole or streamed, and the state the tests
     read and turn. `requests` is every payload it saw; `finish_reason` is what every completion reports;
-    `surya_replies` scripts the answers to Surya's prompts; `token_seen` and `early_arrival` are the stream-early
+    `surya_replies` scripts the answers to Surya's prompts, or to an input's RGB colour for Surya's own prompts, each
+    `(text, usage[, finish_reason])` with usage "error" for an HTTP 500 and "cut" for a broken stream; `token_seen` and `early_arrival` are the stream-early
     hand-off between the streaming sink and the server."""
 
     def __init__(self) -> None:
         self.requests: list[dict] = []
         self.finish_reason = "stop"
-        self.surya_replies: dict[str, list] = {}  # prompt -> successive HTTP responses, incl. attempts Surya retries
+        self.surya_replies: dict = {}  # prompt or colour -> successive HTTP responses, incl. attempts Surya retries
         self.token_seen = Event()  # set by the streaming sink on stream-early's first piece
         self.early_arrival: list[bool] = []  # whether the server saw that before it sent the rest
         self.server = _Server(("127.0.0.1", 0), _Handler)
@@ -355,6 +369,9 @@ def test_the_kept_usage_logprobs_and_confidence_do_not_depend_on_the_stream_knob
         assert [(manager.kept(index).input_tokens, manager.kept(index).tokens) for index in range(4)] == [
             (11, 7), (0, 3), (None, 5), (None, 0),
         ], live
+        # Both looping first attempts generated text and stay marked by original input, though a valid retry replaced
+        # their usage; the broken stream before stream-cut's answer is a transport failure, not suspect text.
+        assert manager.failed_text == {0, 3}, live
     assert (manager.kept(4).input_tokens, manager.kept(4).tokens) == (5, 2)
     whole, streamed = outputs[False], outputs[True][:4]
     assert [o.raw for o in streamed] == [o.raw for o in whole]
@@ -382,6 +399,39 @@ def test_the_sink_sees_every_attempt_and_the_first_piece_before_the_reply_is_com
     assert {e["stop_reason"] for e in ends.values()} == {"end_of_sequence"} and ends[5]["output_tokens"] == 2
     assert text(2) == "zero prompt answer" and text(5) == "half an answerwhole answer", (text(2), text(5))
     assert fake.early_arrival == [True], fake.early_arrival
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_repeated_empty_artwork_stops_before_retry_and_reports_every_original_input(fake, monkeypatch, live):
+    # Two regions on the same PDF page are separate inputs. Neither partial response may reach recognition,
+    # and every concurrent request must finish before the coordinator can replace its images.
+    from openai import OpenAI
+    from surya.inference.schema import BatchInputItem
+
+    figure = '<div data-bbox="0 0 1000 1000" data-label="Figure"><img/></div>'
+    replies = {f"figure-loop-{n}": [(figure * 24, usage(50, 16384))] * 4 for n in range(2)}
+    monkeypatch.setattr(fake, "surya_replies", replies)
+    before = len(fake.requests)
+    events = []
+    with OpenAI(base_url=fake.url.removesuffix("/chat/completions"), api_key="test") as client, \
+            Image.new("RGB", (16, 16)) as image:
+        backend = SimpleNamespace(_client=client, _client_parallel=lambda: 2,
+                                  start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+        with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
+            manager = _InferenceManager(events.append if live else None)
+        manager.artwork_count = 2
+        batch = [BatchInputItem(image=image, prompt_type="high_accuracy_bbox", prompt=f"figure-loop-{n}",
+                                max_tokens=16384, metadata={"page_idx": n}) for n in range(2)]
+        with pytest.raises(ConversionError, match="context") as raised:
+            manager.generate(batch)
+    assert raised.value.ordinals == (1, 2)
+    requests = fake.requests[before:]
+    assert len(requests) == 2 and all(request["stream"] for request in requests)
+    assert all(request["max_tokens"] == 16384 for request in requests)
+    assert all(request["temperature"] == 0 and request["top_p"] == 0.1 for request in requests)
+    if live:
+        assert sorted(e["page"] for e in events if e["type"] == "page_end") == [1, 2]
+        assert all(e["stop_reason"] == "error" for e in events if e["type"] == "page_end")
 
 
 # --- The token guard: Surya's real RecognitionPredictor over a fake inference manager with canned outputs ----------
@@ -556,3 +606,221 @@ def test_invalid_cli_flags_are_refused(flags, fake, scan_pdf, tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)  # the default output directory is scratch/MODEL, relative to here; never reached
     flags = [flag.format(url=fake.url) for flag in flags]
     assert exit_code(str(scan_pdf), *flags) == 2, f"Invalid CLI flags accepted: {flags}"
+
+
+@pytest.mark.parametrize("crossing", ["", "<p>Mixed native and artwork text</p>",
+                                      "<table><tr><td>Mixed table text</td></tr></table>"])
+def test_recovered_artwork_drops_only_disjoint_blocks_and_refuses_mixed_text(fake, digital_pdf, crossing):
+    from dataclasses import replace
+    from surya.recognition.schema import BlockOCRResult, PageOCRResult
+    from kei_exp.geometry import CropTransform
+    from kei_exp.regions import Region
+    from kei_exp.transcription.surya import SuryaOcr
+    from kei_exp.transcription.types import OcrRegion
+
+    execution = replace(resolve(RunParams(pdf=digital_pdf)), transcriber="hybrid", model="surya", url=fake.url,
+                        ocr_regions=(OcrRegion(1, (24, 24, 76, 76)),))
+    def result(label, box, html, *, skipped=False):
+        x0, y0, x1, y1 = box
+        return BlockOCRResult(label=label, polygon=[[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+                              reading_order=0, html=html, skipped=skipped)
+
+    blocks = [result("Text", (0, 0, 200, 200), "<p>Neighbouring native paragraph</p>"),
+              result("Text", (300, 300, 500, 500), "<p>Inside artwork</p>"),
+              result("Picture", (0, 0, 1000, 1000), "", skipped=True)]
+    if crossing:
+        blocks.append(result("Table" if "<table>" in crossing else "Text", (100, 100, 500, 500), crossing))
+    page = PageOCRResult(blocks=blocks, image_bbox=[0, 0, 1000, 1000])
+    with Image.new("RGB", (1000, 1000)) as image, \
+            patch("kei_exp.transcription.surya._InferenceManager", return_value=FakeSurya({})), \
+            patch("surya.recognition.RecognitionPredictor", return_value=lambda images: [page]):
+        crop = (1, Region("figure", (0, 0, 100, 100), 0, 1, CropTransform(0, 0, .1, .1, None)), image)
+        outcome = SuryaOcr().transcribe(execution, [crop], lambda _: None)
+        record, = outcome.pages
+        assert record.image is image and record.payload["image_bbox"] == [0, 0, 1000, 1000]
+        assert record.region["bbox"] == (0, 0, 100, 100)
+        assert "Neighbouring" not in record.text and "Inside artwork" in record.text
+        assert len(record.payload["blocks"]) == 2 + bool(crossing)
+        assert bool(record.incomplete) == bool(crossing)
+        if crossing:
+            assert "ownership is ambiguous" in record.incomplete
+            assert "Mixed" in record.text, "mixed text must remain available for diagnostics"
+
+
+@pytest.mark.parametrize("case", ["text-before-figures", "different-picture-boxes", "repeated-table-rows",
+                                  "scan", "native-text-replacement", "layout-block"])
+def test_artwork_recovery_does_not_replace_existing_text_table_scan_or_block_retries(fake, monkeypatch, case):
+    from openai import OpenAI
+    from surya.inference.schema import BatchInputItem
+
+    figure = '<div data-bbox="0 0 1000 1000" data-label="Figure"><img/></div>'
+    text = figure * 24
+    if case == "text-before-figures":
+        text = html("Visible source text") + text
+    elif case == "different-picture-boxes":
+        text = (figure + figure.replace("0 0 1000 1000", "0 0 500 500")) * 24
+    elif case == "repeated-table-rows":
+        text = '<div data-bbox="0 0 1000 1000" data-label="Table"><table>' + '<tr><td>1</td></tr>' * 80 + '</table></div>'
+    monkeypatch.setattr(fake, "surya_replies", {case: [(text, usage(50, 16000))] * 4})
+    before = len(fake.requests)
+    with OpenAI(base_url=fake.url.removesuffix("/chat/completions"), api_key="test") as client, \
+            Image.new("RGB", (16, 16)) as image:
+        backend = SimpleNamespace(_client=client, _client_parallel=lambda: 1,
+                                  start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+        with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
+            manager = _InferenceManager(artwork_count=0 if case == "scan" else 1)
+        output, = manager.generate([BatchInputItem(image=image, prompt_type="block" if case == "layout-block"
+                                                   else "high_accuracy_bbox", prompt=case, max_tokens=16384,
+                                                   metadata={"page_idx": 1 if case == "native-text-replacement" else 0})])
+    assert output.raw == text and not output.error
+    assert len(fake.requests[before:]) >= 1
+    assert not output.metadata["artwork_context"]
+
+
+@pytest.mark.parametrize("tail,closing", [
+    ('<div data-bbox="0 0 1000 1000" data-label="Text"><p>Real map label', '</p></div>'),
+    ('<div data-bbox="0 0 1000 1000" data-label="Table"><table><tr><td>Real table cell', '</td></tr></table></div>'),
+    ('<div data-bbox="0 0 1000 1000" data-label="Text">', '<p>Real map label</p></div>'),
+    ('<div data-bbox="0 0 1000 1000" data-label="', 'Text"><p>Real map label</p></div>'),
+])
+def test_artwork_loop_detection_does_not_discard_a_trailing_unfinished_block(tail, closing):
+    from kei_exp.transcription.surya import _collect_completion
+
+    figures = '<div data-bbox="0 0 1000 1000" data-label="Figure"><img/></div>' * 24
+    def chunk(text, finish=None):
+        return SimpleNamespace(usage=None, choices=[SimpleNamespace(delta=SimpleNamespace(content=text),
+                                                                   logprobs=None, finish_reason=finish)])
+    response = _collect_completion([chunk(figures + tail), chunk(closing, "stop")], None, watch_artwork=True)
+    assert not response.figure_loop
+    assert response.choices[0].message.content == figures + tail + closing
+
+
+# --- The empty-retry guard: SuryaOcr over Surya's real predictor and client against the fake server -----------------
+
+
+def picture(box="0 0 1000 1000", inner="<img/>") -> str:
+    return f'<div data-bbox="{box}" data-label="Image">{inner}</div>'
+
+
+def inked(colour, size) -> Image.Image:
+    """A synthetic input the fake routes by its top-left colour, ruled below that corner so Surya does not drop its
+    text blocks as blank (Surya takes a uniform colour for blank)."""
+    image = Image.new("RGB", size, colour)
+    for y in range(size[1] // 10, size[1], 6):
+        image.paste((0, 0, 0), (0, y, size[0], y + 2))
+    return image
+
+
+SUSPECT = html("Repeated heading") * 40  # text that loops, as a failed generation of real or hallucinated text does
+
+
+def transcribe_over_fake(fake, monkeypatch, execution, crops, replies):
+    """SuryaOcr.transcribe through Surya's real RecognitionPredictor, inference retries and OpenAI client, the fake
+    answering each input by its colour: concurrent inputs, the SDK's own prompts and its layout/block fallback."""
+    from openai import OpenAI
+    from kei_exp.transcription.surya import SuryaOcr
+
+    monkeypatch.setattr(fake, "surya_replies", {colour: list(attempts) for colour, attempts in replies.items()})
+    events = []
+    with OpenAI(base_url=fake.url.removesuffix("/chat/completions"), api_key="test", max_retries=0) as client, \
+            patch("kei_exp.transcription.surya.sleep"):
+        backend = SimpleNamespace(_client=client, _client_parallel=lambda: 4,
+                                  start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
+        with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
+            outcome = SuryaOcr().transcribe(execution, crops, events.append)
+    assert not any(fake.surya_replies.values()), fake.surya_replies  # every scripted attempt was asked for
+    return outcome
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_an_empty_recognition_after_suspect_text_is_incomplete_and_its_siblings_are_not(
+        fake, monkeypatch, digital_pdf, tmp_path, stream):
+    from kei_exp.pagefile import load_result
+    from kei_exp.result import Input, Inventory, Source, write_result
+    from kei_exp.geometry import CropTransform
+    from kei_exp.regions import Region
+    from tests.helpers.synthetic import NOMINAL, execution as made
+
+    cases = {  # by input ordinal: (colour, attempts)
+        1: ((200, 40, 40), [(html("Healthy title"), usage(10, 5), "stop")]),
+        # The captured shape: two capped loops of text, then a normal stop with nothing but an empty picture.
+        2: ((40, 200, 40), [(SUSPECT, usage(10, 16384), "length")] * 2 + [(picture(), usage(10, 25), "stop")]),
+        # Each trigger alone: a loop that stops normally; text cut at the budget without any loop. A textless photograph
+        # whose first reading hallucinated prose is refused the same way: the policy cannot tell it from loss.
+        3: ((40, 40, 200), [(SUSPECT, usage(10, 300), "stop"), (picture(), usage(10, 25), "stop")]),
+        4: ((200, 200, 40), [(picture(inner="<p>Caption cut off</p>"), usage(10, 900), "length")]),
+        # A transport failure carries no text: the empty picture after it is a legitimate empty reading.
+        5: ((200, 40, 200), [("", "error"), (picture(), usage(10, 25), "stop")]),
+        # A suspect page rebuilt from layout and blocks, as the second input of the fallback subset is not.
+        6: ((40, 200, 200), [(SUSPECT, usage(900, 16384), "length")] * 4 + [
+            (LAYOUT, usage(20, 500), "stop"), ("<p>Recovered paragraph</p>", usage(30, 200), "stop")]),
+        # Text the budget cut keeps its existing cap refusal and gains no other reason.
+        7: ((120, 120, 120), [(html("Long page"), usage(10, 16384), "length")]),
+        # Rebuilt from a layout holding only a picture: the layout replaces the usage, not the suspicion.
+        8: ((160, 90, 40), [(SUSPECT, usage(900, 16384), "length")] * 4 + [(PICTURE, usage(20, 500), "stop")]),
+    }
+    crops = [(1 if ordinal <= 4 else 2, Region("column", (50.0 * ordinal, 100.0, 50.0 * ordinal + 100 * NOMINAL,
+                                                         100.0 + 100 * NOMINAL), ordinal, 0.5,
+                                                  CropTransform(50.0 * ordinal, 100.0, NOMINAL, NOMINAL, None)),
+              inked(colour, (100, 100))) for ordinal, (colour, _) in cases.items()]
+    execution = made(digital_pdf, tmp_path, url=fake.url, stream=stream, pages=(1, 2))
+    outcome = transcribe_over_fake(fake, monkeypatch, execution, crops,
+                                   {colour: attempts for colour, attempts in cases.values()})
+
+    unresolved = "empty recognition remains unresolved after an unreliable text-bearing generation"
+    records = {record.page: record for record in outcome.pages}
+    assert records[1].text == "Healthy title" and records[1].incomplete is None
+    for ordinal in (2, 3, 4, 8):
+        assert records[ordinal].text == "" and records[ordinal].incomplete == (
+            f"page {ordinal} (source page {crops[ordinal - 1][0]}, region {ordinal}): {unresolved}"), ordinal
+        assert "Repeated" not in records[ordinal].text and "Caption" not in records[ordinal].text  # never promoted
+    assert records[5].text == "" and records[5].incomplete is None
+    assert records[6].text == "Recovered paragraph" and records[6].incomplete is None
+    assert (records[6].input_tokens, records[6].output_tokens, records[6].capped) == (50, 700, False)
+    assert (records[2].output_tokens, records[2].capped) == (25, False)  # the kept, final output's usage
+    assert (records[8].input_tokens, records[8].output_tokens, records[8].capped) == (20, 500, False)
+    assert records[7].incomplete == "page 7 (source page 2, region 7) stopped at its full page request's 16384-token cap"
+    assert outcome.incomplete and outcome.incomplete.endswith(ADVICE) and "could not be confirmed" in ADVICE
+
+    inventory = Inventory([1, 2], [Input(ordinal, crop[0], 0, crop) for ordinal, crop in enumerate(crops, 1)], None)
+    written = write_result(outcome, execution, inventory, Source.of(execution), ingest_digest=None,
+                           directory=tmp_path / "result")
+    loaded = load_result(tmp_path / "result")
+    assert written.status == loaded.manifest.status == "incomplete" and unresolved in loaded.manifest.incomplete
+    assert not loaded.pages[1].complete and "Healthy title" in [segment.text for segment in loaded.pages[1].segments]
+    assert "Recovered paragraph" in [segment.text for segment in loaded.pages[2].segments]
+
+    # A fresh transcription of the same inputs, all answered cleanly, inherits nothing from this one.
+    clean = transcribe_over_fake(fake, monkeypatch, execution, crops,
+                                 {colour: [(picture(), usage(10, 25), "stop")] for colour, _ in cases.values()})
+    assert clean.incomplete is None and all(record.incomplete is None for record in clean.pages)
+
+
+@pytest.mark.parametrize("final,accepted", [
+    # The suspect loop repeated the neighbour's text; the final reading holds that neighbour and a textless picture,
+    # and ownership rightly drops the neighbour: the empty target is accepted. This is also the guard's limit: had
+    # the target's own text been lost while the neighbour's survived, the same reading would pass.
+    (html("Neighbouring native paragraph").replace("0 0 1000 1000", "0 0 200 200") + picture(), True),
+    (picture(), False),  # nothing at all in the expanded input's final reading: no blanket artwork exemption
+], ids=["neighbour-and-picture", "entirely-empty"])
+def test_the_guard_reads_recovered_artwork_before_ownership_filtering(fake, monkeypatch, digital_pdf, final, accepted):
+    from dataclasses import replace
+    from kei_exp.geometry import CropTransform
+    from kei_exp.regions import Region
+    from kei_exp.transcription.types import OcrRegion
+
+    execution = replace(resolve(RunParams(pdf=digital_pdf)), transcriber="hybrid", model="surya", url=fake.url,
+                        ocr_regions=(OcrRegion(1, (24, 24, 76, 76)),))
+    colour = (90, 60, 30)
+    crop = (1, Region("figure", (0, 0, 100, 100), 0, 1, CropTransform(0, 0, .1, .1, None)),
+            inked(colour, (1000, 1000)))
+    suspect = html("Neighbouring native paragraph") * 40
+    outcome = transcribe_over_fake(fake, monkeypatch, execution, [crop], {colour: [
+        (suspect, usage(10, 16384), "length"), (final, usage(10, 40), "stop")]})
+    record, = outcome.pages
+    assert record.text == "" and "Neighbouring" not in record.text
+    if accepted:
+        assert record.incomplete is None and outcome.incomplete is None
+        assert len(record.payload["blocks"]) == 1  # the neighbour was recognised, then dropped as not the target's
+    else:
+        assert record.incomplete and "empty recognition remains unresolved" in record.incomplete

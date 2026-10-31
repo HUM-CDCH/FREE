@@ -6,18 +6,19 @@ name or page number. Once a split source's contexts answered, `resolve` shows th
 opening and every place's readings, each
 with the pages and source text it was read from, and asks which reading is the document's own value (a candidate,
 NONE when none is, UNSURE when the source does not settle it) and, for every list item, first the work or entity its
-source gives it to, as printed (`of`), then whether it is the document's own, another work's or entity's, a repeat, or
-UNSURE. A chosen or NONE place replaces assembly's null-on-conflict; UNSURE keeps the Value Disagreement. A list keeps
-every item not labelled another's or a repeat, in reading order. An item labelled another's leaves only when its `of`
-is printed in the part it was read from (one that reached its length limit: up to its last word, which may be cut): a
-bare label is a weak, order-dependent call that once emptied a paper's own list, so without that attribution the item
-stays and, like an UNSURE one, is named for review (`uncertain_items`). A repeat is only an item equal to one labelled
-own or another's beside it (a repeat of another work's item is that work's too), or a string printed again shortened
-or differently cased after exactly one such earlier item (`_form_of`: a running header's "A. LOVELACE" after the
-byline's "Ada B. Lovelace"), so a second reading of an own item that differs from it otherwise is never one. An
-answer that leaves an item unlabelled changes nothing. A long list is shown in parts that each fit one request; equal
-items, or a form and its earlier item, in different list parts were never compared, so only an equal item's possible
-repeat stays named. A call that fails or answers outside its labels changes nothing.
+source gives it to, as printed (`of`), then whether it is the document's own, another work's or entity's (or a group's
+summary given to one item), a repeat, or UNSURE. A chosen or NONE place replaces assembly's null-on-conflict; UNSURE
+keeps the Value Disagreement. A list keeps every item not labelled another's or a repeat, in reading order. An item
+labelled another's leaves only when its `of` is printed in the part it was read from (one that reached its length
+limit: up to its last word, which may be cut): a bare label is a weak, order-dependent call that once emptied a
+paper's own list, so without that attribution the item stays and, like an UNSURE one, is named for review
+(`uncertain_items`). A repeat is only an item equal to one labelled own or another's beside it (a repeat of another
+work's item is that work's too), or a string printed again shortened or differently cased after exactly one such
+earlier item (`_form_of`: a running header's "A. LOVELACE" after the byline's "Ada B. Lovelace"), so a second reading
+of an own item that differs from it otherwise is never one. An answer that leaves an item unlabelled changes nothing.
+A long list is shown in parts that each fit one request; equal items, or a form and its earlier item, in different
+list parts were never compared, so only an equal item's possible repeat stays named. A call that fails or answers
+outside its labels changes nothing.
 """
 from __future__ import annotations
 
@@ -66,10 +67,12 @@ RESOLUTION = (
     "it, answer NONE), or UNSURE when the source does not settle it. For each list place "
     "(L...), label every item. OWN: an item of the document's own list, also when it was read only in part (another "
     "part read its other values, or only its method or conditions). OTHER: an item the source gives as another work's "
-    "or entity's (a work the document cites, a reference, another document). UNSURE: the source shown does not settle "
+    "or entity's (a work the document cites, a reference, another document), or whose values the source gives to a "
+    "group, not to the item (an average, range or total over several items). UNSURE: the source shown does not settle "
     "whether the item is the document's own; it is kept and marked for review. Answer each item as {{\"of\": ..., "
-    "\"label\": ...}}: first `of`, the work or entity its source shown gives the item to, as the shortest excerpt that "
-    "names it (a citation, a reference's number and first author, another document's name), copied exactly as printed "
+    "\"label\": ...}}: first `of`, the work, entity or group its source shown gives the item or its values to, as the "
+    "shortest excerpt that names it (a citation, a reference's number and first author, another document's name, the "
+    "group a summary is of), copied exactly as printed "
     "there, or \"\" when that source names none; then its label. "
     "An item labelled OTHER leaves only when its `of` is printed in its source shown; otherwise it is kept and marked "
     "for review. REPEAT, offered only for an item marked 'same value as' or 'a form of': the same thing printed again "

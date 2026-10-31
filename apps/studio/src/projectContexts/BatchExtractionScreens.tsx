@@ -119,7 +119,7 @@ function batchSchemaLine(batch: BatchExtraction): string {
 }
 
 /** The batch's one spreadsheet: every member's saved values, one row per record, through the shared export options. */
-function RetainedBatchExport({disabled,schemaNodes,onExport}:{disabled:boolean;schemaNodes:readonly SchemaNode[];onExport:(format:ExportFormat,choices:ExportChoices)=>Promise<void>}) {
+function RetainedBatchExport({disabled,primary=false,schemaNodes,onExport}:{disabled:boolean;primary?:boolean;schemaNodes:readonly SchemaNode[];onExport:(format:ExportFormat,choices:ExportChoices)=>Promise<void>}) {
   const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null)
   const trigger=useRef<HTMLButtonElement>(null)
   const download=async(format:ExportFormat,choices:ExportChoices)=> {
@@ -130,7 +130,7 @@ function RetainedBatchExport({disabled,schemaNodes,onExport}:{disabled:boolean;s
     finally {setBusy(false)}
   }
   return <div className="space-y-1">
-    <Button ref={trigger} disabled={disabled||busy} aria-busy={busy} aria-expanded={open} aria-haspopup="dialog" onClick={()=>setOpen(true)}>{busy?'Exporting…':'Export'}</Button>
+    <Button ref={trigger} variant={primary?'positive':'secondary'} disabled={disabled||busy} aria-busy={busy} aria-expanded={open} aria-haspopup="dialog" onClick={()=>setOpen(true)}>{busy?'Exporting…':'Export'}</Button>
     <ExtractionResultExportControl open={open} schemaNodes={schemaNodes} returnFocusRef={trigger} onDismiss={()=>setOpen(false)} onExport={(format,choices)=>void download(format,choices)}/>
     {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
   </div>
@@ -146,6 +146,24 @@ function isPilotRound(batch: BatchExtraction): boolean {
   // One limit decides what a pilot is, here as in the gate, the completion
   // dialog and the review guidance.
   return batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+}
+
+/** Where a settled batch stands for the researcher: what is left before it is done, or that it is. Null while it runs
+ *  and for a pilot round, whose end is the schema's approval (the document's PilotReviewGuide leads there). */
+function batchOutcome(batch: BatchExtraction): { done: boolean; title: string; detail: string } | null {
+  if (isPilotRound(batch) || batchStatus(batch).running) return null
+  const progress = batchExtractionProgress(batch)
+  const notExtracted = progress.total - progress.extracted
+  const empty = progress.unreviewable > 0
+    ? ` ${progress.unreviewable} ${progress.unreviewable === 1 ? 'document has' : 'documents have'} no values to review.` : ''
+  if (notExtracted > 0)
+    return { done: false, title: `${notExtracted} of ${progress.total} documents not extracted`,
+      detail: `Open a failed or stopped document to see why, or Run again. The rest can be reviewed meanwhile.${empty}` }
+  if (progress.needsReview > 0)
+    return { done: false, title: `${progress.reviewed} of ${progress.reviewable} documents reviewed`,
+      detail: `Open each document not yet marked Reviewed, check its values against the source, and Save review. Then export.${empty}` }
+  return { done: true, title: 'Batch Extraction complete',
+    detail: `Every document is extracted and reviewed. Export the saved values as your dataset.${empty}` }
 }
 
 export function BatchExtractionHistory({
@@ -265,6 +283,7 @@ export function BatchExtractionMembers({
   onOpenMember(sourceDocumentId: string, extractionId: string): void
 }) {
   const status = batchStatus(batch)
+  const outcome = batchOutcome(batch)
   const runAgainRefusalId = useId()
   return (
     <>
@@ -274,7 +293,7 @@ export function BatchExtractionMembers({
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
-          <RetainedBatchExport disabled={!hasSuccessfulResult} schemaNodes={exportSchemaNodes} onExport={onExport}/>
+          <RetainedBatchExport disabled={!hasSuccessfulResult} primary={outcome?.done ?? false} schemaNodes={exportSchemaNodes} onExport={onExport}/>
           <Button
             size="sm"
             variant="secondary"
@@ -287,6 +306,15 @@ export function BatchExtractionMembers({
           </Button>
         </div>
       </div>
+      {outcome && (
+        <div role="status" aria-label="Batch Extraction outcome"
+          className={`mb-5 rounded-card border px-4 py-3 ${outcome.done ? 'border-green/40 bg-green-soft' : 'border-accent/30 bg-accent-ghost'}`}>
+          <p className={`m-0 text-[12.5px] font-bold ${outcome.done ? 'text-green' : 'text-ink'}`}>
+            {outcome.done && <span aria-hidden="true">✓ </span>}{outcome.title}
+          </p>
+          <p className="m-0 mt-1 text-[11.5px] leading-snug text-ink-muted">{outcome.detail}</p>
+        </div>
+      )}
       {runAgainRefusal && (
         <p id={runAgainRefusalId} className="mb-4 text-[11.5px] leading-snug text-ink-muted">
           {runAgainRefusal}

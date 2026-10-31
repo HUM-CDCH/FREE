@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { BatchExtractionHistory, BatchExtractionMembers } from './BatchExtractionScreens'
 
@@ -76,4 +76,50 @@ it('opens every retained member and keeps typed review on its member route', () 
     fireEvent.click(button)
     expect(onOpenMember).toHaveBeenLastCalledWith(member.sourceDocumentId, member.extractionId)
   }
+})
+
+describe('the settled batch outcome', () => {
+  const review = { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T10:00:00.000Z', schemaRevisionId: batch.schemaRevisionId }
+  const collection = (count: number, reviewed: number, status: 'COMPLETED' | 'FAILED' = 'COMPLETED'): BatchExtraction => ({
+    ...batch, executionStatus: 'COMPLETED',
+    members: Array.from({ length: count }, (_, index) => ({
+      extractionId: `51000000-0000-4000-8006-${String(index + 1).padStart(12, '0')}`,
+      sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+      sourceRepresentationRevisionId: `51000000-0000-4000-8002-${String(index + 1).padStart(12, '0')}`,
+      executionStatus: index === 0 ? status : 'COMPLETED',
+      completed: index !== 0 || status === 'COMPLETED',
+      reviewable: true,
+      currentReview: index < reviewed ? review : null,
+    })) as BatchExtraction['members'],
+  })
+  const show = (shown: BatchExtraction) => render(<BatchExtractionMembers batch={shown}
+    pinnedSchemaFailure={null} hasSuccessfulResult coverageMessage={null} opening={false}
+    canRunAgain={false} runAgainRefusal={null} runAgainMethod={null}
+    documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()}
+    onOpenMember={vi.fn()} />)
+
+  it('says what is left to review before the batch is done', () => {
+    show(collection(6, 2))
+    expect(screen.getByRole('status', { name: 'Batch Extraction outcome' })).toHaveTextContent('2 of 6 documents reviewed')
+    expect(screen.queryByText('Batch Extraction complete')).not.toBeInTheDocument()
+  })
+
+  it('names documents that were not extracted first', () => {
+    show(collection(6, 0, 'FAILED'))
+    expect(screen.getByRole('status', { name: 'Batch Extraction outcome' })).toHaveTextContent('1 of 6 documents not extracted')
+  })
+
+  it('calls a fully extracted and reviewed batch complete and leads to the export', () => {
+    show(collection(6, 6))
+    expect(screen.getByRole('status', { name: 'Batch Extraction outcome' })).toHaveTextContent('Batch Extraction complete')
+    expect(screen.getByRole('button', { name: 'Export' }).className).toContain('bg-green')
+  })
+
+  it('leaves a pilot round and a running batch without an outcome', () => {
+    const pilot = show(collection(3, 3))
+    expect(screen.queryByRole('status', { name: 'Batch Extraction outcome' })).not.toBeInTheDocument()
+    pilot.unmount()
+    show(batch)
+    expect(screen.queryByRole('status', { name: 'Batch Extraction outcome' })).not.toBeInTheDocument()
+  })
 })

@@ -23,7 +23,7 @@ It has two parts, run together with Docker Compose:
 | Python | 3.13 | Installed through [uv](https://docs.astral.sh/uv/) |
 | uv | recent | `pnpm install` runs `uv sync` for the Parsing Service |
 | mkcert | any | Run `mkcert -install` once; local HTTPS uses it |
-| NVIDIA GPU | optional | Needed for extraction and OCR of scanned PDFs (vLLM); Docker must see it (NVIDIA Container Toolkit on Linux); the default models need about 60 GB of GPU memory |
+| NVIDIA GPU | optional | Needed for locally hosted vLLM extraction and OCR of scanned PDFs; Docker must see it (NVIDIA Container Toolkit on Linux); the default models need about 60 GB of GPU memory |
 
 Linux is the main target. macOS and Windows work through Docker Desktop. Plan
 for roughly 70 GB of disk with the default models: about 40 GB of model weights,
@@ -60,7 +60,7 @@ and Studio starts only once they are healthy. With the default models they need
 about 60 GB of GPU memory; on a smaller GPU, choose smaller models (see
 [Models](#models)) or set `FREE_GPU=off`. Set `FREE_GPU=required` to stop with
 an error when no GPU is available. Without model servers you can still upload
-text PDFs and build schemas, but OCR and extraction need vLLM.
+text PDFs and build schemas. Extraction can also use your Codex login; scanned PDFs need an OCR server.
 
 `pnpm dev` reads settings from your shell, not from `.env` (only `DATABASE_URL`,
 and the `FREE_ENTRA_*` values of `pnpm dev -- --entra`, come from `.env`), so
@@ -92,7 +92,21 @@ KEI_EXTRACT_URL=http://<vllm-host>:8000/v1/chat/completions
 KEI_EXTRACT_MODEL=<served-model-name>
 ```
 
-On ARM64 hosts such as DGX Spark, set `VLLM_IMAGE` to an ARM64 build of vLLM.
+The GPU overlay already pins a multi-platform vLLM image including Linux ARM64.
+Use `VLLM_IMAGE` only to select another tested `repository@sha256:…` reference; validate
+any per-service image override in its deployment overlay separately.
+
+**Extraction can use Codex without a local GPU model.** Start with an available Codex model:
+
+```bash
+KEI_EXTRACT_PROVIDER=codex-cli KEI_CODEX_MODEL=<available-model> FREE_GPU=off pnpm dev
+```
+
+Log in through Studio as described below; the worker shares that deployment login. Both extraction roles use the
+selected model through isolated, tool-free Codex turns, keeping the existing durable extraction and review path.
+Codex has no preflight tokenizer: FREE uses an explicit conservative UTF-8 budget and checks the reported usage
+before accepting a reply. See the [Parsing Service's policy](apps/parsing_service/README.md#codex-extraction).
+OCR remains a separate service; native text PDFs need no OCR model.
 
 **Schema help and chat run on any connection you add in Studio.** Open
 **Configure models** → **Connections**. Each researcher adds their own. API keys
@@ -124,8 +138,8 @@ CLAUDE_CODE_OAUTH_TOKEN=<token> pnpm dev          # production: put it in .env
 ```
 
 The Codex login lives in a Docker volume, so it survives image rebuilds. Claude
-Code reads its token from the environment at every start. Both are only used
-for schema help and chat; extraction always runs on vLLM.
+Code reads its token from the environment at every start. Both support schema help and chat. Codex also supports extraction when the deployment selects
+`KEI_EXTRACT_PROVIDER=codex-cli`; Claude Code is not an extraction backend.
 
 ## Use
 

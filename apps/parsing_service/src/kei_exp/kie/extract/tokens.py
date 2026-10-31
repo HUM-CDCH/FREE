@@ -76,7 +76,8 @@ def forget(attempt: str) -> None:
 
 def compiled(key: Any, counters: Iterable[TokenCounter]) -> tuple[tuple | None, Any]:
     """The work kept under `key` for the attempt being planned (None if none is), and where to keep new work (None
-    while the counts `counters` make are not kept: outside an attempt, or a server without a probe fingerprint)."""
+    while the counts `counters` make are not kept: outside an attempt, or a counter without a `_serving` identity:
+    a server without a probe fingerprint; Codex's computed reservation has one from its policy and model)."""
     attempt, servings = _attempt.get(), [getattr(counter, "_serving", None) for counter in counters]
     if attempt is None or not servings or None in servings:
         return None, None
@@ -205,6 +206,9 @@ class TokenCounter:
 
 def counter_for(chat: Countable, *, http: Http = requests) -> TokenCounter:
     """The counter of the endpoint `chat` sends to, with the context that endpoint serves now."""
+    from kei_exp.kie.extract.codex import CodexChat
+    if isinstance(chat, CodexChat):
+        return chat.counter()
     base = chat.url.split("/v1/", 1)[0].rstrip("/")
     counter = TokenCounter(SOURCE, chat.model, None, _chat=chat, _http=http, _base=base)
     try:

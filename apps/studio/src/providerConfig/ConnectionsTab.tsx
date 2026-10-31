@@ -152,13 +152,9 @@ function DeploymentConnection({
       )}
       <ProbeStatusLine probe={probe} />
       {models.length > 0 && (
-        <SettingsViews label="Connection models page" titles={Array.from({ length: Math.ceil(models.length / 4) }, (_, index) => `Models ${index * 4 + 1}–${Math.min(index * 4 + 4, models.length)}`)}>
-          {Array.from({ length: Math.ceil(models.length / 4) }, (_, index) => (
-            <ul key={index} aria-label="Models" className="mt-1 flex flex-col gap-0.5 font-mono text-[12px] break-all text-ink">
-              {models.slice(index * 4, index * 4 + 4).map(({ id }) => <li key={id}>{id}</li>)}
-            </ul>
-          ))}
-        </SettingsViews>
+        <ul aria-label="Models" className="mt-1 flex flex-col gap-0.5 font-mono text-[12px] break-all text-ink">
+          {models.map(({ id }) => <li key={id}>{id}</li>)}
+        </ul>
       )}
     </div>
   )

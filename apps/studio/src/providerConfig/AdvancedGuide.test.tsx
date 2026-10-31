@@ -129,7 +129,7 @@ describe('the Explain guide', () => {
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'selection')!.takeaway)
       .toBe('Lower value-call count could omit relevant evidence; this is history, not a current choice.')
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.takeaway)
-      .toBe("Verification Off yields proposals; a recipe's applicability is source-specific.")
+      .toBe("For a recipe, Verification Off yields proposals; a recipe's applicability is source-specific.")
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.combinations).toContain('retired limits and recipe factors are never converted')
     for (const source of EVIDENCE_SOURCES) for (const field of [source.date, source.corpus, source.revision, source.evidence, source.limits]) expect(field).not.toBe('')
   })

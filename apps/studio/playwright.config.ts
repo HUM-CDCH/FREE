@@ -7,18 +7,19 @@ import {
   playwrightWebServerCommand,
 } from './e2e/playwrightStack.js'
 
+// Keep stack listeners below Linux's dynamic client-port range (32768–60999), so earlier outbound sockets cannot take them.
 const stack = configurePlaywrightStack({
-  applicationPort: 41_749,
+  applicationPort: 30_749,
   composeProject: 'free-studio-e2e',
   databaseName: 'free_test_studio',
-  oidcPort: 41_748,
-  postgresPort: 45_432,
+  oidcPort: 30_748,
+  postgresPort: 31_432,
 })
 const e2ePort = stack.applicationPort
 const e2eOrigin = `http://localhost:${e2ePort}`
 // The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. It binds mid-run, while
-// the browsers hold many outbound sockets, so it sits below Linux's ephemeral range (32768-60999) and the
-// Compose lease range (30000-39999): a client socket holding the port as its source would fail it with EADDRINUSE.
+// the browsers hold many outbound sockets, so it sits below Linux's ephemeral range (32768-60999):
+// a client socket holding the port as its source would fail it with EADDRINUSE.
 const keiExpUrl = `http://127.0.0.1:${process.env.FREE_PLAYWRIGHT_KEI_EXP_PORT ?? '29750'}`
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 // Studio stages uploads for kei in its source inbox (FREE_SOURCE_INBOX): one directory per run. Workers load this
@@ -29,7 +30,8 @@ export default defineConfig({
   testDir: './e2e',
   // The restart spec runs on the recovery config's restartable Studio (playwright.recovery.config.ts).
   testIgnore: ['real-service.spec.ts', 'real-service-gc.spec.ts',
-    'interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts', 'durable-extraction.spec.ts', 'durable-service.spec.ts'],
+    'interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts', 'durable-extraction.spec.ts', 'durable-service.spec.ts',
+    'guided-workflow-service.spec.ts'],
   fullyParallel: true,
   // The mock OIDC and Studio hosts are shared by this suite; 12 default workers on a 24-core host intermittently
   // fail sign-in while many tests start together. Bound browser concurrency for a reproducible full gate.

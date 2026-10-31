@@ -11,7 +11,7 @@ from kei_exp.kie.extract.resolution import (LIST_CHUNK, OF_CHARS, OTHER, REPEAT,
                                             resolve)
 from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract import article, run
+from kei_exp.kie.extract import article, resolution, run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.passages import Passage
 from tests.test_article_occurrence_origins import occurrence_input, occurrence_reply
@@ -521,6 +521,31 @@ def test_another_works_item_leaves_when_its_part_prints_the_work(of, printed):
     assert root["finds"] == [OWN_SAMPLE] and len(item_sources) == 1 and not doubts(issues)
 
 
+# One part's prose gives a group's average, which its reading gave to one specimen; another part's table prints that
+# specimen's own row under a caption naming the group.
+GROUP = "Group A"
+SUMMARY_TEXT = "Leaves of the Group A trees alder, birch and cedar were analysed. Group A nitrogen averaged 251 ± 7."
+TABLE_TEXT = f"Table 1 Nitrogen (mg/g) of {GROUP}: alder 248, birch 262, cedar 239."
+AVERAGED = {"name": "alder", "parts": ["251"]}
+SPECIMEN = {"name": "alder", "parts": ["248"]}
+
+
+@pytest.mark.parametrize("label", ["OWN", "OTHER"])
+def test_a_groups_summary_given_to_one_item_leaves_with_the_group_its_part_prints(label):
+    """The averaged reading is another's, given to the group its values summarise (version 15), and leaves: its part
+    prints the group. The specimen's row labelled OWN stays. Labelled OTHER and given the caption's group it leaves too:
+    whether a printed group is this item's is the model's judgment, and the loss is recorded in `dropped_items`."""
+    def rule(line):
+        return ("OTHER", GROUP) if '"251"' in line else (label, GROUP if label == OTHER else "")
+    readings = [{"finds": [deepcopy(AVERAGED)]}, {"finds": [deepcopy(SPECIMEN)]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[SUMMARY_TEXT, TABLE_TEXT])
+    gone = [SPECIMEN] if label == OTHER else []
+    assert root["finds"] == ([] if gone else [SPECIMEN]) and len(item_sources) == 1 - len(gone)
+    assert dropped(issues) == [{"path": ["finds"], "dropped": [AVERAGED, *gone], "of": [GROUP] * (1 + len(gone))}]
+    assert not doubts(issues)
+
+
 def test_an_item_whose_membership_the_source_does_not_settle_is_kept_and_named_at_its_kept_index():
     """UNSURE is an item's own abstention: the item stays where it is, after another work's item before it left, and
     the issue names its kept position."""
@@ -644,6 +669,38 @@ def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_rep
     assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count
     assert saved(lease.publications[key] for key in set(lease.publications) - before) in ([], first[:1])
     assert completions() == [completion]
+
+
+def test_an_attempt_planned_again_under_a_changed_resolution_prompt_asks_it_anew_and_reuses_every_other_call(
+        monkeypatch):
+    """A durable call capture is keyed by its exact request, system prompt included, and the admitted method pins no
+    prompt: an attempt planned again after the resolution prompt changed (a version 14 attempt resumed on version 15)
+    replays the calls whose requests are unchanged, never reuses the earlier prompt's resolution reply, and asks the
+    changed prompt anew. Its result is the changed prompt's decision, with no trace of the earlier one. This fixture
+    has one resolution request and unchanged grounding requests, hence one more call; a part whose resolution
+    changes may change its grounding requests too."""
+    source, request = occurrence_input(monkeypatch, "semantic")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    changed = " A changed resolution prompt."
+    def reply(system, user, schema):
+        if not resolving(user):
+            return occurrence_reply(system, user, schema)
+        return labelling(**({} if system.endswith(changed) else {"L1": {"I1": "UNSURE"}}))(system, user, schema)
+    chat = valid(reply)
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    earlier = finish(lease, chat, extract)
+    def doubted(result):
+        return [issue for issue in result["issues"] if issue["code"] == "uncertain_items"]
+    assert len(doubted(earlier)) == 1
+    count, units = len(chat.calls), len(lease.units)
+    monkeypatch.setattr(resolution, "RESOLUTION", resolution.RESOLUTION + changed)
+    later = finish(lease, chat, extract)
+    asked = chat.calls[count:]
+    assert len(asked) == 1 and resolving(asked[0]["user"]) and asked[0]["system"].endswith(changed)
+    assert len(lease.units) == units + 1
+    assert later["records"] == earlier["records"] == [{"fees": [10, 10]}] and not doubted(later)
+    assert later["issues"] == [issue for issue in earlier["issues"] if issue not in doubted(earlier)]
 
 
 def test_a_rejected_list_reply_reports_non_application_through_completion_and_replay(monkeypatch):

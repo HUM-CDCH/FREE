@@ -154,7 +154,9 @@ class _Run:
         final = attempts[-1]
         if not final.ok:
             self.issue("call_failed", final.error or f"{stage} call failed", record)
-        if final.input_tokens is not None and final.input_tokens != counted:
+        # An upper-bound counter (Codex) reserves at least the served count; an exact one must equal it.
+        if final.input_tokens is not None and (final.input_tokens > counted if getattr(
+                self.counters[ROLE[stage]], "upper_bound", False) else final.input_tokens != counted):
             self.issue("budget_count_mismatch", f"the server counted {final.input_tokens} input tokens where the "
                        f"tokenizer counted {counted}", record)
         if final.ok and not isinstance(answer, dict):  # readable JSON (null included) is not yet the requested object

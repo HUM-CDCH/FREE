@@ -22,7 +22,7 @@ from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.unified import UnifiedOptions
-from kei_exp.kie.extract.models import EXTRACT_MODELS, Router, routes
+from kei_exp.kie.extract.models import Router, resolve, routes
 from kei_exp.kie.extract.run import ExtractRequest, dispatch, Options
 from kei_exp.kie.passages import load
 from kei_exp.workflows import config
@@ -97,6 +97,10 @@ def chat_for(provider):
     if provider["adapter"]=="gliformer":
         return GLiFormerFields(url=provider["url"],model=provider["model"],timeout=provider["timeout"],
                               pinned_info=provider["nativeInfo"])
+    if provider["adapter"] == "codex-cli":
+        from kei_exp.kie.extract.codex import CodexChat
+        return CodexChat(model=provider["model"], url=provider["url"], timeout=provider["timeout"],
+                         max_tokens=provider["maxTokens"])
     kind = {"instruct": OpenAIChat, "nuextract": NuExtractChat}.get(provider["adapter"])
     if kind is None:
         raise ValueError("unsupported durable fields adapter")
@@ -123,7 +127,7 @@ def effective(lease):
     request = ExtractRequest.model_validate({"schema": selected["schemaTree"], "options": options})
     models = {}
     for role, key in routes(request.options).items():
-        model = EXTRACT_MODELS[key]
+        model = resolve(key)
         client = model.chat()
         # Deployment endpoints only; no researcher keys/headers reach storage.
         from urllib.parse import urlsplit
@@ -147,18 +151,20 @@ def effective(lease):
 
 
 class PinnedCounter:
-    def __init__(self, budget):
+    def __init__(self, budget, *, upper_bound=False):
         self.context_tokens = budget["context"]
         self.counted = budget["counted"]
+        self.upper_bound = upper_bound
 
     def request_tokens(self, *_):
         return self.counted
 
 
-def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call]) -> bool:
+def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call], *, upper_bound: bool = False) -> bool:
     """A call the server counted otherwise than its planning did: the attempt's kept /tokenize counts may be stale (a
-    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped."""
-    if any(call.counted_input_tokens is not None and call.input_tokens is not None
+    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped.
+    An upper bound (Codex) is computed, never served, so it cannot be stale and differs from usage by design."""
+    if not upper_bound and any(call.counted_input_tokens is not None and call.input_tokens is not None
            and call.input_tokens != call.counted_input_tokens for call in attempts):
         tokens.forget(f"{extraction}/{attempt}")
         return True
@@ -166,7 +172,7 @@ def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call])
 
 
 @DBOS.step(name="invokeExtractionCaptureV1")
-def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
+def invoke_capture(extraction: str, attempt: str, capture: str, priority: int = 0) -> dict:
     with Lease(coordinator(), extraction, attempt) as lease:
         saved = lease.call("read_call", capture)
         if saved["checkpoint"] is not None:
@@ -188,10 +194,14 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             body.pop("max_whitespace",None)
             if http_request is None:
                 raise ValueError("capture lacks the exact HTTP request")
-            # Discovery's reply is streamed so the records it finds show while it is generated (transport only: the
-            # saved request is sent unchanged, and the call is read and saved as an unstreamed one).
+            # Discovery streams progress; NuExtract entries stream for the transport guard. The saved request
+            # stays unchanged apart from stream and usage options, and the call's priority for a server that
+            # schedules by it (config.PRIORITY_URLS).
+            if request["provider"].get("url") in config.PRIORITY_URLS:
+                http_request={**http_request,"priority":priority}
             shown=Shown() if body["stage"]=="discovery" else None
-            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None)
+            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None,
+                                stage=body["stage"])
         if not lease.call("begin_call", capture):
             return {"ok": True, "boundary": True}
         started = monotonic()
@@ -200,8 +210,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 parsed,call=calls.structure(client,**body)
                 attempts=[call]
             else:
-                parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"]))
-                drop_stale_counts(extraction, attempt, attempts)
+                counter = PinnedCounter(request["budget"],
+                    upper_bound=request.get("tokenizer", {}).get("input_counting") == "upper_bound")
+                parsed, attempts = calls.complete(client, **body, counter=counter)
+                drop_stale_counts(extraction, attempt, attempts, upper_bound=counter.upper_bound)
                 if shown:
                     shown.done()
             output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
@@ -239,8 +251,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
 
 @DBOS.workflow(name="extractionCallV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
                serialization_type=WorkflowSerializationFormat.PORTABLE)
-def call_workflow(extraction: str, attempt: str, capture: str) -> dict:
-    return invoke_capture(extraction, attempt, capture)
+def call_workflow(extraction: str, attempt: str, capture: str, priority: int = 0) -> dict:
+    # `priority` (0 for a call started before calls had one) is its place in the model server's queue, never its
+    # identity: a recovered workflow's recorded child start is matched by name alone.
+    return invoke_capture(extraction, attempt, capture, priority)
 
 
 @DBOS.step(name="planExtractionCallsV1")
@@ -271,7 +285,8 @@ def plan_next(extraction: str, attempt: str) -> dict:
         except NeedsCall:
             if planner.discovery is not None:
                 show("discovery", discovery_event(planner.discovery))
-            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles}
+            # Planning visits work in source priority; preserve it when admitting calls.
+            return {"pending": list(planner.pending), "roles": planner.roles, "priorities": planner.priorities}
         except Boundary:
             return {"boundary": True}
         return {"result": result, "scopes": planner.scopes}
@@ -355,8 +370,11 @@ def extract_workflow(request: dict) -> dict:
             if capture in ended:  # its call ended without saving an output: planning it again would never end
                 return stop(False, {"code": "capture_replanned"})
             if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
+                # A round recorded before calls had a priority has none.
+                priority = work.get("priorities", {}).get(capture, 0)
                 with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
-                    running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture))
+                    running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture,
+                                                                  priority))
         if not running:  # a method that yields must have planned a call
             return stop(False, {"code": "nothing_planned"}, compile_saved=False)
         if not wait():

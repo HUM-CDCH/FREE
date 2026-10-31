@@ -11,6 +11,7 @@ from collections import Counter as Tally, OrderedDict
 import pytest
 
 from kei_exp.kie.extract import calls, run, tokens, unified
+from kei_exp.kie.extract.codex import CodexChat
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
@@ -52,7 +53,7 @@ class Attempt:
         self.lease.state["source"]["sourceRevisionId"] = "revision"
         self.chat = CountingChat(Model(source))
         self.counter = Kept()
-        self.running, self.trace, self.result, self.planner = {}, [], None, None
+        self.running, self.trace, self.result, self.planner, self.launched = {}, [], None, None, []
         tokens.forget(self.lease.attempt)
         self.entries, self.routines = [], []
         original, entry = self.lease.call, unified._Run.entry
@@ -92,11 +93,16 @@ class Attempt:
 
     def step(self):
         """Start what the round planned (up to `chunks` per role), then answer one running call."""
-        for capture in sorted(self.planner.pending, key=self.planner.pending.get):  # as `extract_workflow` starts them
+        keys = {unit["id"]: key for key, unit in self.lease.units.items()}
+        # As `extract_workflow` starts them, in planning order; discovery's windows are planned on threads (#233), so
+        # among themselves by key, which keeps a schedule repeatable.
+        windows = sorted((c for c in self.planner.pending if self.lease.units[keys[c]]["descriptor"]["stage"]
+                          == "discovery"), key=self.planner.pending.get)
+        for capture in windows + [c for c in self.planner.pending if c not in windows]:
             role = self.planner.roles[capture]
             if capture not in self.running and sum(each == role for each in self.running.values()) < self.chunks:
                 self.running[capture] = role
-        keys = {unit["id"]: key for key, unit in self.lease.units.items()}
+                self.launched.append(capture)
         started = list(self.running)
         chosen = {"first": started[0], "last": started[-1], "key": min(started, key=keys.get),
                   "reverse-key": max(started, key=keys.get)}[self.order]
@@ -165,7 +171,7 @@ def saved(attempt, round_):
             for value in attempt.lease.publications[identity]["values"]}
 
 
-@pytest.mark.parametrize("defaults", [3, 4])
+@pytest.mark.parametrize("defaults", [3, 4, 6])
 def test_an_unrelated_completion_does_not_read_or_save_a_finished_entry_again(monkeypatch, defaults):
     attempt = Attempt(monkeypatch, unified_request(defaults=defaults), pages(12, 3), chunks=2)
     expected(attempt.finish(), 12)
@@ -194,7 +200,7 @@ def test_discovery_completing_verifies_the_entries_read_before_it(monkeypatch):
         assert verified and all(attempt.lease.units[key]["checkpoint"] for key in verified)
 
 
-SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (1, 2, 3, 4) for chunks in (1, 2)
+SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (1, 2, 3, 4, 6) for chunks in (1, 2)
              for order in ("first", "last", "key", "reverse-key") for per_page in (1, 4)]
 
 
@@ -282,6 +288,19 @@ def test_another_served_tokenizer_reads_finished_entries_again(monkeypatch):
     attempt.step()
     attempt.plan()
     assert finished <= {number for number, _ in attempt.trace[-1]["entries"]}
+
+
+def test_codex_reserved_counts_reuse_finished_entries(monkeypatch):
+    """Codex's reserved counts are a pure function of its policy and model, so finished entries are reused too."""
+    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
+    attempt.counter = CodexChat("test-model").counter()
+    for _ in range(12):
+        attempt.plan()
+        attempt.step()
+    finished = set(finished_entries(attempt))
+    assert finished
+    attempt.plan()
+    assert not {number for number, _ in attempt.trace[-1]["entries"]} & finished
 
 
 @pytest.fixture
@@ -543,3 +562,28 @@ def test_article_reassembles_every_answered_context_when_another_answers(monkeyp
     assert not asked and len(result["value_contexts"][0]) == 3
     disagreeing = [any("disagreement" in value for values in round_ for value in values) for round_ in roots]
     assert True in disagreeing and disagreeing.index(True) > 0
+
+
+def test_entries_waiting_on_their_verification_hold_back_no_entry(monkeypatch):
+    """The workflow runs `chunks` calls of each role at once: planning does not cap the entries waiting a second time."""
+    attempt = Attempt(monkeypatch, unified_request(defaults=5), pages(5, 5), chunks=4)
+    while True:
+        assert attempt.plan() is None
+        units = {unit["id"]: unit for unit in attempt.lease.units.values()}
+        pending = [(units[c]["descriptor"]["stage"], units[c]["input"]["request"]["body"]["record"])
+                   for c in attempt.planner.pending]
+        if [stage for stage, _ in pending].count("verification") == 4:
+            break
+        first = next(c for c, (stage, record) in zip(attempt.planner.pending, pending, strict=True)
+                     if stage != "verification" and record != 4)
+        answer(attempt.lease, attempt.chat, first, attempt.counter)
+    assert ("entry", 4) in pending
+
+
+def test_the_first_entries_launched_are_those_nearest_the_start_page(monkeypatch):
+    attempt = Attempt(monkeypatch, unified_request(start_page=3, defaults=5), pages(6, 2), chunks=2)
+    attempt.finish()
+    units = {unit["id"]: unit for unit in attempt.lease.units.values()}
+    entries = [units[c]["input"]["request"]["body"]["record"] for c in attempt.launched
+               if units[c]["descriptor"]["stage"] == "entry"]
+    assert entries[:2] == [4, 5] and sorted(entries) == list(range(6))

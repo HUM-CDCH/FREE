@@ -1,5 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises'
-import type { DBOSClient, StepConfig } from '@dbos-inc/dbos-sdk'
+import type { DBOSClient, StepConfig, WorkflowStatus } from '@dbos-inc/dbos-sdk'
 import { context, propagation } from '@opentelemetry/api'
 import { z } from 'zod'
 
@@ -38,9 +38,43 @@ export function conversionLane(pages: number | null): ConversionLane {
   return pages !== null && pages <= SMALL_DOCUMENT_PAGES ? KEI_QUEUE.convertSmall : KEI_QUEUE.convertLarge
 }
 
-/** M0R 4: max(10 min, 60 s + 18.9 s × pages), provisional until the ~2000-page Spark run. */
-function conversionTimeoutMs(pages: number | null): number {
-  return Math.max(600_000, 3 * (20_000 + 6_300 * (pages ?? UNCOUNTED_PAGE_BUDGET)))
+/** M0R 4's measured cost of one conversion once it runs: 20 s + 6.3 s × pages, provisional until the ~2000-page Spark
+ *  run. A native PDF or a reused result finishes sooner; Studio shows it as an estimate, never a deadline. */
+export const CONVERSION_OVERHEAD_MS = 20_000
+export const CONVERSION_MS_PER_PAGE = 6_300
+/** Estimates and deadline admission can supply a per-page calibration from kei's own history. */
+export function expectedConversionMs(pages: number, msPerPage: number = CONVERSION_MS_PER_PAGE): number {
+  return CONVERSION_OVERHEAD_MS + msPerPage * pages
+}
+
+/** The reference Spark deployment serves four OCR requests at once. A standalone deployment assumes one. */
+const REFERENCE_PARALLEL_REQUESTS = 4
+const CONVERSION_HISTORY_SIZE = 50
+
+/** Concurrency scales the static floor, and matching history can raise the allowance above it. A rolling estimate
+ * may decrease as fast work dominates. Admission occurs inside submitToKei, so replay keeps the deadline. */
+function conversionTimeoutMs(submission: KeiConversionSubmission, parallelRequests: number, history: readonly WorkflowStatus[]): number {
+  const slowdown = Math.max(1, REFERENCE_PARALLEL_REQUESTS / parallelRequests)
+  const samples: number[] = []
+  for (const status of history) {
+    const input = keiConvertInputSchema.safeParse(status.input?.[0])
+    const output = keiConvertOkSchema.safeParse(status.output)
+    const ended = status.completedAt ?? status.updatedAt
+    if (status.status !== 'SUCCESS' || !input.success || !output.success ||
+        status.dequeuedAt === undefined || ended === undefined) continue
+    if (input.data.model !== submission.request.model || input.data.layout_model !== submission.request.layout_model ||
+        input.data.page_source !== submission.request.page_source || input.data.cut !== submission.request.cut ||
+        JSON.stringify(input.data.ingest) !== JSON.stringify(submission.request.ingest)) continue
+    const elapsed = ended - status.dequeuedAt
+    const perPage = (elapsed - CONVERSION_OVERHEAD_MS) / output.data.page_count
+    if (Number.isFinite(perPage) && perPage > 0) samples.push(perPage)
+  }
+  samples.sort((a, b) => a - b)
+  // A rolling percentile can lose a slow-scan allowance when fast matching conversions dominate the window.
+  const measured = samples[Math.ceil(samples.length * 0.9) - 1] ?? 0
+  const msPerPage = Math.max(CONVERSION_MS_PER_PAGE * slowdown, measured)
+  return Math.ceil(Math.max(600_000 * slowdown,
+    3 * expectedConversionMs(submission.pageCount ?? UNCOUNTED_PAGE_BUDGET, msPerPage)))
 }
 
 export const keiConvertWorkflowId = (parentWorkflowId: string) => `${CONVERT_PREFIX}${parentWorkflowId}`
@@ -123,8 +157,11 @@ const STOPPED = new Set(['ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED']
 
 export function createKeiHandoff(
   client: Pick<DBOSClient, 'enqueuePortable' | 'listWorkflows' | 'cancelWorkflow'>,
-  options: { pollWindowMs?: number; pollIntervalMs?: number; now?: () => number } = {},
+  options: { pollWindowMs?: number; pollIntervalMs?: number; now?: () => number; conversionParallelRequests?: number } = {},
 ): KeiHandoff {
+  const parallelRequests = options.conversionParallelRequests ?? 1
+  if (!Number.isSafeInteger(parallelRequests) || parallelRequests < 1 || parallelRequests > 64)
+    throw new Error('FREE_PARSING_OCR_PARALLEL must be an integer from 1 to 64.')
   const windowMs = options.pollWindowMs ?? 30_000
   const intervalMs = options.pollIntervalMs ?? 2_000
   const now = options.now ?? Date.now
@@ -132,13 +169,17 @@ export function createKeiHandoff(
     (await client.listWorkflows({ workflowIDs: [workflowId], loadInput: false, loadOutput }))[0]
   return {
     async submitConversion(submission) {
+      const history = await client.listWorkflows({
+        workflowName: 'convert', status: 'SUCCESS', queueName: [KEI_QUEUE.convertSmall, KEI_QUEUE.convertLarge],
+        sortDesc: true, limit: CONVERSION_HISTORY_SIZE, loadInput: true, loadOutput: true,
+      })
       await client.enqueuePortable(
         {
           workflowName: 'convert',
           queueName: submission.lane,
           workflowID: submission.workflowId,
           priority: CONVERSION_PRIORITY,
-          workflowTimeoutMS: conversionTimeoutMs(submission.pageCount),
+          workflowTimeoutMS: conversionTimeoutMs(submission, parallelRequests, history),
           applicationName: KEI_APPLICATION, // unowned rows could be dequeued by any application (M0R 3)
           authenticatedUser: submission.owner,
           attributes: { ...submission.attributes, ...traceCarrier() },

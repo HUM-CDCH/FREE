@@ -23,14 +23,20 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
 # native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
 # native 3: a block merged across a column break publishes every box it is printed in (`PageSegment.boxes_pt`).
+# native 4: line joins preserve identifier/compound hyphens; overlapping paragraphs retain their line order;
+# horizontally separated native cells retain their whitespace boundary.
 # hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
 # publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
 # hybrid 2: native blocks with undecodable font glyphs read by OCR in place, from a white-margined crop (`cut.TEXT_MARGIN`);
 # OCR HTML exported as UTF-8 (was guessed).
 # hybrid 3: that crop's white margin is 24 pt (`cut.TEXT_MARGIN`), not 15% of its long side; an OCR read whose only
 # content is an image placeholder no longer counts as text for a replaced block.
+# hybrid 4: repeated empty artwork can retry once with real page context; only text owned by the original
+# artwork is accepted. Surya full-page scans retain their previous policy.
 # surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 3, "surya": 1}
+# surya 2: an input whose full-page generation produced looping or token-capped text and whose final recognition
+# holds no text (before artwork ownership filtering) is incomplete, not an empty success. Hybrid recipes record it.
+TEXT_RULES: dict[str, int] = {"native": 4, "hybrid": 4, "surya": 2}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
@@ -105,6 +111,14 @@ class ConversionError(RuntimeError):
     other loss is an incomplete outcome."""
 
 
+class ArtworkNeedsContext(ConversionError):
+    """Internal recovery signal after all OCR requests close: original, one-based artwork input ordinals."""
+
+    def __init__(self, ordinals: tuple[int, ...]) -> None:
+        self.ordinals = ordinals
+        super().__init__(f"Artwork inputs {ordinals} need page context after repeated empty figures")
+
+
 class IncompleteConversionError(ConversionError):
     """The recognition itself came back incomplete (a capped page, a block that errored): about this document
     at this budget, and another attempt at the same budget would fail identically. `kei_exp.failures.classify`
@@ -122,7 +136,8 @@ class PageRecord:
     """
     page: int                      # input ordinal
     region: dict | None            # region_info(crop); None for whole pages
-    image: Image.Image | None      # exactly what the model received, in the mode to save; None when not kept
+    image: Image.Image | None      # the input given to the backend, in the mode to save, before its own resizing
+                                   # (Surya scales to fit); None when not kept
     seconds: float | None          # generation time when the backend reports one
     input_tokens: int | None
     output_tokens: int | None

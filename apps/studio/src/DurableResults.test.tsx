@@ -8,6 +8,7 @@ import { decodeParsedDocument } from 'extraction/parsed-document'
 import rawDocument from './assets/parsed_document.v2.json'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { DurableResults } from './DurableResults'
+import { ownsMark } from './durableRailModel'
 import { durableRequest, readDurable, readDurableHistory, readDurableHistorySummary, readValues } from './durableExtractionApi'
 import { createDurableReader, type DurableReader } from './durableReader'
 import { createSelectionChannel, type SelectionChannel } from './selectionChannel'
@@ -154,6 +155,52 @@ it('shows the record starts discovery has found on the source while it still loo
   expect(selection.snapshot().marks!.describe.size).toBe(0)
 })
 
+it.each(['ARTICLE','CATALOG'] as const)('shows provisional %s values on the document and replaces previews with verified links',async strategy=>{
+  const document=decodeParsedDocument(rawDocument)
+  const block=document.content_stream.find(each=>'text' in each)!
+  if(!('text' in block))throw new Error('fixture has no source text')
+  block.text='Title: An unambiguous early title.'
+  const anchor=document.evidence_index.anchors.find(each=>each.kind==='text'&&each.block_id===block.block_id)!
+  const value={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'An unambiguous early title',evidence:[],links:[],grounding:'provisional',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[value.node]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:1,inFlight:1},records:null,reading:[]}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  const selection=createSelectionChannel()
+  vi.useFakeTimers()
+  try {
+    await act(async()=>{render(<Results attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} document={document} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)})
+    expect(selection.snapshot().marks?.savedLinks).toEqual([{key:'value',link:{resultPath:value.path,evidenceAnchorId:anchor.anchor_id}}])
+    expect(selection.snapshot().marks?.describe.get('value')).toMatchObject({name:'title (preview, not verified)',style:'preview'})
+    expect(screen.getByText('Preview highlights show matching text. Citations are still being checked.')).toBeVisible()
+    expect(value.links).toEqual([])
+    const link={resultPath:value.path,evidenceAnchorId:anchor.anchor_id,precision:'segment'}
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,snapshotVersion:2},page:{...page,snapshotVersion:2,values:[{...value,links:[link]}]}} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(selection.snapshot().marks?.describe.get('value')).toMatchObject({name:'title',style:'link'})
+    expect(selection.snapshot().marks?.savedLinks).toEqual([{key:'value',link}])
+    expect(screen.queryByText('Preview highlights show matching text. Citations are still being checked.')).toBeNull()
+    // A failed or stopped run never leaves a display-only hint looking like settled evidence.
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'FAILED',snapshotVersion:3},page:{...page,snapshotVersion:3}} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(selection.snapshot().marks?.savedLinks).toEqual([])
+  } finally {vi.useRealTimers()}
+})
+
+it('keeps discovered record starts on the source while their values are still being read',async()=>{
+  const empty={snapshotVersion:0,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:0,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:1,inFlight:1},
+    records:[{ordinal:0,page:1,segment:'p1_s0'},{ordinal:1,page:2,segment:'p2_s0'}],recordsFinal:true,reading:[0]}
+  vi.mocked(readDurable).mockResolvedValue({state,page:empty} as never)
+  const selection=createSelectionChannel()
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
+  expect(await screen.findByText('Reading records')).toBeVisible()
+  await waitFor(()=>expect(selection.snapshot().marks?.savedLinks?.map(saved=>saved.link.evidenceAnchorId)).toEqual(['a_p1_s0','a_p2_s0']))
+  expect(selection.snapshot().marks!.describe.size).toBe(0)
+})
+
 it('lists the records found so far, with no total, while a pipelined run reads them and discovery still looks',async()=>{
   const value={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
     node:{id:'title',name:'title',type:'string'},modelValue:'Early title',evidence:[],links:[],grounding:'provisional',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
@@ -221,7 +268,7 @@ it('shows requested and effective methods with their producing selections, and n
   vi.mocked(readDurableHistory).mockResolvedValue(history as never)
   vi.mocked(durableRequest).mockResolvedValue([])
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   expect(await screen.findByText(/model served-second · schema changed/)).toBeVisible()
   expect(screen.getByText(/model not recorded yet · schema changed/)).toBeVisible()
   expect(screen.getByRole('region',{name:'Inputs'})).not.toHaveTextContent(/schema-|resolved-/)
@@ -260,7 +307,7 @@ it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
   vi.mocked(durableRequest).mockImplementation(async(_url,body)=>body?{revision:1}:page)
   const view=render(<><button>Outside</button><div data-testid="results"><Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/></div></>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   const approve=screen.getByRole('button',{name:'Approve and next'})
   fireEvent.keyDown(screen.getByRole('button',{name:'Outside'}),{key:'a'})
   fireEvent.keyDown(approve,{key:'a',repeat:true})
@@ -282,7 +329,7 @@ it('cancels editing before leaving one-by-one and restores heading keyboard focu
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   const heading=screen.getByRole('heading',{name:'First title'})
   expect(heading).toHaveFocus()
   fireEvent.keyDown(heading,{key:'e'})
@@ -310,7 +357,7 @@ it.each(['More result actions','Run details'])('gives %s keyboard ownership befo
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   const overlay=screen.getByRole('button',{name});overlay.focus();fireEvent.click(overlay)
   expect(overlay).toHaveAttribute('aria-expanded','true')
   const target=name==='More result actions'?screen.getByRole('menuitem',{name:'Export…'}):overlay
@@ -336,7 +383,7 @@ it('keeps menu Escape available while a correction save is pending and suspends 
   vi.mocked(durableRequest).mockReturnValue(new Promise(()=>{}))
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   fireEvent.keyDown(screen.getByRole('heading',{name:'Saved title'}),{key:'a'})
   await screen.findByText('Saving your decision…')
   fireEvent.keyDown(screen.getByRole('heading',{name:'Saved title'}),{key:'r'})
@@ -359,8 +406,8 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   const onEvidence=vi.fn(),replacement=vi.fn(),selection=createSelectionChannel()
   const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document:decodeParsedDocument(rawDocument),currentSchema:null,selection}
   const view=render(<Results {...props} onEvidence={onEvidence}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,expect.objectContaining({precision:'segment'}))
   expect(new Set(selection.snapshot().marks!.describe.keys())).toEqual(new Set(['value','other']))
   view.rerender(<Results {...props} onEvidence={replacement}/>)
   expect(replacement).not.toHaveBeenCalled()
@@ -370,7 +417,7 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   expect(replacement).not.toHaveBeenCalled()
   expect(screen.queryByRole('button',{name:'Leave one-by-one review, back to the list'})).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button',{name:/To check title First title/}))
-  expect(replacement).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
+  expect(replacement).toHaveBeenCalledExactlyOnceWith('anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it('starts no read of the latest values while the rail is collapsed, and catches up once it opens',async()=>{
@@ -410,8 +457,8 @@ it('follows nothing on the document while the rail is collapsed, and the one-by-
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document,currentSchema:null,onEvidence,selection}
   const view=render(<Results {...props}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(first,undefined,'segment')
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(first,undefined,expect.objectContaining({precision:'segment'}))
   expect(selection.snapshot().dim).toEqual(value.links[0])
   view.rerender(<Results {...props} railOpen={false}/>)
   expect(selection.snapshot().dim).toBeNull()
@@ -422,7 +469,7 @@ it('follows nothing on the document while the rail is collapsed, and the one-by-
   expect(selection.snapshot().dim).toBeNull()
   view.rerender(<Results {...props}/>)
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith(second,undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith(second,undefined,expect.objectContaining({precision:'segment'}))
   expect(selection.snapshot().dim).toEqual(next.links[0])
 })
 
@@ -438,12 +485,78 @@ it('defers native Evidence navigation until its pinned source arrives and follow
   const onEvidence=vi.fn(),replacement=vi.fn(),props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,
     document,documentRevisionId:'newer',currentSchema:null}
   const view=render(<Results {...props} onEvidence={onEvidence}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   expect(onEvidence).not.toHaveBeenCalled()
   await act(async()=>source.resolve({sourceRevisionId:'pinned',document,markdown:'# Saved source'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(anchor,undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(anchor,undefined,expect.objectContaining({precision:'segment'}))
   view.rerender(<Results {...props} onEvidence={replacement}/>)
   expect(replacement).not.toHaveBeenCalled()
+})
+
+it('names an older snapshot in the status line and marks only the shown cut in History',async()=>{
+  const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'one',schemaRevisionId:'schema-one',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page=(snapshotVersion:number,feedbackVersion:number,finalization:{id:string}|null=null)=>({snapshotVersion,feedbackVersion,finalization,
+    reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},status:'COMPLETED',values:[base],total:1,next:null,coverage:{}}) as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,
+    snapshotVersion:2,selection:{id:'one',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page:page(2,3)} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],snapshots:[{id:'one',version:1,valueCount:1},{id:'two',version:2,valueCount:1}],
+    finalizations:[{id:'final',snapshotVersion:1,feedbackVersion:1,createdAt:'2026-10-05T00:00:00.000Z'}]} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page(2,3))
+  vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?page(1,Number(query.feedbackVersion??3),query.feedbackVersion===1?{id:'final'}:null):page(2,3))
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
+  openDetails(await screen.findByText('This extraction'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
+  expect((await screen.findAllByText(/· Results 1 of 2$/))[0]).toBeVisible()
+  const intermediate=()=>screen.getByRole('button',{name:'Open results 1'}).closest('li')!
+  await waitFor(()=>expect(intermediate()).toHaveAttribute('aria-current','true'))
+  expect(intermediate()).toHaveTextContent('· shown')
+  expect(screen.getByLabelText('Finalized reviews')).not.toHaveTextContent('· shown')
+  fireEvent.click(screen.getByRole('button',{name:'Open finalized review of results 1'}))
+  await waitFor(()=>expect(screen.getByLabelText('Finalized reviews')).toHaveTextContent('· shown'))
+  expect(screen.getByLabelText('Finalized reviews').querySelector('[aria-current]')).not.toBeNull()
+  expect(intermediate()).not.toHaveAttribute('aria-current')
+})
+
+it('says when the shown Extraction is not the document\'s latest, and opens the latest',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'one',schemaRevisionId:'schema-one',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,finalization:null,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},
+    status:'COMPLETED',values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,
+    snapshotVersion:1,selection:{id:'one',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page)
+  vi.mocked(readValues).mockResolvedValue(page)
+  const onOpenLatest=vi.fn()
+  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null,createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}} readOnly onOpenLatest={onOpenLatest}/>)
+  expect((await screen.findAllByText(/· Extraction .+ · not the latest$/))[0]).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:'Open latest'}))
+  expect(onOpenLatest).toHaveBeenCalledOnce()
+  view.rerender(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null,createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  expect(screen.queryByText(/not the latest/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:'Open latest'})).not.toBeInTheDocument()
+})
+
+it('opens an open value\'s history from its review, read-only too, and offers none without one',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'one',schemaRevisionId:'schema-one',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,finalization:null,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},
+    status:'COMPLETED',values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{extractionId:'extraction',projectId:'project',status:'COMPLETED',controlVersion:1,
+    snapshotVersion:1,selection:{id:'one',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page)
+  vi.mocked(readValues).mockResolvedValue(page)
+  const onValueHistory=vi.fn()
+  const attempt={extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt
+  const view=render(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly onValueHistory={onValueHistory}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
+  fireEvent.click(screen.getByRole('button',{name:'History of this value'}))
+  expect(onValueHistory).toHaveBeenCalledExactlyOnceWith('extraction','value','title')
+  view.rerender(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
+  expect(screen.queryByRole('button',{name:'History of this value'})).not.toBeInTheDocument()
 })
 
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
@@ -458,7 +571,7 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?oldPage:newPage)
   const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   await screen.findByText('Original title')
   fireEvent.click(screen.getByRole('button',{name:/To check title/}))
@@ -540,7 +653,8 @@ it('keeps saying an opened cut could not be read once the latest state arrives',
   expect(readValues).toHaveBeenCalledOnce()
 })
 
-it('keeps the producing call guidance and budget omissions inspectable after exclusion',async()=>{
+// Skipped while ProjectFeedback ("Corrections the model learns from") is hidden in DurableResults; restore with it.
+it.skip('keeps the producing call guidance and budget omissions inspectable after exclusion',async()=>{
   const page={snapshotVersion:1,feedbackVersion:2,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const row={id:'consumed',extractionId:'extraction',sourceDocumentId:'source',valueId:'value',snapshotVersion:1,feedbackVersion:2,revision:2,
     included:true,active:true,selectionId:'selection',targetCompatibility:'compatible',candidate:{value:'Captured example',sourceContext:'own-source',grounded:false},decision:{action:'EDITED'}}
@@ -553,7 +667,7 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
     request:{examples:[{id:'consumed',value:'Captured example'}],omissions:[{id:'oversized',reason:'budget'}],budget:{counted:200,context:256,reserve:56}},
   }]} as never)
   const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   openDetails(await screen.findByText('Technical details (for audit)'))
   const call=(await screen.findByText('Call · article · input selection 1 · decisions 1')).closest('details')!
   call.open=true;fireEvent(call,new Event('toggle'))
@@ -570,7 +684,8 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
 })
 
 
-it('warns in Results when pending inputs leave a saved correction unfit, and opens History',async()=>{
+// Skipped while ProjectFeedback ("Corrections the model learns from") is hidden in DurableResults; restore with it.
+it.skip('warns in Results when pending inputs leave a saved correction unfit, and opens History',async()=>{
   const page={snapshotVersion:1,feedbackVersion:1,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const row={id:'unfit',extractionId:'extraction',sourceDocumentId:'source',valueId:'value',snapshotVersion:1,feedbackVersion:1,revision:1,
     included:true,active:true,selectionId:'selection',targetCompatibility:'incompatible',candidate:{value:'Saved',sourceContext:'source',grounded:false,node:{name:'title'}},decision:{action:'EDITED'}}
@@ -621,7 +736,7 @@ it('keeps the last explicitly selected snapshot when an older selection finishes
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?new Promise(resolve=>{finishOld=resolve}):latest)
   render(<Results attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
     currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   fireEvent.click(screen.getByRole('button',{name:'Open results 2'}))
   await act(async()=>finishOld({...latest,snapshotVersion:1,values:[{...latest.values[0],modelValue:'Old version'}]}))
@@ -683,7 +798,7 @@ it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachabl
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
   fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
-  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 to check/})).toBeVisible()
   expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
   expect(screen.getByRole('region',{name:'Review title'})).toBeVisible()
@@ -720,7 +835,7 @@ it('offers the unchecked list after saving and undoing an edit, then cancelling 
   fireEvent.click(screen.getByRole('button',{name:'Save edit'}))
   expect(screen.getByRole('alert')).toHaveTextContent('The value does not fit its producing field.')
   fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
-  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 approved, 0 edited, 0 rejected, 1 to check/})).toBeVisible()
   expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
   expect(screen.getByRole('region',{name:'Review samples'})).toBeVisible()
@@ -828,7 +943,7 @@ it('moves to the next value once a decision is saved, and a late read never repl
   const selection=createSelectionChannel()
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={parsedDocument} currentSchema={null}
     onEvidence={()=>{}} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   fireEvent.keyDown(screen.getByRole('heading',{name:'First title'}),{key:'a'})
   expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
   act(()=>{selection.select('c',false,'extraction')})
@@ -873,7 +988,7 @@ it('keeps a cut the researcher opens while the review is being saved',async()=> 
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}
     onReviewFinalized={onReviewFinalized} historySlot={historySlot()} historyShown/>)
   fireEvent.click(await screen.findByRole('button',{name:'Save review'}))
-  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
   const reads=vi.mocked(readDurable).mock.calls.length
@@ -988,6 +1103,101 @@ it('changes a chosen reading only through Undo, which returns the value to To ch
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/title',expect.objectContaining({action:'PENDING',expectedRevision:1})))
 })
 
+/** `skelet = {art, dele: [{nr, note}]}`, its art and its first note linked. */
+const skeletArt={evidenceAnchorId:'a_p1_s0',resultPath:['records',0,'skelet','art'],precision:'segment'}
+const skeletNote={evidenceAnchorId:'a_p1_s2_r1_c1',resultPath:['records',0,'skelet','dele',0,'note'],precision:'cell'}
+const openSkelet=async(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],readOnly=false)=> {
+  const node={id:'skelet',name:'skelet',type:'object',children:[{id:'art',name:'art',type:'string'},
+    {id:'dele',name:'dele',type:'array',children:[{id:'nr',name:'nr',type:'string'},{id:'note',name:'note',type:'string'}]}]}
+  const value={id:'v1',recordId:'document',fieldId:'skelet',path:['records',0,'skelet'],selectionId:'original',schemaRevisionId:'schema',node,
+    modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},evidence:[],links,grounding:'grounded',processing:'saved',lineage:[],correction,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  const onEvidence=vi.fn(),selection=createSelectionChannel()
+  selection.select('v1',true,'extraction')
+  render(<Results attempt={article} document={null} currentSchema={null} selection={selection} onEvidence={onEvidence} readOnly={readOnly}/>)
+  await screen.findByRole('region',{name:'Review skelet'})
+  return {onEvidence,marks:()=>selection.snapshot().marks!,selection}
+}
+
+it('picks a part of a composite value: its mark, its Evidence, and back to the whole value',async()=>{
+  const {onEvidence,marks,selection}=await openSkelet()
+  expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s0',undefined,skeletArt)
+  // Each linked part is its own mark; the open value outlines them all.
+  const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
+  expect(marks().describe.get(tooth)).toMatchObject({name:'skelet › dele › #1 › note',value:'Tooth',anchorId:'a_p1_s2_r1_c1',precision:'cell'})
+  expect(marks().selected).toBe('v1')
+  const note=()=>screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
+  fireEvent.click(note())
+  expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s2_r1_c1',undefined,skeletNote)
+  expect(note()).toHaveAttribute('aria-pressed','true')
+  expect(marks().selected).toBe(tooth)
+  // A part with no link shows none; picking the chosen part again chooses the whole value.
+  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1'})).toHaveAttribute('title','No Evidence linked')
+  fireEvent.click(note())
+  expect(marks().selected).toBe('v1')
+  // A part's mark selects its value and that part.
+  act(()=>{selection.select(tooth,false,'extraction')})
+  await waitFor(()=>expect(note()).toHaveAttribute('aria-pressed','true'))
+  expect(marks().selected).toBe(tooth)
+})
+
+it('lets a part be picked in a saved review',async()=>{
+  const {marks}=await openSkelet(null,undefined,true)
+  const note=screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
+  expect(note).toBeEnabled()
+  fireEvent.click(note)
+  expect(marks().selected).toBe(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key)
+})
+
+it('lets a part be picked while a decision saves; the decisions and moves wait',async()=>{
+  const {marks}=await openSkelet()
+  vi.mocked(durableRequest).mockReturnValue(new Promise(()=>{}))
+  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  await screen.findByText('Saving your decision…')
+  const note=screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
+  expect(note).toBeEnabled()
+  fireEvent.click(note)
+  expect(note).toHaveAttribute('aria-pressed','true')
+  expect(marks().selected).toBe(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key)
+  expect(screen.getByRole('button',{name:/Approve and next/})).toBeDisabled()
+  expect(screen.getByRole('button',{name:/Previous/})).toBeDisabled()
+  expect(screen.getByRole('button',{name:/skelet, to check/})).toBeDisabled()
+})
+
+it('styles each part\'s mark by its own link, not by the whole value\'s',async()=>{
+  const ruleArt={...skeletArt,linkedBy:'lexical'},doubtfulNote={...skeletNote,verbatim:false}
+  const {marks}=await openSkelet(null,[ruleArt,doubtfulNote])
+  const key=(link:unknown)=>marks().savedLinks!.find(saved=>saved.link===link)!.key
+  expect(marks().describe.get('v1')!.style).toBe('rule')
+  expect(marks().describe.get(key(ruleArt))!.style).toBe('rule')
+  expect(marks().describe.get(key(doubtfulNote))!.style).toBe('doubtful')
+})
+
+it('keys a value\'s correction Evidence as its own mark, named by the value and lit with it',async()=>{
+  const {marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Human',dele:[]},included:true,evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
+  const own=marks().savedLinks!.find(saved=>saved.occurrenceIds)!
+  expect(own.key).toBe('v1#correction')
+  expect(marks().describe.get(own.key)).toMatchObject({name:'skelet',anchorId:'a_p1_s1'})
+  expect(ownsMark(marks().selected!,own.key)).toBe(true)
+})
+
+it('offers an edited value\'s parts to pick, linked only where the model read the same; its correction Evidence lights with a part',async()=>{
+  const {onEvidence,marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Animal',dele:[{nr:'1',note:'Tooth'}]},included:true,
+    evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
+  // The edited art has no link; its model link stays the whole value's mark.
+  expect(screen.getByRole('button',{name:'skelet › art: Animal'})).toHaveAttribute('title','No Evidence linked')
+  expect(marks().savedLinks!.find(saved=>saved.link===skeletArt)!.key).toBe('v1')
+  const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
+  expect(tooth).not.toBe('v1')
+  fireEvent.click(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'}))
+  expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s2_r1_c1',undefined,skeletNote)
+  expect(marks().selected).toBe(tooth)
+  expect(ownsMark(tooth,'v1#correction')&&marks().savedLinks!.some(saved=>saved.key==='v1#correction')).toBe(true)
+})
+
 /** a and b link to their own anchors; c has only its correction's Evidence. */
 const linkedPage=()=>{
   const page=reviewPage(),link=(id:string)=>[{evidenceAnchorId:`${id}-anchor`,resultPath:['records',0,id],precision:'segment'}]
@@ -1006,7 +1216,7 @@ it('takes a value link once its values are read, never again across a re-key, an
   expect(selection.snapshot().request).toBeNull()
   // Another cut of the same Extraction opens nothing: the link was taken.
   view.rerender(<Results key="cut" attempt={article} document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
-  await screen.findByRole('button',{name:'One by one'})
+  await screen.findByRole('button',{name:'Review one by one'})
   expect(screen.queryByRole('region',{name:'Review b'})).toBeNull()
   act(()=>{selection.select('a',true,'other')})
   expect(screen.queryByRole('region',{name:'Review a'})).toBeNull()
@@ -1029,16 +1239,16 @@ it('scrolls once per value link in one-by-one: the follow for another linked val
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:linkedPage()} as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('a-anchor',undefined,'segment')
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('a-anchor',undefined,expect.objectContaining({precision:'segment'}))
   onEvidence.mockClear()
   act(()=>{selection.select('b',true,'extraction')})
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // Nothing the follow follows changes, so choose scrolls.
   act(()=>{selection.select('b',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // The follow follows model links only.
   act(()=>{selection.select('c',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(3)
@@ -1052,12 +1262,12 @@ it('scrolls a value link in one-by-one once, when the pinned source it waits for
   vi.mocked(durableRequest).mockReturnValue(source.promise as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={document} documentRevisionId="newer" currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   act(()=>{selection.select('b',true,'extraction')})
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   expect(onEvidence).not.toHaveBeenCalled()
   await act(async()=>source.resolve({sourceRevisionId:'pinned',document,markdown:'# Saved source'}))
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it('reads a value its page lacks on its own, and one-by-one follows it once it arrives',async()=>{
@@ -1067,7 +1277,7 @@ it('reads a value its page lacks on its own, and one-by-one follows it once it a
   vi.mocked(durableRequest).mockReturnValue(lookup.promise as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   onEvidence.mockClear()
   act(()=>{selection.select('z',true,'extraction')})
   expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/z?snapshotVersion=1&feedbackVersion=0')
@@ -1075,12 +1285,12 @@ it('reads a value its page lacks on its own, and one-by-one follows it once it a
   const z={...reviewValue('z','Off-page title'),links:[{evidenceAnchorId:'z-anchor',resultPath:['records',0,'z'],precision:'segment'}]}
   await act(async()=>lookup.resolve({...page,values:[z]}))
   expect(screen.getByRole('heading',{name:'Off-page title'})).toBeVisible()
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('z-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('z-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // The same link again: the open review holds the value, so choose scrolls to it once.
   act(()=>{selection.select('z',true,'extraction')})
   await act(async()=>{})
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith('z-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith('z-anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it('holds a value link that arrives while the rail is collapsed, and scrolls to it once on expand',async()=>{
@@ -1088,7 +1298,7 @@ it('holds a value link that arrives while the rail is collapsed, and scrolls to 
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   const props={attempt:article,document:decodeParsedDocument(rawDocument),currentSchema:null,onEvidence,selection}
   const view=render(<Results {...props}/>)
-  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   onEvidence.mockClear()
   view.rerender(<Results {...props} railOpen={false}/>)
   act(()=>{selection.select('b',true,'extraction')})
@@ -1097,7 +1307,7 @@ it('holds a value link that arrives while the rail is collapsed, and scrolls to 
   view.rerender(<Results {...props}/>)
   // One scroll, to the value asked for: none back to the one shown before.
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
-  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   // In the list, expanding chooses the value, as a click does.
   fireEvent.click(screen.getByRole('button',{name:'Leave one-by-one review, back to the list'}))
   view.rerender(<Results {...props} railOpen={false}/>)
@@ -1105,7 +1315,7 @@ it('holds a value link that arrives while the rail is collapsed, and scrolls to 
   expect(onEvidence).toHaveBeenCalledOnce()
   view.rerender(<Results {...props}/>)
   expect(onEvidence).toHaveBeenCalledTimes(2)
-  expect(onEvidence).toHaveBeenLastCalledWith('a-anchor',undefined,'segment')
+  expect(onEvidence).toHaveBeenLastCalledWith('a-anchor',undefined,expect.objectContaining({precision:'segment'}))
 })
 
 it.each(['on','off'] as const)('takes a pending value link %s its page once under StrictMode when the values are already read',async(where)=>{
@@ -1120,7 +1330,7 @@ it.each(['on','off'] as const)('takes a pending value link %s its page once unde
   selection.select(where==='on'?'b':'z',true,'extraction')
   render(<StrictMode><DurableResults reader={reader} attempt={article} document={null} currentSchema={null} onEvidence={onEvidence} selection={selection}/></StrictMode>)
   expect(await screen.findByRole('region',{name:where==='on'?'Review b':'Review z'})).toBeVisible()
-  if(where==='on')expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,'segment')
+  if(where==='on')expect(onEvidence).toHaveBeenCalledExactlyOnceWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
   else expect(durableRequest).toHaveBeenCalledOnce()
   release();reader.dispose()
 })
@@ -1130,7 +1340,7 @@ it('publishes its marks with its Extraction, and clears them and the dim when it
   const selection=createSelectionChannel()
   const view=render(<Results attempt={article} document={decodeParsedDocument(rawDocument)} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
   await waitFor(()=>expect(selection.snapshot().marks?.extractionId).toBe('extraction'))
-  fireEvent.click(screen.getByRole('button',{name:'One by one'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(selection.snapshot().dim).toMatchObject({evidenceAnchorId:'a-anchor'})
   view.unmount()
   expect(selection.snapshot()).toMatchObject({marks:null,dim:null})

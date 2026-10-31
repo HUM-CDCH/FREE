@@ -71,13 +71,14 @@ describe('usePilotRoundProgress', () => {
     ]))
     rerender({ revision: 1 })
     await waitFor(() => expect(result.current?.reviewed).toBe(1))
+    expect(result.current?.currentReviewed).toBe(true)
     expect(getBatchExtraction).toHaveBeenCalledTimes(2)
     expect(result.current?.nextMember?.sourceDocumentId).toBe(DOC_B)
   })
   it('counts a paused member\'s finalized review and opens a paused member with saved values next', async () => {
     getBatchExtraction.mockResolvedValueOnce(batch([member(DOC_A, 'reviewed', 'PAUSED'), member(DOC_B, 'open', 'PAUSED')]))
     const { result } = renderHook(() => usePilotRoundProgress(PROJECT, BATCH, DOC_A))
-    await waitFor(() => expect(result.current).toEqual({ reviewed: 1, total: 2, nextMember: { sourceDocumentId: DOC_B, extractionId: `${DOC_B}-extraction` } }))
+    await waitFor(() => expect(result.current).toEqual({ reviewed: 1, total: 2, currentReviewed: true, nextMember: { sourceDocumentId: DOC_B, extractionId: `${DOC_B}-extraction` } }))
   })
   it('reports null before a projectContextId/batchExtractionId pair is available', () => {
     const { result } = renderHook(() => usePilotRoundProgress(null, null, null))
@@ -100,6 +101,7 @@ describe('usePilotRoundProgress', () => {
     expect(result.current).toEqual({
       reviewed: 1,
       total: 3,
+      currentReviewed: true,
       nextMember: { sourceDocumentId: DOC_B, extractionId: `${DOC_B}-extraction` },
     })
   })
@@ -133,7 +135,7 @@ describe('usePilotRoundProgress', () => {
       usePilotRoundProgress(PROJECT, BATCH, DOC_A),
     )
     await waitFor(() => expect(result.current).not.toBeNull())
-    expect(result.current).toEqual({ reviewed: 2, total: 2, nextMember: null })
+    expect(result.current).toEqual({ reviewed: 2, total: 2, currentReviewed: true, nextMember: null })
   })
 
   it('skips a member with no Extraction yet when picking the next one', async () => {

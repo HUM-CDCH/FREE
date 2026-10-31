@@ -4,6 +4,7 @@ import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
+import PilotReviewGuide from './PilotReviewGuide'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
 import { usePilotRoundProgress } from './usePilotRoundProgress'
@@ -233,6 +234,8 @@ export default function AppFrame({
         persistedExtraction: openDocument.latestAttempt,
         routeExtractionId: route.kind==='document'?route.extractionId:undefined,
         latestReviewedExtraction: openDocument.latestReviewed,
+        newestExtraction: openDocument.newestAttempt ?? null,
+        sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
         persistedReviewCut: route.kind === 'document' && route.extractionId === openDocument.latestAttempt?.extractionId
           ? route.reviewCut ?? null
           : null,
@@ -572,30 +575,36 @@ export default function AppFrame({
                     })
                 : undefined
             }
-            pilotRoundProgress={
-              pilotRoundProgress && backToBatchExtractionId
-                ? {
-                    reviewed: pilotRoundProgress.reviewed,
-                    total: pilotRoundProgress.total,
-                    onNext: pilotRoundProgress.nextMember
-                      ? () =>
-                          onNavigate({
-                            kind: 'document',
-                            projectContextId: routedProjectContextId,
-                            sourceDocumentId:
-                              pilotRoundProgress.nextMember!.sourceDocumentId,
-                            extractionId:
-                              pilotRoundProgress.nextMember!.extractionId,
-                            fromBatchExtractionId:
-                              backToBatchExtractionId,
-                          })
-                      : undefined,
-                  }
-                : undefined
-            }
             slotRef={setTabBarSlot}
             ringSlotRef={setTabRingSlot}
             navigationToggle={narrowNavToggle}
+          />
+        )}
+        {pilotRoundProgress && backToBatchExtractionId && route.kind === 'document' && (
+          <PilotReviewGuide
+            reviewed={pilotRoundProgress.reviewed}
+            total={pilotRoundProgress.total}
+            currentReviewed={pilotRoundProgress.currentReviewed}
+            onNext={
+              pilotRoundProgress.nextMember
+                ? () =>
+                    onNavigate({
+                      kind: 'document',
+                      projectContextId: route.projectContextId,
+                      sourceDocumentId: pilotRoundProgress.nextMember!.sourceDocumentId,
+                      extractionId: pilotRoundProgress.nextMember!.extractionId,
+                      fromBatchExtractionId: backToBatchExtractionId,
+                    })
+                : undefined
+            }
+            onBackToBatch={() =>
+              onNavigate({
+                kind: 'project',
+                projectContextId: route.projectContextId,
+                tab: 'extractions',
+                batchExtractionId: backToBatchExtractionId,
+              })
+            }
           />
         )}
         <section

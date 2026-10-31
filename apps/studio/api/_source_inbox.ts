@@ -92,6 +92,16 @@ export async function readStagedSource(root: string, relative: string): Promise<
   return new Uint8Array(await readFile(inside(root, relative)))
 }
 
+/** Whether `relative` is still staged: a failed upload's retained PDF, which Retry admits again. */
+export async function stagedSourceExists(root: string, relative: string): Promise<boolean> {
+  try {
+    return (await lstat(inside(root, relative))).isFile()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
+
 export async function removeStagedSource(root: string, relative: string): Promise<void> {
   await rm(inside(root, relative), { force: true })
 }

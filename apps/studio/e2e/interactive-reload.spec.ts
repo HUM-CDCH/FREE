@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { loginResearcher } from './auth.js'
+import { e2eStudioPath, loginResearcher } from './auth.js'
 import { prepareInteractiveDocument, type InteractiveDocument } from './interactiveStack.js'
+import { schemaRevisionResponseSchema } from '../shared/schemaRevision.contract.js'
 
 // One DBOS-backed Studio, one scripted model per test: the specs share the worker's database and run one at a time.
 test.describe.configure({ mode: 'serial' })
@@ -10,7 +11,7 @@ const extractionDatabaseReady = () =>
 
 const TEMPLATE = '{"_description":"One catalogue entry.","heading":"string","year_of_record":"integer"}'
 // Every field is named, so the edit workflow's bounded repair (a second model call) has nothing to ask for.
-const RENAME_TITLE = '{"fields":{"title":{"name":"heading","type":"string","removed":false},"year":{"name":"year","type":"integer","removed":false}},"additions":[]}'
+const RENAME_TITLE = '{"_description":"One interactive record.","heading":"string","year":"integer"}'
 const STILL_WORKING = (instruction: string) => `Still working on an earlier request: “${instruction}”`
 
 let stack: InteractiveDocument | undefined
@@ -51,6 +52,56 @@ async function describeRecord(page: Page, text: string) {
 }
 
 const revisionCount = () => stack!.schemaRevisions().then((revisions) => revisions.length)
+
+test('a scalar note edited through schema chat is reviewed, saved and retained after reload @deterministic', async ({ page }) => {
+  test.setTimeout(120_000)
+  stack = await prepareInteractiveDocument(page, { hasKey: false })
+  await stack.open()
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  const oldNote = 'Copy the short title.'
+  const newNote = 'Copy the complete heading exactly as written.'
+
+  await title.hover()
+  await title.getByRole('button', { name: 'Add note to title', exact: true }).click()
+  const noteInput = page.getByPlaceholder('Describe this field for the extraction model…')
+  await noteInput.fill(oldNote)
+  await noteInput.press('Enter')
+  await page.getByPlaceholder('Add another note…').press('Escape')
+  await expect(title.getByText(oldNote, { exact: true })).toBeVisible()
+  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
+  stack.model.reply({ text: JSON.stringify({
+    template: { _description: 'One interactive record.', title: 'string', year: 'integer' },
+    fieldDescriptions: [{ path: ['title'], description: newNote }],
+  }) })
+
+  await requestEdit(page, 'Change the title note to: ' + newNote)
+  const apply = page.getByRole('button', { name: 'Apply changes' })
+  await expect(apply).toBeEnabled({ timeout: 20_000 })
+  await expect(title.getByLabel('Previous note')).toHaveText(oldNote)
+  await expect(title.getByLabel('Proposed note')).toHaveText(newNote)
+  expect(await revisionCount()).toBe(2)
+  await apply.click()
+  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
+
+  const revisions = await stack.schemaRevisions()
+  const saved = revisions.at(-1)!
+  const response = await page.request.get(e2eStudioPath(
+    `/api/schema-revisions/${saved.schemaRevisionId}?projectContextId=${stack.projectContextId}&extractionSchemaId=${stack.extractionSchemaId}`,
+  ))
+  expect(response.ok()).toBe(true)
+  expect(schemaRevisionResponseSchema.parse(await response.json()).revision).toMatchObject({
+    schemaRevisionId: saved.schemaRevisionId, revisionNumber: 3,
+    recordDescription: 'One interactive record.', recordScope: 'document',
+    schemaNodes: [{ id: 'title', name: 'title', type: 'string', description: newNote }, { id: 'year', name: 'year', type: 'integer' }],
+  })
+
+  await page.reload()
+  await expect(title.getByText(newNote, { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(title.getByText(oldNote, { exact: true })).toHaveCount(0)
+  await expect(apply).toHaveCount(0)
+  expect(await stack.schemaRevisions()).toEqual(revisions)
+  expect(stack.model.calls()).toHaveLength(1)
+})
 
 test('a reload mid-suggestSchema finds the running generation and saves it onto its base @deterministic', async ({ page }) => {
   test.setTimeout(120_000)

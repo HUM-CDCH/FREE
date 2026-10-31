@@ -10,7 +10,7 @@ import {
   DEVELOPMENT_ENTRA_TENANT_ID,
 } from '../server/entraIdentityProvider.js'
 
-const e2ePort = Number(process.env.FREE_PLAYWRIGHT_PORT ?? 41749)
+const e2ePort = Number(process.env.FREE_PLAYWRIGHT_PORT ?? 30749)
 export const E2E_ORIGIN = `http://localhost:${e2ePort}`
 export const E2E_BASE_PATH = process.env.FREE_PLAYWRIGHT_BASE_PATH ?? '/'
 export const SECOND_E2E_ENTRA_OBJECT_ID =

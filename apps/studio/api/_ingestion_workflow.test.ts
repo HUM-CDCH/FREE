@@ -10,7 +10,7 @@ import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { keiReadApi } from '../test/support/keiReadApi.js'
 import { stageSource, uploadSourcePath } from './_source_inbox.js'
 import {
-  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId,
+  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId, RETAIN_FAILED_SOURCE,
   type IngestionInput, type IngestionStore, type IngestionWorkflowPorts,
 } from './_ingestion_workflow.js'
 
@@ -187,6 +187,30 @@ describe('ingestSource', () => {
       ok: false, status: 504, code: 'source_ingestion_timeout', message: 'Source Document parsing did not finish within its time limit.',
     })
     expect(late.packageStore.save).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([])
+  })
+
+  it('past the retention patch, a failed attempt keeps its staged file for Retry and a success still removes it', async () => {
+    const patched = vi.fn(async (name: string) => name === RETAIN_FAILED_SOURCE)
+    const failed = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
+    await expect(ingestSourceWorkflow(input(), { ...failed.ports, patched })).resolves.toMatchObject({ ok: false, status: 504 })
+    expect(patched).toHaveBeenCalledWith(RETAIN_FAILED_SOURCE)
+    expect(failed.names).not.toContain('removeStagedSource')
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
+
+    patched.mockClear()
+    const published = harness()
+    await expect(ingestSourceWorkflow(input(), { ...published.ports, patched })).resolves.toMatchObject({ ok: true })
+    // A success never reaches the marker: its history is the one a run before the patch wrote.
+    expect(patched).not.toHaveBeenCalled()
+    expect(published.names.at(-1)).toBe('removeStagedSource')
+    expect(await staged()).toEqual([])
+  })
+
+  it('a failure replayed from before the patch still removes its staged file', async () => {
+    const failed = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
+    await ingestSourceWorkflow(input(), { ...failed.ports, patched: async () => false })
+    expect(failed.names.at(-1)).toBe('removeStagedSource')
     expect(await staged()).toEqual([])
   })
 

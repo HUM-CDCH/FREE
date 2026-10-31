@@ -147,7 +147,15 @@ transaction, or none of them. The Parsing Service's worker runs each attempt
 calls only the deployment's extraction models; Model Connections, Capability
 Routes and researchers' keys never reach it. An Extraction has no overall
 deadline; each chat model call times out after waiting `KEI_EXTRACT_TIMEOUT`
-seconds for its reply, or for the next piece of a streamed discovery reply.
+seconds for its reply, or for the next piece of a streamed discovery or NuExtract entry reply.
+
+A deployment may select the Codex CLI ([ADR 0021](adr/0021-deployment-owned-codex-extraction.md)) for both extraction roles using its own operator login, with no researcher
+key or Model Connection entering the worker. It uses the same admission, captures, checkpoints, evidence and
+review path. Codex calls are ephemeral and tool-free; compaction fails the call. Since Codex exposes usage only
+after inference, its versioned conservative byte-budget policy is explicitly recorded instead of claiming exact
+preflight tokenization. Returned input and output usage must fit the saved reservations before values are accepted;
+the output reserve is verified after inference, not a provider-enforced generation cap. vLLM keeps exact preflight
+counts and the existing mismatch refusal.
 
 Admission pins the method a start submits: what a batch start view showed, or
 the saved method single Run reads after saving the schema
@@ -165,7 +173,11 @@ result that is not exactly one record.
 
 Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry
-continues a failed Extraction with its saved work. Pause and Stop are refused
+continues a failed Extraction with its saved work and may repeat the same model
+failure. After failure, Change inputs can save and apply an available instruction
+model for fields before Resume: it handles remaining work and re-reads provisional
+records while saved values, Evidence and producing inputs remain historical. A
+different model does not guarantee complete lists. Pause and Stop are refused
 once an Extraction is complete. Revised inputs are saved as a separate
 selection and adopted only at a drained boundary. Studio offers no Resume
 while an Extraction is pausing; a Resume an API client sends meanwhile runs

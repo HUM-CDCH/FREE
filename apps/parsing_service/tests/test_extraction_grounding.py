@@ -4,11 +4,13 @@ import json
 import pytest
 
 from kei_exp.kie.extract import grounding, run
+from kei_exp.kie.extract.assembly import ground_records, grounding_accounting
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Link
 from kei_exp.kie.passages import Passage
 from tests.helpers.chat import FakeChat
+from tests.test_article_grounding_negative import grid, offered_cells
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -168,3 +170,112 @@ def test_a_nested_claim_split_from_its_records_name_is_verified_with_the_record(
     assert "C1" not in ada_year and '"name": "Ada"' in ada_year and "Grace" not in ada_year.split("### Evidence")[0]
     assert ada_links == {("records", 0, "name")}, "1843 under Ada's record stays unsupported"
     assert grace_links == {("records", 0, "name"), ("records", 0, "details", "birth_year")}
+
+
+TABLE_ITEMS = Schema(recordDescription="One catalogue entry with a list of finds.", schemaNodes=[
+    {"id": "items", "name": "items", "type": "array", "children": [
+        {"id": "number", "name": "number", "type": "verbatim-string"},
+        {"id": "description", "name": "description", "type": "verbatim-string"},
+        {"id": "notes", "name": "notes", "type": "verbatim-string"}]}])
+
+
+@pytest.mark.parametrize("wrong_row", [False, True])
+def test_generic_catalog_repeated_cells_are_linked_only_in_their_items_row(wrong_row):
+    table = grid([("header", ("number", "description", "notes")),
+                  ("data", ("26-12", "Tand, human", "Niv. 6")),
+                  ("data", ("26-28", "Tand, human", "Niv. 6"))])
+    # Extraction order differs from source order: the item number identifies the row, never the list index.
+    fields = {"items": [{"number": number, "description": "Tand, human", "notes": "Niv. 6"}
+                        for number in ("26-28", "26-12")]}
+    selected = {}
+
+    def script(system, user, schema):
+        labels = {cell: label for label, (cell, _) in offered_cells(user).items()}
+        for claim, cell in zip(schema["properties"],
+                               ("r2_c0", "r1_c1" if wrong_row else "r2_c1",
+                                "r1_c2" if wrong_row else "r2_c2", "r1_c0", "r1_c1", "r1_c2"), strict=True):
+            selected[claim] = labels[cell]
+        return selected
+
+    chat = FakeChat(script)
+    result = ground_records([([table], fields)], TABLE_ITEMS, chat, budget=24_000)
+    linked = {link.path[2:]: link for link in result.links}
+    expected = {("items", item, field): f"r{row}_c{column}"
+                for item, row in enumerate((2, 1)) for column, field in enumerate(("number", "description", "notes"))}
+    if wrong_row:
+        del expected[("items", 0, "description")]
+        del expected[("items", 0, "notes")]
+        assert [(issue.code, issue.path[2:]) for issue in result.issues] == [
+            ("unknown_label", ("items", 0, "description")), ("unknown_label", ("items", 0, "notes"))]
+        # The bad labels are real and offered for the other item in this same request; per-claim validation refuses them.
+        for claim in ("C2", "C3"):
+            assert selected[claim] not in chat.calls[0]["schema"]["properties"][claim]["enum"]
+    else:
+        assert result.issues == []
+    assert {path: link.cell for path, link in linked.items()} == expected
+    assert all(link.precision == "cell" and link.verbatim for link in result.links)
+    assert all(link.hits == 2 for path, link in linked.items() if path[-1] != "number")
+    assert len(chat.calls) == 1
+
+
+def test_generic_catalog_keeps_both_rows_eligible_when_an_item_has_no_distinctive_value():
+    table = grid([("header", ("number", "description", "notes")),
+                  ("data", ("26-12", "Tand, human", "Niv. 6")),
+                  ("data", ("26-28", "Tand, human", "Niv. 6"))])
+    fields = {"items": [{"number": None, "description": "Tand, human", "notes": "Niv. 6"}]}
+
+    def script(system, user, schema):
+        labels = {cell: label for label, (cell, _) in offered_cells(user).items()}
+        for claim, column in (("C1", 1), ("C2", 2)):
+            assert all(labels[f"r{row}_c{column}"] in schema["properties"][claim]["enum"] for row in (1, 2))
+        return {"C1": labels["r2_c1"], "C2": labels["r2_c2"]}
+
+    result = ground_records([([table], fields)], TABLE_ITEMS, FakeChat(script), budget=24_000)
+    assert [link.cell for link in result.links] == ["r2_c1", "r2_c2"]
+    assert all(link.hits == 2 for link in result.links) and result.issues == []
+
+
+def test_generic_catalog_offers_other_rows_for_a_claim_its_items_row_leaves_unsupported():
+    """An item may span rows (a blank-name continuation row): its row locates the precise candidates first, then
+    every row printing the value is offered for what that row leaves unsupported."""
+    schema = Schema(recordDescription="One catalogue entry.", schemaNodes=[
+        {"id": "items", "name": "items", "type": "array", "children": [
+            {"id": "name", "name": "name", "type": "verbatim-string"},
+            {"id": "warm", "name": "warm_value", "type": "verbatim-string"},
+            {"id": "cold", "name": "cold_value", "type": "verbatim-string"}]}])
+    table = grid([("header", ("Name", "Condition", "Value")),
+                  ("data", ("A", "warm", "42")),
+                  ("data", ("", "cold", "42"))])
+    fields = {"items": [{"name": "A", "warm_value": "42", "cold_value": "42"}]}
+    wanted = {"C1": "r1_c0", "C2": "r1_c2", "C3": "r2_c2"}
+    offered = []
+
+    def script(system, user, schema):
+        labels = {cell: label for label, (cell, _) in offered_cells(user).items()}
+        offered.append({claim: schema["properties"][claim]["enum"] for claim in schema["properties"]})
+        return {claim: labels[wanted[claim]] if labels.get(wanted[claim]) in schema["properties"][claim]["enum"]
+                else "NONE" for claim in schema["properties"]}
+
+    result = ground_records([([table], fields)], schema, FakeChat(script), budget=24_000)
+    assert result.issues == [] and len(offered) == 2 and list(offered[1]) == ["C3"]
+    assert {link.path[2:]: link.cell for link in result.links} == {
+        ("items", 0, "name"): "r1_c0", ("items", 0, "warm_value"): "r1_c2", ("items", 0, "cold_value"): "r2_c2"}
+
+
+def test_generic_catalog_fallback_too_large_for_the_budget_leaves_the_claim_not_completed():
+    schema = Schema(recordDescription="One price list.", schemaNodes=[
+        {"id": "items", "name": "items", "type": "array", "children": [
+            {"id": "sku", "name": "sku", "type": "verbatim-string"},
+            {"id": "qty", "name": "pack_size", "type": "verbatim-string"}]}])
+    table = grid([("header", ("Article", "Qty")), *(("data", (f"S{n:04}", "1")) for n in range(150))])
+    chat = FakeChat(lambda system, user, schema: {claim: "NONE" for claim in schema["properties"]})
+    result = ground_records([([table], {"items": [{"sku": "S0007", "pack_size": "1"}]})], schema, chat, budget=24_000)
+    # The sku's fallback fits and is asked; pack_size's (every row prints "1") cannot finish its check.
+    assert result.links == []
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("grounding_exceeds_budget", ("records", 0, "items", 0, "pack_size"))]
+    accounting = grounding_accounting({("records", 0, "items", 0, field) for field in ("sku", "pack_size")},
+                                      set(), result.issues)
+    assert (accounting["supported"], accounting["unsupported"], accounting["not_completed"]) == (0, 1, 1)
+    assert accounting["reasons"] == {"grounding_exceeds_budget": 1}
+    assert [list(call["schema"]["properties"]) for call in chat.calls] == [["C1", "C2"], ["C1"]]

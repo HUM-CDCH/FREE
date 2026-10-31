@@ -144,7 +144,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
-- A PDF with text on every selected nonblank page parses natively; substantial
+- A PDF with text on every selected nonblank page parses natively. For this
+  route decision, a non-whitespace character counts when its box meets the
+  displayed page and its render mode is not 3 (invisible, such as a scan's
+  search layer or a hidden note); clipping-only text (mode 7) still counts. A
+  page holding only directly placed invisible text counts as blank, and a PDF
+  of blank pages takes the scan path; a page without counting text but with any
+  other object, including a form that wraps invisible text, sends the PDF to
+  the scan path. Native parsing still reads invisible text. Substantial
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
   discovery order. A native block whose text keeps an undecodable font glyph's
@@ -152,9 +159,20 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   way: its box is OCR'd as a `text` crop read in the block's place. A table so
   replaced loses its cells. Page-sized scans with a text overlay, mixed
   native/scanned documents and rotated textless artwork take the scan path, cut as
-  [ingest-cuts.md](docs/ingest-cuts.md) describes. A native table with no
+  [ingest-cuts.md](docs/ingest-cuts.md) describes. Large textless images on digital
+  PDFs use artwork OCR; requests for book splitting retain
+  the conservative large-image scan route. A native table with no
   readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
-  and the conversion incomplete.
+  and the conversion incomplete. Surya artwork that repeats identical empty,
+  full-frame figures is interrupted and gets one recovery batch: only looping
+  crops gain 24 pt of real page context. Other crop pixels stay unchanged.
+  Context outside the original artwork is excluded; a text block crossing that
+  boundary or another figure loop refuses publication. Scans and native-text
+  replacement crops keep their existing retry policy. Any Surya input whose
+  full-page generation produced looping or token-capped text and whose final
+  recognition holds no text at all, read before artwork ownership filtering, is
+  incomplete: lost text and a textless input are indistinguishable there. Text
+  lost while other text survives is not detected.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
@@ -171,8 +189,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   retained there, never published beside the run or served by this API. A
   request may name `start_page`, the page the researcher is reading: the unified
   Catalog reads the records nearest it first and Article its bounded value
-  contexts, the admitted source range unchanged. Changing the schema reruns
-  Extraction without rerunning OCR.
+  contexts, the admitted source range unchanged. Each call also asks its model
+  server (when `KEI_PRIORITY_URLS` names it) with a vLLM priority: its page's
+  distance from `start_page` in steps of 8 pages, 0 to 3; a call that reads no
+  one page (discovery, the document's root) 0, and every call of a run without
+  `start_page` (a batch member) 3. Changing the schema reruns Extraction
+  without rerunning OCR.
 - Extraction calls take one of two roles. `fields` reads values off the source
   (document, record and grounded entry calls); `reasoning` decides over labelled
   text (discovery, grounding, arbitration). `GET /api/extraction-models` lists
@@ -214,8 +236,23 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   an entry's calls are captured by where it starts and what it covers, not by
   its number. From `defaults` 4 an entry's reply may use the served context its
   counted input leaves, its reserve the floor (an explicit `output_tokens` or a
-  native fields model keeps the reserve). New admissions use it only where Studio's
-  `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
+  within the counted token budget, retaining internal sections and lists as record content.
+  The existing verification call reads scalar fields afresh, without the draft
+  values anchoring its answer, and returns each complete value with a source quote;
+  code checks the field type and the quoted record text before acceptance. List
+  identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
+  corrected passages. Defaults 6 drops that compulsory verification: the entry call
+  is shown the requested value structure, code checks each value once (type, quoted
+  record text, table row, list item occurrence) and links a located value `lexical`,
+  never as verified; a value whose quote is missing or found nowhere stays a proposal
+  without Evidence, one printed neither in its located quote nor in source text
+  enclosing that quote stays rejected. Located
+  values that disagree still go to arbitration; `verification: true` adds verdicts on
+  the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
+  New admissions use the latest version only where Studio's
+  `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
+  Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
 Limitations:
@@ -274,6 +311,31 @@ The recipe path is split across these files:
 
 The designs under `docs/design/` are the contracts that code cites as
 `spec N.N` or `design §N`.
+
+## Codex extraction
+
+`KEI_EXTRACT_PROVIDER=codex-cli` selects the deployment-owned Codex login for both extraction roles;
+`KEI_EXTRACT_MODEL` must name an available Codex model. The root launcher's `compose.codex.yaml` maps
+`KEI_CODEX_MODEL` to it and shares Studio's login volume. Use `FREE_GPU=off` so the default GPU extraction
+servers do not start. The image contains the pinned standalone Codex executable; `KEI_CODEX_BINARY` can
+select another executable for diagnostics. The extraction selectors discover the login's current Codex catalog
+and offer every visible model that supports the low reasoning effort each call requests, for both roles. `KEI_EXTRACT_MODEL` remains the deployment default; explicit choices
+are saved as `codex:<model-id>` and pinned by the normal durable execution path. Discovery runs only for the
+listing, never inside a planning round.
+
+Each captured call starts one ephemeral app-server thread in an empty directory, with its exact saved instructions,
+source and JSON schema. Shell, network tools, apps, MCP servers and delegation are disabled; any tool request or
+context compaction fails the call. There is no separate extraction, result or review path.
+
+Codex does not provide preflight tokenization or a hard per-turn output limit. Policy `codex:utf8-budget-v1`
+reserves the UTF-8 bytes of the request plus 12,288 tokens for framing, within a 65,536-token planning ceiling.
+The capture labels this as `input_counting: upper_bound`, never an exact count. Returned input usage must fit the
+reservation, the reported model window must cover the planning ceiling, and reported output usage must fit the
+saved reply reserve; otherwise the call fails before publishing values. Output limits are checked after inference.
+Small explicit method budgets may therefore be refused: use a bounded Article context of at least 32,768 and
+increase counted Catalog input budgets beyond the framing allowance, or keep the default full Article mode.
+The policy is pinned with every capture, so later changes require a new policy version. Discovery text may be
+shown while generated, but only a validated completed reply becomes a checkpoint.
 
 ## Verification
 

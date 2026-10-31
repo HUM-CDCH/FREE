@@ -266,6 +266,17 @@ def test_a_served_count_that_differs_from_the_count_is_reported(tmp_path):
     assert result["complete"] is False
 
 
+@pytest.mark.parametrize("input_tokens, mismatch", [(1, False), (9_999, True)])
+def test_an_upper_bound_count_accepts_any_served_count_within_it(tmp_path, input_tokens, mismatch):
+    def reported(system, user, schema):
+        return Reply(text=json.dumps(honest(system, user, schema)), input_tokens=input_tokens, output_tokens=5,
+                     finish="stop", seconds=0.0)
+    counter = type("Reserved", (WordCounter,), {"upper_bound": True})()
+    result, _, _ = run("two-in-one-segment", tmp_path, reported, counter=counter)
+    assert ("budget_count_mismatch" in {issue["code"] for issue in result["issues"]}) is mismatch
+    assert result["completeness"]["processing"] is not mismatch
+
+
 def test_no_records_is_an_explicit_outcome_not_a_complete_catalogue(tmp_path):
     result, chat, _ = run("no-records", tmp_path)
     assert result["records"] == [] and chat.calls == [] and result["complete"] is False

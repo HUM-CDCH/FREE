@@ -22,9 +22,14 @@ import { startScriptedModelServer, type ScriptedModelServer } from '../test/supp
 import { suggestionResearcherStore } from '../test/support/suggestionWorkflow.js'
 import { deploymentModels } from './_deployment_models.js'
 import { createModelKeyCache } from './_model_keys.js'
-import { generateSchemaEditJson, proposeSchemaEdit } from './_schema_edit.js'
+import { proposeSchemaEdit } from './_schema_edit.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { registerSchemaEditWorkflow, type SchemaEditPorts } from './_schema_edit_workflow.js'
 import { createPostEditSchema } from './edit_schema.js'
+import { createSchemaRevisionHandlers } from './schema_revisions.js'
+import { schemaRevisionResponseSchema } from '../shared/schemaRevision.contract.js'
+import { schemaEditResponseSchema } from '../shared/schemaEdit.contract.js'
+import { deriveSchemaProposal, replaySchemaChanges } from '../shared/schemaChanges.js'
 
 const url = disposableDatabaseUrl()
 const scratch = mkdtempSync(join(tmpdir(), 'free-schema-edit-'))
@@ -33,7 +38,8 @@ const packages = createCanonicalPackageStore(packageRoot)
 const schemas = testSchemas()
 const dropped: string[] = [schemas.schema, schemas.keiSchema]
 const scopes: InteractiveScope[] = []
-const ENVELOPE = '{"fields":{},"additions":[]}'
+// The seeded base schema, unchanged: an edit that proposes nothing.
+const ENVELOPE = '{"_description":"One catalogue entry."}'
 const PROPOSED = { status: 'proposed', fields: {}, additions: [], issues: [] }
 
 let server: ScriptedModelServer
@@ -42,10 +48,10 @@ const worker = createInternalProjectWorkerStore(db, { packages })
 const ports: SchemaEditPorts = {
   steps: dbosSteps,
   readSchemaTree: (schemaId, revisionId) => worker.readSchemaRevisionTree(schemaId, revisionId),
-  readMarkdown: (id) => worker.readRevisionMarkdown(id),
+  readSource: (id) => worker.readRevisionSchemaSource(id),
   propose: proposeSchemaEdit,
-  generateJson: (caller, prompt, temperature, signal, target) =>
-    generateSchemaEditJson(caller, prompt, temperature, signal, target, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
+  generate: (caller, input) =>
+    generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
 }
 
 type Base = { extractionSchemaId: string; schemaRevisionId: string }
@@ -106,6 +112,52 @@ afterAll(async () => {
 })
 
 describe('proposeSchemaEdit on PostgreSQL', () => {
+  it('replays a scalar note-only proposal and saves its reviewed note in a new readable revision', async () => {
+    const { scope, base } = await seed(false)
+    const store = suggestionResearcherStore(scope.accountId)
+    const definition = { recordDescription: 'One catalogue entry.', schemaNodes: [
+      { id: 'title', name: 'title', type: 'string' as const, description: 'Old title rule', evidencePolicy: 'quoted' as const },
+    ] }
+    const seeded = await store.appendSchemaRevision(scope.projectContextId, base.extractionSchemaId, 1, definition)
+    if (!seeded || seeded.status !== 'created') throw new Error('Expected a seeded revision')
+    const editBase = { extractionSchemaId: base.extractionSchemaId, schemaRevisionId: seeded.revision.schemaRevisionId }
+    const operationId = randomUUID()
+    const callsBefore = server.calls().length
+    server.reply({ text: JSON.stringify({
+      template: { _description: definition.recordDescription, title: 'string' },
+      fieldDescriptions: [{ path: ['title'], description: 'Copy the complete source heading.' }],
+    }) })
+
+    const response = await post(scope, editBase, operationId, { grounded: false, instruction: 'Copy the complete source heading' })
+    expect(response.status).toBe(200)
+    const proposed = schemaEditResponseSchema.parse(await response.json())
+    if (proposed.status !== 'proposed') throw new Error(`Expected proposal, got ${proposed.status}`)
+    expect(proposed.fields.title).toMatchObject({ description: 'Copy the complete source heading.' })
+    const repeated = await post(scope, editBase, operationId, { grounded: false, instruction: 'Copy the complete source heading' })
+    await expect(repeated.json()).resolves.toEqual(proposed)
+    expect(server.calls().length).toBe(callsBefore + 1)
+
+    const review = deriveSchemaProposal(definition.schemaNodes, proposed)
+    const accepted = replaySchemaChanges(definition.schemaNodes, review.changes, new Set(review.changes.map(({ id }) => id)))
+    expect(accepted.hasChanges).toBe(true)
+    expect(accepted.appliedCount).toBe(1)
+    const { POST, GET } = createSchemaRevisionHandlers(store)
+    const saved = await POST(new Request('http://local.test/api/schema-revisions', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ projectContextId: scope.projectContextId, extractionSchemaId: base.extractionSchemaId,
+        expectedRevisionNumber: seeded.revision.revisionNumber, recordDescription: definition.recordDescription, schemaNodes: accepted.nodes }),
+    }))
+    expect(saved.status).toBe(201)
+    const { revision } = schemaRevisionResponseSchema.parse(await saved.json())
+    const expectedNodes = [{ ...definition.schemaNodes[0], description: 'Copy the complete source heading.' }]
+    expect(revision).toMatchObject({ recordDescription: definition.recordDescription, recordScope: 'records', schemaNodes: expectedNodes })
+    const query = `?projectContextId=${scope.projectContextId}&extractionSchemaId=${base.extractionSchemaId}`
+    const reopened = await GET(new Request(`http://local.test/api/schema-revisions/${revision.schemaRevisionId}${query}`))
+    expect(schemaRevisionResponseSchema.parse(await reopened.json()).revision.schemaNodes).toEqual(expectedNodes)
+    const original = await GET(new Request(`http://local.test/api/schema-revisions/${editBase.schemaRevisionId}${query}`))
+    expect(schemaRevisionResponseSchema.parse(await original.json()).revision.schemaNodes).toEqual(definition.schemaNodes)
+  })
+
   it('an edit runs as edit:<operationId>, and a repeated POST returns the same proposal without a second model call', async () => {
     const { scope, base } = await seed(false)
     const operationId = randomUUID()

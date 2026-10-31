@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   CI_DATABASE_URLS,
@@ -222,5 +222,24 @@ describe('PostgreSQL tier wiring', () => {
     const scripts = JSON.parse(readFileSync(new URL('../packages/db/package.json', import.meta.url), 'utf8')).scripts
     assert.match(scripts['test:postgres'], /source-reprocessing\.postgres\.check\.ts/)
     assert.match(scripts['test:postgres'], /garbage-references\.postgres\.check\.ts/)
+  })
+})
+
+describe('Playwright listener ports', () => {
+  it('keeps every stack outside Linux client ports and gives each listener its own port', () => {
+    const studio = new URL('../apps/studio/', import.meta.url)
+    const ports = []
+    for (const file of readdirSync(studio).filter((name) => /^playwright.*\.config\.ts$/.test(name))) {
+      const source = readFileSync(new URL(file, studio), 'utf8')
+      const defaults = [...source.matchAll(/(?:applicationPort|oidcPort|postgresPort):\s*([\d_]+)/g)]
+      assert.equal(defaults.length, 3, `${file} must declare its three stack ports`)
+      for (const [, value] of defaults) {
+        const port = Number(value.replaceAll('_', ''))
+        assert.ok(port >= 30_000 && port < 32_768, `${file}: ${port} overlaps lease or client ports`)
+        ports.push(port)
+      }
+    }
+    assert.ok(ports.length > 0)
+    assert.equal(new Set(ports).size, ports.length, 'Playwright stacks must not share listener ports')
   })
 })

@@ -295,7 +295,7 @@ function AssistantChoice({
   const deploymentDefault = deployment.defaultRoute ? `Deployment default · ${deployment.defaultRoute.modelId}` : 'No model configured'
   return (
     <div className="model-assistant-choices grid gap-3 sm:grid-cols-2">
-      <Labeled label="Assistant model" hint="Document chat and conversational schema editing">
+      <Labeled label="Assistant model" hint="Schema Suggestion and schema edits, unless they use a different model">
         <RoutePicker
           ariaLabel="Assistant model"
           route={interaction}

@@ -23,6 +23,7 @@ from kei_exp.transcription import hybrid
 from kei_exp.transcription.native import NativeText, native_regions, undecodable, undecodable_glyphs
 from kei_exp.transcription.surya import SuryaOcr
 from kei_exp.transcription.types import (
+    ArtworkNeedsContext,
     ConversionError,
     Execution,
     IncompleteConversionError,
@@ -84,7 +85,8 @@ def resolve(params: RunParams) -> Execution:
     if params.page_source not in ("pdf", "ingest"):
         raise ValueError(f"page_source must be pdf or ingest, not {params.page_source!r}")
     check_ingest(params.page_source, params.ingest)
-    regions = native_regions(params.pdf, params.pages)
+    # Large book rasters retain their scan route so the split and gutter settings still apply.
+    regions = native_regions(params.pdf, params.pages, allow_large_raster_artwork=params.page_source == "pdf")
     glyphs = regions is not None and undecodable_glyphs(params.pdf, params.pages)
     if regions == () and not glyphs:
         return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=NativeText.kind,
@@ -211,10 +213,24 @@ def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcrip
                 crops.append(crop)
                 announce(emit, crop, len(crops), None)
         record = MODELS[execution.model]
-        selected = replace(execution, transcriber=record.kind, ocr_regions=())
-        ocr_inputs = inventory(sorted({region.page for region in regions}), crops, None)
-        recognized = TRANSCRIBERS[record.kind].transcribe(selected, crops, page_events(emit, ocr_inputs))
-        return hybrid.supplement(native, recognized, crops, anchors)
+        for attempt in range(2):
+            ocr_inputs = inventory(sorted({region.page for region in regions}), crops, None)
+            try:
+                recognized = TRANSCRIBERS[record.kind].transcribe(execution, crops, page_events(emit, ocr_inputs))
+                return hybrid.supplement(native, recognized, crops, anchors)
+            except ArtworkNeedsContext as error:
+                if attempt:
+                    raise IncompleteConversionError("Bounded artwork recovery exhausted; output not written") from error
+                emit({"type": "log", "text": f"Retrying artwork inputs {error.ordinals} with page context."})
+                with PdfPages(execution.pdf) as pages:
+                    for ordinal in error.ordinals:
+                        region = regions[ordinal - 1]
+                        crop, = artwork_crops(pages, [(region.page, region.bbox, orders[ordinal - 1], "figure")],
+                                               execution.crop_dpi, context_pt=24)
+                        crops[ordinal - 1][2].close()
+                        crops[ordinal - 1] = crop
+                        announce(emit, crop, ordinal, None)
+        raise AssertionError("The bounded artwork recovery must return or raise")
     except CutError as error:
         for _, _, image in crops:
             image.close()

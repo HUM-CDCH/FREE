@@ -7,6 +7,7 @@ conversion steps and the CLI, which must neither start a server nor cut nor OCR 
 Two full conversions of the eight-page digital fixture run here, the worker steps' and the CLI's, tens of seconds of
 docling on CPU each; the CLI's result directory is a module-scoped fixture, so the geometry assertions add one
 conversion to this module, not one per test."""
+import ctypes
 import hashlib
 import json
 import re
@@ -146,6 +147,53 @@ def test_a_page_sized_raster_with_some_embedded_text_still_takes_the_scan_path(d
     assert native_regions(tmp_path / "overlay.pdf") is None
 
 
+@pytest.mark.parametrize("share,page_source,overlay,rotation,pages,route", [
+    (.49, "pdf", False, 0, None, "hybrid"),
+    (.50, "pdf", False, 0, None, "hybrid"),
+    (.53, "pdf", False, 0, None, "hybrid"),
+    (.53, "ingest", False, 0, None, "surya"),
+    (.53, "pdf", True, 0, None, "surya"),
+    (1., "pdf", True, 0, None, "surya"),
+    (.53, "pdf", False, 90, None, "surya"),
+    (.53, "pdf", False, 0, (1, 1), "native"),
+    (.53, "pdf", False, 0, (2, 2), "hybrid"),
+])
+def test_large_artwork_preserves_native_prose_without_changing_scan_or_book_routes(
+        tmp_path, share, page_source, overlay, rotation, pages, route):
+    # A textless raster beside native prose is artwork even above half a page; overlapping native text
+    # remains a possible scan overlay. Book processing retains its original split/gutter route.
+    path = tmp_path / "native.pdf"
+    text_pdf(path, [["Native cover title."], ["Native second-page heading."]])
+    output = tmp_path / "artwork.pdf"
+    with pdfium.PdfDocument(path) as document:
+        page = document[1]
+        width, height = page.get_size()
+        image_width = width if share == 1 else 450
+        image_height = share * width * height / image_width
+        left = 0 if share == 1 else 50
+        bottom = 0 if share == 1 else (800 - image_height if overlay else 100)
+        with Image.new("RGB", (40, 60), "white") as pixels:
+            bitmap = pdfium.PdfBitmap.from_pil(pixels)
+            artwork = pdfium.PdfImage.new(document)
+            artwork.set_bitmap(bitmap)
+            artwork.set_matrix(pdfium.PdfMatrix(image_width, 0, 0, image_height, left, bottom))
+            page.insert_obj(artwork)
+            page.gen_content()
+            page.set_rotation(rotation)
+            document.save(output)
+            bitmap.close()
+        page.close()
+    execution = resolve(RunParams(pdf=output, model="surya", page_source=page_source, pages=pages))
+    assert execution.transcriber == route
+    if route == "hybrid":
+        region, = execution.ocr_regions
+        assert region.page == 2
+        assert region.bbox == pytest.approx((left, height - bottom - image_height,
+                                            left + image_width, height - bottom))
+    if page_source == "ingest":
+        assert execution.page_source == "ingest" and execution.cut == "auto"
+
+
 def test_resolve_makes_the_execution_choice_once_following_the_selected_range(digital_pdf, scan_pdf, mixed_pdf):
     # resolve() makes the execution choice once: native text for the digital PDF, the record's transcriber for the
     # scan and for a mixed selection, following the selected page range; a native execution carries no model,
@@ -186,6 +234,109 @@ def test_textless_vector_form_on_a_native_page_needs_ocr_unless_it_is_small_artw
     assert (native_regions(tmp_path / "with-form.pdf") == ()) is not needs_ocr
     execution = resolve(RunParams(pdf=tmp_path / "with-form.pdf", model="surya"))
     assert execution.transcriber == ("hybrid" if needs_ocr else "native")
+
+
+FILL, INVISIBLE, CLIP = (pdfium.raw.FPDF_TEXTRENDERMODE_FILL, pdfium.raw.FPDF_TEXTRENDERMODE_INVISIBLE,
+                         pdfium.raw.FPDF_TEXTRENDERMODE_CLIP)
+
+
+def objects_pdf(path: Path, pages: list[list[tuple]], font: Path | None = None) -> Path:
+    """A4 pages of ("text", line, x, y, render mode), ("image", x, y, width, height) and ("path", x, y, width, height)
+    objects. The image is a blank raster: routing reads where objects are and which text is painted, not pixels."""
+    raw = pdfium.raw
+    bitmaps = []
+    with pdfium.PdfDocument.new() as pdf:
+        if font is not None:
+            data = font.read_bytes()
+            loaded = raw.FPDFText_LoadFont(pdf, (ctypes.c_ubyte * len(data)).from_buffer_copy(data), len(data),
+                                           raw.FPDF_FONT_TRUETYPE, 1)
+        for objects in pages:
+            page = pdf.new_page(595, 842)
+            for kind, *spec in objects:
+                if kind == "text":
+                    line, x, y, mode = spec
+                    obj = raw.FPDFPageObj_CreateTextObj(pdf, loaded, 11.0) if font is not None else \
+                        raw.FPDFPageObj_NewTextObj(pdf, b"Helvetica", 11.0)
+                    text = (line + "\0").encode("utf-16-le")
+                    raw.FPDFText_SetText(obj, ctypes.cast((ctypes.c_ubyte * len(text)).from_buffer_copy(text),
+                                                          raw.FPDF_WIDESTRING))
+                    raw.FPDFTextObj_SetTextRenderMode(obj, mode)
+                    raw.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y)
+                    raw.FPDFPage_InsertObject(page, obj)
+                elif kind == "image":
+                    x, y, width, height = spec
+                    with Image.new("RGB", (40, 20), "white") as pixels:
+                        bitmaps.append(pdfium.PdfBitmap.from_pil(pixels))
+                    image = pdfium.PdfImage.new(pdf)
+                    image.set_bitmap(bitmaps[-1])
+                    image.set_matrix(pdfium.PdfMatrix(width, 0, 0, height, x, y))
+                    page.insert_obj(image)
+                else:
+                    rect = raw.FPDFPageObj_CreateNewRect(*spec)
+                    raw.FPDFPath_SetDrawMode(rect, 1, 0)
+                    raw.FPDFPage_InsertObject(page, rect)
+            page.gen_content()
+            page.close()
+        pdf.save(path)
+    for bitmap in bitmaps:
+        bitmap.close()
+    return path
+
+
+PROSE = ("text", "Printed native prose of this page.", 72, 780, FILL)
+NOTE = ("text", "Hidden layer note", 400, 60, INVISIBLE)  # over empty space, clear of every other object
+
+
+@pytest.mark.parametrize("embedded", [False, True], ids=["standard font", "embedded font"])
+@pytest.mark.parametrize("before", [0, 1], ids=["first page", "after a native page"])
+@pytest.mark.parametrize("share, page_source", [(.02, "pdf"), (.2, "pdf"), (.6, "pdf"), (.6, "ingest")])
+@pytest.mark.parametrize("body", [False, True], ids=["raster alone", "beside prose"])
+def test_an_unpainted_note_never_changes_how_a_page_with_a_printed_raster_is_read(
+        tmp_path, font, embedded, before, share, page_source, body):
+    # An invisible (render mode 3) note prints nothing. Over empty space it cannot make a page whose only printed
+    # matter is a raster read natively and lose that raster's text: every route is the one without the note.
+    if embedded and font is None:
+        pytest.skip("no TrueType font installed")
+    raster = ("image", 72, 100, 450, share * 595 * 842 / 450)
+    routes = {}
+    for hidden in (False, True):
+        pages = [[PROSE]] * before + [[PROSE] * body + [raster] + [NOTE] * hidden]
+        path = objects_pdf(tmp_path / f"hidden-{hidden}.pdf", pages, font if embedded else None)
+        execution = resolve(RunParams(pdf=path, model="surya", page_source=page_source))
+        routes[hidden] = execution.transcriber, execution.ocr_regions
+    # The existing rules: a page printing no text is a scan; small artwork beside prose stays native, larger artwork
+    # is OCR'd in place, and a book's large raster keeps its scan route.
+    expected = ("surya" if not body or page_source == "ingest" else "native" if share < .05 else "hybrid")
+    assert routes[False][0] == expected
+    assert routes[True] == routes[False]
+
+
+FIGURE = ("image", 72, 300, 300, 200)  # 12% of the page
+FIGURE_LAYER = ("text", "Words the figure prints", 100, 400, INVISIBLE)  # an OCR layer over the figure
+
+
+@pytest.mark.parametrize("pages, route", [
+    pytest.param([[NOTE]], "surya", id="unpainted text alone prints nothing, like a blank page"),
+    pytest.param([[]], "surya", id="a blank page"),
+    pytest.param([[PROSE], [NOTE]], "native", id="an unpainted page among native pages is skipped like a blank one"),
+    pytest.param([[PROSE], []], "native", id="a blank page among native pages"),
+    pytest.param([[PROSE], [("image", 0, 0, 595, 842), ("text", "Scanned words", 72, 400, INVISIBLE)]], "surya",
+                 id="an OCR-layered scan after a native page"),
+    pytest.param([[PROSE, FIGURE, FIGURE_LAYER]], "native", id="an OCR-layered figure beside prose keeps its layer"),
+    pytest.param([[FIGURE, FIGURE_LAYER]], "surya", id="an OCR-layered figure that is all the page prints"),
+    pytest.param([[("path", 72, 300, 300, 200), ("text", "Outlined words", 100, 400, INVISIBLE)]], "surya",
+                 id="outlined glyphs under a search layer"),
+    pytest.param([[("text", "Slug", 700, 400, FILL), ("image", 72, 100, 100, 100)]], "surya",
+                 id="painted text off the displayed page prints nothing on it"),
+    pytest.param([[("text", "Slug", 700, 400, FILL), ("path", 72, 300, 300, 200)]], "surya",
+                 id="painted text off the page beside outlines"),
+    pytest.param([[("text", "Clipping text", 72, 780, CLIP), ("image", 72, 100, 100, 50)]], "native",
+                 id="a clipping-only (mode 7) line is unchanged: still counted as the page's text"),
+])
+def test_only_painted_text_makes_a_page_native(tmp_path, pages, route):
+    # Pages are routed on the text they print. Unpainted glyphs neither make a page native nor, alone, nonblank;
+    # an OCR layer over a figure still covers that figure beside printed prose, and the clipping modes are unchanged.
+    assert resolve(RunParams(pdf=objects_pdf(tmp_path / "objects.pdf", pages), model="surya")).transcriber == route
 
 
 def test_native_empty_table_is_incomplete_not_a_successful_caption_only_parse(digital_pdf, monkeypatch):

@@ -83,6 +83,8 @@ export type ProjectContextsValue = {
   observeIngestions: (projectContextId: string) => () => void
   /** Dismisses a failed Source Ingestion; the failure when Studio refused, null when it is gone. */
   dismissIngestion: (projectContextId: string, workflowId: string) => WriteResult
+  /** Retries a failed Source Ingestion from the PDF Studio kept; the failure when Studio refused, null once admitted. */
+  retryIngestion: (projectContextId: string, workflowId: string) => WriteResult
   addSources: (
     sources: readonly {
       projectContextId: string

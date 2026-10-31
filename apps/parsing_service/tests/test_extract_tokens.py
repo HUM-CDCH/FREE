@@ -300,3 +300,13 @@ def test_a_served_count_that_differs_drops_the_attempt_s_kept_counts():
     sent = len(http.sent)
     _cached(http, chat, "ex/1")
     assert len(http.sent) == sent + 2
+
+
+def test_an_upper_bound_count_within_its_reserve_keeps_the_attempt_s_counts():
+    """Codex reserves more than it uses by design; its computed counts cannot be stale."""
+    from kei_exp.kie.extract.calls import Call
+    from kei_exp.workflows.durable_extract import drop_stale_counts
+    http = Http({"/tokenize": {"count": 57, "max_model_len": 16384, "tokens": [1]}})
+    _cached(http, Chat("http://stale.test:8000/v1/chat/completions"), "ex/1")
+    reserved = Call("entry", 0, 30, 10, 0.1, "stop", True, counted_input_tokens=57)
+    assert not drop_stale_counts("ex", "1", [reserved], upper_bound=True) and kept() == 1

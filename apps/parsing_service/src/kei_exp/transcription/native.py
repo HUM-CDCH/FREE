@@ -7,11 +7,12 @@ from math import isfinite
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from docling.datamodel.base_models import ConversionStatus, InputFormat
+from docling.datamodel.base_models import Cluster, ConversionStatus, InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.settings import DEFAULT_PAGE_RANGE
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+from docling.models.stages.page_assemble.page_assemble_model import PageAssembleModel, PageAssembleOptions
 from docling_core.types.doc import (
     ContentLayer,
     DocItem,
@@ -31,12 +32,14 @@ from kei_exp.transcription.types import TRANSCRIBER_KNOBS, ConversionError, Exec
 from kei_exp.transcription.tables import table_of_html
 
 
-def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[OcrRegion, ...] | None:
+def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
+                   allow_large_raster_artwork: bool = False) -> tuple[OcrRegion, ...] | None:
     """Native PDF with its textless artwork, or None when any nonblank page requires the scan path; () when the
     selected pages need no OCR at all.
 
-    Keep the existing 5% artwork threshold and page-sized raster safeguard. A digital page with an image
-    table needs only that image read; an OCR overlay on a page-sized scan is not treated as digital prose.
+    Keep the 5% artwork threshold and scan-overlay safeguard. A large raster without native text on it may
+    use the artwork path when allowed; the default retains the conservative route for book splitting.
+    A digital page's image table needs OCR, while native text overlapping a large scan may be an OCR overlay.
     PDFium measures objects and text in canvas space, whose origin is the MediaBox's, not the displayed page's:
     a region is returned in displayed top-left points (what `PdfPage.render` crops and Docling's boxes use).
     """
@@ -55,14 +58,25 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
             try:
                 textpage = page.get_textpage()
                 try:
-                    text = textpage.get_text_bounded().strip()
+                    x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
+                    # Only painted characters on the displayed page show that it prints text: an unpainted glyph
+                    # (render mode 3) prints nothing, so a hidden note must not route a page natively and lose its
+                    # raster's OCR. (A broken ToUnicode map can report a code past Unicode's last, which still prints.)
+                    invisible = pdfium.raw.FPDF_TEXTRENDERMODE_INVISIBLE
+                    printed = any((glyph := pdfium.raw.FPDFText_GetTextObject(textpage, char))
+                                  and pdfium.raw.FPDFTextObj_GetTextRenderMode(glyph) != invisible
+                                  and not chr(min(pdfium.raw.FPDFText_GetUnicode(textpage, char), 0x10FFFF)).isspace()
+                                  and (box := textpage.get_charbox(char))[0] < x1 and box[2] > x0
+                                  and box[1] < y1 and box[3] > y0
+                                  for char in range(textpage.count_chars()))
                     objects = list(page.get_objects())
-                    if not text:
-                        if objects:
+                    if not printed:
+                        # Unpainted text alone prints nothing, like a blank page.
+                        if any(obj.type != pdfium.raw.FPDF_PAGEOBJ_TEXT
+                               or pdfium.raw.FPDFTextObj_GetTextRenderMode(obj.raw) != invisible for obj in objects):
                             return None
                         continue
                     width, height = page.get_size()
-                    x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
                     page_regions: list[OcrRegion] = []
                     for obj in objects:
                         if obj.type not in {pdfium.raw.FPDF_PAGEOBJ_IMAGE, pdfium.raw.FPDF_PAGEOBJ_FORM}:
@@ -70,17 +84,22 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
                         left, bottom, right, top = _canvas_bounds(obj)
                         left, bottom, right, top = max(left, x0), max(bottom, y0), min(right, x1), min(top, y1)
                         area = max(0, right - left) * max(0, top - bottom)
-                        # A page-sized scan with an OCR overlay still needs OCR. A substantial textless
-                        # form/image can be a table whose letters are outlines: native text loses its body
-                        # completely (Akita 2020, p4). Include embedded artwork rather than guessing its text.
-                        if obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2:
-                            return None
-                        if area >= width * height / 20 and not textpage.get_text_bounded(left, bottom, right, top).strip():
-                            # PDFium object bounds are unrotated; the crop renderer uses displayed page space.
-                            # Until the projection is supported, rotated artwork retains the established scan path.
-                            if page.get_rotation():
+                        # Artwork needs OCR of its own contents, regardless of its size. Native text on a
+                        # large raster may be a scan's OCR overlay, so retain the scan route in that case.
+                        if area < width * height / 20:
+                            continue
+                        large_raster = obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2
+                        if textpage.get_text_bounded(left, bottom, right, top).strip():
+                            if large_raster:
                                 return None
-                            page_regions.append(OcrRegion(index + 1, (left - x0, y1 - top, right - x0, y1 - bottom)))
+                            continue
+                        if large_raster and not allow_large_raster_artwork:
+                            return None
+                        # PDFium object bounds are unrotated; the crop renderer uses displayed page space.
+                        # Until the projection is supported, rotated artwork retains the scan path.
+                        if page.get_rotation():
+                            return None
+                        page_regions.append(OcrRegion(index + 1, (left - x0, y1 - top, right - x0, y1 - bottom)))
                     distinct = _distinct_regions(page_regions)
                     # A bounding union of overlapping objects can enclose native prose between them. Retain
                     # the scan path in that case rather than replace those original characters with OCR.
@@ -165,6 +184,65 @@ def _distinct_regions(regions: list[OcrRegion]) -> tuple[OcrRegion, ...]:
     return tuple(sorted(merged, key=lambda region: (region.page, region.bbox[1], region.bbox[0])))
 
 
+class NativePageAssembly(PageAssembleModel):
+    """Preserve native identifiers and let reading order see interleaved paragraph lines separately."""
+
+    def sanitize_text(self, lines: list[str]) -> str:
+        # Docling treats every alphanumeric suffix as a hyphenated word, including an identifier's digits.
+        # Only letters continuing in lowercase can be a split word; join other attached hyphens literally first.
+        joined: list[str] = []
+        for line in lines:
+            if (joined and joined[-1].endswith("-") and len(joined[-1]) > 1 and line
+                    and joined[-1][-2].isalnum()
+                    and not (joined[-1][-2].isalpha() and line[0].islower())):
+                joined[-1] += line
+            else:
+                joined.append(line)
+        return super().sanitize_text(joined)
+
+    def __call__(self, conv_res, page_batch):
+        for page in page_batch:
+            if page.predictions.layout is not None:
+                clusters = page.predictions.layout.clusters
+                # Container children are resolved by ID later; keep their original clusters intact.
+                contained = {child.id for cluster in clusters for child in cluster.children}
+                paragraphs = [c for c in clusters if c.label in {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH}
+                              and not c.children and c.id not in contained]
+                interleaved = {c.id for c in paragraphs
+                               if any(c.id != other.id and c.bbox.overlaps(other.bbox) for other in paragraphs)}
+                next_id = max((c.id for c in clusters), default=0) + 1
+                repaired = []
+                for cluster in clusters:
+                    if cluster.id not in interleaved or not cluster.cells:
+                        repaired.append(cluster)
+                        continue
+                    # Whole overlapping paragraphs can interleave their lines. Keeping the cells separate lets
+                    # Docling order those lines without guessing at new paragraph ownership or column boundaries.
+                    for cell in cluster.cells:
+                        repaired.append(Cluster(id=next_id, label=cluster.label, confidence=cluster.confidence,
+                            bbox=cell.rect.to_bounding_box().to_top_left_origin(page.size.height), cells=[cell]))
+                        next_id += 1
+                page.predictions.layout.clusters = repaired
+            for assembled in super().__call__(conv_res, [page]):
+                if assembled.assembled is None:
+                    yield assembled
+                    continue
+                # On one baseline, a gap wider than a character's height separates cells, not words.
+                # Retain that layout boundary as whitespace instead of flattening adjacent metadata fields.
+                for element in assembled.assembled.elements:
+                    cells = element.cluster.cells
+                    boxes = [c.rect.to_bounding_box().to_top_left_origin(page.size.height) for c in cells]
+                    if (element.cluster.label in {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH} and len(cells) > 1
+                            and max(b.t for b in boxes) < min(b.b for b in boxes)):
+                        normalized = [self.sanitize_text([c.text.replace("\x02", "-").strip()]) for c in cells]
+                        parts = [normalized[0]]
+                        for previous, box, text in zip(boxes, boxes[1:], normalized[1:]):
+                            separator = "\t" if box.l - previous.r > max(previous.height, box.height) else " "
+                            parts += [separator, text]
+                        element.text = "".join(parts)
+                yield assembled
+
+
 class PageBoundPipeline(StandardPdfPipeline):
     """Docling's standard pipeline with no item merged across a page break, so a page's export carries what is
     printed on it and nothing of its neighbour. The merge's provenance charspans cannot be trusted to slice a
@@ -174,6 +252,7 @@ class PageBoundPipeline(StandardPdfPipeline):
 
     def __init__(self, pipeline_options: PdfPipelineOptions) -> None:
         super().__init__(pipeline_options)
+        self.assemble_model = NativePageAssembly(options=PageAssembleOptions())
         predictor = self.reading_order_model.ro_model
         predict = predictor.predict_merges
 

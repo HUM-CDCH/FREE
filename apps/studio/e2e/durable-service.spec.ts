@@ -248,13 +248,16 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(capture.request.body.user).not.toContain('Researcher guidance sentinel')
     expect(providerRequest).toEqual(capture.request.body.httpRequest)
 
-    // A later project-guidance edit affects future captures, never this started call.
+    // A later project-guidance edit affects future captures, never this started call. History's "Corrections the model
+    // learns from" (ProjectFeedback) is hidden for now, so this sends the request its Stop using sends; restore the
+    // In use / Stop using / Use steps with it.
+    const feedbackUrl=`/api/project-contexts/${project}/feedback?target=${extractionB}`
+    const inUse=(await (await page.request.get(feedbackUrl)).json()).find((each:{id:string})=>each.id===correction.id)
+    expect(inUse).toMatchObject({active:true,included:true})
+    const stopped=await page.request.post(feedbackUrl,{headers,data:{id:inUse.id,expectedRevision:inUse.revision,included:false}})
+    expect(stopped.status(),await stopped.text()).toBe(200)
     await page.goto(`/projects/${project}/documents/${sourceB.sourceDocumentId}?extractionId=${extractionB}`)
-    await page.locator('#rail-tab-history').click()
-    await expect(page.getByText('In use',{exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Stop using',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Use',exact:true})).toBeVisible()
-    const guidance=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
+    const guidance=await (await page.request.get(feedbackUrl)).json()
     expect(guidance.find((each:{active:boolean})=>each.active)).toMatchObject({revision:2,included:false,candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     expect(guidance.find((each:{id:string})=>each.id===correction.id).active).toBe(false)
     service.releaseExtraction();await complete(extractionB)
@@ -277,10 +280,11 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(hasColumn(rows[0]!,value.node.name),rows[0]).toBe(true)
     // The producing request stays in History, read through its own API; the research table never carries it.
     await writeFile(info.outputPath('guidance-history.json'),JSON.stringify(finished,null,2))
-    await page.locator('#rail-tab-history').click()
-    await page.getByRole('button',{name:'Use',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Stop using',exact:true})).toBeVisible()
-    const reincluded=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
+    // Its Use, while ProjectFeedback is hidden (above).
+    const notUsed=guidance.find((each:{active:boolean})=>each.active)
+    const used=await page.request.post(feedbackUrl,{headers,data:{id:notUsed.id,expectedRevision:notUsed.revision,included:true}})
+    expect(used.status(),await used.text()).toBe(200)
+    const reincluded=await (await page.request.get(feedbackUrl)).json()
     expect(reincluded.find((each:{active:boolean})=>each.active)).toMatchObject({revision:3,included:true,
       candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     if(context==='full') {
@@ -292,9 +296,9 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       })
       await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
       await page.locator('#rail-tab-results').click()
-      await expect(page.getByText('Reviewed 0/2',{exact:true})).toBeVisible()
+      await expect(page.getByRole('region',{name:'Pilot review'})).toContainText('0 of 2 documents reviewed')
       await page.getByRole('button',{name:'Save review',exact:true}).click()
-      await expect(page.getByText('Reviewed 1/2',{exact:true})).toBeVisible()
+      await expect(page.getByRole('region',{name:'Pilot review'})).toContainText('1 of 2 documents reviewed')
       const batch=await (await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)).json()
       await writeFile(info.outputPath('native-pilot-review.json'),JSON.stringify(batch,null,2))
       await page.getByRole('button',{name:'Next document'}).click()

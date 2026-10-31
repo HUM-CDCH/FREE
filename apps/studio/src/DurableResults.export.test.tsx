@@ -51,7 +51,7 @@ async function openOptions() {
 
 it.each(['a', 'r', 'e', 'j', 'k', 'z'])('the export dialog owns %s instead of changing the open review', async key => {
   renderResults()
-  fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Review one by one' }))
   await openOptions()
   const excel = screen.getByRole('button', { name: 'Excel' })
   excel.focus()
@@ -65,7 +65,7 @@ it.each(['a', 'r', 'e', 'j', 'k', 'z'])('the export dialog owns %s instead of ch
 
 it('Escape closes the export dialog while preserving an unsaved review edit', async () => {
   renderResults([title])
-  fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Review one by one' }))
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Reviewed value' }), { target: { value: 'Keep this draft' } })
   await openOptions()

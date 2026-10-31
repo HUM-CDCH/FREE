@@ -78,6 +78,7 @@ class LimitedCounter:
     """Count the exact serving template while enforcing a fixed experimental context ceiling."""
     def __init__(self, counter, limit: int):
         self.counter = counter
+        self.upper_bound = getattr(counter, "upper_bound", False)
         self.context_tokens = min(counter.context_tokens, limit)
 
     def request_tokens(self, system: str, user: str, schema=None) -> int:

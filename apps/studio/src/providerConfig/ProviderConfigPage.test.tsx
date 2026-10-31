@@ -236,6 +236,28 @@ afterEach(() => {
 })
 
 describe('ProviderConfigPage', () => {
+  it('shows every deployment model in a plain list without model pages', async () => {
+    const ids = Array.from({ length: 8 }, (_, index) => `codex-model-${index}`)
+    studio(config(), { deployment, probe: () => jsonResponse({ checkedAt: '2026-10-20T00:00:00Z', status: 'connected',
+      message: 'Connected. 8 models available.', catalog: ids.map(id => ({ id, label: id })) }) })
+    await renderPage()
+    const details = openConnection(/^Deployment instruction model/)
+    await waitFor(() => expect(within(details.getByRole('list', { name: 'Models' })).getAllByRole('listitem')).toHaveLength(8))
+    expect(details.queryByRole('combobox', { name: 'Connection models page' })).not.toBeInTheDocument()
+  })
+
+  it('saves independently selected Codex models for both extraction roles', async () => {
+    const server = studio(config(), { extraction: () => jsonResponse({ defaults: { fields: 'instruct', reasoning: 'instruct' },
+      models: ['gpt-6.1-sol', 'gpt-6-luna'].map(repo => ({ key: `codex:${repo}`, repo, roles: ['fields', 'reasoning'], reachable: true, serving: true })) }) })
+    await renderPage()
+    fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
+    await choose('Field values', 'Extraction models this deployment runs', 'gpt-6.1-sol')
+    await choose('Reasoning', 'Extraction models this deployment runs', 'gpt-6-luna')
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].extractionModels).toEqual({ fields: 'codex:gpt-6.1-sol', reasoning: 'codex:gpt-6-luna' })
+  })
+
   it('opens on Models with each step as one sentence at its defaults', async () => {
     studio(config(), { deployment })
     await renderPage()
@@ -1146,7 +1168,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
     expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
-    expect(screen.getByText('Service defaults, version 4')).toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 6')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     setting('Input token ceiling')
     const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })
@@ -1155,19 +1177,24 @@ describe('Advanced', () => {
     fireEvent.change(ceiling, { target: { value: '100' } })
     expect(screen.getByText(METHOD_MESSAGES.inputTokens, { selector: 'p' })).toBeVisible()
     // One control per view: from another view, the issue summary brings the ceiling back and focuses it.
-    setting('Verification')
+    setting('Pro mode')
     expect(screen.queryByRole('textbox', { name: 'Input token ceiling' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveFocus())
     fireEvent.change(ceiling, { target: { value: '' } })
     setting('Window overlap')
     fireEvent.change(screen.getByRole('textbox', { name: 'Window overlap' }), { target: { value: '0' } })
-    setting('Verification')
-    fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
-    expect(screen.getByText(/Off keeps typed values as proposals/)).toBeInTheDocument()
+    setting('Pro mode')
+    // From defaults 6 a single pass is the default; Pro mode admits the version that reads every value again.
+    expect(screen.getByText(/Off reads each value once/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Pro mode' }))
+    expect(screen.queryByText(/Off reads each value once/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Pro mode runs defaults version 5/)).toBeInTheDocument()
+    setting('Effective settings')
+    expect(screen.getByText('Unified Catalog, defaults version 5 with custom settings')).toBeInTheDocument()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: false } })
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: true } })
   })
 
   it('retired Catalog controls are shown, never converted, and replaced only by an applied unified group', async () => {

@@ -47,7 +47,7 @@ function withoutOuterFraming(text: string): string {
   return OUTER_FENCE.exec(reply)?.[1] ?? reply
 }
 
-async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
+export async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
   const parsed = await parseUnknownJson(text, message)
   if (!isRecord(parsed)) {
     throw new ApiError(502, 'invalid_model_output', message)

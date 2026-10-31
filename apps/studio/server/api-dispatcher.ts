@@ -18,11 +18,12 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/project-contexts\/[^/]+\/feedback$/, 'durable_extractions'],
   [SOURCE_DOCUMENT_ROUTE, 'source_documents'],
   [SOURCE_DOCUMENT_REOPEN_ROUTE, 'document_reopen'],
+  [/^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/history(?:\/value)?$/, 'durable_extractions'],
   [
     /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/reprocess$/,
     'source_reprocess',
   ],
-  [/^\/api\/project-contexts\/[^/]+\/source-ingestions(?:\/[^/]+)?$/, 'source_ingestions'],
+  [/^\/api\/project-contexts\/[^/]+\/source-ingestions(?:\/[^/]+(?:\/retry)?)?$/, 'source_ingestions'],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],

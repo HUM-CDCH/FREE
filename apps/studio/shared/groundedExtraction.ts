@@ -36,11 +36,12 @@ export const evidenceGroundingSchema = z
   })
   .strict()
 
-/** Version 3 (unified Catalog) evidence detail: a separate verification accepted the value; `literal` spans print it,
- *  `supporting` spans are the passage that supports a yes/no, a label or a derived value. */
+/** Version 3 (unified Catalog) evidence detail: a separate verification accepted the value (`verification`), or with a
+ *  single pass only code located it (`lexical`); `literal` spans print it, `supporting` spans are the passage that
+ *  supports a yes/no, a label or a derived value. */
 export const verifiedGroundingSchema = z
   .object({
-    linkedBy: z.literal('verification'),
+    linkedBy: z.enum(['verification', 'lexical']),
     support: z.enum(['literal', 'supporting']),
     textSpans: z.array(textSpanSchema).min(1),
     alternatives: z.array(z.array(textSpanSchema)),

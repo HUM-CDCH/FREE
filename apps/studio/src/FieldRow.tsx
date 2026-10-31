@@ -257,6 +257,19 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           </span>
         )}
       </div>
+      {isDiff && change && change.before?.description !== change.after?.description && (
+        <div className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug whitespace-pre-line`}>
+          {change.before?.description && change.before.description !== change.after?.description && (
+            <p className="text-danger line-through" aria-label="Previous note">{change.before.description}</p>
+          )}
+          {change.after?.description && change.after.description !== change.before?.description && (
+            <p className="text-green" aria-label="Proposed note">{change.after.description}</p>
+          )}
+          {change.kind === 'modified' && change.before?.description && !change.after?.description && (
+            <p className="text-ink-muted">Note removed</p>
+          )}
+        </div>
+      )}
       {node.description && !isDiff && (readOnly ? (
         <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line`}>{node.description}</p>
       ) : (
