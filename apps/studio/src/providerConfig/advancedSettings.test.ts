@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
+import { methodLines } from '../methodSummary'
 import {
   ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle,
-  settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
+  resetArticleSetting, settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
 } from './advancedSettings'
 
 const inventory = JSON.parse(readFileSync(new URL(
@@ -27,7 +28,7 @@ function* inputs(): Generator<Record<string, unknown>> {
   yield* walk(0, {})
 }
 
-describe('every categorical combination through the Advanced controls', () => {
+describe('availability rules for the complete admitted Article contract', () => {
   it('each accepted one is reachable without a disabled choice; each refused one ends disabled or blocked', () => {
     let index = 0
     for (const target of inputs()) {
@@ -45,6 +46,41 @@ describe('every categorical combination through the Advanced controls', () => {
     }
     expect(index).toBe(6144)
   })
+})
+
+describe('resetting additional saved settings', () => {
+  const article: ArticleSettings = {
+    ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 16384, overlap_passages: 2, grouping: 'structural',
+    rendering: 'structured', grounding: 'spans', evidence_policy: 'schema', identity: 'conservative', identity_fields: ['Species'],
+    prompt: 'schema', selection: 'supported', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical',
+  }
+
+  it('keeps every retired setting readable in Method used', () => {
+    expect(methodLines({ article })).toEqual(expect.arrayContaining([
+      { label: 'Value evidence', value: 'Supported units' },
+      { label: 'Reconciliation', value: 'Declared identity fields' },
+      { label: 'Identity fields', value: 'Species' },
+      { label: 'Instructions', value: 'Schema-driven' },
+      { label: 'Continue verification', value: 'Until first support' },
+      { label: 'Unit order', value: 'Origin and lexical relevance' },
+    ]))
+  })
+
+  it('resets identity and its fields together, retaining every other setting', () => {
+    const reset = resetArticleSetting(article, 'identity')
+    expect(reset).toEqual({ ...article, identity: 'reference', identity_fields: [] })
+    expect(settingsDelta(article, reset)).toEqual([
+      { label: 'Reconciliation', from: 'Declared identity fields', to: 'Reference' },
+      { label: 'Identity fields', from: 'Species', to: 'None' },
+    ])
+  })
+
+  it.each(['prompt', 'selection', 'grounding_schedule', 'grounding_routing'] as const)(
+    'resets only %s while preserving all other settings', (key) => {
+      expect(resetArticleSetting(article, key)).toEqual(orderedArticle({ ...article, [key]: REFERENCE_ARTICLE[key] }))
+      expect(article.prompt).toBe('schema')
+      expect(article.identity_fields).toEqual(['Species'])
+    })
 })
 
 describe('choices', () => {
