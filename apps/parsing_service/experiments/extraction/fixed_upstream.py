@@ -6,14 +6,15 @@ import json
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from kei_exp.kie.extract.article import document_root, extract_records
-from kei_exp.kie.extract.contexts import Context, reconcile_values
+from kei_exp.kie.extract.article import document_root
+from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.passages import load
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Issue, extract_document, merge
 
+from .legacy_article import extract_records, reconcile_values
 from .manifest import checked, pin, read, write_new
 from .replay_reference import Captured, key
 
