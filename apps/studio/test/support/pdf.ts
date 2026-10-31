@@ -19,16 +19,3 @@ export function blankPdf(pages: number, tag = ''): Uint8Array {
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
   return new TextEncoder().encode(body)
 }
-
-/** `%PDF-1.7` and `size` bytes of objects with no cross-reference table: pdf.js scans all of them to rebuild one, and
- *  then cannot open the document. */
-export function junkObjects(size: number): Uint8Array {
-  const parts = ['%PDF-1.7\n']
-  let length = parts[0]!.length
-  for (let index = 1; length < size; index += 1) {
-    const object = `${index} 0 obj\n<< /Type /Junk /K ${index} >>\nendobj\n`
-    parts.push(object)
-    length += object.length
-  }
-  return new TextEncoder().encode(parts.join(''))
-}

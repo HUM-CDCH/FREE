@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import {
-  coerceAllowedValue,
   isAllowedValues,
   isScalarFieldType,
   NON_STRING_SCALAR_FIELD_TYPES,
@@ -158,94 +157,11 @@ function hasNestedValueSource(node: SchemaNode): boolean {
   return node.valueSource !== undefined || Boolean(node.children?.some(hasNestedValueSource))
 }
 
-export type SchemaNodePartition = {
-  documentNodes: SchemaNode[]
-  recordNodes: SchemaNode[]
-  packageNodes: SchemaNode[]
-}
-
-/** Partition complete top-level subtrees without changing their order. */
-export function partitionSchemaNodes(nodes: readonly SchemaNode[]): SchemaNodePartition {
-  const partition: SchemaNodePartition = {
-    documentNodes: [],
-    recordNodes: [],
-    packageNodes: [],
-  }
-  for (const node of nodes) {
-    if (node.valueSource === 'document') partition.documentNodes.push(node)
-    else if (node.valueSource === 'source-filename') partition.packageNodes.push(node)
-    else partition.recordNodes.push(node)
-  }
-  return partition
-}
-
-/** The schema node a result path names; `records[i]` prefixes and array
- *  indexes are skipped. Null when the path leaves the schema. */
-export function schemaNodeAtPath(
-  nodes: readonly SchemaNode[],
-  resultPath: readonly (string | number)[],
-): SchemaNode | null {
-  const path =
-    resultPath[0] === 'records' && typeof resultPath[1] === 'number'
-      ? resultPath.slice(2)
-      : resultPath
-  let candidates = nodes
-  let current: SchemaNode | null = null
-  for (const segment of path) {
-    if (typeof segment === 'number') {
-      if (current?.type !== 'array') return null
-      continue
-    }
-    current = candidates.find((node) => node.name === segment) ?? null
-    if (!current) return null
-    candidates = current.children ?? []
-  }
-  return current
-}
-
-/** Restore model values to schema order while rejecting unknown keys by default. */
-export function restoreSchemaNodeOrder(
-  value: unknown,
-  nodes: readonly SchemaNode[],
-  options: Readonly<{ ignoreUnknownKeys?: boolean }> = {},
-): Record<string, unknown> {
-  if (!isRecord(value)) throw new Error('Model output records must be objects.')
-  const byName = new Map(nodes.map((node) => [node.name, node]))
-  for (const key of Object.keys(value))
-    if (!options.ignoreUnknownKeys && !byName.has(key))
-      throw new Error(`Unexpected model key: ${key}`)
-
-  const restored: Record<string, unknown> = {}
-  for (const node of nodes) {
-    if (!Object.hasOwn(value, node.name)) continue
-    let item = value[node.name]
-    if (node.allowedValues) item = coerceAllowedValue(item, node.allowedValues)
-    if (node.children && item !== null) {
-      if (node.type === 'array') {
-        if (!Array.isArray(item)) throw new Error(`Model output field ${node.name} must be an array.`)
-        restored[node.name] = item.map((entry) =>
-          restoreSchemaNodeOrder(entry, node.children, options),
-        )
-      } else {
-        restored[node.name] = restoreSchemaNodeOrder(item, node.children, options)
-      }
-    } else {
-      restored[node.name] = item
-    }
-  }
-  return restored
-}
-
 export type EnumeratedField = {
   id: string
   key: string
   path: readonly string[]
   node: SchemaNode
-}
-
-export type SchemaMetadataCount = {
-  descriptions: number
-  allowedValues: number
 }
 
 function fieldPathKey(path: readonly string[]): string {
@@ -349,9 +265,8 @@ function schemaNodeToZod(node: SchemaNode): z.ZodType {
 
 /**
  * A schema-constrained-generation counterpart to `nodesToTemplate`: every
- * object level is `.strict()` so an extra model-generated key (the failure
- * mode `restoreSchemaNodeOrder` rejects post-hoc) is instead excluded by the
- * generation contract itself. Fields stay nullable/optional — a value the
+ * object level is `.strict()` so extra model-generated keys are excluded by
+ * the generation contract. Fields stay nullable/optional — a value the
  * model can't find in the source must remain omissible, not fabricated.
  */
 export function schemaNodesToZod(nodes: readonly SchemaNode[]): z.ZodType {
@@ -384,47 +299,11 @@ export function duplicateFieldKeys(fields: readonly EnumeratedField[]): string[]
   return [...duplicates]
 }
 
-export function countSchemaMetadata(nodes: readonly SchemaNode[]): SchemaMetadataCount {
-  let descriptions = 0
-  let allowedValues = 0
-  for (const { node } of enumerateFieldPaths(nodes)) {
-    if (node.description) descriptions++
-    if (node.allowedValues) allowedValues++
-  }
-  return { descriptions, allowedValues }
-}
-
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-
-export type ExtractionSchemaDefinition = SchemaDefinition
 export const parseExtractionSchema = parseSchemaDefinition
-
-export function stripDescriptions(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripDescriptions)
-  if (!isRecord(value)) return value
-  const result: Record<string, unknown> = {}
-  for (const [key, child] of Object.entries(value))
-    if (key !== '_description') result[key] = stripDescriptions(child)
-  return result
-}
-
-/** The instruction lines of a values call: the record description, then every
- *  described field on its path, scalar fields and nested groups alike. */
-export function compileInstructions(root: string, recordDescription: string, nodes: readonly SchemaNode[]): string {
-  const lines = [`- ${root}: ${recordDescription}`]
-  const visit = (level: readonly SchemaNode[], prefix: string) => {
-    for (const node of level) {
-      const path = `${prefix}.${node.name}`
-      if (node.description) lines.push(`- ${path}: ${node.description}`)
-      if (node.children) visit(node.children, path)
-    }
-  }
-  visit(nodes, root)
-  return lines.join('\n')
-}
 
 /** Resolve a Value Disagreement's child IDs, only through object fields. */
 export function schemaPathNames(node: SchemaNode, ids: readonly string[]): string[] | undefined {
