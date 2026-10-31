@@ -24,9 +24,10 @@ conversion step and consumes that same deadline.
 - Node.js 24, pnpm and `uv`, as in the README's
   [requirements](../../README.md#requirements). `pnpm install` at the root
   also syncs the Parsing Service's Python environment through `uv`.
-  `FREE_SKIP_PYTHON=1` is for Node-only hosts: it makes `pnpm install` skip
-  the parsing service's `uv sync --frozen`. CI does not set it. Leave it unset
-  on development and deployment hosts.
+  `FREE_SKIP_PYTHON=1` is for Node-only work: it makes `pnpm install` skip
+  the parsing service's `uv sync --frozen`. CI does not set it. Parsing
+  Service execution requires its Python environment: install without the skip
+  or run `uv sync --frozen` from `apps/parsing_service`.
 - Docker Engine or Docker Desktop with Docker Compose v2.40.0 or later
   (Compose Watch, optional profile dependencies, `!reset`, and `gw_priority`
   are used). The launcher checks this before starting the host stack.

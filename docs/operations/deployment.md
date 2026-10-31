@@ -16,7 +16,7 @@ then runs
 `docker compose -f compose.yaml -f compose.prod.yaml up --no-build -d --wait`
 with the deployment's overlays (`compose.nginx.yaml`, `compose.gpu.yaml`),
 returning once the configured health checks pass. Each built image is labelled
-with the last commit of its build context (`org.opencontainers.image.revision`,
+by this launcher with the last commit of its build context (`org.opencontainers.image.revision`,
 suffixed `-dirty` when tracked files there changed), so an unchanged context is
 not recreated, and the launcher reports each service's revision as `current` or
 `STALE`. It needs an installed workspace (`pnpm install --frozen-lockfile`,
@@ -30,6 +30,31 @@ terminates in the host nginx; hosts without one use the
 [bundled nginx container](#bundled-nginx-hosts-without-a-managed-nginx). This
 stack never touches the host nginx configuration outside the one include
 described below.
+
+## Installed operator wrappers
+
+A managed host may install `free-deploy` and `free-compose` over this same
+Compose topology. These are host-provisioned operator tools, not repository
+commands; inspect their configuration before using them. The protected
+checkout, deployment overlays and secrets remain operator-owned. Do not run
+the portable launcher over an installed wrapper's overlays without checking
+that it preserves the existing model routes, proxy networks and volumes.
+
+The installed wrapper's `free-deploy check` reports its source commit,
+configuration digest, changed service configurations and active work.
+`free-deploy release --branch dev` builds and replaces only Studio and the
+parsing API/worker, with backups and a drain check. Its app-only
+`up --no-deps` deliberately leaves model, database and proxy containers alone;
+a changed model configuration in the preflight report is not an applied model
+upgrade. Model maintenance is separate, as described below.
+
+An installed wrapper must supply `FREE_REVISION_STUDIO` and
+`FREE_REVISION_PARSING` to obtain the launcher's image revision labels;
+otherwise Compose labels them `unknown`. Verify actual image labels and
+runtime source before recording a release. The wrapper's `source_sha256`
+hashes the working-tree delta, not the committed source tree: a clean checkout
+correctly has the SHA256 of empty input. Identify source by both the commit
+and delta digest, and record the configuration digest separately.
 
 ## Prerequisites and hosted settings
 
@@ -176,9 +201,26 @@ calls. A run may choose the instruction model for field values too. No model
 endpoint is published to the LAN. The servers start one after another, since
 each profiles the GPU's free memory when it starts.
 
-`VLLM_IMAGE` selects the image of the GPU overlay's OCR, NuExtract and instruction
-servers. The default is `vllm/vllm-openai:v0.31.0`, the stable release validated
-on ARM64/GB10. A deployment may pin the selected platform image by digest.
+`VLLM_IMAGE` selects the image of the GPU overlay's OCR, NuExtract and
+instruction servers. The default pins `vllm/vllm-openai:v0.31.0` by its
+multi-platform manifest digest in `compose.gpu.yaml`; Docker selects the host
+architecture. Deployment overlays can select a different image per role.
+Inspect each running container rather than inferring its version from the
+generic default.
+
+On ARM64/GB10, Surya returned corrupt repeated text on vLLM 0.32.0 while 0.31.0
+passed the same real-scan compatibility check. The tested combination of OCR
+0.31.0, NuExtract/Qwen 0.32.0 and worker xgrammar 0.2.8 passed nested-schema and
+grammar micro-tests but failed real-corpus quality and warm-latency gates. That
+comparison does not isolate the cause; micro-tests alone do not justify promotion.
+A deployment can advance its extraction roles separately through service-level
+`image` overrides in deployment overlays, after their acceptance checks pass. Preserve the tested checkpoint, quantization,
+MTP, eager-execution and memory settings together with the image digest.
+NVFP4 with MTP requires its own validation; it does not validate the generic
+FP8 instruction-model default without MTP. Promote a stable release only after
+testing the exact configuration on the target hardware, then deploy the same
+digest that passed. A mutable `latest` tag does not identify the running
+runtime.
 NuExtract uses eager execution: default graph execution stalled with multiple
 resident models on GB10, while eager serving passed four concurrent extractions.
 When changing the OCR runtime, change `KEI_OCR_REVISION` too to prevent
@@ -217,9 +259,10 @@ system; on DGX Spark, system memory is shared with the GPU.
 Constrained decoding can loop on whitespace between JSON tokens; the Parsing
 Service recovers a generic Catalog record call that does with a bounded
 xgrammar grammar ([service contract](../../apps/parsing_service/README.md)).
-The worker pins `xgrammar` to the extraction server's version so that grammar
-parses there: when you change `VLLM_IMAGE`, check that the image's xgrammar
-matches the pin in `apps/parsing_service/pyproject.toml`. Do not enable vLLM's
+The worker pins its `xgrammar` EBNF generator in
+`apps/parsing_service/pyproject.toml`; each server image supplies its own grammar
+parser. Validate the generated recovery grammar against every selected
+instruction-server image and record both versions when either changes. Do not enable vLLM's
 `--structured-outputs-config '{"disable_any_whitespace": true}'` for the
 extraction server: the compact grammar it forces changes the answers, which is
 worse than the loop.
@@ -276,15 +319,55 @@ called anonymously even when the operator's environment sets `OLLAMA_API_KEY`.
 A stored key is bound to its connection's provider and API base and is never
 sent to a changed one.
 
+## Model runtime upgrades
+
+1. Freeze the candidate image by digest and record the previous per-role
+   images, checkpoint revisions, commands and settings. Retain the old images
+   and configuration for recovery. Do not update checkpoints, prompts or
+   unrelated packages in the same comparison. Changing a default image from a
+   tag to a digest changes the Compose configuration hash for every role that
+   inherits it, even with identical image bytes; the portable launcher then
+   recreates and reloads those servers. Drain work before applying that change.
+2. Isolate validation from serving work. Use separate hardware, or close FREE
+   admissions, drain workflows and model requests, and stop the role under test
+   before starting its candidate on a shared host. Restore the baseline and
+   verify it before reopening admissions after each trial. Validate startup
+   and inference one server at a time with the deployment's shared-memory
+   budgets. Exercise real scanned/native/
+   hybrid parsing, scientific values, strict nested schemas and enums, exact
+   token counts, and bounded-whitespace grammar recovery. The worker's pinned
+   `xgrammar` generates the recovery grammar; test it against each selected
+   server image's parser. These are separate environments.
+3. Compare real-document output, Evidence and warm operation latency against
+   the running baseline before promotion. Report cold startup separately;
+   health checks alone do not validate extraction quality or capacity.
+4. For rollout, block new FREE admissions without stopping other applications
+   on a shared proxy. Let existing work finish, then recheck it is drained.
+   Keep admissions closed throughout the remaining maintenance steps.
+5. Upgrade the worker first, after testing its grammar generator against the
+   retained instruction server. Then replace only the intended model servers,
+   sequentially, using the tested digests and preserved deployment overlays.
+   An app-only release leaves model servers unchanged. Change
+   `KEI_OCR_REVISION` with the OCR implementation and recreate both parsing
+   processes with that identity before reopening admissions.
+6. Verify actual per-role image digests, served package/model versions, API and
+   worker settings, canonical readback and authenticated UI behavior, then
+   reopen admissions. Existing parse generations stay readable.
+7. If a gate fails, restore the previous model servers before the previous
+   worker and OCR identity. Keep admissions closed until the restored
+   combination has passed readiness and inference.
+
 ## OCR result reuse
 
 A parse of PDF bytes the Parsing Service already converted with the same
 effective settings reuses the earlier result instead of running OCR again; the
 match is on the fingerprint of the parse's recipe: its settings, library
-versions and text rules ([service contract](../../apps/parsing_service/README.md)). The recipe
-does not include the OCR server's image (`VLLM_IMAGE`) or the commit of its
-weights (`datalab-to/surya-ocr-2`, fixed in `compose.gpu.yaml`), so it cannot
-see a change to either.
+versions and text rules ([service contract](../../apps/parsing_service/README.md)).
+The recipe does not discover the OCR server's image digest or model weight
+revision automatically. The GPU default is defined in `compose.gpu.yaml`
+([GPU deployment](#gpu-and-dgx-spark)); `VLLM_IMAGE` and deployment overlays can
+override it. A configured tag, a cached image and a running container can
+identify different versions, even when a deployment normally pins digests.
 
 - **When the OCR server changes**, set a new `KEI_OCR_REVISION` in `.env` (any
   label, such as the date and what changed) and redeploy. This covers pulling a
@@ -615,7 +698,7 @@ them.
 
 ## Back up and restore
 
-Stop `studio` and `parsing_worker` first, so nothing writes while the backup
+Stop `studio`, `parsing_service` and `parsing_worker` first, so nothing writes while the backup
 runs. The backup set is:
 
 - `pg_dump -Fc free`, for example
@@ -656,8 +739,28 @@ checkout and run `node scripts/free.mjs production`. On a GPU host,
 `docker compose … config --hash '*'` shows beforehand whether a model server's
 configuration changed: Compose recreates a container whose hash differs from
 its `com.docker.compose.config-hash` label, and a recreated model server loads
-its model again. To roll back, stop the application processes, remove the `db`
-container and its `postgres-data` volume (`docker compose … rm -sf db`, then
-`docker volume rm <project>_postgres-data`; `docker volume ls` lists it),
-restore the pre-upgrade backup set as above, check out the previous release and
-run the launcher again; anything saved after the backup is lost.
+its model again. Installed app-only wrappers keep model containers unchanged.
+The worker sends each extraction call's priority to the servers that
+`KEI_PRIORITY_URLS` names. A vLLM server started without
+`--scheduling-policy priority` accepts and ignores it, serving in arrival
+order: after an app-only release, recreate `nuextract_model`, then
+`extraction_model`, for calls nearest the researcher's page to go first.
+`KEI_PRIORITY_URLS=` (empty) in `.env` sends no priority.
+
+For a compatible application rollback, prepare a release branch at the
+known-good commit, drain work, and release it with its matching configuration,
+retaining current durable state. A
+prepared release branch is not proof of compatibility: check migrations,
+workflow state and artifact formats first. If they are incompatible, prefer a
+forward fix or stop the application and restore the complete matching backup
+set into an empty database and volumes before starting the older checkout.
+Restoration loses writes made after that snapshot. Only for this incompatible
+recovery, after verifying the complete backup set, stop the application
+processes and remove the stopped database container with
+`docker compose … rm -sf db`. Verify its database volume name before removing
+that volume (`docker volume rm <project>_postgres-data` for the default named
+volume), then recreate only `db` and follow the restore commands above. Verify
+the names of the artifact volumes covered by the backup set, remove and recreate
+only those volumes, and restore their matching archives into the empty volumes
+before starting the older application. Do not overlay a snapshot onto artifact
+files left from the newer database.

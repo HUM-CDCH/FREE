@@ -391,6 +391,16 @@ function assertOwnedParsingTopology(config, gpu) {
     const nuSeqs = services.nuextract_model.command[services.nuextract_model.command.indexOf('--max-num-seqs') + 1]
     assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, nuSeqs)
     assert.equal(services.parsing_service.environment.KEI_CATALOG_CHUNKS, undefined)
+    // The worker sends a call's priority only to the extraction servers that schedule by it.
+    const scheduled = ['nuextract_model', 'extraction_model'].filter(name =>
+      services[name].command[services[name].command.indexOf('--scheduling-policy') + 1] === 'priority')
+    assert.deepEqual(services.parsing_worker.environment.KEI_PRIORITY_URLS.split(','),
+      scheduled.map(name => `http://${name}:8000/v1/chat/completions`))
+    assert.equal(services.parsing_worker.environment.KEI_PRIORITY_URLS.split(',')[0],
+      services.parsing_worker.environment.KEI_NUEXTRACT_URL)
+    assert.equal(services.parsing_worker.environment.KEI_PRIORITY_URLS.split(',')[1],
+      services.parsing_worker.environment.KEI_EXTRACT_URL)
+    assert.equal(services.parsing_service.environment.KEI_PRIORITY_URLS, undefined)
     for (const name of ['nuextract_model', 'extraction_model'])
       assert.equal(services.studio.depends_on[name].condition, 'service_healthy', name)
     // Studio's deployment default names the same served model, on the servers' private addresses.

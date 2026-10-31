@@ -1,21 +1,90 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SchemaNode } from 'extraction/schema'
+import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
+import { deriveSchemaProposal, replaySchemaChanges } from '../shared/schemaChanges.js'
 import { ApiError } from './_http'
-import type { ExecutionTarget } from './_provider'
-import { generateSchemaEditJson, parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
-
-const { generateTextMock } = vi.hoisted(() => ({ generateTextMock: vi.fn() }))
-vi.mock('ai', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('ai')>()
-  return { ...actual, generateText: generateTextMock }
-})
+import { formChatHistory, parseSchemaNodes, proposeSchemaEdit, schemaEditBetween } from './_schema_edit'
 
 const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000c' }
-const nodes: SchemaNode[] = [
-  { id: 'group', name: 'group', type: 'object', children: [{ id: 'child', name: 'child', type: 'string' }] },
-]
+const SOURCE = { markdown: '# Burial register', pageSpans: [{ pageNumber: 1, start: 0, end: 17 }] }
+
+const definition: SchemaDefinition = {
+  recordDescription: 'One numbered burial entry.',
+  schemaNodes: [
+    { id: 'title', name: 'title', type: 'string', description: 'The entry heading', evidencePolicy: 'quoted' },
+    { id: 'status', name: 'status', type: 'string', allowedValues: ['open', 'closed'] },
+    { id: 'count', name: 'count', type: 'string' },
+    { id: 'notes', name: 'notes', type: 'string' },
+    {
+      id: 'grave',
+      name: 'grave',
+      type: 'object',
+      children: [{ id: 'plot', name: 'plot', type: 'string' }],
+    },
+  ],
+}
+
+/** A generate port that answers with `template`, as generateSchemaWithModel does once it has parsed the reply. */
+function answering(template: Record<string, unknown>, fieldDescriptions?: unknown) {
+  return vi.fn(async () => ({ template, fieldDescriptions, raw: JSON.stringify(template), pages: null, sourceCoverage: { complete: true as const } }))
+}
+
+/** The schema the researcher would have after applying every proposed change. */
+async function applied(template: Record<string, unknown>): Promise<SchemaNode[]> {
+  const response = await proposeSchemaEdit(definition, 'change it', SOURCE, { caller: CALLER, generate: answering(template) })
+  if (response.status !== 'proposed') throw new Error(`expected a proposal, got ${response.status}`)
+  return deriveSchemaProposal(definition.schemaNodes, response).nodes
+}
 
 describe('proposeSchemaEdit', () => {
+  it('sends the whole conversation before the message with it, oldest first', async () => {
+    const generate = answering({ _description: 'One numbered burial entry.', title: 'string' })
+    const respond = vi.fn().mockResolvedValue({ answer: 'Both.' })
+    const history = [
+      { role: 'user' as const, text: 'Which fields hold dates?' },
+      { role: 'assistant' as const, text: 'None yet.' },
+    ]
+    await proposeSchemaEdit(definition, 'Add one for them', SOURCE, { caller: CALLER, generate, history })
+    const instruction = (generate.mock.calls[0] as unknown as [unknown, { instruction: string }])[1].instruction
+    expect(instruction).toContain('Conversation so far, oldest first')
+    expect(instruction).toContain('Researcher: Which fields hold dates?\nAssistant: None yet.')
+    expect(instruction.indexOf('Assistant: None yet.')).toBeLessThan(instruction.indexOf('Change request:\nAdd one for them'))
+
+    await proposeSchemaEdit(definition, 'And the burials?', SOURCE, { caller: CALLER, generate, answerable: true, respond, history })
+    expect(respond.mock.calls[0]![2]).toMatchObject({ message: 'And the burials?', history })
+  })
+
+  it('reads the form\'s history as a JSON list of chat messages, and refuses anything else', () => {
+    const form = (history?: string) => {
+      const data = new FormData()
+      if (history !== undefined) data.append('history', history)
+      return data
+    }
+    expect(formChatHistory(form())).toEqual([])
+    expect(formChatHistory(form('[{"role":"user","text":"Hi"}]'))).toEqual([{ role: 'user', text: 'Hi' }])
+    expect(() => formChatHistory(form('not json'))).toThrow(ApiError)
+    expect(() => formChatHistory(form('[{"role":"system","text":"x"}]'))).toThrow(ApiError)
+  })
+
+  it('as a chat reply, answers a question with no proposal, and proposes from a revised schema otherwise', async () => {
+    const generate = answering({})
+    const respond = vi.fn()
+      .mockResolvedValueOnce({ answer: 'Status is open or closed.' })
+      .mockResolvedValueOnce({ template: { _description: 'One numbered burial entry.', title: 'string' },
+        fieldDescriptions: [{ path: ['title'], description: 'Copy the full heading.' }],
+        raw: '', pages: null, sourceCoverage: { complete: true } })
+    await expect(proposeSchemaEdit(definition, 'What can status be?', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
+      .resolves.toEqual({ status: 'answered', answer: 'Status is open or closed.' })
+    const [caller, input, question] = respond.mock.calls[0]!
+    expect(caller).toBe(CALLER)
+    expect(input).toMatchObject({ document: { markdown: SOURCE.markdown } })
+    expect(question).toMatchObject({ message: 'What can status be?' })
+    expect(question.context).toContain('"status"')
+
+    await expect(proposeSchemaEdit(definition, 'Keep only the title', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
+      .resolves.toMatchObject({ status: 'proposed', fields: { title: { description: 'Copy the full heading.' } } })
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('accepts a typed repeating scalar field from the browser', () => {
     const repeatingDates = [{ id: 'dates', name: 'dates', type: 'array', itemType: 'date' }]
 
@@ -29,317 +98,250 @@ describe('proposeSchemaEdit', () => {
     ])).toThrow()
   })
 
-  it('accepts an explicit item type for a new repeating scalar field', async () => {
-    const generate = vi.fn().mockResolvedValue(JSON.stringify({
-      fields: {},
-      additions: [{ path: ['dates'], type: 'array', itemType: 'date' }],
-    }))
-
-    await expect(proposeSchemaEdit([], 'add a list of dates', null, { caller: CALLER, generate })).resolves.toEqual({
-      status: 'proposed',
-      fields: {},
-      additions: [{ path: ['dates'], type: 'array', itemType: 'date' }],
-      issues: [],
-    })
-  })
-
   it('refuses duplicate keys before calling the model', async () => {
-    const generate = vi.fn()
-    const response = await proposeSchemaEdit([
-      { id: 'a', name: 'same', type: 'string' },
-      { id: 'b', name: 'same', type: 'number' },
-    ], 'rename', null, { caller: CALLER, generate })
+    const generate = answering({})
+    const response = await proposeSchemaEdit({
+      recordDescription: 'One row.',
+      schemaNodes: [
+        { id: 'a', name: 'same', type: 'string' },
+        { id: 'b', name: 'same', type: 'number' },
+      ],
+    }, 'rename', null, { caller: CALLER, generate })
 
     expect(response).toMatchObject({ status: 'refused' })
     expect(generate).not.toHaveBeenCalled()
   })
 
-  it('returns a valid zero-change proposal', async () => {
-    const response = await proposeSchemaEdit(nodes, 'keep it', '# Source', {
+  it('asks Schema Suggestion with the current template, its field notes, the change request and the source', async () => {
+    const generate = answering({ _description: 'One numbered burial entry.' })
+    const signal = new AbortController().signal
+
+    await proposeSchemaEdit(definition, '  Make count a number  ', SOURCE, { caller: CALLER, generate, temperature: 0.2, signal })
+
+    const [caller, input] = generate.mock.calls[0]! as unknown as [unknown, {
+      document: { markdown: string; pageSpans: unknown }
+      instruction: string
+      temperature: number
+      signal: AbortSignal
+    }]
+    expect(caller).toEqual(CALLER)
+    expect(input.document).toMatchObject({ markdown: SOURCE.markdown, pageSpans: SOURCE.pageSpans })
+    expect(input.temperature).toBe(0.2)
+    expect(input.signal).toBe(signal)
+    expect(input).toMatchObject({ edit: true })
+    expect(input.instruction).toContain('"_description": "One numbered burial entry."')
+    expect(input.instruction).toContain('"status": [\n    "open",\n    "closed"\n  ]')
+    expect(input.instruction).toContain('- title: The entry heading')
+    expect(input.instruction).toContain('Change request:\nMake count a number\n')
+  })
+
+  it('says a schema-only edit has no source document', async () => {
+    const generate = answering({ _description: 'One numbered burial entry.' })
+
+    await proposeSchemaEdit(definition, 'drop notes', null, { caller: CALLER, generate })
+
+    const input = (generate.mock.calls[0]! as unknown as [unknown, { document: { markdown: string } }])[1]
+    expect(input.document.markdown).toMatch(/^No source document accompanies this schema edit/)
+  })
+
+  it('proposes nothing when the revised template is the current one', async () => {
+    const response = await proposeSchemaEdit(definition, 'keep it', SOURCE, {
       caller: CALLER,
-      generate: vi.fn().mockResolvedValue(JSON.stringify({
-        fields: {
-          group: { name: 'group', type: 'object', removed: false },
-          child: { name: 'child', type: 'string', removed: false },
-        },
-        additions: [],
-      })),
+      generate: answering({
+        _description: 'One numbered burial entry.',
+        title: 'string',
+        status: ['open', 'closed'],
+        count: 'string',
+        notes: 'string',
+        grave: { plot: 'string' },
+      }),
     })
 
-    expect(response).toEqual({
-      status: 'proposed',
-      fields: {
-        group: { name: 'group', type: 'object', removed: false },
-        child: { name: 'child', type: 'string', removed: false },
-      },
-      additions: [],
-      issues: [],
-    })
+    expect(response).toEqual({ status: 'proposed', fields: {}, additions: [], issues: [] })
   })
 
-  it('accepts a model-proposed closed set and description for a string field', async () => {
-    const response = await proposeSchemaEdit(
-      [{ id: 'm', name: 'model_type', type: 'string' }],
-      'model_type should be encoder, decoder, or both, in detail',
-      null,
-      {
-        caller: CALLER,
-        generate: vi.fn().mockResolvedValue(JSON.stringify({
-          fields: {
-            m: {
-              name: 'model_type',
-              type: 'string',
-              removed: false,
-              allowedValues: ['encoder', 'decoder', 'both'],
-              description: 'Architecture family of the model',
-            },
-          },
-          additions: [],
-        })),
-      },
-    )
-
-    expect(response).toEqual({
-      status: 'proposed',
-      fields: {
-        m: {
-          name: 'model_type',
-          type: 'string',
-          removed: false,
-          allowedValues: ['encoder', 'decoder', 'both'],
-          description: 'Architecture family of the model',
-        },
-      },
-      additions: [],
-      issues: [],
-    })
-  })
-
-  it('accepts null for unchanged description and allowed values, not just omission', async () => {
-    const response = await proposeSchemaEdit(
-      [
-        { id: 'm', name: 'model_type', type: 'string' },
-        { id: 'g', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] },
-      ],
-      'model type should be detailed, rather than just "transformer model"',
-      null,
-      {
-        caller: CALLER,
-        generate: vi.fn().mockResolvedValue(JSON.stringify({
-          fields: {
-            m: {
-              name: 'model_type',
-              type: 'string',
-              removed: false,
-              description: 'The architecture family, e.g. encoder, decoder, or both',
-              allowedValues: null,
-            },
-            g: { name: 'gender', type: 'string', removed: false, description: null, allowedValues: null },
-          },
-          additions: [],
-        })),
-      },
-    )
-
-    expect(response).toEqual({
-      status: 'proposed',
-      fields: {
-        m: {
-          name: 'model_type',
-          type: 'string',
-          removed: false,
-          description: 'The architecture family, e.g. encoder, decoder, or both',
-          allowedValues: null,
-        },
-        g: { name: 'gender', type: 'string', removed: false, description: null, allowedValues: null },
-      },
-      additions: [],
-      issues: [],
-    })
-  })
-
-  it('rejects a single-value closed set as invalid', async () => {
-    const response = await proposeSchemaEdit(
-      [{ id: 'm', name: 'model_type', type: 'string' }],
-      'model_type should only ever be "encoder"',
-      null,
-      {
-        caller: CALLER,
-        generate: vi.fn()
-          .mockResolvedValueOnce(JSON.stringify({
-            fields: { m: { name: 'model_type', type: 'string', removed: false, allowedValues: ['encoder'] } },
-            additions: [],
-          }))
-          .mockResolvedValueOnce(JSON.stringify({ fields: {}, additions: [] })),
-      },
-    )
-
-    expect(response).toMatchObject({ status: 'failed' })
-  })
-
-  it('retries missing and invalid keys once and keeps a validated partial result', async () => {
-    const generate = vi.fn()
-      .mockResolvedValueOnce(JSON.stringify({
-        fields: {
-          group: { name: 'renamed', type: 'object', removed: false },
-          child: { name: 'child', type: 'unsupported', removed: false },
-          invented: { name: 'invented', type: 'string', removed: false },
-        },
-        additions: [{ path: ['renamed', 'new'], type: 'string' }, { broken: true }],
-      }))
-      .mockResolvedValueOnce(JSON.stringify({ fields: {}, additions: [] }))
-
-    const response = await proposeSchemaEdit(nodes, 'rename and add', null, { caller: CALLER, generate })
-
-    expect(generate).toHaveBeenCalledTimes(2)
-    expect(generate.mock.calls[1][0]).toContain('"child"')
-    expect(response).toEqual({
-      status: 'proposed',
-      fields: { group: { name: 'renamed', type: 'object', removed: false } },
-      additions: [{ path: ['renamed', 'new'], type: 'string' }],
-      issues: [
-        { kind: 'unknown-key', key: 'invented' },
-        { kind: 'invalid', key: 'additions[1]' },
-        { kind: 'missing', key: 'group.child' },
-      ],
-    })
-  })
-
-  it('merges a valid scoped retry into the first-pass proposal', async () => {
-    const generate = vi.fn()
-      .mockResolvedValueOnce(JSON.stringify({
-        fields: { group: { name: 'group', type: 'object', removed: false } },
-        additions: [],
-      }))
-      .mockResolvedValueOnce(JSON.stringify({
-        fields: { child: { name: 'renamed_child', type: 'string', removed: false } },
-        additions: [],
-      }))
-
-    const response = await proposeSchemaEdit(nodes, 'rename child', null, { caller: CALLER, generate })
-
-    expect(response).toMatchObject({
-      status: 'proposed',
-      fields: {
-        group: { name: 'group', type: 'object', removed: false },
-        child: { name: 'renamed_child', type: 'string', removed: false },
-      },
-      issues: [],
-    })
-  })
-
-  it.each(['', '[]', '{"fields":"wrong"}', 'not json'])('fails unusable output %s', async (text) => {
-    const response = await proposeSchemaEdit(nodes, 'change', null, { caller: CALLER, generate: vi.fn().mockResolvedValue(text) })
-    expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
-  })
-
-  it.each(['invalid_model_output', 'model_operation_failed'])('converts %s into a failed response', async (code) => {
-    const response = await proposeSchemaEdit(nodes, 'change', null, {
+  it('proposes a scalar description-only edit without changing IDs, structure or record description', async () => {
+    const response = await proposeSchemaEdit(definition, 'Copy the title exactly', null, {
       caller: CALLER,
-      generate: vi.fn().mockRejectedValue(new ApiError(502, code, 'Model failure.')),
+      generate: answering({
+        _description: definition.recordDescription,
+        title: 'string', status: ['open', 'closed'], count: 'string', notes: 'string', grave: { plot: 'string' },
+      }, [{ path: ['title'], description: 'Copy the full title exactly as written.' }]),
     })
+    expect(response).toEqual({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the full title exactly as written.' } },
+      additions: [], issues: [],
+    })
+    if (response.status !== 'proposed') throw new Error('Expected proposal')
+    expect(deriveSchemaProposal(definition.schemaNodes, response).nodes).toEqual([
+      { ...definition.schemaNodes[0], description: 'Copy the full title exactly as written.' },
+      ...definition.schemaNodes.slice(1),
+    ])
+  })
 
-    expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
+  it('sets nested and added scalar notes, clears an existing note, and preserves null or omitted notes with structural edits', async () => {
+    const current: SchemaDefinition = {
+      recordDescription: 'One entry.',
+      schemaNodes: [
+        { id: 'title', name: 'title', type: 'string', description: 'Old title rule', evidencePolicy: 'quoted' },
+        { id: 'count', name: 'count', type: 'integer', description: 'Old count rule' },
+        { id: 'status', name: 'status', type: 'string', allowedValues: ['open', 'closed'], description: 'Old status rule' },
+        { id: 'items', name: 'items', type: 'array', description: 'One item', children: [
+          { id: 'name', name: 'name', type: 'string' },
+        ] },
+      ],
+    }
+    const response = await proposeSchemaEdit(current, 'Revise the notes and add dates', null, {
+      caller: CALLER,
+      generate: answering({
+        _description: current.recordDescription,
+        heading: 'string', count: 'integer', status: ['open', 'closed'],
+        items: [{ _description: 'One item', name: 'string' }], dates: ['date'],
+      }, [
+        { path: ['heading'], clear: true },
+        { path: ['count'], description: null },
+        { path: ['items', 'name'], description: 'Use the name in the item entry.' },
+        { path: ['dates'], description: 'Include every explicit date.' },
+      ]),
+    })
+    if (response.status !== 'proposed') throw new Error('Expected proposal')
+    expect(deriveSchemaProposal(current.schemaNodes, response).nodes).toEqual([
+      { id: 'title', name: 'heading', type: 'string', evidencePolicy: 'quoted' },
+      current.schemaNodes[1], current.schemaNodes[2],
+      { ...current.schemaNodes[3], children: [
+        { id: 'name', name: 'name', type: 'string', description: 'Use the name in the item entry.' },
+      ] },
+      { id: expect.any(String), name: 'dates', type: 'array', itemType: 'date', description: 'Include every explicit date.' },
+    ])
+  })
+
+  it.each(['object', 'array'] as const)('keeps new children and their notes through review when a scalar becomes %s', async (type) => {
+    const current: SchemaDefinition = { recordDescription: 'One entry.', schemaNodes: [
+      { id: 'title', name: 'title', type: 'string', evidencePolicy: 'quoted' },
+      { id: 'year', name: 'year', type: 'integer' },
+    ] }
+    const response = await proposeSchemaEdit(current, 'Make title a group with a name field', null, {
+      caller: CALLER,
+      generate: answering({
+        _description: current.recordDescription,
+        title: type === 'object' ? { name: 'string' } : [{ name: 'string' }],
+        year: 'integer',
+      }, [{ path: ['title', 'name'], description: 'Copy the full name.' }]),
+    })
+    if (response.status !== 'proposed') throw new Error('Expected proposal')
+    expect(response.additions).toEqual([{ path: ['title', 'name'], type: 'string', description: 'Copy the full name.' }])
+    const proposal = deriveSchemaProposal(current.schemaNodes, response)
+    expect(proposal.issues).toEqual([])
+    expect(proposal.changes.find(({ kind }) => kind === 'added')?.dependsOn).toEqual(['title'])
+    const replay = replaySchemaChanges(current.schemaNodes, proposal.changes, new Set(proposal.changes.map(({ id }) => id)))
+    expect(replay.hasChanges).toBe(true)
+    expect(replay.appliedCount).toBe(2)
+    expect(replay.nodes).toEqual([
+      { id: 'title', name: 'title', type, evidencePolicy: 'quoted', children: [
+        { id: expect.any(String), name: 'name', type: 'string', description: 'Copy the full name.' },
+      ] },
+      current.schemaNodes[1],
+    ])
+    expect(proposal.nodes).toEqual(replay.nodes)
   })
 
   it.each([
-    [409, 'invalid_model_config'],
-    [409, 'model_key_required'],
-    [409, 'unsupported_temperature'],
-    [500, 'unexpected_failure'],
-  ])('preserves non-model ApiError %s %s for the HTTP adapter', async (status, code) => {
-    const error = new ApiError(status, code, 'Operational failure.')
-
-    await expect(proposeSchemaEdit(nodes, 'change', null, {
+    [{ path: ['unknown'], description: 'Do not guess.' }],
+    [{ path: ['heading'], description: 'First' }, { path: ['heading'], description: 'Second' }],
+    [{ path: ['heading'], clear: true, description: null }],
+    [{ path: ['title'], description: 'The old name must not be guessed after a rename.' }],
+    [{ path: ['grave'], description: 'Groups use the template.' }],
+    [{ path: ['title'], description: 42 }],
+    [{ path: 'title', description: 'Not a path array.' }],
+  ])('fails the whole proposal when a scalar note cannot be safely mapped: %j', async (...entries) => {
+    const response = await proposeSchemaEdit(definition, 'Rename title and revise its note', null, {
       caller: CALLER,
-      generate: vi.fn().mockRejectedValue(error),
-    })).rejects.toBe(error)
+      generate: answering({ _description: definition.recordDescription, heading: 'string', grave: { plot: 'string' } }, entries),
+    })
+    expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
   })
 
-  it('keeps a valid partial proposal when retry output is malformed', async () => {
-    const generate = vi.fn()
-      .mockResolvedValueOnce(JSON.stringify({
-        fields: { group: { name: 'renamed', type: 'object', removed: false } },
-        additions: [],
-      }))
-      .mockResolvedValueOnce('')
+  it('turns a revised template into the edits that reproduce it, keeping each surviving field', async () => {
+    const nodes = await applied({
+      _description: 'One numbered burial entry.',
+      heading: 'string',
+      status: 'string',
+      count: 'integer',
+      grave: { _description: 'Where the burial lies', plot: 'string', row: 'integer' },
+      mourners: [{ name: 'verbatim-string' }],
+    })
 
-    await expect(proposeSchemaEdit(nodes, 'rename group', null, { caller: CALLER, generate })).resolves.toEqual({
-      status: 'proposed',
-      fields: { group: { name: 'renamed', type: 'object', removed: false } },
-      additions: [],
-      issues: [{ kind: 'missing', key: 'group.child' }],
+    expect(nodes).toEqual([
+      // A lone unmatched pair at one level is a rename: the field keeps its id, note and evidence policy.
+      { id: 'title', name: 'heading', type: 'string', description: 'The entry heading', evidencePolicy: 'quoted' },
+      // A closed set the revision dropped is cleared.
+      { id: 'status', name: 'status', type: 'string' },
+      { id: 'count', name: 'count', type: 'integer' },
+      {
+        id: 'grave',
+        name: 'grave',
+        type: 'object',
+        description: 'Where the burial lies',
+        children: [{ id: 'plot', name: 'plot', type: 'string' }, { id: expect.any(String), name: 'row', type: 'integer' }],
+      },
+      {
+        id: expect.any(String),
+        name: 'mourners',
+        type: 'array',
+        children: [{ id: expect.any(String), name: 'name', type: 'verbatim-string' }],
+      },
+    ])
+  })
+
+  it('renames a field the revision replaces in place with one of the same shape, and removes one it does not', () => {
+    const current: SchemaNode[] = [
+      { id: 'a', name: 'a', type: 'string' },
+      { id: 'b', name: 'b', type: 'string' },
+    ]
+    const revised: SchemaNode[] = [
+      { id: 'x', name: 'c', type: 'string' },
+      { id: 'y', name: 'd', type: 'date' },
+      { id: 'z', name: 'e', type: 'string' },
+    ]
+
+    expect(schemaEditBetween(current, revised)).toEqual({
+      fields: {
+        a: { name: 'c', removed: false, description: null, type: 'string' },
+        b: { name: 'b', removed: true, type: 'string' },
+      },
+      additions: [{ path: ['d'], type: 'date' }, { path: ['e'], type: 'string' }],
     })
   })
 
-  it('preserves an operational error from a retry', async () => {
-    const error = new ApiError(409, 'model_key_required', 'Studio does not hold the key for this Model Connection.')
-    const generate = vi.fn()
-      .mockResolvedValueOnce(JSON.stringify({
-        fields: { group: { name: 'renamed', type: 'object', removed: false } },
-        additions: [],
-      }))
-      .mockRejectedValueOnce(error)
+  it('sets a closed set and a repeating scalar the revision introduces', () => {
+    const current: SchemaNode[] = [
+      { id: 'kind', name: 'kind', type: 'string' },
+      { id: 'dates', name: 'dates', type: 'string' },
+    ]
+    const revised: SchemaNode[] = [
+      { id: 'x', name: 'kind', type: 'string', allowedValues: ['urn', 'coffin'] },
+      { id: 'y', name: 'dates', type: 'array', itemType: 'date' },
+    ]
 
-    await expect(proposeSchemaEdit(nodes, 'rename group', null, { caller: CALLER, generate })).rejects.toBe(error)
+    expect(schemaEditBetween(current, revised).fields).toEqual({
+      kind: { name: 'kind', removed: false, description: null, type: 'string', allowedValues: ['urn', 'coffin'] },
+      dates: { name: 'dates', removed: false, description: null, type: 'array', itemType: 'date' },
+    })
   })
 
-  it('instructs the model about complete independent edits and additions', async () => {
-    const generate = vi.fn().mockResolvedValue(JSON.stringify({ fields: {}, additions: [] }))
-    await proposeSchemaEdit([], 'add fields', null, { caller: CALLER, generate })
-    const prompt = generate.mock.calls[0][0]
+  it('answers failed when the model output is unusable, and lets an operational error through', async () => {
+    const invalid = vi.fn(async () => { throw new ApiError(502, 'invalid_model_output', 'bad JSON') })
+    await expect(proposeSchemaEdit(definition, 'change', SOURCE, { caller: CALLER, generate: invalid }))
+      .resolves.toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
 
-    expect(prompt).toContain('"new_scalar"')
-    expect(prompt).toContain('"new_dates"')
-    expect(prompt).toContain('additions must always be present; use []')
-    expect(prompt).toContain('apply the researcher instruction to every relevant field')
-    expect(prompt).not.toContain('unless explicitly told to rename it')
-    expect(prompt).toContain('itemType is allowed only when type is array')
-    expect(prompt).toContain('must not invent root path segments')
-  })
+    await expect(proposeSchemaEdit(definition, 'change', SOURCE, { caller: CALLER, generate: answering({ title: 'string' }) }))
+      .resolves.toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
 
-})
-
-describe('schema edit model reply', () => {
-  const target: ExecutionTarget = {
-    profile: 'general',
-    model: {
-      specificationVersion: 'v4',
-      provider: 'test-provider',
-      modelId: 'test-model',
-      supportedUrls: {},
-      doGenerate: vi.fn(),
-      doStream: vi.fn(),
-    },
-    jsonOutput: 'prompt',
-    temperatureSupported: false,
-  }
-  const field = [{ id: 'code', name: 'code', type: 'string' }] satisfies SchemaNode[]
-  const proposeFromReply = async (text: string) => {
-    generateTextMock.mockResolvedValueOnce({ text, finishReason: 'stop' })
-    return proposeSchemaEdit(field, 'describe the code field', null, {
+    const misconfigured = new ApiError(409, 'invalid_model_config', 'No model.')
+    await expect(proposeSchemaEdit(definition, 'change', SOURCE, {
       caller: CALLER,
-      generate: async (prompt, temperature) =>
-        (await generateSchemaEditJson(CALLER, prompt, temperature, undefined, target)).text,
-    })
-  }
-
-  it.each([false, true])('keeps literal triple backticks in a description (repair: %s)', async (repair) => {
-    const description = 'Copy the ```json``` block verbatim, fences included: ```'
-    const reply = JSON.stringify({ fields: { code: { name: 'code', type: 'string', removed: false, description } }, additions: [] })
-
-    await expect(proposeFromReply(repair ? `${reply.slice(0, -1)},}` : reply)).resolves.toMatchObject({
-      status: 'proposed',
-      fields: { code: { description } },
-    })
-  })
-
-  it('reads a reply fenced as a whole', async () => {
-    const reply = '```json\n{"fields":{"code":{"name":"code","type":"string","removed":false,"description":"A code."}},"additions":[]}\n```'
-
-    await expect(proposeFromReply(reply)).resolves.toMatchObject({
-      status: 'proposed',
-      fields: { code: { description: 'A code.' } },
-    })
+      generate: vi.fn(async () => { throw misconfigured }),
+    })).rejects.toBe(misconfigured)
   })
 })

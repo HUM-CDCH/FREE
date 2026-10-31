@@ -144,7 +144,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
-- A PDF with text on every selected nonblank page parses natively; substantial
+- A PDF with text on every selected nonblank page parses natively. For this
+  route decision, a non-whitespace character counts when its box meets the
+  displayed page and its render mode is not 3 (invisible, such as a scan's
+  search layer or a hidden note); clipping-only text (mode 7) still counts. A
+  page holding only directly placed invisible text counts as blank, and a PDF
+  of blank pages takes the scan path; a page without counting text but with any
+  other object, including a form that wraps invisible text, sends the PDF to
+  the scan path. Native parsing still reads invisible text. Substantial
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
   discovery order. A native block whose text keeps an undecodable font glyph's
@@ -161,7 +168,11 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   crops gain 24 pt of real page context. Other crop pixels stay unchanged.
   Context outside the original artwork is excluded; a text block crossing that
   boundary or another figure loop refuses publication. Scans and native-text
-  replacement crops keep their existing retry policy.
+  replacement crops keep their existing retry policy. Any Surya input whose
+  full-page generation produced looping or token-capped text and whose final
+  recognition holds no text at all, read before artwork ownership filtering, is
+  incomplete: lost text and a textless input are indistinguishable there. Text
+  lost while other text survives is not detected.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
@@ -178,8 +189,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   retained there, never published beside the run or served by this API. A
   request may name `start_page`, the page the researcher is reading: the unified
   Catalog reads the records nearest it first and Article its bounded value
-  contexts, the admitted source range unchanged. Changing the schema reruns
-  Extraction without rerunning OCR.
+  contexts, the admitted source range unchanged. Each call also asks its model
+  server (when `KEI_PRIORITY_URLS` names it) with a vLLM priority: its page's
+  distance from `start_page` in steps of 8 pages, 0 to 3; a call that reads no
+  one page (discovery, the document's root) 0, and every call of a run without
+  `start_page` (a batch member) 3. Changing the schema reruns Extraction
+  without rerunning OCR.
 - Extraction calls take one of two roles. `fields` reads values off the source
   (document, record and grounded entry calls); `reasoning` decides over labelled
   text (discovery, grounding, arbitration). `GET /api/extraction-models` lists
@@ -221,8 +236,23 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   an entry's calls are captured by where it starts and what it covers, not by
   its number. From `defaults` 4 an entry's reply may use the served context its
   counted input leaves, its reserve the floor (an explicit `output_tokens` or a
-  native fields model keeps the reserve). New admissions use it only where Studio's
-  `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
+  within the counted token budget, retaining internal sections and lists as record content.
+  The existing verification call reads scalar fields afresh, without the draft
+  values anchoring its answer, and returns each complete value with a source quote;
+  code checks the field type and the quoted record text before acceptance. List
+  identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
+  corrected passages. Defaults 6 drops that compulsory verification: the entry call
+  is shown the requested value structure, code checks each value once (type, quoted
+  record text, table row, list item occurrence) and links a located value `lexical`,
+  never as verified; a value whose quote is missing or found nowhere stays a proposal
+  without Evidence, one printed neither in its located quote nor in source text
+  enclosing that quote stays rejected. Located
+  values that disagree still go to arbitration; `verification: true` adds verdicts on
+  the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
+  New admissions use the latest version only where Studio's
+  `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
+  Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
 Limitations:

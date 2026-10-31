@@ -5,7 +5,6 @@ points, 72 per inch). A leaf: no pdfium and no docling, so a reader of the resul
 converter. The renderers' own rounding rules stay with the renderers (`pages.py`); what is shared is the record
 they leave and the arithmetic every consumer applies to it.
 """
-import math
 from typing import NamedTuple, Protocol
 
 PointBox = tuple[float, float, float, float]   # left, top, right, bottom, in top-left points
@@ -35,35 +34,6 @@ class CropTransform(NamedTuple):
         left, top, right, bottom = bbox_px
         return (self.origin_x + left * self.pt_per_px_x, self.origin_y + top * self.pt_per_px_y,
                 self.origin_x + right * self.pt_per_px_x, self.origin_y + bottom * self.pt_per_px_y)
-
-
-def unit_pixels(bbox_px: tuple[float, float, float, float], source_px: PixelBox, image_px: tuple[int, int]) -> PixelBox:
-    """A crop-image box on the unit's native raster, through the crop's recorded rectangle and image size.
-
-    The scale per axis is the recorded pair and nothing else: the renderer cut `source_px` from the raster and
-    resized it to whole pixels, so `image_px` is exactly what the engine saw. Going through points and back would
-    add two roundings for nothing. The box rounds outward (floor left and top, ceil right and bottom), as every
-    transformed box does (stage 0 design §3.1).
-    """
-    left, top, right, bottom = source_px
-    width, height = image_px
-    sx, sy = (right - left) / width, (bottom - top) / height
-    x0, y0, x1, y1 = bbox_px
-    return (math.floor(left + x0 * sx), math.floor(top + y0 * sy), math.ceil(left + x1 * sx), math.ceil(top + y1 * sy))
-
-
-def clamp(box: PixelBox, within: PixelBox) -> PixelBox | None:
-    """Where a rounded box lands: clamped into `within`, the crop it was read from, or None when nothing is left.
-
-    A box is clamped to its crop rather than to the page, because pixels outside the crop were never shown to the
-    engine; the crop lies inside the page, so every placed box does too. The clamp comes after the rounding,
-    because float error on a boundary can ceil one pixel past the crop's edge. Alternatives (a tolerance beyond
-    which a box is an engine error to reject; no clamp at all) replace this function.
-    """
-    left, top, right, bottom = box
-    within_left, within_top, within_right, within_bottom = within
-    placed = (max(left, within_left), max(top, within_top), min(right, within_right), min(bottom, within_bottom))
-    return placed if placed[0] < placed[2] and placed[1] < placed[3] else None
 
 
 class Placed(Protocol):

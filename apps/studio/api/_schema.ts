@@ -1,32 +1,6 @@
 import type { SourcePageSpan } from 'db'
 import type { SourceCoverage, SourceOmission } from '../shared/schemaSuggestionSource.contract.js'
-
-// Superseded by a free-text chat instruction (see schemaPrompt below) — schema
-// generation no longer takes highlighted-passage annotations as input. Left in
-// place, commented out, rather than deleted.
-//
-// import type { Annotation, AnnotationMode } from './_document'
-//
-// export function schemaPrompt(annotations: readonly Annotation[], mode: AnnotationMode): string {
-//   const annotationText =
-//     annotations.length === 0
-//       ? 'No annotations were supplied.'
-//       : annotations.map((item) => `- page ${item.pageNumber}: ${item.text}`).join('\n')
-//
-//   const modeText =
-//     mode === 'fields'
-//       ? 'Use the annotations as the primary signal for fields, then check the whole document for structure.'
-//       : 'Use annotations as guidance, but infer the compact schema from the whole document.'
-//
-//   return `${modeText}
-//
-// Generate a compact JSON extraction schema for this source document. Return an object named "template". Its first member must be "_description": one concise, explicit sentence defining what constitutes ONE root record in the source document. This record description must distinguish record boundaries (for example, one entry beginning at a numbered heading or one top-level numbered article section); field names alone are not a record definition. Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
-//
-// When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.
-//
-// Annotations:
-// ${annotationText}`
-// }
+import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
 export function schemaPrompt(instruction: string): string {
   const instructionText =
@@ -47,6 +21,21 @@ When a field can only take one of a small closed set of values, give that field 
 Required JSON envelope:
 {"template":{"_description":"A sentence defining one complete source record."}}
 Write a source-specific record definition in "_description" and add the actual requested extraction fields as its siblings inside "template". The example shows only the required metadata; it does not replace the requested fields. "_description" contains a sentence, never a type label.`
+}
+
+/** The schema chat before the message a request answers, oldest first; empty when there is none. */
+export function chatHistoryText(history: ChatHistory): string {
+  if (history.length === 0) return ''
+  return `Conversation so far, oldest first (the researcher's latest message may refer to it):
+${history.map(({ role, text }) => `${role === 'user' ? 'Researcher' : 'Assistant'}: ${text.trim()}`).join('\n')}`
+}
+
+/** What lets a chat's Schema Suggestion request answer a question instead of returning a schema. */
+export function schemaAnswerClause(message: string): string {
+  return `The researcher's chat message was:
+${message.trim()}
+
+If that message asks a question (about the source document or the extraction schema) instead of asking for the schema to be generated or changed, do not return a schema. Answer the question from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.`
 }
 
 /** The longest schema-suggestion input sent whole; past it, a source is excerpted. */

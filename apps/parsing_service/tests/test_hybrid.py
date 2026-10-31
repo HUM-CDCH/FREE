@@ -586,16 +586,24 @@ def test_a_hybrid_recipe_changes_with_native_text_rules_and_others_keep_their_fi
     native = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
     with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None):
         scan = ocr.resolve(RunParams(pdf=digital_pdf_for_rules, model="surya"))
-    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 4, "native": 3, "surya": 1}
-    assert recipe(native, "0" * 64, None)["text_rules"] == 3
-    assert recipe(scan, "0" * 64, None)["text_rules"] == 1
-    before = {name: fingerprint(recipe(e, "0" * 64, None)) for name, e in
-              {"hybrid": hybrid, "native": native, "scan": scan}.items()}
-    monkeypatch.setitem(types.TEXT_RULES, "native", 4)
-    after = {name: fingerprint(recipe(e, "0" * 64, None)) for name, e in
-             {"hybrid": hybrid, "native": native, "scan": scan}.items()}
+    assert recipe(hybrid, "0" * 64, None)["text_rules"] == {"hybrid": 4, "native": 4, "surya": 2}
+    assert recipe(native, "0" * 64, None)["text_rules"] == 4
+    assert recipe(scan, "0" * 64, None)["text_rules"] == 2
+
+    def fingerprints():
+        return {name: fingerprint(recipe(e, "0" * 64, None)) for name, e in
+                {"hybrid": hybrid, "native": native, "scan": scan}.items()}
+
+    before = fingerprints()
+    monkeypatch.setitem(types.TEXT_RULES, "native", 5)
+    after = fingerprints()
     assert after["hybrid"] != before["hybrid"] and after["native"] != before["native"]
     assert after["scan"] == before["scan"]
+    # A Surya rule revision (surya 2: the empty-retry guard) moves direct Surya and hybrid-with-Surya, not native.
+    monkeypatch.setitem(types.TEXT_RULES, "surya", 1)
+    previous = fingerprints()
+    assert previous["hybrid"] != after["hybrid"] and previous["scan"] != after["scan"]
+    assert previous["native"] == after["native"]
 
 
 @pytest.fixture

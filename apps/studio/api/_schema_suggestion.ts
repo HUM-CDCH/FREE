@@ -1,9 +1,10 @@
 import type { DocumentInput } from './_document.js'
 import { documentFileParts } from './_pdf.js'
-import { EXCERPT_THRESHOLD, schemaPrompt, schemaSourceExcerpts } from './_schema.js'
+import { EXCERPT_THRESHOLD, schemaAnswerClause, schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
-import { parseTemplate } from './_model_output.js'
+import { parseTemplate, parseUnknownJson } from './_model_output.js'
 import { traceModelCall } from '../server/tracing.js'
+import { parseSchemaEditOutput, schemaEditPrompt } from './_schema_edit_output.js'
 import {
   executeSchemaSuggestion,
   resolveModelTarget,
@@ -23,6 +24,8 @@ import {
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
+  /** An edit may carry scalar note changes beside its compact template, in the same model reply. */
+  readonly edit?: true
   /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
   readonly window?: boolean
   readonly temperature?: number
@@ -49,38 +52,85 @@ export function generateSchemaWithModel(...call: Parameters<typeof suggestSchema
   return traceModelCall('schema-suggestion', () => suggestSchema(...call), (result) => result.template)
 }
 
-async function suggestSchema(
-  caller: ModelCaller,
-  { document, instruction, window, temperature, signal }: SchemaModelInput,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<{
+type SchemaSuggested = {
   readonly template: Record<string, unknown>
+  readonly fieldDescriptions?: unknown
   readonly raw: string
   readonly pages: number | null
   readonly sourceCoverage: SourceCoverage
-}> {
-  const resolved = await resolveModelTarget('schema-suggestion', temperature, target, caller, dependencies)
+}
+
+/** A chat message a Schema Suggestion request may answer instead of suggesting a schema (`respondToSchemaEdit`). */
+export type SchemaChatMessage = Readonly<{ message: string }>
+
+async function suggestSchema(
+  caller: ModelCaller,
+  input: SchemaModelInput,
+  target?: ExecutionTarget,
+  dependencies: ModelDependencies = {},
+): Promise<SchemaSuggested> {
+  const resolved = await resolveModelTarget('schema-suggestion', input.temperature, target, caller, dependencies)
+  return suggestOrAnswer(resolved, input, null, dependencies) as Promise<SchemaSuggested>
+}
+
+/**
+ * One Schema Suggestion request on a resolved route. With `chat`, the model may answer the message as a question
+ * instead, returning `{"answer": …}`; NuExtract only generates templates, so a NuExtract route never answers.
+ */
+export async function suggestOrAnswer(
+  resolved: ExecutionTarget,
+  { document, instruction, edit, window, temperature, signal }: SchemaModelInput,
+  chat: SchemaChatMessage | null,
+  dependencies: ModelDependencies = {},
+): Promise<SchemaSuggested | { readonly answer: string }> {
+  const answerable = chat !== null && resolved.profile === 'general'
   const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
+  const guidance = edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction)
   const generated = await executeSchemaSuggestion(resolved, {
-    instructions:
-      'Propose a compact extraction schema grounded in the supplied source document. ' +
-      'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
-    guidance: schemaPrompt(instruction),
+    instructions: edit
+      ? 'Revise the researcher\'s extraction schema' + (answerable ? ' or answer their question' : '') + '. ' +
+        'Return only one JSON object, with no Markdown or commentary. ' +
+        (answerable ? 'For a question, return only {"answer":"<your answer>"}. Otherwise, ' : '') +
+        'return the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
+      : answerable
+      ? 'Propose a compact extraction schema grounded in the supplied source document, or answer the researcher\'s question about it. ' +
+        'Return only one JSON object, with no Markdown or commentary.'
+      : 'Propose a compact extraction schema grounded in the supplied source document. ' +
+        'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
+    guidance: answerable ? `${guidance}\n\n${schemaAnswerClause(chat.message)}` : guidance,
     documentParts: documentParts.parts,
     temperature,
     signal,
   }, dependencies.fetch)
-  const parsed = await parseTemplate(generated.response)
+  if (answerable) {
+    const answer = await answerOf(generated.response)
+    if (answer !== null) return { answer }
+  }
+  const output = edit ? await parseSchemaEditOutput(generated.response) : { template: await parseTemplate(generated.response) }
+  const parsed = output.template
   if (typeof parsed._description !== 'string' || parsed._description.trim().length === 0)
     throw new ApiError(502, 'invalid_model_output', 'The generated Extraction Schema has no root record description.')
   return {
-    template: parsed,
+    ...output,
     raw: generated.response,
     pages: documentParts.pages ?? document.pages,
     sourceCoverage: excerpts?.sourceCoverage ?? { complete: true },
   }
+}
+
+/** The answer of a reply that is exactly `{"answer": "<text>"}`; null for any other reply. */
+export async function answerOf(response: string): Promise<string | null> {
+  let parsed: unknown
+  try {
+    parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+  const keys = Object.keys(parsed)
+  const answer = (parsed as Record<string, unknown>).answer
+  return keys.length === 1 && typeof answer === 'string' && answer.trim() ? answer.trim() : null
 }
 
 const SOURCE_SUGGESTION_INSTRUCTION =

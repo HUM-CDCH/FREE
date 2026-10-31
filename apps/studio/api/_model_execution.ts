@@ -264,31 +264,3 @@ const chatCompletionSchema = z.object({
     completion_tokens: z.number().int().nonnegative().optional(),
   }).optional(),
 })
-
-/** The request signal and DBOS cancellation are composed at the provider/key boundary. */
-export async function executeEditPrompt(
-  caller: ModelCaller,
-  prompt: string,
-  temperature?: number,
-  signal?: AbortSignal,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<{ text: string; finishReason: string }> {
-  const resolved = await resolveModelTarget('schema-edit', temperature, target, caller, dependencies)
-  if (resolved.profile !== 'general') {
-    throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
-  }
-  try {
-    const result = await generateWithRouteOutput(resolved, {
-      model: resolved.model,
-      ...(resolved.jsonOutput === 'native' ? { output: Output.json() } : {}),
-      reasoning: 'none',
-      messages: [{ role: 'user', content: prompt }],
-      ...(temperature === undefined ? {} : { temperature }),
-      abortSignal: signal,
-    })
-    return { text: result.text, finishReason: result.finishReason }
-  } catch (error) {
-    throw asModelOperationError(error)
-  }
-}

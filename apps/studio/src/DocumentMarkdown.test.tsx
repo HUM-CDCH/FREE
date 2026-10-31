@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import DocumentMarkdown from './DocumentMarkdown'
+import type { MarkInfo } from './useEvidenceOverlays'
 
 afterEach(cleanup)
 
@@ -40,6 +41,29 @@ describe('the Markdown view', () => {
     expect(onSelect).toHaveBeenCalledWith([key], mark)
   })
 
+  it('labels an early text match as an unverified preview and lets it select its saved value',()=>{
+    const onSelect=vi.fn()
+    const preview=new Map([[key,{...describe_.get(key)!,name:'orientation (preview, not verified)',style:'preview' as const}]])
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{describe:preview,selected:null,onSelect}}/>)
+    const mark=screen.getByRole('button',{name:'orientation (preview, not verified): NE–SW'})
+    expect(mark).toHaveClass('preview')
+    expect(mark).not.toHaveClass('decided')
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([key],mark)
+  })
+
+  it('keeps a shared passage provisional until every highlighted value is verified', () => {
+    const previewKey = 'preview'
+    const marks = { describe: new Map<string, MarkInfo>([...describe_, [previewKey, {
+      ...describe_.get(key)!, name: 'axis (preview, not verified)', style: 'preview' as const,
+    }]]), selected: null, onSelect: vi.fn() }
+    const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={marks} />)
+    expect(screen.getByRole('button', { name: /orientation: NE–SW; axis \(preview, not verified\)/ }).classList.contains('preview')).toBe(true)
+    marks.describe.set(previewKey, { ...describe_.get(key)!, name: 'axis' })
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={marks} />)
+    expect(screen.getByRole('button', { name: 'orientation: NE–SW; axis: NE–SW' })).toHaveClass('link')
+  })
+
   it('says when there is no Markdown', () => {
     render(<DocumentMarkdown markdown={null} document={null} marks={null} />)
     expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()
@@ -47,6 +71,20 @@ describe('the Markdown view', () => {
 })
 
 describe('the values in one passage', () => {
+  it('names a value once when its model and correction Evidence share the passage, lit while one of its parts is chosen', () => {
+    const edited = { name: 'orientation', value: 'N–S', word: 'Edited', style: 'link' as const, anchorId: 'a1' }
+    const link = { resultPath: ['records', 0, 'orientation'], evidenceAnchorId: 'a1' }
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: new Map([['v', edited], ['v#correction', edited]]),
+      selected: 'v#["records",0,"orientation","x"]', onSelect: vi.fn(), savedLinks: [{ key: 'v', link }, { key: 'v#correction', link, occurrenceIds: ['o1'] }] }} />)
+    expect(screen.getByRole('button', { name: 'orientation: N–S, Edited' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('names two values that read alike in one passage, from two records, twice', () => {
+    const harlow = { name: 'place', value: 'Harlow', word: null, style: 'link' as const, anchorId: 'a1' }
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: new Map([['v', harlow], ['w', harlow]]), selected: null, onSelect: vi.fn() }} />)
+    expect(screen.getByRole('button', { name: 'place: Harlow; place: Harlow' })).toBeInTheDocument()
+  })
+
   it('selects all linked fields directly from their shared mark', () => {
     const two = new Map([...describe_, [JSON.stringify(['records', 0, 'site']), { name: 'site', value: 'Elmbrooke', word: null, style: 'link' as const, anchorId: 'a1' }]])
     const onSelect = vi.fn()

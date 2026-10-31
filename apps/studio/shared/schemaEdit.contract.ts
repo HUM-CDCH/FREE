@@ -70,6 +70,8 @@ export type ProposedSchemaEdit = z.infer<typeof proposedSchemaEditSchema>
 
 export const schemaEditResponseSchema = z.discriminatedUnion('status', [
   proposedSchemaEditSchema,
+  /** The chat message asked a question instead of a change: its answer, and no proposal. */
+  z.object({ status: z.literal('answered'), answer: z.string() }).strict(),
   z.object({ status: z.literal('refused'), message: z.string() }).strict(),
   z.object({ status: z.literal('failed'), message: z.string() }).strict(),
 ])

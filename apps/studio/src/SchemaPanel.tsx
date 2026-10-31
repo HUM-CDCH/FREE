@@ -7,7 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { deleteModelOperation, requestSchemaEdit } from './api'
+import { deleteModelOperation, requestSchemaChat, requestSchemaEdit } from './api'
 import { sourceCoverageNotice } from './sourceCoverageNotice'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { isRecord } from '../shared/template'
@@ -427,9 +427,15 @@ function SchemaPanel({
   const chatAbortRef = useRef<AbortController | null>(null)
   /** The running edit's operation ID: Stop cancels it on the server (Task 6) and Discard names it (Task 7). */
   const editOperationRef = useRef<string | null>(null)
+  /** The pre-generation message whose reply is coming, and why the last one got none. */
+  const [asking, setAsking] = useState<string | null>(null)
+  const [askError, setAskError] = useState<string | null>(null)
+  const askAbortRef = useRef<AbortController | null>(null)
   useEffect(() => () => {
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
+    askAbortRef.current?.abort()
+    askAbortRef.current = null
   }, [])
   const [view, setView] = useState<'fields' | 'code'>('fields')
   /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
@@ -978,11 +984,13 @@ function SchemaPanel({
         return
       }
       const originalSchemaRevisionId = modelContext.schemaRevisionId
+      // The whole conversation goes with the message: the instructions before the first schema, then this chat.
       const response = await requestSchemaEdit(
         modelContext,
         userMsg,
         controller.signal,
         operationId,
+        [...instructions.history, ...chat],
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -993,7 +1001,9 @@ function SchemaPanel({
         setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
         return
       }
-      if (response.status === 'refused' || response.status === 'failed') {
+      if (response.status === 'answered') {
+        setChat(c => [...c, { role: 'assistant', text: response.answer }])
+      } else if (response.status === 'refused' || response.status === 'failed') {
         setChat(c => [...c, { role: 'assistant', text: `${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}` }])
       } else {
         const proposal = deriveSchemaProposal(original, response)
@@ -1067,9 +1077,42 @@ function SchemaPanel({
   // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
   const applyProposal = () => { if (proposalReview.apply()) setDrawerOpen(false) }
   const discardProposal = () => { proposalReview.discard(); setDrawerOpen(false) }
-  const sendInstruction = () => {
-    if (!instructions.draft.trim()) return
-    instructions.send()
+  // A message before the first schema asks the model whether it is a question: a question is answered from the document,
+  // anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
+  const sendInstruction = async () => {
+    const text = instructions.draft.trim()
+    const projectContextId = schema.operationScope()?.projectContextId
+    if (!text || asking !== null) return
+    if (!projectContextId || !sourceRepresentationId) {
+      instructions.send()
+      return
+    }
+    const controller = new AbortController()
+    askAbortRef.current = controller
+    instructions.setDraft('')
+    setAskError(null)
+    setAsking(text)
+    try {
+      const reply = await requestSchemaChat(
+        { projectContextId, sourceRepresentationRevisionId: sourceRepresentationId },
+        text,
+        controller.signal,
+        crypto.randomUUID(),
+        instructions.history,
+      )
+      if (askAbortRef.current !== controller) return
+      instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)
+    } catch (err) {
+      if (askAbortRef.current !== controller) return
+      // Nothing was recorded: the message goes back to the composer to send again.
+      instructions.setDraft(text)
+      setAskError(`Could not send the message: ${err instanceof Error ? err.message : 'Request failed'}`)
+    } finally {
+      if (askAbortRef.current === controller) {
+        askAbortRef.current = null
+        setAsking(null)
+      }
+    }
   }
   // The instructions field keeps the scroll of the text it held; emptied, it would show its wrapped
   // placeholder from that offset (its tail). Back to the start once it is empty.
@@ -1270,16 +1313,17 @@ function SchemaPanel({
             // schema. Generating is the panel's one way in; a codebook import is chosen a step earlier, on the
             // Schemas tab, and what a record is gets said here.
             // With nothing said yet, Generate schema stands alone at the body's centre; after instructions it follows them.
-            <div className={`flex min-h-full flex-col gap-2 ${instructions.count === 0 && runningRows.length === 0 ? 'justify-center' : ''}`}>
+            <div className={`flex min-h-full flex-col gap-2 ${instructions.items.length === 0 && asking === null && runningRows.length === 0 ? 'justify-center' : ''}`}>
               {runningRows}
-              <SchemaInstructionsChat instructions={instructions} messageClass={msgCls} />
-              {snap.view === 'empty' && instructions.count === 0 && (
+              <SchemaInstructionsChat instructions={instructions} messageClass={msgCls} asking={asking} />
+              {askError && <p className="text-compact text-danger" role="alert">{askError}</p>}
+              {snap.view === 'empty' && instructions.items.length === 0 && asking === null && (
                 <p className="mx-auto max-w-[34ch] text-center text-secondary leading-relaxed text-ink-muted">
-                  Generate now, or add instructions in the chat below first.
+                  Generate now, or add instructions or ask about the document in the chat below first.
                 </p>
               )}
               {snap.view === 'empty' ? (
-                <Button variant="positive" size="md" className="mt-1 self-center" onClick={() => onGenerateInstructions?.(instructions.text)}>
+                <Button variant="positive" size="md" className="mt-1 self-center" disabled={asking !== null} onClick={() => onGenerateInstructions?.(instructions.text)}>
                   Generate schema{instructions.countLabel}
                 </Button>
               ) : (
@@ -1425,11 +1469,11 @@ function SchemaPanel({
       {instructing && (
         <ChatComposer standalone label={<ChatLabel optional />}>
           <textarea ref={instructionInputRef} className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint" rows={3}
-            placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations")…'} value={instructions.draft}
+            placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
             onChange={(event) => instructions.setDraft(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendInstruction() } }} />
-          <button type="button" aria-label="Add instruction" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
-            disabled={!instructions.draft.trim()} onClick={sendInstruction}>↑</button>
+            onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendInstruction() } }} />
+          <button type="button" aria-label="Send message" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+            disabled={!instructions.draft.trim() || asking !== null} onClick={() => void sendInstruction()}>↑</button>
         </ChatComposer>
       )}
 

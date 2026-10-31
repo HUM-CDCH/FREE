@@ -6,16 +6,18 @@ from dataclasses import replace
 import jsonschema
 import pytest
 
-from kei_exp.kie.extract.contexts import Context, assemble_document
-from kei_exp.kie.extract.resolution import OF_CHARS, OTHER, UNSURE, _shown, resolve
+from kei_exp.kie.extract.contexts import Context, assemble_document, sharing
+from kei_exp.kie.extract.resolution import (LIST_CHUNK, OF_CHARS, OTHER, REPEAT, UNSURE, _attributed, _form_of, _shown,
+                                            resolve)
 from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import article, resolution, run
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.passages import Passage
 from tests.test_article_occurrence_origins import occurrence_input, occurrence_reply
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
 from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
-from tests.test_extract_stages import passages
+from tests.test_extract_stages import evidence, passages
 
 
 SCHEMA = Schema(schemaNodes=[{"id": "finds", "name": "finds", "type": "array",
@@ -519,6 +521,31 @@ def test_another_works_item_leaves_when_its_part_prints_the_work(of, printed):
     assert root["finds"] == [OWN_SAMPLE] and len(item_sources) == 1 and not doubts(issues)
 
 
+# One part's prose gives a group's average, which its reading gave to one specimen; another part's table prints that
+# specimen's own row under a caption naming the group.
+GROUP = "Group A"
+SUMMARY_TEXT = "Leaves of the Group A trees alder, birch and cedar were analysed. Group A nitrogen averaged 251 ± 7."
+TABLE_TEXT = f"Table 1 Nitrogen (mg/g) of {GROUP}: alder 248, birch 262, cedar 239."
+AVERAGED = {"name": "alder", "parts": ["251"]}
+SPECIMEN = {"name": "alder", "parts": ["248"]}
+
+
+@pytest.mark.parametrize("label", ["OWN", "OTHER"])
+def test_a_groups_summary_given_to_one_item_leaves_with_the_group_its_part_prints(label):
+    """The averaged reading is another's, given to the group its values summarise (version 15), and leaves: its part
+    prints the group. The specimen's row labelled OWN stays. Labelled OTHER and given the caption's group it leaves too:
+    whether a printed group is this item's is the model's judgment, and the loss is recorded in `dropped_items`."""
+    def rule(line):
+        return ("OTHER", GROUP) if '"251"' in line else (label, GROUP if label == OTHER else "")
+    readings = [{"finds": [deepcopy(AVERAGED)]}, {"finds": [deepcopy(SPECIMEN)]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)),
+                                                         texts=[SUMMARY_TEXT, TABLE_TEXT])
+    gone = [SPECIMEN] if label == OTHER else []
+    assert root["finds"] == ([] if gone else [SPECIMEN]) and len(item_sources) == 1 - len(gone)
+    assert dropped(issues) == [{"path": ["finds"], "dropped": [AVERAGED, *gone], "of": [GROUP] * (1 + len(gone))}]
+    assert not doubts(issues)
+
+
 def test_an_item_whose_membership_the_source_does_not_settle_is_kept_and_named_at_its_kept_index():
     """UNSURE is an item's own abstention: the item stays where it is, after another work's item before it left, and
     the issue names its kept position."""
@@ -644,6 +671,38 @@ def test_an_uncertain_item_is_saved_with_the_record_publication_and_survives_rep
     assert completions() == [completion]
 
 
+def test_an_attempt_planned_again_under_a_changed_resolution_prompt_asks_it_anew_and_reuses_every_other_call(
+        monkeypatch):
+    """A durable call capture is keyed by its exact request, system prompt included, and the admitted method pins no
+    prompt: an attempt planned again after the resolution prompt changed (a version 14 attempt resumed on version 15)
+    replays the calls whose requests are unchanged, never reuses the earlier prompt's resolution reply, and asks the
+    changed prompt anew. Its result is the changed prompt's decision, with no trace of the earlier one. This fixture
+    has one resolution request and unchanged grounding requests, hence one more call; a part whose resolution
+    changes may change its grounding requests too."""
+    source, request = occurrence_input(monkeypatch, "semantic")
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    changed = " A changed resolution prompt."
+    def reply(system, user, schema):
+        if not resolving(user):
+            return occurrence_reply(system, user, schema)
+        return labelling(**({} if system.endswith(changed) else {"L1": {"I1": "UNSURE"}}))(system, user, schema)
+    chat = valid(reply)
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    earlier = finish(lease, chat, extract)
+    def doubted(result):
+        return [issue for issue in result["issues"] if issue["code"] == "uncertain_items"]
+    assert len(doubted(earlier)) == 1
+    count, units = len(chat.calls), len(lease.units)
+    monkeypatch.setattr(resolution, "RESOLUTION", resolution.RESOLUTION + changed)
+    later = finish(lease, chat, extract)
+    asked = chat.calls[count:]
+    assert len(asked) == 1 and resolving(asked[0]["user"]) and asked[0]["system"].endswith(changed)
+    assert len(lease.units) == units + 1
+    assert later["records"] == earlier["records"] == [{"fees": [10, 10]}] and not doubted(later)
+    assert later["issues"] == [issue for issue in earlier["issues"] if issue not in doubted(earlier)]
+
+
 def test_a_rejected_list_reply_reports_non_application_through_completion_and_replay(monkeypatch):
     source, request = occurrence_input(monkeypatch, "semantic")
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
@@ -663,3 +722,238 @@ def test_a_rejected_list_reply_reports_non_application_through_completion_and_re
     assert len(chat.calls) == count
     assert all(lease.publications[key] == publication for key, publication in before.items())
     assert [p for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]] == [completion]
+
+
+# An Article read in parts (ADR 0019): a later part reads an author's name from a running header that shortens it, and
+# the bibliography part answers with a cited work's authors, copied as `of` from its reference entry until the reply
+# schema's `OF_CHARS` limit stops it.
+AUTHORS = Schema(schemaNodes=[{"id": "authors", "name": "authors", "type": "array", "itemType": "string"}],
+                 recordDescription="One article's authors")
+BYLINE = ["Ada B. Lovelace", "Charles Babbage", "Grace Hopper"]
+ENTRY = ("[7] Noether E, Hilbert D, Klein F. Invariant forms of collagen from the backbone of the northern Atlantic "
+         "cod. Food Synth. 2010;24:325-329.")
+CUT = ENTRY[:OF_CHARS]  # "… the northern Atl": the limit stopped the copy inside a word
+HEAD, TAIL = CUT.rsplit(" ", 1)
+
+
+def value_of(line: str):
+    """The item an item line shows."""
+    return json.loads(line.split(" = ", 1)[1].split(" — ", 1)[0])
+
+
+@pytest.mark.parametrize("of,leaves", [
+    (CUT, True),
+    (f"{CUT[:-1]},", True),  # a mark where the source goes on with the word
+    (f"{HEAD} {'q' * len(TAIL)}", False),  # a last word no printed word starts with
+    (CUT.replace("Invariant", "Covariant"), False),  # an earlier word not as printed
+    (f"{ENTRY[:60].rsplit(' ', 1)[0]},", False)])  # under the limit, an `of` is printed whole or the item stays
+def test_another_works_item_leaves_when_its_of_cut_at_the_limit_is_printed_up_to_its_last_word(of, leaves):
+    def rule(line):
+        return ("OTHER", of) if value_of(line) == "Noether E" else ("OWN", "")
+    readings = [{"authors": BYLINE[:1]}, {"authors": ["Noether E"]}]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)), schema=AUTHORS,
+                                                         texts=[", ".join(BYLINE), f"References {ENTRY} [8] Next."])
+    assert root["authors"] == (BYLINE[:1] if leaves else [*BYLINE[:1], "Noether E"])
+    assert len(item_sources) == len(root["authors"])
+    assert dropped(issues) == ([{"path": ["authors"], "dropped": ["Noether E"], "of": [of]}] if leaves else [])
+    assert doubts(issues) == ([] if leaves else [{"index": 1, "of": of, "label": OTHER}])
+
+
+@pytest.mark.parametrize("item,earlier,form", [
+    ("A. LOVELACE", "Ada B. Lovelace", True),  # a running header's initial, middle initial left out
+    ("Lovelace A", "Ada Lovelace", True),  # family name first
+    ("M. García Márquez", "Maria García Márquez", True),
+    ("ADA B. LOVELACE", "Ada B. Lovelace", True),  # case, accents and punctuation aside, the same words
+    ("Zoë Lovelace", "Zoe Lovelace", True),
+    ("A. C. Lovelace", "Ada B. Lovelace", False),  # an initial the earlier name does not have
+    ("B. Lovelace", "Ada Lovelace", False),
+    ("B. Lovelace", "Ada B. Lovelace", False),  # the first given name is never skipped
+    ("C. Lovelace", "Ada Catherine Lovelace", False),
+    ("1 Lovelace", "123 Lovelace", False),  # an initial is a letter
+    ("A. 12", "Ada 12", False),  # a last word is letters
+    ("A. _x", "Ada _x", False),
+    ("A. Lovelace", "A. B. Lovelace", False),  # shortcut: an initials-only name left out a middle initial stays
+    ("J.-P. Sartre", "Jean-Paul Sartre", True),
+    ("Lovelace", "Ada Lovelace", False),  # nothing cut to an initial: another word list's shorter item
+    ("type I collagen", "type I fish collagen", False),
+    ("Ada B. Lovelace", "A. B. Lovelace", False),  # never the full name as a form of its initials
+    ("Sample 1", "Sample 2", False),
+    ("Ada B. Lovelace", "Ada B. Lovelace", False),  # equal: a repeat of its own, not a form
+    ({"name": "A. Lovelace"}, {"name": "Ada Lovelace"}, False)])  # objects stay equal or different readings
+def test_a_form_of_an_earlier_item_is_its_words_or_a_shortening_that_keeps_the_last(item, earlier, form):
+    assert _form_of(item, earlier) is form
+
+
+@pytest.mark.parametrize("readings,forms,repeats", [
+    ([BYLINE, ["A. LOVELACE"]], {"I4": "I1"}, {"I4"}),
+    ([["A. LOVELACE"], BYLINE], {}, set()),  # an earlier shortening keeps its place: the later full name is no form
+    ([["Ada Lovelace", "Ann Lovelace"], ["A. Lovelace"]], {}, set()),  # which name it shortens is not known
+    ([["Ada B. Lovelace", "Ada B. Lovelace"], ["Lovelace A"]], {"I3": "I1"}, {"I1", "I2", "I3"}),  # one value
+    ([["fish collagen", "type I fish collagen"], ["collagen", "type I collagen"]], {}, set())])
+def test_a_repeat_is_offered_to_a_later_form_of_exactly_one_earlier_value_and_never_to_that_value(readings, forms,
+                                                                                                repeats):
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
+    (root, _, _, _, _, _), _ = assembled([{"authors": each} for each in readings], chat, schema=AUTHORS,
+                                         texts=[", ".join(each) for each in readings])
+    assert root["authors"] == [item for each in readings for item in each]
+    [call] = chat.calls
+    lines = shown_items(call["user"])["L1"]
+    assert {label: line.rsplit("(a form of ", 1)[1][:-1] for label, line in lines.items()
+            if "(a form of " in line} == forms
+    assert {label for label, spec in call["schema"]["properties"]["L1"]["properties"].items()
+            if REPEAT in spec["properties"]["label"]["enum"]} == repeats
+
+
+@pytest.mark.parametrize("first,form,kept", [
+    (("OWN", ""), "REPEAT", BYLINE),
+    (("OWN", ""), "OWN", [*BYLINE, "A. LOVELACE"]),  # printed again or another author: the model's call
+    (("UNSURE", ""), "REPEAT", [*BYLINE, "A. LOVELACE"]),  # UNSURE settles no copy for a repeat to be
+    (("OTHER", "Menabrea 1842"), "REPEAT", BYLINE[1:]),  # another work's author printed again is that work's too
+    (("OTHER", "Menabrea 1843"), "REPEAT", BYLINE)])  # kept unattributed, marked: still the copy that stays
+def test_a_form_labelled_a_repeat_leaves_only_beside_its_earlier_item_labelled_own_or_anothers(first, form, kept):
+    def rule(line):
+        return (form, "") if line.endswith("(a form of I1)") else first if value_of(line) == BYLINE[0] else ("OWN", "")
+    readings = [{"authors": deepcopy(BYLINE)}, {"authors": ["A. LOVELACE"]}]
+    texts = [f"{', '.join(BYLINE)} (translating Menabrea 1842)", "4 A. LOVELACE ET AL."]
+    (root, _, _, _, _, issues), item_sources = assembled(readings, valid(deciding(rule)), schema=AUTHORS, texts=texts)
+    assert root["authors"] == kept
+    assert sorted(item_sources) == [("authors", index) for index in range(len(kept))]
+    assert ("A. LOVELACE" in kept) is not any("A. LOVELACE" in each["dropped"] for each in dropped(issues))
+
+
+def test_an_article_read_in_overlapping_parts_keeps_only_its_byline_in_order():
+    """The QA shape. The byline is read again from the next part's overlap, where it is printed once, and joins; that
+    part also reads the first author from a running header printed on each of its pages, and the others from its
+    ORCID section; the bibliography part answers with a cited work's authors, given to their reference entry cut at
+    the `of` limit. The byline alone stays, in its order, each name kept at the occurrences it was read from."""
+    def at(id_, page, text, label="Text"):
+        return Passage(id=id_, page=page, index=0, text=text, label=label, bbox_pt=(0, 0, 1, 1), extent="block")
+    byline = at("byline", 1, ", ".join(BYLINE))
+    cite = at("cite", 1, f"To cite this article: {', '.join(BYLINE)} (2020) Analytic engines.")
+    heads = tuple(at(f"head{page}", page, f"{page} A. LOVELACE ET AL.", "PageHeader") for page in range(2, 6))
+    orcid = at("orcid", 6, "ORCID " + " ".join(f"{name} https://orcid.org/0000-0000-0000-000{number}"
+                                               for number, name in enumerate(BYLINE)))
+    groups = [Context((at("title", 1, "Analytic engines for fish collagen", "Title"), byline, cite)),
+              Context((*heads, orcid), overlap=(byline,)), Context((at("refs", 7, f"References {ENTRY} [8] Next."),))]
+    readings = [{"authors": [BYLINE[0], *BYLINE]}, {"authors": ["A. LOVELACE", *BYLINE[1:]]},
+                {"authors": ["Noether E", "Hilbert D", "Klein F"]}]
+    original, item_sources = deepcopy(readings), {}
+    root, conflicts, repeats, joined = assemble_document(readings, sharing(groups), item_sources=item_sources)
+    assert root["authors"] == [BYLINE[0], *BYLINE, "A. LOVELACE", "Noether E", "Hilbert D", "Klein F"]
+    assert not repeats and [join["index"] for join in joined] == [2, 3]
+    def rule(line):
+        value = value_of(line)
+        return (("REPEAT", "") if line.endswith(("(a form of I1)", "(same value as I1)")) else ("OTHER", f"{CUT[:-1]},")
+                if value in ("Noether E", "Hilbert D", "Klein F") else ("OWN", ""))
+    chat = valid(deciding(rule))
+    root, _, repeats, joined, _, issues = resolve(readings, groups, root, conflicts, repeats, joined, AUTHORS, chat,
+                                                  WordCounter(), item_sources=item_sources)
+    assert root["authors"] == BYLINE and not repeats and not doubts(issues) and readings == original
+    assert dropped(issues) == [{"path": ["authors"], "of": ["", "", *[f"{CUT[:-1]},"] * 3],
+                                "dropped": [BYLINE[0], "A. LOVELACE", "Noether E", "Hilbert D", "Klein F"]}]
+    # The citation line's copy left from before the joined names: they and their reply coordinates move up one.
+    assert joined == [{"path": ["authors"], "contexts": [0, 1], "index": index} for index in (1, 2)]
+    assert item_sources == {("authors", 0): [{"unit": 0, "path": ["authors", 0]}],
+                            **{("authors", index): [{"unit": 0, "path": ["authors", index + 1]},
+                                                    {"unit": 1, "path": ["authors", index]}] for index in (1, 2)}}
+
+
+BASE = "Invariant forms of collagen, after Noether and Hilbert, "
+
+
+def capped(ending: str) -> str:
+    """An `of` of exactly `OF_CHARS` characters ending in `ending`, after printed words."""
+    return f"{BASE}{'q' * (OF_CHARS - len(BASE) - len(ending) - 1)} {ending}"
+
+
+@pytest.mark.parametrize("ending,printed,attributed", [
+    ("bac", "backbone", True),  # a word the limit cut
+    ("bac,", "backbone", True),
+    ("[19]", "[19]", True),  # printed whole
+    ("[19]", "[190]", False),  # a number or reference is never a cut word
+    ("10", "100", False),
+    ("10", "10.5", False),
+    ("wrongword", "backbone", False),
+    ("bac", "bac123", False),  # the printed word goes on in letters only
+    ("[19a]", "[19abc]", False),
+    ("[AB]", "[ABC]", False),
+    ("x_foo", "x_foobar", False),
+    ("foo_", "foobar", False),
+    ("bac", "bac\u00b2", False),  # a numeral is no letter
+    ("[Smith AB]", "[Smith ABC]", False),  # a closing delimiter is kept, so a reference ends whole
+    ("(Smith AB)", "(Smith ABC)", False)])
+def test_an_of_at_the_limit_may_end_in_a_cut_word_but_never_a_cut_number(ending, printed, attributed):
+    of = capped(ending)
+    part = Context(tuple(passages([f"The {of[:-len(ending)]}{printed} and more."])))
+    assert len(of) == OF_CHARS and _attributed(of, part) is attributed
+    # Under or over the limit, an `of` is no cut reply: printed whole, or not at all.
+    assert _attributed(of.split(" ", 1)[1], part) is _attributed(f"The {of}", part) is (ending == printed)
+    assert not _attributed("," * OF_CHARS, part) and not _attributed(" " * OF_CHARS, part)
+
+
+@pytest.mark.parametrize("labels,kept", [
+    (("REPEAT", "OWN", "REPEAT"), ["Ada B. Lovelace"]),  # an own copy of the earlier value is its anchor
+    (("REPEAT", "UNSURE", "REPEAT"), ["Ada B. Lovelace", "Ada B. Lovelace", "A. LOVELACE"])])  # no copy settled
+def test_a_form_leaves_beside_any_copy_of_its_earlier_value_labelled_own(labels, kept):
+    readings = [{"authors": ["Ada B. Lovelace"]}, {"authors": ["Ada B. Lovelace", "A. LOVELACE"]}]
+    answers = iter(labels)
+    (root, _, _, _, _, _), _ = assembled(readings, valid(deciding(lambda line: (next(answers), ""))), schema=AUTHORS,
+                                         texts=["Ada B. Lovelace", "Ada B. Lovelace 4 A. LOVELACE ET AL."])
+    assert root["authors"] == kept
+
+
+@pytest.mark.parametrize("others,counter", [
+    ([f"Author {number}" for number in range(1, LIST_CHUNK)], WordCounter()),  # the 60-item part
+    ([item["name"] for item in WORDY[:40]], Budget())])  # the items one request fits
+def test_a_form_shown_in_another_list_part_than_its_earlier_value_is_never_offered_a_repeat(others, counter):
+    """shortcut (`LIST_CHUNK` and the request size): a form and the value it may repeat in different list parts are
+    never compared."""
+    readings = [{"authors": ["Ada B. Lovelace", *others]}, {"authors": ["A. LOVELACE"]}]
+    chat = valid(lambda s, u, schema: keeps_every_reading(schema))
+    (root, _, _, _, _, _), _ = assembled(readings, chat, schema=AUTHORS, counter=counter)
+    users = "\n".join(call["user"] for call in chat.calls)
+    assert users.count(" · authors (items ") > 1 and "(a form of" not in users
+    assert not any(REPEAT in spec["properties"]["label"]["enum"] for call in chat.calls
+                   for place in call["schema"]["properties"].values() for spec in place["properties"].values())
+    assert root["authors"] == ["Ada B. Lovelace", *others, "A. LOVELACE"]
+
+
+def test_a_shortened_header_name_and_cited_authors_leave_through_durable_completion_and_replay(monkeypatch):
+    """A durable Article read from its last part first (`start_page`): the byline, a running header's shortened first
+    author and a reference's authors. What leaves is in the completion's diagnostics with its raw `of`, the byline keeps
+    its order and its own evidence, and a replay publishes the same without another call."""
+    texts = [", ".join(BYLINE), "4 A. LOVELACE ET AL.", f"References {ENTRY}"]
+    source = replace(evidence([p for page, text in enumerate(texts, 1) for p in passages([text], page=page)]),
+                     page_count=3)
+    contexts = [Context((p,)) for p in source.passages]
+    monkeypatch.setattr(article, "source_contexts", lambda *_: contexts)
+    monkeypatch.setattr(article, "partition", lambda *_args, **_kwargs: contexts)
+    request = run.ExtractRequest(schema={"recordDescription": "One article.", "recordScope": "document",
+        "schemaNodes": [{"id": "authors", "name": "authors", "type": "array", "itemType": "string"}]},
+        options={"strategy": "article", "start_page": 3, "article": {"context": "bounded", "grounding": "semantic"}})
+    read = {texts[0]: BYLINE, texts[1]: ["A. LOVELACE"], texts[2]: ["Noether E"]}
+    def rule(line):
+        return ("REPEAT", "") if line.endswith("(a form of I1)") else (
+            ("OTHER", CUT) if value_of(line) == "Noether E" else ("OWN", ""))
+    def reply(system, user, schema):
+        if resolving(user):
+            return deciding(rule)(system, user, schema)
+        if "### Claims" in user:
+            return occurrence_reply(system, user, schema)
+        return {"authors": next(authors for text, authors in read.items() if text in user)}
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = valid(reply)
+    def extract(router, counter):
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+    result = finish(lease, chat, extract)
+    assert [next(text for text in texts if text in call["user"]) for call in chat.calls
+            if not resolving(call["user"]) and "### Claims" not in call["user"]] == texts[::-1]
+    assert result["records"] == [{"authors": BYLINE}]
+    assert {tuple(link["path"]): link["segment"] for link in result["evidence"]} == {
+        ("records", 0, "authors", index): "p1_s0" for index in range(3)}
+    assert [json.loads(issue["detail"]) for issue in result["issues"] if issue["code"] == "dropped_items"] == [
+        {"path": ["authors"], "dropped": ["A. LOVELACE", "Noether E"], "of": ["", CUT]}]
+    [completion] = [p["coverage"] for p in lease.publications.values() if "finalizedAttempt" in p["coverage"]]
+    assert completion["diagnostics"] == {"issues": result["issues"]}
+    count = len(chat.calls)
+    assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count

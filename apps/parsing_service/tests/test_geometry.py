@@ -1,39 +1,19 @@
-"""One geometry: crop transforms as the renderers record them, the placement map onto the PDF page, the projection
-of a crop box onto the unit's native pixels, and the clamp that places it (spec: canonical evidence design, §4)."""
+"""One geometry: crop transforms as the renderers record them and the placement map onto the PDF page
+(spec: canonical evidence design, §4)."""
 import math
 
 import numpy as np
 import pytest
 from PIL import Image
 
-from kei_exp.geometry import CropTransform, clamp, ordered_box, unit_pixels
+from kei_exp.geometry import CropTransform, ordered_box
 from kei_exp.kie.ingest_model import Page as IngestPage
 from kei_exp.kie.ingest_model import Placement
 from kei_exp.pages import BookPage, PdfPages
 
-# A crop's native rectangle, 220 x 240 pixels, rendered to 110 x 80: a scale of 2 across and 3 down.
-CROP_1 = (10, 20, 230, 260)
-
 
 def close(a, b, tolerance=1e-6) -> bool:
     return all(abs(x - y) < tolerance for x, y in zip(a, b, strict=True))
-
-
-def test_unit_pixels_scales_per_axis_and_rounds_outward():
-    assert unit_pixels((1.0, 2.5, 10.0, 7.25), CROP_1, (110, 80)) == (12, 27, 30, 42)
-    assert unit_pixels((0.0, 0.0, 110.0, 80.0), CROP_1, (110, 80)) == CROP_1  # the whole crop is the crop
-    assert all(type(value) is int for value in unit_pixels((1.0, 2.5, 10.0, 7.25), CROP_1, (110, 80)))
-
-
-@pytest.mark.parametrize("box, expected", [
-    ((12, 27, 30, 42), (12, 27, 30, 42)),      # inside: untouched
-    ((220, 20, 234, 50), (220, 20, 230, 50)),  # past the right edge: clamped
-    ((-5, 15, 12, 25), (10, 20, 12, 25)),      # before the left and top edges: clamped
-    ((230, 20, 240, 50), None),                # entirely outside: nothing to place
-    ((0, 0, 400, 400), CROP_1),                # covering the crop: the crop
-])
-def test_clamp_places_a_box_inside_its_crop(box, expected):
-    assert clamp(box, CROP_1) == expected
 
 
 def test_ordered_box_keeps_a_box_and_refuses_an_empty_one():

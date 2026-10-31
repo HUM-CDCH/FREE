@@ -1,14 +1,13 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
 import { linkOrigin } from './linkOrigin'
 import { DECISION_WORD, type ReviewAction, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
-import ReviewedValueDisplay from './ui/ReviewedValueDisplay'
+import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
 const Kbd = ({ children }: { children: string }) =>
   <kbd aria-hidden="true" className="rounded border border-current/30 px-1 font-mono text-compact font-normal opacity-80">{children}</kbd>
@@ -31,15 +30,14 @@ export type EndCard =
  * One by one: the same rail as a card for the current value, its record's queue,
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card.
  */
-export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
-  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
+export default function ReviewFocus({ article, items, position, current, recordLabel, label, editing, node, upNext, end,
+  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit, pick, locked = false }: {
   article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
   current: RailRow | null
   recordLabel: string
   label: string
-  quote: EvidenceQuote | null
   editing: boolean
   node: SchemaNode | null
   upNext: readonly QueueItem[]
@@ -56,6 +54,10 @@ export default function ReviewFocus({ article, items, position, current, recordL
   onContinue: (index: number) => void
   onBack: () => void
   onTypedEdit?: (value: unknown) => void
+  /** The open value's parts, each pickable to show only its Evidence. */
+  pick?: PartPick
+  /** A decision is saving or the review is a saved one: decisions and moves wait, picking a part never does. */
+  locked?: boolean
 }) {
   if (end || !current) {
     const card = end ?? { kind: 'caught-up' as const, line: '', next: null }
@@ -80,14 +82,13 @@ export default function ReviewFocus({ article, items, position, current, recordL
   const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
   const precision = current.link?.precision === 'input' ? ' · located to the whole page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
   const source = `${current.retained?.source ?? `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}`}${precision}`
-  const style = current.chip?.style === 'rule' ? 'border-dotted' : current.chip?.style === 'doubtful' ? 'border-dashed' : 'border-solid'
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <ol aria-label={article ? 'Values in review order' : `Record ${position?.record ?? 1}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
           {items.map((item) => (
             <li key={item.key}>
-              <button type="button" aria-current={item.key === current.key ? 'step' : undefined} onClick={() => onGo(item.key)}
+              <button type="button" disabled={locked} aria-current={item.key === current.key ? 'step' : undefined} onClick={() => onGo(item.key)}
                 aria-label={`${item.row.name}, ${stateLabel(item.row).toLowerCase()}${item.row.doubt ? ', doubtful link' : ''}`}
                 className={`flex size-6 cursor-pointer items-center justify-center rounded border ${item.row.doubt && item.row.kind === 'to-check' ? 'border-dashed border-ev' : 'border-line'} ${item.key === current.key ? 'outline-2 outline-accent' : ''}`}>
                 <QueueGlyph row={item.row} />
@@ -101,52 +102,49 @@ export default function ReviewFocus({ article, items, position, current, recordL
       <div>
         <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{article ? current.name : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${current.name}`}</p>
         {editing ? (
-          <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
-            onTypedSave={onTypedEdit}
-            saveLabel="Save edit and next" onSave={(value) => onDecide('EDITED', value)} />
+          <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
+            <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
+              onTypedSave={onTypedEdit}
+              saveLabel="Save edit and next" onSave={(value) => onDecide('EDITED', value)} />
+          </fieldset>
         ) : (
           <>
             <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{current.value && typeof current.value === 'object' ? reviewedValueSummary(node, current.value) : rowText(current)}</h2>
-            {current.value !== null && typeof current.value === 'object' && <ReviewedValueDisplay node={node} value={current.value} />}
+            {current.value !== null && typeof current.value === 'object' && <ReviewedValueDisplay node={node} value={current.value} path={current.resultPath} pick={pick} />}
           </>
         )}
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
-      <figure className="m-0">
-        <figcaption className="mb-1.5 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</figcaption>
-        {quote && current.link?.precision !== 'input' && (
-          <blockquote className="m-0 font-serif text-content leading-[1.6] text-ink">
-            {quote.before}{quote.hit && <mark className={`border-b-2 border-ev bg-ev-soft text-ink ${style}`}>{quote.hit}</mark>}{quote.after}
-          </blockquote>
-        )}
-      </figure>
+      <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
       {current.doubt && (
         <div className="flex items-start gap-1.5 rounded-md border border-dashed border-ev px-2.5 py-2 text-secondary text-ink">
           <DoubtGlyph /><span><b>Doubtful link.</b> {current.doubt}. Check that this is the right passage.</span>
         </div>
       )}
-      {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
-      {!decided && !editing && (
-        <div className="grid grid-cols-2 gap-2">
-          {!current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
-            <ApprovedGlyph className="text-current" />Approve and next <Kbd>A</Kbd>
-          </Button>}
-          <Button size="md" className="h-11 @max-[264px]:col-span-1" onClick={onEdit}><EditedGlyph className="text-current" />Edit <Kbd>E</Kbd></Button>
-          <Button variant="outline-danger" size="md" className="h-11" onClick={() => onDecide('REJECTED')}><RejectedGlyph className="text-current" />Reject <Kbd>R</Kbd></Button>
+      <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0">
+        {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
+        {!decided && !editing && (
+          <div className="grid grid-cols-2 gap-2">
+            {!current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
+              <ApprovedGlyph className="text-current" />Approve and next <Kbd>A</Kbd>
+            </Button>}
+            <Button size="md" className="h-11 @max-[264px]:col-span-1" onClick={onEdit}><EditedGlyph className="text-current" />Edit <Kbd>E</Kbd></Button>
+            <Button variant="outline-danger" size="md" className="h-11" onClick={() => onDecide('REJECTED')}><RejectedGlyph className="text-current" />Reject <Kbd>R</Kbd></Button>
+          </div>
+        )}
+        {decided && (
+          <div className="flex items-center gap-2 rounded-md bg-surface-muted px-3 py-2.5">
+            <b className="text-content text-ink">{DECISION_WORD[current.decision!.action]}</b>
+            <span className="flex-1" />
+            <Button onClick={onUndo}><UndoGlyph />Undo this decision</Button>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <Button onClick={onPrevious}><Kbd>K</Kbd>Previous</Button>
+          <Button onClick={onNext}>{decided ? 'Next to check' : 'Skip for now'} <Kbd>J</Kbd></Button>
         </div>
-      )}
-      {decided && (
-        <div className="flex items-center gap-2 rounded-md bg-surface-muted px-3 py-2.5">
-          <b className="text-content text-ink">{DECISION_WORD[current.decision!.action]}</b>
-          <span className="flex-1" />
-          <Button onClick={onUndo}><UndoGlyph />Undo this decision</Button>
-        </div>
-      )}
-      <div className="flex items-center justify-between">
-        <Button onClick={onPrevious}><Kbd>K</Kbd>Previous</Button>
-        <Button onClick={onNext}>{decided ? 'Next to check' : 'Skip for now'} <Kbd>J</Kbd></Button>
-      </div>
+      </fieldset>
       <div>
         <Overline as="p" className="m-0 mb-1 block">Up next</Overline>
         {upNext.length === 0 ? <p className="m-0 text-secondary text-ink-muted">Nothing else to check after this one.</p> : upNext.map((item) => (

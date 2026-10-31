@@ -236,8 +236,8 @@ views {
   dynamic view schema_guided_extraction {
     title 'Schema Suggestion to reviewed Extraction — current'
     description '''
-      The Schema Suggestion Route serves Schema Suggestion. The Interaction Route
-      serves conversational schema edits. The included Parsing
+      The Schema Suggestion Route serves Schema Suggestion and conversational
+      schema edits. The included Parsing
       Service executes durable Extraction attempts against the pinned source
       generation and schema. Admission commits its public row, durable head and
       workflow enqueue together; saved durable Extractions stay readable
@@ -259,8 +259,8 @@ views {
     researcher -> studio.ui 'Edit a field, or ask for a schema edit proposal'
     studio.ui -> studio.handlers 'POST /api/edit_schema'
     studio.handlers -> studio.durable 'Start proposeSchemaEdit and wait for it'
-    studio.durable -> studio.provider_registry 'Resolve the Interaction Route of the owner'
-    studio.provider_registry -> model_connections 'Propose the schema changes'
+    studio.durable -> studio.provider_registry 'Resolve the Schema Suggestion Route (and, beside NuExtract, the Interaction Route) of the owner'
+    studio.provider_registry -> model_connections 'Propose the schema changes, or answer a question'
     studio.ui -> studio.handlers 'POST /api/schema-revisions'
     studio.handlers -> studio.project_store 'initializeSchemaRevision or appendSchemaRevision'
     studio.project_store -> project_db 'Append the immutable Schema Revision'

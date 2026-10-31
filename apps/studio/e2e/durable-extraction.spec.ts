@@ -17,6 +17,38 @@ test.beforeEach(({page})=> {
   page.on('requestfailed',request=>console.error('durable browser request failed:',request.url(),request.failure()?.errorText))
 })
 
+for(const strategy of ['ARTICLE','CATALOG'] as const)test(`early ${strategy} previews mark the source without saving Evidence`,async({page},testInfo)=>{
+  const source=decodeParsedDocument(JSON.parse(await readFile(new URL('../src/assets/parsed_document.v2.json',import.meta.url),'utf8')))
+  // The synthetic PDF's Unit 7 text, measured from its printed text layer.
+  const bbox={x0:72,y0:64.102,x1:100.732,y1:74.277}
+  source.content_stream[0]!.bbox=bbox
+  source.evidence_index.anchors[0]!.producer_observations[0]!.bbox=bbox
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false,sourceDocument:source})
+  try {
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'RUNNING',
+      {provisional:true,...(strategy==='CATALOG'?{records:[['Unit 7']]}:{})})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await expect(page.getByText('Preview highlights show matching text. Citations are still being checked.')).toBeVisible()
+    const preview=page.getByRole('button',{name:'title (preview, not verified): Unit 7',exact:true})
+    await expect(preview).toBeVisible()
+    await expect(preview).toHaveClass(/preview/)
+    await page.screenshot({path:testInfo.outputPath('pdf-preview.png')})
+    await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
+    await expect(page.getByLabel('Parsed Markdown').getByRole('button',{name:'title (preview, not verified): Unit 7'})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('markdown-preview.png')})
+    await page.reload();await page.locator('#rail-tab-results').click()
+    await expect(preview).toBeVisible()
+    const saved=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
+    expect(saved.values[0].evidence).toEqual([])
+    expect(saved.values[0].links).toEqual([])
+    expect(saved.values[0].grounding).toBe('provisional')
+    expect(saved.values[0].correction).toBeNull()
+    await pool.query(`UPDATE extraction_runtime.head SET acknowledgement='FAILED' WHERE id=$1`,[id])
+    await expect(preview).toHaveCount(0)
+  } finally {await fixture.close()}
+})
+
 test('results identify an older schema and a new Article admission survives reload',async({page},testInfo)=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
@@ -60,12 +92,12 @@ test('results identify an older schema and a new Article admission survives relo
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`extractionId=${admitted}`))
-    await expect(page.getByText('Made with schema revision 3 (Article).')).toBeVisible()
+    await expect(page.getByRole('button',{name:'Schema rev 3',exact:true})).toBeVisible()
     await page.reload()
     await page.getByRole('tab',{name:/^Results/}).click()
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
-    await expect(page.getByText('Made with schema revision 3 (Article).')).toBeVisible()
+    await expect(page.getByRole('button',{name:'Schema rev 3',exact:true})).toBeVisible()
     await page.screenshot({path:testInfo.outputPath('new-article-after-reload.png')})
   } finally {await fixture.close()}
 })
@@ -262,7 +294,8 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     expect(forPending.map((row:{valueId:string})=>row.valueId).sort()).toEqual(['flag','names','work'])
     for(const row of forPending)expect(row).toMatchObject({included:true,targetCompatibility:'compatible',decision:{action:'EDITED'}})
     await page.locator('#rail-tab-history').click()
-    await expect(page.getByRole('region',{name:'Saved results',exact:true})).toContainText('Results 1')
+    await page.getByText(/^Intermediate results \(\d+\)$/).click()
+    await expect(page.getByRole('button',{name:'Open results 1',exact:true})).toBeVisible()
     await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('Changed inputs (version 2)')
     await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('First inputs')
     await page.locator('#rail-tab-results').click()
@@ -748,7 +781,8 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
     expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3])
     await second.locator('#rail-tab-history').click()
-    await expect(second.getByRole('region',{name:'Saved results',exact:true})).toContainText('Results 1')
+    await second.getByText(/^Intermediate results \(\d+\)$/).click()
+    await expect(second.getByRole('button',{name:'Open results 1',exact:true})).toBeVisible()
     // The newest correction's own saved cut, opened through the link Studio gives a saved correction.
     const undone=history.corrections.at(-1)
     expect(undone).toMatchObject({extractionId:id,valueId:'work',snapshotVersion:1,feedbackVersion:3})
@@ -772,7 +806,7 @@ async function appendSavedTitle(extractionId:string,title:string) {
 }
 
 for(const source of ['same source','new source revision'] as const) {
-  test(`Latest reviewed opens its finalized pair after later work on the ${source}`,async({page})=> {
+  test(`a finalized review opens on its pair after later work on the ${source}, and Open latest returns`,async({page})=> {
     const fixture=await prepareInteractiveDocument(page,{hasKey:false})
     try {
       const nodes=[{id:'title',name:'title',type:'string' as const}]
@@ -794,8 +828,17 @@ for(const source of ['same source','new source revision'] as const) {
       const current=await savedExtraction(currentFixture,nodes,['Current attempt title'],'PAUSED',{schemaRevisionId:reviewed.schemaRevisionId})
       await fixture.open();await page.locator('#rail-tab-results').click()
       await expect(page.getByText('Current attempt title',{exact:true})).toBeVisible()
-      if(source==='same source')await page.getByRole('combobox',{name:'Extraction snapshot'}).selectOption(reviewed.id)
-      else {
+      if(source==='same source') {
+        // The document History lists both, the latest first, and opens the review by its address.
+        await page.locator('#rail-tab-history').click()
+        const listed=page.getByRole('list',{name:'Extractions of this document'}).getByRole('listitem')
+        await expect(listed).toHaveCount(2)
+        await expect(listed.first()).toContainText('Latest')
+        await expect(listed.first()).toHaveAttribute('aria-current','true')
+        await listed.nth(1).getByRole('button',{name:/^Open the review finalized /}).click()
+        await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
+        await page.locator('#rail-tab-results').click()
+      } else {
         await page.getByRole('button',{name:'Open latest reviewed',exact:true}).click()
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await page.locator('#rail-tab-results').click()
@@ -807,13 +850,42 @@ for(const source of ['same source','new source revision'] as const) {
       await expect(page.getByText('Later unfinalized title',{exact:true})).toHaveCount(0)
       expect((await (await page.request.get(`${root}/values`)).json()).snapshotVersion).toBe(2)
       expect((await (await page.request.get(`/api/extractions/${current.id}/durable/values`)).json()).values[0].modelValue).toBe('Current attempt title')
-      if(source==='new source revision') {
-        await page.reload();await page.locator('#rail-tab-results').click()
-        await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
-      }
+      await expect(page.getByText(/· not the latest$/).filter({visible:true})).toBeVisible()
+      await page.reload();await page.locator('#rail-tab-results').click()
+      await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+      await page.getByRole('button',{name:'Open latest',exact:true}).click()
+      await expect(page).toHaveURL(new RegExp(`extractionId=${current.id}`))
+      await page.locator('#rail-tab-results').click()
+      await expect(page.getByText('Current attempt title',{exact:true})).toBeVisible()
+      await expect(page.getByText(/not the latest/)).toHaveCount(0)
     } finally {await fixture.close()}
   })
 }
+
+test('an open value\'s History lists its latest reading in each Extraction, opens one, and returns to the whole document',async({page})=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const nodes=[{id:'title',name:'title',type:'string' as const}]
+    const earlier=await savedExtraction(fixture,nodes,['Earlier titel'])
+    const correction=await page.request.post(`/api/extractions/${earlier.id}/durable/values/title`,{headers:{Origin:E2E_ORIGIN},
+      data:{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Earlier title'}})
+    expect(correction.ok(),await correction.text()).toBe(true)
+    await savedExtraction(fixture,nodes,['Current title'],'PAUSED',{schemaRevisionId:earlier.schemaRevisionId})
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Current title/}).click()
+    await page.getByRole('button',{name:'History of this value',exact:true}).click()
+    const readings=page.getByRole('list',{name:'Readings of title'}).getByRole('listitem')
+    await expect(readings).toHaveCount(2)
+    await expect(readings.first()).toContainText('Current title')
+    await expect(readings.first()).toHaveAttribute('aria-current','true')
+    await expect(readings.nth(1)).toContainText(/Earlier title.*Extracted: Earlier titel.*Edited/)
+    await readings.nth(1).getByRole('button',{name:/^Open Extraction of /}).click()
+    await expect(page).toHaveURL(new RegExp(`extractionId=${earlier.id}`))
+    await expect(readings.nth(1)).toHaveAttribute('aria-current','true')
+    await page.getByRole('button',{name:'Whole document',exact:true}).click()
+    await expect(page.getByRole('list',{name:'Extractions of this document'}).getByRole('listitem')).toHaveCount(2)
+  } finally {await fixture.close()}
+})
 
 test('a late post-save page response keeps the newer field and its unsaved browser draft',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})

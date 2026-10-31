@@ -286,8 +286,8 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
         { label: 'Verification off', blocks: [unit('Entry', 'Kn.', 'proposal')], outcome: 'Typed values are kept as proposals, not accepted evidence.' },
       ],
     },
-    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction. In the unified Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; retired limits and recipe factors are never converted.',
-    takeaway: "Verification Off yields proposals; a recipe's applicability is source-specific.",
+    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction. In the unified Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; from defaults version 6 verification is off and each value is read once: a value code locates in its entry is linked by rule, unverified, and one without a locatable quote stays for review; Pro mode (verification on) runs version 5 instead, where a second call reads every value again and may correct it; retired limits and recipe factors are never converted.',
+    takeaway: "For a recipe, Verification Off yields proposals; a recipe's applicability is source-specific.",
     evidence: [{ source: 'r1catalog', finding: 'Recipe, recipe without neighboring context and recipe without verification each made seven calls and returned seven records; without neighboring context it used 440 fewer input tokens; generic Catalog made 14 calls.' }],
     gaps: [
       { kind: 'Not measured', text: 'Catalog accuracy, exhaustive recall and any benefit of switching verification off; glossary and inherited headings were not varied.' },

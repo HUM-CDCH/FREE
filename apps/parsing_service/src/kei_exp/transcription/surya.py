@@ -53,7 +53,7 @@ class _CompletionClient:
                                                      stream_options={"include_usage": True}) as stream:
                 response = _collect_completion(stream, self.on_token, watch_artwork=self.watch_artwork)
                 self.figure_loop = response.figure_loop
-            self.finish_reason = response.choices[0].finish_reason
+        self.finish_reason = response.choices[0].finish_reason
         count = getattr(response.usage, "prompt_tokens", None)
         self.input_tokens = count if type(count) is int and count >= 0 else None
         return response
@@ -134,6 +134,7 @@ class _InferenceManager:
     def generate(self, batch):
         from surya.inference.backends.openai_client import _generate_one, _should_retry
         from surya.inference.schema import PROMPT_TYPE_HIGH_ACCURACY_BBOX, BatchOutputItem
+        from surya.inference.util import detect_repeat_token
         from surya.settings import settings
 
         if not batch:
@@ -166,6 +167,7 @@ class _InferenceManager:
             return result, client, monotonic() - started
 
         outputs = [None] * len(batch)
+        failed_text = set()  # inputs whose full-page attempt generated text, then looped or ran out of tokens
         waiting = deque((index, 0, False) for index in range(len(batch)))  # (input, retries so far, after an error)
         running: dict[Future, tuple[int, int]] = {}
         with ThreadPoolExecutor(max_workers=parallel) as executor:
@@ -179,6 +181,14 @@ class _InferenceManager:
                     for future in done:
                         index, retries = running.pop(future)
                         result, client, seconds = future.result()
+                        # Generated text, not proof of source text: it may be hallucinated or a neighbour's. The
+                        # repetition test is `_should_retry`'s. An errored attempt has no text, and a later one cannot
+                        # clear the flag.
+                        raw = result.raw
+                        if pages[index] is not None and html_to_text(raw).strip() and (
+                                client.finish_reason == "length" or detect_repeat_token(raw)
+                                or (len(raw) > 50 and detect_repeat_token(raw, cut_from_end=50))):
+                            failed_text.add(index)
                         if not client.figure_loop and _should_retry(result, retries, 3):
                             waiting.appendleft((index, retries + 1, result.error))  # takes the slot it leaves
                             continue
@@ -192,7 +202,7 @@ class _InferenceManager:
                             error=result.error or client.figure_loop,
                             mean_token_prob=result.mean_token_prob, logprobs=result.logprobs,
                             metadata={**batch[index].metadata, "input_tokens": client.input_tokens,
-                                      "artwork_context": client.figure_loop},
+                                      "artwork_context": client.figure_loop, "failed_text": index in failed_text},
                         )
             except BaseException:
                 stopping.set()  # leaving the pool then waits for the requests already sent
@@ -221,6 +231,9 @@ class KeptOutputs:
     block, in which case any of those running out of tokens loses content. Rebuilt pages are a subset: their
     layout requests carry the page images themselves and their block requests index into that subset, so the
     predictor must run its own layout (no layout_results supplied) for the attribution to hold.
+
+    `failed_text` holds the original page indices whose full-page generation produced text that looped or ran out
+    of tokens, kept apart from the usage above: a rebuilt page's layout and block outputs replace its usage, not this.
     """
 
     def __init__(self, manager, images: list, emit: Emit | None = None, offset: int = 0) -> None:
@@ -232,6 +245,7 @@ class KeptOutputs:
         self.fallback: dict[int, Kept] = {}
         self.subset: list[int | None] = []  # page index of each page in the current fallback batch
         self.unattributed: list[str] = []   # capped requests no page could be found for
+        self.failed_text: set[int] = set()
 
     def generate(self, batch):
         from surya.inference.schema import (  # configure() pointed Surya at the server
@@ -275,6 +289,8 @@ class KeptOutputs:
                     self.unattributed.append(capped)
             elif item.prompt_type == PROMPT_TYPE_HIGH_ACCURACY_BBOX:
                 self.full_page[page] = Kept(output.token_count, input_tokens, capped)
+                if output.metadata.get("failed_text"):
+                    self.failed_text.add(page)
             elif item.prompt_type == PROMPT_TYPE_LAYOUT:
                 self.fallback[page] = Kept(output.token_count, input_tokens, capped)  # rebuilt: full-page output is gone
             else:
@@ -362,10 +378,11 @@ def where(crop: Crop | None, pages: tuple[int, int] | None, number: int) -> str:
     return f"page {number} (source page {pages[0] + number - 1})" if pages else f"page {number}"
 
 
-ADVICE = ("content is missing: raise the surya record's max_new_tokens and context for a page longer than its "
-          "budget (the record's SURYA_MAX_TOKENS_LAYOUT and SURYA_MAX_TOKENS_BLOCK_CEILING for a rebuilt page); a "
-          "looping page, a block capped at Surya's estimate or a failed layout needs a different crop (see the "
-          "debug report)")
+ADVICE = ("content is missing or could not be confirmed: raise the surya record's max_new_tokens and context for a "
+          "page longer than its budget (the record's SURYA_MAX_TOKENS_LAYOUT and SURYA_MAX_TOKENS_BLOCK_CEILING for "
+          "a rebuilt page); a looping page, a block capped at Surya's estimate or a failed layout needs a different "
+          "crop; an empty recognition after an unreliable generation may be a textless input or lost text, so check "
+          "it against the source (see the debug report)")
 
 
 class SuryaOcr:
@@ -413,6 +430,14 @@ class SuryaOcr:
                 crop = crops[index] if crops else None
                 blocks = page.blocks
                 reasons = []
+                # Before ownership filtering: a recovered input may rightly publish nothing once its neighbour's text
+                # is dropped, but a recognition with no text at all after a looping or capped text attempt is
+                # unresolved.
+                # shortcut: target text lost while a neighbour's text survives passes; no attribution can catch it.
+                if index in manager.failed_text and not any(
+                        not block.skipped and html_to_text(block.html).strip() for block in blocks):
+                    reasons.append(f"{where(crop, execution.pages, number)}: empty recognition remains unresolved "
+                                   "after an unreliable text-bearing generation")
                 if crop is not None and number <= len(execution.ocr_regions):
                     target = execution.ocr_regions[number - 1].bbox
                     _, region, _ = crop

@@ -131,7 +131,8 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `reconcileDurableExtractions` | `durable-dispatch:<extractionId>` at admission; `studio:durable-reconcile:<extractionId>:<controlVersion>` after a control; a schedule every minute | same transaction as Extraction admission, on `studio` | — (enqueues durable attempts and history cleanup) |
 | `suggestSchemaBatch` | `suggest:<batchId>:<attempt>` | same transaction as create/retry, on `suggest` | merged proposal/draft, or a typed failure |
 | `suggestSchema` | `suggestion:<operationId>` | workflow-first on `studio` | template and base revision, or a typed failure |
-| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal and base revision, or a typed failure |
+| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal (or a question's answer) and base revision, or a typed failure |
+| `answerSchemaChat` | `chat:<operationId>` | workflow-first on `studio` | a question's answer or `instruction`, or a typed failure |
 | `collectGarbage` | 10-minute schedule on `gc` | — | sweep summary |
 | kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
 | kei `extractDurableV1` | `kei-durable:<extractionId>:<attemptId>` | enqueued by the reconciler on `kei-extract`, priority 1 (interactive) or 10 (batch) | the attempt's acknowledgement |
@@ -314,9 +315,23 @@ user action carries a client-minted ID (*Client IDs*).
     acknowledgement, and would repeat after a crash between its commit and
     its checkpoint.
 - **Edit proposals (`proposeSchemaEdit`).** `edit_schema` takes an
-  `operation_id`. One step wraps `proposeSchemaEdit` with its bounded repair.
-  The output is the proposal and its base Schema Revision. Nothing is saved
-  until the researcher applies it through the revision path.
+  `operation_id`. One step wraps `proposeSchemaEdit`'s Schema Suggestion call
+  (ADR 0022). The output is the proposal and its base Schema Revision. Nothing is saved
+  until the researcher applies it through the revision path. Past patch
+  `schema-chat-answers`, the message may ask a question instead (ADR 0023): the
+  output is its answer, and a long source's question, first answered from
+  excerpts, is answered again in `answerWindow:<n>` steps and combined in a
+  `combineAnswers` step.
+- **Chat messages before the first schema (`answerSchemaChat`).**
+  `schema_chat` takes an `operation_id`. One `answerIfQuestion` step answers a
+  question or replies `instruction`; a long source's question is answered
+  again across its windows, as above. The page keeps an instruction for
+  generation. These are not model operations: a reload neither lists nor
+  reopens them.
+- **Chat history.** `edit_schema` and `schema_chat` also take `history`, the
+  conversation before the message as JSON. The workflow input records it beside
+  the instruction (chat text, like the instruction itself, never document text
+  or keys), and every request of the operation reads it.
 - **Typed results.** Model steps return expected failures (`ApiError`s) as
   typed results instead of throwing, so the handlers answer with the same
   status codes. DBOS revives a recorded error only as a plain `Error`.
@@ -653,7 +668,7 @@ queue.
     extraction's request waits behind those already queued, about one round.
   - **Unified Catalog** (`FREE_CATALOG_METHOD=unified`) uses
     `KEI_CATALOG_CHUNKS` without contiguous chunks: it bounds how many of its
-    calls wait at once. Entries are read nearest the start page first and
+    calls execute at once per model role. Entries are read nearest the start page first and
     assembled in source order.
     - **Defaults 1 and 2.** Discovery asks its windows that many at a time,
       so a planning round yields at most that many discovery calls; the
@@ -664,13 +679,25 @@ queue.
       `unified-prefix:<attempt>:<count>` and shows their candidates;
       verification waits until discovery has ended, so the reasoning model
       reads discovery's windows first.
+    - **Defaults 6 (single pass).** Verification is off, so nothing waits for
+      discovery: an entry's checked values are final once its own entry calls,
+      and any arbitration between disagreeing located values, have returned.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
-      `NeedsCall`. So the round reads windows and entries one after another
-      and stops once that many of them wait; the workflow runs the captured
-      calls, up to that many per role at once. A run that is not durable
-      waits on every call, so it reads that many windows and entries at once
-      on threads.
+      `NeedsCall`. The round visits every known entry in start-page priority,
+      preserving that order when admitting captured calls. An entry waiting
+      for verification does not block another entry's extraction. Discovery
+      keeps its bounded frontier; the workflow alone limits executing calls,
+      up to that many per role at once. Planning more entries can finalize
+      more inputs and their correction examples before execution. A run that
+      is not durable waits on every call, so it reads that many windows and
+      entries at once on threads.
+    - **Article verification.** Each planning round captures all independent
+      grounding batches or routed source units for the record. The workflow's
+      existing per-role limit bounds the calls it runs. A dependent fallback
+      round waits for all replies needed to form its unchanged requests.
+      Available links are saved as one union when the round yields or finishes;
+      a control boundary leaves the preceding saved cut intact.
     - **Finished-entry reuse while retained.** An entry whose record a
       round saved is kept in the planning process (`tokens.compiled`): later
       rounds at the same key list it without repeating its capture lookups,

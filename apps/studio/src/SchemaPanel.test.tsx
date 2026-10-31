@@ -20,14 +20,16 @@ import type {
   SchemaSaveState,
 } from './schemaSaveCoordinator'
 // The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
-const { requestSchemaEdit, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
+const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
   requestSchemaEdit: vi.fn(),
+  requestSchemaChat: vi.fn(),
   deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
   listModelOperations: vi.fn<() => Promise<ModelOperation[]>>(async () => []),
 }))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
   requestSchemaEdit,
+  requestSchemaChat,
   deleteModelOperation,
   listModelOperations,
 }))
@@ -221,6 +223,47 @@ afterEach(() => {
 })
 
 describe.sequential('SchemaPanel schema proposal review', () => {
+  it('shows and selectively accepts a scalar note-only proposal, then flushes that note in the saved definition', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the full heading exactly.' } },
+      additions: [], issues: [],
+    })
+    expect(screen.getByLabelText('Previous note')).toHaveTextContent('Research rule')
+    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the full heading exactly.')
+    expect(setup.edits).toHaveLength(0)
+    const accept = screen.getByRole('checkbox', { name: 'Accept change to title' })
+    fireEvent.click(accept)
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+    fireEvent.click(accept)
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0]).toEqual({ recordDescription: 'One test record.', schemaNodes: [
+      { ...nodes[0], description: 'Copy the full heading exactly.' }, nodes[1],
+    ] })
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: 'title' })).getByText('Copy the full heading exactly.')).toBeInTheDocument()
+    await act(async () => {
+      expect(await setup.schema.flush()).toMatchObject(setup.edits[0])
+    })
+    expect(setup.schema.snapshot().draft?.schemaNodes).toEqual(setup.edits[0].schemaNodes)
+  })
+
+  it('shows a proposed scalar note clear before it can be applied', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: '' } },
+      additions: [], issues: [],
+    })
+    expect(screen.getByLabelText('Previous note')).toHaveTextContent('Research rule')
+    expect(screen.getByText('Note removed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(setup.edits[0].schemaNodes[0]).toEqual({ id: 'title', name: 'title', type: 'string' })
+  })
+
   it('each edit request carries a new operation ID', async () => {
     renderPanel()
     const input = screen.getByPlaceholderText('Describe a change to the schema…')
@@ -270,6 +313,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       'Update fields',
       expect.any(AbortSignal),
       expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      [],
     )
 
     const row = screen.getByText('title').closest('[role="listitem"]')!
@@ -1388,6 +1432,24 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(requestSchemaEdit).not.toHaveBeenCalled()
   })
 
+  it('reopens a description-only proposal after reload without another model request', async () => {
+    const restored: ModelOperation = {
+      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
+      status: 'SUCCEEDED', instruction: 'Copy the complete heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
+      baseSchemaRevisionId: modelContext.schemaRevisionId,
+      response: { status: 'proposed', fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the complete heading.' } }, additions: [], issues: [] },
+    }
+    listModelOperations.mockResolvedValueOnce([restored])
+    const setup = renderPanel({ durableScope: true })
+    const apply = await screen.findByRole('button', { name: 'Apply changes' })
+    expect(apply).toBeEnabled()
+    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the complete heading.')
+    fireEvent.click(apply)
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0].schemaNodes).toEqual([{ ...nodes[0], description: 'Copy the complete heading.' }, nodes[1]])
+    expect(requestSchemaEdit).not.toHaveBeenCalled()
+  })
+
   it('Stop on a running edit cancels edit:<operationId> on the server and says Cancelled.', async () => {
     requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
       new Promise<SchemaEditResponse>((_resolve, reject) => {
@@ -2345,7 +2407,7 @@ describe('chat composer and drawer (redesign §7)', () => {
   it('the instructions composer clears and scrolls back to its start after a send, so its placeholder reads from the beginning', () => {
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
     const input = screen.getByPlaceholderText(/Add a generation instruction/) as HTMLTextAreaElement
-    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations")…')
+    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…')
     let scrollTop = 0
     Object.defineProperty(input, 'scrollTop', { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value } })
     fireEvent.change(input, { target: { value: 'Focus on the burials and their grave goods, layer by layer, with dates' } })
@@ -2397,6 +2459,62 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(screen.queryByRole('button', { name: 'Show conversation' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('with a source, a question before the first schema is answered and is not an instruction', async () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockResolvedValueOnce({ kind: 'answer', answer: 'The register lists 42 burials.' })
+    requestSchemaChat.mockResolvedValueOnce({ kind: 'instruction' })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('The register lists 42 burials.')).toBeInTheDocument()
+    expect(screen.getByText('Question')).toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[0]!.slice(0, 2)).toEqual([
+      { projectContextId: modelContext.projectContextId, sourceRepresentationRevisionId: modelContext.sourceRepresentationRevisionId },
+      'How many burials are there?',
+    ])
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Message 1 of 1')).toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[1]![4]).toEqual([
+      { role: 'user', text: 'How many burials are there?' },
+      { role: 'assistant', text: 'The register lists 42 burials.' },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('a message the model could not reply to goes back to the composer, unrecorded', async () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn(), sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockRejectedValueOnce(new Error('No model is configured.'))
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Could not send the message: No model is configured.')).toBeInTheDocument()
+    expect(input).toHaveValue('How many burials are there?')
+    expect(screen.getByRole('button', { name: 'Generate schema' })).toBeEnabled()
+  })
+
+  it('an edit chat question is answered in the conversation, with no proposal', async () => {
+    renderPanel({ durableScope: true })
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'Gender takes woman or man.' })
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'What values can gender take?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Gender takes woman or man.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([])
+
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'No.' })
+    fireEvent.change(input, { target: { value: 'Can it be blank?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('No.')).toBeInTheDocument()
+    expect(requestSchemaEdit.mock.calls[1]![4]).toEqual([
+      { role: 'user', text: 'What values can gender take?' },
+      { role: 'assistant', text: 'Gender takes woman or man.' },
+    ])
   })
 
   it('a removed instruction leaves the conversation and the generation', () => {

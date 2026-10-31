@@ -17,7 +17,7 @@ x-gpu: &gpu
           capabilities: [gpu]
 
 x-vllm: &vllm
-  image: "${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0}"
+  image: "${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3}"
   init: true
   # Both the generic vLLM image and an operator-selected Spark image use
   # this explicit CLI, independent of their image entrypoint defaults.
@@ -97,6 +97,9 @@ services:
       - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
       # GB10 with multiple resident models: graph execution stalled; eager serving passed concurrent extraction.
       - --enforce-eager
+      # Waiting requests go nearest the researcher's page first (parsing_worker's KEI_PRIORITY_URLS).
+      - --scheduling-policy
+      - priority
     depends_on:
       ocr_model:
         condition: service_healthy
@@ -126,6 +129,8 @@ services:
       - "${EXTRACT_KV_CACHE_BYTES:-8G}"
       - --max-num-seqs
       - "4"
+      - --scheduling-policy
+      - priority
     depends_on:
       nuextract_model:
         condition: service_healthy
@@ -143,6 +148,10 @@ services:
       # kei accepts 1 to 64 (MAX_CATALOG_CHUNKS): NUEXTRACT_MAX_NUM_SEQS above 64 stops the worker at
       # boot, and `restart: unless-stopped` then restarts it in a loop.
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+      # The servers above schedule by priority: each durable call asks with its page's distance from the page the
+      # researcher read at start. Until they are recreated with --scheduling-policy priority (an app-only release
+      # does not) they ignore it and serve in arrival order; an empty value in .env sends none.
+      KEI_PRIORITY_URLS: "${KEI_PRIORITY_URLS-http://nuextract_model:8000/v1/chat/completions,http://extraction_model:8000/v1/chat/completions}"
     depends_on:
       ocr_model:
         condition: service_healthy

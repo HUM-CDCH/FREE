@@ -168,7 +168,7 @@ A Researcher Account's choice of Model Connection and model for a related family
 _Avoid_: task route, model setting, project model
 
 **Schema Suggestion Route**:
-The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
+The Capability Route used for Schema Suggestion, including the edit proposals of the schema panel's chat and, unless it is NuExtract, the chat's answers to questions. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
@@ -184,7 +184,7 @@ What one Extraction is admitted with and pinned to: its Extraction Strategy, rec
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
-The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and accepts a candidate only after a separate verification. It needs no recipe, language, numbering convention, field name or particular model.
+The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; an account's Pro mode admits version 5 instead, which reads every value a second time. It needs no recipe, language, numbering convention, field name or particular model.
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:
@@ -192,7 +192,7 @@ A Researcher Account's choice of the Parsing Service's OCR model (text recogniti
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:
-The Capability Route used for conversational Extraction Schema editing: the schema panel's "Describe a change to the schema…" and the edit proposals it returns. The Model Configuration page calls it the *Assistant model*.
+The Capability Route an unset Schema Suggestion Route follows. Conversational Extraction Schema editing (the schema panel's "Describe a change to the schema…") is a Schema Suggestion request; the Interaction Route's own work is answering the schema chat's questions when the Schema Suggestion Route is NuExtract, which only generates templates (ADR 0023). The Model Configuration page calls it the *Assistant model*.
 _Avoid_: chat model, chat route
 
 **Model Attribution**:

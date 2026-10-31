@@ -248,17 +248,16 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(capture.request.body.user).not.toContain('Researcher guidance sentinel')
     expect(providerRequest).toEqual(capture.request.body.httpRequest)
 
-    // A later project-guidance edit affects future captures, never this started call.
+    // A later project-guidance edit affects future captures, never this started call. History's "Corrections the model
+    // learns from" (ProjectFeedback) is hidden for now, so this sends the request its Stop using sends; restore the
+    // In use / Stop using / Use steps with it.
+    const feedbackUrl=`/api/project-contexts/${project}/feedback?target=${extractionB}`
+    const inUse=(await (await page.request.get(feedbackUrl)).json()).find((each:{id:string})=>each.id===correction.id)
+    expect(inUse).toMatchObject({active:true,included:true})
+    const stopped=await page.request.post(feedbackUrl,{headers,data:{id:inUse.id,expectedRevision:inUse.revision,included:false}})
+    expect(stopped.status(),await stopped.text()).toBe(200)
     await page.goto(`/projects/${project}/documents/${sourceB.sourceDocumentId}?extractionId=${extractionB}`)
-    await page.locator('#rail-tab-history').click()
-    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('First inputs')
-    // The Project's guidance, through its authenticated API: the edit is in use for this target until it is left out.
-    const feedbackUrl=`/api/project-contexts/${project}/feedback`
-    const inUse=(await (await page.request.get(`${feedbackUrl}?target=${extractionB}`)).json()).find((each:{active:boolean})=>each.active)
-    expect(inUse).toMatchObject({id:correction.id,revision:1,included:true,targetCompatibility:'compatible'})
-    const excluded=await page.request.post(feedbackUrl,{headers,data:{id:inUse.id,expectedRevision:1,included:false}})
-    expect(excluded.status(),await excluded.text()).toBe(200)
-    const guidance=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
+    const guidance=await (await page.request.get(feedbackUrl)).json()
     expect(guidance.find((each:{active:boolean})=>each.active)).toMatchObject({revision:2,included:false,candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     expect(guidance.find((each:{id:string})=>each.id===correction.id).active).toBe(false)
     service.releaseExtraction();await complete(extractionB)
@@ -281,10 +280,11 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(hasColumn(rows[0]!,value.node.name),rows[0]).toBe(true)
     // The producing request stays in History, read through its own API; the research table never carries it.
     await writeFile(info.outputPath('guidance-history.json'),JSON.stringify(finished,null,2))
-    const leftOut=(await (await page.request.get(`${feedbackUrl}?target=${extractionB}`)).json()).find((each:{active:boolean})=>each.active)
-    const included=await page.request.post(feedbackUrl,{headers,data:{id:leftOut.id,expectedRevision:2,included:true}})
-    expect(included.status(),await included.text()).toBe(200)
-    const reincluded=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
+    // Its Use, while ProjectFeedback is hidden (above).
+    const notUsed=guidance.find((each:{active:boolean})=>each.active)
+    const used=await page.request.post(feedbackUrl,{headers,data:{id:notUsed.id,expectedRevision:notUsed.revision,included:true}})
+    expect(used.status(),await used.text()).toBe(200)
+    const reincluded=await (await page.request.get(feedbackUrl)).json()
     expect(reincluded.find((each:{active:boolean})=>each.active)).toMatchObject({revision:3,included:true,
       candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     if(context==='full') {

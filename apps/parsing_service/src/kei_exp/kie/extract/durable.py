@@ -65,6 +65,7 @@ class CapturePlanner:
         self.counters = counters or {}
         self.pending = {}
         self.roles = {}  # each pending capture's role, which bounds how many run at once (durable_extract)
+        self.priorities = {}  # each pending capture's place in its model server's queue (`complete`)
         self.historical = lease.call("historical_coverage")
         self.scopes = {}
         self.discovery = None  # discovery's progress while its windows are called (retained.discovering)
@@ -138,7 +139,13 @@ class CapturePlanner:
         return replace(evidence,passages=tuple(passages))
 
     def complete(self, chat, *, stage, record, system, user, schema, max_tokens=None, counter=None,
-                 minimum_reply_tokens=None, unit=None):
+                 minimum_reply_tokens=None, unit=None, page=None):
+        # The call's place in its model server's queue (vLLM priority, lower first), never part of its identity: its
+        # `page`'s distance from the page the researcher read at start, in steps of 8 pages up to 3. A call that
+        # reads no one page (discovery, the document's root) goes first; a run without a start page (a batch member)
+        # goes last, behind every researcher who is reading.
+        start = self.lease.state["effective"]["options"].get("start_page")
+        priority = 3 if start is None else 0 if page is None else min(abs(page - start) // 8, 3)
         # The required request identifies the unit BEFORE adding feedback. A
         # replay never reads today's corrections to reconstruct an old input.
         # A named unit (the unified Catalog's entry from version 3) stands for
@@ -164,11 +171,11 @@ class CapturePlanner:
         if capture["checkpoint"] is not None:
             output = capture["checkpoint"]["output"]
             if output.get("formatRefused"):
-                return self._fallback(capture,key)
+                return self._fallback(capture, key, priority=priority)
             if (capture["checkpoint"].get("recovery") == "whitespace" and stage in ("record", "entry")
                     and output.get("calls") and looped(Call(**output["calls"][-1]))
                     and "response_format" in capture["input"]["request"]["body"].get("httpRequest", {})):
-                return self._fallback(capture, key, max_whitespace=MAX_WHITESPACE)
+                return self._fallback(capture, key, priority=priority, max_whitespace=MAX_WHITESPACE)
             return output["parsed"], [Call(**call) for call in output["calls"]]
         if capture["input"] is None:
             counter = counter or self.counters.get(ROLE[stage]) or counter_for(chat)
@@ -208,11 +215,12 @@ class CapturePlanner:
         with self._lock:
             self.pending[capture["id"]] = key
             self.roles[capture["id"]] = ROLE[stage]
+            self.priorities[capture["id"]] = priority
             if stage == "discovery" and self.discovery is not None:
                 self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
-    def _fallback(self, parent, parent_key, *, max_whitespace=None):
+    def _fallback(self, parent, parent_key, *, priority, max_whitespace=None):
         """A separately captured recovery, preserving the parent's source, guidance and request budget."""
         kind = "format-fallback" if max_whitespace is None else "whitespace-recovery"
         key=digest([parent_key,kind,1])
@@ -245,6 +253,7 @@ class CapturePlanner:
         with self._lock:
             self.pending[capture["id"]]=key
             self.roles[capture["id"]]=parent["descriptor"]["role"]
+            self.priorities[capture["id"]]=priority
             if parent["descriptor"].get("stage") == "discovery" and self.discovery is not None:
                 self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()

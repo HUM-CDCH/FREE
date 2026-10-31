@@ -4,7 +4,6 @@ import { templateToNodes } from 'extraction/schema'
 import {
   buildSpreadsheetTemplate,
   columnFieldIds,
-  mapGoldRows,
   parseSpreadsheetColumns,
   parseSpreadsheetRows,
 } from './_spreadsheet_schema.js'
@@ -91,67 +90,6 @@ describe('parseSpreadsheetRows', () => {
     expect(await parseSpreadsheetRows(buffer as unknown as ArrayBuffer)).toEqual({
       columns: [],
       rows: [],
-    })
-  })
-})
-
-describe('mapGoldRows', () => {
-  const documents = [
-    { sourceDocumentId: 'doc-a', filename: 'Bauer1988 GAC.pdf' },
-    { sourceDocumentId: 'doc-b', filename: 'Harvey 1990.pdf' },
-  ]
-
-  it('groups rows by matched document and reports the unmatched ones', () => {
-    const parsed = {
-      columns: [{ columnName: 'filename' }, { columnName: 'species' }],
-      rows: [
-        { filename: 'sources/Bauer1988 GAC.pdf', species: 'Salmon' },
-        { filename: 'bauer1988 gac', species: 'Cod' },
-        { filename: 'Harvey 1990.pdf', species: 'Trout' },
-        { filename: 'Unknown.pdf', species: 'Pike' },
-      ],
-    }
-
-    expect(mapGoldRows(parsed, documents)).toEqual({
-      ok: true,
-      documents: [
-        {
-          sourceDocumentId: 'doc-a',
-          filename: 'Bauer1988 GAC.pdf',
-          rows: [{ species: 'Salmon' }, { species: 'Cod' }],
-        },
-        {
-          sourceDocumentId: 'doc-b',
-          filename: 'Harvey 1990.pdf',
-          rows: [{ species: 'Trout' }],
-        },
-      ],
-      unmatched: [
-        { filename: 'Unknown.pdf', known: ['Bauer1988 GAC.pdf', 'Harvey 1990.pdf'] },
-      ],
-    })
-  })
-
-  it('reports a blank file-name cell as unmatched rather than mapping it', () => {
-    const parsed = {
-      columns: [{ columnName: 'filename' }, { columnName: 'species' }],
-      rows: [{ filename: '', species: 'Salmon' }],
-    }
-    expect(mapGoldRows(parsed, documents)).toEqual({
-      ok: true,
-      documents: [],
-      unmatched: [{ filename: '', known: ['Bauer1988 GAC.pdf', 'Harvey 1990.pdf'] }],
-    })
-  })
-
-  it('reports a missing file-name column instead of mapping every row', () => {
-    const parsed = {
-      columns: [{ columnName: 'species' }],
-      rows: [{ species: 'Salmon' }],
-    }
-    expect(mapGoldRows(parsed, documents)).toEqual({
-      ok: false,
-      reason: 'filename_column_missing',
     })
   })
 })

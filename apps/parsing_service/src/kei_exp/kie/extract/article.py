@@ -24,6 +24,7 @@ from kei_exp.kie.extract.assembly import (ARTICLE_VERSION, artifact, document_va
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.contexts import (GROUPING_VERSION, Context, assemble_document, partition, reconcile_values,
                                           sharing, value_disagreements)
+from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
@@ -159,17 +160,24 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     if len(extracted.value_contexts[0]) > 1:
         from kei_exp.kie.extract.retained import saved_record
         saved_record(chat, extracted.slices[0][1], "document", disagreements=extracted.disagreements)
-    grounded: list = []
-    def retained_links(batch):
-        # Each grounding batch's links are retained at once, so the source shows them while the run goes on.
-        grounded.extend(batch)
-        if batch:
+    grounded: list = []  # every grounding batch's links this planning round has read, in batch order
+    def retain_links():
+        # The round's links are retained once it has read every saved reply, so the source shows them while the run
+        # goes on and no snapshot shows fewer than the one before it: batches are captured together, so a later
+        # batch's reply may be read in a round before an earlier batch's. A round a pause or stop ends (`Boundary`)
+        # retains nothing; the last snapshot stands.
+        if grounded:
             from kei_exp.kie.extract.retained import saved_record
             saved_record(chat, extracted.slices[0][1], "document", links=[link_json(link) for link in grounded],
                          disagreements=extracted.disagreements)
-    support = ground_records(extracted.slices, schema, chat, budget=options.record_chars,
-        counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
-        value_contexts=extracted.value_contexts, origins=extracted.origins, on_batch=retained_links)
+    try:
+        support = ground_records(extracted.slices, schema, chat, budget=options.record_chars,
+            counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
+            value_contexts=extracted.value_contexts, origins=extracted.origins, on_batch=grounded.extend)
+    except NeedsCall:
+        retain_links()
+        raise
+    retain_links()
     links = support.links
     calls += support.calls
     issues += support.issues
@@ -282,9 +290,12 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     answered: list[tuple[list[Call], list[Issue]] | None] = [None] * len(groups)
     for index in context_order(groups, start_page):
         group = groups[index]
+        # The context's page nearest the start page, as `context_order` measures it, sets its call's priority.
+        page = None if start_page is None else min((passage.page for passage in group.passages),
+                                                   key=lambda page: abs(page - start_page), default=None)
         fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
             counter=counters["fields"], structured=structured, document=True,
-            bounded_document=method.context == "bounded")
+            bounded_document=method.context == "bounded", page=page)
         fields, invalid = _typed_reading(fields, schema.record_nodes)
         candidates[index], answered[index] = fields, (attempts, problems + invalid)
         if on_context is not None:
