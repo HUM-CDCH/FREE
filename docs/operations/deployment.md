@@ -206,6 +206,19 @@ that its CUDA kernels or model architecture work. For extraction's
 `Qwen/Qwen3.8-27B-FP8` (the `qwen3_5` architecture), the image must also
 support that architecture and FP8 on the target GPU.
 
+The OCR server runs Surya 2 with its multi-token prediction (MTP) head,
+`--speculative-config` with two speculative tokens, as surya-ocr's own vLLM
+launcher does. On GB10 with vLLM 0.31.0 the measurement showed:
+
+- the same page text as serving without MTP;
+- 1.6 times the pages per second at four concurrent requests, and 1.9 times at one;
+- about four minutes to start.
+
+The output is not byte-identical. Box coordinates and confidences can differ
+slightly, about as much as batched serving varies between two runs of the same
+pages. Enabling or disabling MTP is therefore an OCR server change
+([OCR result reuse](#ocr-result-reuse)).
+
 `OCR_KV_CACHE_BYTES` (default 4G) sizes the OCR server's KV cache; with a cache
 size set, vLLM ignores `OCR_GPU_MEMORY_UTILIZATION`. The context is 24,576
 tokens with up to `OCR_MAX_NUM_SEQS` (default 4) simultaneous sequences. The
