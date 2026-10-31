@@ -130,6 +130,8 @@ NEAR = 40
 # can supply scalars outside lists; derived values and values behind omitted excerpts stay proposals. Record/list
 # ownership is unchanged. This keeps usable standing headings without accepting unseen supersession.
 # Switching verification on judges the fixed candidates (`VERIFY`); nothing re-extracts them.
+# Unplaceable discovery boundaries use the existing split bound; superseded replies retain calls and issues,
+# while only final readings own source text (discovery version 10). Defaults 1–6 keep discovery version 8.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,

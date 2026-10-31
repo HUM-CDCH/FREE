@@ -251,8 +251,11 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   values that disagree still go to arbitration; `verification: true` adds verdicts on
   the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
   Defaults 7 builds on the same single pass, with heading context selected within counted
-  budgets. Discovery keeps all preceding record-free ranges as candidates. Primary
-  windows and overlap are fixed first; whole excerpts are considered newest first,
+  budgets. Discovery also retries a copied boundary that cannot be located uniquely in
+  its source line on the window's two halves, within the existing split bound. Superseded
+  replies keep their calls and issues; only final readings own source text, and exhausted
+  recovery leaves affected text unresolved. Discovery keeps all preceding record-free
+  ranges as candidates. Primary windows and overlap are fixed first; whole excerpts are considered newest first,
   skipping an oversized one so smaller older excerpts can still fit. When the full
   context does not fit, `candidates` (default 32, range 1–1024) bounds individual
   measurements; older excerpts are omitted unmeasured. Split retries reconsider
