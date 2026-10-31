@@ -131,7 +131,8 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
         assert completed['page']['total']>0
         assert completed['state']['counts']['saved']==len(calls)-(1 if failed_at else 0)
         assert all(capture['request']==captured[capture['id']] for capture in completed['history']['captures'] if capture['id'] in captured)
-        assert len({capture['id'] for capture in completed['history']['captures']})==len(calls)-(1 if failed_at else 0)
+        # Planning captures every entry ahead of execution; Stop can leave captures without a successful checkpoint.
+        assert len({capture['id'] for capture in completed['history']['captures'] if capture['output'] is not None})==len(calls)-(1 if failed_at else 0)
         if case['terminal']=='stop':
             refused=requests.post(fixture['bridge'],json={'id':case['id'],'action':'resume'},
                 headers={'Authorization':f"Bearer {fixture['token']}"},timeout=15)
