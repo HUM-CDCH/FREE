@@ -788,6 +788,106 @@ def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
     assert any(issue["code"] == "boundary_unplaced" for issue in result["issues"])
 
 
+@pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
+def test_source_invalid_boundaries_retry_bounded_halves_without_publishing_the_superseded_parent(frontier):
+    source = evidence("1. Alpha.\ncontinued Alpha.\n2. Beta.\ncontinued Beta.")
+    model, shown, asked = Model(source), [], []
+
+    def ask(record, system, user, schema, calls, issues):
+        window = section(user, "WINDOW")
+        asked.append(user)
+        calls.append({"window": window, "ok": True})  # JSON succeeded; source validation decides recovery.
+        if window.count("[L") == 4:
+            return {"places": [["L1", "record", "Alpha"], ["L2", "record", None, "not copied from this line"]],
+                    "begins_inside_record": False, "ends_inside_record": False}
+        return model.discover(user)
+
+    # The whole primary fits; a half's supplementary context must still fit the same request limit.
+    budget = 145
+
+    def fits(_system, user, _schema):
+        return len(user) <= budget
+
+    result = discovery.discover(source, "entry", fits, ask, overlap=3, splits=1, workers=2, frontier=frontier,
+                                progress=lambda found, lines: shown.append(found), heading_context=True)
+    assert len(asked) == len(result["calls"]) == 3
+    assert all(len(user) <= budget for user in asked)
+    assert labelled(source, result) == [("1.", ["1. Alpha.", "continued Alpha."]),
+                                        ("2.", ["2. Beta.", "continued Beta."])]
+    assert all(entry["end"] == "validated" for entry in result["entries"])
+    assert len(result["windows"]) == 2 and all(window["ok"] for window in result["windows"])
+    assert all(call["ok"] for call in result["calls"])
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
+    assert all(found["label"] != "Alpha" for snapshot in shown for found in snapshot)
+    assert shown[-1] == [{"segment": "p1_s0", "label": "1."}, {"segment": "p1_s0", "label": "2."}]
+    assert all(len(snapshot) == len({item["label"] for item in snapshot}) for snapshot in shown)
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
+@pytest.mark.parametrize(("splits", "calls", "labels"), [(0, 1, ["2.", "3.", "4."]),
+                                                        (1, 3, ["2.", "4."]), (6, 7, [])])
+def test_persistent_invalid_boundaries_stop_at_the_split_budget_or_one_unit(frontier, splits, calls, labels):
+    source = evidence("1. Alpha.\n2. Beta.\n3. Gamma.\n4. Delta.")
+    model = Model(source)
+
+    def ask(record, system, user, schema, attempts, issues):
+        attempts.append(user)
+        answer = model.discover(user)
+        answer["places"][0].append("not copied from this line")
+        return answer
+
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=1, splits=splits,
+                                frontier=frontier, workers=2, heading_context=True)
+    assert len(result["calls"]) == calls
+    assert [entry["label"] for entry in result["entries"]] == labels
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"] * calls
+    assert any(row["disposition"] == "unresolved" for row in result["ledger"])
+    assert all(window["ok"] for window in result["windows"])  # partial source decisions survive exhaustion
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
+def test_source_valid_semantic_decisions_are_not_retried_as_invalid_anchors(frontier):
+    source = evidence("1. Alpha.\ncontinued Alpha.\n2. Beta.")
+
+    def ask(record, system, user, schema, calls, issues):
+        calls.append(user)
+        return {"places": [["L1", "record", "1.", "Alpha."], ["L2", "other", None], ["L3", "record", "2."]],
+                "begins_inside_record": False, "ends_inside_record": False}
+
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=1, splits=6, frontier=frontier,
+                                heading_context=True)
+    assert len(result["calls"]) == 1
+    assert [issue.code for issue in result["issues"]] == ["label_not_in_source"]
+    assert labelled(source, result) == [(None, ["Alpha."]), ("2.", ["2. Beta."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == \
+        ["1.", "continued Alpha."]
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize("defaults", range(1, 8))
+def test_only_defaults_7_retries_unplaceable_boundaries(defaults):
+    source = evidence("1. Alpha. Material: wood.\n2. Beta. Material: stone.")
+    model = Model(source)
+
+    def invalid_parent(user):
+        answer = model.discover(user)
+        if "[L2]" in section(user, "WINDOW"):
+            answer["places"][0].append("absent anchor")
+        return answer
+
+    result, chat = extract(source, Model(source, discovery=invalid_parent), defaults=defaults, overlap=0)
+    asked = [call for call in chat.calls if call["system"].startswith("You find where records begin")]
+    assert len(asked) == (3 if defaults == 7 else 1)
+    assert [entry["label"] for entry in result["discovery"]["entries"]] == \
+        (["1.", "2."] if defaults == 7 else ["2."])
+    assert result["execution"]["discovery_version"] == (10 if defaults == 7 else 8)
+    assert result["discovery"]["version"] == (10 if defaults == 7 else 8)
+    assert [issue["code"] for issue in result["issues"]].count("boundary_unplaced") == 1
+    assert_accounted(source, result)
+
+
 def test_restarted_labels_stay_distinct_and_an_entry_continues_across_pages():
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein, und", "weiter Glas.\n"
                       "Kreis Süd\n1. Cdorf. Material: Gold.")

@@ -48,6 +48,38 @@ def test_pipelined_tail_window_is_in_the_last_progress_event():
     assert shown[-1] == [{"segment": "p2_s0", "label": "2"}], shown
 
 
+def test_invalid_parent_boundaries_wait_for_their_children_without_duplicate_progress():
+    class Pending(BaseException):
+        pass
+
+    def read(answered):
+        shown = []
+
+        def ask(_record, _system, user, *_):
+            if "[L2]" in user:
+                return {"places": [["L1", "record", "Site 1"], ["L2", "record", "2", "absent anchor"]],
+                        "begins_inside_record": False, "ends_inside_record": False}
+            number = 1 if "[L1] 1. Site" in user else 2
+            if number > answered:
+                raise Pending()
+            return reply(user)
+
+        result = discovery.discover(source(), "numbered site", lambda *_: True, ask, overlap=0, splits=1,
+            progress=lambda found, lines: shown.append(deepcopy(found)), frontier=True, unanswered=(Pending,),
+            heading_context=True)
+        assert all(found["label"] != "Site 1" for snapshot in shown for found in snapshot)
+        return result, shown
+
+    for answered in (0, 1):
+        result, shown = read(answered)
+        assert not result["complete"] and not result["entries"]
+        assert shown[-1] == ([{"segment": "p1_s0", "label": "1"}] if answered else [])
+    result, shown = read(2)
+    assert result["complete"] and [entry["label"] for entry in result["entries"]] == ["1", "2"]
+    assert shown[-1] == [{"segment": "p1_s0", "label": "1"}, {"segment": "p2_s0", "label": "2"}]
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
+
+
 @pytest.mark.parametrize("defaults", [1, 2])
 def test_slice_publishes_a_finished_window_before_its_slow_peer(defaults):
     first_returned, second_waiting, release, published = Event(), Event(), Event(), Event()

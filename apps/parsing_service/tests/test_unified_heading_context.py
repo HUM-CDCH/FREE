@@ -424,5 +424,5 @@ def test_defaults_7_keeps_derived_heading_values_as_proposals_with_or_without_ve
                for row in result["proposed"])
     assert not any(call["stage"] == "verification" for call in result["calls"])
     assert result["execution"]["prompt_version"] == 9
-    assert result["execution"]["discovery_version"] == 9
+    assert result["execution"]["discovery_version"] == 10
     assert result["execution"]["entry_version"] == 8
