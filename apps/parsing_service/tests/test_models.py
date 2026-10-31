@@ -756,7 +756,7 @@ def transcribe_over_fake(fake, monkeypatch, execution, crops, replies):
     monkeypatch.setattr(fake, "surya_replies", {colour: list(attempts) for colour, attempts in replies.items()})
     events = []
     with OpenAI(base_url=fake.url.removesuffix("/chat/completions"), api_key="test", max_retries=0) as client, \
-            patch("kei_exp.transcription.surya.sleep"):
+            patch("kei_exp.transcription.surya.RETRY_BACKOFF", 0):
         backend = SimpleNamespace(_client=client, _client_parallel=lambda: 4,
                                   start=lambda: SimpleNamespace(model_name=MODELS["surya"].repo))
         with patch("surya.inference.SuryaInferenceManager", return_value=SimpleNamespace(backend=backend)):
@@ -815,7 +815,8 @@ def test_an_empty_recognition_after_suspect_text_is_incomplete_and_its_siblings_
     assert records[7].incomplete == "page 7 (source page 2, region 7) stopped at its full page request's 16384-token cap"
     assert outcome.incomplete and outcome.incomplete.endswith(ADVICE) and "could not be confirmed" in ADVICE
 
-    inventory = Inventory([1, 2], [Input(ordinal, crop[0], 0, crop) for ordinal, crop in enumerate(crops, 1)], None)
+    inventory = Inventory([1, 2], [Input(ordinal, page, 0, (page, region, image.size))
+                                   for ordinal, (page, region, image) in enumerate(crops, 1)], None)
     written = write_result(outcome, execution, inventory, Source.of(execution), ingest_digest=None,
                            directory=tmp_path / "result")
     loaded = load_result(tmp_path / "result")
