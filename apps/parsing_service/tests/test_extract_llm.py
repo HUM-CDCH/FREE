@@ -44,7 +44,8 @@ def test_a_call_sends_the_messages_and_the_json_schema_and_reads_the_reply(monke
     # Greedy decoding can loop a thinking model's reasoning until max_tokens and leave no answer; extraction turns
     # thinking off through the chat template, the switch vLLM applies (Ollama's `reasoning_effort` is not one).
     assert payload["chat_template_kwargs"] == {"enable_thinking": False} and "reasoning_effort" not in payload
-    assert payload["messages"] == [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}]
+    assert payload["messages"] == [{"role": "system", "content": 'S\nReply JSON schema:\n{"type":"object"}'},
+                                    {"role": "user", "content": "U"}]
     assert payload["response_format"] == {"type": "json_schema", "json_schema": {
         "name": "reply", "schema": {"type": "object"}, "strict": True}}
 
@@ -62,6 +63,7 @@ def test_a_server_that_says_it_lacks_structured_output_is_asked_again_and_both_a
     reply = OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema={"type": "object"})
     assert reply.text == "{}" and reply.input_tokens is None
     assert "response_format" in sent[0] and "response_format" not in sent[1]
+    assert sent[1]["messages"] == sent[0]["messages"]  # fallback keeps the full reply shape visible
     assert sent[1]["chat_template_kwargs"] == {"enable_thinking": False}
     assert len(reply.attempts) == 1 and "not supported" in reply.attempts[0]
 
@@ -85,17 +87,42 @@ def test_a_call_may_set_its_own_output_allowance(monkeypatch):
     assert [payload["max_tokens"] for payload in sent] == [1024, 8192]
 
 
-def test_the_request_to_count_renders_the_same_template_as_the_request_sent(monkeypatch):
+@pytest.mark.parametrize("schema", [None, {"type": "object"}])
+def test_the_request_to_count_renders_the_same_template_as_the_request_sent(monkeypatch, schema):
     """The token budget counts on vLLM's /tokenize; any template switch the call sends changes the rendered prompt,
     so the body to count carries the same messages and switches."""
     sent = []
     body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
     monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
     chat = OpenAIChat(url="http://server/v1/chat/completions", model="m")
-    chat.complete(system="S", user="U", schema={"type": "object"})
-    counted = chat.tokenize_body(system="S", user="U", schema={"type": "object"})
+    chat.complete(system="S", user="U", schema=schema)
+    counted = chat.tokenize_body(system="S", user="U", schema=schema)
     assert counted == {"model": "m", "add_generation_prompt": True, "messages": sent[0]["messages"],
                        "chat_template_kwargs": sent[0]["chat_template_kwargs"]}
+    if schema is None:
+        assert sent[0]["messages"] == [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}]
+
+
+def test_undescribed_fields_and_nested_reply_shapes_are_visible_with_normal_and_bounded_decoding(monkeypatch):
+    nodes = [Node(id="site", name="site", type="verbatim-string"),
+             Node(id="finds", name="finds", type="array", children=[
+                 Node(id="kind", name="kind", type="string", allowed_values=["pottery", "metal"])])]
+    schema = {"type": "object", "properties": {node.name: candidate_schema(node) for node in nodes},
+              "required": [node.name for node in nodes], "additionalProperties": False}
+    chat = OpenAIChat(model="m")
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: "GRAMMAR")
+    normal = chat.request_body(system="Read the record.", user="Source", schema=schema)
+    recovered = bounded(chat, 16).request_body(system="Read the record.", user="Source", schema=schema)
+    counted = chat.tokenize_body(system="Read the record.", user="Source", schema=schema)
+    assert normal["messages"] == recovered["messages"] == counted["messages"]
+    prefix, rendered = normal["messages"][0]["content"].split("\nReply JSON schema:\n")
+    assert prefix == "Read the record."
+    shown = json.loads(rendered)
+    assert shown == normal["response_format"]["json_schema"]["schema"]
+    assert shown["required"] == ["site", "finds"]
+    assert shown["properties"]["site"]["properties"]["value"]["type"] == ["string", "null"]
+    assert shown["properties"]["finds"]["items"]["properties"]["kind"]["properties"]["value"]["enum"] == [
+        "pottery", "metal", None]
 
 
 def test_a_failing_server_raises_the_http_error(monkeypatch):

@@ -17,7 +17,7 @@ def test_budget_discovery_sees_entries_across_physical_pages():
     assert [r['label'] for r in new['records']] == ['1', '2']
     assert len([c for c in new['calls'] if c['stage'] == 'discovery']) == 1
     assert len([c for c in old['calls'] if c['stage'] == 'discovery']) == 2
-    assert new['prompt_version'] == 6 and old['prompt_version'] == 5
+    assert new['prompt_version'] == old['prompt_version'] == 8
 
 
 def test_budget_discovery_still_splits_a_long_source_without_losing_entries():

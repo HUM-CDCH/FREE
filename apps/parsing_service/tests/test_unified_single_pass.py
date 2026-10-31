@@ -10,6 +10,7 @@ import re
 import pytest
 
 from kei_exp.kie.extract import run, unified
+from kei_exp.kie.extract.llm import OpenAIChat
 from tests import test_unified_catalog as catalog
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
 from tests.test_extract_grounded import CountingChat
@@ -33,19 +34,23 @@ def test_a_single_pass_accepts_what_a_supporting_verifier_accepts_without_asking
     assert {call["stage"] for call in single["calls"]} == {"discovery", "entry", "document"}
     assert "verification" in {call["stage"] for call in verified["calls"]}
     assert single["processing"]["verification"] == {"enabled": False, "undecided": 0}
-    structure = json.dumps(unified.json_schema(unified.Schema.model_validate(catalog.SCHEMA).record_nodes),
-                           ensure_ascii=False, separators=(",", ":"))
-    assert entry_system(chat).endswith("before adding the value/evidence wrappers:\n" + structure)
-    assert single["execution"]["prompt_version"] == 7 and single["execution"]["effective"]["single_pass"] is True
+    assert entry_system(chat).endswith(unified.SINGLE_PASS)
+    entry = next(call for call in chat.calls if call["system"] == entry_system(chat))
+    sent = OpenAIChat().request_body(**entry)
+    instructions, rendered = sent["messages"][0]["content"].split("\nReply JSON schema:\n")
+    assert "Requested value structure" not in instructions
+    assert json.loads(rendered) == sent["response_format"]["json_schema"]["schema"]
+    assert single["execution"]["prompt_version"] == 8 and single["execution"]["effective"]["single_pass"] is True
 
 
-@pytest.mark.parametrize(("defaults", "prompt_version"), [(1, 5), (4, 5), (5, 6)])
-def test_earlier_defaults_keep_their_prompts_and_execution_record(defaults, prompt_version):
+@pytest.mark.parametrize("defaults", [1, 2, 3, 4, 5])
+def test_earlier_defaults_keep_their_reading_policy_with_the_shared_reply_schema(defaults):
     source = evidence("1. Hill. Material: gold.")
     result, chat = extract(source, defaults=defaults)
-    assert result["execution"]["prompt_version"] == prompt_version
+    assert result["execution"]["prompt_version"] == 8
     assert "single_pass" not in result["execution"]["effective"]
     assert "Requested value structure" not in entry_system(chat)
+    assert unified.SINGLE_PASS not in entry_system(chat)
     assert {link["linked_by"] for link in result["evidence"]} == {"verification"}
 
 

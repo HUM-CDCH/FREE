@@ -155,15 +155,22 @@ def test_article_resolution_transport_failures_are_saved_before_fallback(monkeyp
 
 
 @pytest.mark.parametrize("scheduled", [True, False])
+@pytest.mark.parametrize("schema_visible", [False, True])
 def test_a_call_asks_with_its_priority_only_a_server_that_schedules_by_it_and_saves_its_request_unchanged(
-        monkeypatch, scheduled):
+        monkeypatch, scheduled, schema_visible):
     from kei_exp.kie.extract import captured_provider
+    from kei_exp.kie.extract.llm import OpenAIChat
     from tests.test_extract_llm import response
+    schema = {"type": "object"}
+    http_request = OpenAIChat(model="fixture/model").request_body(system="s", user="u", schema=schema, max_tokens=256)
+    if not schema_visible:
+        # Captures made before reply schemas were shown replay their exact historical messages.
+        http_request["messages"][0]["content"] = "s"
     saved = {"digest": "fixed", "request": {
         "composer": 1, "provider": {"model": "fixture/model", "url": "http://model", "timeout": 5},
         "budget": {"context": 4096, "counted": 120, "reserve": 256},
-        "body": {"stage": "record", "record": 0, "system": "s", "user": "u", "schema": {}, "max_tokens": 256,
-                 "max_whitespace": None, "httpRequest": {"model": "fixture/model", "messages": []}}}}
+        "body": {"stage": "record", "record": 0, "system": "s", "user": "u", "schema": schema, "max_tokens": 256,
+                 "max_whitespace": None, "httpRequest": http_request}}}
     committed, posted = [], []
 
     class Lease:
