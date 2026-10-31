@@ -22,7 +22,7 @@ LAYOUT_MODELS = {
 
 @dataclass(frozen=True)
 class Region:
-    kind: str    # page | column | band | figure
+    kind: str    # page | column | band | figure | text (a native block whose glyphs are undecodable)
     bbox: PointBox
     order: int   # reading order within the source page
     ink: float   # share of the page's ink (dark pixels inside the scanner border) inside the crop

@@ -440,7 +440,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
   const pages = ([
     ['input_tokens', number('input_tokens', 'tokens, 512 or more; empty for Auto', 'The largest request of any call. Auto is the served context minus the reply reserve. A smaller ceiling splits the source into more requests; no source text is left out to fit.', 'Auto')],
-    ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.`, 'Stage defaults')],
+    ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.${'entry_reply' in defaults ? ' An entry reply may also use the context its input leaves (not with a native fields model); a value here caps every reply at it.' : ''}`, 'Stage defaults')],
     ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
     ['headings', toggle('headings')],
     ['verification', toggle('verification')],

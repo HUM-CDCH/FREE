@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import ExcelJS from 'exceljs'
 import type { SchemaNode } from 'extraction/schema'
-import { downloadDurableExport, durableBatchExportBlob, durableExportBlob, durableExportTables, fixedDurableValues, type Fixed } from './durableExport'
+import { downloadDurableBatch, downloadDurableExport, durableBatchExportBlob, durableExportBlob, durableExportTables, fixedDurableValues, type BatchExportMember, type Fixed } from './durableExport'
 
 vi.mock('./auth/authenticatedFetch', () => ({ authenticatedFetch: (...args: unknown[]) => fetch(...args as Parameters<typeof fetch>) }))
 afterEach(() => vi.unstubAllGlobals())
@@ -184,4 +184,33 @@ describe('durable exports', () => {
     expect(csv.type).toBe('text/csv;charset=utf-8')
     expect((await csv.text()).split('\r\n')[0]).toBe('Source Document,Source Document ID,Batch Extraction ID,title,site,year,gilded,names,finds.0.name,finds.0.count,finds.1.name,finds.1.count,catalogue,year (string)')
   })
+})
+
+it('CSV and XLSX keep disagreements explicit, including typed choices and batch alternatives',async()=> {
+  const selectionId='11111111-1111-4111-8111-111111111111'
+  const disputed=value(0,year,null,{selectionId,disagreement:[{path:[],alternatives:[1827,1828].map(reading=>({value:reading,segments:['p3_s0']}))}]})
+  const csv=await durableExportBlob(fixed,[disputed],'csv',root)
+  expect(await csv.text()).toContain('year,year (review),year (alternatives)\r\n,Readings differ,')
+  const book=await workbook(await durableExportBlob(fixed,[disputed],'xlsx',root))
+  expect(book.worksheets.map(sheet=>sheet.name)).toEqual(['Results','Extraction','Evidence','Disagreements'])
+  expect(cells(book.getWorksheet('Disagreements')!)).toEqual([
+    ['Record','Field','Part','Value','Read in','Evidence','Review'],
+    [1,'year',null,1827,'p. 3','Not checked','Readings differ'],[1,'year',null,1828,'p. 3','Not checked','Readings differ'],
+  ])
+  const chosen={...disputed,correction:{revision:1,decision:{action:'APPROVED',value:1827,choices:[{path:[],value:1827}],evidence:[],included:true}}}
+  const chosenBook=await workbook(await durableExportBlob(fixed,[chosen],'xlsx',root))
+  expect(cells(chosenBook.getWorksheet('Results')!)[1].slice(0,2)).toEqual([1827,'Chosen'])
+  expect(cells(chosenBook.getWorksheet('Evidence')!)[1][4]).toBe(1827)
+  const member={extractionId:'one',sourceDocumentId:'one',sourceDocumentName:'one.pdf',sourceRevisionId:'one',status:'COMPLETED'}
+  const batch=await workbook(await durableBatchExportBlob({batchExtractionId:'batch'},[member],[{fixed,member,values:[disputed]}],'xlsx',root))
+  expect(cells(batch.getWorksheet('Disagreements')!)[0][0]).toBe('Source Document')
+  expect(cells(batch.getWorksheet('Disagreements')!)[1]).toEqual(['one.pdf',1,'year',null,1827,'p. 3','Not checked','Readings differ'])
+})
+
+it('a batch export stops when a member\'s values cannot be read', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => String(input).includes('/values')
+    ? new Response('<html>Bad gateway</html>', { status: 502 })
+    : Response.json({ extractionId: 'member', projectId: 'project', status: 'COMPLETED', controlVersion: 1, snapshotVersion: 1, feedbackVersion: 0, pendingResume: false })))
+  const member = { extractionId: 'member', sourceDocumentId: 'document', sourceDocumentName: 'Report', sourceRevisionId: 'revision', status: 'COMPLETED' } satisfies BatchExportMember
+  await expect(downloadDurableBatch({ batchExtractionId: 'batch', name: 'Batch' }, [member], 'csv')).rejects.toThrow('Request failed (HTTP 502).')
 })

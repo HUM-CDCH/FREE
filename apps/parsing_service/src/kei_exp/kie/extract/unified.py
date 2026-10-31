@@ -6,6 +6,8 @@ resolved from the served context into the execution record; general record disco
 each entry's work is bound to that discovery's digest. All three live in the artifact. Durable execution resumes from
 its own committed call outputs (`retained.py`), never from files beside the run. A request the server refuses is a
 failed call of its window; a backend that is not ready ends the planning step.
+An instruction-model entry call that loops on whitespace gets one bounded-grammar recovery with the same input
+and output budget. Both calls remain recorded; only a successful recovery marks the first call recovered.
 
 Every entry is read whole through counted windows of its own text (overlap within the entry), beside the record-free
 lines before it when heading context is on. The fields model returns `{value, quote}` candidates, and `_item_text`
@@ -28,9 +30,9 @@ import json
 import threading
 import time
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -42,13 +44,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from kei_exp.canonical import canonical_json
 from kei_exp.failures import TransientBackendError, classify
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract import discovery, gliformer
+from kei_exp.kie.extract import discovery, gliformer, tokens
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
-from kei_exp.kie.extract.calls import Call, complete
+from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
-from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, raw_range
+from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, nearly, normalise, printed, raw_range
+from kei_exp.kie.extract.llm import bounded
 from kei_exp.kie.extract.models import ROLE, Router
 from kei_exp.kie.extract.schema import Node, Schema, conform, evidence_policy, json_schema, notes
 from kei_exp.kie.extract.stages import Issue, merge
@@ -58,19 +61,34 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 3  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line
+PROMPT_VERSION = 5  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+# 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
 # 3: that row is searched cell by cell (a cell spanning rows no longer widens it to them), and only for a quote found in
 # exactly one place.
-ENTRY_VERSION = 3
+# 4: a list item's values are looked for in its own located occurrence first, so a cell printed in several rows ("Niv.
+# 6") is its own row's, never one at a window cut; and text a model copied nearly verbatim is repaired to the source
+# (`NEAR`): a quote found nowhere, or a value not printed in its quote, within a few edits of exactly one place.
+# 5: an item's unique single-row table occurrence takes priority over repeats in prose; its quoted values are
+# located in that row's individual cells first, including repeated partial quotes. A verbatim value continuing
+# across segments may extend its partial quote, with every segment kept in the value's evidence.
+# 6: an item whose own text is not located (no `_item_text`, or one printed in several rows) is the table row its
+# values name, when each value printed in exactly one single-row cell names the same row; its values are then looked
+# for in that row first, so a value printed in every row ("Tand, human") is its own row's cell.
+ENTRY_VERSION = 6
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
 # items, a single window's included). 3: an item two windows returned is joined only when their shared source
 # prints it as exactly one occurrence.
 DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
+# Repair of nearly verbatim text: only a text field's value (not a date, number, yes/no, allowed label or derived field)
+# of at least `NEAR` normalised characters, within max(3, length // 50) edits of exactly one place, and only where
+# verification still decides (an entry's, never a document field's). Measured on one excavation
+# report (13 October 2026, NuExtract3-FP8): copies of 75, 478 and 655 characters were off by 3, 8 and 3 edits.
+NEAR = 40
 # The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
 # candidates; Auto input is the served context minus the stage's reserve; heading context and verification on; a failed
 # window is halved at most six times. 1: discovery windows cut by the budget alone, one unit of overlap. 2: discovery
@@ -80,18 +98,27 @@ ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apa
 # 0.52); page windows 16/29 (0.65); windows at ingestion's column cuts 24/29 (0.72), but over the excerpt repeated five
 # times (145 entries) they missed 3 starts in a short column, page windows none. Moving to column windows is a new
 # version with `"windows": "column"`, once `experiments/extraction/discovery_windows.py --windows column` holds on more
-# than this one catalogue.
+# than this one catalogue. 3: version 2, pipelined: a durable run reads the entries of the windows already read while
+# later windows are still asked, and verifies them once discovery has ended (`extract`); the artifact is version 2's
+# but for its execution record. 4: version 3, and an entry's reply may use the served context its counted input leaves,
+# its reserve the floor that still sizes the windows (`_Budget.ask`); an explicit reply override or a native fields
+# model keeps the reserve. Measured on one excavation report (13 October 2026, NuExtract3-FP8, 32768-token context): a
+# record whose reply passed the 4096-token reserve was read again in halves, and an item at their cut was lost.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page"}}
+                "windows": "page"},
+            3: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
+                "windows": "page", "pipelined": True},
+            4: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
+                "windows": "page", "pipelined": True, "entry_reply": "context"}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2]
+    defaults: Literal[1, 2, 3, 4]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -117,31 +144,49 @@ class _Budget:
     chat: Router
     counters: dict
     stages: dict[str, dict]  # stage -> {role, input_tokens, output_tokens}
-    check: Callable[[], None]
+    spare: frozenset[str] = frozenset()  # stages whose reply may use the context their counted input leaves
 
     def fits(self, stage: str, system: str, user: str, schema: dict) -> bool:
         return self.counters[ROLE[stage]].request_tokens(system, user, schema) <= self.stages[stage]["input_tokens"]
 
     def ask(self, stage: str, record: int | None, system: str, user: str, schema: dict, calls: list,
-            issues: list) -> dict | None:
-        """One counted call after the cancellation check; None when it failed or its reply is not the object asked.
+            issues: list, unit: str | None = None) -> dict | None:
+        """One counted call; None when it failed or its reply is not the object asked.
         A request the server refused (an HTTP 500 on this request) is a failed call of this window, so the window is
         halved or fails alone; a backend that is not ready (`failures.classify`) ends the step for its retry."""
-        self.check()
         clock = time.monotonic()
+        attempts = []
+        counter, ceiling, floor = self.counters[ROLE[stage]], self.stages[stage]["output_tokens"], None
         try:
+            if stage in self.spare:  # a durable call's reply is trimmed to what its input leaves once it is captured
+                floor = ceiling
+                ceiling = counter.context_tokens if self.chat.runtime is not None else \
+                    max(floor, counter.context_tokens - counter.request_tokens(system, user, schema))
             answer, attempts = complete(self.chat, stage=stage, record=record, system=system, user=user,
-                                        schema=schema, max_tokens=self.stages[stage]["output_tokens"],
-                                        counter=self.counters[ROLE[stage]])
+                                        schema=schema, max_tokens=ceiling, counter=counter,
+                                        minimum_reply_tokens=floor, unit=unit)
+            # Durable recovery reuses the finalized parent input in CapturePlanner; it must not be recomposed here.
+            recovery = (bounded(self.chat.fields, MAX_WHITESPACE) if self.chat.runtime is None and stage == "entry"
+                        and len(attempts) == 1 and looped(attempts[-1])
+                        and getattr(self.chat.fields, "max_whitespace", None) is None else None)
+            if recovery is not None:
+                clock = time.monotonic()
+                answer, again = complete(replace(self.chat, fields=recovery), stage=stage, record=record,
+                    system=system, user=user, schema=schema, max_tokens=ceiling, counter=counter,
+                    minimum_reply_tokens=floor, unit=unit)
+                if again[-1].ok:
+                    attempts[-1] = replace(attempts[-1], recovered=True)
+                attempts += again
         except requests.RequestException as error:
             if isinstance(classify(error), TransientBackendError):
                 raise
             status = getattr(error.response, "status_code", None)
-            answer, attempts = None, [Call(stage, record, None, None, time.monotonic() - clock, None, False,
+            answer = None
+            attempts += [Call(stage, record, None, None, time.monotonic() - clock, None, False,
                                            type(error).__name__ + (f": HTTP {status}" if status else ""), None,
-                                           self.counters[ROLE[stage]].context_tokens,
-                                           self.stages[stage]["output_tokens"])]
-        calls += attempts
+                                           counter.context_tokens, ceiling)]
+        # A call an earlier attempt saved under a unit carries the number its entry had then.
+        calls += attempts if unit is None else [replace(call, record=record) for call in attempts]
         if not attempts[-1].ok:
             issues.append(Issue("call_failed", attempts[-1].error or f"{stage} call failed", record))
             return None
@@ -177,8 +222,11 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
-            | {name: value for name, value in DEFAULTS[options.defaults].items() if name == "windows"}
-            | {"stages": stages} | ({"headings": False, "verification": False} if native else {}),
+            | {name: value for name, value in DEFAULTS[options.defaults].items()
+               if name in ("windows", "pipelined", "entry_reply")}
+            | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
+            | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
+               and (native or options.output_tokens) else {}),
             "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -213,12 +261,13 @@ def work_order(entries: list[dict], pages: dict[str, int], start_page: int | Non
 
 # --- extraction ----------------------------------------------------------------------------------------------------
 
-def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,
-            before_entry: Callable[[], None] | None = None) -> dict:
+def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1) -> dict:
     """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`; the execution,
-    discovery and entry records live only in the artifact (`run_dir` is not read). `before_entry` is called before
-    every model call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
-    `options.start_page` first (`work_order`), assembled in source order."""
+    discovery and entry records live only in the artifact (`run_dir` is not read). Entries run `chunks` at a time,
+    nearest `options.start_page` first (`work_order`), assembled in source order. Pipelined (defaults 3), a durable
+    run's planning reads the entries of the windows already read while discovery still waits on later ones
+    (`NeedsCall`), publishing them under `unified-prefix`, and verifies them once discovery is complete; a run that is
+    not durable reads discovery whole first, so its artifact is the same."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -227,69 +276,126 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             raise ValueError("GLiFormer pure extraction cannot use heading context or value verification")
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
-    check = before_entry or (lambda: None)
-    check()
     execution = _execution(evidence, schema, options, chat, counters)
     execution_sha256 = digest(execution)
     effective = execution["effective"]
-    budget = _Budget(chat, counters, effective["stages"], check)
-    from kei_exp.kie.extract.retained import discovering, plan_execution
+    budget = _Budget(chat, counters, effective["stages"],
+                     frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
+    from kei_exp.kie.extract.durable import Boundary, NeedsCall
+    from kei_exp.kie.extract.retained import discovering, plan_execution, plan_records, saved_record
     # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose
     # record changed (a deploy, a served context) adds a row instead of conflicting with the first.
     plan_execution(chat, f"unified-execution:{execution_sha256[:16]}", execution)
+    pipelined = effective.get("pipelined", False)
+    # Durable planning never waits on a model: an `ask` replays a saved reply or captures the call and raises
+    # `NeedsCall`, so it reads in turn, without threads; the calls run in their own workflows (durable_extract).
+    durable = getattr(chat, "runtime", None) is not None
+    stopped: list[Boundary] = []
 
-    def discover() -> dict:
+    def ask(*args) -> dict | None:
+        """A discovery call; one that may not start (the run is pausing or stopping) is a window not read yet, so the
+        entries already decided are still compiled before planning ends."""
+        try:
+            return budget.ask("discovery", *args)
+        except Boundary as boundary:
+            if not pipelined:
+                raise
+            stopped.append(boundary)
+            raise NeedsCall() from None
+
+    def discover() -> tuple[dict, bool]:
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
-                                  partial(budget.ask, "discovery"), overlap=effective["overlap"],
+                                  ask, overlap=effective["overlap"],
                                   splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
-                                  progress=partial(discovering, chat))
+                                  progress=partial(discovering, chat), frontier=pipelined,
+                                  unanswered=(NeedsCall,) if durable else ())
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
         return {"version": discovery.VERSION, "execution_sha256": execution_sha256, "entries": body["entries"],
                 "ledger": body["ledger"], "windows": body["windows"],
                 "issues": [_issue_json(issue) for issue in body["issues"]],
-                "calls": [_call_json(call) for call in body["calls"]]}
-    found = discover()
-    discovering(chat, None, None)
-    from kei_exp.kie.extract.retained import plan_records
-    plan_records(chat,"unified-records",[entry["ranges"] for entry in found["entries"]])
+                "calls": [_call_json(call) for call in body["calls"]]}, body.get("complete", True)
+    found, complete = discover()
     run = _Run(schema, budget, {passage.id: passage.text for passage in evidence.passages}, effective,
                {passage.id: passage.table for passage in evidence.passages if passage.table is not None})
-    halt = threading.Event()
-    discovery_sha256 = digest(found)
     passages = {passage.id: passage for passage in evidence.passages}
+    pages = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
 
-    def one(numbered: tuple[int, dict]) -> _Work | None:
-        if halt.is_set():
-            return None
-        try:
-            work = run.entry(*numbered)
+    def read(entries: list[dict]) -> list:
+        """Every entry's work, nearest the start page first; the first failure in entry order is raised, and an entry
+        never read is None. Durable planning reads them in turn until `chunks` entries wait on a call (`NeedsCall`, or
+        `Boundary` when no call may start): an entry whose calls are all answered lets the next one in. A run that is
+        not durable reads `chunks` entries at once, and its first failure stops the rest. Until discovery is complete,
+        verification waits, so that the reasoning model reads discovery's windows; candidates are shown meanwhile."""
+        def one(number: int) -> _Work:
+            entry = entries[number]
+            unit = f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None
+            # A finished entry is a function of these, its counts and its saved replies: an earlier round of the
+            # attempt that read and saved it leaves nothing to read or save again (a phase change, verification once
+            # discovery is complete, is another key).
+            place, kept = tokens.compiled([execution_sha256, number, entry, complete, unit],
+                                         counters.values()) if durable else (None, None)
+            if kept is not None:  # its scope is listed with every entry's (`plan_records`)
+                return kept
+            work = run.entry(number, entry, verify=complete, unit=unit)
             if not work.failed and not work.undecided:
-                from kei_exp.kie.extract.retained import saved_record
-                number, entry = numbered
                 # A finished entry's accepted values are verified: their links are the final artifact's, so the
                 # researcher sees them on the source while the other entries are still read.
                 saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
                              links=[_link(each, number, passages) for each in work.found if each.kind == "accepted"])
+                if place is not None:
+                    tokens.keep_compiled(place, work)
             return work
-        except BaseException:
-            halt.set()
-            raise
-    pages = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
-    with ThreadPoolExecutor(max_workers=max(1, chunks), thread_name_prefix="catalog-entry") as pool:
-        futures: list = [None] * len(found["entries"])
-        for number in work_order(found["entries"], pages, request.options.start_page):
-            futures[number] = pool.submit(one, (number, found["entries"][number]))
-    for future in futures:  # the first failure in entry order, once every entry has stopped
-        if (error := future.exception()) is not None:
-            raise error
+        order, works = work_order(entries, pages, request.options.start_page), [None] * len(entries)
+        raised: dict[int, BaseException] = {}
+        if durable:
+            for number in order:
+                try:
+                    works[number] = one(number)
+                except (NeedsCall, Boundary) as waiting:  # the entries after it are still compiled
+                    raised[number] = waiting
+                    if len(raised) == max(1, chunks):
+                        break
+                except BaseException as error:  # noqa: BLE001 - raised below, the first in entry order
+                    raised[number] = error
+                    break
+        else:
+            halt = threading.Event()
+
+            def guarded(number: int) -> _Work | None:
+                if halt.is_set():
+                    return None
+                try:
+                    return one(number)
+                except BaseException:
+                    halt.set()
+                    raise
+            with ThreadPoolExecutor(max_workers=max(1, chunks), thread_name_prefix="catalog-entry") as pool:
+                futures = {number: pool.submit(guarded, number) for number in order}
+            for number, future in futures.items():
+                if (error := future.exception()) is not None:
+                    raised[number] = error
+                else:
+                    works[number] = future.result()
+        if raised:
+            raise raised[min(raised)]
+        return works
+    if not complete:
+        # Each entry of the windows read so far is final, so its number is: it is read and listed now.
+        try:
+            read(found["entries"])
+        finally:
+            if found["entries"]:
+                plan_records(chat, "unified-prefix", [entry["ranges"] for entry in found["entries"]], partial=True)
+        raise stopped[0] if stopped else NeedsCall()
+    discovering(chat, None, None)
+    plan_records(chat,"unified-records",[entry["ranges"] for entry in found["entries"]])
+    entries = read(found["entries"])
     document = run.document(evidence) if schema.document_nodes else None
     if document is not None:
         from kei_exp.kie.extract.retained import saved_document
         saved_document(chat,document.values,complete=not document.failed and all(call.ok or call.recovered for call in document.calls))
-    check()
-    return _artifact(evidence, request, chat, started, clock, execution, found,
-                     [future.result() for future in futures], document)
+    return _artifact(evidence, request, chat, started, clock, execution, found, entries, document)
 
 
 # --- candidates ----------------------------------------------------------------------------------------------------
@@ -308,6 +414,7 @@ class _Found:
     reason: str | None = None
     item: tuple | None = None         # (list path, window, local position) of the outermost list item it is in
     anchor: tuple | None = None       # that item's occurrence in the entry, when it was located exactly once
+    repaired: bool = False            # its quote or value is the source's text a model copied nearly verbatim
 
 
 def _leaf(node: Node) -> dict:
@@ -364,9 +471,9 @@ class _Checker:
     """Checks one window's candidates against `view`: an entry's whole text, or a document window's shown text."""
 
     def __init__(self, view: BlockText, shown: tuple[int, int], window: int, nodes: list[Node],
-                 tables: dict[str, PageTable] | None = None):
+                 tables: dict[str, PageTable] | None = None, *, repair: bool = True):
         self.view, self.shown, self.window, self.nodes = view, shown, window, nodes
-        self.tables = tables or {}
+        self.tables, self.repair = tables or {}, repair
 
     def reply(self, answer: dict) -> list[_Found]:
         return [found for node in self.nodes for found in self._field((node.name,), node, answer.get(node.name))]
@@ -399,11 +506,44 @@ class _Checker:
                 spot = anchor
                 if item is None and isinstance(entry.get(ITEM), str) and entry[ITEM].strip():
                     places = self._places(entry[ITEM])
-                    spot = _key(places[0]) if len(places) == 1 else None
-                found += [each for child in node.children or []
-                          for each in self._field((*path, index, child.name), child, entry.get(child.name), inner,
-                                                  spot)]
+                    table_places = [spans for spans in places if self._item_row(spans)]
+                    own = table_places if len(table_places) == 1 else places
+                    spot = _key(own[0]) if len(own) == 1 else None
+
+                def children(spot: tuple | None) -> list[_Found]:
+                    return [each for child in node.children or []
+                            for each in self._field((*path, index, child.name), child, entry.get(child.name), inner,
+                                                    spot)]
+                leaves = children(spot)
+                if item is None and spot is None:
+                    # Its own text not located, an item is the table row its values name. A value of the item (not of
+                    # a list inside it) printed in one table place only, a single-row cell, names that row; others
+                    # abstain. At least one must name a row, and all that do the same one.
+                    rows: dict[tuple, list[list[Span]]] = {}
+                    for leaf in leaves:
+                        nested = any(isinstance(step, int) for step in leaf.path[len(path) + 1:])
+                        if leaf.support != "literal" or nested:
+                            continue
+                        tabled = [spans for spans in (leaf.spans, *leaf.alternatives)
+                                  if any(span.segment_id in self.tables for span in spans)]
+                        if len(tabled) == 1 and self._item_row(tabled[0]):
+                            rows.setdefault(tuple(self._item_row(tabled[0])), []).append(tabled[0])
+                    if len(rows) == 1:
+                        # Its first cell: what the model quotes as an item's own text is mostly its number.
+                        (cells,) = rows.values()
+                        leaves = children(_key(min(cells, key=lambda spans: spans[0].start)))
+                found += leaves
         return found
+
+    def _item_row(self, spans: list[Span]) -> list[tuple[int, int]]:
+        """An item's identity must name one row, never a cell shared by several rows."""
+        if len(spans) != 1 or spans[0].segment_id not in self.tables:
+            return []
+        span = spans[0]
+        if any(cell.rowspan == 1 and cell.start <= span.start and span.end <= cell.end
+               for cell in self.tables[span.segment_id].cells):
+            return self._row(spans)
+        return []
 
     def _row(self, spans: list[Span]) -> list[tuple[int, int]]:
         """The view range of each cell of the table row whose cell holds the whole quote, from the parse's own cells;
@@ -417,7 +557,7 @@ class _Checker:
             return []
         ranges = []
         for each in cells:
-            if each.row <= cell.row < each.row + each.rowspan:
+            if each.start < each.end and each.row <= cell.row < each.row + each.rowspan:
                 try:
                     ranges.append(raw_range(self.view, [Span(segment_id=span.segment_id, start=each.start,
                                                              end=each.end)]))
@@ -430,6 +570,19 @@ class _Checker:
         places = located(self.view, text, within=within, numeric=numeric)
         return sorted(places, key=lambda spans: not self.shown[0] <= raw_range(self.view, spans)[0] < self.shown[1])
 
+    def _near(self, text: str, within: tuple[int, int] | None = None) -> list[Span] | None:
+        """The one place `text` was nearly copied from (`NEAR`), or None when it is short or is not one place."""
+        length = len(normalise(text).text)
+        if length < NEAR:
+            return None
+        places = nearly(self.view, text, max(3, length // 50), within=within)
+        return places[0] if len(places) == 1 else None
+
+    def _text(self, spans: list[Span]) -> str:
+        """The source text a repaired quote or value stores, as an exact one is compared (`locate.printed`)."""
+        start, end = raw_range(self.view, spans)
+        return printed(self.view.text[start:end])
+
     def _scalar(self, path: tuple, node: Node, candidate: Any, item: tuple | None, anchor: tuple | None) -> _Found:
         if not isinstance(candidate, dict):
             return self._rejected(path, candidate, "malformed_candidate", item, anchor)
@@ -441,7 +594,19 @@ class _Checker:
             found.reason = "type_mismatch"
             return found
         found.value = typed
-        quoted = self._places(quote) if found.quote and found.quote.strip() else []
+        # A list item's values are its own occurrence's first: a cell printed in several rows is this row's.
+        item_spans = [Span(segment_id=s, start=a, end=b) for s, a, b in anchor] if anchor else []
+        own = raw_range(self.view, item_spans) if item_spans else None
+        row = self._item_row(item_spans)
+        passage = isinstance(typed, bool) or node.allowed_values is not None or \
+            evidence_policy(self.nodes, _field_path(path)) == "derived"  # a passage may support it, unprinted
+        free = self.repair and node.type in ("string", "verbatim-string") and not passage
+        quoted = []
+        if found.quote and found.quote.strip():
+            quoted = ([spans for within in row for spans in self._places(quote, within)]
+                      or (self._places(quote, own) if own else []) or self._places(quote))
+            if not quoted and free and (near := (self._near(quote, own) if own else None) or self._near(quote)):
+                quoted, found.quote, found.repaired = [near], self._text(near), True
         if not quoted:
             found.reason = "quote_not_in_source" if found.quote and found.quote.strip() else "no_quote"
             return found
@@ -455,10 +620,21 @@ class _Checker:
             for within in self._row(quoted[0]):  # in a cell of that row; a quote found in several places names none
                 for text in forms(typed):
                     literal += [each for each in self._places(text, within, numeric) if each not in literal]
+        if not literal and free and len(quoted) == 1:
+            # A page break can divide the printed value beyond its quoted cell. Locate the complete value in
+            # contiguous source text, enclosing that quote; never infer or join a table continuation.
+            for text in forms(typed):
+                for spans in self._places(text):
+                    if len(spans) < 2:
+                        continue
+                    start, end = raw_range(self.view, spans)
+                    if any(start <= a and b <= end for a, b in (raw_range(self.view, quote) for quote in quoted)):
+                        literal.append(spans)
+        if not literal and free and len(quoted) == 1 and (near := self._near(typed, raw_range(self.view, quoted[0]))):
+            literal, found.value, found.repaired = [near], self._text(near), True
         if literal:
             found.support, found.spans, found.alternatives = "literal", literal[0], literal[1:]
-        elif isinstance(typed, bool) or node.allowed_values is not None or \
-                evidence_policy(self.nodes, _field_path(path)) == "derived":
+        elif passage:
             found.support, found.spans, found.alternatives = "supporting", quoted[0], quoted[1:]
         else:
             found.reason, found.spans = "value_not_in_quote", quoted[0]
@@ -488,6 +664,7 @@ DOCUMENT = ("You extract fields that describe a whole source document, not one r
             "as the field) and \"quote\" (the exact supporting text, copied character for character). For each object "
             "in a list also give \"_item_text\": the exact text where that item appears, or null. Never invent a "
             "value. Return only the JSON object.")
+REPAIRED = "a nearly verbatim copy was replaced by the source text it was copied from"
 VERDICTS = {"supported": ("accepted", None), "unsupported": ("rejected", "verification_rejected"),
             "unclear": ("proposed", "verification_unclear")}
 
@@ -496,11 +673,28 @@ def _notes(nodes: list[Node]) -> str:
     return "".join(f"{line}\n" for line in notes(nodes))
 
 
-def _user(window: Window, texts: dict[str, str], marker: str) -> str:
-    parts = ([f"### CONTEXT (not part of the record)\n{text_of(window.heading, texts)}"] if window.heading else []) + \
-        ([f"### EARLIER TEXT\n{text_of(window.before, texts)}"] if window.before else []) + \
-        [f"### {marker}\n{text_of(window.primary, texts)}\n### END {marker}"] + \
-        ([f"### LATER TEXT\n{text_of(window.after, texts)}"] if window.after else [])
+def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str, PageTable]) -> str:
+    """Discovery owns nonblank ranges; model input restores the empty columns beside each table line."""
+    shown = []
+    for unit in units:
+        start, end = unit.start, unit.end
+        if unit.segment in tables:
+            text = texts[unit.segment]
+            while start > 0 and text[start - 1] in " \t":
+                start -= 1
+            while end < len(text) and text[end] in " \t":
+                end += 1
+        shown.append(Unit(unit.segment, start, end))
+    return text_of(shown, texts)
+
+
+def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable]) -> str:
+    def source(units):
+        return _source_text(units, texts, tables)
+    parts = ([f"### CONTEXT (not part of the record)\n{source(window.heading)}"] if window.heading else []) + \
+        ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) + \
+        [f"### {marker}\n{source(window.primary)}\n### END {marker}"] + \
+        ([f"### LATER TEXT\n{source(window.after)}"] if window.after else [])
     return "\n\n".join(parts)
 
 
@@ -537,6 +731,7 @@ class _Work:
     values: dict = field(default_factory=dict)
     conflicts: list = field(default_factory=list)
     native: list[dict] | None = None
+    unit: str | None = None  # the entry's capture identity apart from its number (`calls.complete`)
 
 
 class _Run:
@@ -550,7 +745,7 @@ class _Run:
               heading: tuple[Unit, ...], out: _Work) -> list[tuple[Window, dict | None]]:
         """Every window's reply in source order; a failed window is halved up to the versioned number of times."""
         def fits(window: Window) -> bool:
-            user = _user(window, self.texts, marker) + "\n\nReturn the JSON object now."
+            user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
             return self.budget.fits(stage, system, user, schema)
         windows = plan(units, self.texts, fits, overlap=self.effective["overlap"], heading=heading)
         if windows is None:
@@ -559,8 +754,8 @@ class _Run:
         queue = [(window, 0) for window in windows]
         while queue:
             window, depth = queue.pop(0)
-            user = _user(window, self.texts, marker) + "\n\nReturn the JSON object now."
-            answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues)
+            user = _user(window, self.texts, marker, self.tables) + "\n\nReturn the JSON object now."
+            answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit)
             if answer is None and len(window.primary) > 1 and depth < self.effective["splits"]:
                 halves = split(window, self.texts, fits, overlap=self.effective["overlap"])
                 queue[0:0] = [(half, depth + 1) for half in halves]
@@ -575,8 +770,10 @@ class _Run:
         out.windows += len(replies)
         return replies
 
-    def entry(self, number: int, entry: dict) -> _Work:
-        out = _Work()
+    def entry(self, number: int, entry: dict, *, verify: bool = True, unit: str | None = None) -> _Work:
+        """The entry's windows read and checked, then (with `verify`) its candidates verified and settled; without, its
+        record holds the candidates. `unit` names it for the capture identity of its calls."""
+        out = _Work(unit=unit)
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
             out.native = []
             if entry["end"] not in ("validated", "source_end"):
@@ -584,10 +781,11 @@ class _Run:
                 out.issues.append(Issue("entry_boundary_unresolved", "GLiFormer did not read an entry with an "
                                         "unresolved end", number))
                 return out
-            out.native, out.calls = gliformer.read_entry(
+            out.native, calls = gliformer.read_entry(
                 self.budget.chat.fields, self.budget.counters["fields"], self.schema, entry, self.texts,
                 ceiling=self.budget.stages["entry"]["input_tokens"], overlap=self.effective["overlap"],
-                check=self.budget.check, number=number)
+                number=number, unit=unit)
+            out.calls = [replace(call, record=number) for call in calls]
             out.windows = len(out.native)
             return out
         if not self.nodes:
@@ -604,7 +802,12 @@ class _Run:
                 first, last = (*window.before, *window.primary)[0], (*window.primary, *window.after)[-1]
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
                 found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
+        out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
+                       for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
+        if not verify and self.effective["verification"]:
+            out.record = conform(_placed(out.found, "candidate"), self.nodes)
+            return out
         self._verify(number, replies, out)
         out.contest = self._settle(number, out, view)
         _renumbered(out.found)
@@ -628,14 +831,15 @@ class _Run:
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
-                user = _user(window, self.texts, "RECORD") + "\n\n### CANDIDATES\n" + "\n".join(
+                user = _user(window, self.texts, "RECORD", self.tables) + "\n\n### CANDIDATES\n" + "\n".join(
                     f"{label}: {'.'.join(str(step) for step in _field_path(found.path))} = "
                     f"{json.dumps(found.value, ensure_ascii=False)} (quoted: {json.dumps(found.quote, ensure_ascii=False)})"
                     for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
                 schema = {"type": "object", "properties": {label: {"type": "string", "enum": list(VERDICTS)}
                                                            for label in labels},
                           "required": labels, "additionalProperties": False}
-                answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues) \
+                answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
+                                         out.unit) \
                     if self.budget.fits("verification", system, user, schema) else None
                 if answer is not None and all(answer.get(label) in VERDICTS for label in labels):
                     for label, found in zip(labels, group, strict=True):
@@ -673,7 +877,8 @@ class _Run:
                 for label, found in zip(labels, candidates, strict=True)) + "\n\nReturn the JSON object now."
             schema = {"type": "object", "properties": {"choice": {"type": "string", "enum": [*labels, "NONE"]}},
                       "required": ["choice"], "additionalProperties": False}
-            answer = self.budget.ask("arbitration", number, ARBITRATION, user, schema, out.calls, out.issues) \
+            answer = self.budget.ask("arbitration", number, ARBITRATION, user, schema, out.calls, out.issues,
+                                     out.unit) \
                 if self.budget.fits("arbitration", ARBITRATION, user, schema) else None
             choice = answer.get("choice") if answer else None
             chosen = labels.index(choice) if choice in labels else None
@@ -709,7 +914,7 @@ class _Run:
             if answer is None:
                 continue
             shown = [*window.before, *window.primary, *window.after]
-            found = _Checker(_view(shown, self.texts), (0, 0), index, nodes, self.tables).reply(answer)
+            found = _Checker(_view(shown, self.texts), (0, 0), index, nodes, self.tables, repair=False).reply(answer)
             out.found += found
             per_window.append(conform(_placed(found, "candidate"), nodes))
             shown_units.append(shown)

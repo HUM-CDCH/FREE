@@ -1,4 +1,6 @@
 import type { SchemaNode } from "extraction/schema";
+import type { DurableValue } from "extraction/durable-contract";
+import { originPages, partName, reviewedValue } from "extraction/value-disagreement";
 import { buildExportTable, type CellValue, type ExportChoices, type Table } from "./table.js";
 
 /**
@@ -16,8 +18,9 @@ export interface DurableExportValue {
   readonly processing: "saved" | "absent" | "unprocessed" | "failed";
   readonly grounding: "grounded" | "ungrounded" | "provisional";
   readonly links?: readonly { readonly evidenceAnchorId: string }[];
+  readonly disagreement?: DurableValue["disagreement"];
   readonly correction?: {
-    readonly decision: { readonly action: "APPROVED" | "EDITED" | "REJECTED" | "PENDING"; readonly value?: unknown };
+    readonly decision: { readonly action: "APPROVED" | "EDITED" | "REJECTED" | "PENDING"; readonly value?: unknown; readonly choices?: readonly unknown[] };
   } | null;
   /** A saved correction that no longer fits this value's producing type: shown, never applied. */
   readonly historicalCorrection?: unknown;
@@ -26,14 +29,13 @@ export interface DurableExportValue {
 export const DOCUMENT_RECORD = "Document";
 export const EXTRACTION_SHEET = "Extraction";
 export const EVIDENCE_SHEET = "Evidence";
+export const DISAGREEMENTS_SHEET = "Disagreements";
 
 /** The value a researcher sees and exports: the edit when edited, nothing when rejected or never saved. */
 export function exportedValue(value: DurableExportValue): unknown {
   if (value.processing !== "saved") return undefined;
-  const action = value.correction?.decision.action;
-  if (action === "EDITED") return value.correction!.decision.value;
-  if (action === "REJECTED") return null;
-  return value.modelValue;
+  if (value.correction?.decision.action === "REJECTED") return null;
+  return reviewedValue(value);
 }
 
 /** The shape of a field's producing type, without ids or descriptions: two revisions that declare the same shape share a column. */
@@ -59,6 +61,8 @@ export interface FieldRegistry {
   column(node: SchemaNode): SchemaNode;
   /** The nodes in column order. */
   readonly schemaNodes: readonly SchemaNode[];
+  readonly columns: readonly SchemaNode[];
+  review(column: SchemaNode): { review: string; alternatives: string } | undefined;
   /** Names produced under more than one type, with the column each type got. */
   readonly ambiguous: readonly { readonly name: string; readonly columns: readonly string[] }[];
 }
@@ -70,6 +74,7 @@ export function createFieldRegistry(values: readonly DurableExportValue[] = [], 
   const byName = new Map<string, SchemaNode[]>();
   const nodes: SchemaNode[] = [];
   const reservedNames = new Set(values.map(value => value.node.name));
+  const reviews = new Map<string, { review: string; alternatives: string }>();
   const registry: FieldRegistry = {
     column(node) {
       const key = fieldKey(node);
@@ -89,6 +94,11 @@ export function createFieldRegistry(values: readonly DurableExportValue[] = [], 
       return column;
     },
     get schemaNodes() { return nodes; },
+    get columns() { return nodes.flatMap(node => {
+      const review = reviews.get(node.name);
+      return review ? [node, ...Object.values(review).map(name => ({ id: name, name, type: "string" as const }))] : [node];
+    }); },
+    review(column) { return reviews.get(column.name); },
     get ambiguous() {
       return [...byName].filter(([, columns]) => columns.length > 1)
         .map(([name, columns]) => ({ name, columns: columns.map((column) => column.name) }));
@@ -101,6 +111,13 @@ export function createFieldRegistry(values: readonly DurableExportValue[] = [], 
     if (own) registry.column(own);
   }
   for (const value of values) registry.column(value.node);
+  const disputed = new Set(values.filter(value => value.disagreement).map(value => registry.column(value.node).name));
+  const names = nodes.map(node => node.name);
+  for (const node of nodes) if (disputed.has(node.name)) {
+    const review = unusedColumn(`${node.name} (review)`, names); names.push(review);
+    const alternatives = unusedColumn(`${node.name} (alternatives)`, names); names.push(alternatives);
+    reviews.set(node.name, { review, alternatives });
+  }
   return registry;
 }
 
@@ -141,20 +158,30 @@ export interface DurableRecord {
  * The records a fixed result page holds, one object per record with its fields under their column names (each
  * schema field once, document-level fields repeated on every record), in the order the run found the records.
  */
-export function durableRecords(values: readonly DurableExportValue[], registry: FieldRegistry = createFieldRegistry()): DurableRecord[] {
+export function durableRecords(values: readonly DurableExportValue[], registry: FieldRegistry = createFieldRegistry(values)): DurableRecord[] {
   const shared: Record<string, unknown> = Object.create(null);
   const records = new Map<string, { ordinal: number | null; fields: Record<string, unknown> }>();
   for (const value of values) {
-    const column = registry.column(value.node).name;
+    const node = registry.column(value.node);
+    const column = node.name;
+    const review = registry.review(node);
     const exported = exportedValue(value);
     const cell = exported === undefined ? undefined : conform(value.node, exported);
-    if (value.node.valueSource) { if (cell !== undefined) shared[column] = cell; continue; }
+    const fields: Record<string, unknown> = Object.create(null);
+    if (cell !== undefined) fields[column] = cell;
+    if (review) {
+      fields[review.review] = decisionWords(value);
+      fields[review.alternatives] = value.disagreement ? JSON.stringify(value.disagreement.map(entry => ({
+        part: partName(value.node, entry.path), values: entry.alternatives.map(a => a.value),
+      }))) : null;
+    }
+    if (value.node.valueSource) { Object.assign(shared,fields); continue; }
     let record = records.get(value.recordId);
     if (!record) {
       record = { ordinal: typeof value.path[1] === "number" ? value.path[1] : null, fields: Object.create(null) };
       records.set(value.recordId, record);
     }
-    if (cell !== undefined) record.fields[column] = cell;
+    Object.assign(record.fields,fields);
   }
   if (records.size === 0)
     return Object.keys(shared).length > 0 ? [{ recordId: DOCUMENT_RECORD, ordinal: null, fields: shared }] : [];
@@ -172,21 +199,40 @@ export function durableSchemaNodes(values: readonly DurableExportValue[], declar
 export function buildDurableExportTable(values: readonly DurableExportValue[], choices: ExportChoices, declared: readonly SchemaNode[] = []): Table {
   const registry = createFieldRegistry(values, declared);
   const records = durableRecords(values, registry);
-  return buildExportTable(registry.schemaNodes, records.map((record) => record.fields), choices);
+  return buildExportTable(registry.columns, records.map((record) => record.fields), choices);
 }
 
 const decisionWords = (value: DurableExportValue): string => {
   if (value.processing !== "saved") return value.processing === "absent" ? "No value" : value.processing === "failed" ? "Failed" : "Not read";
   switch (value.correction?.decision.action) {
-    case "APPROVED": return "Approved";
+    case "APPROVED": return value.disagreement ? "Chosen" : "Approved";
     case "EDITED": return "Edited";
     case "REJECTED": return "Rejected";
-    default: return "To check";
+    default: return value.disagreement ? "Readings differ" : "To check";
   }
 };
 
 const evidenceWords = (value: DurableExportValue): string =>
-  value.links?.length ? "Evidence linked" : value.grounding === "provisional" ? "Evidence still being checked" : "No Evidence linked";
+  value.disagreement ? "Not checked" : value.links?.length ? "Evidence linked" : value.grounding === "provisional" ? "Evidence still being checked" : "No Evidence linked";
+
+/** Generated review and attribution columns move aside for genuine schema fields. */
+export function unusedColumn(base: string, columns: readonly string[]): string {
+  let column = base;
+  for (let ordinal = 2; columns.includes(column); ordinal += 1) column = `${base} (${ordinal})`;
+  return column;
+}
+
+export function buildDurableDisagreementsTable(values: readonly DurableExportValue[], registry: FieldRegistry = createFieldRegistry(values)): Table {
+  const ordinals = new Map(durableRecords(values,registry).map(record=>[record.recordId,record.ordinal]));
+  return {columns:["Record","Field","Part","Value","Read in","Evidence","Review"], rows:values.flatMap(value=> {
+    const ordinal=value.node.valueSource?null:ordinals.get(value.recordId)??null;
+    return value.disagreement?.flatMap(entry=>entry.alternatives.map(alternative=>({
+      Record:ordinal===null?DOCUMENT_RECORD:ordinal+1, Field:registry.column(value.node).name,
+      Part:partName(value.node,entry.path), Value:scalarCell(alternative.value), "Read in":originPages(alternative.segments),
+      Evidence:"Not checked", Review:decisionWords(value),
+    })))??[];
+  })};
+}
 
 /** The compact Evidence sheet: one row per saved field with its extracted value, decision, reviewed value, Evidence
  *  status and anchors, so a workbook keeps what the Results sheet's one cell per field cannot say. */
@@ -196,13 +242,12 @@ export function buildDurableEvidenceTable(values: readonly DurableExportValue[],
     columns: ["Record", "Field", "Extracted value", "Decision", "Reviewed value", "Evidence", "Evidence anchors", "Schema revision", "Note"],
     rows: values.map((value) => {
       const ordinal = value.node.valueSource ? null : ordinals.get(value.recordId) ?? null;
-      const action = value.correction?.decision.action;
       return {
         Record: ordinal === null ? DOCUMENT_RECORD : ordinal + 1,
         Field: registry.column(value.node).name,
         "Extracted value": value.processing === "saved" ? scalarCell(value.modelValue) : null,
         Decision: decisionWords(value),
-        "Reviewed value": action === "EDITED" ? scalarCell(value.correction!.decision.value) : null,
+        "Reviewed value": scalarCell(reviewedValue(value, null)),
         Evidence: evidenceWords(value),
         "Evidence anchors": value.links?.length ? value.links.map((link) => link.evidenceAnchorId).join(", ") : null,
         "Schema revision": value.schemaRevisionId,

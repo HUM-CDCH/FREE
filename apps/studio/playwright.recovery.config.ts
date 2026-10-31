@@ -9,11 +9,11 @@ import { configurePlaywrightStack, playwrightWebServerCommand } from './e2e/play
  * spawns it again), Studio's data and log under artifacts/recovery-tests so the planted-key sweep can read them.
  */
 const stack = configurePlaywrightStack({
-  applicationPort: 41_771,
+  applicationPort: 30_771,
   composeProject: 'free-studio-recovery-e2e',
   databaseName: 'free_test_studio_recovery',
-  oidcPort: 41_772,
-  postgresPort: 45_436,
+  oidcPort: 30_772,
+  postgresPort: 31_436,
 })
 const origin = `http://localhost:${stack.applicationPort}`
 const recoveryTests = resolve(import.meta.dirname, '../../artifacts/recovery-tests')

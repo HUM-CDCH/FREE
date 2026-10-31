@@ -102,7 +102,7 @@ def fixed_grounding(source: dict, request, chat, counters, *, model_seconds: flo
     limited = ModelBudget(chat.chats()["reasoning"], model_seconds)
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     support = ground_records([(evidence.passages, fields) for fields in bundle["fields"]], schema, limited,
-        check=lambda: None, budget=request.options.record_chars, counter=counter, method=method,
+        budget=request.options.record_chars, counter=counter, method=method,
         identities=bundle["inventory"], contexts=contexts, value_contexts=value_contexts, origins=bundle["value_origins"])
     grounded = {link.path for link in support.links}
     paths = [("records", number, *path) for number, fields in enumerate(bundle["fields"]) for path, _ in leaves(fields)]

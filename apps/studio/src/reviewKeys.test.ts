@@ -2,11 +2,11 @@
 import { describe, expect, it } from 'vitest'
 import { keyAction, type KeyContext } from './reviewKeys'
 
-const base: KeyContext = { readable: true, saving: false, editing: false, dialog: false, drawer: false, menu: false, oneByOne: true, canUndo: true, current: 'open' }
+const base: KeyContext = { readable: true, approvable: true, saving: false, editing: false, dialog: false, drawer: false, menu: false, oneByOne: true, canUndo: true, current: 'open' }
 const press = (key: string, context: Partial<KeyContext> = {}, extra: Partial<KeyboardEvent> = {}, target: Element = document.body) =>
   keyAction({ key, repeat: false, altKey: false, ctrlKey: false, metaKey: false, ...extra, target }, { ...base, ...context })
 
-describe('the rail keyboard model (results review redesign §4.4)', () => {
+describe('the rail keyboard model', () => {
   it('A E R decide the current undecided value; J skips; K steps back; Z undoes', () => {
     expect(['a', 'E', 'r', 'j', 'k', 'z'].map((key) => press(key))).toEqual(['approve', 'edit', 'reject', 'next', 'previous', 'undo'])
     expect(press('a', { current: 'decided' })).toBeNull()
@@ -45,4 +45,10 @@ describe('the rail keyboard model (results review redesign §4.4)', () => {
     expect(press('a', { saving: true })).toBeNull()
     expect(press('Escape', { readable: false, menu: true })).toBe('close-menu')
   })
+})
+
+it('A is inert when readings differ, while edit and reject still work',()=> {
+  expect(press('a',{approvable:false})).toBeNull()
+  expect(press('e',{approvable:false})).toBe('edit')
+  expect(press('r',{approvable:false})).toBe('reject')
 })

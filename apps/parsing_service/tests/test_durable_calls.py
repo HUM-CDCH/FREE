@@ -6,20 +6,26 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 from kei_exp.kie.extract.calls import Call
+from kei_exp.kie.extract import models
 from kei_exp.workflows import durable_extract as worker
 
 
 @pytest.mark.parametrize("context", ["full", "bounded"])
-def test_explicit_article_settings_are_frozen_and_restored_without_serializer_conflicts(monkeypatch,context):
+@pytest.mark.parametrize("adapter", ["instruct", "codex-cli"])
+def test_explicit_article_settings_are_frozen_and_restored_without_serializer_conflicts(monkeypatch,context,adapter):
     from kei_exp.kie.extract.models import ExtractModel
-    monkeypatch.setitem(worker.EXTRACT_MODELS,"instruct",ExtractModel("instruct","fixture/model",
-        "http://127.0.0.1:12345/v1/chat/completions","instruct",frozenset({"fields","reasoning"})))
+    key = "codex:gpt-6.1-sol" if adapter == "codex-cli" else "instruct"
+    repo = "gpt-6.1-sol" if adapter == "codex-cli" else "fixture/model"
+    monkeypatch.setitem(models.EXTRACT_MODELS,"instruct",ExtractModel("instruct",repo,
+        "codex://local" if adapter == "codex-cli" else "http://127.0.0.1:12345/v1/chat/completions",
+        adapter,frozenset({"fields","reasoning"})))
     class Lease:
         state={"selection":{"schemaTree":{"recordDescription":"A document","recordScope":"document",
             "schemaNodes":[{"id":"title","name":"title","type":"string"}]},
-            "resolved":{"options":{"strategy":"article","models":{"fields":"instruct","reasoning":"instruct"},
+            "resolved":{"options":{"strategy":"article","models":{"fields":key,"reasoning":key},
                 "article":{"context":context,"context_tokens":8192},"start_page":2}}}}
         saved=None
         def call(self,routine,value):
@@ -34,11 +40,13 @@ def test_explicit_article_settings_are_frozen_and_restored_without_serializer_co
     assert request.options.article.context==context
     assert captured["configuration"]["options"]["article"]==request.options.article.model_dump()
     assert captured["configuration"]["options"]["start_page"]==2
-    monkeypatch.delitem(worker.EXTRACT_MODELS,"instruct")
+    assert captured["configuration"]["models"]["fields"]["key"] == key
+    assert captured["configuration"]["models"]["fields"]["adapter"] == adapter
+    monkeypatch.delitem(models.EXTRACT_MODELS,"instruct")
     resumed,resumed_router=worker.effective(lease)
     assert resumed.options.article==request.options.article
     assert resumed.options.start_page==2
-    assert resumed_router.models==router.models=={"fields":"fixture/model","reasoning":"fixture/model"}
+    assert resumed_router.models==router.models=={"fields":repo,"reasoning":repo}
     assert lease.saved==captured
 
 
@@ -90,10 +98,68 @@ def test_returned_output_is_retried_then_halts_admission_without_claiming_saved(
     assert events==["read_call","begin_call","commit_output","commit_output","commit_output","fail_call"]
 
 
+@pytest.mark.parametrize("strategy,error,save_failure", [
+    ("article", requests.Timeout, False), ("article", requests.HTTPError, False),
+    ("catalog", requests.Timeout, False), ("catalog", requests.HTTPError, False),
+    ("article", requests.Timeout, True),
+])
+def test_article_resolution_transport_failures_are_saved_before_fallback(monkeypatch, strategy, error, save_failure):
+    from kei_exp.kie.extract import captured_provider
+    events, committed = [], {}
+
+    class Lease:
+        state = {"selection": {"resolved": {"options": {"strategy": strategy}}}}
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            events.append(routine)
+            if routine == "read_call":
+                return {"checkpoint": None, "intent": "RUN", "input": {"digest": "fixed", "request": {
+                    "composer": 1, "provider": {"model": "fixture/model", "url": "http://model", "timeout": 5},
+                    "budget": {"context": 4096, "counted": 120, "reserve": 256},
+                    "body": {"stage": "arbitration", "record": 0, "system": "s", "user": "u", "schema": {},
+                             "max_tokens": 256, "httpRequest": {"model": "fixture/model", "messages": []}}}}}
+            if routine == "begin_call":
+                return True
+            if routine == "commit_output":
+                if save_failure:
+                    raise OSError("disposable save fault")
+                committed["output"] = args[2]
+                return {"recoverable": True}
+
+    def post(*args, **kwargs):
+        raise error("do-not-log-provider-details")
+
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
+    monkeypatch.setattr(captured_provider.requests, "post", post)
+    def invoke():
+        return inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    if save_failure:
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            invoke()
+        assert events == ["read_call", "begin_call", "commit_output", "commit_output", "commit_output", "fail_call"]
+    elif strategy == "catalog":
+        assert invoke() == {"ok": False, "reason": error.__name__}
+        assert events == ["read_call", "begin_call", "fail_call"] and not committed
+    else:
+        assert invoke() == {"ok": True, "capture": "capture"}
+        assert events == ["read_call", "begin_call", "commit_output"]
+        assert committed["output"]["parsed"] is None
+        (call,) = committed["output"]["calls"]
+        assert not call["ok"] and not call["recovered"] and error.__name__ in call["error"]
+        assert (call["counted_input_tokens"], call["context_tokens"], call["max_output_tokens"]) == (120, 4096, 256)
+        assert "do-not-log-provider-details" not in json.dumps(committed)
+
+
 @pytest.mark.parametrize("checkpoint", [False, True])
-def test_truncated_discovery_response_allows_the_planner_to_split_its_window(monkeypatch, checkpoint):
-    call = Call("discovery", None, 20395, 4096, 0.1, "length", False,
-                "the reply was cut off (finish_reason length)")
+@pytest.mark.parametrize("stage", ["discovery", "record", "arbitration"])
+def test_recoverable_reply_allows_the_planner_to_continue(monkeypatch, checkpoint, stage):
+    call = Call(stage, None, 20395, 4096, 0.1, "length", False,
+                "the reply was cut off (finish_reason length)" if stage == "discovery" else
+                "the reply ran into a whitespace loop (finish_reason length)")
     output = {"parsed": None, "calls": [asdict(call)]}
     events = []
     class Lease:
@@ -106,7 +172,7 @@ def test_truncated_discovery_response_allows_the_planner_to_split_its_window(mon
                 return {"checkpoint": {"output": output, "recoverable": True} if checkpoint else None, "intent": "RUN",
                         "input": {"digest": "fixed", "request": {"composer": 1, "provider": {},
                                   "budget": {"context": 32768, "counted": 20395},
-                                  "body": {"stage": "discovery", "record": None, "httpRequest": {}}}}}
+                                  "body": {"stage": stage, "record": None, "httpRequest": {}}}}}
             if routine == "begin_call": return True
             if routine == "commit_output": return {"output": output, "recoverable": True}
     monkeypatch.setattr(worker, "Lease", Lease)
@@ -116,6 +182,54 @@ def test_truncated_discovery_response_allows_the_planner_to_split_its_window(mon
     result = inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
     assert result == {"ok": True, "capture": "capture"}
     assert events == (["read_call"] if checkpoint else ["read_call", "begin_call", "commit_output"])
+
+
+def jsonb(value):
+    """`value` as PostgreSQL jsonb returns it: object keys sorted shortest first, then bytewise; arrays kept."""
+    if isinstance(value, dict):
+        return {key: jsonb(value[key]) for key in sorted(value, key=lambda key: (len(key.encode()), key.encode()))}
+    return [jsonb(item) for item in value] if isinstance(value, list) else value
+
+
+def test_a_replayed_capture_sends_its_schema_in_field_order_not_jsonb_order(monkeypatch):
+    from kei_exp.kie.extract.llm import OpenAIChat
+    from kei_exp.kie.extract.schema import Node, json_schema
+    schema = json_schema([Node.model_validate(node) for node in [
+        {"id": "r", "name": "reference_number", "type": "integer"},
+        {"id": "a", "name": "authors", "type": "array", "itemType": "string"},
+        {"id": "m", "name": "methods", "type": "array", "children": [
+            {"id": "n", "name": "method", "type": "string"}, {"id": "t", "name": "td", "type": "number"}]},
+        {"id": "y", "name": "year", "type": "integer"}]])
+    composed = OpenAIChat(url="http://model", model="m").request_body(system="s", user="u", schema=schema,
+                                                                      max_tokens=4096)
+    body = {"stage": "record", "record": 0, "system": "s", "user": "u", "schema": schema, "max_tokens": 4096,
+            "max_whitespace": None, "httpRequest": composed}
+    assert list(jsonb(composed)["response_format"]["json_schema"]["schema"]["properties"])[0] == "year"
+    sent = []
+    class Lease:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            if routine == "read_call":
+                return {"checkpoint": None, "intent": "RUN", "input": {"digest": "fixed", "request": jsonb(
+                    {"composer": 1, "provider": {}, "budget": {"context": 32768, "counted": 120}, "body": body})}}
+            if routine == "begin_call": return True
+            if routine == "commit_output": return {"output": args[2]}
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
+    def complete(client, **logical):
+        sent.append((client.payload, logical["schema"]))
+        return None, [Call("record", 0, 120, 4, 0.1, "stop", True, None)]
+    monkeypatch.setattr(worker.calls, "complete", complete)
+    inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    payload, logical = sent[0]
+    replayed = payload["response_format"]["json_schema"]["schema"]
+    assert payload == composed  # same content; dict equality ignores the key order checked below
+    assert list(replayed["properties"]) == ["reference_number", "authors", "methods", "year"]
+    assert list(replayed["properties"]["methods"]["items"]["properties"]) == ["method", "td"]
+    assert list(logical["properties"]) == list(schema["properties"])
 
 
 class Streamed:
@@ -200,3 +314,82 @@ def test_a_server_that_ignores_the_stream_is_read_as_the_unstreamed_reply(monkey
     pieces = []
     reply = captured_provider.CapturedChat({"url": "http://model", "timeout": 5, "model": "m"}, {}, on_text=pieces.append).complete()
     assert (reply.text, reply.finish, reply.input_tokens, pieces) == (REPLY, "stop", 120, [])
+
+
+class Calls:
+    """Durable calls run by a fake scheduler: the earliest started call ends first; `fails` end unsaved."""
+
+    def __init__(self, roles, *, fails=(), boundary=lambda calls: False):
+        self.roles, self.fails, self.boundary = roles, set(fails), boundary
+        self.left, self.running, self.ended, self.peak, self.events = list(roles), [], {}, {}, []
+        self.started = None
+
+    def plan(self, extraction, attempt):
+        self.events.append(("plan", len(self.running)))
+        if self.boundary(self):
+            return {"boundary": True}
+        if not self.left:
+            return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": {}}
+        return {"pending": list(self.left), "roles": {capture: self.roles[capture] for capture in self.left}}
+
+    def start(self, workflow, extraction, attempt, capture):
+        assert self.started == f"kei-call:{attempt}:{capture}"
+        self.running.append(capture)
+        role = self.roles[capture]
+        self.peak[role] = max(self.peak.get(role, 0), sum(self.roles[each] == role for each in self.running))
+        return SimpleNamespace(workflow_id=self.started)
+
+    def wait_first(self, handles, polling_interval_sec):
+        capture = self.running.pop(0)
+        self.ended[f"kei-call:a:{capture}"] = capture not in self.fails
+        if capture not in self.fails:
+            self.left.remove(capture)
+        return next(handle for handle in handles if handle.workflow_id == f"kei-call:a:{capture}")
+
+
+def run_loop(monkeypatch, calls, chunks=2):
+    from contextlib import contextmanager
+
+    @contextmanager
+    def named(workflow_id):
+        calls.started = workflow_id
+        yield
+    monkeypatch.setattr(worker.config, "CATALOG_CHUNKS", chunks)
+    monkeypatch.setattr(worker.DBOS, "deprecate_patch", lambda name: name == "extract-wait-first")
+    monkeypatch.setattr(worker.DBOS, "start_workflow", calls.start)
+    monkeypatch.setattr(worker.DBOS, "wait_first", calls.wait_first)
+    monkeypatch.setattr(worker, "SetWorkflowID", named)
+    monkeypatch.setattr(worker, "settled", lambda ids: {each: calls.ended[each] for each in ids if each in calls.ended})
+    monkeypatch.setattr(worker, "plan_next", calls.plan)
+    monkeypatch.setattr(worker, "publish_result", lambda *_: calls.events.append(("publish", len(calls.running))))
+    monkeypatch.setattr(worker, "acknowledge", lambda e, a, complete, failure:
+                        calls.events.append(("ack", len(calls.running), complete, failure)) or "ACK")
+    return inspect.unwrap(worker.extract_workflow)({"protocol": 1, "extraction_id": "x", "attempt_id": "a"})
+
+
+def test_a_call_is_started_as_soon_as_another_of_its_role_ends_and_never_more_than_chunks_at_once(monkeypatch):
+    roles = {**{f"d{n}": "reasoning" for n in range(5)}, **{f"e{n}": "fields" for n in range(4)}}
+    calls = Calls(roles)
+    assert run_loop(monkeypatch, calls) == {"status": "ACK"}
+    assert calls.peak == {"reasoning": 2, "fields": 2}
+    plans = [event for event in calls.events if event[0] == "plan"]
+    assert len(plans) == len(roles) + 1 and all(running == 3 for _, running in plans[1:-3])  # one ended per round
+    assert calls.events[-2:] == [("publish", 0), ("ack", 0, True, None)]
+
+
+@pytest.mark.parametrize("ending,failure", [("boundary", None), ("failure", {"code": "capture_failed"})])
+def test_a_pause_or_a_failed_call_is_acknowledged_once_every_started_call_has_ended(monkeypatch, ending, failure):
+    roles = {f"d{n}": "reasoning" for n in range(4)}
+    calls = Calls(roles, fails={"d0"} if ending == "failure" else (),
+                  boundary=lambda calls: ending == "boundary" and len(calls.ended) == 1)
+    run_loop(monkeypatch, calls)
+    assert calls.events[-2:] == [("plan", 0), ("ack", 0, False, failure)]  # drained, compiled, then acknowledged
+    assert len(calls.ended) == 2  # the call running beside the first was awaited; nothing new started
+
+
+def test_a_capture_planned_again_after_its_call_ended_stops_the_attempt(monkeypatch):
+    calls = Calls({"d0": "reasoning"})
+    calls.wait_first = lambda handles, polling_interval_sec: (calls.running.pop(0), calls.ended.update(
+        {"kei-call:a:d0": True}), handles[0])[-1]  # it ended without saving an output
+    assert run_loop(monkeypatch, calls) == {"status": "ACK"}
+    assert calls.events[-1] == ("ack", 0, False, {"code": "capture_replanned"})

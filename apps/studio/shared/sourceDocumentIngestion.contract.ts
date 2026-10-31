@@ -34,11 +34,22 @@ const common = { workflowId: z.string(), name: z.string(), createdAt: timestamp 
  * One Source Ingestion as the Project page sees it. `succeeded` rows are synchronization metadata (a completion the
  * page must not miss), never cards: the branch read shows the Source Document.
  */
+/**
+ * What a live attempt expects, when its page count is known: the count admission recorded, and when it should finish,
+ * after the earlier live attempts on its conversion lane. An estimate from kei's measured cost per page, never a
+ * deadline: a native PDF finishes sooner, a busy lane later.
+ */
+const liveEstimate = { pageCount: z.number().int().positive().optional(), estimatedCompletionAt: timestamp.optional() }
+
 export const sourceIngestionSchema = z.discriminatedUnion('status', [
-  z.object({ ...common, status: z.literal('queued') }).strict(),
-  z.object({ ...common, status: z.literal('parsing') }).strict(),
+  z.object({ ...common, ...liveEstimate, status: z.literal('queued') }).strict(),
+  z.object({ ...common, ...liveEstimate, status: z.literal('parsing') }).strict(),
   z.object({ ...common, status: z.literal('succeeded'), completedAt: timestamp, sourceDocumentId: canonicalUuidSchema }).strict(),
-  z.object({ ...common, status: z.literal('failed'), completedAt: timestamp, failure: ingestionFailureSchema }).strict(),
+  z.object({
+    ...common, status: z.literal('failed'), completedAt: timestamp, failure: ingestionFailureSchema,
+    /** Studio still holds the PDF: Retry admits it again without a new upload. */
+    retryable: z.literal(true).optional(),
+  }).strict(),
 ])
 export type SourceIngestion = z.output<typeof sourceIngestionSchema>
 

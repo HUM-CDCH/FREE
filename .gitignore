@@ -37,6 +37,9 @@ compose.local.yaml
 .codex/worktrees/
 tools/slopo-benchmark/work/
 eval-out/
+prototypes/
+formal/
+.lake/
 
 # Keys and certificates never belong in the repository
 *.pem
@@ -60,3 +63,4 @@ sgconfig.yml
 skills-lock.json
 GEMINI.md
 scripts/codegraph-prompt-hook*.mjs
+FREE_Spark_capacity_benchmark_plan.docx

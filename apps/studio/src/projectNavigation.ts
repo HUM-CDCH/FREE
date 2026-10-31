@@ -47,6 +47,9 @@ export type Route =
       /** The explicit result/decision cut to open the routed Extraction on (a
        *  finalized review or saved-correction link); absent opens its live cut. */
       reviewCut?: SavedReviewCut
+      /** A value link's value (`?value=`), selected once when it arrives. `href`
+       *  never writes it, so a navigation in Studio drops it and a reload keeps it. */
+      value?: string
       /** The Batch Extraction whose members list opened this document, so the
        *  document view can offer a direct way back to it. Pure navigation
        *  metadata — never affects which document snapshot is fetched. */
@@ -68,7 +71,7 @@ const sourceArtifactUnavailable: Failure = {
   message: 'The retained Source Document artifact is unavailable.',
 }
 
-type Deps = { push(route: NavigableRoute): void }
+type Deps = { push(route: NavigableRoute): void; replace(route: NavigableRoute): void }
 type Context = {
   deps: Deps
   route: Route
@@ -77,12 +80,14 @@ type Context = {
   failure: Failure | null
 }
 type Event =
-  | { type: 'NAVIGATE'; route: NavigableRoute }
+  | { type: 'NAVIGATE'; route: NavigableRoute; replace?: boolean; fromExtractionId?: string }
   | { type: 'ROUTE_CHANGED'; route: Route }
   | { type: 'RETRY' }
   | { type: 'SOURCE_REPROCESSED' }
   /** The open document's Source Representation may be stale (a run was refused as superseded): read it again. */
   | { type: 'REFRESH' }
+  /** A review was finalized: read "Latest reviewed" again, and nothing else. */
+  | { type: 'REFRESH_REVIEWED' }
   | { type: 'RESOURCE_FAILED' }
   | { type: 'DOCUMENT_CONTAINED' }
   | { type: 'DOCUMENT_NOT_CONTAINED' }
@@ -138,6 +143,7 @@ export function parseRoute(pathname: string, search = ''): Route {
     const [, projectContextId, sourceDocumentId] = document
     const params = new URLSearchParams(search || inlineSearch)
     const extractionId = params.get('extractionId')
+    const value = params.get('value')
     const fromBatchExtractionId = params.get('fromBatchExtractionId')
     const fromSchemaBuilder = params.get('fromSchemaBuilder') === '1'
     const reviewCut = extractionId ? savedReviewCut(params.toString()) : null
@@ -152,6 +158,7 @@ export function parseRoute(pathname: string, search = ''): Route {
           sourceDocumentId,
           ...(extractionId ? { extractionId } : {}),
           ...(reviewCut ? { reviewCut } : {}),
+          ...(value ? { value } : {}),
           ...(fromBatchExtractionId ? { fromBatchExtractionId } : {}),
           ...(fromSchemaBuilder ? { fromSchemaBuilder: true } : {}),
         }
@@ -249,7 +256,10 @@ export const navigationMachine = setup({
         : {},
     ),
     pushRoute: ({ context, event }) => {
-      if (event.type === 'NAVIGATE') context.deps.push(event.route)
+      if (event.type === 'NAVIGATE') {
+        if(event.replace)context.deps.replace(event.route)
+        else context.deps.push(event.route)
+      }
     },
     closeDocument: assign({ snapshot: null, failure: null }),
     clearFailure: assign({ failure: null }),
@@ -278,6 +288,10 @@ export const navigationMachine = setup({
       target: '.opening',
     },
     NAVIGATE: {
+      // Admission may answer after a newer navigation, before that document's reopen finishes.
+      guard:({context,event})=>!event.fromExtractionId||(context.route.kind==='document'&&event.route.kind==='document'&&
+        context.route.projectContextId===event.route.projectContextId&&context.route.sourceDocumentId===event.route.sourceDocumentId&&
+        context.route.extractionId===event.fromExtractionId),
       target: '.routing',
       actions: [{ type: 'pushRoute' }, { type: 'setRoute' }],
     },
@@ -324,6 +338,7 @@ export const navigationMachine = setup({
       on: {
         RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
         REFRESH: { target: 'refreshing' },
+        REFRESH_REVIEWED: { target: 'refreshingReviewed' },
       },
     },
     // The open workspace stays on screen while its document is read again; only a successful read replaces it,
@@ -342,6 +357,28 @@ export const navigationMachine = setup({
         RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
       },
     },
+    // Only "Latest reviewed" is taken from the read: the rest would reseed the workspace, and could swap the shown
+    // Extraction for a newer batch member.
+    refreshingReviewed: {
+      invoke: {
+        src: 'reopenDocument',
+        input: reopenInput,
+        onDone: {
+          target: 'open',
+          actions: [
+            assign({
+              snapshot: ({ context, event }) =>
+                context.snapshot && { ...context.snapshot, latestReviewed: event.output.latestReviewed },
+            }),
+          ],
+        },
+        onError: { target: 'open' },
+      },
+      on: {
+        RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
+        REFRESH: { target: 'refreshing' },
+      },
+    },
     failed: { on: { RETRY: { target: 'opening' } } },
   },
 })
@@ -350,5 +387,7 @@ export function browserNavigationDeps(): Deps {
   return {
     push: (route) =>
       history.pushState(null, '', browserStudioPath(href(route))),
+    replace: (route) =>
+      history.replaceState(null, '', browserStudioPath(href(route))),
   }
 }

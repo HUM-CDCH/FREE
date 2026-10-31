@@ -14,7 +14,7 @@ x-gpu: &gpu
           capabilities: [gpu]
 
 x-vllm: &vllm
-  image: "${VLLM_IMAGE:-vllm/vllm-openai:latest}"
+  image: "${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3}"
   init: true
   # Both the generic vLLM image and an operator-selected Spark image use
   # this explicit CLI, independent of their image entrypoint defaults.
@@ -88,6 +88,8 @@ services:
       - --max-num-seqs
       # Also parsing_worker's KEI_CATALOG_CHUNKS, which kei bounds at 64: keep it at 64 or below.
       - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+      # GB10 with multiple resident models: graph execution stalled; eager serving passed concurrent extraction.
+      - --enforce-eager
     depends_on:
       ocr_model:
         condition: service_healthy
@@ -142,6 +144,7 @@ services:
   # Configuration page routes them elsewhere; the page lists both read-only.
   studio:
     environment:
+      FREE_PARSING_OCR_PARALLEL: "${OCR_MAX_NUM_SEQS:-4}"
       FREE_DEPLOYMENT_INSTRUCT_URL: http://extraction_model:8000/v1
       FREE_DEPLOYMENT_INSTRUCT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
       FREE_DEPLOYMENT_NUEXTRACT_URL: http://nuextract_model:8000/v1

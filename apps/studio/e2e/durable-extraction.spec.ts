@@ -9,11 +9,65 @@ import type { DurableValue } from 'extraction/durable-contract'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { prepareInteractiveDocument,INTERACTIVE_SCHEMA_NODES } from './interactiveStack.js'
 import { E2E_ORIGIN,loginResearcher } from './auth.js'
+import { savedCorrectionHref } from '../src/durableReviewLinks.js'
 import { savedBatchSource,savedExtraction } from './durableFixtures.js'
 
 test.beforeEach(({page})=> {
   page.on('pageerror',error=>console.error('durable browser error:',error.message))
   page.on('requestfailed',request=>console.error('durable browser request failed:',request.url(),request.failure()?.errorText))
+})
+
+test('results identify an older schema and a new Article admission survives reload',async({page},testInfo)=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const catalog=[{id:'reference',name:'reference_number',type:'string' as const}]
+    const article=[{id:'title',name:'title',type:'string' as const}]
+    const old=await savedExtraction(fixture,catalog,['Old reference 17'],'COMPLETED',{records:[['Old reference 17']]})
+    const revision=randomUUID()
+    await pool.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
+      VALUES ($1,$2,3,'RESEARCHER_EDIT',$3,'document')`,[revision,fixture.extractionSchemaId,{recordDescription:'One article.',schemaNodes:article}])
+    await page.goto(`${fixture.url}?extractionId=${old.id}`)
+    await page.getByRole('tab',{name:/^Results/}).click()
+    await expect(page.getByText('These results use schema revision 2 (Catalog).')).toBeVisible()
+    await expect(page.getByText('The current schema is revision 3 (Article).')).toBeVisible()
+    await expect(page.getByText('Old reference 17',{exact:true})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('schema-mismatch-desktop.png')})
+    await page.setViewportSize({width:390,height:844})
+    const schemaNotice=page.getByLabel('Results schema')
+    await expect(schemaNotice).toBeVisible()
+    const bounds=await schemaNotice.boundingBox()
+    expect(bounds!.x).toBeGreaterThanOrEqual(0)
+    expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(391)
+    await page.screenshot({path:testInfo.outputPath('schema-mismatch-narrow.png')})
+    await page.setViewportSize({width:1440,height:900})
+    await page.getByRole('button',{name:'Open Schema',exact:true}).click()
+    await expect(page.getByRole('tab',{name:/^Schema/})).toHaveAttribute('aria-selected','true')
+    // Admission is stood in; saved state, values, schema labels and routed reopening use the real owned API.
+    let admitted=''
+    await page.route('**/api/extractions',async route=>{
+      if(route.request().method()!=='POST')return route.continue()
+      const body=route.request().postDataJSON()
+      expect(body.strategy).toBe('ARTICLE')
+      expect(body.schemaRevisionId).toBe(revision)
+      expect(body.id).not.toBe(old.id)
+      const fresh=await savedExtraction(fixture,article,['New article metadata'],'COMPLETED',{schemaRevisionId:revision,extractionId:body.id})
+      admitted=fresh.id
+      await route.fulfill({status:201,json:{extractionId:fresh.id,sourceDocumentId:fixture.sourceDocumentId,
+        sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,strategy:'ARTICLE',catalogRecipe:null,
+        requestedModels:null,requestedSettings:null,executionStatus:'COMPLETED',finalizedReview:null,batchExtractionId:null,createdAt:new Date().toISOString()}})
+    })
+    await page.getByRole('button',{name:'↻ Re-run extraction',exact:true}).click()
+    await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
+    await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`extractionId=${admitted}`))
+    await expect(page.getByText('Made with schema revision 3 (Article).')).toBeVisible()
+    await page.reload()
+    await page.getByRole('tab',{name:/^Results/}).click()
+    await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
+    await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
+    await expect(page.getByText('Made with schema revision 3 (Article).')).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('new-article-after-reload.png')})
+  } finally {await fixture.close()}
 })
 
 test('every durable API rejects unauthenticated and foreign owners, wrong origins and oversized writes',async({page,browser})=>{
@@ -146,7 +200,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     await page.locator('#rail-tab-results').click()
     await expect(page.getByText(/1 approved · 1 edited · 0 rejected · review saved/)).toBeVisible()
     await page.getByRole('button',{name:'■ Stop',exact:true}).click()
-    await expect(page.getByRole('button',{name:'▶ Run extraction',exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:'↻ Re-run extraction',exact:true})).toBeVisible()
     await expect(page.getByRole('button',{name:'▶ Resume extraction',exact:true})).toHaveCount(0)
     const stopped=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
     expect(stopped.status).toBe('STOPPED')
@@ -200,8 +254,17 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await page.getByRole('button',{name:'More result actions'}).click()
     await page.getByRole('menuitem',{name:'Change inputs'}).click()
     await page.getByRole('button',{name:'Save pending inputs',exact:true}).click()
+    // The saved edits are read against the pending inputs as guidance for their later calls.
+    await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable`)).json()).pendingSelection?.id).toBeTruthy()
+    const pendingId=(await (await page.request.get(`/api/extractions/${id}/durable`)).json()).pendingSelection.id
+    const forPending=(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/feedback?target=${id}&selection=${pendingId}`)).json())
+      .filter((row:{extractionId:string;active:boolean})=>row.extractionId===id&&row.active)
+    expect(forPending.map((row:{valueId:string})=>row.valueId).sort()).toEqual(['flag','names','work'])
+    for(const row of forPending)expect(row).toMatchObject({included:true,targetCompatibility:'compatible',decision:{action:'EDITED'}})
     await page.locator('#rail-tab-history').click()
-    await expect(page.getByText('Corrections for the pending inputs',{exact:false})).toBeVisible()
+    await expect(page.getByRole('region',{name:'Saved results',exact:true})).toContainText('Results 1')
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('Changed inputs (version 2)')
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText('First inputs')
     await page.locator('#rail-tab-results').click()
     await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
@@ -243,13 +306,50 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     await page.locator('#rail-tab-results').click()
     await expect.poll(()=>received).toBe(true)
     await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'One by one',exact:true}).click()
+    await page.getByRole('button',{name:'Review one by one',exact:true}).click()
     await expect(page.getByRole('heading',{name:'Unit 7',exact:true})).toBeFocused()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
     release.resolve()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
     await expect(page.locator('.parsed-evidence-focus')).toHaveAttribute('data-occurrence-id',occurrence.occurrence_id)
   } finally {release.resolve();await fixture.close()}
+})
+
+test('a collapsed rail keeps one-by-one and moves nothing on the page; each toggle passes the focus on',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
+    const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
+      {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Review one by one',exact:true}).click()
+    const heading=page.getByRole('heading',{name:'Unit 7',exact:true}),current=page.getByLabel('Current page')
+    await expect(heading).toBeFocused()
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(current).toHaveValue(String(occurrence.page_number))
+    // Away from the value's page, which a collapse must not bring back.
+    await current.fill('6');await current.press('Enter')
+    await expect(page.getByRole('button',{name:'Next page'})).toBeDisabled()
+    // The zoom is a fixed scale, so the wider page pane keeps the scroll position unless something navigates.
+    const viewer=page.locator('.pdf-viewer'),top=await viewer.evaluate(element=>element.scrollTop)
+    await page.getByTitle('Collapse panel').click()
+    await expect(page.getByTitle('Expand panel')).toBeFocused()
+    await expect(heading).toBeHidden()
+    // A navigation would land within a few frames of the collapse.
+    await page.waitForTimeout(500)
+    await expect(current).toHaveValue('6')
+    expect(await viewer.evaluate(element=>element.scrollTop)).toBe(top)
+    await page.getByTitle('Expand panel').click()
+    await expect(page.getByTitle('Collapse panel')).toBeFocused()
+    await expect(heading).toBeVisible()
+    // Expanding in one-by-one scrolls back to its value.
+    await expect(current).toHaveValue(String(occurrence.page_number))
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+  } finally {await fixture.close()}
 })
 
 test('an off-page ungrounded value keeps its source, optional Evidence and target-specific guidance',async({page})=> {
@@ -283,12 +383,20 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     // The value's link opens it and shows its correction Evidence on the source.
     await page.reload();await page.locator('#rail-tab-results').click()
     await expect(page.locator('.parsed-evidence-highlight')).toHaveCount(1)
-    await page.locator('#rail-tab-history').click()
-    await expect(page.getByText('In use · Has evidence',{exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Stop using',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Use',exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Use',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Stop using',exact:true})).toBeVisible()
+    // The Project's guidance: the edit is in use, has Evidence and fits this target; leaving it out and back in saves
+    // new revisions of the same correction.
+    const feedbackUrl=`/api/project-contexts/${fixture.projectContextId}/feedback`,origin={Origin:new URL(page.url()).origin}
+    const guidance=async(query='')=>(await (await page.request.get(`${feedbackUrl}?target=${id}${query}`)).json())
+      .find((row:{valueId:string;active:boolean})=>row.valueId===valueId&&row.active)
+    expect(await guidance()).toMatchObject({revision:1,included:true,candidate:{grounded:true},targetCompatibility:'compatible'})
+    for(const [included,revision] of [[false,2],[true,3]] as const) {
+      const toggled=await page.request.post(feedbackUrl,{headers:origin,data:{id:(await guidance()).id,expectedRevision:revision-1,included}})
+      expect(toggled.status(),await toggled.text()).toBe(200)
+      expect(await guidance()).toMatchObject({revision,included,candidate:{grounded:true}})
+    }
+    const stale=await page.request.post(feedbackUrl,{headers:origin,data:{id:(await guidance()).id,expectedRevision:1,included:false}})
+    expect(stale.status()).toBe(409)
+    expect((await (await page.request.get(valueUrl)).json()).values[0].correction.decision).toMatchObject({value:'Corrected title 505',evidence:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence]}]})
     const revision=randomUUID()
     await pool.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,$2,max("revisionNumber")+1,'RESEARCHER_EDIT',$3,'records' FROM public."schemaRevision" WHERE "extractionSchemaId"=$2`,
@@ -299,10 +407,15 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     // A settled view reads inputs changed elsewhere when the researcher comes back to it.
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
     await page.locator('#rail-tab-results').click()
-    await expect(page.getByText(/1 saved correction doesn’t fit the pending schema/)).toBeVisible()
+    await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toBeVisible()
+    // A string edit doesn't fit the pending number field: it stays saved and in use, but is not this target's guidance.
+    const pendingId=(await (await page.request.get(`/api/extractions/${id}/durable`)).json()).pendingSelection.id
+    expect(await guidance(`&selection=${pendingId}`)).toMatchObject({included:true,targetCompatibility:'incompatible'})
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
+    await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toHaveCount(0)
+    expect(await guidance()).toMatchObject({revision:3,included:true,targetCompatibility:'incompatible'})
     await page.locator('#rail-tab-history').click()
-    await expect(page.getByText(/1 correction doesn’t fit this schema/)).toBeVisible()
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText(/Changed inputs \(version 2\).*schema changed/)
     await page.locator('#rail-tab-results').click()
     const stillSaved=(await (await page.request.get(valueUrl)).json()).values[0]
     expect(stillSaved.modelValue).toBe('Saved title 505')
@@ -397,7 +510,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await page.locator('#rail-tab-results').click()
     const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
     await expect(rail.getByText('Failed',{exact:true})).toBeVisible()
-    await expect(rail.getByRole('button',{name:'One by one',exact:true})).toBeDisabled()
+    await expect(rail.getByRole('button',{name:'Review one by one',exact:true})).toBeDisabled()
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable/values`)).json()).values).toEqual([])
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable`)).json()).controlVersion).toBe(0)
   } finally {await fixture.close()}
@@ -484,7 +597,7 @@ test('a delayed correction acknowledgement keeps menu Escape usable without dupl
       await release.promise
       await route.fulfill({response})
     })
-    await page.getByRole('button',{name:'One by one',exact:true}).click()
+    await page.getByRole('button',{name:'Review one by one',exact:true}).click()
     await page.keyboard.press('a')
     await expect(page.getByText('Saving your decision…')).toBeVisible()
     await page.keyboard.press('r')
@@ -503,7 +616,7 @@ test('a delayed correction acknowledgement keeps menu Escape usable without dupl
   } finally {release.resolve();await fixture.close()}
 })
 
-test('shared correction Evidence navigates Markdown UTF-8 spans and stable value links',async({page})=>{
+test('shared correction Evidence reveals linked Results fields from Markdown UTF-8 spans and stable value links',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
     const source=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)
@@ -538,9 +651,10 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
     await expect(mark).toHaveText(passage)
     await expect(mark).toHaveAccessibleName(/title: Corrected title.*site: Corrected site/)
     await mark.click()
-    const popover=page.getByRole('dialog',{name:'Values in this passage'})
-    await expect(popover).toBeVisible()
-    await popover.getByRole('button',{name:'site · Corrected site'}).click()
+    await expect(page.getByRole('dialog',{name:'Values in this passage'})).toHaveCount(0)
+    await expect(page.locator('[data-evidence-linked="true"]')).toHaveCount(2)
+    await expect(page.getByRole('region',{name:'Review title',exact:true})).toContainText('Corrected title')
+    await page.getByRole('button',{name:/^Edited site Corrected site/}).click()
     await expect(page.getByRole('region',{name:'Review site',exact:true})).toContainText('Corrected site')
     await expect(mark).toHaveAttribute('aria-current','true')
     await page.goto(`${fixture.url}?extractionId=${id}&value=site`)
@@ -634,10 +748,12 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
     expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3])
     await second.locator('#rail-tab-history').click()
-    // Corrections list newest first: revisions 3, 2, 1.
-    const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(0).getAttribute('href')
-    await page.goto(historical!);await page.locator('#rail-tab-results').click()
-    await expect(page.getByRole('region',{name:'Review work'})).toContainText('{"a":10,"b":2}')
+    await expect(second.getByRole('region',{name:'Saved results',exact:true})).toContainText('Results 1')
+    // The newest correction's own saved cut, opened through the link Studio gives a saved correction.
+    const undone=history.corrections.at(-1)
+    expect(undone).toMatchObject({extractionId:id,valueId:'work',snapshotVersion:1,feedbackVersion:3})
+    await page.goto(savedCorrectionHref(fixture.projectContextId,fixture.sourceDocumentId,undone));await page.locator('#rail-tab-results').click()
+    await expect(page.getByRole('region',{name:'Review work'})).toContainText('a: 10 · b: 2')
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
     await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)
   } finally {await second?.close();await fixture.close()}
@@ -747,5 +863,93 @@ test('feedback-only lag names the older pair before browser finalization',async(
     const live=(await (await page.request.get(`${root}/values`)).json())
     expect(live.feedbackVersion).toBe(2)
     expect(live.values[0].correction.decision.value).toBe('Newer decision')
+  } finally {await fixture.close()}
+})
+
+test('Value Disagreements require explicit choices, survive reload, and export their undecided alternatives',async({page})=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const alternatives=['Article title','Cited title'].map(value=>({value,segments:['p3_s0']}))
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],[null],'COMPLETED',{disagreement:{title:[{path:[],alternatives}]}})
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByText('read in p. 3 · not checked')).toHaveCount(2)
+    await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0)
+    const headers={Origin:new URL(page.url()).origin},root=`/api/extractions/${id}/durable`
+    expect((await page.request.post(`${root}/finalize`,{headers,data:{snapshotVersion:1,feedbackVersion:0}})).status()).toBe(422)
+    expect((await page.request.post(`${root}/values/title`,{headers,data:{snapshotVersion:1,expectedRevision:0,action:'APPROVED'}})).status()).toBe(422)
+    await page.getByRole('button',{name:'More result actions'}).click();await page.getByRole('menuitem',{name:'Export…'}).click()
+    const download=page.waitForEvent('download');await page.getByRole('button',{name:'CSV',exact:true}).click()
+    const csv=await readFile((await (await download).path())!,'utf8')
+    expect(csv).toContain('title,title (review),title (alternatives)\r\n,Readings differ,')
+    expect(csv).toContain('Article title');expect(csv).toContain('Cited title')
+    await page.getByRole('button',{name:'Review from here'}).click()
+    await page.getByRole('heading',{name:'Article title or Cited title'}).press('a')
+    expect((await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(1)
+    await page.getByRole('button',{name:'Use Article title'}).click()
+    await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(0)
+    await page.reload();await page.locator('#rail-tab-results').click();await page.getByRole('button',{name:'All',exact:true}).click()
+    await page.getByRole('button',{name:/Approved title Article title/}).click()
+    // A decided value changes through Undo, which returns it to To check with every decision offered again.
+    await expect(page.getByRole('button',{name:'Use Cited title'})).toHaveCount(0)
+    const decision=async()=>(await (await page.request.get(`${root}/values`)).json()).values[0].correction?.decision
+    await page.getByRole('button',{name:'Undo',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await page.getByRole('button',{name:'Use Cited title'}).click()
+    await expect.poll(async()=>(await decision())?.value).toBe('Cited title')
+    await page.getByRole('button',{name:/Approved title Cited title/}).click()
+    await page.getByRole('button',{name:'Undo',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
+    await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
+    await expect(page.getByRole('button',{name:'Edit',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Reject',exact:true}).click()
+    await expect.poll(async()=>(await decision())?.action).toBe('REJECTED')
+    await page.getByRole('button',{name:'Save review',exact:true}).click()
+    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+  } finally {await fixture.close()}
+})
+
+test('run diagnostics of the saved completion snapshot show at their occurrences and survive reload',async({page},testInfo)=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const issue=(code:string,field:string,detail:object)=>({code,detail:JSON.stringify({path:[field],...detail}),record:0,path:['records',0,field]})
+    const coverage={sourceGeneration:'g1',finalizedAttempt:{attemptId:randomUUID(),generation:1,selectionId:randomUUID(),complete:true},diagnostics:{issues:[
+      issue('uncertain_items','fees',{items:[{index:1,of:'',label:'UNSURE'}]}),
+      issue('dropped_items','fees',{dropped:[10],of:['Smith 2001']}),
+      issue('resolved_value','title',{chosen:'Own title',alternatives:['Own title','Cited title']}),
+      issue('resolution_not_applied','charges',{reason:'invalid_list_reply'})]}}
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'},{id:'fees',name:'fees',type:'array',itemType:'number'},
+      {id:'charges',name:'charges',type:'array',itemType:'number'}],['Own title',[10,10],[20,20]],'QUEUED')
+    // Publish the completion through the real routine; the review API serves this new head, carrying its values.
+    const head=(await pool.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+    const claim=(await pool.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
+    coverage.finalizedAttempt={attemptId:head.attemptId,generation:head.generation,selectionId:head.selectionId,complete:true}
+    const identity=randomUUID()
+    const publish=()=>pool.query('SELECT extraction_runtime.publish_snapshot($1,$2,$3,$4,$5,$6,$7) AS v',
+      [id,head.attemptId,claim.epoch,identity,head.selectionId,'[]',coverage]).then(result=>result.rows[0].v)
+    const completion=await publish()
+    expect(await publish()).toEqual(completion)
+    await pool.query('SELECT extraction_runtime.acknowledge($1,$2,$3,true,NULL)',[id,head.attemptId,claim.epoch])
+    const served=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json())
+    expect(served.coverage.diagnostics).toEqual(coverage.diagnostics)
+    expect(served.snapshotVersion).toBe(completion.version)
+    expect(served.values.find((value:{fieldId:string})=>value.fieldId==='charges').modelValue).toEqual([20,20])
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    const diagnostics=page.getByRole('region',{name:'Run diagnostics'})
+    const expected=['fees · item 2: 10 · kept, not settled (UNSURE)','fees · left out: 10, given to “Smith 2001”',
+      'title · picked Own title among Own title / Cited title',
+      'charges · assembled values retained; resolution not applied (invalid list reply)']
+    await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
+    await expect(diagnostics).toContainText(`From saved results ${completion.version} · source generation g1 · attempt ${head.attemptId.slice(0,8)}`)
+    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    await page.screenshot({path:testInfo.outputPath('before-reload.png')})
+    await page.reload();await page.locator('#rail-tab-results').click()
+    await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
+    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    const reloaded=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json())
+    expect(reloaded).toEqual(served)
+    await page.screenshot({path:testInfo.outputPath('after-reload.png')})
   } finally {await fixture.close()}
 })

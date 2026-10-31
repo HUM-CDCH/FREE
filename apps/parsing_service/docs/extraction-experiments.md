@@ -26,11 +26,12 @@ flowchart LR
 | `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Return the assembled result. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
-| `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
+| `routing.py` | Map assembled values to their actual reply occurrences and order whole verification units with exhaustive unresolved fallback. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; assemble or reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
-| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts and grounded. The service path sends no inventory request but counts `inventory_request` to size bounded contexts; research replays still use the inventory functions. |
+| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts, resolved when split, and grounded. The service path sends no inventory request but counts `inventory_request` to size bounded contexts; research replays still use the inventory functions. |
+| `resolution.py` | Resolve split-source Article readings and filter assembled list occurrences; retain disagreements and assembled items when resolution fails or is unsure. |
 | `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
 | `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
 | `stages.py` | The shared value prompts (guardrail, schema instruction, labelled passages), document and record value requests and their conformance, value helpers, and the record merge. |
@@ -57,6 +58,16 @@ These are ordinary Python functions. There is no plugin graph or separate
 service per stage. Strategy differences reflect source structure: an Article is
 one document-level object read across the whole source; Catalog entries own
 contiguous source spans.
+
+Article assembly keeps each list item's contributing positions in its conformed
+readings alongside its value. Equal items in separate source contexts keep separate origins; an
+overlap join keeps only the positions that contributed that occurrence. Resolution
+filters these assembled items and moves their origins and overlap diagnostics to
+the retained positions. Nested list positions remain part of their enclosing item. Grounding checks those
+origins first and still searches all remaining contexts when unsupported. An
+origin identifies where a value was read; the verifier decides whether the
+source supports it. The legacy exact array union and its origin mapping remain
+available to replay captured studies.
 
 ## Pipeline map
 
@@ -88,13 +99,14 @@ the source and builds the prompt and reply schema, and who interprets the answer
 | --- | --- | --- | --- | --- |
 | Article | `document` → fields | [`assembly.document_values`](../src/kei_exp/kie/extract/assembly.py), per source context | [`stages.extract_document`](../src/kei_exp/kie/extract/stages.py): `_instruction` over the document fields, the context's complete text as `text_of` or `rendering.structured_source`, [`schema.json_schema`](../src/kei_exp/kie/extract/schema.py); counted, 2,048 output tokens | `schema.conform`; contexts assembled by `contexts.assemble_document`; listed as `unverified` |
 | Article | `record` → fields | [`article.document_root`](../src/kei_exp/kie/extract/article.py), per value context | [`stages.record_request`](../src/kei_exp/kie/extract/stages.py) under `stages.DOCUMENT`, no identity, over each value context (by default the complete source); counted; the reply may use the served context the input leaves, at least 4,096 tokens | `schema.conform`; contexts assembled by `contexts.assemble_document` |
+| Article | `arbitration` → reasoning | [`resolution.resolve`](../src/kei_exp/kie/extract/resolution.py), when the source is split and at least one part answered | `RESOLUTION` over the document opening, scalar readings and assembled list items with source snippets; labelled choices, packed into counted batches | A chosen scalar or NONE replaces its conflict; lists keep selected occurrences with their original origins. UNSURE, a null list, invalid labels or a failed or raising resolution preserve assembly; failures remain recoverable attempt-local history |
 | Article | `grounding` → reasoning | [`assembly.ground_records`](../src/kei_exp/kie/extract/assembly.py) → `grounding.technique` (default `semantic`), each claim first in the context its value was read from (`routing.verify_routed`) | [`grounding.verify`](../src/kei_exp/kie/extract/grounding.py): `GROUNDING`, `QUOTED_GROUNDING` or `SPAN_GROUNDING`, the record's scalar fields, each claim beside the scalar fields of the list items enclosing it, and complete evidence; per-batch reply schema enumerating eligible labels; counted, 2,048 output tokens, batches split to fit | `grounding.verify` accepts only offered labels (and, when quoted, exact substrings with attribution) as `Link`s; every claim is verified by the model, with exhaustive fallback stopping at support |
 | Generic Catalog | `document` → fields | `assembly.document_values`, one context | `stages.extract_document` over the source clipped to `record_chars` (`text_truncated` when cut) | `schema.conform`; `unverified` |
 | Generic Catalog | `discovery` → reasoning | [`catalog.discover`](../src/kei_exp/kie/extract/catalog.py), per page-aligned chunk of `discovery_chars` | `catalog.DISCOVERY` with its examples, `B`-labelled blocks (`_labelled`), reply schema enumerating the shown labels | `catalog.discover` keeps ordered starts and a final-chunk end, reports ignored labels and numbering anomalies, and cuts record slices |
 | Generic Catalog | `record` → fields | [`catalog.extract`](../src/kei_exp/kie/extract/catalog.py), per slice | [`stages.extract_record`/`stages.record_request`](../src/kei_exp/kie/extract/stages.py): `_instruction` and the slice clipped to `record_chars` | `schema.conform` |
 | Generic Catalog | `grounding` → reasoning | `assembly.ground_records` → `grounding.semantic` | `grounding.verify`: every claim, a value found once in its slice included, goes to `GROUNDING` calls with its field, its sibling fields and the record's fields, under the `record_chars` character budget | as Article |
-| Unified Catalog | `discovery` → reasoning | [`discovery.discover`](../src/kei_exp/kie/extract/discovery.py), per counted window of source lines (`discovery.plan`), which under defaults version 2 never crosses a printed page (`discovery.groups_of`); asked `KEI_CATALOG_CHUNKS` at a time; halved on a cut-off reply or one that is not the requested object (run directly, on any failed call) | `discovery.DISCOVERY`: record description, `L`-labelled window lines between unlabelled context; reply names each record or record-free start by line and printed label, adding its exact text only when it begins mid-line, and whether the window begins and ends inside a record | code places each start at its line's start, or where its text occurs once in the line; windows join only on agreeing continuation flags; the rest stays `unresolved` in the ledger |
-| Unified Catalog | `entry` → fields | [`unified._Run.entry`](../src/kei_exp/kie/extract/unified.py), per counted window of the entry's own lines | `unified.ENTRY` with field notes; the entry text, earlier and later lines of the entry as overlap, record-free lines before it as context; `{value, quote}` candidates, `_item_text` per list object | `unified._Checker`: typed value, quote located in the entry, literal or supporting span (a value in another cell of the quoted table row is literal in its own cell); `unified._merged` joins equal observations and keeps partial list items as proposals |
+| Unified Catalog | `discovery` → reasoning | [`discovery.discover`](../src/kei_exp/kie/extract/discovery.py), per counted window of source lines (`discovery.plan`), which under defaults version 2 never crosses a printed page (`discovery.groups_of`); asked `KEI_CATALOG_CHUNKS` at a time; halved on a cut-off reply or one that is not the requested object (run directly, on any failed call) | `discovery.DISCOVERY`: record description, `L`-labelled window lines, each label naming its line's layout kind (`heading`, `table row`) when ingestion gave one (`discovery.kinds_of`), between unlabelled context; reply names each record or record-free start by line and printed label, adding its exact text only when it begins mid-line, and whether the window begins and ends inside a record | code places each start at its line's start, or where its text occurs once in the line, a `record` and an `other` at one spot being a record start; windows join only on agreeing continuation flags, which then outrank an unlabelled start (`other`, or a record without a located label) or the open record's own printed label on the later window's first line, while another printed label there ends the open record cleanly; inside a window, a record start with the open record's own printed label (one with a letter or digit) directly after its text continues it; the rest stays `unresolved` in the ledger |
+| Unified Catalog | `entry` → fields | [`unified._Run.entry`](../src/kei_exp/kie/extract/unified.py), per counted window of the entry's own lines | `unified.ENTRY` with field notes; the entry text, earlier and later lines of the entry as overlap, record-free lines before it as context; `{value, quote}` candidates, `_item_text` per list object | `unified._Checker`: typed value, quote located in the entry, literal or supporting span (a value in another cell of the quoted table row is literal in its own cell); a list item is where its `_item_text` is located, else the one table row its values name, and its values are looked for there first; `unified._merged` joins equal observations and keeps partial list items as proposals |
 | Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per window's candidates | `unified.VERIFY`: the window's text and labelled candidates; reply `supported`, `unsupported` or `unclear` per label; batches halved on overflow | only `supported` is accepted; anything else stays a proposal or rejection |
 | Unified Catalog | `arbitration` → reasoning | `unified._Run._settle`, per scalar whose accepted values disagree | `unified.ARBITRATION` over every candidate with its snippet, or no call when they do not fit | the chosen candidate, or all left unresolved |
 | Unified Catalog | `document` → fields | `unified._Run.document`, per counted window over every admitted line | `unified.DOCUMENT`: `{value, quote}` candidates for document fields | located in the window; windows reconciled by `contexts.reconcile_values`, conflicts kept; always `unverified` |
@@ -106,7 +118,8 @@ character budgets: its record calls reply within 2,048 tokens, and its other
 calls send no `max_tokens`, so the adapter's 8,192 applies. The unified Catalog
 counts every request too; each stage's input ceiling is the served context minus
 its reply reserve (or the method's custom ceiling), and its reply reserve is
-sent as `max_tokens`.
+sent as `max_tokens`; from defaults 4 an entry call sends the served context its
+counted input leaves instead, the reserve its floor.
 
 Every row above sends its request through the same execution seam,
 [`calls.complete`](../src/kei_exp/kie/extract/calls.py):
@@ -145,9 +158,7 @@ its own.
 Pause and Stop are cooperative. A durable attempt stops at its coordination
 boundaries: the planner checks the attempt's intent before it plans, and a
 capture checks it again, and must be admitted by `begin_call`, before its
-request is sent. A request already in flight finishes first. The `before_entry`
-hooks of `run.extract` and `run.dispatch` stay for callers that pass one; the
-durable planner passes none.
+request is sent. A request already in flight finishes first.
 
 ### The recipe Catalog
 
@@ -198,9 +209,13 @@ reading order. An item equal to one an earlier context returned is joined only
 when the two contexts share source that prints it exactly once
 (`overlap_items_joined`); other equal items stay and are named as
 `possible_repeated_items`. Objects merge field by field, and a disagreeing
-scalar is null with its conflict recorded. Nothing infers that two different
-items are one observation, so more contexts can mean more duplicate or
-contradictory candidates.
+scalar is null with its conflict recorded. From Article version 12, a split
+source's readings are then resolved by the reasoning model: it chooses a
+document value or NONE, or keeps the disagreement with UNSURE, and filters the
+assembled list to the document's own items. Kept occurrences retain their reply
+origins; dropped readings and items stay in issues. A failed resolution retains
+assembly and does not force Pause. Earlier fixed-upstream artifacts replay
+without a resolution call.
 
 Article inventories no identities: the result's `inventory` holds the one
 document identity. A long list is restated item by item, so the root's reply

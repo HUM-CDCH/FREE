@@ -48,6 +48,9 @@ it('enables the owned OCR model only with Docker GPU access', () => {
   assert.deepEqual(parsingGpuComposeArguments({ FREE_GPU: 'off' }, () => {
     assert.fail('Disabled GPU access must skip the probe')
   }), [])
+  assert.deepEqual(parsingGpuComposeArguments({ FREE_GPU: 'shared' }, () => {
+    assert.fail('Shared model servers must skip the probe')
+  }), ['-f', 'compose.use-models.yaml'])
   assert.throws(() => parsingGpuComposeArguments({ FREE_GPU: 'maybe' }), /FREE_GPU must be/)
   const gpu = parsingGpuComposeArguments({}, (command, args, options) => {
     assert.equal(command, 'docker')
@@ -901,4 +904,18 @@ describe('shared nginx behavior rendering', () => {
       'proxy_set_header X-Real-IP $remote_addr;',
     )
   })
+})
+
+
+it('selects the Codex overlay explicitly and never starts the large GPU extraction models with it', () => {
+  const environment = { KEI_EXTRACT_PROVIDER: 'codex-cli', FREE_GPU: 'off' }
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  assert.deepEqual(developmentComposeFiles(profile, environment), [
+    'compose.yaml', 'compose.override.yaml', 'compose.codex.yaml',
+  ])
+  assert.deepEqual(productionComposeFiles(environment), [
+    'compose.yaml', 'compose.prod.yaml', 'compose.codex.yaml',
+  ])
+  assert.deepEqual(parsingGpuComposeArguments(environment, () => assert.fail('GPU probe is disabled')), [])
+  assert.throws(() => parsingGpuComposeArguments({ KEI_EXTRACT_PROVIDER: 'codex-cli' }), /requires FREE_GPU=off/)
 })

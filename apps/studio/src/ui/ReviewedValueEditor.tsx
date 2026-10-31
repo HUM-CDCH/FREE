@@ -11,7 +11,7 @@ const editableText = (value: unknown) =>
   value === null || value === undefined ? '' : Array.isArray(value) ? value.map(String).join(', ') : String(value)
 
 /**
- * The typed editor of a reviewed value (results review redesign §3.5): a select for allowed values and booleans,
+ * The typed editor of a reviewed value: a select for allowed values and booleans,
  * a date or number input by type, text otherwise. Enter saves, Escape cancels; an empty value is refused ("to remove a
  * value, Reject"), and a value the schema refuses keeps editing with its reason.
  */

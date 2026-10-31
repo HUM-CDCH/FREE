@@ -85,7 +85,7 @@ class Model:
         raise AssertionError(system)
 
     def discover(self, user: str) -> dict:
-        lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
+        lines = re.findall(r"^\[(L\d+)(?: heading| table row)?\] (.*)$", section(user, "WINDOW"), re.M)
         places = [[label, kind, printed, *([text[at:at + 12]] if at else [])]
                   for label, text in lines for at, kind, printed in marks(text)]
         first = self.full.find(lines[0][1])
@@ -281,7 +281,7 @@ def test_a_middle_window_continuation_the_next_window_denies_stays_unresolved():
     def denying(user):
         answer = model.discover(user)
         return {**answer, "begins_inside_record": False} if answer["begins_inside_record"] else answer
-    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=520, output_tokens=64)
+    result, _ = extract(source, Model(source, discovery=denying), overlap=0, input_tokens=543, output_tokens=64)
     ends = [entry["end"] for entry in result["discovery"]["entries"]]
     assert "unresolved" in ends and "source_end" not in ends and ends[-1] == "validated"
     assert result["completeness"]["boundaries"] is False and result["complete"] is False
@@ -331,12 +331,316 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     model = Model(source)
 
     def crowded(user):
-        shown = re.findall(r"^\[L\d+\]", section(user, "WINDOW"), re.M)
+        shown = re.findall(r"^\[L\d+", section(user, "WINDOW"), re.M)
         return Reply("{", 50, 4096, "length", 0.0) if len(shown) > 2 else model.discover(user)
     result, _ = extract(source, Model(source, discovery=crowded))
     assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 9)]
     assert result["processing"]["discovery"]["failed"] == 0
     assert any(call["stage"] == "discovery" and not call["ok"] for call in result["calls"])
+
+
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+def test_a_record_continues_across_columns_and_page_furniture(by):
+    source = replace(evidence(""), passages=(
+        passage("p1_s0", "Index: running header", label="PageHeader"),
+        replace(passage("p1_s1", "1. Ort. Body A had"), crop=1),
+        replace(passage("p1_s2", "short hair and"), crop=2),
+        passage("p1_s3", "Index: running footer", label="PageFooter"),
+        passage("p2_s0", "38", label="PageHeader"),  # a page of furniture alone
+        passage("p3_s0", "Index: running header", label="PageHeader"),
+        passage("p3_s1", "Material: Stein."),
+        passage("p3_s2", "Kreis Süd", label="SectionHeader"),
+        passage("p3_s3", "2. Dorf. Material: Holz."),
+    ))
+    model = Model(replace(source, passages=tuple(each for each in source.passages
+                                                 if each.label not in ("PageHeader", "PageFooter"))))
+
+    def ask(record, system, user, schema, calls, issues):
+        assert "running" not in user and "38" not in user
+        return model.discover(user)
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=3, splits=0, by=by)
+    first, second = result["entries"]
+    assert [row["segment"] for row in first["ranges"]] == ["p1_s1", "p1_s2", "p3_s1"] and first["end"] == "validated"
+    assert [row["segment"] for row in second["context"]] == ["p3_s2"]
+    assert {row["segment"] for row in result["ledger"] if row["disposition"] == "other"} == {
+        "p1_s0", "p1_s3", "p2_s0", "p3_s0", "p3_s2"}
+    assert_accounted(source, {"discovery": result})
+
+
+def test_a_window_line_names_its_layout_kind_while_the_reply_names_its_plain_label():
+    source = replace(evidence(""), passages=(
+        passage("p1_s0", "Entry 7", label="SectionHeader"),
+        passage("p1_s1", "Sheet: 2"),
+        passage("p1_s2", "7-1\tCup\n7-2\tBowl", label="Table"),
+    ))
+    asked = []
+
+    def ask(record, system, user, schema, calls, issues):
+        asked.append((system, user, schema))
+        return {"places": [["L1", "record", "7"]], "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "one entry", lambda *_: True, ask, overlap=0, splits=0)
+    [(system, user, schema)] = asked
+    assert section(user, "WINDOW") == \
+        "[L1 heading] Entry 7\n[L2] Sheet: 2\n[L3 table row] 7-1\tCup\n[L4 table row] 7-2\tBowl"
+    assert "layout kind (heading or table row)" in system
+    assert schema["properties"]["places"]["items"]["prefixItems"][0]["enum"] == ["L1", "L2", "L3", "L4"]
+    [entry] = result["entries"]
+    assert entry["label"] == "7" and {row["segment"] for row in entry["ranges"]} == {"p1_s0", "p1_s1", "p1_s2"}
+
+
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+@pytest.mark.parametrize(("place", "flags", "entries"), [
+    (["L1", "other", None], {}, [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]]),
+    (["L1", "record", None], {}, [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]]),
+    (["L1", "record", "Stein"], {}, [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]]),
+    (["L1", "other", None], {"begins_inside_record": False}, [["p1_s0", "p1_s1"], ["p2_s1"]]),
+])
+def test_both_edge_flags_outrank_an_unlabelled_place_at_the_page_top(by, place, flags, entries):
+    source = replace(evidence(""), passages=(
+        replace(passage("p1_s0", "1. Ort. Body A had"), crop=1),
+        replace(passage("p1_s1", "short hair and"), crop=2),
+        passage("p2_s0", "Material: Stein."),
+        passage("p2_s1", "2. Dorf. Material: Holz."),
+    ))
+    model = Model(source)
+
+    def ask(record, system, user, schema, calls, issues):
+        answer = model.discover(user)
+        if not section(user, "WINDOW").startswith("[L1] Material"):
+            return answer
+        assert answer["begins_inside_record"] is True
+        return {**answer, "places": [place, *answer["places"]], **flags}
+
+    def page_top(system, user, schema):  # every mode cuts a window at the page top
+        return not ("hair" in section(user, "WINDOW") and "Stein" in section(user, "WINDOW"))
+    result = discovery.discover(source, "entry", page_top, ask, overlap=3, splits=0, by=by)
+    assert result["windows"][-1]["primary"][0]["segment"] == "p2_s0"
+    assert [[row["segment"] for row in entry["ranges"]] for entry in result["entries"]] == entries
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize("by", ["budget", "page", "column"])
+@pytest.mark.parametrize(("opening", "top", "label", "begins", "entries", "ends"), [
+    # both flags say the record continues and its own label is reprinted at the page top: one record
+    ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", True,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    ("Nr. 1", "NR.  1 (continued). Material: Stein.", "NR.  1", True,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    # another printed label there begins a new record and ends the open one cleanly, a longer label included
+    ("Nr. 1", "Nr. 7 Hof. Material: Stein.", "Nr. 7", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("Nr. 1", "Nr. 11 Hof. Material: Stein.", "Nr. 11", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    # A bare mark may introduce every record; both continuation flags do not give it an identity.
+    ("◆", "◆ Hof. Material: Stein.", "◆", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("•", "• Hof. Material: Stein.", "•", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    ("—", "— Hof. Material: Stein.", "—", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["validated", "validated", "validated"]),
+    # without both flags too, the open record's own label continues it: a record never directly follows itself
+    ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", False,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    ("Nr. 1", "Nr. 1 (continued). Material: Stein.", "Nr. 1", None,
+     [["p1_s0", "p1_s1", "p2_s0"], ["p2_s1"]], ["validated", "validated"]),
+    # without both flags another printed label, and without the open record's own label any, leave it unresolved
+    ("Nr. 1", "Nr. 7 Hof. Material: Stein.", "Nr. 7", False,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
+    (None, "Nr. 7 Hof. Material: Stein.", "Nr. 7", True,
+     [["p1_s0", "p1_s1"], ["p2_s0"], ["p2_s1"]], ["unresolved", "validated", "validated"]),
+])
+def test_both_edge_flags_join_the_open_records_own_label_at_the_page_top_and_close_it_at_another(
+        by, opening, top, label, begins, entries, ends):
+    source = replace(evidence(""), passages=(
+        replace(passage("p1_s0", f"{opening or 'Nr. 1'} Ort. Body A had"), crop=1),
+        replace(passage("p1_s1", "short hair and"), crop=2),
+        passage("p2_s0", top),
+        passage("p2_s1", "Nr. 2 Dorf. Material: Holz."),
+    ))
+
+    def ask(record, system, user, schema, calls, issues):
+        if section(user, "WINDOW").startswith(f"[L1] {opening or 'Nr. 1'} Ort."):
+            return {"places": [["L1", "record", opening]], "begins_inside_record": False, "ends_inside_record": True}
+        if section(user, "WINDOW").startswith("[L1] short hair"):  # the second column, its own window by column
+            return {"places": [], "begins_inside_record": True, "ends_inside_record": True}
+        return {"places": [["L1", "record", label], ["L2", "record", "Nr. 2"]], "begins_inside_record": begins,
+                "ends_inside_record": False}
+
+    def page_top(system, user, schema):  # every mode cuts a window at the page top
+        return not ("hair" in section(user, "WINDOW") and "Stein" in section(user, "WINDOW"))
+    result = discovery.discover(source, "entry", page_top, ask, overlap=3, splits=0, by=by)
+    assert result["windows"][-1]["primary"][0]["segment"] == "p2_s0" and not result["issues"]
+    assert [[row["segment"] for row in entry["ranges"]] for entry in result["entries"]] == entries
+    assert [entry["end"] for entry in result["entries"]] == ends
+    assert_accounted(source, {"discovery": result})
+
+
+def labelled(source: Evidence, result: dict) -> list[tuple[str | None, list[str]]]:
+    """Each discovered entry as its printed label and the text of its lines."""
+    return [(entry["label"], [text(source, row) for row in entry["ranges"]]) for entry in result["entries"]]
+
+
+def one_window(lines: list[str], places: list[list]) -> tuple[Evidence, dict]:
+    """Discovery over one page read as one window whose reply names `places`."""
+    source = evidence("\n".join(lines))
+
+    def ask(record, system, user, schema, calls, issues):
+        return {"places": places, "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0)
+    assert len(result["windows"]) == 1 and all(entry["end"] == "validated" for entry in result["entries"])
+    assert_accounted(source, {"discovery": result})
+    return source, result
+
+
+HEADED = ["Grav 4 ends here.", "Grav 5", "Grav 5 fremstod som en smal nedgravning."]
+
+
+@pytest.mark.parametrize("spot", [
+    # Hvissinge page 11 read without captions (6 of 8 identical requests): the heading tagged both at one spot
+    [["L2", "other", None, "Grav 5"], ["L2", "record", "Grav 5", "Grav 5"]],
+    [["L2", "record", "Grav 5"], ["L2", "other", None]],
+    [["L2", "other", "Grav 5"], ["L2", "record", None]],  # the printed label kept from either
+])
+def test_a_record_and_an_other_place_at_one_spot_begin_a_record_keeping_its_printed_label(spot):
+    source, result = one_window(HEADED, [["L1", "record", "Grav 4"], *spot])
+    assert labelled(source, result) == [("Grav 4", ["Grav 4 ends here."]),
+                                        ("Grav 5", ["Grav 5", "Grav 5 fremstod som en smal nedgravning."])]
+    assert {row["disposition"] for row in result["ledger"]} == {"entry"}
+
+
+def test_a_record_and_an_other_place_at_two_spots_of_one_line_stay_two_places():
+    source, result = one_window(["Grav 4 ends here.", "Plan 2. Grav 5 fremstod som en smal nedgravning."],
+                                [["L1", "record", "Grav 4"], ["L2", "other", None], ["L2", "record", "Grav 5", "Grav 5"]])
+    assert labelled(source, result) == [("Grav 4", ["Grav 4 ends here."]),
+                                        ("Grav 5", ["Grav 5 fremstod som en smal nedgravning."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == ["Plan 2."]
+
+
+RESTART = ["Grav 3", "The boat grave had a stone cover.", "Grav 3 består af mange elementer.", "Grav 4", "Small."]
+
+
+@pytest.mark.parametrize(("label", "between", "entries"), [
+    # Hvissinge page 9 in every run: a paragraph of grave 3 opens with its label ("Grav 3 består af")
+    ("Grav 3", [], [("Grav 3", RESTART[:3]), ("Grav 4", RESTART[3:])]),
+    ("GRAV  3", [], [("Grav 3", RESTART[:3]), ("Grav 4", RESTART[3:])]),
+    # record-free text between them keeps its disposition, and the record goes on after it
+    ("Grav 3", [["L2", "other", None]], [("Grav 3", [RESTART[0], RESTART[2]]), ("Grav 4", RESTART[3:])]),
+])
+def test_a_record_start_with_the_label_of_the_record_just_before_it_continues_that_record(label, between, entries):
+    source, result = one_window(RESTART, [["L1", "record", "Grav 3"], *between, ["L3", "record", label, label],
+                                          ["L4", "record", "Grav 4"]])
+    assert labelled(source, result) == entries
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "other"] == \
+        RESTART[1:2] * bool(between)
+
+
+def test_unresolved_text_between_a_record_and_its_own_label_stays_unresolved():
+    source = evidence("\n".join(RESTART))
+
+    def ask(record, system, user, schema, calls, issues):
+        return {"places": [["L1", "record", "Grav 3"], ["L2", "other", None, "not in the line"],
+                           ["L3", "record", "Grav 3"], ["L4", "record", "Grav 4"]],
+                "begins_inside_record": False, "ends_inside_record": False}
+    result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0)
+    assert labelled(source, result) == [("Grav 3", [RESTART[0], RESTART[2]]), ("Grav 4", RESTART[3:])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "unresolved"] == RESTART[1:2]
+    assert [entry["end"] for entry in result["entries"]] == ["validated", "validated"]
+    assert_accounted(source, {"discovery": result})
+
+
+@pytest.mark.parametrize(("lines", "places", "entries"), [
+    # another printed label begins another record, a longer one that starts alike included
+    (["Grav 3", "Body of three.", "Grav 4", "Body of four."], [["L1", "record", "Grav 3"], ["L3", "record", "Grav 4"]],
+     [("Grav 3", ["Grav 3", "Body of three."]), ("Grav 4", ["Grav 4", "Body of four."])]),
+    (["Grav 3 a", "Grav 31 b"], [["L1", "record", "Grav 3"], ["L2", "record", "Grav 31"]],
+     [("Grav 3", ["Grav 3 a"]), ("Grav 31", ["Grav 31 b"])]),
+    # a missing label never matches, on either side
+    (RESTART, [["L1", "record", None], ["L3", "record", "Grav 3"], ["L4", "record", "Grav 4"]],
+     [(None, RESTART[:2]), ("Grav 3", RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    (RESTART, [["L1", "record", "Grav 3"], ["L3", "record", None], ["L4", "record", "Grav 4"]],
+     [("Grav 3", RESTART[:2]), (None, RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    (RESTART, [["L1", "record", None], ["L3", "record", None], ["L4", "record", "Grav 4"]],
+     [(None, RESTART[:2]), (None, RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    # nor does a bare mark, which every record may carry
+    (["◆ Adorf.", "◆ Bdorf."], [["L1", "record", "◆"], ["L2", "record", "◆"]], [("◆", ["◆ Adorf."]), ("◆", ["◆ Bdorf."])]),
+    # only the record just before it: one between them, unlabelled or with another label, keeps them apart
+    (RESTART, [["L1", "record", "Grav 3"], ["L2", "record", None], ["L3", "record", "Grav 3"], ["L4", "record", "Grav 4"]],
+     [("Grav 3", RESTART[:1]), (None, RESTART[1:2]), ("Grav 3", RESTART[2:3]), ("Grav 4", RESTART[3:])]),
+    # numbering restarted after other records, with or without a heading between the series, stays apart
+    (["Grav 1", "Grav 2", "Anden serie", "Grav 1", "Grav 2"],
+     [["L1", "record", "Grav 1"], ["L2", "record", "Grav 2"], ["L3", "other", None], ["L4", "record", "Grav 1"],
+      ["L5", "record", "Grav 2"]],
+     [("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"]), ("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"])]),
+    (["Grav 1", "Grav 2", "Grav 1", "Grav 2"],
+     [["L1", "record", "Grav 1"], ["L2", "record", "Grav 2"], ["L3", "record", "Grav 1"], ["L4", "record", "Grav 2"]],
+     [("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"]), ("Grav 1", ["Grav 1"]), ("Grav 2", ["Grav 2"])]),
+])
+def test_a_record_start_continues_no_record_but_the_one_just_before_it_with_its_own_named_label(lines, places, entries):
+    source, result = one_window(lines, places)
+    assert labelled(source, result) == entries
+
+
+CONTINUED = ("Grav 3\nThe boat grave had", "a stone cover.\nGrav 3 består af mange elementer.\nGrav 4\nSmall.")
+
+
+@pytest.mark.parametrize("by", ["budget", "page"])
+@pytest.mark.parametrize(("top", "begins", "head"), [
+    # both flags carry grave 3 onto the next page, so the page top is grave 3's text
+    (None, True, "entry"), (["L1", "other", None], True, "entry"), (["L1", "record", None], True, "entry"),
+    # the flags disagree or say nothing (Hvissinge pages 8 to 9 in four runs): the page top stays unresolved, and
+    # grave 3 goes on at its own label after it
+    (None, False, "unresolved"), (None, None, "unresolved"),
+])
+def test_a_record_continues_at_its_own_label_on_the_next_page_whatever_its_page_top(by, top, begins, head):
+    """Hvissinge page 9: grave 3 runs on from page 8, then a paragraph opens with "Grav 3 består af"."""
+    source = evidence(*CONTINUED)
+
+    def ask(record, system, user, schema, calls, issues):
+        if section(user, "WINDOW").startswith("[L1] Grav 3"):
+            return {"places": [["L1", "record", "Grav 3"]], "begins_inside_record": False, "ends_inside_record": True}
+        return {"places": [*([top] if top else []), ["L2", "record", "Grav 3"], ["L3", "record", "Grav 4"]],
+                "begins_inside_record": begins, "ends_inside_record": False}
+
+    def page_top(system, user, schema):  # every mode cuts a window at the page top
+        return not ("had" in section(user, "WINDOW") and "stone" in section(user, "WINDOW"))
+    result = discovery.discover(source, "entry", page_top, ask, overlap=3, splits=0, by=by)
+    assert result["windows"][-1]["primary"][0]["segment"] == "p2_s0" and not result["issues"]
+    top_text = ["a stone cover."] * (head == "entry")
+    assert labelled(source, result) == [
+        ("Grav 3", ["Grav 3", "The boat grave had", *top_text, "Grav 3 består af mange elementer."]),
+        ("Grav 4", ["Grav 4", "Small."])]
+    assert [text(source, row) for row in result["ledger"] if row["disposition"] == "unresolved"] == \
+        ["a stone cover."] * (head == "unresolved")
+    assert [entry["end"] for entry in result["entries"]] == ["validated", "validated"]
+    assert_accounted(source, {"discovery": result})
+
+
+def test_a_read_prefix_lists_a_labelled_entry_once_a_later_record_start_shows_it_is_not_continued():
+    """A record closed by record-free text still goes on at a later start with its own label, so a read prefix holds
+    it back until a later record start with another label is read: every entry it lists is final."""
+    class Unanswered(BaseException):
+        pass
+    pages = ["Grav 3. The boat grave.", "Figures and plates.", "Grav 3 continued: the stones.", "Grav 4. Small.",
+             "Grav 5. Last."]
+    kinds = [("record", "Grav 3"), ("other", None), ("record", "Grav 3"), ("record", "Grav 4"), ("record", "Grav 5")]
+    source = evidence(*pages)
+
+    def read(answered: int) -> dict:
+        def ask(record, system, user, schema, calls, issues):
+            page = next(n for n, text in enumerate(pages) if text in section(user, "WINDOW"))
+            if page >= answered:
+                raise Unanswered()
+            return {"places": [["L1", *kinds[page]]], "begins_inside_record": False, "ends_inside_record": False}
+        return discovery.discover(source, "entry", lambda *_: True, ask, overlap=1, splits=0, by="page", workers=1,
+                                  frontier=True, unanswered=(Unanswered,))
+    whole = read(len(pages))
+    assert whole["complete"] and labelled(source, whole) == [
+        ("Grav 3", ["Grav 3. The boat grave.", "Grav 3 continued: the stones."]), ("Grav 4", ["Grav 4. Small."]),
+        ("Grav 5", ["Grav 5. Last."])]
+    assert [text(source, row) for row in whole["ledger"] if row["disposition"] == "other"] == ["Figures and plates."]
+    for answered, final in ((1, 0), (2, 0), (3, 0), (4, 1)):
+        body = read(answered)
+        assert not body["complete"] and body["entries"] == whole["entries"][:final], answered
 
 
 def test_discovery_windows_group_a_cut_by_its_columns_and_a_native_page_whole():
@@ -381,6 +685,42 @@ def test_once_a_slice_of_discovery_windows_raises_no_later_window_is_asked_and_t
     assert raised.value.args == ("[L1] 1. Ort1.",)
 
 
+def test_a_read_prefix_of_windows_yields_its_final_entries_and_nothing_raised():
+    """Read as a frontier, discovery holds the entries of the windows read so far from the start, each as the whole
+    read will have it; the entry still open at the prefix's end, and a failed window whose halves are unanswered, wait.
+    At most `workers` windows are unanswered at a time."""
+    class Unanswered(BaseException):
+        pass
+    pages = ["1. Adorf. Material: Holz.\n2. Bdorf.", "Material: Stein.\n3. Cdorf. Material: Glas.", "Index Adorf.",
+             "4. Ddorf.\nMaterial: Eisen.", "5. Edorf. Material: Gold."]
+    source = evidence(*pages)
+    model = Model(source)
+
+    def read(answered: int, failed: str | None = None):
+        unanswered = []
+
+        def ask(record, system, user, schema, calls, issues):
+            window = section(user, "WINDOW")
+            page = next(n for n, text in enumerate(pages) if text.split("\n")[0] in window)
+            if window.count("[L") > 1 and failed and failed in window:
+                return None
+            if page >= answered or failed and failed in window:
+                unanswered.append(page)
+                raise Unanswered()
+            return model.discover(user)
+        body = discovery.discover(source, "entry", lambda *_: True, ask, overlap=3, splits=6, by="page", workers=2,
+                                  frontier=True, unanswered=(Unanswered,))
+        assert len(unanswered) <= 2
+        return body
+    whole = read(len(pages))
+    assert whole["complete"] and [entry["label"] for entry in whole["entries"]] == ["1.", "2.", "3.", "4.", "5."]
+    # after page 3's index, entry 3 waits for the next record start, which could continue it with its own label
+    for answered, final in ((0, 0), (1, 1), (2, 2), (3, 2), (4, 3)):
+        body = read(answered)
+        assert not body["complete"] and body["entries"] == whole["entries"][:final], answered
+    assert read(3, failed="Material: Stein.")["entries"] == whole["entries"][:1]  # page 2's halves still unanswered
+
+
 def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     """A place is its line's id, kind and label on one line; start text is copied only for a place inside a line."""
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz. 2. Bdorf. Material: Stein.")
@@ -396,7 +736,7 @@ def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 3
+    assert result["prompt_version"] == unified.PROMPT_VERSION
     assert_accounted(source, result)
 
 
@@ -509,7 +849,7 @@ def test_heading_context_that_does_not_fit_is_left_out_and_reported():
     assert not any("Beschreibung" in call["user"] for call in chat.calls if call["system"].startswith("You extract structured"))
 
 
-def table_passage(rows: list[list[str]]) -> Passage:
+def table_passage(rows: list[list[str]], separator: str = " | ") -> Passage:
     """A table whose rows are lines and whose cells are separated by " | ", every cell with its own box."""
     lines, cells, offset = [], [], 0
     for row, values in enumerate(rows):
@@ -517,9 +857,9 @@ def table_passage(rows: list[list[str]]) -> Passage:
             cells.append(TableCell(cell_id=f"r{row}_c{column}", row=row, column=column, rowspan=1, colspan=1, role=None,
                                    text=value, start=offset, end=offset + len(value),
                                    bbox_pt=(float(column), float(row), column + 1.0, row + 1.0)))
-            offset += len(value) + 3
-        offset += 1 - 3
-        lines.append(" | ".join(values))
+            offset += len(value) + len(separator)
+        offset += 1 - len(separator)
+        lines.append(separator.join(values))
     text = "\n".join(lines)
     table = PageTable(rows=len(rows), columns=max(map(len, rows)), producer="docling", cells=cells)
     return passage("p1_s0", text, label="Table", table=table)
@@ -534,6 +874,112 @@ def test_a_dense_table_gives_one_entry_per_row_and_each_value_its_own_cell():
     assert cells == [f"r{n}_c1" for n in range(5)] and all(
         link["precision"] == "cell" for link in result["evidence"] if link["path"][2] == "material")
     assert_accounted(source, result)
+
+
+PARTS = {"recordDescription": "One numbered entry.", "schemaNodes": [
+    {"id": "parts", "name": "parts", "type": "array", "children": [
+        {"id": "number", "name": "number", "type": "string"},
+        {"id": "description", "name": "description", "type": "string"}]}]}
+
+
+# Its own text, none, or text every row prints: without its own, an item is the row its number is printed in once.
+@pytest.mark.parametrize("item_text", [lambda number: number, lambda number: None,
+                                       lambda number: "Bone fragments, probably tibia"],
+                         ids=["own", "none", "every_row"])
+def test_list_items_locate_repeated_partial_quotes_in_their_own_table_rows(item_text):
+    table = replace(table_passage([["A-1", "Bone fragments, probably tibia", ""],
+                                  ["A-2", "Bone fragments, probably tibia", ""]]), id="p1_s1", index=1)
+    source = replace(evidence("1. Remains A-1 and A-2."), passages=(
+        passage("p1_s0", "1. Remains A-1 and A-2."), table))
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": item_text(number), "number": candidate(number, number),
+                           "description": candidate("Bone fragments, probably tibia", "Bone fragments,")}
+                          for number in ["A-1", "A-2"]]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=PARTS)
+    assert result["records"][0]["parts"] == [
+        {"number": "A-1", "description": "Bone fragments, probably tibia"},
+        {"number": "A-2", "description": "Bone fragments, probably tibia"}]
+    links = [link for link in result["evidence"] if link["path"][-1] == "description"]
+    assert [link["cell"] for link in links] == ["r0_c1", "r1_c1"]
+    assert all(link["precision"] == "cell" and not link["alternatives"] for link in links)
+    numbers = [link for link in result["evidence"] if link["path"][-1] == "number"]
+    assert [link["cell"] for link in numbers] == ["r0_c0", "r1_c0"]
+    assert [link["item"] for link in links] == [link["spans"] for link in numbers]
+
+
+def test_an_item_whose_values_name_different_rows_is_no_row():
+    table = replace(table_passage([["A-1", "Skull", ""], ["A-2", "Tibia", ""]]), id="p1_s1", index=1)
+    source = replace(evidence("1. Remains."), passages=(passage("p1_s0", "1. Remains."), table))
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": None, "number": candidate("A-1", "A-1"),
+                           "description": candidate("Tibia", "Tibia")}]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=PARTS)
+    links = [link for link in result["evidence"] if link["path"][2] == "parts"]
+    assert [link["cell"] for link in links] == ["r0_c0", "r1_c1"]
+    assert all(link["item"] is None for link in links)
+
+
+def test_a_value_also_printed_in_a_merged_cell_names_no_row():
+    plain = table_passage([["A-1", "Tibia"], ["", "Tibia"], ["Note", "A-1"]])
+    cells = [cell.model_copy(update={"rowspan": 2}) if cell.cell_id == "r0_c0" else cell
+             for cell in plain.table.cells if cell.cell_id != "r1_c0"]
+    table = replace(plain, id="p1_s1", index=1, table=plain.table.model_copy(update={"cells": cells}))
+    source = replace(evidence("1. Remains."), passages=(passage("p1_s0", "1. Remains."), table))
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": None, "number": candidate("A-1", "A-1"),
+                           "description": candidate("Tibia", "Tibia")}]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=PARTS)
+    # "A-1" in the cell merged over two rows names none of them, so its other printing names no row either.
+    assert all(link["item"] is None for link in result["evidence"] if link["path"][2] == "parts")
+
+
+def test_a_table_item_value_can_continue_verbatim_into_the_next_page():
+    first = replace(table_passage([["A-1", "Bone fragments,", ""]], "\t"), id="p1_s1", index=1)
+    second = replace(table_passage([["", "probably tibia", ""]], "\t"), id="p2_s0", page=2)
+    source = replace(evidence("1. Remains A-1.", second.text), passages=(
+        passage("p1_s0", "1. Remains A-1."), first, second))
+    schema = {"recordDescription": "One numbered entry.", "schemaNodes": [
+        {"id": "parts", "name": "parts", "type": "array", "children": [
+            {"id": "number", "name": "number", "type": "string"},
+            {"id": "description", "name": "description", "type": "string"}]}]}
+
+    def entry(record, user, reply_schema):
+        return {"parts": [{"_item_text": "A-1", "number": candidate("A-1", "A-1"),
+                           "description": candidate("Bone fragments, probably tibia", "Bone fragments,")}]}
+
+    result, _ = extract(source, Model(source, entry=entry), schema=schema)
+    assert result["records"][0]["parts"][0]["description"] == "Bone fragments, probably tibia"
+    link = next(link for link in result["evidence"] if link["path"][-1] == "description")
+    assert [span["segment"] for span in link["spans"]] == ["p1_s1", "p2_s0"]
+
+
+def test_entry_and_verification_input_preserve_empty_table_cells_across_a_page_break():
+    """Verification checks a candidate against the same aligned table text the extraction read: the tabs of empty
+    cells at either end of a line, and a description continued in its own column on the next page."""
+    first = replace(table_passage([["Number", "Description", "Notes"],
+                                  ["A-1", "Tooth", ""], ["A-2", "Bone fragments,", ""]], "\t"),
+                    id="p1_s1", index=1)
+    second = replace(table_passage([["", "probably tibia", ""],
+                                   ["A-3", "Bone fragments", "Recovered while cleaning"]], "\t"),
+                     id="p2_s0", page=2)
+    source = replace(evidence("1. Remains.", second.text), passages=(
+        passage("p1_s0", "1. Remains."), first, second))
+    _, chat = extract(source)
+    shown = {stage: [section(call["user"], "RECORD") for call in chat.calls if call["system"].startswith(start)]
+             for stage, start in (("entry", "You extract structured data"), ("verification", "You check values"))}
+    for stage, records in shown.items():
+        assert records, stage
+        for record in records:
+            assert first.text in record, stage
+            assert second.text in record, stage
+            assert "\nA-1\tTooth\t\n" in record, stage  # an empty last cell keeps its tab
+            assert "\nA-2\tBone fragments,\t\n\tprobably tibia\t\nA-3\t" in record, stage  # page 2 continues A-2
 
 
 def test_a_value_in_the_quoted_table_row_is_literal_in_its_own_cell():
@@ -618,6 +1064,26 @@ def test_an_unfittable_minimum_request_is_refused():
         extract(source, input_tokens=512, output_tokens=64, schema={**SCHEMA, "recordDescription": "x " * 499})
 
 
+def test_from_defaults_4_an_entry_reply_may_use_the_context_its_input_leaves():
+    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    result, chat = extract(source, defaults=4)
+    entries = [call for call in chat.calls if call["system"].startswith("You extract structured")]
+    assert entries and [call["max_tokens"] for call in entries] == [
+        WordCounter.context_tokens - WordCounter().request_tokens(call["system"], call["user"], call["schema"])
+        for call in entries]
+    assert {call["max_tokens"] for call in chat.calls if call not in entries} <= {4096, 2048, 512}
+    assert result["execution"]["effective"]["entry_reply"] == "context"
+    assert [record["material"] for record in result["records"]] == ["Holz", "Stein"]
+
+
+@pytest.mark.parametrize(("settings", "reply", "effective"), [
+    ({"defaults": 3}, 4096, None), ({"defaults": 4, "output_tokens": 1000}, 1000, "reserve")])
+def test_earlier_defaults_or_an_explicit_reply_keep_the_entry_reply_at_its_reserve(settings, reply, effective):
+    result, chat = extract(evidence("1. Adorf. Material: Holz."), **settings)
+    assert {call["max_tokens"] for call in chat.calls if call["system"].startswith("You extract structured")} == {reply}
+    assert result["execution"]["effective"].get("entry_reply") == effective
+
+
 def test_an_input_ceiling_beyond_the_served_context_is_refused_not_clamped():
     with pytest.raises(unified.BudgetRefused, match="exceed"):
         extract(evidence("1. Adorf."), input_tokens=16_384, output_tokens=64)
@@ -644,6 +1110,82 @@ def test_a_yes_no_value_has_a_supporting_passage_never_a_literal_span():
     result, _ = extract(source)
     (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "gilded"]]
     assert link["support"] == "supporting" and link["verbatim"] is False and link["raw"] == "Gilded"
+
+
+def test_a_list_item_value_printed_in_several_items_is_its_own_items():
+    """Both finds quote their count as "(2)": each count's evidence is in its own item, never the first one's."""
+    source = evidence("1. Adorf. Find: Nadel (2). Find: Ring (2).")
+    result, _ = extract(source)
+    counts = {link["path"][3]: link["spans"][0]["start"] for link in result["evidence"] if link["path"][-1] == "count"}
+    text = source.passages[0].text
+    assert counts == {0: text.index("(2)") + 1, 1: text.rindex("(2)") + 1}
+
+
+def test_an_item_whose_value_is_also_printed_at_a_window_cut_is_kept_whole():
+    """An entry read in two windows: the second window's items quote "(2)", also printed in the rows shown before it.
+    Their counts are their own rows', so no item is taken for one crossing the cut and left a partial proposal."""
+    source = evidence("1. Adorf.\n" + "\n".join(f"Find: F{n} (2)." for n in range(1, 7)))
+    model = Model(source)
+
+    def crowded(system, user, schema):
+        if system.startswith("You extract structured data") and section(user, "RECORD").count("Find:") > 3:
+            return Reply('{"finds": [', 50, 4096, "length", 0.0)
+        return model(system, user, schema)
+    result, _ = extract(source, crowded)
+    assert result["processing"]["entries"]["windows"] > 1
+    assert [item["name"] for item in result["records"][0]["finds"]] == [f"F{n}" for n in range(1, 7)]
+    assert not [item for item in result["proposed"] if item["reason"] == "partial_item"]
+
+
+NOTES = {"recordDescription": "One entry.", "schemaNodes": [
+    {"id": "n", "name": "notes", "type": "string"}, {"id": "s", "name": "site", "type": "string"},
+    {"id": "c", "name": "count", "type": "integer"}]}
+PARAGRAPH = ("The harbour master noted that the north quay had been repainted twice that spring, once in grey and once "
+             "in a pale green that nobody liked; the fishing boats were moved to the outer basin while the paint dried, "
+             "and the ferry kept to its winter timetable, as it did every year until the first week of May.")
+
+
+def noted(notes, site=None, count=None):
+    def answer(record, user, schema):
+        return {"notes": notes, "site": site, "count": count}
+    return answer
+
+
+@pytest.mark.parametrize(("value", "quote"), [
+    (PARAGRAPH, PARAGRAPH.replace("pale ", "")),                                    # a word dropped from the quote
+    (PARAGRAPH.replace("timetable", "timetableasi"), PARAGRAPH.replace("timetable", "timetableasi")),  # a corrupt end
+    (PARAGRAPH.replace("had been", "has been"), PARAGRAPH),                         # the value reworded in its quote
+])
+def test_text_copied_nearly_verbatim_is_the_source_text(value, quote):
+    source = evidence(f"1. Adorf. {PARAGRAPH}")
+    result, _ = extract(source, Model(source, entry=noted(candidate(value, quote))), schema=NOTES)
+    assert result["records"][0]["notes"] == PARAGRAPH
+    (link,) = [link for link in result["evidence"] if link["path"][2] == "notes"]
+    assert link["verbatim"] and link["raw"] == PARAGRAPH
+    assert [issue["path"] for issue in result["issues"] if issue["code"] == "quote_repaired"] == [
+        ["records", 0, "notes"]]
+
+
+@pytest.mark.parametrize(("text", "answer", "reason"), [
+    ("1. Adorf. Fund in Bdorf.", noted(None, site=candidate("Cdorf", "Fund in Cdorf")), "quote_not_in_source"),
+    ("1. Adorf. 26 Stück.", noted(None, count=candidate(27, "27 Stück")), "quote_not_in_source"),
+    (f"1. Adorf. {PARAGRAPH} {PARAGRAPH.replace('pale ', '').replace('winter', 'wintry')}",
+     noted(candidate(PARAGRAPH.replace("pale ", ""), PARAGRAPH.replace("pale ", ""))), "quote_not_in_source"),
+])
+def test_short_numeric_or_ambiguous_text_is_never_repaired(text, answer, reason):
+    """A short value, a number one edit off, and a quote nearly printed in two places stay refused."""
+    source = evidence(text)
+    result, _ = extract(source, Model(source, entry=answer), schema=NOTES)
+    assert [row["reason"] for row in result["rejected"]] == [reason]
+    assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
+
+
+def test_a_document_field_is_never_repaired_since_nothing_verifies_it():
+    source = evidence(f"{PARAGRAPH}\n1. Adorf. Material: Holz.")
+    near = PARAGRAPH.replace("pale ", "")
+    result, _ = extract(source, Model(source, document=lambda text: {"title": candidate(near, near)}))
+    assert result["records"][0]["title"] is None
+    assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
 
 
 def test_verification_decides_acceptance_and_off_leaves_proposals():
@@ -878,6 +1420,128 @@ def test_a_transient_backend_error_ends_the_extraction_for_the_step_retry():
 
 # --- options, records and recovery ---------------------------------------------------------------------------------
 
+
+@pytest.mark.parametrize("recovery_ok", [True, False])
+@pytest.mark.parametrize("internal", [True, False])
+def test_looping_entry_gets_one_bounded_retry_and_keeps_both_calls(monkeypatch, recovery_ok, internal):
+    from json import dumps
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+
+    source = evidence("1. Hill.", "2. Valley.")
+    schema = {"recordDescription": "One numbered place.", "schemaNodes": [
+        {"id": "site", "name": "site", "type": "string"}]}
+    def entry(record, *_):
+        site = record.split()[1].rstrip(".")
+        return {"site": candidate(site, site)}
+    model = Model(source, entry=entry)
+    counter, posted = WordCounter(), []
+    loop = '{"site":{"value":' + " \r" * 100 + ('"quote":' if internal else "")
+    schemas = {}
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
+
+    def post(url, *, json, **kwargs):
+        posted.append(json)
+        system, user = [message["content"] for message in json["messages"]]
+        bounded = "structured_outputs" in json
+        if not bounded:
+            schemas[system] = json["response_format"]["json_schema"]["schema"]
+        is_loop = system.startswith("You extract structured data from one record") and "1. Hill." in section(user, "RECORD")
+        failed = is_loop and (not bounded or not recovery_ok)
+        text = loop if failed else dumps(model(system, user, schemas[system]))
+        return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length" if failed else "stop"}],
+            "usage": {"prompt_tokens": counter.request_tokens(system, user), "completion_tokens": json["max_tokens"] if failed else 20}})
+
+    monkeypatch.setattr(llm.requests, "post", post)
+    result = unified.extract(None, source, request(schema), as_router(llm.OpenAIChat(model="fake/extractor")), counter=counter)
+    entry_calls = [call for call in result["calls"] if call["stage"] == "entry"]
+    assert [(call["ok"], call["recovered"]) for call in entry_calls] == [
+        (False, recovery_ok), (recovery_ok, False), (True, False)]
+    assert result["completeness"]["processing"] is recovery_ok
+    assert result["records"] == [{"site": "Hill" if recovery_ok else None}, {"site": "Valley"}]
+    entry_requests = [body for body in posted if body["messages"][0]["content"].startswith("You extract structured data from one record")]
+    assert len(entry_requests) == 3
+    assert entry_requests[1]["structured_outputs"] == {"grammar": "GRAMMAR 16"}
+    assert "response_format" not in entry_requests[1]
+    assert entry_requests[1]["messages"] == entry_requests[0]["messages"]
+    assert entry_requests[1]["max_tokens"] == entry_requests[0]["max_tokens"] == 4096
+    assert "response_format" in entry_requests[2]
+
+
+@pytest.mark.parametrize("stage, text", [
+    ("entry", '{"site":"cut'),
+    ("discovery", '{"places":' + " " * 100),
+    ("document", '{"title":' + " " * 100),
+])
+def test_only_an_entry_whitespace_loop_gets_a_recovery(monkeypatch, stage, text):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        posted.append(kwargs["json"])
+        return response(200, {"choices": [{"message": {"content": text}, "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    monkeypatch.setattr(llm.requests, "post", post)
+    budget = unified._Budget(as_router(llm.OpenAIChat()), dict.fromkeys(("fields", "reasoning"), WordCounter()),
+                             {stage: {"output_tokens": 4096}})
+    calls, issues = [], []
+    assert budget.ask(stage, 0, "Read", "Source", {"type": "object"}, calls, issues) is None
+    assert len(posted) == len(calls) == 1 and not calls[0].recovered
+
+
+@pytest.mark.parametrize("status", [400, 503])
+def test_recovery_refusal_preserves_the_first_call_or_propagates_a_transient_error(monkeypatch, status):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        body = kwargs["json"]
+        posted.append(body)
+        if "structured_outputs" in body:
+            refused = requests.Response()
+            refused.status_code, refused._content = status, b'{"error":"grammar refused"}'
+            return refused
+        return response(200, {"choices": [{"message": {"content": '{"site":' + " " * 100},
+                                           "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    monkeypatch.setattr(llm.requests, "post", post)
+    monkeypatch.setattr(llm, "bounded_grammar", lambda *_: "GRAMMAR")
+    budget = unified._Budget(as_router(llm.OpenAIChat()), {"fields": WordCounter()},
+                             {"entry": {"output_tokens": 4096}})
+    calls, issues = [], []
+    if status == 503:
+        with pytest.raises(requests.HTTPError):
+            budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues)
+    else:
+        assert budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues) is None
+        assert len(calls) == 2 and calls[1].error == "HTTPError: HTTP 400"
+        assert all(not call.ok and not call.recovered for call in calls)
+    assert len(posted) == 2
+
+
+@pytest.mark.parametrize("mode", ["bounded", "prompt-only"])
+def test_an_already_bounded_or_prompt_only_entry_is_not_recovered(monkeypatch, mode):
+    from kei_exp.kie.extract import llm
+    from tests.test_extract_llm import response
+    posted = []
+    def post(url, **kwargs):
+        body = kwargs["json"]
+        posted.append(body)
+        if mode == "prompt-only" and "response_format" in body:
+            return response(400, text="response_format json_schema is not supported")
+        return response(200, {"choices": [{"message": {"content": '{"site":' + " " * 100},
+                                           "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 10, "completion_tokens": 4096}})
+    monkeypatch.setattr(llm.requests, "post", post)
+    monkeypatch.setattr(llm, "bounded_grammar", lambda *_: "GRAMMAR")
+    chat = llm.OpenAIChat(max_whitespace=16 if mode == "bounded" else None)
+    budget = unified._Budget(as_router(chat), {"fields": WordCounter()},
+                             {"entry": {"output_tokens": 4096}})
+    calls, issues = [], []
+    assert budget.ask("entry", 0, "Read", "Source", {"type": "object"}, calls, issues) is None
+    assert len(posted) == len(calls) == (1 if mode == "bounded" else 2)
+    assert all(not call.recovered for call in calls)
+
 def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
     with pytest.raises(ValueError, match="character limits"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
@@ -946,20 +1610,6 @@ def test_entries_run_concurrently_assemble_in_source_order():
     assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 9)]
 
 
-def test_cancellation_is_observed_before_each_call():
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    checks = []
-
-    def check():
-        checks.append(1)
-        if len(checks) > 3:
-            raise KeyboardInterrupt  # stands in for the worker's cancellation
-    with pytest.raises(KeyboardInterrupt):
-        unified.extract(None, source, request(), as_router(CountingChat(Model(source))), counter=WordCounter(),
-                        before_entry=check)
-    assert len(checks) == 4
-
-
 def test_the_unified_modules_know_no_recipe():
     for module in (unified, discovery):
         imported = {line.split()[1] for line in open(module.__file__, encoding="utf-8")
@@ -1015,3 +1665,22 @@ def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_f
     seen = [_Seen(window, True, [(0, 0, "record", "1"), (1, 3, "other", None), (1, 4, "record", None)]),
             _Seen(window, False, [])]
     assert record_starts(seen) == [{"segment": "p1_s0", "label": "1"}, {"segment": "p1_s1", "label": None}]
+
+
+def test_a_continued_record_with_gaps_keeps_values_and_source_links_in_its_own_ranges():
+    source = evidence("1. Adorf. Material: Bronze.\nIndex Adorf.\n1. Adorf. Gilded.\n"
+                      "2. Bdorf. Material: Eisen.")
+    result, _ = extract(source)
+    assert len(result["records"]) == 2
+    assert result["records"][0]["material"] == "Bronze"
+    assert result["records"][0]["gilded"] is True
+    owned = result["discovery"]["entries"][0]["ranges"]
+    assert len(owned) == 2 and {row["segment"] for row in owned} == {"p1_s0"}
+    assert [text(source, row) for row in owned] == ["1. Adorf. Material: Bronze.", "1. Adorf. Gilded."]
+    assert_accounted(source, result)
+    for field, raw in (("material", "Bronze"), ("gilded", "Gilded")):
+        links = [link for link in result["evidence"] if link["path"] == ["records", 0, field]]
+        assert len(links) == 1
+        assert links[0]["raw"] == raw
+        start = source.passages[0].text.index(raw)
+        assert links[0]["spans"] == [{"segment": "p1_s0", "start": start, "end": start + len(raw)}]

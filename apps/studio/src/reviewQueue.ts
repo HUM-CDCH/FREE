@@ -1,6 +1,6 @@
 import { isDecidable, type RailModel, type RailRow } from './reviewVocabulary'
 
-/** One value of the one-by-one queue (results review redesign §4.2). */
+/** One value of the one-by-one queue. */
 export type QueueItem = { key: string; record: number; row: RailRow }
 
 /**
@@ -40,7 +40,7 @@ export function previousInRecord(queue: readonly QueueItem[], current: string): 
   return inRecord[(position - 1 + inRecord.length) % inRecord.length]!.key
 }
 
-/** Where the current value stands: "Record {i} of {m} · {j} of {k} in this record" (§4.2). */
+/** Where the current value stands: "Record {i} of {m} · {j} of {k} in this record". */
 export function queuePosition(queue: readonly QueueItem[], current: string) {
   const item = queue.find((each) => each.key === current)
   if (!item) return null

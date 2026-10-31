@@ -504,6 +504,17 @@ describe('files', () => {
     ).toEqual(files.map((entry) => entry.relative).sort())
   })
 
+  it("keeps a failed upload's file for Retry while its history lasts, and removes it once that history is gone", () => {
+    const [refused, crashed, published, dismissed] = [uuid('a'), uuid('b'), uuid('c'), uuid('d')]
+    const id = (attempt: string) => `ingest:${PROJECT}:${attempt}`
+    const files = [refused, crashed, published, dismissed].map((attempt) => file(`${attempt}.pdf`, OLD, id(attempt)))
+    expect(staged(files, [
+      row(id(refused), 'SUCCESS', { output: { ok: false, code: 'source_ingestion_failed', message: 'x' } }),
+      row(id(crashed), 'ERROR'),
+      row(id(published), 'SUCCESS', { output: { ok: true } }),
+    ])).toEqual([`${PROJECT}/${dismissed}.pdf`, `${PROJECT}/${published}.pdf`].sort())
+  })
+
   it('keeps a file whose attempt is live, whose kei child is live, or that is younger than 24 h', () => {
     const [recovered, reading, young] = [uuid('a'), uuid('b'), uuid('c')]
     expect(

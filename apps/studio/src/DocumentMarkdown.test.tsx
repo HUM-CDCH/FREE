@@ -4,7 +4,6 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import DocumentMarkdown from './DocumentMarkdown'
-import MarkPopover from './MarkPopover'
 
 afterEach(cleanup)
 
@@ -15,14 +14,28 @@ const document = { evidence_index: { anchors: [{ kind: 'text', anchor_id: 'a1', 
 const key = JSON.stringify(['records', 0, 'orientation'])
 const describe_ = new Map([[key, { name: 'orientation', value: 'NE–SW', word: null, style: 'link' as const, anchorId: 'a1' }]])
 
-describe('the Markdown view (results review redesign §7.4)', () => {
+describe('the Markdown view', () => {
   it('marks a value at its anchor\'s byte span, past multi-byte text, and selects it', () => {
     const onSelect = vi.fn()
     render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: key, onSelect }} />)
     const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
     expect(mark).toHaveTextContent(/^NE–SW$/)
     expect(mark).toHaveAttribute('aria-current', 'true')
+    expect(mark).toHaveAttribute('data-evidence-anchor-id', 'a1')
     expect(screen.getByLabelText('Parsed Markdown')).toHaveTextContent('# Unit 7 Café wall: NE–SW aligned.')
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([key], mark)
+  })
+
+  it('marks a record start discovery found without selecting it, and a passage it shares with a value selects the value', () => {
+    const onSelect = vi.fn()
+    const found = { key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: 'a1' } }
+    const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect, savedLinks: [found] }} />)
+    expect(screen.getByText('NE–SW')).toHaveClass('evidence-mark')
+    expect(screen.queryByRole('button')).toBeNull()
+    const value = { key, link: { resultPath: ['records', 0, 'orientation'], evidenceAnchorId: 'a1' } }
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect, savedLinks: [value, found] }} />)
+    const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
     fireEvent.click(mark)
     expect(onSelect).toHaveBeenCalledWith([key], mark)
   })
@@ -33,22 +46,42 @@ describe('the Markdown view (results review redesign §7.4)', () => {
   })
 })
 
-describe('the values in one passage (§7.2)', () => {
-  it('lists them; choosing one selects it; Escape closes and returns focus to the mark', () => {
-    const mark = window.document.createElement('button')
-    window.document.body.append(mark)
+describe('the values in one passage', () => {
+  it('names a value once when its model and correction Evidence share the passage, lit while one of its parts is chosen', () => {
+    const edited = { name: 'orientation', value: 'N–S', word: 'Edited', style: 'link' as const, anchorId: 'a1' }
+    const link = { resultPath: ['records', 0, 'orientation'], evidenceAnchorId: 'a1' }
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: new Map([['v', edited], ['v#correction', edited]]),
+      selected: 'v#["records",0,"orientation","x"]', onSelect: vi.fn(), savedLinks: [{ key: 'v', link }, { key: 'v#correction', link, occurrenceIds: ['o1'] }] }} />)
+    expect(screen.getByRole('button', { name: 'orientation: N–S, Edited' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('names two values that read alike in one passage, from two records, twice', () => {
+    const harlow = { name: 'place', value: 'Harlow', word: null, style: 'link' as const, anchorId: 'a1' }
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: new Map([['v', harlow], ['w', harlow]]), selected: null, onSelect: vi.fn() }} />)
+    expect(screen.getByRole('button', { name: 'place: Harlow; place: Harlow' })).toBeInTheDocument()
+  })
+
+  it('selects all linked fields directly from their shared mark', () => {
     const two = new Map([...describe_, [JSON.stringify(['records', 0, 'site']), { name: 'site', value: 'Elmbrooke', word: null, style: 'link' as const, anchorId: 'a1' }]])
-    const onChoose = vi.fn()
-    const onClose = vi.fn()
-    const { unmount } = render(<MarkPopover keys={[...two.keys()]} describe={two} mark={mark} onChoose={onChoose} onClose={onClose} />)
-    const dialog = screen.getByRole('dialog', { name: 'Values in this passage' })
-    expect(window.document.activeElement).toBe(screen.getByRole('button', { name: 'orientation · NE–SW' }))
-    fireEvent.click(screen.getByRole('button', { name: 'site · Elmbrooke' }))
-    expect(onChoose).toHaveBeenCalledWith(JSON.stringify(['records', 0, 'site']))
-    fireEvent.keyDown(dialog, { key: 'Escape' })
-    expect(onClose).toHaveBeenCalled()
-    unmount()
-    expect(window.document.activeElement).toBe(mark)
+    const onSelect = vi.fn()
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: two, selected: null, onSelect }} />)
+    const mark = screen.getByRole('button', { name: 'orientation: NE–SW; site: Elmbrooke' })
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([...two.keys()], mark)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('names its values under the pointer, and is lit while one of them is hovered in Results', () => {
+    const onHover = vi.fn()
+    const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect: vi.fn(), onHover }} />)
+    const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
+    expect(mark).not.toHaveClass('hovered')
+    fireEvent.mouseEnter(mark)
+    expect(onHover).toHaveBeenLastCalledWith([key])
+    fireEvent.mouseLeave(mark)
+    expect(onHover).toHaveBeenLastCalledWith(null)
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect: vi.fn(), onHover, hovered: [key] }} />)
+    expect(mark).toHaveClass('hovered')
   })
 })
 

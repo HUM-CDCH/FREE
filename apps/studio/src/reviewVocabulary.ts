@@ -1,4 +1,5 @@
 import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { SchemaNode } from 'extraction/schema'
 
 /** A researcher's decision on a value, as the rail shows it. */
 export type ReviewAction = 'APPROVED' | 'EDITED' | 'REJECTED'
@@ -13,7 +14,7 @@ export type RowDecision = Readonly<{
   reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
 }>
 
-/** A row's state (results review redesign §1): the researcher's decision on a saved value, or why another value is
+/** A row's state: the researcher's decision on a saved value, or why another value is
  *  not reviewable. */
 export type RowKind =
   | 'to-check' | 'approved' | 'edited' | 'rejected'
@@ -35,11 +36,13 @@ export type RailRow = {
   /** The decision a To check, approved, edited or rejected row carries. */
   decision: RowDecision | null
   chip: { text: string; style: ChipStyle } | null
-  /** A not reviewable value's label and detail (§1). */
+  /** A not reviewable value's label and detail. */
   evidence: { label: string; detail: string } | null
   doubt: string | null
-  /** The run-time decision was not kept at settlement (§5.3). */
+  /** The run-time decision was not kept at settlement. */
   changed: boolean
+  /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
+  disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
   page: number | null
   /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
   retained?: { reviewable: boolean; source?: string; attribution?: string }
@@ -84,10 +87,26 @@ export const shownValue = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'No value'
     : typeof value === 'object' ? JSON.stringify(value) : String(value)
 
+/** A compact label for a composite value, with the full value in its expansion. */
+export function reviewedValueSummary(node: SchemaNode | null, value: unknown): string {
+  if (Array.isArray(value)) return `${value.length} ${value.length === 1 ? 'item' : 'items'}`
+  if (node?.type === 'object' && value && typeof value === 'object') {
+    const fields = value as Record<string, unknown>
+    return node.children.map(child => `${child.name}: ${reviewedValueSummary(child, fields[child.name])}`).join(' · ')
+  }
+  return shownValue(value)
+}
+
+export function rowText(row: Pick<RailRow, 'value' | 'disagreement'>): string {
+  const root = row.disagreement?.find(entry => entry.part === '')
+  return root && (row.value === null || row.value === undefined)
+    ? root.alternatives.map(alternative => shownValue(alternative.value)).join(' or ') : shownValue(row.value)
+}
+
 export const isDecidable = (kind: RowKind) => kind === 'to-check' || kind === 'approved' || kind === 'edited' || kind === 'rejected'
 export const isNotReviewable = (kind: RowKind) => kind === 'not-reviewable' || kind === 'missing' || kind === 'contested'
 
-/** The rail's value filters (§2.3). */
+/** The rail's value filters. */
 export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>

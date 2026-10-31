@@ -6,6 +6,7 @@ provider request preserves outputs across the coordination/DBOS ack gap.
 from __future__ import annotations
 
 from dataclasses import asdict
+from time import monotonic
 
 from dbos import DBOS, SetWorkflowID, WorkflowSerializationFormat
 
@@ -13,14 +14,15 @@ from kei_exp.kie.extract.discovery import StreamedPlaces
 
 from kei_exp import runs
 from kei_exp.kie.extract import calls
+from kei_exp.kie.extract import tokens
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall
-from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat
+from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat, composed_order
 from kei_exp.kie.extract.gliformer import GLiFormerFields
 from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.unified import UnifiedOptions
-from kei_exp.kie.extract.models import EXTRACT_MODELS, Router, routes
+from kei_exp.kie.extract.models import Router, resolve, routes
 from kei_exp.kie.extract.run import ExtractRequest, dispatch, Options
 from kei_exp.kie.passages import load
 from kei_exp.workflows import config
@@ -95,6 +97,10 @@ def chat_for(provider):
     if provider["adapter"]=="gliformer":
         return GLiFormerFields(url=provider["url"],model=provider["model"],timeout=provider["timeout"],
                               pinned_info=provider["nativeInfo"])
+    if provider["adapter"] == "codex-cli":
+        from kei_exp.kie.extract.codex import CodexChat
+        return CodexChat(model=provider["model"], url=provider["url"], timeout=provider["timeout"],
+                         max_tokens=provider["maxTokens"])
     kind = {"instruct": OpenAIChat, "nuextract": NuExtractChat}.get(provider["adapter"])
     if kind is None:
         raise ValueError("unsupported durable fields adapter")
@@ -121,7 +127,7 @@ def effective(lease):
     request = ExtractRequest.model_validate({"schema": selected["schemaTree"], "options": options})
     models = {}
     for role, key in routes(request.options).items():
-        model = EXTRACT_MODELS[key]
+        model = resolve(key)
         client = model.chat()
         # Deployment endpoints only; no researcher keys/headers reach storage.
         from urllib.parse import urlsplit
@@ -145,12 +151,24 @@ def effective(lease):
 
 
 class PinnedCounter:
-    def __init__(self, budget):
+    def __init__(self, budget, *, upper_bound=False):
         self.context_tokens = budget["context"]
         self.counted = budget["counted"]
+        self.upper_bound = upper_bound
 
     def request_tokens(self, *_):
         return self.counted
+
+
+def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call], *, upper_bound: bool = False) -> bool:
+    """A call the server counted otherwise than its planning did: the attempt's kept /tokenize counts may be stale (a
+    redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped.
+    An upper bound (Codex) is computed, never served, so it cannot be stale and differs from usage by design."""
+    if not upper_bound and any(call.counted_input_tokens is not None and call.input_tokens is not None
+           and call.input_tokens != call.counted_input_tokens for call in attempts):
+        tokens.forget(f"{extraction}/{attempt}")
+        return True
+    return False
 
 
 @DBOS.step(name="invokeExtractionCaptureV1")
@@ -169,25 +187,30 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
         if request["composer"] != 1:
             raise ValueError("unsupported captured composer")
         client = chat_for(request["provider"])
-        body = dict(request["body"])
+        body = composed_order(request["body"])
         native=body.pop("kind",None)=="native"
         http_request=body.pop("httpRequest",None)
         if not native:
             body.pop("max_whitespace",None)
             if http_request is None:
                 raise ValueError("capture lacks the exact HTTP request")
-            # Discovery's reply is streamed so the records it finds show while it is generated (transport only: the
-            # saved request is sent unchanged, and the call is read and saved as an unstreamed one).
+            # Discovery streams progress; NuExtract entries stream for the transport guard. The saved request
+            # stays unchanged apart from stream and usage options.
             shown=Shown() if body["stage"]=="discovery" else None
-            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None)
+            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None,
+                                stage=body["stage"])
         if not lease.call("begin_call", capture):
             return {"ok": True, "boundary": True}
+        started = monotonic()
         try:
             if native:
                 parsed,call=calls.structure(client,**body)
                 attempts=[call]
             else:
-                parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"]))
+                counter = PinnedCounter(request["budget"],
+                    upper_bound=request.get("tokenizer", {}).get("input_counting") == "upper_bound")
+                parsed, attempts = calls.complete(client, **body, counter=counter)
+                drop_stale_counts(extraction, attempt, attempts, upper_bound=counter.upper_bound)
                 if shown:
                     shown.done()
             output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
@@ -195,8 +218,17 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             output={"formatRefused":True,"parsed":None,"calls":[asdict(calls.Call(body["stage"],body["record"],None,None,
               0.0,None,False,"structured output format refused",recovered=True))]}
         except Exception as error:
-            lease.call("fail_call", capture)
-            return {"ok": False, "reason": type(error).__name__}
+            if (not native and body.get("stage") == "arbitration"
+                    and lease.state["selection"]["resolved"]["options"].get("strategy") == "article"):
+                # Optional resolution keeps assembly after transport failures too. Commit only the
+                # exception type; the fenced routine owns recovery and persistence failures still halt.
+                budget = request["budget"]
+                output = {"parsed": None, "calls": [asdict(calls.Call(body["stage"], body["record"], None, None,
+                    monotonic() - started, None, False, f"provider call raised {type(error).__name__}",
+                    budget["counted"], budget["context"], body["max_tokens"]))]}
+            else:
+                lease.call("fail_call", capture)
+                return {"ok": False, "reason": type(error).__name__}
         # A transient commit failure retains the returned output in this native
         # step and retries persistence. It must never present it as already saved.
         from time import sleep
@@ -243,11 +275,12 @@ def plan_next(extraction: str, attempt: str) -> dict:
         if not evidence.passages:
             return {"historicalOnly":True}
         try:
-            result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
+            with tokens.counting(f"{extraction}/{attempt}"):  # each round replays the earlier rounds' counts
+                result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
         except NeedsCall:
             if planner.discovery is not None:
                 show("discovery", discovery_event(planner.discovery))
-            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
+            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles}
         except Boundary:
             return {"boundary": True}
         return {"result": result, "scopes": planner.scopes}
@@ -255,11 +288,21 @@ def plan_next(extraction: str, attempt: str) -> dict:
 
 @DBOS.step(name="acknowledgeExtractionV1")
 def acknowledge(extraction: str, attempt: str, complete: bool, failure: dict | None):
+    tokens.forget(f"{extraction}/{attempt}")
     saved = coordinator().call("read_attempt_outcome", extraction, attempt)
     if saved is not None:
         return saved
     with Lease(coordinator(), extraction, attempt) as lease:
         return lease.call("acknowledge", complete, failure)
+
+
+@DBOS.step(name="settledExtractionCallsV1")
+def settled(workflow_ids: list[str]) -> dict:
+    """The listed call workflows that have ended, each with whether planning may go on after it: not after a call that
+    failed (it paused the attempt) or a call workflow that did not return."""
+    return {status.workflow_id: status.status == "SUCCESS" and bool((status.output or {}).get("ok"))
+            for status in DBOS.list_workflows(workflow_ids=workflow_ids, load_input=False)
+            if status.status not in ("PENDING", "ENQUEUED", "DELAYED")}
 
 
 @DBOS.workflow(name="extractDurableV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
@@ -268,41 +311,65 @@ def extract_workflow(request: dict) -> dict:
     if set(request) != {"protocol", "extraction_id", "attempt_id"} or request["protocol"] != 1:
         return {"ok": False, "reason": "invalid durable attempt"}
     extraction, attempt = request["extraction_id"], request["attempt_id"]
+    # Pre-patch attempts have ended. Consume an existing marker on replay without adding one to new attempts.
+    DBOS.deprecate_patch("extract-wait-first")
+    # Each call runs as soon as it is planned, up to CATALOG_CHUNKS per role at once, and the attempt is planned again
+    # as soon as one ends: a slow call holds up no other. Nothing is acknowledged while a call it started still runs,
+    # so a Pause or a failure keeps every output already admitted.
+    running: dict = {}  # capture -> (role, handle), in start order
+    ended: set[str] = set()
+
+    def wait() -> bool:
+        """Until a running call ends; whether every call that ended meanwhile lets planning go on."""
+        DBOS.wait_first([handle for _, handle in running.values()], polling_interval_sec=0.2)
+        outcomes = settled([handle.workflow_id for _, handle in running.values()])
+        ok = True
+        for capture, (_, handle) in list(running.items()):
+            if handle.workflow_id in outcomes:
+                ok = ok and outcomes[handle.workflow_id]
+                ended.add(capture)
+                del running[capture]
+        return ok
+
+    def stop(complete: bool, failure: dict | None, compile_saved: bool = True) -> dict:
+        while running:
+            wait()
+        if compile_saved:  # the drained calls' outputs, compiled while admission is halted
+            try:
+                plan_next(extraction, attempt)
+            except Exception:
+                pass
+        return {"status": acknowledge(extraction, attempt, complete, failure)}
     while True:
         try:
             work = plan_next(extraction, attempt)
         except Exception as error:
-            return {"status": acknowledge(extraction, attempt, False, {"code": type(error).__name__})}
+            return stop(False, {"code": type(error).__name__}, compile_saved=False)
         if work.get("boundary"):
-            return {"status": acknowledge(extraction, attempt, False, None)}
+            return stop(False, None, compile_saved=bool(running))
         if work.get("historicalOnly"):
             publish_result(extraction, attempt, {"records": [], "completeness": {"processing": True}}, {})
             return {"status": acknowledge(extraction,attempt,True,None)}
         if "result" in work:
-            # Result validation/publication is completed by the retained-result
-            # producer before a complete acknowledgement (see publish_result).
+            while running:
+                wait()
             publish_result(extraction, attempt, work["result"], work["scopes"])
             from kei_exp.kie.extract.retained import processing_complete
             processing = processing_complete(work["result"])
             return {"status": acknowledge(extraction, attempt,processing,None if processing else {"code":"incomplete_processing"})}
-        handles = []
         for capture in work["pending"]:
-            with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
-                handles.append(DBOS.start_workflow(call_workflow,extraction,attempt,capture))
-        outcomes = []
-        for handle in handles:
-            try:
-                outcomes.append(handle.get_result())
-            except Exception:
-                outcomes.append({"ok": False, "reason": "capture_failed"})
-        if any(not item["ok"] for item in outcomes):
-            # Compile committed responses while admission is halted, so successful
-            # siblings remain visible even when a later native call failed.
-            try:
-                plan_next(extraction,attempt)
-            except Exception:
-                pass
-            return {"status": acknowledge(extraction, attempt, False, {"code": "capture_failed"})}
+            role = work["roles"][capture]
+            if capture in running:
+                continue
+            if capture in ended:  # its call ended without saving an output: planning it again would never end
+                return stop(False, {"code": "capture_replanned"})
+            if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
+                with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
+                    running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture))
+        if not running:  # a method that yields must have planned a call
+            return stop(False, {"code": "nothing_planned"}, compile_saved=False)
+        if not wait():
+            return stop(False, {"code": "capture_failed"})
 
 
 @DBOS.step(name="publishExtractionResultV1")

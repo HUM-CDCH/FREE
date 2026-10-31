@@ -35,6 +35,12 @@ const register = {
 }
 const instruction = 'Create one record per grave with grave number, orientation, and length in metres.'
 
+function fieldNames(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(fieldNames)
+  if (typeof value !== 'object' || value === null) return []
+  return Object.entries(value).flatMap(([name, child]) => name === '_description' ? [] : [name, ...fieldNames(child)])
+}
+
 function liveVllmTarget(): GeneralExecutionTarget {
   return {
     profile: 'general',
@@ -67,7 +73,10 @@ describe.skipIf(!LIVE)('bounded live vLLM Schema Suggestion profile', () => {
       temperatureSupported: true,
     }
     const result = await generateSchemaWithModel(CALLER, { document: register, instruction }, target)
-    expect(result.template._description).toEqual(expect.any(String))
-    expect(JSON.stringify(result.template)).toMatch(/grave/i)
+    expect(result.template._description).toMatch(/grave/i)
+    const fields = fieldNames(result.template).join(' ')
+    expect(fields).toMatch(/number|grave.?id|grave.?no/i)
+    expect(fields).toMatch(/orientation/i)
+    expect(fields).toMatch(/length/i)
   })
 })

@@ -75,6 +75,11 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     if source.get("pdf"):
         checked(source["pdf"])
     expected = read(directory / "result.json")["artifact"]
+    # Version 13 sizes and counts list parts and drops repeats of OTHER items unlike version 12, versions 14 and 15
+    # ask and decide list items unlike the earlier ones, so none's requests and records can be reproduced.
+    if expected.get("article_version") in (12, 13, 14):
+        raise ValueError(f"Article version {expected['article_version']} resolution cannot be replayed by version 15; "
+                         "run the cell again")
     if expected["schema"] != read(checked(source["schema"])):
         raise ValueError("parent schema differs from source pin")
     evidence = load(Path(source["run"]))
@@ -101,8 +106,10 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     issues += [Issue("conflicting_document_values", json.dumps(item, ensure_ascii=False)) for item in conflicts]
     # A version 1 Article inventoried identities; from version 2 (`article_version`) the document is the one root.
     upstream = document_root if expected.get("article_version", 1) >= 2 else extract_records
+    # Resolution first shipped in version 12; older artifacts contain no such calls.
+    resolved = {"resolve_parts": expected.get("article_version", 1) >= 12} if upstream is document_root else {}
     extracted = upstream(evidence.passages, schema, router, counters=counters,
-        record_chars=expected["options"]["record_chars"], check=lambda: None, method=method, contexts=contexts)
+        record_chars=expected["options"]["record_chars"], method=method, contexts=contexts, **resolved)
     calls += extracted.calls
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]

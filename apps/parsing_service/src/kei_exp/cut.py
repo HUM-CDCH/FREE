@@ -20,12 +20,16 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from docling.document_converter import DocumentConverter, ImageFormatOption
-from PIL import Image
+from PIL import Image, ImageOps
 
 from kei_exp.geometry import PointBox
 from kei_exp.pages import PageSource, RenderablePage
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
 
+# Surya reads no block in text cut flush to its glyphs: a native block's crop gets this much white around it, whatever
+# its size. On 594 real crops at 250 dpi (#239) a read with 13 pt of margin or more came back empty only for one crop
+# no margin made readable; 15% of the long side gave a short word or number almost none (10 empty).
+TEXT_MARGIN = 24          # pt
 LAYOUT_DPI = 100          # The layout detector resizes to 640 px; 100 dpi keeps the ink profile usable.
 # ponytail: fixed thresholds tuned on the Bauer scan (9 pt column gaps, 90 pt gutter);
 # derive them from the document's median line pitch if another corpus fails the checks.
@@ -36,6 +40,10 @@ PAD = 4                   # pt around every crop
 INK_FREE = 0.005          # max ink fraction for a profile column/row to count as blank
 RETRY_COVERAGE = 0.9      # below this, retry layout on smaller views; ink may also be decoration or scan noise
 COLUMN_COVERAGE = 0.97    # a few missing lines matter even when the rest of a column is complete
+# ponytail: a scan of an empty page still has dust, specks and show-through dark enough to count as ink. At layout
+# resolution one line of 8 pt text is about 0.2% of an A4 page and a page number well under 0.01%; calibrate on real
+# blank scans if this ever drops a page with content.
+BLANK_INK = 0.001         # max ink fraction of a page the layout finds nothing on to count as blank
 MARGIN_LABELS = {"page_header", "page_footer"}
 TEXT_LABELS = {"text", "list_item", "section_header"}
 
@@ -233,7 +241,12 @@ class _Page:
             margins = [box[:4] for box in self.boxes if box.label in MARGIN_LABELS]
             if self.ink_share(*margins) >= RETRY_COVERAGE:
                 return [self.region("page", self.bounds)]
-            raise CutError(f"page {self.number}: layout found no body blocks after tiled layout")
+            # A scanned blank page: too little ink for a line of text, so specks the layout rightly ignored.
+            if self.ink.mean() < BLANK_INK:
+                return []
+            # Show-through, stamps or faint marks the layout cannot classify: transcribe the whole page rather
+            # than fail the document; OCR returns little or nothing for a page without text.
+            return [self.region("page", self.bounds)]
         return recovered if recovered_coverage > coverage else regions
 
     def _extend_column(self, region: Region, yspan: Span) -> Region:
@@ -326,14 +339,35 @@ def whole_pages(pages: PageSource, numbers: list[int], dpi: int) -> Iterator[Cro
         yield number, region, render_region(page, region, dpi)
 
 
-def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int]], dpi: int) -> Iterator[Crop]:
+def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int, str]], dpi: int,
+                  *, context_pt: float = 0) -> Iterator[Crop]:
     """One figure crop per (page, box, reading order) of a born-digital page's textless artwork, as each is
     rendered. The box needs no layout: it is the embedded object's own. Ink is the cut's measure (gray < 128)
-    on a 72 dpi preview of the whole page, which has no scanner border to measure within."""
-    for number, bbox, order in regions:
+    on a 72 dpi preview of the whole page, which has no scanner border to measure within. A recovery may request
+    real page context around figures; the box and transform describe those actual pixels, clipped to the page."""
+    for number, bbox, order, kind in regions:
         page = pages.page(number)
+        if kind == "figure" and context_pt:
+            width, height = page.get_size()
+            x0, y0, x1, y1 = bbox
+            bbox = (max(0, x0 - context_pt), max(0, y0 - context_pt),
+                    min(width, x1 + context_pt), min(height, y1 + context_pt))
         with page.render(72) as preview, preview.crop(bbox) as inside:
             total = sum(preview.histogram()[:128])
             ink = sum(inside.histogram()[:128]) / total if total else 0.0
-        region = Region("figure", bbox, order, ink, page.crop_transform(dpi, bbox))
-        yield number, region, render_region(page, region, dpi)
+        region = Region(kind, bbox, order, ink, page.crop_transform(dpi, bbox))
+        image = render_region(page, region, dpi)
+        if kind == "text":
+            image, region = _margined(image, region)
+        yield number, region, image
+
+
+def _margined(image: Image.Image, region: Region) -> tuple[Image.Image, Region]:
+    """White around the crop, not more of the page, which would read neighbouring text twice; the transform moves
+    its origin out by the margin so the crop's pixels still map to page points."""
+    transform = region.transform
+    assert transform is not None and transform.source_px is None  # a pdfium crop: no native raster rectangle
+    pad = round(TEXT_MARGIN / transform.pt_per_px_x)
+    return ImageOps.expand(image, pad, fill="white"), replace(region, transform=transform._replace(
+        origin_x=transform.origin_x - pad * transform.pt_per_px_x,
+        origin_y=transform.origin_y - pad * transform.pt_per_px_y))

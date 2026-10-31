@@ -109,6 +109,17 @@ function copyFixture(): typeof fixture {
 }
 
 describe('parsed_document.v2 canonical order', () => {
+  for (const kind of ['caption', 'footnote'] as const) {
+    it(`reads a saved ${kind} without rewriting its classification`, () => {
+      const input = copyFixture()
+      const saved = { ...input, content_stream: input.content_stream.map((block, index) =>
+        index === 1 ? { ...block, kind, text: '1. A source note.' } : block) }
+      const decoded = decodeParsedDocument(JSON.parse(JSON.stringify(saved)))
+      assert.equal(decoded.content_stream[1].kind, kind)
+      assert.deepEqual(decoded, saved)
+    })
+  }
+
   it('accepts content stream order matching ascending physical pages', () => {
     assert.doesNotThrow(() => decodeParsedDocument(copyFixture()))
   })

@@ -66,6 +66,7 @@ def recipe(execution: Execution, source_sha256: str, ingest_digest: str | None) 
         "versions": versions(),
         **({"ocr_regions": [{"page": region.page, "bbox": list(region.bbox)} for region in execution.ocr_regions]}
            if execution.ocr_regions else {}),
+        **({"ocr_text": True} if execution.ocr_text else {}),
         # What the deployment says its model server is: a served model's weights and server can change under the same
         # repo name, which nothing here can see. Unset, the recipe is as it was.
         **({"ocr_revision": revision} if execution.model and (revision := os.environ.get("KEI_OCR_REVISION")) else {}),

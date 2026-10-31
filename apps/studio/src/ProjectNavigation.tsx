@@ -41,8 +41,8 @@ export function ProjectRoutes() {
   const snapshot = Navigation.useSelector((state) => state)
   const { route, snapshot: openDocument, failure } = snapshot.context
   const navigate = useCallback(
-    (nextRoute: NavigableRoute) =>
-      actor.send({ type: 'NAVIGATE', route: nextRoute }),
+    (nextRoute: NavigableRoute, replace = false, fromExtractionId?: string) =>
+      actor.send({ type: 'NAVIGATE', route: nextRoute, replace,fromExtractionId }),
     [actor],
   )
   const { sourceRevisions } = useProjectContexts()
@@ -68,6 +68,10 @@ export function ProjectRoutes() {
   )
   const onRefreshDocument = useCallback(
     () => actor.send({ type: 'REFRESH' }),
+    [actor],
+  )
+  const onRefreshReviewed = useCallback(
+    () => actor.send({ type: 'REFRESH_REVIEWED' }),
     [actor],
   )
 
@@ -101,6 +105,7 @@ export function ProjectRoutes() {
       onRetry={() => actor.send({ type: 'RETRY' })}
       onInitialResourceLoadFailure={onInitialResourceLoadFailure}
       onRefreshDocument={onRefreshDocument}
+      onRefreshReviewed={onRefreshReviewed}
     />
   )
 }

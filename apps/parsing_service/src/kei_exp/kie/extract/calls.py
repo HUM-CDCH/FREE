@@ -3,7 +3,7 @@
 `complete` is the one seam every extraction model call goes through — Article inventory, Catalog discovery,
 document and record values, grounding, and the recipe Catalog's entry and arbitration calls. Its callers own
 everything purpose-specific: the source they render, the prompt and reply schema, what the answer means,
-conformance to the schema, reconciliation and grounding, and cancellation checks, which they make before calling.
+conformance to the schema, reconciliation and grounding.
 This module owns only what every call shares:
 
 - routing: a `models.Router` sends the call to the chat serving its stage's role (`models.ROLE`);
@@ -16,9 +16,9 @@ This module owns only what every call shares:
 - accounting: every attempt, in order, as a `Call`, the artifact's record of a model call. A failed call's `error`
   may quote the start of the server's refusal or of the unreadable reply; it never carries the request.
 
-It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The version 1
-Catalog's one recovery of a record call that looped on whitespace (`looped`) is its caller's (`catalog.py`), made as a
-second `complete`.
+It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The Catalog
+methods' recovery of a record or entry call that looped on whitespace (`looped`) is their caller's, made as a second
+`complete`; durable execution captures that recovery separately.
 
 Each call is also a trace span (Phoenix, docs/operations/local-development.md) under the extraction's DBOS step, with
 its model, tokens, outcome and refused attempts; each request it sends is a child span when the worker instruments
@@ -55,21 +55,37 @@ class Call:
     counted_input_tokens: int | None = None
     context_tokens: int | None = None
     max_output_tokens: int | None = None
-    recovered: bool = False             # a failed call whose one recovery call was read: it cost tokens, lost no value
+    recovered: bool = False             # a failed call handled by recovery or retained-value fallback: lost no value
 
 
 _TRACER = trace.get_tracer("kei")
 WHITESPACE_LOOP = "the reply ran into a whitespace loop"
+# The measured recovery bound: normal calls keep their original decoding policy.
+MAX_WHITESPACE = 16
 CAPTURE = set(os.environ.get("FREE_TRACE_CAPTURE", "").split(","))
 
 
 def _cut_off(text: str) -> str:
-    """A reply the server cut at max_tokens: a whitespace loop when at least half of it is trailing whitespace (constrained
-    decoding admits unlimited whitespace between JSON tokens, and a looping model spends the whole allowance on it)."""
+    """Name whitespace-dominated truncation between JSON tokens, including before a later token.
+    Whitespace inside copied strings is source content, never evidence of a decoding loop."""
+    whitespace, quoted, escaped = 0, False, False
+    for char in text:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                quoted = False
+        elif char == '"':
+            quoted = True
+        elif char in " \t\r\n":
+            whitespace += 1
     trailing = len(text) - len(text.rstrip())
-    if text and trailing * 2 >= len(text):
-        return (f"{WHITESPACE_LOOP} ({trailing} of {len(text)} characters trailing whitespace; "
-                "finish_reason length)")
+    if text and whitespace * 2 >= len(text):
+        detail = (f"{trailing} of {len(text)} characters trailing whitespace" if trailing * 2 >= len(text) else
+                  f"{whitespace} of {len(text)} characters whitespace outside JSON strings")
+        return f"{WHITESPACE_LOOP} ({detail}; finish_reason length)"
     return "the reply was cut off (finish_reason length)"
 
 
@@ -80,17 +96,18 @@ def looped(call: Call) -> bool:
 
 def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
              max_tokens: int | None = None, counter: TokenCounter | None = None,
-             minimum_reply_tokens: int | None = None) -> tuple[Any, list[Call]]:
+             minimum_reply_tokens: int | None = None, unit: str | None = None) -> tuple[Any, list[Call]]:
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
     attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too.
-    A router sends the call to the model serving the stage's role."""
+    A router sends the call to the model serving the stage's role. `unit` names the record the call reads apart from
+    its number, for a durable run's capture identity (`durable.CapturePlanner.complete`); nothing else reads it."""
     runtime = chat.runtime if isinstance(chat, Router) else None
     if isinstance(chat, Router):
         chat = chat.for_stage(stage)
     if runtime is not None:
         return runtime.complete(chat, stage=stage, record=record, system=system, user=user,
                                 schema=schema, max_tokens=max_tokens, counter=counter,
-                                minimum_reply_tokens=minimum_reply_tokens)
+                                minimum_reply_tokens=minimum_reply_tokens, unit=unit)
     # Errors can quote source text or a provider's credentials. Capture only their type, including exceptions the
     # OTel context manager would otherwise record automatically; raw model replies have their own capture below.
     with _TRACER.start_as_current_span(stage, attributes={"openinference.span.kind": "LLM",
@@ -124,11 +141,11 @@ def _trace(span: Span, parsed: Any, calls: list[Call]) -> None:
 
 
 def structure(backend, *, record: int, text: str, schema: dict, identity: dict,
-              counted: int, context: int) -> tuple[dict, Call]:
-    """A native encoder call: no generated reply budget, JSON repair or value conversion."""
+              counted: int, context: int, unit: str | None = None) -> tuple[dict, Call]:
+    """A native encoder call: no generated reply budget, JSON repair or value conversion. `unit` as for `complete`."""
     if getattr(backend,"runtime",None) is not None:
         return backend.runtime.structure(backend,record=record,text=text,schema=schema,identity=identity,
-                                         counted=counted,context=context)
+                                         counted=counted,context=context,unit=unit)
     with _TRACER.start_as_current_span("entry", attributes={"openinference.span.kind": "LLM",
                                                            "llm.model_name": backend.model},
                                        record_exception=False, set_status_on_exception=False) as span:
@@ -167,10 +184,11 @@ def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str
             return None, [Call(stage, record, None, None, 0.0, None, False,
                 f"{counted} input + {max_tokens} output tokens exceed the served context {context}; "
                 "complete source was not sent", counted, context, max_tokens)]
+    started = time.monotonic()
     try:
         reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
     except ModelOutputError as error:  # a fake or a client that already judged the reply
-        return None, [Call(stage, record, None, None, 0.0, None, False, str(error),
+        return None, [Call(stage, record, None, None, time.monotonic() - started, None, False, str(error),
                            counted, counter.context_tokens if counter else None, max_tokens)]
     if "responses" in CAPTURE:
         span.set_attributes({"llm.output_messages.0.message.role": "assistant",
@@ -185,7 +203,12 @@ def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str
             parsed = parse_json(reply.text)
         except ModelOutputError as exc:
             error = str(exc)
-    if error is None and counted is not None and reply.input_tokens != counted:
-        error = f"counted {counted} input tokens but the server reported {reply.input_tokens}"
+    if error is None and counted is not None:
+        upper_bound = getattr(counter, "upper_bound", False)
+        if upper_bound:
+            if type(reply.input_tokens) is not int or not 0 < reply.input_tokens <= counted:
+                error = f"input usage {reply.input_tokens} exceeds the reserved upper bound {counted}"
+        elif reply.input_tokens != counted:
+            error = f"counted {counted} input tokens but the server reported {reply.input_tokens}"
     return parsed, [*refused, Call(stage, record, reply.input_tokens, reply.output_tokens, reply.seconds,
         reply.finish, error is None, error, counted, counter.context_tokens if counter else None, max_tokens)]

@@ -1,0 +1,38 @@
+# FREE_GPU=shared loads this in place of compose.gpu.yaml: this stack starts no model
+# server and uses the ones another stack on the host shares (compose.provide-models.yaml)
+# on the free-models network. The model clients get compose.gpu.yaml's model settings,
+# so give this stack the provider's KEI_EXTRACT_MODEL, KEI_NUEXTRACT_MODEL,
+# OCR_MAX_NUM_SEQS and NUEXTRACT_MAX_NUM_SEQS.
+# shortcut: one such stack per host; a second would also answer this one's service names
+# (parsing_service) on free-models. Upgrade to one models network per using stack if needed.
+x-parsing-gpu-env: &parsing-gpu-env
+  KEI_NUEXTRACT_URL: http://nuextract_model:8000/v1/chat/completions
+  KEI_NUEXTRACT_MODEL: "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+  SURYA_INFERENCE_PARALLEL: "${OCR_MAX_NUM_SEQS:-4}"
+
+services:
+  parsing_service:
+    environment: *parsing-gpu-env
+    networks: [models]
+
+  parsing_worker:
+    environment:
+      <<: *parsing-gpu-env
+      KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+    networks: [models]
+
+  studio:
+    environment:
+      FREE_PARSING_OCR_PARALLEL: "${OCR_MAX_NUM_SEQS:-4}"
+      FREE_DEPLOYMENT_INSTRUCT_URL: http://extraction_model:8000/v1
+      FREE_DEPLOYMENT_INSTRUCT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      FREE_DEPLOYMENT_NUEXTRACT_URL: http://nuextract_model:8000/v1
+    networks: [models]
+
+  eval_watcher:
+    networks: [models]
+
+networks:
+  models:
+    name: free-models
+    external: true

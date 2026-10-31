@@ -250,6 +250,22 @@
  "unverified": [],
  "issues": [
   {
+   "code": "resolution_not_applied",
+   "detail": "{\"path\": [\"items\"], \"reason\": \"invalid_list_reply\"}",
+   "record": 0,
+   "path": [
+    "records",
+    0,
+    "items"
+   ]
+  },
+  {
+   "code": "resolution_exceeds_budget",
+   "detail": "the resolution request does not fit; assembled values are retained",
+   "record": 0,
+   "path": null
+  },
+  {
    "code": "conflicting_values",
    "detail": "{\"path\": [\"currency\"], \"candidates\": [\"USD\", \"EUR\"]}",
    "record": 0,
@@ -363,13 +379,14 @@
   }
  ],
  "grounding": {
-  "claims": 14,
+  "claims": 15,
   "excluded": 1,
-  "eligible": 13,
+  "eligible": 14,
   "supported": 8,
   "unsupported": 1,
-  "not_completed": 4,
+  "not_completed": 5,
   "reasons": {
+   "conflicting_values": 1,
    "grounding_exceeds_budget": 4
   },
   "excluded_policies": {

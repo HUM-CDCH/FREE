@@ -9,7 +9,7 @@
     "fields": "fake/extractor",
     "reasoning": "fake/extractor"
   },
-  "prompt_version": 15,
+  "prompt_version": 16,
   "schema": {
     "recordDescription": "One numbered entry of a catalogue.",
     "schemaNodes": [
@@ -559,5 +559,5 @@
     "input": 120,
     "output": 60
   },
-  "fingerprint": "dc6acb5c15a7b04eb9bdb74e06adad733428f5f2348ba8a3fd7cba206545b69b"
+  "fingerprint": "9000becd48fa7a4b2b6816ca21846035af872b056ca6a46d3409b8e415798169"
 }

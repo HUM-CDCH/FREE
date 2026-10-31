@@ -18,10 +18,12 @@ const document = {
   ] },
 } as unknown as ParsedDocument
 
-describe('evidenceQuote (results review redesign §7.1)', () => {
-  it('marks the grounding raw text case-insensitively, else the value', () => {
-    expect(evidenceQuote(document, 'a1', 'CAFÉ WALL', 'x')).toEqual({ before: 'The ', hit: 'café wall', after: ' ran NE–SW. Its full length was not recorded.' })
-    expect(evidenceQuote(document, 'a1', null, 'full length')?.hit).toBe('full length')
+describe('evidenceQuote', () => {
+  it.each(['paragraph', 'caption', 'footnote'] as const)('marks the grounding raw text in a %s, else the value', (kind) => {
+    const source = { ...document, content_stream: document.content_stream.map((block, index) =>
+      index === 0 ? { ...block, kind } : block) } as ParsedDocument
+    expect(evidenceQuote(source, 'a1', 'CAFÉ WALL', 'x')).toEqual({ before: 'The ', hit: 'café wall', after: ' ran NE–SW. Its full length was not recorded.' })
+    expect(evidenceQuote(source, 'a1', null, 'full length')?.hit).toBe('full length')
   })
 
   it('quotes a cell with its row\'s cells joined, and a list\'s items joined', () => {

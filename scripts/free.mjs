@@ -279,7 +279,7 @@ function printReady(profile) {
       console.log(`  phone trust: install the mkcert root CA from ${caroot.stdout.trim()}`)
   }
   console.log('Press Ctrl+C to stop the stack.\n')
-  console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
+  console.log(`Phoenix model-call traces: http://localhost:${process.env.FREE_PHOENIX_PORT || 6006} (loopback only).`)
 }
 
 function loadDotEnv() {
@@ -360,9 +360,15 @@ export function loadLocalEntraEnvironment(
 
 export function parsingGpuComposeArguments(environment = process.env, execute = run) {
   const mode = environment.FREE_GPU || 'auto'
-  if (!['auto', 'off', 'required'].includes(mode))
-    throw new Error('FREE_GPU must be auto, off, or required.')
+  if (!['auto', 'off', 'required', 'shared'].includes(mode))
+    throw new Error('FREE_GPU must be auto, off, required, or shared.')
+  if (environment.KEI_EXTRACT_PROVIDER === 'codex-cli' && mode !== 'off')
+    throw new Error('Codex extraction requires FREE_GPU=off; use an external OCR server for scanned PDFs.')
   if (mode === 'off') return []
+  if (mode === 'shared') {
+    console.log('Models: using the model servers another stack shares on the free-models network.')
+    return ['-f', 'compose.use-models.yaml']
+  }
   const probe = execute('docker', [
     'run', '--rm', '--gpus', 'all',
     'ubuntu:24.04', 'nvidia-smi', '-L',
@@ -378,11 +384,12 @@ export function parsingGpuComposeArguments(environment = process.env, execute = 
   return []
 }
 
-export function developmentComposeFiles(profile) {
+export function developmentComposeFiles(profile, environment = process.env) {
   return [
     'compose.yaml',
     'compose.override.yaml',
     ...(profile.entra ? ['compose.entra.yaml'] : []),
+    ...(environment.KEI_EXTRACT_PROVIDER === 'codex-cli' ? ['compose.codex.yaml'] : []),
   ]
 }
 
@@ -597,6 +604,7 @@ export function productionComposeFiles(environment) {
     'compose.yaml',
     'compose.prod.yaml',
     ...(environment.FREE_NGINX === 'container' ? ['compose.nginx.yaml'] : []),
+    ...(environment.KEI_EXTRACT_PROVIDER === 'codex-cli' ? ['compose.codex.yaml'] : []),
   ]
 }
 
@@ -727,7 +735,7 @@ async function productionMain(args) {
   } catch (error) {
     console.warn(`Could not report image revisions: ${error.message}`)
   }
-  console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
+  console.log(`Phoenix model-call traces: http://localhost:${environment.FREE_PHOENIX_PORT || 6006} (loopback only).`)
   if (!hostNginx) {
     console.log(`
 The services started and configured health checks passed; the bundled nginx terminates TLS.

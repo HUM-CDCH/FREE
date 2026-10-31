@@ -1,15 +1,17 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { RailMarkState } from './useEvidenceOverlays'
+import type { SelectionChannel } from './selectionChannel'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
 import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
+import type { CurrentResultSchema } from './resultSchema'
+import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -24,6 +26,8 @@ export type ExtractionInspection = {
   readOnly: boolean
   /** The inspected Extraction's pinned parsed document, or the open one while it is unknown. */
   parsedDocument: ParsedDocument | null
+  /** The workspace's reader of `attempt`, which outlives the Results view; null until it is made. */
+  reader: DurableReader | null
 }
 
 type RightRailProps = {
@@ -36,8 +40,10 @@ type RightRailProps = {
   onClearDraft: () => void | Promise<void>
   extraction: ExtractionController
   inspection: ExtractionInspection
+  /** The latest Extraction's reader: the banner reports its connection once admission is settled. */
+  latestReader?: DurableReader | null
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
-  currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
+  currentSchemaRevision: CurrentResultSchema | null
   /** Why the tab strip's Run cannot start now (its disabled title); Results' empty state says it. */
   runUnavailableReason?: string | null
   sourceDocumentName: string
@@ -48,13 +54,9 @@ type RightRailProps = {
   boundaries?: SchemaPanelProps['boundaries']
   /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
-  onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
-  onResultPathChange: (path: string[] | null) => void
-  /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
-  onFocusEvidence?: (link: EvidenceLink | null) => void
-  /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
-  onMarksChange?: (marks: RailMarkState | null) => void
-  selectValueRef?: RefObject<((key: string) => void) | null>
+  onSelectEvidence: (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => void
+  /** The workspace's channel: requests to select a value come in; Results' marks and dimming go out. */
+  selection: SelectionChannel
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void
   onReviewFinalized?:()=>void
@@ -92,6 +94,7 @@ function RightRail({
   onClearDraft,
   extraction,
   inspection,
+  latestReader = null,
   currentSchemaRevision,
   runUnavailableReason = null,
   sourceDocumentName,
@@ -102,23 +105,36 @@ function RightRail({
   boundaries,
   resultsHeaderExtras,
   onSelectEvidence,
-  onResultPathChange,
-  onFocusEvidence,
-  onMarksChange,
-  selectValueRef,
+  selection,
   onPinnedDocument,
   onReviewProgress,
   onReviewFinalized,
 }: RightRailProps) {
   const { parsedDocument } = inspection
-  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=> {
+  // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
+  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],link?:EvidenceLink)=> {
+    if(!open)return
     const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
     if(!anchor)return
-    if(!occurrenceIds)onSelectEvidence(anchor,precision)
-    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
-    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
-  },[parsedDocument,onSelectEvidence])
+    if(!occurrenceIds)onSelectEvidence(anchor,link)
+    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},link)
+    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},link)
+  },[open,parsedDocument,onSelectEvidence])
+  // Collapsing or expanding takes away the button that was showing, so the one now shown takes the focus; a mount
+  // moves none.
+  const expandButton = useRef<HTMLButtonElement>(null)
+  const collapseButton = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (wasOpen.current === open) return
+    wasOpen.current = open
+    const button = open ? collapseButton : expandButton
+    button.current?.focus()
+  }, [open])
   const showDeveloperUi = isDeveloperUiEnabled()
+  // An uncertain admission is reconnected by admission; once settled, the latest reader reads again.
+  const latestReading = useDurableReading(latestReader)
+  const statusError = extraction.monitorError ?? latestReading?.error ?? null
 
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
@@ -166,10 +182,12 @@ function RightRail({
     ) }] : []),
   ]
 
-  if (!open) {
-    return (
+  return (
+    <>
+    {!open && (
       <div className="flex h-full flex-col items-center">
         <button
+          ref={expandButton}
           className="flex cursor-pointer items-center justify-center py-3 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           title="Expand panel"
@@ -181,11 +199,10 @@ function RightRail({
           {tabs.map(({ label }) => label).join(' · ')}
         </span>
       </div>
-    )
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
+    )}
+    {/* Collapsed, the rail keeps everything below mounted, so a collapse never destroys work in it. `hidden` beats
+        `flex` only through the preflight's `[hidden] { display: none !important }`. */}
+    <div hidden={!open} className="flex h-full min-h-0 flex-col">
       <div className="@container flex shrink-0 items-stretch border-b border-line" role="tablist">
         {tabs.map(({ key, label, badge, icon }) => {
           const active = activeTab === key
@@ -212,6 +229,7 @@ function RightRail({
           )
         })}
         <button
+          ref={collapseButton}
           className="flex cursor-pointer items-center justify-center border-b-2 border-transparent px-2.5 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           title="Collapse panel"
@@ -221,16 +239,18 @@ function RightRail({
         </button>
       </div>
 
-      {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. */}
-      {extraction.monitorError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
-        <p role="alert" className="m-0 text-compact text-danger">{extraction.monitorError}</p>
+      {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. Mounted only
+          while open, so expanding announces its alert. */}
+      {open&&shown&&(extraction.admitting||extraction.retryAdmission)&&<p role="status" className="m-0 shrink-0 border-b border-line px-3 py-2 text-compact text-ink-muted">A new extraction has not been acknowledged yet. These are previous results.</p>}
+      {open && statusError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
+        <p role="alert" className="m-0 text-compact text-danger">{statusError}</p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={extraction.reconnect}>Reconnect</Button>
+          <Button onClick={extraction.monitorError ? extraction.reconnect : () => void latestReader?.refresh()}>Reconnect</Button>
           {extraction.retryAdmission&&<Button onClick={()=>void extraction.retryAdmission?.()}>Retry original request</Button>}
         </div>
       </div>}
 
-      {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
+      {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches and a collapse. */}
       {showDeveloperUi && (
         <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
           <EvidenceTab document={parsedDocument} onSelectAnchor={onSelectEvidence} />
@@ -253,24 +273,25 @@ function RightRail({
         {shown ? <DurableResults
           key={`${shown.extractionId}:${inspection.cut ? `${inspection.cut.snapshotVersion}:${inspection.cut.feedbackVersion}` : 'live'}`}
           attempt={shown}
+          reader={inspection.reader}
+          connectionShown={inspection.reader === latestReader}
           initialCut={inspection.cut}
           document={parsedDocument}
           documentRevisionId={sourceRepresentationId}
-          currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
+          currentSchema={currentSchemaRevision}
+          onSchema={()=>onTabChange('schema')}
+          controlled={shown.extractionId===extraction.attempt?.extractionId}
           sourceDocumentName={sourceDocumentName}
           readOnly={inspection.readOnly}
           onEvidence={selectNativeEvidence}
-          onResultPathChange={onResultPathChange}
-          onFocusEvidence={onFocusEvidence}
-          onMarksChange={onMarksChange}
-          selectValueRef={selectValueRef}
+          selection={selection}
           headerExtras={resultsHeaderExtras}
-          onStatusChange={extraction.acceptDurableStatus}
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
+          railOpen={open}
           historySlot={historySlot}
-          historyShown={activeTab === 'history'}
+          historyShown={open && activeTab === 'history'}
           onShowResults={() => onTabChange('results')}
           onShowHistory={() => onTabChange('history')}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
@@ -283,6 +304,7 @@ function RightRail({
       </div>
       {shown && <div ref={setHistorySlot} id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'} />}
     </div>
+    </>
   )
 }
 

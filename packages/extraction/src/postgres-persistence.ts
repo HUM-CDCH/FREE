@@ -189,12 +189,18 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           schemaRevisionId: revision.id,
           stabilisedAt: revision.stabilisedAt.toISOString(),
         }
-      // Stabilising unlocks collection-scale extraction, so it requires a finalized durable pilot review whose current
-      // result cut this revision produced.
-      const nativeIds = await orm.extraction_runtime.Head.where({ projectId: input.projectContextId, deleted: false }).select('id').all()
-      const summaries = await readDurableSummaries(orm, await readRuntimeHeads(orm, nativeIds.map(row => row.id)))
-      if (![...summaries.values()].some(summary => summary.review?.schemaRevisionId === input.schemaRevisionId))
-        return 'not-ready' as const
+      // Stabilising unlocks collection-scale extraction, so a schema's first approval requires a finalized durable pilot
+      // review whose current result cut this revision produced. A later revision of an approved schema may be approved
+      // without one: piloting it is then the researcher's choice.
+      const siblings = await orm.public.SchemaRevision.where({ extractionSchemaId: revision.extractionSchemaId })
+        .select('stabilisedAt')
+        .all()
+      if (!siblings.some((sibling) => sibling.stabilisedAt !== null)) {
+        const nativeIds = await orm.extraction_runtime.Head.where({ projectId: input.projectContextId, deleted: false }).select('id').all()
+        const summaries = await readDurableSummaries(orm, await readRuntimeHeads(orm, nativeIds.map(row => row.id)))
+        if (![...summaries.values()].some(summary => summary.review?.schemaRevisionId === input.schemaRevisionId))
+          return 'not-ready' as const
+      }
       const stabilisedAt = new Date()
       const updated = await orm.public.SchemaRevision.where({
         id: input.schemaRevisionId,

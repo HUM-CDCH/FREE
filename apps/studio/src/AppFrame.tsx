@@ -4,6 +4,7 @@ import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
+import PilotReviewGuide from './PilotReviewGuide'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
 import { usePilotRoundProgress } from './usePilotRoundProgress'
@@ -43,11 +44,13 @@ type AppFrameProps = {
   openDocument: DocumentSnapshot | null
   opening: boolean
   failure: Failure | null
-  onNavigate: (route: NavigableRoute) => void
+  onNavigate: (route: NavigableRoute, replace?: boolean, fromExtractionId?: string) => void
   onRetry: () => void
   onInitialResourceLoadFailure: () => void
   /** Reads the open Source Document again and swaps it in only once that read succeeds. */
   onRefreshDocument: () => void
+  /** Reads "Latest reviewed" again and swaps in only that, once the read succeeds. */
+  onRefreshReviewed: () => void
 }
 
 const DocumentWorkspace = lazy(() => import('./App'))
@@ -144,6 +147,7 @@ export default function AppFrame({
   onRetry,
   onInitialResourceLoadFailure,
   onRefreshDocument,
+  onRefreshReviewed,
 }: AppFrameProps) {
   const [navOpen, setNavOpen] = useState(true)
   const [narrowNavOpen, setNarrowNavOpen] = useState(false)
@@ -228,9 +232,20 @@ export default function AppFrame({
           openDocument.sourceRepresentation.resources.parsedDocumentUrl,
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
+        routeExtractionId: route.kind==='document'?route.extractionId:undefined,
         latestReviewedExtraction: openDocument.latestReviewed,
         persistedReviewCut: route.kind === 'document' && route.extractionId === openDocument.latestAttempt?.extractionId
           ? route.reviewCut ?? null
+          : null,
+        // A value link names its Extraction, else the routed document's latest one once it has opened: while a reopen is
+        // pending the old snapshot stays, and its attempt is another document's or an Extraction opened by name.
+        routedValue: route.kind === 'document' && route.value
+          ? {
+              key: route.value,
+              extractionId: route.extractionId ?? (!opening && route.sourceDocumentId === openDocument.sourceDocument.sourceDocumentId
+                ? openDocument.latestAttempt?.extractionId ?? null
+                : null),
+            }
           : null,
         onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => onNavigate({
           kind: 'document',
@@ -239,6 +254,13 @@ export default function AppFrame({
           extractionId,
           ...(reviewCut ? { reviewCut } : {}),
         }),
+        // A new Run supersedes an explicit old-result address only after admission is acknowledged.
+        onExtractionAdmitted:(extractionId:string,fromExtractionId?:string)=>{
+          if(!fromExtractionId||fromExtractionId===extractionId)return
+          onNavigate({kind:'document',projectContextId:openDocument.projectContext.projectContextId,
+            sourceDocumentId:openDocument.sourceDocument.sourceDocumentId,extractionId,
+            ...(route.kind==='document'&&route.fromBatchExtractionId?{fromBatchExtractionId:route.fromBatchExtractionId}:{})},true,fromExtractionId)
+        },
         // A run refused as superseded means this snapshot's Source Representation may be stale.
         onSourceSuperseded: onRefreshDocument,
         fromSchemaBuilder:
@@ -246,7 +268,7 @@ export default function AppFrame({
         tabBarSlot,
         tabRingSlot,
       },
-    [openDocument, route, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
+    [openDocument, opening, route, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or
@@ -347,7 +369,7 @@ export default function AppFrame({
   const backToBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
   const [reviewRevision,setReviewRevision]=useState(0)
-  const reviewFinalized=useCallback(()=>{void refreshProjects();setReviewRevision(revision=>revision+1)},[refreshProjects])
+  const reviewFinalized=useCallback(()=>{void refreshProjects();onRefreshReviewed();setReviewRevision(revision=>revision+1)},[refreshProjects,onRefreshReviewed])
   const pilotRoundProgress = usePilotRoundProgress(
     route.kind === 'document' ? route.projectContextId : null,
     backToBatchExtractionId,
@@ -551,30 +573,36 @@ export default function AppFrame({
                     })
                 : undefined
             }
-            pilotRoundProgress={
-              pilotRoundProgress && backToBatchExtractionId
-                ? {
-                    reviewed: pilotRoundProgress.reviewed,
-                    total: pilotRoundProgress.total,
-                    onNext: pilotRoundProgress.nextMember
-                      ? () =>
-                          onNavigate({
-                            kind: 'document',
-                            projectContextId: routedProjectContextId,
-                            sourceDocumentId:
-                              pilotRoundProgress.nextMember!.sourceDocumentId,
-                            extractionId:
-                              pilotRoundProgress.nextMember!.extractionId,
-                            fromBatchExtractionId:
-                              backToBatchExtractionId,
-                          })
-                      : undefined,
-                  }
-                : undefined
-            }
             slotRef={setTabBarSlot}
             ringSlotRef={setTabRingSlot}
             navigationToggle={narrowNavToggle}
+          />
+        )}
+        {pilotRoundProgress && backToBatchExtractionId && route.kind === 'document' && (
+          <PilotReviewGuide
+            reviewed={pilotRoundProgress.reviewed}
+            total={pilotRoundProgress.total}
+            currentReviewed={pilotRoundProgress.currentReviewed}
+            onNext={
+              pilotRoundProgress.nextMember
+                ? () =>
+                    onNavigate({
+                      kind: 'document',
+                      projectContextId: route.projectContextId,
+                      sourceDocumentId: pilotRoundProgress.nextMember!.sourceDocumentId,
+                      extractionId: pilotRoundProgress.nextMember!.extractionId,
+                      fromBatchExtractionId: backToBatchExtractionId,
+                    })
+                : undefined
+            }
+            onBackToBatch={() =>
+              onNavigate({
+                kind: 'project',
+                projectContextId: route.projectContextId,
+                tab: 'extractions',
+                batchExtractionId: backToBatchExtractionId,
+              })
+            }
           />
         )}
         <section

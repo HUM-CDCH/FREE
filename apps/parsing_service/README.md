@@ -54,7 +54,11 @@ The worker registers `convert`, `deleteRuns` and three durable Extraction
 workflows: Studio enqueues `extractDurableV1` on `kei-extract` and
 `deleteDurableHistoryV1` on `kei-gc`, and each attempt starts its
 `extractionCallV1` children directly (ID `kei-call:<attempt>:<capture>`),
-outside any lane limit. Attempts reach the coordination schema only through a
+outside any lane limit. Each planned call starts at once, up to
+`KEI_CATALOG_CHUNKS` per role, and the attempt is planned again as soon as one
+ends; a Pause, Stop or failure is acknowledged only once every call it started
+has ended. The retired `extract-wait-first` patch consumes existing markers on
+replay without adding markers to new attempts. Attempts reach the coordination schema only through a
 pool of at most four short calls to allowlisted `extraction_runtime` routines,
 and no pooled connection or transaction spans a model call. After a crash,
 recovery waits up to 40 s for the previous process's 30-second lease to expire:
@@ -62,6 +66,12 @@ a live owner keeps its epoch, stale attempts and other refusals fail at once,
 and operators never edit lease timestamps. `deleteDurableHistoryV1` deletes a
 deleted graph's history only once every linked attempt and call is quiescent by
 this worker's boot clock; cancellation alone never proves that.
+
+A schema-constrained instruction-model record reply that loops on whitespace
+gets one separate durable recovery call with at most 16 whitespace characters
+between JSON tokens. It keeps the original source, guidance and token budget;
+both attempts stay in History. A failed bounded reply still halts the attempt;
+Retry/Resume continues the bounded recovery and never repeats the original.
 
 `KEI_RUNS` holds the runs' sources, canonical parse results and recipe
 segmentations; durable Extraction results live in the coordination schema. It is
@@ -108,7 +118,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, and how many unified Catalog discovery windows it asks at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -134,14 +144,35 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
-- A PDF with text on every selected nonblank page parses natively; substantial
+- A PDF with text on every selected nonblank page parses natively. For this
+  route decision, a non-whitespace character counts when its box meets the
+  displayed page and its render mode is not 3 (invisible, such as a scan's
+  search layer or a hidden note); clipping-only text (mode 7) still counts. A
+  page holding only directly placed invisible text counts as blank, and a PDF
+  of blank pages takes the scan path; a page without counting text but with any
+  other object, including a form that wraps invisible text, sends the PDF to
+  the scan path. Native parsing still reads invisible text. Substantial
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
-  discovery order. Page-sized scans with a text overlay, mixed native/scanned
-  documents and rotated textless artwork take the scan path, cut as
-  [ingest-cuts.md](docs/ingest-cuts.md) describes. A native table with no
+  discovery order. A native block whose text keeps an undecodable font glyph's
+  control code (a minus or degree sign the font cannot map) is replaced the same
+  way: its box is OCR'd as a `text` crop read in the block's place. A table so
+  replaced loses its cells. Page-sized scans with a text overlay, mixed
+  native/scanned documents and rotated textless artwork take the scan path, cut as
+  [ingest-cuts.md](docs/ingest-cuts.md) describes. Large textless images on digital
+  PDFs use artwork OCR; requests for book splitting retain
+  the conservative large-image scan route. A native table with no
   readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
-  and the conversion incomplete.
+  and the conversion incomplete. Surya artwork that repeats identical empty,
+  full-frame figures is interrupted and gets one recovery batch: only looping
+  crops gain 24 pt of real page context. Other crop pixels stay unchanged.
+  Context outside the original artwork is excluded; a text block crossing that
+  boundary or another figure loop refuses publication. Scans and native-text
+  replacement crops keep their existing retry policy. Any Surya input whose
+  full-page generation produced looping or token-capped text and whose final
+  recognition holds no text at all, read before artwork ownership filtering, is
+  incomplete: lost text and a textless input are indistinguishable there. Text
+  lost while other text survives is not detected.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
@@ -174,6 +205,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   call: a generic Catalog record call that looped on whitespace and was read on
   its one bounded-grammar retry is kept, failed, with `recovered: true`, and
   does not by itself make the result incomplete.
+  Unified Catalog entry calls use the same one-retry policy for whitespace
+  loops between JSON tokens, including before a later token. Durable recovery
+  preserves the original source, guidance and budgets; Retry reuses the saved
+  recovery and completed entries.
 - The task scope is the schema's `recordScope` (`document` for Article,
   `records` for a Catalog; `tests/fixtures/contracts/record-scope.json`). A
   declared scope must match `options.strategy`; an undeclared one (CLI,
@@ -190,9 +225,15 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
   headings?, verification?}` runs the unified Catalog: result version 3, no
-  recipe and no character limits (a request naming either is refused). New
-  admissions use it only where Studio's `FREE_CATALOG_METHOD=unified` gate is
-  on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  recipe and no character limits (a request naming either is refused). From
+  `defaults` 3 a durable run reads the entries the windows already read decide
+  while discovery asks the rest, lists them under its `unified-prefix:<attempt>:<count>`
+  plans and shows their candidates, and verifies them once discovery has ended;
+  an entry's calls are captured by where it starts and what it covers, not by
+  its number. From `defaults` 4 an entry's reply may use the served context its
+  counted input leaves, its reserve the floor (an explicit `output_tokens` or a
+  native fields model keeps the reserve). New admissions use it only where Studio's
+  `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
 Limitations:
@@ -251,6 +292,31 @@ The recipe path is split across these files:
 
 The designs under `docs/design/` are the contracts that code cites as
 `spec N.N` or `design §N`.
+
+## Codex extraction
+
+`KEI_EXTRACT_PROVIDER=codex-cli` selects the deployment-owned Codex login for both extraction roles;
+`KEI_EXTRACT_MODEL` must name an available Codex model. The root launcher's `compose.codex.yaml` maps
+`KEI_CODEX_MODEL` to it and shares Studio's login volume. Use `FREE_GPU=off` so the default GPU extraction
+servers do not start. The image contains the pinned standalone Codex executable; `KEI_CODEX_BINARY` can
+select another executable for diagnostics. The extraction selectors discover the login's current Codex catalog
+and offer every visible model that supports the low reasoning effort each call requests, for both roles. `KEI_EXTRACT_MODEL` remains the deployment default; explicit choices
+are saved as `codex:<model-id>` and pinned by the normal durable execution path. Discovery runs only for the
+listing, never inside a planning round.
+
+Each captured call starts one ephemeral app-server thread in an empty directory, with its exact saved instructions,
+source and JSON schema. Shell, network tools, apps, MCP servers and delegation are disabled; any tool request or
+context compaction fails the call. There is no separate extraction, result or review path.
+
+Codex does not provide preflight tokenization or a hard per-turn output limit. Policy `codex:utf8-budget-v1`
+reserves the UTF-8 bytes of the request plus 12,288 tokens for framing, within a 65,536-token planning ceiling.
+The capture labels this as `input_counting: upper_bound`, never an exact count. Returned input usage must fit the
+reservation, the reported model window must cover the planning ceiling, and reported output usage must fit the
+saved reply reserve; otherwise the call fails before publishing values. Output limits are checked after inference.
+Small explicit method budgets may therefore be refused: use a bounded Article context of at least 32,768 and
+increase counted Catalog input budgets beyond the framing allowance, or keep the default full Article mode.
+The policy is pinned with every capture, so later changes require a new policy version. Discovery text may be
+shown while generated, but only a validated completed reply becomes a checkpoint.
 
 ## Verification
 

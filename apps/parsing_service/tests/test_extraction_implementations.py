@@ -1,7 +1,7 @@
 """Each Extraction Strategy's implementation is called with evidence already loaded and returns the finished artifact.
 
 `run.extract` loads the evidence, checks its generation and hands it, with the request, the router and the caller's
-`counter`, `chunks` and `before_entry`, to the implementation the options choose. The implementations are called
+`counter` and `chunks`, to the implementation the options choose. The implementations are called
 here directly, with no `run.load` to replace.
 """
 from dataclasses import replace
@@ -28,9 +28,7 @@ def test_the_version_1_catalog_reads_the_evidence_it_is_given():
             return {"C1": "E1"}  # grounding: each record's number is in its first passage
         return {"entry_no": "31" if "31." in user else "32", "site": None, "year": None, "finds": None}
     request = run.ExtractRequest(schema=SCHEMA)
-    checks = []
-    result = catalog.extract(None, evidence(), request, as_router(FakeChat(script)),
-                             before_entry=lambda: checks.append("check"))
+    result = catalog.extract(None, evidence(), request, as_router(FakeChat(script)))
     assert result["strategy"] == "catalog" and result["extraction_version"] == assembly.EXTRACTION_VERSION == 1
     assert [(record["entry_no"], record["title"], record["filename"]) for record in result["records"]] == [
         ("31", "Fund fra Hjortlund", "bauer.pdf"), ("32", "Fund fra Hjortlund", "bauer.pdf")]
@@ -39,8 +37,6 @@ def test_the_version_1_catalog_reads_the_evidence_it_is_given():
     assert [(link["path"], link["linked_by"]) for link in result["evidence"]] == [
         (["records", 0, "entry_no"], "model"), (["records", 1, "entry_no"], "model")]
     assert result["complete"] is True and result["unverified"] == ["title"]
-    # the document call, the discovery call, then each record's extraction, verification and grounding batch
-    assert len(checks) == 8
     assert result["fingerprint"] == assembly.fingerprint(result, request, result["models"])
 
 
@@ -87,8 +83,8 @@ def test_extract_hands_the_loaded_evidence_to_the_implementation_the_options_cho
         monkeypatch.setattr(module, "extract", lambda *args, _module=module, **kwargs: received.append(
             (_module, args, kwargs)) or {"artifact": _module.__name__, "records": [{}]})
     request = run.ExtractRequest(schema=SCHEMA, options=options)
-    chat, counter, hook = FakeChat(lambda *_: None), object(), lambda: None
-    result = run.extract(run_dir, request, chat, counter=counter, chunks=3, before_entry=hook)
+    chat, counter = FakeChat(lambda *_: None), object()
+    result = run.extract(run_dir, request, chat, counter=counter, chunks=3)
     assert result == {"artifact": chosen.__name__, "records": [{}]}
     assert received == [(chosen, (run_dir, load(run_dir), request, Router(chat, chat)),
-                         {"counter": counter, "chunks": 3, "before_entry": hook})]
+                         {"counter": counter, "chunks": 3})]

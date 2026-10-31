@@ -75,8 +75,8 @@ async function status(client: DBOSClient, id: string) {
 async function child(owner: string, project: string, document: string, pdf: Uint8Array, parent: string) {
   const handoff = createKeiHandoff(studioDbos().kei, { pollIntervalMs: 50 })
   await standIn.policy({ convert: 'hold' })
-  await handoff.submit({ workflow: 'convert', workflowId: `kei-convert:${parent}`, queueName: 'kei-convert-small',
-    priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
+  await handoff.submitConversion({ workflowId: `kei-convert:${parent}`, lane: 'kei-convert-small',
+    pageCount: 3, owner,
     attributes: { projectContextId: project, sourceDocumentId: document },
     request: { source: `${project}/${randomUUID()}.pdf`, source_sha256: createHash('sha256').update(pdf).digest('hex'),
       source_name: 'source.pdf', page_source: 'pdf', ingest: null, model: null, layout_model: null, cut: 'auto', debug: false },

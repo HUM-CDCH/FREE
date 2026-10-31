@@ -1,7 +1,7 @@
 """Grounding: linking a record's extracted values to the passages that support them, as interchangeable techniques.
 
 Every technique has one call shape: a record's passages, its fields, the schema and a chat, keyword-only
-`record`, `budget`, `counter`, `record_context`, `before_call`, `proofs` and `skip_paths`, returning the record's links, the
+`record`, `budget`, `counter`, `record_context`, `proofs` and `skip_paths`, returning the record's links, the
 model calls made and the issues found. `assembly.ground_records` obtains one technique through `technique` and calls it once
 per verification group of each record; it does not know which technique it holds. A new grounding arm is a new
 function of this shape and one more entry in `technique`.
@@ -98,6 +98,8 @@ def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate | SourceSpan]],
         rows.setdefault(identity, set()).add(row)
     for identity, passage in tables.items():
         assert passage.table is not None
+        if not any(candidate.cell is None and candidate.passage.id == identity for _, candidate in labelled):
+            lines.append(f"Table {identity} full text (not selectable evidence labels):\n{passage.text.strip()}")
         lines.append(f"Table {identity} row/header context (not selectable evidence labels):")
         for cell in passage.table.cells:
             if cell.role in {"column_header", "row_section"} or any(
@@ -160,7 +162,7 @@ def _item_path(path: tuple[str | int, ...]) -> str:
 
 def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
            budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-           before_call: Callable[[], None] | None = None, quoted: bool = False,
+           quoted: bool = False,
            proofs: list[dict] | None = None, span_ids: bool = False,
            skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
            on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
@@ -172,12 +174,13 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     on how many other items the record holds. The reply is budgeted too (every label at its longest within the output
     reserve), and a failed call names each claim it held.
 
-    Every batch retains all passages for coarse/non-verbatim support, and all matching cells for its claims.
+    Every batch retains coarse/non-verbatim support and matching cells. A claim is first offered its precise candidates:
+    a selectable cell hides its table, and a list item's claim sees only its own row's cells. A claim that round leaves
+    unsupported is asked once more with what it hid; only Article's row filter, which predates this, stays hard.
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
     Every claim is verified by the model, a uniquely found value included. Every batch carries the record's fields,
     counted in its size, so splitting never separates a claim from its record. Generic Catalog uses a character cap;
     Article adds its record identity and a served counter, verifying within the context minus an output reserve.
-    `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     `on_batch`, when given, runs after each batch's reply with the links that batch made (Article retains them while
     the run goes on): none after a failed reply; a batch split or refused before any call has no reply and no call.
     """
@@ -202,9 +205,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     eligible = {claim: [label for label, candidate in labelled.items()
                         if candidate.cell is None or contains(candidate.text, value)]
                 for claim, (_, value, _) in claims.items()}
+    unfiltered = dict(eligible)
     # A list item's claim located to one row that no offered cell lies in: that row, printed as table context.
     context_rows: dict[str, set[tuple[str, int]]] = {}
-    if projected:
+    # Row eligibility belongs to the source table, independent of Article's projected prompt or Catalog's full record.
+    if any(candidate.cell is not None for candidate in candidates):
         # A value printed in many table rows ("1", a brand name) offers every such cell; a list item's claim is offered
         # only the cells in the rows printing its item's most distinctive other value (the one in fewest rows: its own
         # row, by an article number), when there are any. A candidate location only: the model still decides support,
@@ -233,6 +238,17 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 eligible[claim] = [label for label in eligible[claim] if label not in rows_of] + own
             elif len(best) == 1:  # no offered cell shows the item's own row (a section header): print that row
                 context_rows[claim] = best
+    if projected:  # Article's row filter predates the fallback below and stays hard
+        unfiltered = dict(eligible)
+    # Prefer cells per claim, after row filtering, without removing other tables or prose support. A matching cell
+    # need not support the claim (an entry number equal to a captioned value), nor an item lie in one row: what this
+    # hides is the claim's fallback.
+    for claim, labels in eligible.items():
+        cell_parents = {labelled[label].passage.id for label in labels if labelled[label].cell is not None}
+        eligible[claim] = [label for label in labels
+                           if labelled[label].cell is not None or labelled[label].passage.id not in cell_parents]
+    fallback = {claim: labels for claim, labels in unfiltered.items() if set(labels) != set(eligible[claim])}
+    retry: list[str] = []
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
     batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
@@ -246,7 +262,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         record_fields = f"Record fields (lists are shown per claim): {json.dumps(own, ensure_ascii=False)}\n\n"
     calls: list[Call] = []
     issues: list[Issue] = []
-    while batches:
+    while batches or retry:
+        if not batches:  # the claims the precise round left unsupported, offered what it hid
+            for claim in retry:
+                eligible[claim] = fallback.pop(claim)
+            batches, retry = [retry[n:n + batch_size] for n in range(0, len(retry), batch_size)], []
         batch = batches.pop(0)
         made_before = len(links)
         lines = []
@@ -277,8 +297,6 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 "attribution": {"type": "boolean"}}, "required": ["label", "attribution"],
                 "additionalProperties": False} for claim in batch}
         size = len(instruction) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
-        if before_call is not None:
-            before_call()
         count = counter.request_tokens(instruction, user, reply_schema) if counter else None
         exceeded = count + 2048 > counter.context_tokens if counter else size > budget
         if projected and not exceeded:  # the reply, every label at its longest, within the output reserve
@@ -311,6 +329,9 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 candidate_reply = label if isinstance(label, dict) else {}
                 label = candidate_reply.get("label")
                 if label in eligible[claim] and candidate_reply.get("attribution") is not True:
+                    if claim in fallback:
+                        retry.append(claim)
+                        continue
                     issues.append(Issue("unsupported_attribution", f"{claim}: source support was not attested", record, path))
                     continue
             if quoted:
@@ -321,11 +342,16 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                     if (candidate_reply.get("attribution") is not True or not isinstance(quote, str) or not quote.strip()
                             or len(quote) > 500
                             or quote not in labelled[label].text):
+                        if claim in fallback:
+                            retry.append(claim)
+                            continue
                         issues.append(Issue("unsupported_quote", f"{claim}: missing attribution or source substring", record, path))
                         continue
             if label is None:
                 issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
             elif label == NONE:
+                if claim in fallback:
+                    retry.append(claim)
                 continue
             elif label not in eligible[claim]:
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
@@ -358,43 +384,43 @@ Grounding = Callable[..., tuple[list[Link], list[Call], list[Issue]]]
 
 def semantic(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
              budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-             before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+             proofs: list[dict] | None = None,
              skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
              on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """The production reference: one evidence label per claim, or NONE."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
-                  record_context=record_context, before_call=before_call, proofs=proofs, skip_paths=skip_paths,
+                  record_context=record_context, proofs=proofs, skip_paths=skip_paths,
                   projected=projected, on_batch=on_batch)
 
 
 def quoted(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
            budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-           before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+           proofs: list[dict] | None = None,
            skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
            on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """A label, an exact source quote and an attribution per claim; accepted quotes are appended to `proofs`."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
-                  record_context=record_context, before_call=before_call, quoted=True, proofs=proofs, skip_paths=skip_paths,
+                  record_context=record_context, quoted=True, proofs=proofs, skip_paths=skip_paths,
                   projected=projected, on_batch=on_batch)
 
 
 def spans(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
           budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-          before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+          proofs: list[dict] | None = None,
           skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
           on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """Canonical spans with reconstructed quotes and model-attested attribution."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
-                  record_context=record_context, before_call=before_call, proofs=proofs, skip_paths=skip_paths, span_ids=True,
+                  record_context=record_context, proofs=proofs, skip_paths=skip_paths, span_ids=True,
                   projected=projected, on_batch=on_batch)
 
 
 def off(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
         budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
-        before_call: Callable[[], None] | None = None, proofs: list[dict] | None = None,
+        proofs: list[dict] | None = None,
         skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
         on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:

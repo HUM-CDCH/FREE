@@ -233,18 +233,26 @@ export type ProjectContextSummary = {
   name: string
   createdAt: Date
 }
+/** The guided workflow's steps, in order. */
 export type ProjectContextWorkflowPhase =
-  | 'ingest'
-  | 'chat'
+  | 'upload'
+  | 'schema'
+  | 'pilot'
   | 'approve'
-  | 'extract'
-  | 'validate'
+  | 'batch'
+  | 'review'
 
 /**
  * Persisted per-project workflow state, computed inside the store so listing
  * never fans out per-project reads. A Source Document is stale exactly when
  * its current Source Representation Revision differs from the one pinned by
  * its latest Extraction.
+ *
+ * `phase` is the furthest step reached, read from facts that later work never
+ * undoes (a reviewed pilot, an approved revision, a finished Batch
+ * Extraction), so editing the schema or adding documents never moves it back.
+ * What those changes leave to do is counted instead: `schemaStabilised`,
+ * `currentSchemaRevisionReviewed` and `pendingExtractionSourceDocumentCount`.
  */
 export type ProjectContextActivitySummary = {
   phase: ProjectContextWorkflowPhase
@@ -252,8 +260,15 @@ export type ProjectContextActivitySummary = {
   extractedSourceDocumentCount: number
   reviewedSourceDocumentCount: number
   staleSourceDocumentCount: number
+  /** Source Documents whose latest Extraction is missing, on another revision than the current one, or stale. */
+  pendingExtractionSourceDocumentCount: number
   schemaDraftCount: number
+  /** The Current Schema Revision of the project's newest Extraction Schema, or null when absent. */
+  currentSchemaRevisionId: string | null
+  /** The Current Schema Revision is approved (stabilised) for Batch Extraction. */
   schemaStabilised: boolean
+  /** Some Source Document's latest Extraction on the Current Schema Revision is reviewed: it has been piloted. */
+  currentSchemaRevisionReviewed: boolean
   lastActivityAt: Date
   runningBatch: { completedMemberCount: number; memberCount: number } | null
 }
@@ -284,13 +299,16 @@ export function emptyProjectContextActivitySummary(
   lastActivityAt: Date,
 ): ProjectContextActivitySummary {
   return {
-    phase: 'ingest',
+    phase: 'upload',
     extractionCount: 0,
     extractedSourceDocumentCount: 0,
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
+    pendingExtractionSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    currentSchemaRevisionId: null,
     schemaStabilised: false,
+    currentSchemaRevisionReviewed: false,
     lastActivityAt,
     runningBatch: null,
   }
@@ -1443,12 +1461,12 @@ export function createResearcherProjectStore(
       const suggestions = await database.orm.public.BatchSchemaSuggestion.where(
         (suggestion) => suggestion.projectContextId.in(projectIds),
       )
-        .select('projectContextId', 'phase', 'confirmedSchemaRevisionId', 'createdAt')
+        .select('projectContextId', 'confirmedSchemaRevisionId', 'createdAt')
         .all()
       const batches = await database.orm.public.BatchExtraction.where((batch) =>
         batch.projectContextId.in(projectIds),
       )
-        .select('id', 'projectContextId', 'createdAt')
+        .select('id', 'projectContextId', 'schemaRevisionId', 'createdAt')
         .all()
       // A batch's member Extractions are its selection; each is finished once its head acknowledges a terminal state.
       const members = await durableExtractionFacts(database, { batchIds: batches.map((batch) => batch.id) })
@@ -1482,13 +1500,16 @@ export function createResearcherProjectStore(
             extractedDocuments: new Set<string>(),
             reviewedDocuments: new Set<string>(),
             reviewedRevisionIds: new Set<string>(),
-            staleSourceDocumentCount: 0,
+            staleDocuments: new Set<string>(),
+            documentIds: [] as string[],
             schemaDraftCount: 0,
             hasSchemaRevision: false,
+            hasReviewedExtraction: false,
+            hasStabilisedRevision: false,
+            hasFinishedApprovedBatch: false,
             schemaStabilised: false,
             currentRevisionId: null as string | null,
             currentRevisionReviewed: false,
-            hasReadySuggestion: false,
             lastActivityAt: row.createdAt,
             runningBatch: null as {
               id: string
@@ -1507,6 +1528,7 @@ export function createResearcherProjectStore(
         const state = project.get(document.projectContextId)
         if (!state) continue
         state.sourceDocumentCount += 1
+        state.documentIds.push(document.id)
         bump(document.projectContextId, document.createdAt)
       }
       // `durableExtractionFacts` already keeps published Extractions only; a
@@ -1522,7 +1544,10 @@ export function createResearcherProjectStore(
         if (!projectContextId || !state) continue
         state.extractionCount += 1
         bump(projectContextId, extraction.createdAt)
-        if (extraction.reviewedAt) bump(projectContextId, extraction.reviewedAt)
+        if (extraction.reviewedAt) {
+          bump(projectContextId, extraction.reviewedAt)
+          state.hasReviewedExtraction = true
+        }
         const latest = latestExtraction.get(extraction.sourceDocumentId)
         if (!latest || extraction.createdAt >= latest.createdAt)
           latestExtraction.set(extraction.sourceDocumentId, {
@@ -1547,13 +1572,18 @@ export function createResearcherProjectStore(
         }
         const current = currentRepresentation.get(sourceDocumentId)
         if (current && current.id !== latest.sourceRepresentationRevisionId)
-          state.staleSourceDocumentCount += 1
+          state.staleDocuments.add(sourceDocumentId)
       }
+      const stabilisedAt = new Map<string, Date>()
       for (const revision of schemaRevisions) {
         const projectContextId = projectBySchema.get(revision.extractionSchemaId)
         const state = projectContextId && project.get(projectContextId)
         if (!projectContextId || !state) continue
         state.hasSchemaRevision = true
+        if (revision.stabilisedAt) {
+          state.hasStabilisedRevision = true
+          stabilisedAt.set(revision.id, revision.stabilisedAt)
+        }
         bump(projectContextId, revision.createdAt)
       }
       const currentSchemaProjects = new Set<string>()
@@ -1574,10 +1604,7 @@ export function createResearcherProjectStore(
       for (const suggestion of suggestions) {
         const state = project.get(suggestion.projectContextId)
         if (!state) continue
-        if (suggestion.confirmedSchemaRevisionId == null) {
-          state.schemaDraftCount += 1
-          if (suggestion.phase === 'READY') state.hasReadySuggestion = true
-        }
+        if (suggestion.confirmedSchemaRevisionId == null) state.schemaDraftCount += 1
         bump(suggestion.projectContextId, suggestion.createdAt)
       }
       const completedMembers = new Map<string, number>()
@@ -1600,8 +1627,13 @@ export function createResearcherProjectStore(
         if (!state) continue
         bump(batch.projectContextId, batch.createdAt)
         const memberCount = totalMembers.get(batch.id) ?? 0
-        if (memberCount === 0 || completedMembers.get(batch.id) === memberCount)
+        if (memberCount === 0) continue
+        if (completedMembers.get(batch.id) === memberCount) {
+          // A pilot opened before its revision was approved is not the Batch Extraction the approval unlocked.
+          const approvedAt = stabilisedAt.get(batch.schemaRevisionId)
+          if (approvedAt && approvedAt <= batch.createdAt) state.hasFinishedApprovedBatch = true
           continue
+        }
         if (!state.runningBatch || batch.createdAt > state.runningBatch.createdAt)
           state.runningBatch = {
             id: batch.id,
@@ -1613,16 +1645,26 @@ export function createResearcherProjectStore(
 
       return rows.map(({ id, name, createdAt }) => {
         const state = project.get(id)!
+        const pendingExtractionSourceDocumentCount = state.documentIds.filter((sourceDocumentId) => {
+          const latest = latestExtraction.get(sourceDocumentId)
+          return !latest || latest.schemaRevisionId !== state.currentRevisionId || state.staleDocuments.has(sourceDocumentId)
+        }).length
+        // When the whole collection fits a pilot, the approved revision may already cover it: nothing is left to batch.
+        const batched =
+          state.hasFinishedApprovedBatch ||
+          (state.schemaStabilised && pendingExtractionSourceDocumentCount === 0 && state.runningBatch === null)
         const phase: ProjectContextWorkflowPhase =
           state.sourceDocumentCount === 0
-            ? 'ingest'
-            : state.hasSchemaRevision
-              ? state.currentRevisionReviewed
-                ? 'validate'
-                : 'extract'
-              : state.hasReadySuggestion
-                ? 'approve'
-                : 'chat'
+            ? 'upload'
+            : !state.hasSchemaRevision
+              ? 'schema'
+              : !state.hasReviewedExtraction
+                ? 'pilot'
+                : !state.hasStabilisedRevision
+                  ? 'approve'
+                  : !batched
+                    ? 'batch'
+                    : 'review'
         return {
           projectContextId: id,
           name,
@@ -1633,9 +1675,12 @@ export function createResearcherProjectStore(
             extractionCount: state.extractionCount,
             extractedSourceDocumentCount: state.extractedDocuments.size,
             reviewedSourceDocumentCount: state.reviewedDocuments.size,
-            staleSourceDocumentCount: state.staleSourceDocumentCount,
+            staleSourceDocumentCount: state.staleDocuments.size,
+            pendingExtractionSourceDocumentCount,
             schemaDraftCount: state.schemaDraftCount,
+            currentSchemaRevisionId: state.currentRevisionId,
             schemaStabilised: state.schemaStabilised,
+            currentSchemaRevisionReviewed: state.currentRevisionReviewed,
             lastActivityAt: state.lastActivityAt,
             runningBatch: state.runningBatch && {
               completedMemberCount: state.runningBatch.completedMemberCount,

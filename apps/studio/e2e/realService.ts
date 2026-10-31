@@ -31,12 +31,12 @@ export function numberedCataloguePdf(): Buffer {
   return textPdf([['Kreis Heide', '31. Hill. FA: G.', '32. Valley.'], ['FA: EF.']])
 }
 
-export function textPdf(pages: string[][]): Buffer {
+export function textPdf(pages: string[][], layout: {fontSize?:number;lineHeight?:number} = {}): Buffer {
   const font = 3
   const pageObjects: string[] = []
   const kids: string[] = []
   for (const [index, texts] of pages.entries()) {
-    const stream = texts.map((text, line) => `BT /F1 16 Tf 72 ${680 - line * 180} Td (${text}) Tj ET\n`).join('')
+    const stream = texts.map((text, line) => `BT /F1 ${layout.fontSize??16} Tf 72 ${680 - line * (layout.lineHeight??180)} Td (${text}) Tj ET\n`).join('')
     const page = 4 + index * 2
     kids.push(`${page} 0 R`)
     pageObjects.push(
@@ -69,10 +69,11 @@ const DOCUMENT_INSTRUCTION = 'The document is the one object to extract:'
 /** Only the model boundary is scripted. Responses are derived from the real parser text in each prompt.
  *  `unansweredClaimValue`: the verifier leaves the claim whose value is this text unanswered, so the Parsing Service
  *  records it as not completed (`missing_claim`). */
-async function modelServer(options: { unansweredClaimValue?: string } = {}) {
+async function modelServer(options: { unansweredClaimValue?: string; articleReading?: (prompt:string)=>Record<string,unknown> } = {}) {
   let calls = 0
   const requests: unknown[] = []
   let holdNext = false
+  let holdPattern: RegExp | null = null
   let releaseHeld: (() => void) | null = null
   let held: Promise<void> | null = null
   const server = createServer(async (request, response) => {
@@ -92,14 +93,15 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
         return
       }
       requests.push(body)
-      if (holdNext) {
+      const prompt: string = body.messages.at(-1).content
+      if (holdNext || holdPattern?.test(prompt)) {
         holdNext = false
+        holdPattern = null
         held = new Promise<void>((resolve) => { releaseHeld = resolve })
         await held
         held = null
         releaseHeld = null
       }
-      const prompt: string = body.messages.at(-1).content
       const system: string = body.messages.find((message: { role: string }) => message.role === 'system')?.content ?? ''
       const properties = body.response_format.json_schema.schema.properties
       const candidates = Object.values(properties).some((field) =>
@@ -138,9 +140,12 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
               : null]))
       } else if (system.startsWith(DOCUMENT_INSTRUCTION)) {
         // Article: the whole source is one object, so every entry it states belongs in that object's array.
-        if (!('sites' in properties)) throw new Error(`Article call without the document's sites array: ${JSON.stringify(properties)}`)
-        if (records.length !== 2) throw new Error(`Article call did not receive both entries: ${prompt}`)
-        answer = { sites: records }
+        if (options.articleReading) answer = options.articleReading(prompt)
+        else {
+          if (!('sites' in properties)) throw new Error(`Article call without the document's sites array: ${JSON.stringify(properties)}`)
+          if (records.length !== 2) throw new Error(`Article call did not receive both entries: ${prompt}`)
+          answer = { sites: records }
+        }
       } else if ('starts' in properties) {
         const starts = [...prompt.matchAll(/\[(B\d+)\]([^]*?)(?=\[B\d+\]|$)/g)]
           .filter(match => /Hill:|Valley:/.test(match[2])).map(match => match[1])
@@ -177,8 +182,10 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
     count: () => calls,
     requests: () => structuredClone(requests),
     holdNextExtraction: () => { holdNext = true },
+    /** Holds the next extraction request whose prompt matches, instead of the next one. */
+    holdExtractionMatching: (pattern: RegExp) => { holdPattern = pattern },
     extractionHeld: () => held !== null,
-    releaseExtraction: () => { releaseHeld?.(); holdNext = false },
+    releaseExtraction: () => { releaseHeld?.(); holdNext = false; holdPattern = null },
     close: () => { releaseHeld?.(); return new Promise<void>((resolveClosed, reject) =>
       server.close(error => error ? reject(error) : resolveClosed())) },
   }
@@ -187,7 +194,7 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
 type Process = { child: ChildProcess; exited: Promise<number | null> }
 
 export async function startRealService(logFile: string,
-  options: { holdConversion?: boolean; unansweredClaimValue?: string } = {}) {
+  options: { holdConversion?: boolean; unansweredClaimValue?: string; articleReading?: (prompt:string)=>Record<string,unknown> } = {}) {
   const url = process.env.FREE_PLAYWRIGHT_SERVICE_URL
   if (!url) throw new Error('Run this test with playwright.service.config.ts.')
   const address = new URL(url)
@@ -210,7 +217,7 @@ export async function startRealService(logFile: string,
   const realModel = process.env.FREE_REAL_EXTRACT_MODEL
   if (Boolean(realUrl) !== Boolean(realModel))
     throw new Error('Provide both FREE_REAL_EXTRACT_URL and FREE_REAL_EXTRACT_MODEL, or neither.')
-  const fixture = realUrl ? null : await modelServer({ unansweredClaimValue: options.unansweredClaimValue })
+  const fixture = realUrl ? null : await modelServer({ unansweredClaimValue: options.unansweredClaimValue, articleReading: options.articleReading })
   const runs = await mkdtemp(join(tmpdir(), 'free-real-service-'))
   const conversionBarrier = options.holdConversion ? join(runs, '.conversion-hold') : null
   if (conversionBarrier) await mkdir(conversionBarrier)
@@ -317,6 +324,7 @@ export async function startRealService(logFile: string,
     modelCalls: () => fixture?.count() ?? null,
     modelRequests: () => fixture?.requests() ?? [],
     holdNextExtraction: () => fixture?.holdNextExtraction(),
+    holdExtractionMatching: (pattern: RegExp) => fixture?.holdExtractionMatching(pattern),
     extractionHeld: () => fixture?.extractionHeld() ?? false,
     releaseExtraction: () => fixture?.releaseExtraction(),
     conversionHeld: async () => conversionBarrier !== null &&

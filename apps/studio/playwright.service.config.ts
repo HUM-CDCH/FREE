@@ -3,21 +3,22 @@ import { resolve } from 'node:path'
 import { configurePlaywrightStack, playwrightWebServerCommand } from './e2e/playwrightStack.js'
 
 const stack = configurePlaywrightStack({
-  applicationPort: 41_761,
+  applicationPort: 30_761,
   composeProject: 'free-studio-service-e2e',
   databaseName: 'free_test_real_service',
-  oidcPort: 41_762,
-  postgresPort: 45_435,
+  oidcPort: 30_762,
+  postgresPort: 31_435,
 })
 const origin = `http://localhost:${stack.applicationPort}`
 const serviceTests = resolve(import.meta.dirname, '../../artifacts/service-tests')
 const state = resolve(serviceTests, 'state')
-process.env.FREE_PLAYWRIGHT_SERVICE_URL = 'http://127.0.0.1:41764'
+process.env.FREE_PLAYWRIGHT_SERVICE_URL = 'http://127.0.0.1:30764'
 process.env.FREE_PLAYWRIGHT_SOURCE_INBOX = resolve(state, 'source-inbox')
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'real-service-reuse.spec.ts', 'durable-service.spec.ts'],
+  testMatch: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'real-service-reuse.spec.ts', 'durable-service.spec.ts',
+    'guided-workflow-service.spec.ts'],
   outputDir: resolve(serviceTests, 'results'),
   workers: 1,
   timeout: 600_000,

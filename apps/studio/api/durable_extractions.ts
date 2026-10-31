@@ -10,7 +10,7 @@ import { studioDbos } from '../server/dbos.js'
 type DiscoveryRun={found:{segment:string;label:string|null}[];windows:{capture:string;lines:{segment:string}[]}[]}
 /** The record starts discovery has found while the run still looks for its records: the worker's progress events
  *  (the windows read, then the places each window being read has generated so far, by its own lines). Display only,
- *  so a missing or unreadable event reads as none. */
+ *  so a missing run reads as none; an unreadable window or malformed place leaves the other starts visible. */
 export async function discoveryProgress(attempt:{id:string;workflowId:string}|null,
   client?:Pick<ReturnType<typeof studioDbos>['kei'],'getEvent'>) {
   if(!attempt)return null
@@ -18,11 +18,20 @@ export async function discoveryProgress(attempt:{id:string;workflowId:string}|nu
     const events=client??studioDbos().kei
     const run=await events.getEvent<DiscoveryRun>(attempt.workflowId,'discovery',0)
     if(!run)return null
-    const streamed=await Promise.all(run.windows.map(window=>events.getEvent<unknown[][]>(`kei-call:${attempt.id}:${window.capture}`,'places',0)))
-    const starts=run.windows.flatMap((window,index)=>(streamed[index]??[]).flatMap(place=> {
-      const line=typeof place[0]==='string'?window.lines[Number(place[0].slice(1))-1]:undefined
-      return line&&place[1]==='record'?[{segment:line.segment,label:typeof place[2]==='string'?place[2]:null}]:[]
+    const streamed=await Promise.all(run.windows.map(async window=> {
+      try {return await events.getEvent<unknown>(`kei-call:${attempt.id}:${window.capture}`,'places',0)}
+      catch {return null}
     }))
+    const starts=run.windows.flatMap((window,index)=> {
+      const places=streamed[index]
+      return (Array.isArray(places)?places:[]).flatMap(place=> {
+        if(!Array.isArray(place) || (place.length!==3&&place.length!==4) || typeof place[0]!=='string'
+          || !/^L[1-9]\d*$/.test(place[0]) || (place[2]!==null&&typeof place[2]!=='string')
+          || (place.length===4&&typeof place[3]!=='string'))return []
+        const line=window.lines[Number(place[0].slice(1))-1]
+        return line&&place[1]==='record'?[{segment:line.segment,label:typeof place[2]==='string'?place[2]:null}]:[]
+      })
+    })
     return {found:[...run.found,...starts]}
   } catch {return null}
 }
@@ -52,7 +61,7 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
         if(!action) {
           const state=await repository.read(id)
           // While discovery still looks for the records, the ones it has found so far show on the source.
-          return json(state.status==='RUNNING'&&state.strategy==='CATALOG'&&state.records===null?{...state,discovery:await discoveryProgress(state.attempt)}:state,{headers:noStore})
+          return json(state.status==='RUNNING'&&state.strategy==='CATALOG'&&!state.recordsFinal?{...state,discovery:await discoveryProgress(state.attempt)}:state,{headers:noStore})
         }
         if(action==='source') {
           const head=await repository.read(id)

@@ -2,13 +2,14 @@
 
 For each window plan it reports record-start recall against numbered gold starts, the ledger's unresolved text, calls,
 cut-off replies, wall time, and when each entry could start were entries run as soon as the windows deciding it were
-read (the `pipelined` times; the product starts every entry after the last window). `--scale K` repeats the source's
+read (the `pipelined` times; the product did so from defaults version 3, durable runs only). `--scale K` repeats the source's
 pages K times with the gold numbers shifted, a synthetic long source for throughput only. The models come from the
 environment as for the live tests (`KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL`, `KEI_NUEXTRACT_URL`, ...). `--values GOLD`
-instead runs whole extractions under each `--defaults` version and scores their values against gold rows.
+instead runs whole extractions under each `--defaults` version and scores their values against gold rows, with each
+stage's call durations (median, p90, max seconds).
 
     python -m experiments.extraction.discovery_windows RUN_DIR --gold 205 233 --by budget page column --repeats 2
-    python -m experiments.extraction.discovery_windows RUN_DIR --values reference.json --defaults 1 2
+    python -m experiments.extraction.discovery_windows RUN_DIR --values reference.json --defaults 2 3
 """
 from __future__ import annotations
 
@@ -73,7 +74,7 @@ def once(evidence: Evidence, gold: dict[str, int], by: str, workers: int, overla
     counters = counters_for(chat)
     execution = unified._execution(evidence, request.schema_, request.options.unified, chat, counters)
     effective = execution["effective"]
-    budget = unified._Budget(chat, counters, effective["stages"], lambda: None)
+    budget = unified._Budget(chat, counters, effective["stages"])
     finished: dict[str, float] = {}
     started = time.monotonic()
 
@@ -91,11 +92,12 @@ def once(evidence: Evidence, gold: dict[str, int], by: str, workers: int, overla
 def score(evidence: Evidence, gold: dict[str, int], body: dict, finished: dict[str, float], wall: float) -> dict:
     units = discovery.units_of(evidence.passages)
     texts = {passage.id: passage.text for passage in evidence.passages}
+    kinds = discovery.kinds_of(evidence.passages)
     position = {(unit.segment, unit.start): index for index, unit in enumerate(units)}
     spans = []  # each read window's first and last unit index and when its reply returned
     for window in body["windows"]:
         first, last = (position[(each["segment"], each["start"])] for each in window["primary"])
-        shown = discovery.text_of(units[first:last + 1], texts, [f"L{n}" for n in range(1, last - first + 2)])
+        shown = discovery.window_text(units[first:last + 1], texts, kinds)
         spans.append((first, last, next((at for user, at in finished.items() if shown in user), wall)))
 
     def window_of(segment: str, start: int) -> int:
@@ -175,7 +177,14 @@ def values(evidence: Evidence, rows: list[dict], version: int, chunks: int) -> d
         expected = gold.get(record.get("catalog_number"))
         if expected is not None and numbers[record["catalog_number"]] == 1:
             right.update(name for name in names if expected.get(name) is not None and same(record.get(name), expected[name]))
+    seconds: dict[str, list[float]] = {}
+    for call in result["calls"]:
+        seconds.setdefault(call["stage"], []).append(call["seconds"])
     return {"defaults": version, "wall": wall, "records": len(result["records"]),
+            # each call's own duration, as served beside `chunks` others: what a slow call holds up
+            "seconds": {stage: {"calls": len(each), "median": round(statistics.median(each), 1),
+                                "p90": round(sorted(each)[int(0.9 * (len(each) - 1))], 1), "max": round(max(each), 1)}
+                        for stage, each in seconds.items()},
             "matched": sum(numbers[number] == 1 for number in gold), "duplicated": sum(numbers[number] > 1 for number in gold),
             "spurious": sum(count for number, count in numbers.items() if number not in gold),
             "fields": {name: f"{right[name]}/{present[name]}" for name in names},

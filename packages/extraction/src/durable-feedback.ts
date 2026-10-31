@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { stableJson } from 'db'
-import { schemaNodesToZod, type SchemaNode } from './schema.js'
+import { schemaNodesToZod, schemaPathNames, isRecord, type SchemaNode } from './schema.js'
 import { blockForAnchor, tableForAnchor, type ParsedDocument } from './parsed-document.js'
 import type { DurableValue } from './durable-contract.js'
 
@@ -80,4 +80,29 @@ export function selectFeedback(input: {
     examples.push(candidate)
   }
   return { examples, omissions }
+}
+
+const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
+/** What a decision reviewed: the model value and, for a Value Disagreement, each place's set of readings, never where
+ *  they were read. A plain value keeps its digest. */
+export const modelDigest = (value: DurableValue) => hash([value.selectionId,value.node,value.modelValue,
+  ...value.disagreement ? [value.disagreement.map(entry=>stableJson([entry.path,entry.alternatives.map(a=>stableJson(a.value)).sort()])).sort()] : []])
+
+/** The model value with the reading chosen at each disagreeing place: exactly one of each place's own readings, or
+ *  undefined. Never infer a winner from order. */
+export function resolvedValue(value: DurableValue, choices: readonly {path: readonly string[]; value: unknown}[]): unknown {
+  if(!value.disagreement || choices.length!==value.disagreement.length) return undefined
+  let resolved=structuredClone(value.modelValue)
+  for(const entry of value.disagreement) {
+    const chosen=choices.filter(choice=>stableJson(choice.path)===stableJson(entry.path))
+    const alternative=chosen.length===1 ? entry.alternatives.find(a=>stableJson(a.value)===stableJson(chosen[0].value)) : undefined
+    const names=schemaPathNames(value.node,entry.path)
+    if(!alternative || !names) return undefined
+    if(!names.length) { resolved=alternative.value; continue }
+    let parent=resolved
+    for(const name of names.slice(0,-1)) parent=isRecord(parent)?parent[name]:undefined
+    if(!isRecord(parent)) return undefined
+    parent[names.at(-1)!]=alternative.value
+  }
+  return resolved
 }

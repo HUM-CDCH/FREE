@@ -9,6 +9,89 @@ import { createDurableRepository,initializeDurableExtraction,DurableConflict,Dur
 import { createResearcherExtractionPersistence } from './postgres-persistence.js'
 import { REFERENCE_ARTICLE } from './extraction-method.js'
 
+test('boolean review requires decisions and finalizes without legacy grounding claims (#161)', async t => {
+  const base = process.env.EXTRACTION_TEST_DATABASE_URL
+  if (!base) throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
+  const target = await provisionDatabase(base, `free_test_boolean_review_${randomBytes(5).toString('hex')}`)
+  const admin = new Client({connectionString: target.url}), source = new Pool({connectionString: target.url, max: 4})
+  t.after(async () => { await source.end(); await admin.end(); await target.drop() })
+  await migrate(target.url); await admin.connect()
+  const fixture = await seedPreMigrationHistory(admin), document = fixture.documents.d1
+  const representation = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [document.sourceRepresentationRevisionId])).rows[0]
+  const repository = createDurableRepository(fixture.accountId, source)
+  const nodes = [
+    {id: 'yes', name: 'leather_material', type: 'boolean' as const},
+    {id: 'no', name: 'painted', type: 'boolean' as const},
+    {id: 'details', name: 'details', type: 'object' as const, children: [
+      {id: 'present', name: 'present', type: 'boolean' as const}, {id: 'absent', name: 'absent', type: 'boolean' as const}]},
+    {id: 'flags', name: 'flags', type: 'array' as const, itemType: 'boolean' as const},
+    {id: 'unknown', name: 'unknown', type: 'boolean' as const},
+  ]
+  const tree = {recordDescription: 'One source record', schemaNodes: nodes}
+  for (const [index, strategy] of (['ARTICLE', 'CATALOG'] as const).entries()) await t.test(strategy, async () => {
+    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: null} : {generic: null}
+    await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
+      SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
+      [schemaRevisionId, 2 + index, tree, strategy === 'ARTICLE' ? 'document' : 'records', fixture.revisions.article])
+    await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
+      VALUES ($1,$2,$3,$4,$5,$6)`, [id, document.sourceDocumentId, document.sourceRepresentationRevisionId, schemaRevisionId, strategy, settings])
+    await admin.query('BEGIN')
+    try {
+      await initializeDurableExtraction(admin as never, id, {projectContextId: fixture.projectContextId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId, schemaTree: tree,
+        strategy, catalogRecipe: null, preprocessId: representation.preprocessId, requestedModels: null, requestedSettings: settings})
+      await admin.query('COMMIT')
+    } catch (error) { await admin.query('ROLLBACK'); throw error }
+    const head = (await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1', [id])).rows[0]
+    // Article and generic Catalog omit boolean grounding claims. Their durable producer still saves each whole
+    // typed value, explicitly ungrounded; null is the only absent boolean. Nested booleans share one decision.
+    const modelValues = [true, false, {present: true, absent: false}, [true, false], null]
+    const values = nodes.map((node, number) => ({id: node.id, recordId: 'record', fieldId: node.id,
+      path: ['records', 0, node.name], selectionId: head.selectionId, schemaRevisionId, node, modelValue: modelValues[number],
+      evidence: [], grounding: 'ungrounded', processing: modelValues[number] === null ? 'absent' : 'saved', lineage: []}))
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+      VALUES ($1,$2,1,$3,$4,$5,$6)`, [randomUUID(), id, head.selectionId, 'a'.repeat(64), JSON.stringify(values),
+      {diagnostics: {evidence: [], ungrounded: []}, processingComplete: true}])
+    await admin.query(`UPDATE extraction_runtime.head SET "snapshotVersion"=1,acknowledgement='COMPLETED' WHERE id=$1`, [id])
+    const initial = await repository.page(id)
+    assert.deepEqual(initial.values.map(value => value.modelValue), modelValues)
+    assert.ok(initial.values.every(value => value.grounding === 'ungrounded' && value.links.length === 0))
+    assert.deepEqual(initial.reviewCounts, {required: 4, toCheck: 4, approved: 0, edited: 0, rejected: 0})
+    await assert.rejects(repository.finalize(id, {snapshotVersion: 1, feedbackVersion: initial.feedbackVersion}), /Review each saved value/)
+    const correction = {snapshotVersion: 1, expectedRevision: 0, action: 'EDITED', included: true, evidence: []}
+    for (const [valueId, invalid] of [['no', 'true'], ['details', {present: 'true', absent: false}], ['flags', ['true', false]]] as const)
+      await assert.rejects(repository.saveCorrection(id, valueId, {...correction, value: invalid}, async () => {}), /does not fit its producing field/)
+    await repository.saveCorrection(id, 'no', {...correction, action: 'APPROVED', value: false}, async () => {})
+    await repository.saveCorrection(id, 'details', {...correction, action: 'REJECTED'}, async () => {})
+    await repository.saveCorrection(id, 'flags', {...correction, value: [false, true]}, async () => {})
+    const remaining = await repository.page(id)
+    assert.equal(remaining.reviewCounts.toCheck, 1)
+    await assert.rejects(repository.finalize(id, {snapshotVersion: 1, feedbackVersion: remaining.feedbackVersion}), /Review each saved value/)
+    await repository.saveCorrection(id, 'yes', {...correction, value: false}, async () => {})
+    const reviewed = await repository.page(id)
+    assert.deepEqual(reviewed.reviewCounts, {required: 4, toCheck: 0, approved: 1, edited: 2, rejected: 1})
+    assert.equal(reviewed.values.find(value => value.id === 'yes')?.correction.decision.value, false)
+    assert.equal(reviewed.values.find(value => value.id === 'no')?.correction.decision.value, false)
+    assert.deepEqual(reviewed.values.find(value => value.id === 'flags')?.correction.decision.value, [false, true])
+    assert.equal(reviewed.finalization, null)
+    const cut = {snapshotVersion: 1, feedbackVersion: reviewed.feedbackVersion}
+    await repository.finalize(id, cut)
+    const finalized = await repository.page(id)
+    assert.equal(finalized.finalization?.snapshotVersion, cut.snapshotVersion)
+    assert.equal(finalized.finalization?.feedbackVersion, cut.feedbackVersion)
+    // A changed boolean needs a new decision; its earlier explicit review remains attached to the earlier cut.
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+      VALUES ($1,$2,2,$3,$4,$5,'{}')`, [randomUUID(), id, head.selectionId, 'b'.repeat(64), JSON.stringify(values.map(value => value.id === 'no' ? {...value, modelValue: true} : value))])
+    await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=2 WHERE id=$1', [id])
+    const changed = await repository.page(id)
+    assert.equal(changed.reviewCounts.toCheck, 1)
+    assert.equal(changed.values.find(value => value.id === 'no')?.correction, null)
+    assert.equal(changed.finalization, null)
+    await assert.rejects(repository.finalize(id, {snapshotVersion: 2, feedbackVersion: reviewed.feedbackVersion}), /Review each saved value/)
+    assert.deepEqual((await repository.page(id, cut)).finalization, finalized.finalization)
+  })
+})
+
 test('native pilot finalization drives batch progress and unlocks only its producing schema',async t=> {
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
@@ -62,7 +145,8 @@ test('native pilot finalization drives batch progress and unlocks only its produ
   assert.equal(pending.schemaTree.recordScope,'document')
   assert.deepEqual(pending.method.settings.article.identity_fields,['title'])
   await repository.adoptSelection(ids[0],{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:[]})
-  assert.equal(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
+  // A later revision of an approved schema needs no pilot of its own to be approved.
+  assert.notEqual(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
 })
 
 test('durable controls, concurrent corrections, fixed pages and deletion retain one owned Extraction',async t=> {
@@ -185,11 +269,17 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
     [id,head.attemptId,finalClaim.epoch,randomUUID(),head.selectionId,JSON.stringify([]),{finalizedAttempt:{...proof,attemptId:randomUUID()}}]))
   await admin.query('SELECT extraction_runtime.publish_snapshot($1,$2,$3,$4,$5,$6,$7)',
     [id,head.attemptId,finalClaim.epoch,randomUUID(),head.selectionId,JSON.stringify([]),finalCoverage])
-  await repository.command(id,{id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'pause'})
+  const pausing={id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'pause'},paused=await repository.command(id,pausing)
   await admin.query('UPDATE extraction_runtime.head SET "leaseUntil"=clock_timestamp()-interval \'1 second\' WHERE id=$1',[id])
   await reconcileDurableAttempts(async()=>{},source,async ids=>new Map(ids.map(id=>[id,'ERROR'])))
   assert.equal((await repository.read(id)).status,'COMPLETED')
+  // Completion keeps the control version, so a Stop or Pause read before it still matches.
+  for(const action of ['stop','pause'])
+    await assert.rejects(repository.command(id,{id:randomUUID(),expectedVersion:paused.controlVersion,action}),
+      error=>error instanceof DurableConflict&&error.message==='The Extraction is complete.')
+  assert.deepEqual(await repository.command(id,pausing),paused)
   state=await repository.read(id)
+  assert.equal(state.status,'COMPLETED');assert.equal(state.controlVersion,paused.controlVersion)
   const afterCompletion=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article:null}}})
   await repository.adoptSelection(id,{expectedVersion:afterCompletion.controlVersion,selectionId:afterCompletion.selectionId,reprocessValueIds:[]})
   await repository.command(id,{id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'resume'})
@@ -303,4 +393,136 @@ test('deleted durable graphs retain their pins until fenced worker history remov
   assert.equal(await references.packageIsReferenced(representation.artifactReference),false)
   assert.ok(!(await references.referencedPreprocessIds()).has(representation.preprocessId))
   await runtime.close()
+})
+
+test('a Value Disagreement decision binds to its readings: choices apply until the readings change',async t=> {
+  const base=process.env.EXTRACTION_TEST_DATABASE_URL!
+  const target=await provisionDatabase(base,`free_test_disagreement_review_${randomBytes(5).toString('hex')}`)
+  const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
+  t.after(async()=>{await source.end();await admin.end();await target.drop()})
+  await migrate(target.url);await admin.connect()
+  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1
+  const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
+  const id=randomUUID()
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  const client=await source.connect()
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  const repository=createDurableRepository(fixture.accountId,source)
+  const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  const readings=(values:unknown[],segment='p3_s0')=>values.map(reading=>({value:reading,segments:[segment]}))
+  const saved={recordId:'record',selectionId:head.selectionId,schemaRevisionId:fixture.revisions.article,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+  const node=ARTICLE_TREE.schemaNodes[0]
+  const title=(values:unknown[],segment?:string)=>({...saved,id:'title-value',fieldId:node.id,path:['records',0,node.name],node,modelValue:null,
+    disagreement:[{path:[],alternatives:readings(values,segment)}]})
+  const workNode={id:'work',name:'work',type:'object' as const,children:[{id:'t',name:'title',type:'string' as const},{id:'y',name:'year',type:'integer' as const}]}
+  const work=(years?:number[])=>({...saved,id:'work-value',fieldId:'work',path:['records',0,'work'],node:workNode,
+    modelValue:{title:'Article title',year:null},...years?{disagreement:[{path:['y'],alternatives:readings(years)}]}:{}})
+  const plain={...saved,id:'plain-value',fieldId:node.id,path:['records',0,node.name],node,modelValue:'Plain'}
+  const publish=async(version:number,values:unknown[])=> {
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,$3,$4,$5,$6,'{}')`,[randomUUID(),id,version,head.selectionId,'a'.repeat(64),JSON.stringify(values)])
+    await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=$2 WHERE id=$1',[id,version])
+  }
+  const decide=(valueId:string,snapshotVersion:number,expectedRevision:number,decision:Record<string,unknown>)=>
+    repository.saveCorrection(id,valueId,{snapshotVersion,expectedRevision,...decision},async()=>{})
+  const byId=async(feedbackVersion?:number)=>new Map((await repository.page(id,{feedbackVersion})).values.map(value=>[value.id,value]))
+  await publish(1,[title(['A','C']),work(),plain])
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:3,approved:0,edited:0,rejected:0,toCheck:3})
+  const unchosen=/Choose one reading for each part of this value whose readings disagree\./
+  await assert.rejects(decide('title-value',1,0,{action:'APPROVED'}),unchosen)
+  await assert.rejects(decide('title-value',1,0,{action:'APPROVED',choices:[{path:[],value:'D'}]}),unchosen)
+  await assert.rejects(decide('plain-value',1,0,{action:'APPROVED',choices:[{path:[],value:'Plain'}]}),unchosen)
+  await decide('title-value',1,0,{action:'APPROVED',choices:[{path:[],value:'A'}],value:'untrusted'})
+  await decide('work-value',1,0,{action:'REJECTED'})
+  await decide('plain-value',1,0,{action:'APPROVED'})
+  let values=await byId()
+  assert.deepEqual(values.get('title-value')!.correction.decision.choices,[{path:[],value:'A'}])
+  assert.equal(values.get('title-value')!.correction.decision.value,'A')
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:3,approved:2,edited:0,rejected:1,toCheck:0})
+  const original=await repository.finalize(id,{snapshotVersion:1,feedbackVersion:3})
+  // The same readings found in more places keep the choice; a second part of the rejected object comes to disagree.
+  await publish(2,[title(['C','A'],'p9_s0'),work([1827,1828])])
+  values=await byId()
+  assert.equal(values.get('title-value')!.correction.decision.value,'A')
+  assert.equal(values.get('work-value')!.correction,null)
+  assert.equal(values.get('work-value')!.historicalCorrection.decision.action,'REJECTED')
+  assert.equal(values.get('work-value')!.correctionCompatibility,'incompatible')
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:2,approved:1,edited:0,rejected:0,toCheck:1})
+  await assert.rejects(repository.finalize(id,{snapshotVersion:2,feedbackVersion:3}),/Review each saved value/)
+  assert.ok((await repository.history(id)).corrections.some(correction=>correction.valueId==='work-value' && correction.decision.action==='REJECTED'))
+  assert.deepEqual(await repository.finalize(id,{snapshotVersion:1,feedbackVersion:3}),original)
+  // Another reading moves the choice to history too.
+  await publish(3,[title(['A','C','D']),work([1827,1828])])
+  values=await byId()
+  assert.equal(values.get('title-value')!.correction,null)
+  assert.deepEqual(values.get('title-value')!.historicalCorrection.decision.choices,[{path:[],value:'A'}])
+  assert.deepEqual((await repository.page(id,{})).reviewCounts,{required:2,approved:0,edited:0,rejected:0,toCheck:2})
+})
+
+test('the review page reads the run diagnostics of the completion snapshot shown, and a reprocessed attempt never inherits them',async t=> {
+  const base=process.env.EXTRACTION_TEST_DATABASE_URL
+  if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to an explicit disposable free_test_* target.')
+  const target=await provisionDatabase(base,`free_test_durable_diagnostics_${randomBytes(5).toString('hex')}`)
+  const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
+  t.after(async()=>{await source.end();await admin.end();await target.drop()})
+  await migrate(target.url);await admin.connect()
+  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1
+  const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
+  const id=randomUUID()
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  const client=await source.connect()
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  const repository=createDurableRepository(fixture.accountId,source)
+  const node=ARTICLE_TREE.schemaNodes[0]
+  const publish=(head:{attemptId:string;selectionId:string},epoch:number,identity:string,values:unknown[],coverage:Record<string,unknown>)=>
+    admin.query('SELECT extraction_runtime.publish_snapshot($1,$2,$3,$4,$5,$6,$7) AS v',[id,head.attemptId,epoch,identity,head.selectionId,JSON.stringify(values),coverage]).then(result=>result.rows[0].v)
+  const valueOf=(head:{selectionId:string},schemaRevisionId:string,modelValue:string)=>({id:'title',recordId:'document',fieldId:node.id,path:['records',0,node.name],
+    selectionId:head.selectionId,schemaRevisionId,node,modelValue,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]})
+  // Issue entries as the Article method returns them: `detail` is a JSON string, `path` the record's field.
+  const issue=(code:string,detail:unknown)=>({code,detail:JSON.stringify(detail),record:0,path:['records',0,node.name]})
+  const issues=[issue('resolved_value',{path:[node.name],chosen:'Kept',alternatives:['Kept','Other']}),
+    issue('dropped_items',{path:[node.name],dropped:['Gone'],of:['Another work']}),
+    issue('uncertain_items',{path:[node.name],items:[{index:1,of:'',label:'UNSURE'}]})]
+  let head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  let claim=(await admin.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
+  const generation=head.sourcePin.generation
+  const record=await publish(head,claim.epoch,randomUUID(),[valueOf(head,fixture.revisions.article,'Kept')],
+    {sourceGeneration:generation,processingComplete:true,completedScopes:{},historicalProposals:{},diagnostics:{issues,seconds:1.5}})
+  const finalizedAttempt={attemptId:head.attemptId,generation:head.generation,selectionId:head.selectionId,complete:true}
+  const completion={sourceGeneration:generation,finalizedAttempt,diagnostics:{issues}},identity=randomUUID()
+  const completed=await publish(head,claim.epoch,identity,[],completion)
+  // The given completion coverage is stored as given; only the producer's bookkeeping keys are merged in.
+  assert.deepEqual(completed.coverage.diagnostics,{issues})
+  assert.deepEqual(completed.coverage.finalizedAttempt,finalizedAttempt)
+  // A replayed completion publication is the same snapshot: nothing new, nothing duplicated.
+  assert.deepEqual(await publish(head,claim.epoch,identity,[],completion),completed)
+  const shown=await repository.page(id)
+  assert.equal(shown.snapshotVersion,completed.version);assert.equal(shown.snapshotVersion,record.version+1)
+  assert.deepEqual(shown.coverage.diagnostics,{issues})
+  assert.deepEqual(shown.coverage.finalizedAttempt,finalizedAttempt)
+  assert.equal(shown.coverage.sourceGeneration,generation)
+  assert.deepEqual((await repository.page(id,{snapshotVersion:record.version})).coverage.diagnostics,{issues,seconds:1.5})
+  assert.equal(await admin.query('SELECT extraction_runtime.acknowledge($1,$2,$3,true,NULL) AS v',[id,head.attemptId,claim.epoch]).then(result=>result.rows[0].v),'COMPLETED')
+  // Reprocess under new inputs: a new generation and attempt whose run reports no diagnostics shows none of the old ones.
+  const revised=randomUUID()
+  await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,'RESEARCHER_EDIT',"schemaTree",'document' FROM public."schemaRevision" WHERE id=$2`,[revised,fixture.revisions.article])
+  let state=await repository.read(id)
+  const selected=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:{models:null,settings:{article:null}}})
+  await repository.adoptSelection(id,{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:['title']})
+  state=await repository.read(id)
+  await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'resume'})
+  const previous=head
+  head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  assert.notEqual(head.attemptId,previous.attemptId);assert.ok(head.generation>previous.generation)
+  claim=(await admin.query('SELECT extraction_runtime.claim($1,$2,$3) AS v',[id,head.attemptId,randomUUID()])).rows[0].v
+  await publish(head,claim.epoch,randomUUID(),[valueOf(head,revised,'Reread')],
+    {sourceGeneration:generation,processingComplete:true,completedScopes:{},historicalProposals:{}})
+  assert.equal((await repository.page(id)).coverage.diagnostics,undefined)
+  await publish(head,claim.epoch,randomUUID(),[],{sourceGeneration:generation,
+    finalizedAttempt:{attemptId:head.attemptId,generation:head.generation,selectionId:head.selectionId,complete:true}})
+  const reprocessed=await repository.page(id)
+  assert.equal(reprocessed.values[0].modelValue,'Reread')
+  assert.equal(reprocessed.coverage.finalizedAttempt.attemptId,head.attemptId)
+  assert.equal(reprocessed.coverage.diagnostics,undefined)
+  // The earlier snapshot keeps its own diagnostics.
+  assert.deepEqual((await repository.page(id,{snapshotVersion:completed.version})).coverage.diagnostics,{issues})
 })

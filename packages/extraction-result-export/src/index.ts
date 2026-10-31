@@ -23,6 +23,9 @@ export {
 } from "./table.js";
 export {
   buildDurableEvidenceTable,
+  buildDurableDisagreementsTable,
+  DISAGREEMENTS_SHEET,
+  unusedColumn,
   buildDurableExportTable,
   buildIdentityTable,
   conform,

@@ -1,5 +1,5 @@
 import {
-  buildDurableEvidenceTable, buildExportTable, buildIdentityTable, createExportFilename, createFieldRegistry, createXlsxBlob,
+  buildDurableEvidenceTable, buildDurableDisagreementsTable, DISAGREEMENTS_SHEET, unusedColumn, buildExportTable, buildIdentityTable, createExportFilename, createFieldRegistry, createXlsxBlob,
   downloadBlob, durableRecords, deriveRowsRepresentOptions, serializeCsv, EVIDENCE_SHEET, EXTRACTION_SHEET, ROOT_ROWS,
   type CellValue, type CompanionSheet, type ExportChoices, type ExportFormat, type Table,
 } from 'extraction-result-export'
@@ -21,18 +21,11 @@ const fitCell=(value:CellValue):CellValue=>typeof value==='string'&&value.length
 const fitTable=(table:Table):Table=>({...table,rows:table.rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,fitCell(value)])))})
 const toneOf=(status:string)=>status.charAt(0)+status.slice(1).toLowerCase()
 
-/** Schema fields keep their names; attribution columns move to an unused suffix. */
-function attributionColumn(base:string,columns:readonly string[]):string {
-  let column=base
-  for(let ordinal=2;columns.includes(column);ordinal+=1)column=`${base} (${ordinal})`
-  return column
-}
-
 /** The tables of one fixed cut: the research table, the compact Extraction identity and the Evidence sheet. */
-export function durableExportTables(fixed:Fixed,values:DurablePage['values'],choices:ExportChoices,sourceName:string):{results:Table;extraction:Table;evidence:Table} {
+export function durableExportTables(fixed:Fixed,values:DurablePage['values'],choices:ExportChoices,sourceName:string):{results:Table;extraction:Table;evidence:Table;disagreements:Table} {
   const registry=createFieldRegistry(values,fixed.state.selection?.schemaTree?.schemaNodes)
   const records=durableRecords(values,registry)
-  const results=buildExportTable(registry.schemaNodes,records.map(record=>record.fields),choices)
+  const results=buildExportTable(registry.columns,records.map(record=>record.fields),choices)
   const revisions=[...new Set(values.map(value=>value.schemaRevisionId))]
   const extraction=buildIdentityTable([
     ['Extraction ID',fixed.state.extractionId],['Strategy',fixed.state.strategy],['Source Document',sourceName],
@@ -46,7 +39,7 @@ export function durableExportTables(fixed:Fixed,values:DurablePage['values'],cho
     ['Rows represent',choices.rowsRepresent===ROOT_ROWS?'Root result':choices.rowsRepresent],['Other repeated fields',choices.otherRepeatedFields==='preserve'?'Preserved as indexed columns':'Omitted'],
     ['Record recall','Unmeasured'],['Exported at',new Date().toISOString()],
   ])
-  return {results,extraction,evidence:buildDurableEvidenceTable(values,registry)}
+  return {results,extraction,evidence:buildDurableEvidenceTable(values,registry),disagreements:buildDurableDisagreementsTable(values,registry)}
 }
 
 /** Every value of the fixed cut: the open page already holds them all; only a partial page is read again, by value pages. */
@@ -60,7 +53,7 @@ export async function fixedDurableValues(fixed:Fixed,signal?:AbortSignal):Promis
 export async function durableExportBlob(fixed:Fixed,values:DurablePage['values'],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,sourceName=fixed.state.extractionId):Promise<Blob> {
   const tables=durableExportTables(fixed,values,choices,sourceName)
   if(format==='csv')return csvBlob(tables.results)
-  return createXlsxBlob(fitTable(tables.results),[{sheet:EXTRACTION_SHEET,table:fitTable(tables.extraction)},{sheet:EVIDENCE_SHEET,table:fitTable(tables.evidence)}])
+  return createXlsxBlob(fitTable(tables.results),[{sheet:EXTRACTION_SHEET,table:fitTable(tables.extraction)},{sheet:EVIDENCE_SHEET,table:fitTable(tables.evidence)},{sheet:DISAGREEMENTS_SHEET,table:fitTable(tables.disagreements)}])
 }
 
 export const exportFilename=(sourceName:string,snapshotVersion:number,format:ExportFormat)=>createExportFilename(sourceName,format,`extraction-result-s${snapshotVersion}`)
@@ -76,7 +69,9 @@ export async function downloadDurableExport(fixed:Fixed,format:ExportFormat,choi
 export async function downloadDurableBatch(batch:{batchExtractionId:string;name:string},members:readonly BatchExportMember[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,signal?:AbortSignal):Promise<boolean> {
   const snapshots:BatchExportSnapshot[]=[]
   for(const member of members) {
-    const fixed=await readDurable(member.extractionId,signal)
+    const {state,page,pageError}=await readDurable(member.extractionId,signal)
+    if(!page)throw pageError
+    const fixed={state,page}
     snapshots.push({fixed,values:await fixedDurableValues(fixed,signal),member})
   }
   if(!snapshots.length)return false
@@ -94,12 +89,12 @@ export async function durableBatchExportBlob(batch:{batchExtractionId:string},me
     throw new Error('The selected repeated field is unavailable in these saved results. Choose Root result or another field.')
   const projected=snapshots.map(snapshot=>({snapshot,records:durableRecords(snapshot.values,registry)}))
   const attribution:string[]=[]
-  for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(attributionColumn(base,[...registry.schemaNodes.map(node=>node.name),...attribution]))
+  for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(unusedColumn(base,[...registry.columns.map(node=>node.name),...attribution]))
   const [document,documentId,batchId]=attribution as [string,string,string]
   // One projection over all records keeps repeated-item columns together, regardless of each member's list length.
   const records=projected.flatMap(({snapshot,records})=>records.map(record=>({
     [document]:snapshot.member.sourceDocumentName,[documentId]:snapshot.member.sourceDocumentId,[batchId]:batch.batchExtractionId,...record.fields})))
-  const results=buildExportTable([...attribution.map(name=>({id:name,name,type:'string' as const})),...registry.schemaNodes],records,choices)
+  const results=buildExportTable([...attribution.map(name=>({id:name,name,type:'string' as const})),...registry.columns],records,choices)
   if(format==='csv')return csvBlob(results)
   const membersTable:Table={columns:[SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,'Extraction ID','State','Results version','Decisions version','Review saved','Values','Source Representation Revision ID'],rows:members.map(member=> {
     const saved=snapshots.find(snapshot=>snapshot.member.extractionId===member.extractionId)
@@ -109,6 +104,8 @@ export async function durableBatchExportBlob(batch:{batchExtractionId:string},me
   })}
   const evidenceRows=snapshots.flatMap(snapshot=>buildDurableEvidenceTable(snapshot.values,registry).rows.map(row=>({[SOURCE_DOCUMENT]:snapshot.member.sourceDocumentName,...row})))
   const evidence:Table={columns:[SOURCE_DOCUMENT,...buildDurableEvidenceTable([]).columns],rows:evidenceRows}
-  const companions:CompanionSheet[]=[{sheet:MEMBERS_SHEET,table:fitTable(membersTable)},{sheet:EVIDENCE_SHEET,table:fitTable(evidence)}]
+  const disagreementRows=snapshots.flatMap(snapshot=>buildDurableDisagreementsTable(snapshot.values,registry).rows.map(row=>({[SOURCE_DOCUMENT]:snapshot.member.sourceDocumentName,...row})))
+  const disagreements:Table={columns:[SOURCE_DOCUMENT,...buildDurableDisagreementsTable([]).columns],rows:disagreementRows}
+  const companions:CompanionSheet[]=[{sheet:MEMBERS_SHEET,table:fitTable(membersTable)},{sheet:EVIDENCE_SHEET,table:fitTable(evidence)},{sheet:DISAGREEMENTS_SHEET,table:fitTable(disagreements)}]
   return createXlsxBlob(fitTable(results),companions)
 }

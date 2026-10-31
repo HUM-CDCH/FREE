@@ -2,6 +2,7 @@ import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
+import { schemaChatReplySchema, type ChatHistory, type SchemaChatReply } from '../shared/schemaChat.contract'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
@@ -45,11 +46,11 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
   return { ...(data as Omit<SchemaDone, 'sourceCoverage'>), sourceCoverage: sourceCoverage.data }
 }
 
-async function readError(response: Response): Promise<{ code: string; message: string } | null> {
+async function readError(response: Response): Promise<{ code: string; message: string; details: unknown } | null> {
   const body = await response.json().catch(() => null)
   const error = isRecord(body) && isRecord(body.error) ? body.error : null
   return error && typeof error.code === 'string' && typeof error.message === 'string'
-    ? { code: error.code, message: error.message }
+    ? { code: error.code, message: error.message, details: error.details }
     : null
 }
 
@@ -185,17 +186,39 @@ export async function requestSchema(
   return { template: done.template, sourceCoverage: done.sourceCoverage }
 }
 
+/** A chat message before the first schema: a question's answer, or `instruction` for a message kept for generation. */
+export async function requestSchemaChat(
+  context: SourceModelContext,
+  message: string,
+  signal: AbortSignal | undefined,
+  operationId: string,
+  history: ChatHistory = [],
+): Promise<SchemaChatReply> {
+  const form = new FormData()
+  form.append('project_context_id', context.projectContextId)
+  form.append('source_representation_revision_id', context.sourceRepresentationRevisionId)
+  form.append('message', message)
+  // The whole conversation before the message goes with it, so a follow-up can refer to it.
+  if (history.length) form.append('history', JSON.stringify(history))
+  // The operation ID makes the POST repeatable.
+  form.append('operation_id', operationId)
+  return postModelForm('/schema_chat', form, (data) => schemaChatReplySchema.parse(data), signal)
+}
+
 /** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */
 export class ApiRequestError extends Error {
   readonly status: number
   /** The server's error code (`{ error: { code } }`), when it sent one. */
   readonly code: string | null
+  /** The server's `{ error: { details } }`, unvalidated. */
+  readonly details: unknown
 
-  constructor(message: string, status: number, code: string | null = null) {
+  constructor(message: string, status: number, code: string | null = null, details?: unknown) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -217,6 +240,7 @@ async function requestJson(
       error ? `${error.code}: ${error.message}` : `Request to ${path} failed (HTTP ${response.status})`,
       response.status,
       error?.code ?? null,
+      error?.details,
     )
   }
   return response.json()
@@ -269,6 +293,7 @@ export async function requestSchemaEdit(
   instruction: string,
   signal: AbortSignal | undefined,
   operationId: string,
+  history: ChatHistory = [],
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -280,6 +305,7 @@ export async function requestSchemaEdit(
       context.sourceRepresentationRevisionId,
     )
   form.append('instruction', instruction)
+  if (history.length) form.append('history', JSON.stringify(history))
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
   return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)

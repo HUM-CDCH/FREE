@@ -77,12 +77,14 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   // Calls admitted before PAUSE drain; newly captured calls are refused.
   const extraction = history.extractions.article.inFlight, selection = randomUUID(), attempt = randomUUID(), process = randomUUID()
   const flagNode={id:'flag',name:'flag',type:'boolean'},arrayNode={id:'items',name:'items',type:'array',itemType:'integer'}
+  const workNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
+  const titleNode={id:'title',name:'title',type:'string'}
   await owner.query(`INSERT INTO extraction_runtime.head
     (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
     VALUES ($1,$2,$3,$4,'ARTICLE',$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
     [extraction,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selection,attempt])
   await owner.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
-    VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`, [selection,extraction,history.revisions.article,'a'.repeat(64),{recordDescription:'document',schemaNodes:[flagNode,arrayNode]}])
+    VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`, [selection,extraction,history.revisions.article,'a'.repeat(64),{recordDescription:'document',schemaNodes:[flagNode,arrayNode,workNode,titleNode]}])
   await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,
     [attempt,extraction,selection,`test:${attempt}`])
   await owner.query('INSERT INTO extraction_runtime."feedbackHead" (id,version) VALUES ($1,0)', [history.projectContextId])
@@ -96,7 +98,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const provider={key:'stub',model:'stub',adapter:'instruct',adapterVersion:1,url:'http://stub/v1/chat/completions',timeout:60,maxTokens:100}
   await invoke('resolve_selection',[extraction,attempt,epoch,{models:{fields:provider,reasoning:provider},options:{},planner:1,protocols:{calls:1,source:'document'}}])
   const body={provider,composer:1,tokenizer:{model:'stub'},budget:{counted:10,context:1000,reserve:100},examples:[],omissions:[],
-    body:{stage:'record',record:0,system:'instructions',user:'exact original',schema:{type:'object'},max_tokens:100,max_whitespace:null,
+    body:{stage:'record',record:0,system:'instructions',user:'exact original',schema:{type:'object'},max_tokens:100,max_whitespace:null as number|null,
       httpRequest:{model:'stub',messages:[{role:'user',content:'exact original'}],max_tokens:100}}}
   await assert.rejects(invoke('finalize_input',[extraction,attempt,epoch,unit,{...body,provider:{...provider,password:'must not persist'}}]),(e:{code?:string})=>e.code==='22023')
   const input=await invoke('finalize_input',[extraction,attempt,epoch,unit,body])
@@ -118,6 +120,43 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const arrayValue={...value,id:'value-items',fieldId:'items',node:arrayNode,path:['records',0,'items'],modelValue:[1,2]}
   const next=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([arrayValue]),coverage])
   assert.equal(next.values.length,2)
+  const alternatives=[{value:'Article title',segments:['p1_s0']},{value:'Cited title',segments:['p3_s0','p3_s1']}]
+  const disagreement=[{path:['t'],alternatives}]
+  const workValue={...value,id:'value-work',fieldId:'work',node:workNode,path:['records',0,'work'],modelValue:{title:null,year:1827},disagreement}
+  const cases: [string,unknown][]=[
+    ['null envelope',{...workValue,disagreement:null}],
+    ['empty envelope',{...workValue,disagreement:[]}],
+    ['object envelope',{...workValue,disagreement:{}}],
+    ['not saved',{...workValue,processing:'absent'}],
+    ['extra entry key',{...workValue,disagreement:[{...disagreement[0],verdict:'supported'}]}],
+    ['name instead of child id',{...workValue,disagreement:[{...disagreement[0],path:['title']}]}],
+    ['non-null place',{...workValue,modelValue:{title:'Winner',year:1827}}],
+    ['one alternative',{...workValue,disagreement:[{path:['t'],alternatives:alternatives.slice(0,1)}]}],
+    ['null alternative',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],value:null}]}]}],
+    ['wrong leaf type',{...workValue,disagreement:[{path:['y'],alternatives}],modelValue:{title:null,year:null}}],
+    ['duplicate values',{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],{...alternatives[1],value:alternatives[0].value}]}]}],
+    ['duplicate paths',{...workValue,disagreement:[...disagreement,...disagreement]}],
+    ['array traversal',{...arrayValue,modelValue:[null],disagreement:[{path:['0'],alternatives}]}],
+  ]
+  for(const [name,invalid] of cases)
+    await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([invalid]),coverage]),(e:{code?:string})=>e.code==='22023',name)
+  for(const invalid of [
+    {...alternatives[1],verdict:'supported'}, {value:'Cited title'}, {...alternatives[1],segments:[]},
+    {...alternatives[1],segments:'p3_s0'}, {...alternatives[1],segments:['']}, {...alternatives[1],segments:[3]},
+  ]) await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([{...workValue,disagreement:[{path:['t'],alternatives:[alternatives[0],invalid]}]}]),coverage]),(e:{code?:string})=>e.code==='22023')
+  const publication=randomUUID()
+  const published=await invoke('publish_snapshot',[extraction,attempt,epoch,publication,selection,JSON.stringify([workValue]),coverage])
+  assert.deepEqual(published.values.find((v:{id:string})=>v.id===workValue.id),workValue)
+  assert.deepEqual(await invoke('publish_snapshot',[extraction,attempt,epoch,publication,selection,JSON.stringify([workValue]),coverage]),published)
+  const titleValue={...value,id:'value-title',fieldId:'title',node:titleNode,path:['records',0,'title'],modelValue:null,disagreement:[{path:[],alternatives}]}
+  await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([titleValue]),coverage])
+  // commit_output above drained the only capture: final publication proof must be tested with no in-flight call.
+  assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.capture WHERE "extractionId"=$1 AND "inFlight"',[extraction])).rows[0].n,0)
+  const finalCoverage={...coverage,finalizedAttempt:{attemptId:attempt,selectionId:selection,generation:1,complete:true}}
+  await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([workValue]),finalCoverage])
+  const completed=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,'[]',finalCoverage])
+  assert.deepEqual(completed.values.find((v:{id:string})=>v.id===workValue.id),workValue)
+  assert.deepEqual(completed.values.find((v:{id:string})=>v.id===titleValue.id),titleValue)
   await assert.rejects(invoke('heartbeat',[extraction,attempt,null]),(e:{code?:string})=>e.code==='40001')
   assert.equal(await invoke('acknowledge',[extraction,attempt,epoch,false,null]),'PAUSED')
   await assert.rejects(invoke('heartbeat',[extraction,attempt,epoch]),(e:{code?:string})=>e.code==='40001')
@@ -155,9 +194,18 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   assert.equal(await invoke('begin_call',[extraction,retry,retryLease.epoch,failedId]),true)
   await invoke('commit_output',[extraction,retry,retryLease.epoch,failedId,retained.input.digest,{parsed:{flag:false},calls:[{ok:true}]}])
   assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime."callFailure" WHERE "captureId"=$1',[failedId])).rows[0].n,1)
-  // Only output-limit failures supported by the pinned bounded planner may
-  // continue. Committing admitted work never clears a researcher's intent.
+  // Recoverable replies retain the method's fallback. Committing admitted work
+  // never clears a researcher's intent.
   for (const policy of [
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'stop',intent:'RUN',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:null,intent:'RUN',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'PAUSE',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'STOP',recoverable:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:false,mixed:true},
+    {article:true,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:false,bodyMismatch:true},
+    {article:true,unified:false,stage:'grounding',finish:'length',intent:'RUN',recoverable:false},
+    {article:false,unified:false,stage:'arbitration',finish:'length',intent:'RUN',recoverable:false},
     {unified:true,stage:'discovery',finish:'length',intent:'RUN',recoverable:true},
     {unified:true,stage:'discovery',finish:'length',intent:'PAUSE',recoverable:true},
     {unified:true,stage:'entry',finish:'length',intent:'STOP',recoverable:true},
@@ -166,12 +214,26 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     {unified:true,stage:'discovery',finish:'stop',intent:'RUN',recoverable:false},
     {unified:true,stage:'discovery',finish:null,intent:'RUN',recoverable:false},
     {unified:true,stage:'discovery',finish:'length',intent:'RUN',recoverable:false,mixed:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:true,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'PAUSE',recoverable:true,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'STOP',recoverable:true,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false},
+    {unified:false,stage:'record',finish:'stop',intent:'RUN',recoverable:false,whitespace:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,bounded:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,promptOnly:true},
+    {unified:false,stage:'record',finish:'length',intent:'RUN',recoverable:false,whitespace:true,mixed:true},
+    {unified:true,stage:'entry',finish:'length',intent:'RUN',recoverable:true,whitespace:true},
+    {unified:true,stage:'entry',finish:'length',intent:'PAUSE',recoverable:true,whitespace:true},
+    {unified:true,stage:'entry',finish:'length',intent:'STOP',recoverable:true,whitespace:true},
+    {unified:false,stage:'entry',finish:'length',intent:'RUN',recoverable:false,whitespace:true},
+    {unified:true,stage:'entry',finish:'stop',intent:'RUN',recoverable:false,whitespace:true},
+    {unified:true,stage:'entry',finish:'length',intent:'RUN',recoverable:false,whitespace:true,mixed:true},
   ]) {
     const id=randomUUID(),selected=randomUUID(),active=randomUUID(),captureId=randomUUID()
     await owner.query(`INSERT INTO extraction_runtime.head
       (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
-      VALUES ($1,$2,$3,$4,'CATALOG',$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
-      [id,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selected,active])
+      VALUES ($1,$2,$3,$4,$7,$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
+      [id,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selected,active,policy.article?'ARTICLE':'CATALOG'])
     await owner.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
       VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`,[selected,id,history.revisions.catalog,'a'.repeat(64),{recordDescription:'record',schemaNodes:[flagNode]}])
     await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,[active,id,selected,`test:${active}`])
@@ -180,20 +242,99 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     await invoke('resolve_selection',[id,active,lease.epoch,configuration])
     const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
       {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])
-    await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',{...descriptor,planDigest:savedPlan.digest}])
-    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,body])
+    const policyDescriptor={...descriptor,stage:policy.stage,planDigest:savedPlan.digest}
+    await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',policyDescriptor])
+    const policyBody=structuredClone(body)
+    policyBody.body.stage=policy.bodyMismatch?'record':policy.stage
+    if(policy.whitespace)Object.assign(policyBody.body.httpRequest,
+      {response_format:{type:'json_schema',json_schema:{name:'reply',schema:{type:'object'},strict:true}}})
+    if(policy.bounded){
+      policyBody.body.max_whitespace=16
+      delete (policyBody.body.httpRequest as Record<string,unknown>).response_format
+      Object.assign(policyBody.body.httpRequest,{structured_outputs:{grammar:'root ::= "{}"'}})
+    }
+    if(policy.promptOnly)delete (policyBody.body.httpRequest as Record<string,unknown>).response_format
+    if(policy.bodyMismatch){
+      await assert.rejects(invoke('finalize_input',[id,active,lease.epoch,captureId,policyBody]),
+        (e:{code?:string})=>e.code==='22023')
+      continue
+    }
+    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,policyBody])
     assert.equal(await invoke('begin_call',[id,active,lease.epoch,captureId]),true)
     await owner.query('UPDATE extraction_runtime.head SET intent=$2 WHERE id=$1',[id,policy.intent])
-    const output={parsed:null,recoverable:true,calls:[{ok:false,stage:policy.stage,finish:policy.finish},
+    const output={parsed:null,recoverable:true,calls:[{ok:false,stage:policy.stage,finish:policy.finish,
+      ...(policy.whitespace?{error:'the reply ran into a whitespace loop (128 of 136 characters trailing whitespace; finish_reason length)'}:{})},
       ...(policy.mixed?[{ok:false,stage:'discovery',finish:'stop'}]:[])]}
     const committed=await invoke('commit_output',[id,active,lease.epoch,captureId,frozen.digest,output])
     assert.equal(committed.recoverable,policy.recoverable,JSON.stringify(policy))
+    assert.equal(committed.recovery,policy.whitespace&&policy.recoverable?'whitespace':null)
     assert.deepEqual(await invoke('commit_output',[id,active,lease.epoch,captureId,frozen.digest,output]),committed)
     assert.equal((await invoke('read_call',[id,active,lease.epoch,captureId])).checkpoint.recoverable,policy.recoverable)
     assert.equal((await owner.query('SELECT intent FROM extraction_runtime.head WHERE id=$1',[id])).rows[0].intent,
       policy.recoverable?policy.intent:policy.intent==='STOP'?'STOP':'PAUSE')
     assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.checkpoint WHERE id=$1',[captureId])).rows[0].n,0)
     await assert.rejects(owner.query('UPDATE extraction_runtime."callFailure" SET recoverable=false WHERE "captureId"=$1',[captureId]),(e:{code?:string})=>e.code==='55000')
+    const derivedId=randomUUID()
+    const derivedManifest={plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'bounded'}],coverage:{dependency:committed.outputDigest}}
+    if(policy.intent==='RUN'){
+      const derivedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'bounded',derivedManifest])
+      if(policy.whitespace&&policy.recoverable){
+        const derived=await invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
+          {...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+        const original=await invoke('read_call',[id,active,lease.epoch,captureId])
+        assert.equal(derived.feedbackVersion,original.capture.feedbackVersion)
+        assert.deepEqual(derived.candidates,original.capture.candidates)
+      }else if(policy.recoverable){
+        await assert.rejects(invoke('capture_unit',[id,active,lease.epoch,derivedId,'bounded',
+          {...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),(e:{code?:string})=>e.code==='22023')
+      }
+    }
+    // Retry/Resume continues the bounded recovery: the original whitespace failure stays visible to later
+    // attempts, so its recovery plan and capture keep their identity and the original is never called again.
+    if(policy.whitespace&&policy.recoverable&&policy.intent!=='STOP'){
+      const boundedBody=structuredClone(policyBody)
+      boundedBody.body.max_whitespace=16
+      delete (boundedBody.body.httpRequest as Record<string,unknown>).response_format
+      Object.assign(boundedBody.body.httpRequest,{structured_outputs:{grammar:'root ::= "{}"'}})
+      let attempt=active,epoch=lease.epoch
+      if(policy.intent==='RUN'){
+        const bounded=await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
+        assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
+        const failed=await invoke('commit_output',[id,attempt,epoch,derivedId,bounded.digest,{parsed:null,calls:[{ok:false,stage:policy.stage,finish:'length',
+          error:'the reply ran into a whitespace loop (16 of 20 characters trailing whitespace; finish_reason length)'}]}])
+        assert.equal(failed.recoverable,policy.unified)
+        assert.equal(failed.recovery,null)
+      }else{
+        // A pause between the recovery's plan and its capture: Resume must reuse that plan.
+        await owner.query(`UPDATE extraction_runtime.head SET intent='RUN' WHERE id=$1`,[id])
+        const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
+        await owner.query(`UPDATE extraction_runtime.head SET intent='PAUSE' WHERE id=$1`,[id])
+        assert.equal(await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}]),null)
+      }
+      for(const fence of [2,3]){
+        attempt=randomUUID()
+        await owner.query('INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,$4,$5)',[attempt,id,selected,fence,`test:${attempt}`])
+        await owner.query(`UPDATE extraction_runtime.head SET "attemptId"=$2,fence=$3,intent='RUN',acknowledgement='QUEUED',"leaseOwner"=NULL,"leaseUntil"=NULL WHERE id=$1`,[id,attempt,fence])
+        epoch=(await invoke('claim',[id,attempt,randomUUID()])).epoch
+        const original=await invoke('capture_unit',[id,attempt,epoch,randomUUID(),'policy',policyDescriptor])
+        assert.equal(original.id,captureId)
+        assert.equal(original.checkpoint.outputDigest,committed.outputDigest)
+        assert.equal(original.checkpoint.recovery,'whitespace')
+        const derivedPlan=await invoke('publish_plan',[id,attempt,epoch,randomUUID(),'bounded',derivedManifest])
+        const derived=await invoke('capture_unit',[id,attempt,epoch,derivedId,'bounded',{...policyDescriptor,planDigest:derivedPlan.digest,derivedFrom:captureId}])
+        assert.equal(derived.id,derivedId)
+        if(fence===3){
+          assert.deepEqual(derived.checkpoint.output.parsed,{flag:true})
+          break
+        }
+        assert.equal(derived.checkpoint,null)
+        const input=derived.input??await invoke('finalize_input',[id,attempt,epoch,derivedId,boundedBody])
+        assert.deepEqual(input.request,boundedBody)
+        assert.equal(await invoke('begin_call',[id,attempt,epoch,derivedId]),true)
+        await invoke('commit_output',[id,attempt,epoch,derivedId,input.digest,{parsed:{flag:true},calls:[{ok:true}]}])
+      }
+      assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime."callFailure" WHERE "captureId"=$1',[captureId])).rows[0].n,1)
+    }
   }
   const denied = await owner.query(`SELECT has_schema_privilege('free_extraction_runtime', 'public', 'USAGE') AS allowed`)
   assert.equal(denied.rows[0].allowed, false)

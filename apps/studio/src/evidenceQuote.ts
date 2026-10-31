@@ -23,7 +23,7 @@ function anchorText(document: ParsedDocument, anchorId: string): string | null {
 }
 
 /**
- * The quote a value's Evidence shows (results review redesign §7.1): the anchor's text with the value's occurrence
+ * The quote a value's Evidence shows: the anchor's text with the value's occurrence
  * marked, the first case-insensitive match of the grounding's raw text, else of the value's text. No match (a link
  * whose value is not in its passage) gives no mark. A long quote is clipped around the mark with "…" at each cut.
  */

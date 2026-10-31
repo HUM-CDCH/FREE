@@ -123,6 +123,17 @@ describe('Project Context routes', () => {
       .toEqual({ kind: 'document', projectContextId, sourceDocumentId, extractionId })
   })
 
+  it('reads a value link\'s value with or without its Extraction, and never writes it back', () => {
+    const document = `/projects/${projectContextId}/documents/${sourceDocumentId}`
+    expect(parseRoute(`${document}?value=record-505%3Atitle`))
+      .toEqual({ kind: 'document', projectContextId, sourceDocumentId, value: 'record-505:title' })
+    expect(parseRoute(`${document}?extractionId=${extractionId}&snapshotVersion=1&feedbackVersion=2&value=site`))
+      .toEqual({ kind: 'document', projectContextId, sourceDocumentId, extractionId, reviewCut: { snapshotVersion: 1, feedbackVersion: 2 }, value: 'site' })
+    // A navigation in Studio drops it; only a reload or Back keeps the URL that has it.
+    expect(href({ kind: 'document', projectContextId, sourceDocumentId, extractionId, value: 'site' }))
+      .toBe(`${document}?extractionId=${extractionId}`)
+  })
+
   it('has no batch review grid route', () => {
     expect(parseRoute(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)).toEqual({ kind: 'badReference' })
   })
@@ -184,7 +195,7 @@ function reopenController(initialRoute: Route = { kind: 'root' }) {
         ),
       },
     }),
-    { input: { deps: { push }, initialRoute } },
+    { input: { deps: { push,replace:vi.fn() }, initialRoute } },
   )
   actor.start()
   // Every read is gated on the rail branch proving containment; these tests are
@@ -377,13 +388,55 @@ describe('routed Source Document opening', () => {
     actor.stop()
   })
 
-  it('keeps the open Source Document when its refresh fails', async () => {
+  it('re-reads only "Latest reviewed" once a review is finalized, and keeps the rest of the open snapshot', async () => {
+    const attempt = (id: string) => ({ extractionId: id }) as unknown as DocumentSnapshot['latestAttempt']
+    const { actor, pending } = reopenController(documentRoute)
+    pending.get(sourceDocumentId)!.resolve({ ...snapshotOf(sourceDocumentId), latestAttempt: attempt(extractionId) })
+    await Promise.resolve()
+    const opened = actor.getSnapshot().context.snapshot!
+
+    actor.send({ type: 'REFRESH_REVIEWED' })
+    expect(actor.getSnapshot().value).toBe('refreshingReviewed')
+    expect(actor.getSnapshot().context.snapshot).toBe(opened)
+
+    const fresh = snapshotOf(sourceDocumentId)
+    const reviewed = attempt(extractionId)
+    // The same read names a newer Extraction (a batch member, say), which must not replace the shown one.
+    pending.get(sourceDocumentId)!.resolve({
+      ...fresh,
+      sourceRepresentation: { ...fresh.sourceRepresentation, current: false },
+      latestAttempt: attempt('00000000-0000-4000-8000-000000000049'),
+      latestReviewed: reviewed,
+    })
+    await Promise.resolve()
+
+    expect(actor.getSnapshot().value).toBe('open')
+    expect(actor.getSnapshot().context.snapshot).toEqual({ ...opened, latestReviewed: reviewed })
+    expect(actor.getSnapshot().context.snapshot!.latestAttempt).toBe(opened.latestAttempt)
+    actor.stop()
+  })
+
+  it('lets a full refresh take over a "Latest reviewed" read', async () => {
+    const { actor, pending } = reopenController(documentRoute)
+    pending.get(sourceDocumentId)!.resolve(snapshotOf(sourceDocumentId))
+    await Promise.resolve()
+
+    actor.send({ type: 'REFRESH_REVIEWED' })
+    const reviewedRead = pending.get(sourceDocumentId)!
+    actor.send({ type: 'REFRESH' })
+
+    expect(actor.getSnapshot().value).toBe('refreshing')
+    expect(reviewedRead.signal.aborted).toBe(true)
+    actor.stop()
+  })
+
+  it.each(['REFRESH', 'REFRESH_REVIEWED'] as const)('keeps the open Source Document when its refresh fails (%s)', async (type) => {
     const { actor, pending } = reopenController(documentRoute)
     pending.get(sourceDocumentId)!.resolve(snapshotOf(sourceDocumentId))
     await Promise.resolve()
     const opened = actor.getSnapshot().context.snapshot
 
-    actor.send({ type: 'REFRESH' })
+    actor.send({ type })
     pending.get(sourceDocumentId)!.reject({
       code: 'persistence_unavailable',
       message: 'Persistence is unavailable.',
@@ -397,9 +450,9 @@ describe('routed Source Document opening', () => {
     actor.stop()
   })
 
-  it('refreshes nothing unless a Source Document is open', () => {
+  it.each(['REFRESH', 'REFRESH_REVIEWED'] as const)('refreshes nothing unless a Source Document is open (%s)', (type) => {
     const { actor, pending } = reopenController(documentRoute)
-    actor.send({ type: 'REFRESH' })
+    actor.send({ type })
     expect(actor.getSnapshot().value).toBe('opening')
     expect(pending.size).toBe(1)
     actor.stop()
@@ -423,8 +476,9 @@ describe('routed Source Document opening', () => {
 describe('project navigation machine', () => {
   it('pushes navigation and accepts back/forward route changes without pushing', () => {
     const push = vi.fn()
+    const replace=vi.fn()
     const actor = createActor(navigationMachine, {
-      input: { deps: { push }, initialRoute: { kind: 'root' } },
+      input: { deps: { push,replace }, initialRoute: { kind: 'root' } },
     })
     actor.start()
 
@@ -440,7 +494,7 @@ describe('project navigation machine', () => {
     actor.send({ type: 'ROUTE_CHANGED', route: { kind: 'root' } })
     expect(push).toHaveBeenCalledOnce()
     expect(actor.getSnapshot().context).toEqual({
-      deps: { push },
+      deps: { push,replace },
       route: { kind: 'root' },
       snapshot: null,
       failure: null,

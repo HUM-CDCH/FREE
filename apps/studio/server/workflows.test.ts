@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Load the workflow dependency graph during collection: a timed-out dynamic import otherwise keeps running
+// and can register workflows after the next test clears the mock. resetModules still isolates registration state.
+import './workflows.js'
 
 const registerWorkflow = vi.hoisted(() =>
   vi.fn<(workflow: unknown, config?: { name?: string }) => unknown>(
@@ -33,7 +36,7 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
-    expect(names).toEqual(['suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage','reconcileDurableExtractions'])
+    expect(names).toEqual(['suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'answerSchemaChat', 'collectGarbage','reconcileDurableExtractions'])
   })
 
   it('registers the durable Extraction reconciler as its only Extraction workflow', async () => {

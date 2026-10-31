@@ -131,7 +131,8 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `reconcileDurableExtractions` | `durable-dispatch:<extractionId>` at admission; `studio:durable-reconcile:<extractionId>:<controlVersion>` after a control; a schedule every minute | same transaction as Extraction admission, on `studio` | — (enqueues durable attempts and history cleanup) |
 | `suggestSchemaBatch` | `suggest:<batchId>:<attempt>` | same transaction as create/retry, on `suggest` | merged proposal/draft, or a typed failure |
 | `suggestSchema` | `suggestion:<operationId>` | workflow-first on `studio` | template and base revision, or a typed failure |
-| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal and base revision, or a typed failure |
+| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal (or a question's answer) and base revision, or a typed failure |
+| `answerSchemaChat` | `chat:<operationId>` | workflow-first on `studio` | a question's answer or `instruction`, or a typed failure |
 | `collectGarbage` | 10-minute schedule on `gc` | — | sweep summary |
 | kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
 | kei `extractDurableV1` | `kei-durable:<extractionId>:<attemptId>` | enqueued by the reconciler on `kei-extract`, priority 1 (interactive) or 10 (batch) | the attempt's acknowledgement |
@@ -278,7 +279,10 @@ contentSha256)` is unique.
 - Then `submitToKei` (the admitted conversion lane), `pollKei`, verify
   manifest and pages, translate/package, and commit under the ownership and
   content constraints. A replayed commit returns the same document/revision.
-  The workflow deletes its own staging file; GC handles the rest.
+  The workflow deletes its own staging file on success. Past patch
+  `ingest-retain-failed-source` a failure keeps it, so `POST
+  …/source-ingestions/<id>/retry` can admit the same bytes again (ADR 0014,
+  4); Retry, dismissal or GC removes it. GC handles the rest.
 
 **`reprocessSource`** keeps its separate request key, fingerprint and
 expected-head checks, before start and at commit. It shares conversion and
@@ -311,9 +315,23 @@ user action carries a client-minted ID (*Client IDs*).
     acknowledgement, and would repeat after a crash between its commit and
     its checkpoint.
 - **Edit proposals (`proposeSchemaEdit`).** `edit_schema` takes an
-  `operation_id`. One step wraps `proposeSchemaEdit` with its bounded repair.
-  The output is the proposal and its base Schema Revision. Nothing is saved
-  until the researcher applies it through the revision path.
+  `operation_id`. One step wraps `proposeSchemaEdit`'s Schema Suggestion call
+  (ADR 0022). The output is the proposal and its base Schema Revision. Nothing is saved
+  until the researcher applies it through the revision path. Past patch
+  `schema-chat-answers`, the message may ask a question instead (ADR 0023): the
+  output is its answer, and a long source's question, first answered from
+  excerpts, is answered again in `answerWindow:<n>` steps and combined in a
+  `combineAnswers` step.
+- **Chat messages before the first schema (`answerSchemaChat`).**
+  `schema_chat` takes an `operation_id`. One `answerIfQuestion` step answers a
+  question or replies `instruction`; a long source's question is answered
+  again across its windows, as above. The page keeps an instruction for
+  generation. These are not model operations: a reload neither lists nor
+  reopens them.
+- **Chat history.** `edit_schema` and `schema_chat` also take `history`, the
+  conversation before the message as JSON. The workflow input records it beside
+  the instruction (chat text, like the instruction itself, never document text
+  or keys), and every request of the operation reads it.
 - **Typed results.** Model steps return expected failures (`ApiError`s) as
   typed results instead of throwing, so the handlers answer with the same
   status codes. DBOS revives a recorded error only as a plain `Error`.
@@ -467,7 +485,9 @@ the scope unreadable immediately; execution and file cleanup can finish later.
   project/attempt workflow is absent or terminal. This includes crashes after
   staging but before enqueue and losing dedup candidates. Protect active
   attempts and their kei children; filenames never identify a shared file by
-  content alone.
+  content alone. A failed upload attempt keeps its file for Retry while its
+  history lasts (ADR 0014, 4): dismissal, a deleted project and history
+  retention remove that history, and the file goes after it.
 - **Orphaned execution:** cancel live workflows whose scope disappeared, live
   Studio workflows with a terminal domain outcome, and live kei children of
   terminal Studio parents. No workflow may publish into a deleted scope.
@@ -544,10 +564,23 @@ queue.
   `registerQueue` defaults to `always_update` and would overwrite kei's
   configuration.
 - **kei deadlines.** `workflowTimeoutMS` applies to kei `convert` only,
-  measured from kei dequeue: `max(10 min, 60 s + 18.9 s × pages)` (M0R 4),
-  counting 2000 pages for a PDF that pdf.js could not count. The budget is per
-  page because cutting (2.7 s per page on the CPU) and OCR (about 2 s per
-  crop) grow with the document: a 2000-page scan takes roughly 3.5 h. Studio
+  measured from kei dequeue and fixed when submitted. The four-request Spark
+  reference is `max(10 min, 60 s + 18.9 s × pages)` (M0R 4). Studio scales
+  its floor and per-page seed by `max(1, 4 / FREE_PARSING_OCR_PARALLEL)`;
+  standalone deployments assume one request, and the GPU/model overlays use
+  `OCR_MAX_NUM_SEQS` (default four). The Codex overlay pins both Studio's
+  capacity and the worker's `SURYA_INFERENCE_PARALLEL` to one, even when the
+  OCR server permits more requests. The per-page cost can grow to the 90th
+  percentile of matching conversions among the latest 50 successes, comparing
+  requested OCR, layout, page source, ingest and cut settings and using
+  execution time only.
+  Fast native/reused results never lower the static seed, but can lower a
+  previously learned allowance as they dominate the rolling sample; this policy
+  does not retain a slow-scan allowance indefinitely. The deadline is three times
+  the resulting expected cost, with the scaled ten-minute floor, counting
+  2000 pages for a PDF that pdf.js could not count. History is read inside the
+  existing submission step: checkpoints and DBOS keep an admitted deadline
+  through recovery, and queue wait is excluded. Studio
   parents have no deadline; they end with their child. A durable Extraction
   attempt has none either; each provider call keeps its own timeout
   (`KEI_EXTRACT_TIMEOUT`).
@@ -634,11 +667,39 @@ queue.
     to a 4-slot server. vLLM queues the rest in arrival order, so a small
     extraction's request waits behind those already queued, about one round.
   - **Unified Catalog** (`FREE_CATALOG_METHOD=unified`) uses
-    `KEI_CATALOG_CHUNKS` without contiguous chunks. Discovery asks its windows
-    that many at a time, so a planning round yields at most that many
-    discovery calls.
-    Entries then run that many at a time, nearest the start page first, and
-    are assembled in source order.
+    `KEI_CATALOG_CHUNKS` without contiguous chunks: it bounds how many of its
+    calls wait at once. Entries are read nearest the start page first and
+    assembled in source order.
+    - **Defaults 1 and 2.** Discovery asks its windows that many at a time,
+      so a planning round yields at most that many discovery calls; the
+      entries are read once discovery has ended.
+    - **Defaults 3 and 4 (pipelined).** Discovery keeps that many windows asked, a
+      failed window's halves at once. Meanwhile each round reads the entries
+      that the windows already read decide, lists them under
+      `unified-prefix:<attempt>:<count>` and shows their candidates;
+      verification waits until discovery has ended, so the reasoning model
+      reads discovery's windows first.
+    - **Durable planning reads in turn.** A planning round never waits on a
+      model: each call replays its saved reply or is captured and raises
+      `NeedsCall`. So the round reads windows and entries one after another
+      and stops once that many of them wait; the workflow runs the captured
+      calls, up to that many per role at once. A run that is not durable
+      waits on every call, so it reads that many windows and entries at once
+      on threads.
+    - **Finished-entry reuse while retained.** An entry whose record a
+      round saved is kept in the planning process (`tokens.compiled`): later
+      rounds at the same key list it without repeating its capture lookups,
+      checks and publication. Discovery's completion is another phase
+      (verification), and another served tokenizer fingerprint is another
+      key, so those entries are read again. Forgetting the attempt, work-cache
+      eviction or a fresh process also reads them again, from saved replies.
+      The work cache keeps the last `CACHED_ATTEMPTS` (8) attempts accessed
+      for work, independently of the count cache's LRU and byte cap. Count
+      eviction does not evict compiled work; work eviction leaves counts.
+      `tokens.forget` drops both. Within a retained attempt there is no byte
+      or version bound: distinct keys, including successive tokenizer
+      fingerprints, accumulate, not just before/after-verification versions.
+      Nothing kept is authoritative: the saved replies are.
 - **Read API.** Five routes, with their path confinement and manifest, page
   and hash checks. Saved Extraction values are never served here.
   - `GET /api/models` (Compose health);
@@ -795,9 +856,10 @@ synthetic documents.
    `updated_at` from the database clock, and a repeated cancel of a cancelled
    workflow moves its `updated_at` again. `deleteRuns` leaves a run with a
    cancelled workflow alone until a kei restart. Priorities, FIFO ties and
-   dequeue-relative deadlines hold. The conversion budget is
-   `max(600_000, 3 × (20_000 + 6_300 × pages))` ms (6.3 s per page measured, a
-   factor of 3, a 10-minute floor), provisional until a run near 2000 pages.
+   dequeue-relative deadlines hold. The four-request reference budget is
+   `max(600_000, 3 × (20_000 + 6_300 × pages))` ms; admission scales it for
+   OCR concurrency and slower matching history as specified under *kei
+   deadlines*.
 5. **Model calls.** `DBOS.stepStatus.cancelSignal` reaches a wrapper model
    inside a step and fires about 1 s after the cancel, before any provider
    call.

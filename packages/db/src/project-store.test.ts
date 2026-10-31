@@ -728,7 +728,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
-  it('summarizes an empty Project Context as ingest with creation as activity', async () => {
+  it('summarizes an empty Project Context as upload with creation as activity', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
@@ -737,29 +737,33 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
 
     assert.deepEqual(empty?.summary, {
-      phase: 'ingest',
+      phase: 'upload',
       extractionCount: 0,
       extractedSourceDocumentCount: 0,
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
+      pendingExtractionSourceDocumentCount: 0,
       schemaDraftCount: 0,
+      currentSchemaRevisionId: null,
       schemaStabilised: false,
+      currentSchemaRevisionReviewed: false,
       lastActivityAt: new Date('2026-08-01T11:02:00Z'),
       runningBatch: null,
     })
   })
 
-  it('moves the phase from chat to approve on a ready suggestion, counting drafts', async () => {
+  it('stays on schema until a Schema Revision exists, counting drafts', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
-    // No approved Schema Revision yet: the researcher is still in chat.
+    // No Schema Revision yet: the researcher is still creating the schema.
     database.tables.SchemaRevision = []
 
     const chatting = await store.listProjectContexts(20)
     const chattingSummary = chatting.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(chattingSummary?.phase, 'chat')
+    assert.equal(chattingSummary?.phase, 'schema')
+    assert.equal(chattingSummary?.currentSchemaRevisionId, null)
     assert.equal(chattingSummary?.schemaDraftCount, 0)
 
     database.tables.BatchSchemaSuggestion = [
@@ -775,17 +779,18 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const readySummary = ready.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(readySummary?.phase, 'approve')
+    // A ready suggestion is still a draft: confirming it is part of creating the schema.
+    assert.equal(readySummary?.phase, 'schema')
     assert.equal(readySummary?.schemaDraftCount, 1)
     assert.deepEqual(readySummary?.lastActivityAt, new Date('2026-08-02T09:00:00Z'))
 
-    // A confirmed suggestion is no longer a draft and no longer gates approve.
+    // A confirmed suggestion is no longer a draft.
     database.tables.BatchSchemaSuggestion[0].confirmedSchemaRevisionId = REVISION_1
     const confirmed = await store.listProjectContexts(20)
     const confirmedSummary = confirmed.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(confirmedSummary?.phase, 'chat')
+    assert.equal(confirmedSummary?.phase, 'schema')
     assert.equal(confirmedSummary?.schemaDraftCount, 0)
   })
 
@@ -798,11 +803,11 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     representations[1].revisionNumber = 2
     const currentRepresentation = representations[1].id as string
 
-    // An approved Schema Revision with no Extraction yet: extract phase.
+    // A Schema Revision with no Extraction yet: the pilot is next.
     const before = await store.listProjectContexts(20)
     assert.equal(
       before.find((item) => item.projectContextId === PROJECT)?.summary.phase,
-      'extract',
+      'pilot',
     )
 
     database.tables.Extraction = [
@@ -841,7 +846,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const extractedSummary = extracted.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(extractedSummary?.phase, 'extract')
+    assert.equal(extractedSummary?.phase, 'pilot')
     assert.equal(extractedSummary?.extractionCount, 1)
     assert.equal(extractedSummary?.extractedSourceDocumentCount, 1)
     assert.equal(extractedSummary?.reviewedSourceDocumentCount, 0)
@@ -851,21 +856,22 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       new Date('2026-08-03T10:00:00Z'),
     )
 
-    // A finalized review of one of its cuts moves the phase to validate and review activity forward.
+    // A finalized review of one of its cuts completes the pilot and moves review activity forward.
     database.tables.Finalization.push({ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-04T10:00:00Z') })
     const reviewed = await store.listProjectContexts(20)
     const reviewedSummary = reviewed.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(reviewedSummary?.phase, 'validate')
+    assert.equal(reviewedSummary?.phase, 'approve')
     assert.equal(reviewedSummary?.reviewedSourceDocumentCount, 1)
+    assert.equal(reviewedSummary?.currentSchemaRevisionReviewed, true)
     assert.deepEqual(
       reviewedSummary?.lastActivityAt,
       new Date('2026-08-04T10:00:00Z'),
     )
 
     // A newer unpublished-for-review Extraction supersedes the reviewed one:
-    // the Source Document no longer reads as reviewed.
+    // the Source Document no longer reads as reviewed, but the pilot stays done.
     database.tables.Extraction.push({
       id: '51000000-0000-4000-8006-000000000003',
       sourceDocumentId: DOCUMENT,
@@ -882,7 +888,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const rerunSummary = rerun.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(rerunSummary?.phase, 'extract')
+    assert.equal(rerunSummary?.phase, 'approve')
     assert.equal(rerunSummary?.reviewedSourceDocumentCount, 0)
 
     // A newer current representation than the latest Extraction's pin is
@@ -895,14 +901,12 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       artifactSha256: 'f'.repeat(64),
     })
     const stale = await store.listProjectContexts(20)
-    assert.equal(
-      stale.find((item) => item.projectContextId === PROJECT)?.summary
-        .staleSourceDocumentCount,
-      1,
-    )
+    const staleSummary = stale.find((item) => item.projectContextId === PROJECT)?.summary
+    assert.equal(staleSummary?.staleSourceDocumentCount, 1)
+    assert.equal(staleSummary?.pendingExtractionSourceDocumentCount, 1)
   })
 
-  it('returns to extract when the current Schema Revision has no reviewed pilot', async () => {
+  it('keeps its step when the schema is revised, and counts what the revision leaves to do', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const currentRepresentation =
@@ -932,14 +936,15 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       snapshotVersion: 1,
       createdAt: new Date('2026-08-04T10:00:00Z'),
     })
-    assert.equal(
-      (await store.listProjectContexts(20)).find(
-        (item) => item.projectContextId === PROJECT,
-      )?.summary.phase,
-      'validate',
-    )
+    const reviewedSummary = (await store.listProjectContexts(20)).find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(reviewedSummary?.phase, 'approve')
+    assert.equal(reviewedSummary?.currentSchemaRevisionId, REVISION_1)
+    assert.equal(reviewedSummary?.pendingExtractionSourceDocumentCount, 0)
     // Editing the schema appends a new, unstabilised Revision. The reviewed
-    // pilot belongs to the old Revision, so the Project returns to piloting.
+    // pilot belongs to the old Revision: the step stays, and the document now
+    // waits for an Extraction on the new one.
     database.tables.SchemaRevision.push({
       id: '51000000-0000-4000-8004-000000000011',
       extractionSchemaId: SCHEMA,
@@ -953,8 +958,76 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const revisedSummary = revised.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(revisedSummary?.phase, 'extract')
+    assert.equal(revisedSummary?.phase, 'approve')
+    assert.equal(revisedSummary?.currentSchemaRevisionId, '51000000-0000-4000-8004-000000000011')
     assert.equal(revisedSummary?.schemaStabilised, false)
+    assert.equal(revisedSummary?.currentSchemaRevisionReviewed, false)
+    assert.equal(revisedSummary?.pendingExtractionSourceDocumentCount, 1)
+  })
+
+  it('moves from approve to batch to review on an approved revision and the Batch Extraction it unlocks', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const summary = async () =>
+      (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
+    const representation = database.tables.SourceRepresentationRevision[0].id as string
+    const secondDocument = '51000000-0000-4000-8001-000000000031'
+    const secondRepresentation = '51000000-0000-4000-8002-000000000031'
+    database.tables.SourceDocument.push({ id: secondDocument, projectContextId: PROJECT })
+    database.tables.SourceRepresentationRevision.push({
+      id: secondRepresentation,
+      sourceDocumentId: secondDocument,
+      artifactReference: 'c'.repeat(64),
+      artifactSha256: 'c'.repeat(64),
+    })
+    // The pilot: one reviewed Extraction of the first document on REVISION_1.
+    const pilot = '51000000-0000-4000-8006-000000000031'
+    database.tables.Extraction = [
+      { id: pilot, sourceDocumentId: DOCUMENT, sourceRepresentationRevisionId: representation,
+        schemaRevisionId: REVISION_1, batchExtractionId: null, createdAt: new Date('2026-08-03T10:00:00Z') },
+    ]
+    database.tables.Head = [{ id: pilot, acknowledgement: 'COMPLETED', deleted: false }]
+    database.tables.Finalization = [{ extractionId: pilot, createdAt: new Date('2026-08-04T10:00:00Z') }]
+    assert.equal((await summary())?.phase, 'approve')
+
+    // Approved: the second document still waits for an Extraction on the approved revision.
+    database.tables.SchemaRevision[0].stabilisedAt = new Date('2026-08-05T10:00:00Z')
+    const approved = await summary()
+    assert.equal(approved?.phase, 'batch')
+    assert.equal(approved?.schemaStabilised, true)
+    assert.equal(approved?.pendingExtractionSourceDocumentCount, 1)
+
+    // A finished batch opened before the approval was the pilot, not the run the approval unlocked.
+    const batch = (id: string, createdAt: string) => ({ id, projectContextId: PROJECT, schemaRevisionId: REVISION_1, createdAt: new Date(createdAt) })
+    const member = (id: string, batchExtractionId: string, createdAt: string) => ({
+      id, sourceDocumentId: secondDocument, sourceRepresentationRevisionId: secondRepresentation,
+      schemaRevisionId: REVISION_1, batchExtractionId, createdAt: new Date(createdAt),
+    })
+    const pilotBatch = '51000000-0000-4000-8007-000000000031'
+    database.tables.BatchExtraction = [batch(pilotBatch, '2026-08-02T09:00:00Z')]
+    database.tables.Extraction.push(member('51000000-0000-4000-8006-000000000032', pilotBatch, '2026-08-02T09:00:00Z'))
+    database.tables.Head.push({ id: '51000000-0000-4000-8006-000000000032', acknowledgement: 'FAILED', deleted: false })
+    assert.equal((await summary())?.phase, 'batch')
+
+    // The approved run is still going, then finishes: the collection waits for review.
+    const approvedBatch = '51000000-0000-4000-8007-000000000032'
+    const approvedMember = '51000000-0000-4000-8006-000000000033'
+    database.tables.BatchExtraction.push(batch(approvedBatch, '2026-08-06T09:00:00Z'))
+    database.tables.Extraction.push(member(approvedMember, approvedBatch, '2026-08-06T09:00:00Z'))
+    database.tables.Head.push({ id: approvedMember, acknowledgement: 'RUNNING', deleted: false })
+    assert.equal((await summary())?.phase, 'batch')
+    database.tables.Head.at(-1)!.acknowledgement = 'COMPLETED'
+    const finished = await summary()
+    assert.equal(finished?.phase, 'review')
+    assert.equal(finished?.pendingExtractionSourceDocumentCount, 0)
+    assert.equal(finished?.extractedSourceDocumentCount, 2)
+    assert.equal(finished?.reviewedSourceDocumentCount, 1)
+
+    // A document added afterwards is work left to batch, not a step back.
+    database.tables.SourceDocument.push({ id: '51000000-0000-4000-8001-000000000032', projectContextId: PROJECT })
+    const added = await summary()
+    assert.equal(added?.phase, 'review')
+    assert.equal(added?.pendingExtractionSourceDocumentCount, 1)
   })
 
   it('counts a finalized native review as the latest reviewed Extraction', async () => {
@@ -988,7 +1061,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const summary = (await store.listProjectContexts(20)).find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    assert.equal(summary?.phase, 'validate')
+    assert.equal(summary?.phase, 'approve')
     assert.equal(summary?.extractedSourceDocumentCount, 1)
     assert.equal(summary?.reviewedSourceDocumentCount, 1)
   })
@@ -1086,7 +1159,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     database.tables.Finalization = [{ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-04T10:00:00Z') }]
 
     const summary = (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
-    assert.equal(summary?.phase, 'validate')
+    assert.equal(summary?.phase, 'approve')
     assert.equal(summary?.reviewedSourceDocumentCount, 1)
     // Reviewed stays a subset of extracted ("N of M reviewed").
     assert.equal(summary?.extractionCount, 1)

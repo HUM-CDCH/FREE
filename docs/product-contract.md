@@ -36,7 +36,15 @@ FREE's normative product and safety contract is:
    concurrent write reports a conflict instead of overwriting a newer
    decision. Review is finalized only by an explicit action on one named
    result snapshot and decision version, never by saving a correction, and
-   finalizing never freezes the Extraction.
+   finalizing never freezes the Extraction. When an Article's source is read
+   in separate parts, a model call settles each place to the document's own
+   reading and keeps the list items that belong to the document; the value it
+   picks is a model value like any other, marked not checked, and every
+   dropped reading and item is kept in the run's issues. Readings it cannot
+   settle stay saved as a Value Disagreement: shown side by side, marked
+   not checked, with no winner; it is approved only by choosing one, a choice
+   or rejection holds only while the value and its readings stay the same, and
+   it is never exported as an unmarked blank or as a reading nobody chose.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema revisions, extractions, and review decisions
    survive ordinary restarts. One Extraction record carries a run from admission
@@ -139,23 +147,42 @@ transaction, or none of them. The Parsing Service's worker runs each attempt
 calls only the deployment's extraction models; Model Connections, Capability
 Routes and researchers' keys never reach it. An Extraction has no overall
 deadline; each chat model call times out after waiting `KEI_EXTRACT_TIMEOUT`
-seconds for its reply, or for the next piece of a streamed discovery reply.
+seconds for its reply, or for the next piece of a streamed discovery or NuExtract entry reply.
 
-Admission pins the method the start view showed
+A deployment may select the Codex CLI ([ADR 0021](adr/0021-deployment-owned-codex-extraction.md)) for both extraction roles using its own operator login, with no researcher
+key or Model Connection entering the worker. It uses the same admission, captures, checkpoints, evidence and
+review path. Codex calls are ephemeral and tool-free; compaction fails the call. Since Codex exposes usage only
+after inference, its versioned conservative byte-budget policy is explicitly recorded instead of claiming exact
+preflight tokenization. Returned input and output usage must fit the saved reservations before values are accepted;
+the output reserve is verified after inference, not a provider-enforced generation cap. vLLM keeps exact preflight
+counts and the existing mismatch refusal.
+
+Admission pins the method a start submits: what a batch start view showed, or
+the saved method single Run reads after saving the schema
 ([ADR 0015](adr/0015-extraction-method-pinned-at-admission.md)). It starts
 nothing and answers 409 for a method the account has changed since
 (`method_changed`), a Schema Revision with no Record Scope
 (`record_scope_required`), or a strategy that contradicts it
-(`record_scope_mismatch`). A repeated request replays what it admitted; the
-same identity with a different request is a conflict. The Parsing Service
-refuses a document-scope result that is not exactly one record.
+(`record_scope_mismatch`). A single start is also refused while the newest
+Extraction on its Source Representation, a Batch Extraction member included,
+is neither Completed nor Stopped (`extraction_in_progress`, naming it;
+[ADR 0020](adr/0020-one-unfinished-extraction-per-source-representation.md)).
+A repeated request replays what it admitted; the same identity with a
+different request is a conflict. The Parsing Service refuses a document-scope
+result that is not exactly one record.
 
 Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry
-continues a failed Extraction with its saved work. Revised inputs are saved as
-a separate selection and adopted only at a drained boundary. A Resume
-requested while the Extraction is pausing runs once it has drained, unless a
-later edit cancels it.
+continues a failed Extraction with its saved work and may repeat the same model
+failure. After failure, Change inputs can save and apply an available instruction
+model for fields before Resume: it handles remaining work and re-reads provisional
+records while saved values, Evidence and producing inputs remain historical. A
+different model does not guarantee complete lists. Pause and Stop are refused
+once an Extraction is complete. Revised inputs are saved as a separate
+selection and adopted only at a drained boundary. Studio offers no Resume
+while an Extraction is pausing; a Resume an API client sends meanwhile runs
+once it has drained, unless a later Pause, Stop, input edit, Apply changes or
+Discard changes cancels it.
 
 A researcher's active edits can guide the Project's later admitted calls other
 than record-boundary discovery, wherever their field keeps its meaning, with
@@ -164,7 +191,10 @@ stays saved but never enters the consuming target's context, and FREE
 classifies no guidance conflicts automatically. Each Batch Extraction member
 is its own Extraction, with its own result snapshots and finalized reviews;
 it stays openable and exportable when paused, failed or stopped, and there is
-no batch-wide review grid.
+no batch-wide review grid. An export follows each field that has a Value
+Disagreement with a review column and an alternatives column; XLSX also lists
+each alternative and where it was read on a Disagreements sheet. Typed columns
+stay typed.
 
 ## Pipeline reference
 

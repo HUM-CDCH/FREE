@@ -10,9 +10,10 @@ import hashlib
 import json
 import threading
 from copy import deepcopy
+from dataclasses import replace
 from uuid import uuid4
 
-from kei_exp.kie.extract.calls import Call
+from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, looped
 from kei_exp.kie.extract.models import ROLE
 from kei_exp.kie.extract.tokens import counter_for
 
@@ -63,6 +64,7 @@ class CapturePlanner:
         self.selection = lease.state["selection"]
         self.counters = counters or {}
         self.pending = {}
+        self.roles = {}  # each pending capture's role, which bounds how many run at once (durable_extract)
         self.historical = lease.call("historical_coverage")
         self.scopes = {}
         self.discovery = None  # discovery's progress while its windows are called (retained.discovering)
@@ -71,13 +73,17 @@ class CapturePlanner:
         self._lock = threading.Lock()
 
     def discovering(self, found, lines):
-        """The record starts the earlier rounds found, and the lines of the window this thread asks for next: each
+        """The record starts read so far, and the lines of the window this thread asks for next: each
         discovery capture yielded is shown with its own window's lines, since every window labels its lines from L1."""
         with self._lock:
             self.discovery = None if found is None else {"found": found, "windows": (self.discovery or {}).get("windows", {})}
         self._lines.value = lines
 
-    def plan_records(self, stage, scopes):
+    def plan_records(self, stage, scopes, *, partial=False):
+        """The records the run reads, as Studio lists them. A `partial` list (the unified Catalog's entries found so far,
+        each final) is published under this attempt and its length, once per length; the whole list once, as today."""
+        if partial:
+            stage = f"{stage}:{self.lease.attempt}:{len(scopes)}"
         self.scopes.update({index: scope for index,scope in enumerate(scopes)})
         manifest = {"plannerVersion":1,"selectionId":self.selection["id"],
                     "sourceGeneration":self.lease.state["source"]["generation"],
@@ -132,10 +138,12 @@ class CapturePlanner:
         return replace(evidence,passages=tuple(passages))
 
     def complete(self, chat, *, stage, record, system, user, schema, max_tokens=None, counter=None,
-                 minimum_reply_tokens=None):
+                 minimum_reply_tokens=None, unit=None):
         # The required request identifies the unit BEFORE adding feedback. A
         # replay never reads today's corrections to reconstruct an old input.
-        scope = digest({"source": user, "stage": stage, "record": record})
+        # A named unit (the unified Catalog's entry from version 3) stands for
+        # the record number, which a changed discovery may move.
+        scope = digest({"source": user, "stage": stage, "record": record if unit is None else unit})
         base = digest({"scope": scope, "system": system, "schema": schema, "model": chat.model,
                        "max_tokens": max_tokens, "bounded": getattr(chat, "max_whitespace", None)})
         with self._lock:
@@ -157,6 +165,10 @@ class CapturePlanner:
             output = capture["checkpoint"]["output"]
             if output.get("formatRefused"):
                 return self._fallback(capture,key)
+            if (capture["checkpoint"].get("recovery") == "whitespace" and stage in ("record", "entry")
+                    and output.get("calls") and looped(Call(**output["calls"][-1]))
+                    and "response_format" in capture["input"]["request"]["body"].get("httpRequest", {})):
+                return self._fallback(capture, key, max_whitespace=MAX_WHITESPACE)
             return output["parsed"], [Call(**call) for call in output["calls"]]
         if capture["input"] is None:
             counter = counter or self.counters.get(ROLE[stage]) or counter_for(chat)
@@ -179,7 +191,8 @@ class CapturePlanner:
             if examples:
                 system += self._guidance(examples)
             count = counter.request_tokens(system, user, schema)
-            # Article's reply may use spare capacity; its required floor wins
+            # A reply that may use spare capacity (Article's root, a unified
+            # Catalog entry from defaults 4) keeps its required floor; it wins
             # over examples, then the final reply gets the remaining capacity.
             if minimum_reply_tokens is not None:
                 reserve = min(reserve, context - count)
@@ -194,12 +207,15 @@ class CapturePlanner:
             self.lease.call("finalize_input", capture["id"], finalized)
         with self._lock:
             self.pending[capture["id"]] = key
+            self.roles[capture["id"]] = ROLE[stage]
             if stage == "discovery" and self.discovery is not None:
                 self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
-    def _fallback(self, parent, parent_key):
-        key=digest([parent_key,"format-fallback",1])
+    def _fallback(self, parent, parent_key, *, max_whitespace=None):
+        """A separately captured recovery, preserving the parent's source, guidance and request budget."""
+        kind = "format-fallback" if max_whitespace is None else "whitespace-recovery"
+        key=digest([parent_key,kind,1])
         manifest={"plannerVersion":1,"selectionId":self.selection["id"],
                   "sourceGeneration":self.lease.state["source"]["generation"],
                   "units":[{"key":key}],"coverage":{"dependency":parent["checkpoint"]["outputDigest"]}}
@@ -213,21 +229,30 @@ class CapturePlanner:
         refused=[Call(**call) for call in parent["checkpoint"]["output"]["calls"]]
         if capture["checkpoint"] is not None:
             output=capture["checkpoint"]["output"]
-            return output["parsed"],[*refused,*[Call(**call) for call in output["calls"]]]
+            attempts = [Call(**call) for call in output["calls"]]
+            if max_whitespace is not None and all(call.ok or call.recovered for call in attempts):
+                refused = [replace(call, recovered=True) for call in refused]
+            return output["parsed"],[*refused,*attempts]
         if capture["input"] is None:
             request=deepcopy(parent["input"]["request"])
-            request["body"]["httpRequest"].pop("response_format")
+            formatting = request["body"]["httpRequest"].pop("response_format")
+            if max_whitespace is not None:
+                from kei_exp.kie.extract.llm import bounded_grammar, composed_order
+                request["body"]["max_whitespace"] = max_whitespace
+                request["body"]["httpRequest"]["structured_outputs"] = {
+                    "grammar": bounded_grammar(composed_order(formatting["json_schema"]["schema"]), max_whitespace)}
             self.lease.call("finalize_input",capture["id"],request)
         with self._lock:
             self.pending[capture["id"]]=key
+            self.roles[capture["id"]]=parent["descriptor"]["role"]
             if parent["descriptor"].get("stage") == "discovery" and self.discovery is not None:
                 self.discovery["windows"][capture["id"]] = getattr(self._lines, "value", None)
         raise NeedsCall()
 
-    def structure(self, backend, *, record, text, schema, identity, counted, context):
+    def structure(self, backend, *, record, text, schema, identity, counted, context, unit=None):
         from kei_exp.kie.extract.gliformer import NativeCounter
         counter=NativeCounter(backend,backend.info())
-        key=digest(["native",record,text,schema,identity])
+        key=digest(["native",record if unit is None else unit,text,schema,identity])
         manifest={"plannerVersion":1,"selectionId":self.selection["id"],
                   "sourceGeneration":self.lease.state["source"]["generation"],"units":[{"key":key}],
                   "coverage":{"primarySource":digest(text)}}
@@ -262,7 +287,9 @@ class CapturePlanner:
                      "examples":examples,"omissions":omissions,"body":{"kind":"native","record":record,
                        "text":text,"schema":proposed,"identity":identity,"counted":counted,"context":context}}
             self.lease.call("finalize_input",capture["id"],request)
-        self.pending[capture["id"]]=key
+        with self._lock:
+            self.pending[capture["id"]]=key
+            self.roles[capture["id"]]="fields"
         raise NeedsCall()
 
     def _guidance(self, examples):
@@ -298,11 +325,14 @@ class CapturePlanner:
             examples = proposed
         return examples, omissions
 
-    def saved_record(self, fields, scope, *, record=0, links=(), primary=()):
+    def saved_record(self, fields, scope, *, record=0, links=(), primary=(), disagreements=()):
         from kei_exp.kie.extract.retained import publish_values
         self.scopes[record] = scope
-        return publish_values(self.lease, fields, scope, record=record, links=links, primary=primary)
+        return publish_values(self.lease, fields, scope, record=record, links=links, primary=primary,
+                              historical=self.historical, disagreements=disagreements)
 
+    # shortcut: already-affected Extractions stay absent because completed contexts are masked, upgrade with an
+    # explicit backfill; today reprocessing a saved sibling unmasks the whole Article record and restores them.
     def reuse_record(self, scope, *, record=0):
         from kei_exp.kie.extract.retained import record_identity
         snapshot = self.historical.get("snapshot")

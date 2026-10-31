@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from kei_exp.kie.extract import article, catalog, contexts, run, stages, unified
 from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_extract_grounded import CountingChat, WordCounter, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 CONTRACT = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "record-scope.json").read_text())
@@ -169,7 +169,18 @@ def bounded_article(script, **method):
                         counter={role: WordCounter() for role in ("fields", "reasoning")})
 
 
+def settle(user: str, schema: dict, **choices) -> dict:
+    """A resolution answer by field name: a label, NONE or UNSURE per scalar place, each item's label per list place
+    (naming no other work)."""
+    names = dict(re.findall(r"^([SL]\d+) · (\S+)", user, re.MULTILINE))
+    return {key: ({label: {"of": "", "label": each} for label, each in choice.items()} if isinstance(choice, dict)
+                  else choice) for key in schema["properties"] for choice in [choices[names[key]]]}
+
+
 def two_parts(system, user, schema):
+    if resolving(user):  # the year stays open, Ribe is the place, the second context's urn repeats the first's
+        return settle(user, schema, year="UNSURE", place="C1", authors={"I1": "OWN"},
+                      finds={"I1": "OWN", "I2": "OWN", "I3": "REPEAT", "I4": "OWN"})
     if "title" not in schema["properties"]:  # grounding: nothing attested
         return {claim: ({"label": "NONE", "quote": "", "attribution": False} if spec.get("type") == "object"
                         else "NONE") for claim, spec in schema["properties"].items()}
@@ -182,18 +193,24 @@ def two_parts(system, user, schema):
 
 @pytest.mark.parametrize("method", [{"grounding": "off"}, {"grounding": "quoted", "grounding_schedule": "unresolved",
                                                            "grounding_routing": "origin_lexical"}])
-def test_a_bounded_article_assembles_one_root_across_contexts_without_deduplicating_items(method):
+def test_a_bounded_article_resolves_one_root_across_contexts(method):
+    """Each context answers the whole root; the model then settles each place: an UNSURE year stays a Value
+    Disagreement, Ribe (read by one context only) is confirmed, and the urn the second context repeats is dropped."""
     result = bounded_article(two_parts, **method)
     assert len(result["value_contexts"]) == 1 and len(result["value_contexts"][0]) == 2
     assert result["records"] == [{"title": None, "year": None, "place": "Ribe", "authors": ["Bauer"],
         "finds": [{"kind": "sword", "materials": None}, {"kind": "urn", "materials": None},
-                  {"kind": "urn", "materials": None}, {"kind": "spear", "materials": None}]}]
+                  {"kind": "spear", "materials": None}]}]
     assert result["conflicts"]["records"] == [{"record": 0, "path": ["year"], "candidates": [1827, 1828]}]
     issues = {issue["code"]: issue for issue in result["issues"]}
-    assert json.loads(issues["possible_repeated_items"]["detail"]) == {
-        "path": ["finds"], "contexts": [0, 1], "indices": [1, 2]}
-    assert issues["possible_repeated_items"]["path"] == ["records", 0, "finds"]
+    assert "possible_repeated_items" not in issues  # the resolved list has no unsettled repeats
+    assert json.loads(issues["dropped_items"]["detail"]) == {"path": ["finds"],
+                                                             "dropped": [{"kind": "urn", "materials": None}],
+                                                             "of": [""]}
+    assert json.loads(issues["resolved_value"]["detail"]) == {"path": ["place"], "chosen": "Ribe",
+                                                              "alternatives": ["Ribe"]}
     assert issues["conflicting_values"]["record"] == 0
+    assert sum(call["stage"] == "arbitration" for call in result["calls"]) == 1
     assert not any(call["stage"] == "inventory" for call in result["calls"])
     assert result["inventory"][0]["passages"] == ["p1_s0", "p1_s1"] and result["complete"] is False
 
@@ -242,3 +259,115 @@ def test_a_records_scope_request_with_options_unified_is_the_unified_catalogs():
     assert result["extraction_version"] == 3 and result["schema"]["recordScope"] == "records"
     assert [record["finds"] for record in result["records"]] == [
         [{"name": "Axe", "count": 1}, {"name": "Pin", "count": 2}], [{"name": "Axe", "count": 1}]]
+
+
+def disagreement_article_input(start_page=None, grounding="off"):
+    """Three independent bounded readings of an Article and its bibliography: A / null / C."""
+    nodes = [{"id": "title-id", "name": "title", "type": "string"},
+             {"id": "year-id", "name": "year", "type": "integer"},
+             {"id": "authors-id", "name": "authors", "type": "array", "itemType": "string"}]
+    request = run.ExtractRequest.model_validate({"schema": {"recordDescription": "The observed article.",
+        "recordScope": "document", "schemaNodes": nodes}, "options": {"strategy": "article", "start_page": start_page,
+        "article": {"context": "bounded", "context_tokens": 8192, "grounding": grounding}}})
+    source = sum((passages([text + " filler" * 3000], page=index+1) for index, text in enumerate([
+        "Observed article: The observed article. Year 1827. Author A.",
+        "No title or year here. Author B.", "Bibliography: The cited title. Year 1828. Author C."])), [])
+    return request, evidence(source)
+
+
+def disagreement_article_reply(system, user, schema):
+    if "title" in schema["properties"]:
+        if "Observed article:" in user:
+            return {"title": "The observed article", "year": 1827, "authors": ["A"]}
+        if "Bibliography:" in user:
+            return {"title": "The cited title", "year": 1828, "authors": ["C"]}
+        return {"title": None, "year": None, "authors": ["B"]}
+    from tests.test_article_claims_contract import quoting
+    return quoting(system, user, schema)
+
+
+def disagreement_article(start_page=None, grounding="off"):
+    request, source = disagreement_article_input(start_page, grounding)
+    return run.dispatch(None, source, request, CountingChat(disagreement_article_reply),
+                        counter={role: WordCounter() for role in ("fields", "reasoning")})
+
+
+def test_value_disagreements_keep_each_reading_of_the_observed_article_and_cited_title():
+    result = disagreement_article()
+    assert len(result["value_contexts"][0]) == 3
+    assert result["records"] == [{"title": None, "year": None, "authors": ["A", "B", "C"]}]
+    assert {tuple(d["path"]): [a["value"] for a in d["alternatives"]] for d in result["disagreements"]} == {
+        ("title-id",): ["The observed article", "The cited title"], ("year-id",): [1827, 1828]}
+    for entry in result["disagreements"]:
+        assert entry["names"] in (["title"], ["year"])
+        assert [a["segments"] for a in entry["alternatives"]] == [["p1_s0"], ["p3_s0"]]
+
+
+def test_a_disagreement_is_the_same_whatever_page_the_run_starts_at():
+    results = [disagreement_article(page) for page in (None, 1, 3)]
+    assert all(result["disagreements"] == results[0]["disagreements"] for result in results)
+    assert all(result["records"] == results[0]["records"] for result in results)
+
+
+def test_value_disagreements_name_a_nested_child_by_id_and_never_enter_lists():
+    schema = Schema.model_validate({"recordDescription": "An article", "schemaNodes": [
+        {"id": "work-id", "name": "work", "type": "object", "children": [
+            {"id": "title-id", "name": "title", "type": "string"}, {"id": "year-id", "name": "year", "type": "integer"}]},
+        {"id": "items-id", "name": "items", "type": "array", "itemType": "string"}]})
+    readings = [{"work": {"title": "A", "year": 1827}, "items": ["A"]},
+                {"work": {"title": "C", "year": 1827}, "items": ["C"]}]
+    root, conflicts, _, _ = contexts.assemble_document(readings)
+    found = contexts.value_disagreements(readings, conflicts, schema.nodes)
+    assert root == {"work": {"title": None, "year": 1827}, "items": ["A", "C"]}
+    assert found == [{"path": ["work-id", "title-id"], "names": ["work", "title"],
+        "alternatives": [{"value": "A", "readings": [0]}, {"value": "C", "readings": [1]}]}]
+
+
+def test_an_article_with_a_disagreement_never_reports_grounding_complete():
+    result = disagreement_article(grounding="quoted")
+    assert result["completion"]["grounding"] == "partial"
+    assert result["grounding"]["reasons"]["conflicting_values"] == 2
+    assert result["grounding"]["claims"] == 5
+    assert all("verdict" not in a for d in result["disagreements"] for a in d["alternatives"])
+
+
+@pytest.mark.parametrize("kind,value,valid", [
+    ("string", "A", True), ("string", 5, False), ("string", ["x"], False), ("string", " ", False),
+    ("integer", 1827, True), ("integer", 1827.0, False), ("integer", True, False),
+    ("number", 1.5, True), ("number", float("inf"), False), ("number", float("nan"), False),
+    ("boolean", False, True), ("boolean", 0, False), ("date", "1827", True), ("string", None, False),
+    ("integer", 10**400, True),
+])
+def test_typed_reads_a_scalar_as_valid_value_does(kind, value, valid):
+    from kei_exp.kie.extract.schema import Node, typed
+    assert typed(value, Node(id="value", name="value", type=kind)) is valid
+
+
+def test_typed_reads_a_label_only_from_its_allowed_values():
+    from kei_exp.kie.extract.schema import Node, typed
+    labelled = Node(id="sex", name="sex", type="string", allowedValues=["mand", "kvinde"])
+    assert typed("mand", labelled) and not typed("female", labelled)
+
+
+@pytest.mark.parametrize("middle,cited,title,invalid", [
+    ({}, {"title": 5}, "The observed article", [{"path": ["title"], "value": 5}]),
+    ({"title": ["x"]}, {}, None, [{"path": ["title"], "value": ["x"]}]),
+    ({"year": 1827.0}, {}, None, []),
+])
+def test_a_reading_not_of_its_type_is_null_before_assembly(middle, cited, title, invalid):
+    """A valid reading and an invalid one make the valid value, the invalid one an issue; a whole-number float is the
+    integer it reads as."""
+    def reply(system, user, schema):
+        answer = disagreement_article_reply(system, user, schema)
+        if "title" in schema["properties"]:
+            answer.update(cited if "Bibliography:" in user else middle if "No title" in user else {})
+        return answer
+    request, source = disagreement_article_input()
+    result = run.dispatch(None, source, request, CountingChat(reply),
+                          counter={role: WordCounter() for role in ("fields", "reasoning")})
+    assert result["records"][0]["title"] == title
+    alternatives = {tuple(d["names"]): [a["value"] for a in d["alternatives"]] for d in result["disagreements"]}
+    assert alternatives == {**({} if title else {("title",): ["The observed article", "The cited title"]}),
+                            ("year",): [1827, 1828]}
+    assert [type(value) for value in alternatives[("year",)]] == [int, int]
+    assert [json.loads(issue["detail"]) for issue in result["issues"] if issue["code"] == "invalid_value"] == invalid

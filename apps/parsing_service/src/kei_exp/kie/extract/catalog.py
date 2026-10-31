@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,8 +23,8 @@ from typing import Any
 import requests
 
 from kei_exp.failures import should_retry
-from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
-from kei_exp.kie.extract.calls import Call, complete, looped
+from kei_exp.kie.extract.assembly import artifact, document_values, ground_records
+from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.llm import Chat, bounded
 from kei_exp.kie.extract.models import Router
@@ -60,47 +60,39 @@ Output: {"starts":["B2","B4"],"end":"B6"}
 # 3 October 2026 live calls: a looping record read 3/3 under xgrammar's grammar admitting 16 whitespace characters
 # between JSON tokens, where the same schema through response_format looped 2/2. A server-wide limit changed other
 # records' values, so the bound applies only to a call that already looped.
-MAX_WHITESPACE = 16
 
 
-def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,
-            before_entry: Callable[[], None] | None = None) -> dict:
+def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1) -> dict:
     """The version 1 Catalog artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
 
-    `before_entry` is called before the document-level call, each discovery call, each record's extraction and
-    verification, and each grounding batch; what it raises ends the extraction. `run_dir`, `counter` and `chunks` are
-    not used: the records are read under a character budget and run unsplit."""
-    check = before_entry or unchecked
+    `run_dir`, `counter` and `chunks` are not used: the records are read under a character budget and run unsplit."""
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
     options = request.options
     document, _, calls, issues = document_values(evidence, [Context(evidence.passages)], schema, chat,
-                                                 budget=options.record_chars, check=check)
-    # discovery checks before each of its calls
-    groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars,
-                                                        before_call=check)
+                                                 budget=options.record_chars)
+    groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars)
     calls += discovery_calls
     issues += discovery_issues
     plan_records(chat,"generic-records",[[{"segment":p.id,"start":0,"end":len(p.text)} for p in group] for group in groups])
     slices = []
     for number, group in enumerate(groups):
-        check()
         fields, record_calls, record_issues = _record(group, schema, chat, budget=options.record_chars,
-                                                      number=number, check=check)
+                                                      number=number)
         calls += record_calls
         issues += record_issues
         saved_record(chat, fields, [{"segment": p.id, "start": 0, "end": len(p.text)} for p in group],
                      record=number, primary=[{"segment": p.id, "start": 0, "end": len(p.text)} for p in group]
                      if all(call.ok or call.recovered for call in record_calls) else [])
         slices.append((group, fields))
-    support = ground_records(slices, schema, chat, budget=options.record_chars, check=check)
+    support = ground_records(slices, schema, chat, budget=options.record_chars)
     return artifact(evidence, request, chat, started=started, clock=clock, fields=[fields for _, fields in slices],
                     document=document, links=support.links, calls=calls + support.calls, issues=issues + support.issues)
 
 
-def _record(group: Sequence[Passage], schema: Schema, chat: Router, *, budget: int, number: int,
-            check: Callable[[], None]) -> tuple[dict, list[Call], list[Issue]]:
+def _record(group: Sequence[Passage], schema: Schema, chat: Router, *, budget: int,
+            number: int) -> tuple[dict, list[Call], list[Issue]]:
     """One record's values. A call that looped on whitespace is asked once more under the bounded grammar: a reply
     read there replaces the first answer and marks the looped call `recovered`; a refused or failed recovery leaves
     the first answer and adds its call and failure. A transient refusal is raised for the step's retry."""
@@ -108,7 +100,6 @@ def _record(group: Sequence[Passage], schema: Schema, chat: Router, *, budget: i
     recovery = bounded(chat.fields, MAX_WHITESPACE) if calls and looped(calls[-1]) else None
     if recovery is None:
         return fields, calls, issues
-    check()
     started = time.monotonic()
     try:
         again, again_calls, again_issues = extract_record(group, schema, replace(chat, fields=recovery),
@@ -146,14 +137,13 @@ def _page_size(passages: Sequence[Passage], index: int) -> int:
     return sum(len(p.text) + 12 for p in passages[index:] if p.page == page)
 
 
-def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
-             before_call: Callable[[], None] | None = None) -> tuple[list[list[Passage]], list[Call], list[Issue]]:
+def discover(evidence: Evidence, schema: Schema, chat: Chat, *,
+             budget: int) -> tuple[list[list[Passage]], list[Call], list[Issue]]:
     """Record slices of the passages, in order, cut at the starts the model names; labels run on across chunks.
 
     Only the final chunk may close the records with an `end`: an earlier chunk cannot know what follows it. An end
     named earlier, or one that lies at or before a record start, is ignored with an issue; a record is never
-    dropped for it. `before_call`, when given, runs before each chunk's call; its error ends discovery (the worker's
-    cooperative cancellation)."""
+    dropped for it."""
     passages = list(evidence.passages)
     labels = [f"B{n}" for n in range(1, len(passages) + 1)]
     system = DISCOVERY.format(description=schema.record_description) + DISCOVERY_EXAMPLES
@@ -163,8 +153,6 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
     issues: list[Issue] = []
     chunks = _chunks(passages, budget)
     for number, (first, last) in enumerate(chunks):
-        if before_call is not None:
-            before_call()
         shown = labels[first:last]
         reply_schema = {"type": "object", "properties": {
             "starts": {"type": "array", "items": {"type": "string", "enum": shown}},

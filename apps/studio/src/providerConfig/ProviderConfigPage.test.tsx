@@ -236,6 +236,28 @@ afterEach(() => {
 })
 
 describe('ProviderConfigPage', () => {
+  it('shows every deployment model in a plain list without model pages', async () => {
+    const ids = Array.from({ length: 8 }, (_, index) => `codex-model-${index}`)
+    studio(config(), { deployment, probe: () => jsonResponse({ checkedAt: '2026-10-20T00:00:00Z', status: 'connected',
+      message: 'Connected. 8 models available.', catalog: ids.map(id => ({ id, label: id })) }) })
+    await renderPage()
+    const details = openConnection(/^Deployment instruction model/)
+    await waitFor(() => expect(within(details.getByRole('list', { name: 'Models' })).getAllByRole('listitem')).toHaveLength(8))
+    expect(details.queryByRole('combobox', { name: 'Connection models page' })).not.toBeInTheDocument()
+  })
+
+  it('saves independently selected Codex models for both extraction roles', async () => {
+    const server = studio(config(), { extraction: () => jsonResponse({ defaults: { fields: 'instruct', reasoning: 'instruct' },
+      models: ['gpt-6.1-sol', 'gpt-6-luna'].map(repo => ({ key: `codex:${repo}`, repo, roles: ['fields', 'reasoning'], reachable: true, serving: true })) }) })
+    await renderPage()
+    fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
+    await choose('Field values', 'Extraction models this deployment runs', 'gpt-6.1-sol')
+    await choose('Reasoning', 'Extraction models this deployment runs', 'gpt-6-luna')
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].extractionModels).toEqual({ fields: 'codex:gpt-6.1-sol', reasoning: 'codex:gpt-6-luna' })
+  })
+
   it('opens on Models with each step as one sentence at its defaults', async () => {
     studio(config(), { deployment })
     await renderPage()
@@ -907,14 +929,25 @@ describe('ProviderConfigPage', () => {
 })
 
 const openAdvanced = () => fireEvent.click(screen.getByRole('tab', { name: 'Advanced' }))
+/** Find the native controls by label, then keep role/name/accessibility checks within their small owner labels. */
+function settingsSelector(): HTMLSelectElement {
+  const article = screen.getByLabelText<HTMLInputElement>('Article', { selector: 'input' })
+  expect(within(article.parentElement!).getByRole('radio', { name: 'Article' })).toBe(article)
+  const name = article.checked ? 'Article setting' : 'Catalog setting'
+  const selector = screen.getByLabelText<HTMLSelectElement>(name, { selector: 'select' })
+  expect(within(selector.parentElement!).getByRole('combobox', { name })).toBe(selector)
+  expect(selector).toBeVisible()
+  return selector
+}
+
 function setting(title: string) {
-  const selector = screen.getByRole('combobox', { name: (screen.getByRole('radio', { name: 'Article' }) as HTMLInputElement).checked ? 'Article setting' : 'Catalog setting' })
+  const selector = settingsSelector()
   const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.endsWith(`: ${title}`)) as HTMLOptionElement
   if (!option) throw new Error(`No setting named ${title}`)
   fireEvent.change(selector, { target: { value: option.value } })
 }
 const openSection = (title: string) => {
-  const selector = screen.getByRole('combobox', { name: (screen.getByRole('radio', { name: 'Article' }) as HTMLInputElement).checked ? 'Article setting' : 'Catalog setting' })
+  const selector = settingsSelector()
   const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.startsWith(`${title}: `)) as HTMLOptionElement
   fireEvent.change(selector, { target: { value: option.value } })
 }
@@ -1135,7 +1168,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
     expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
-    expect(screen.getByText('Service defaults, version 2')).toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 4')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     setting('Input token ceiling')
     const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })

@@ -13,12 +13,21 @@ from experiments.extraction.manifest import pin, read, write_new
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.models import Router
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
-@pytest.fixture
-def frozen(tmp_path, monkeypatch):
+@pytest.fixture(params=(10, 11, 14))
+def frozen(tmp_path, monkeypatch, request):
+    version = request.param
+    if version < 12:
+        from kei_exp.kie.extract import article, assembly
+        original_root = article.document_root
+        def historical_root(*args, **kwargs):
+            return original_root(*args, **kwargs, resolve_parts=False)
+        monkeypatch.setattr(article, "document_root", historical_root)
+        monkeypatch.setattr(article, "ARTICLE_VERSION", version)
+        monkeypatch.setattr(assembly, "ARTICLE_VERSION", version)
     source = passages(["Hill background", "Hill year 1827"])
     canonical = evidence(source)
     for module in (run, fixed_upstream, grounding_study, manifest):
@@ -30,6 +39,8 @@ def frozen(tmp_path, monkeypatch):
         if "records" in schema["properties"]:
             offered = schema["properties"]["records"]["items"]["properties"]["passages"]["items"]["enum"]
             return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": offered}]}
+        if resolving(user):
+            return keeps_every_reading(schema)
         return {claim: "NONE" for claim in schema["properties"]}
     provider = {"base_url": "http://unused", "model": "fake/extractor", "context_tokens": WordCounter.context_tokens}
     parent = tmp_path / "parent"
@@ -76,10 +87,27 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     _, bundles, original, _ = frozen
     bundle = read(bundles / "Doc.json")
     assert bundle["records"] == original["records"] and bundle["inventory"] == original["inventory"]
-    assert {call["stage"] for call in bundle["upstream_calls"]} == {"document", "record"}  # no identity inventory
+    # Versions 10 and 11 made no resolution call; version 15 did. All replay without a fresh call.
+    expected = {"document", "record"} | ({"arbitration"} if original["article_version"] >= 12 else set())
+    assert {call["stage"] for call in bundle["upstream_calls"]} == expected
     assert bundle["provenance"]["fresh_calls"] == 0
     assert bundle["value_origins"][0][1] == {"path": ["year"], "kind": "value",
         "sources": [{"unit": 1, "path": ["year"]}]}
+
+
+@pytest.mark.parametrize("version", [12, 13, 14])
+def test_preparation_refuses_an_artifact_whose_resolution_version_15_cannot_reproduce(frozen, tmp_path, version):
+    parent, _, _, _ = frozen
+    result = parent / "cells/Doc--bounded--0/result.json"
+    saved = read(result)
+    saved["artifact"]["article_version"] = version
+    result.write_text(json.dumps(saved))
+    verification = tmp_path / "verification.json"
+    report = read(verification)
+    report["verified"][0]["result"] = pin(result)
+    verification.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match=f"version {version} resolution cannot be replayed"):
+        fixed_upstream.prepare(parent, "Doc", verification)
 
 
 @pytest.mark.parametrize("change", ["fields", "origins", "request"])

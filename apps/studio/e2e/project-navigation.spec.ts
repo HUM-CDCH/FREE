@@ -916,6 +916,69 @@ test.describe('rail navigation', () => {
     ).toBeVisible()
   })
 
+  test('approves the current revision only through the workflow bar, once piloted, and keeps a running batch visible', async ({ page }) => {
+    const CURRENT = '00000000-0000-4000-8000-0000000001c2'
+    const OLD = '00000000-0000-4000-8000-0000000001c1'
+    let currentPilotReviewed = false
+    let approved = false
+    let running = false
+    await stubStudio(page, { store: railStore({
+      async listProjectContexts() {
+        const seed = seedOf(ELMBROOKE)!
+        return [{ ...summary(seed), sourceDocumentCount: seed.sourceDocuments.length,
+          summary: { ...emptyProjectContextActivitySummary(summary(seed).createdAt),
+            phase: approved ? 'batch' : 'approve', currentSchemaRevisionId: CURRENT, schemaStabilised: approved,
+            currentSchemaRevisionReviewed: currentPilotReviewed, pendingExtractionSourceDocumentCount: seed.sourceDocuments.length,
+            extractionCount: 1, extractedSourceDocumentCount: 1, reviewedSourceDocumentCount: 1,
+            runningBatch: running ? { completedMemberCount: 0, memberCount: 2 } : null,
+          },
+        }]
+      },
+    }) })
+    const pilot = (revisionId: string, revisionNumber: number) => batchExtractionSchema.parse({
+      batchExtractionId: revisionId, projectContextId: ELMBROOKE, schemaRevisionId: revisionId,
+      extractionSchemaId: '00000000-0000-4000-8000-0000000001c3', extractionSchemaName: 'Places',
+      schemaRevisionNumber: revisionNumber, strategy: 'ARTICLE', executionStatus: 'COMPLETED',
+      createdAt: '2026-08-14T10:42:00.000Z',
+      members: [{ extractionId: '00000000-0000-4000-8000-0000000001c4', sourceDocumentId: BERETNING,
+        sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING], executionStatus: 'COMPLETED',
+        completed: true, reviewable: true, currentReview: { snapshotVersion: 1, feedbackVersion: 0,
+          createdAt: '2026-08-14T11:00:00.000Z', schemaRevisionId: revisionId },
+      }],
+    })
+    await page.route('**/api/extraction-schemas**', (route) => route.fulfill({ json: { extractionSchemas: [] } }))
+    await page.route('**/api/batch-schema-suggestions**', (route) => route.fulfill({ json: { batchSchemaSuggestions: [] } }))
+    await page.route('**/api/batch-extractions**', (route) => route.fulfill({ json: {
+      batchExtractions: currentPilotReviewed ? [pilot(OLD, 1), pilot(CURRENT, 2)] : [pilot(OLD, 1)],
+    } }))
+    const approvals: unknown[] = []
+    await page.route('**/api/stabilise_schema_revision', (route) => {
+      approvals.push(route.request().postDataJSON())
+      approved = true
+      return route.fulfill({ json: { schemaRevisionId: CURRENT, stabilisedAt: '2026-08-14T12:00:00.000Z' } })
+    })
+
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/extractions`)
+    await expect(page.getByText('Places · Schema Revision 1')).toBeVisible()
+    // Only the old revision was piloted: the one way forward is piloting the current one, and nothing offers approval.
+    await expect(page.getByRole('button', { name: 'Next: Pilot the revised schema' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: /Approve/ })).toHaveCount(0)
+
+    currentPilotReviewed = true
+    await page.reload()
+    await page.getByRole('button', { name: 'Next: Approve schema' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Approve the schema for Batch Extraction?' })
+    await dialog.getByRole('button', { name: 'Approve', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    expect(approvals).toEqual([{ projectContextId: ELMBROOKE, schemaRevisionId: CURRENT }])
+    await expect(page.getByRole('button', { name: /^Next: Extract \d+ documents?$/ })).toBeEnabled()
+
+    running = true
+    await page.reload()
+    await expect(page.getByRole('button', { name: /^Next: Extract/ })).toBeDisabled()
+    await expect(page.getByText('Extraction running · 0/2', { exact: true })).toBeVisible()
+  })
+
   test('deep-links every Project resource tab and the open Batch Extraction', async ({
     page,
   }) => {

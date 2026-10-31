@@ -2,7 +2,7 @@ import {
   authenticatedFetch,
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -17,16 +17,21 @@ import { deleteModelOperation, requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
+  type ParsedEvidenceAnchor,
 } from 'extraction/parsed-document'
-import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
-import MarkPopover from './MarkPopover'
+import { useEvidenceOverlays } from './useEvidenceOverlays'
+import { markValueId } from './durableRailModel'
+import { createSelectionChannel } from './selectionChannel'
+import { scrollWithinPane } from './scrollWithinPane'
 import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
-import { ADMISSION_UNCERTAIN, METHOD_CHANGED, useExtraction } from './useExtraction'
+import { createDurableReader, useKeyedController, type ControlReceipt } from './durableReader'
+import { ExtractionControl } from './ExtractionControl'
+import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
-import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { Button, SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
@@ -133,8 +138,13 @@ export type DocumentWorkspaceProps = {
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
   /** The explicit result/decision cut the route opened `persistedExtraction` on; absent opens its live cut. */
   persistedReviewCut?: SavedReviewCut | null
+  /** The route's value link: Results selects the value once per arrival. Its Extraction is null until known. */
+  routedValue?: { extractionId: string | null; key: string } | null
   /** Opens an Extraction, on `reviewCut` when one is named (a finalized review). */
   onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => void
+  onExtractionAdmitted?: (extractionId: string, fromExtractionId?: string) => void
+  /** The current address's explicit Extraction pin, captured when a new Run starts. */
+  routeExtractionId?: string
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
   /** A run was refused because reprocessing superseded this Source Representation: read the document again, and
@@ -143,7 +153,7 @@ export type DocumentWorkspaceProps = {
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
-  /** The active document tab's ring slot (results review redesign §2.4). */
+  /** The active document tab's ring slot. */
   tabRingSlot?: HTMLElement | null
   /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
       ahead (default 20 s; tests shorten it). */
@@ -153,7 +163,7 @@ export type DocumentWorkspaceProps = {
    *  the schema and returns to the project's Schemas tab. */
   fromSchemaBuilder?: boolean
   onNavigate?: (route: NavigableRoute) => void
-  /** Fired once the "Approve schema and go to next step" flush durably
+  /** Fired once the "Save schema and pilot it" flush durably
    *  commits a Schema Revision — the caller's cue to refresh whatever
    *  persisted project summary (phase, etc.) it's holding, since this
    *  component has no reason to know about that store itself. */
@@ -181,7 +191,10 @@ export function DocumentWorkspace({
   persistedExtraction,
   latestReviewedExtraction = null,
   persistedReviewCut = null,
+  routedValue = null,
   onOpenExtraction,
+  onExtractionAdmitted,
+  routeExtractionId,
   onInitialResourceLoadFailure,
   onSourceSuperseded,
   tabBarSlot = null,
@@ -213,7 +226,7 @@ export function DocumentWorkspace({
   })
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
-  // The "Approve schema and go to next step" flush is in flight.
+  // The "Save schema and pilot it" flush is in flight.
   const [confirmingSchema, setConfirmingSchema] = useState(false)
   // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
   // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
@@ -273,14 +286,14 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
-  const [railTab, setRailTab] = useState<RailTab>(() => new URLSearchParams(window.location.search).has('value') ? 'results' : 'schema')
-  const [resultPath, setResultPath] = useState<string[] | null>(null)
+  const [railTab, setRailTab] = useState<RailTab>(() => routedValue ? 'results' : 'schema')
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished. The
   // run is "started here" from the request on: `admittingRef` while its admission is awaited (an admission already
   // finished reaches onTerminal inside that await), then `pendingReportRef` by its identity.
   const pendingReportRef = useRef<string | null>(null)
   const admittingRef = useRef(false)
+  const admissionOrigin=useRef<string|undefined>(undefined)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -298,7 +311,6 @@ export function DocumentWorkspace({
   if (renderedExtractionId !== persistedExtraction?.extractionId) {
     setRenderedExtractionId(persistedExtraction?.extractionId)
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setResultPath(null)
   }
   if (renderedSourceRepresentationId !== sourceRepresentationId) {
     setRenderedSourceRepresentationId(sourceRepresentationId)
@@ -306,7 +318,6 @@ export function DocumentWorkspace({
     setZoomPercent(100)
     setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setResultPath(null)
     if (toast?.outlivesSwitch) consumeSwitch()
     else dismissToast()
     setDocIndex({ status: 'parsing' })
@@ -611,10 +622,8 @@ export function DocumentWorkspace({
   //   templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
   const effectiveRailOpen = railOpen
-  // The one-by-one value's link: the page dims around it (results review redesign §7.3).
-  const [focusedEvidence, setFocusedEvidence] = useState<EvidenceLink | null>(null)
   const railOnResultsRef = useRef(false)
-  // The document pane shows the PDF or the parsed Markdown (results review redesign §7.4).
+  // The document pane shows the PDF or the parsed Markdown.
   const [documentView, setDocumentView] = useState<'pdf' | 'markdown'>('pdf')
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
@@ -678,10 +687,13 @@ export function DocumentWorkspace({
     onMethodChanged: (message, code) => {
       refusalRef.current = { message, code }
     },
+    onInProgress: (message, extractionId) =>
+      showToast(message, { durationMs: 8000, action: { label: 'Open it', onAction: () => onOpenExtraction(extractionId) } }),
     onAdmissionUncertain: (extractionId) => {
       pendingReportRef.current = extractionId
       showToast(ADMISSION_UNCERTAIN, { durationMs: 6000 })
     },
+    onAdmitted: (attempt)=>onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current),
   })
 
   /** The boundaries choice is one-shot: once a run is acknowledged or ends, the next one returns to model discovery. A
@@ -698,6 +710,8 @@ export function DocumentWorkspace({
       ? {
           schemaRevisionId: acknowledgedRevision.schemaRevisionId,
           revisionNumber: acknowledgedRevision.revisionNumber,
+          extractionSchemaId: acknowledgedRevision.extractionSchemaId,
+          recordScope: acknowledgedRevision.recordScope,
         }
       : null,
     [acknowledgedRevision],
@@ -719,6 +733,16 @@ export function DocumentWorkspace({
     ? latestReviewedExtraction
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
+  // One reader per Extraction: the latest one's, and the inspected one's while that is another.
+  const latestReader = useKeyedController(latestAttempt?.extractionId ?? null, () => createDurableReader(latestAttempt!))
+  const inspectedId = inspectedAttempt && inspectedAttempt.extractionId !== latestAttempt?.extractionId ? inspectedAttempt.extractionId : null
+  const inspectedReader = useKeyedController(inspectedId, () => createDurableReader(inspectedAttempt!))
+  const { acceptDurableStatus } = extraction
+  // The run button's status comes from the latest reader; useExtraction stays its sink, which announces the end once.
+  useEffect(() => latestReader?.subscribe(() => {
+    const { state } = latestReader.snapshot()
+    if (state) acceptDurableStatus(latestReader.extractionId, state.status)
+  }), [latestReader, acceptDurableStatus])
   useEffect(() => {
     railOnResultsRef.current = railOpen && railTab === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
   }, [railOpen, railTab, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
@@ -738,40 +762,71 @@ export function DocumentWorkspace({
   const inspectionSource=retainedSource?.id===inspectedAttempt?.extractionId?retainedSource?.source:null
   const inspectionDocument=inspectionSource?.document??parsedDocument
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover (§7.2).
-  const [railMarks, setRailMarks] = useState<RailMarkState | null>(null)
-  const selectValueRef = useRef<((key: string) => void) | null>(null)
-  const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
+  // Results and the document pane talk through one channel: value requests go to Results; its marks and one-by-one's
+  // dimming come back.
+  const [selection] = useState(createSelectionChannel)
+  const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
+  const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
+  const hovered = useSyncExternalStore(selection.subscribe, () => selection.snapshot().hover)
+  const markdownContainerRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
-  // A link to a value (`?value={resultPathKey}`) selects it once the attempt's values are listed (§7.2).
-  const linkedValue = useRef(new URLSearchParams(window.location.search).get('value'))
-  useEffect(() => {
-    const key = linkedValue.current
-    if (!key || !railMarks?.selectableKeys.has(key)) return
-    linkedValue.current = null
-    selectValueRef.current?.(key)
-  }, [railMarks])
-  const marks = useMemo(() => railMarks && {
-    ...railMarks,
-    onSelect: (keys: string[], mark: HTMLElement) => keys.length === 1 ? selectValueRef.current?.(keys[0]!) : setMarkChoice({ keys, mark }),
-  }, [railMarks])
-  const selectEvidenceAnchor = useEvidenceOverlays({
+  // A value link asks Results for its value once per arrival, as soon as its Extraction is known. Leaving it, or
+  // another value, withdraws an ask not taken yet; a layout effect, so before Results' effects in the same commit.
+  const routedKey = routedValue?.key ?? null, routedExtractionId = routedValue?.extractionId ?? null
+  useLayoutEffect(() => {
+    if (routedKey === null || !routedExtractionId) return
+    const seq = selection.select(routedKey, true, routedExtractionId)
+    return () => selection.consume(seq)
+  }, [selection, routedKey, routedExtractionId])
+  // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
+  // reveals its linked fields directly in Results, including shared Evidence. Hovering a mark lights its rows there, and
+  // a row's marks light here.
+  const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
+    ...publishedMarks,
+    hovered,
+    onHover: selection.hover,
+    onSelect: (keys: string[]) => {
+      // A passage holding the selection keeps it; else it picks a part of the selected value there (also from a sibling
+      // part), else keeps that value by its correction Evidence there.
+      const selected = publishedMarks.selected, value = selected && markValueId(selected)
+      const key = selected && keys.includes(selected) ? selected
+        : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
+      if (!key) return
+      setRailOpen(true)
+      setRailTab('results')
+      selection.select(key, false, publishedMarks.extractionId, keys)
+    },
+  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
+  const selectPdfEvidence = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
     parsedDocument:inspectionDocument,
     attempt: inspectedAttempt,
     marks,
-    resultPath,
     active: effectiveRailOpen && railTab === 'results',
-    dimLink: focusedEvidence,
+    railOpen: effectiveRailOpen,
+    dimLink: marks ? publishedDim : null,
   })
+  const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
+    const container = markdownContainerRef.current
+    const mark = container && [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
+      .find(element => element.dataset.evidenceAnchorId === anchor.anchor_id)
+    if (documentView === 'markdown' && container && mark) scrollWithinPane(container, mark)
+    else {
+      setDocumentView('pdf')
+      selectPdfEvidence(anchor, link)
+    }
+  }, [documentView, selectPdfEvidence])
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
-   *  run over the whole document: what admission pins is what was saved at the click (§2). A `method_changed` refusal
+   *  run over the whole document: what admission pins is what was saved at the click (ADR 0015). A `method_changed` refusal
    *  re-reads once and retries; a second refusal starts nothing. A failed admission leaves the revision saved. */
   async function runExtraction() {
     if (savingForRun || !extraction.canRun || !sourceRepresentationCurrent) return
+    admissionOrigin.current=routeExtractionId
     setSavingForRun(true)
+    setRailOpen(true)
+    setRailTab('results')
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
@@ -835,21 +890,22 @@ export function DocumentWorkspace({
     }
   }
 
-  /** Pause, Resume, Retry or Stop the latest Extraction from the run button's place (results review redesign §2.4). The
-   *  command names the control version it was read at; the monitor follows the work it resumes. */
+  /** Pause, Resume, Retry or Stop the latest Extraction from the run button's place. The
+   *  command names the control version it was read at; the latest reader takes its answer and follows the work. */
   async function controlExtraction(action: 'pause' | 'resume' | 'retry' | 'stop') {
     const id = latestAttempt?.extractionId
+    const reader = latestReader
     if (!id || controlling) return
     setControlling(true)
     try {
       const { controlVersion } = await durableRequest<{ controlVersion: number }>(durableRoot(id))
-      const { status } = await durableRequest<{ status: ExtractionAttempt['executionStatus'] }>(`${durableRoot(id)}/control`,
-        { id: crypto.randomUUID(), expectedVersion: controlVersion, action })
-      extraction.acceptDurableStatus(id, status)
+      reader?.acceptReceipt(await durableRequest<ControlReceipt>(`${durableRoot(id)}/control`,
+        { id: crypto.randomUUID(), expectedVersion: controlVersion, action }))
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'The Extraction could not be changed.', { durationMs: 6000 })
     } finally {
       setControlling(false)
+      void reader?.refresh()
     }
   }
 
@@ -858,7 +914,7 @@ export function DocumentWorkspace({
     void schema.flush().catch(() => undefined)
   }
 
-  // "Approve schema and go to next step" (guided-pilot-extraction-workflow):
+  // "Save schema and pilot it" (guided-workflow-phases):
   // flushes the draft to a durable Schema Revision — that revision is already
   // what "saved to history" means here, there is no separate commit step —
   // then hands the researcher to the Extractions tab pre-armed with this exact
@@ -876,7 +932,7 @@ export function DocumentWorkspace({
         schemaSnap.extractableSchemaRevisionId ??
         undefined
       // The persisted Schema Revision just moved this project's workflow phase
-      // (chat/approve -> extract) — the rail's project list only ever read that
+      // (schema -> pilot) — the rail's project list only ever read that
       // summary once, so without this it would keep showing the pre-approval
       // phase until an unrelated write happened to refetch it.
       onSchemaApproved?.()
@@ -948,7 +1004,7 @@ export function DocumentWorkspace({
     >
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
-      {/* The open document's tab carries the review's progress as a ring, and says it (§2.4). */}
+      {/* The open document's tab carries the review's progress as a ring, and says it. */}
       {tabRingSlot && inspectedAttempt && createPortal((() => {
         const progress=durableReviewProgress?.extractionId===inspectedAttempt.extractionId?durableReviewProgress:null
         const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
@@ -974,39 +1030,44 @@ export function DocumentWorkspace({
               {/* Run is the screen's one positive; while the latest Extraction can still continue, Pause, Resume or Retry
                   takes its place with Stop beside it. */}
               {/* One fixed width for Run, Pause and Resume, so the strip never shifts; progress is the Results badge's, not the
-                  button's (§2.4). */}
+                  button's. */}
               {controlStatus ? (
                 <>
                   {controlStatus !== 'STOPPING' && (
                     <Button variant="outline-danger" size="md" disabled={controlling} title="Stop the extraction; its saved values and decisions stay"
                       onClick={() => void controlExtraction('stop')}>■ Stop</Button>
                   )}
-                  <Button
-                    variant={control.action === 'resume' || control.action === 'retry' ? 'positive' : 'secondary'}
-                    size="md"
-                    className="min-w-43 justify-center tabular-nums"
-                    disabled={controlling || control.action === null}
-                    title={control.action === 'pause' ? 'Pause after the calls in flight; their work is saved' : undefined}
-                    onClick={() => control.action && void controlExtraction(control.action)}
-                  >
-                    {control.label}
-                  </Button>
+                  <ExtractionControl reader={latestReader} control={control} busy={controlling} onCommand={action=>void controlExtraction(action)}/>
                 </>
               ) : (
+                // Once this document has an Extraction, the work is reviewing it: a new run is the secondary action,
+                // named as one, so it never reads as the way to go on.
                 <Button
-                  variant="positive"
+                  variant={inspectedAttempt ? 'secondary' : 'positive'}
                   size="md"
                   className="min-w-43 justify-center tabular-nums"
                   disabled={runExtractionUnavailable}
-                  title={runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
+                  title={runUnavailableReason ?? `${nextExtractionStrategy === 'CATALOG'
                     ? 'Find the catalogue entries and extract one record per entry'
-                    : 'Extract one record from the whole document')}
+                    : 'Extract one record from the whole document'}${inspectedAttempt
+                    ? '. A new Extraction: the current results and your review stay saved.' : ''}`}
                   onClick={() => void runExtraction()}
                 >
-                  ▶ Run extraction
+                  {inspectedAttempt ? '↻ Re-run extraction' : '▶ Run extraction'}
                 </Button>
               )}
             </>
+          )}
+          {/* Picked the wrong document: back to the Schemas tab's picker, one click away rather than hidden in the
+              tab bar's project link. */}
+          {fromSchemaBuilder && onNavigate && (
+            <Button
+              size="md"
+              disabled={confirmingSchema}
+              onClick={() => onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })}
+            >
+              <span aria-hidden="true">←</span> Choose another document
+            </Button>
           )}
           {fromSchemaBuilder && (
             <Button
@@ -1020,7 +1081,7 @@ export function DocumentWorkspace({
               }
               onClick={() => void approveSchemaAndGoToNextStep()}
             >
-              {confirmingSchema ? 'Approving…' : 'Approve schema and go to next step'}
+              {confirmingSchema ? 'Saving…' : 'Save schema and pilot it'}
             </Button>
           )}
         </>,
@@ -1095,14 +1156,11 @@ export function DocumentWorkspace({
                 <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
-                {markChoice && railMarks && (
-                  <MarkPopover keys={markChoice.keys} describe={railMarks.describe} mark={markChoice.mark}
-                    onChoose={(key) => { setMarkChoice(null); selectValueRef.current?.(key) }} onClose={() => setMarkChoice(null)} />
-                )}
-                {/* Over the PDF, which stays mounted with its marks and position. */}
+                {/* Over the PDF, which stays mounted with its marks and position. The Markdown's marks show only while the
+                    rail is open. */}
                 {documentView === 'markdown' && (
-                  <div className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={marks} marksShown={marksShown} />
+                  <div ref={markdownContainerRef} className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} />
                   </div>
                 )}
               </div>
@@ -1154,7 +1212,9 @@ export function DocumentWorkspace({
                 cut: inspectionCut,
                 readOnly: inspectionReadOnly,
                 parsedDocument:inspectionDocument,
+                reader: inspectedId ? inspectedReader : latestReader,
               }}
+              latestReader={latestReader}
               currentSchemaRevision={currentSchemaRevision}
               runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
@@ -1163,9 +1223,9 @@ export function DocumentWorkspace({
               onReviewProgress={setDurableReviewProgress}
               onReviewFinalized={onReviewFinalized}
               schemaName={schemaName}
-              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: running || savingForRun }}
+              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
               boundaries={
-                !running && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
+                !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
                   ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
                   : null
               }
@@ -1193,10 +1253,7 @@ export function DocumentWorkspace({
                 return renameSchema(extractionSchemaId, name)
               }}
               onSelectEvidence={selectEvidenceAnchor}
-              onResultPathChange={setResultPath}
-              onFocusEvidence={setFocusedEvidence}
-              onMarksChange={setRailMarks}
-              selectValueRef={selectValueRef}
+              selection={selection}
             />
           </aside>
         </div>

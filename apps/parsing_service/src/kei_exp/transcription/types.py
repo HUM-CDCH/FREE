@@ -25,7 +25,16 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # native 3: a block merged across a column break publishes every box it is printed in (`PageSegment.boxes_pt`).
 # hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
 # publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 1}
+# hybrid 2: native blocks with undecodable font glyphs read by OCR in place, from a white-margined crop (`cut.TEXT_MARGIN`);
+# OCR HTML exported as UTF-8 (was guessed).
+# hybrid 3: that crop's white margin is 24 pt (`cut.TEXT_MARGIN`), not 15% of its long side; an OCR read whose only
+# content is an image placeholder no longer counts as text for a replaced block.
+# hybrid 4: repeated empty artwork can retry once with real page context; only text owned by the original
+# artwork is accepted. Surya full-page scans retain their previous policy.
+# surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
+# surya 2: an input whose full-page generation produced looping or token-capped text and whose final recognition
+# holds no text (before artwork ownership filtering) is incomplete, not an empty success. Hybrid recipes record it.
+TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 4, "surya": 2}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
@@ -91,12 +100,21 @@ class Execution:
     source_name: str | None = None
     ingest: dict | None = None               # the requested IngestConfig settings; None for defaults and native runs
     ocr_regions: tuple[OcrRegion, ...] = ()   # hybrid only: native text plus these image/form crops
+    ocr_text: bool = False                    # hybrid only: also OCR native blocks with undecodable glyphs
 
 
 class ConversionError(RuntimeError):
     """A run that produced no trustworthy output; the message is what the CLI prints before exit 1. An adapter raises
     it only when nothing can be reported (a page range outside the document, the backend's own runtime failure); any
     other loss is an incomplete outcome."""
+
+
+class ArtworkNeedsContext(ConversionError):
+    """Internal recovery signal after all OCR requests close: original, one-based artwork input ordinals."""
+
+    def __init__(self, ordinals: tuple[int, ...]) -> None:
+        self.ordinals = ordinals
+        super().__init__(f"Artwork inputs {ordinals} need page context after repeated empty figures")
 
 
 class IncompleteConversionError(ConversionError):
@@ -116,7 +134,8 @@ class PageRecord:
     """
     page: int                      # input ordinal
     region: dict | None            # region_info(crop); None for whole pages
-    image: Image.Image | None      # exactly what the model received, in the mode to save; None when not kept
+    image: Image.Image | None      # the input given to the backend, in the mode to save, before its own resizing
+                                   # (Surya scales to fit); None when not kept
     seconds: float | None          # generation time when the backend reports one
     input_tokens: int | None
     output_tokens: int | None
@@ -134,7 +153,7 @@ class PageRecord:
 @dataclass(frozen=True)
 class OcrRecord:
     """One image-only OCR input and its unchanged backend outcome, attached to its native page."""
-    ordinal: int                   # the crop: its position in Execution.ocr_regions, 1-based
+    ordinal: int                   # the crop: its position in the run's OCR regions (artwork, then text), 1-based
     crop: Crop
     record: PageRecord
     anchor: int                    # reads before this index of the native page's blocks (len: after the last)

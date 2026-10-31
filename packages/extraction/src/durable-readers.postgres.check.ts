@@ -73,6 +73,8 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   const before = { rows: await rows(), heads: await heads() }
   await admin.query('UPDATE public."schemaRevision" SET "recordScope"=$2 WHERE id=$1', [history.revisions.article, 'document'])
   const method = { models: null, settings: { article: null } }
+  // A single run waits while the newest Extraction on its revision is unfinished (ADR 0020).
+  await admin.query('UPDATE extraction_runtime.head SET acknowledgement=\'COMPLETED\' WHERE id=$1', [id])
   const admitted = await owner.scheduleExtraction({ kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
     schemaRevisionId: history.revisions.article, strategy: 'ARTICLE', method })
   assert.equal(admitted?.disposition, 'created')
@@ -132,6 +134,39 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   assert.equal(Object.hasOwn(versions.snapshots[0],'values'),false)
   assert.deepEqual((await durable.history(id)).snapshots[0].values,[{historical:'not summary metadata'}])
   assert.equal(summaries.get(batch!.batch.members[0].extractionId)?.review?.schemaRevisionId,history.revisions.article)
+
+  // Producing revisions survive adoption and historical reads; metadata covers the full cut before pagination.
+  const nextSchema=randomUUID()
+  await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
+    SELECT $1,"extractionSchemaId",2,'RESEARCHER_EDIT',"schemaTree",'document' FROM public."schemaRevision" WHERE id=$2`,[nextSchema,history.revisions.article])
+  const original=await durable.read(id)
+  assert.equal(original.schemaRevisions.find(revision=>revision.schemaRevisionId===history.revisions.article)?.revisionNumber,1)
+  const saved=await durable.saveSelection(id,{expectedVersion:original.controlVersion,schemaRevisionId:nextSchema,method})
+  const pending=await durable.read(id)
+  assert.equal(pending.selection.id,original.selection.id)
+  assert.equal(pending.pendingSelection.id,saved.selectionId)
+  assert.equal(pending.schemaRevisions.find(revision=>revision.schemaRevisionId===nextSchema)?.revisionNumber,2)
+  await durable.adoptSelection(id,{expectedVersion:pending.controlVersion,selectionId:saved.selectionId,reprocessValueIds:[]})
+  const adopted=await durable.read(id)
+  assert.equal(adopted.selection.schemaRevisionId,nextSchema)
+  const historical=await durable.page(id,{snapshotVersion:2})
+  assert.equal(historical.schemaRevisionId,history.revisions.article)
+  assert.equal(historical.values[0].schemaRevisionId,history.revisions.article)
+  const originalValue=(await admin.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=2',[id])).rows[0].values[0]
+  const mixed=[originalValue,{...originalValue,id:'new-value',selectionId:saved.selectionId,schemaRevisionId:nextSchema,modelValue:'New reading'}]
+  await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+    VALUES ($1,$2,3,$3,$4,$5,'{}')`,[randomUUID(),id,saved.selectionId,'e'.repeat(64),JSON.stringify(mixed)])
+  await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=3 WHERE id=$1',[id])
+  const firstPage=await durable.page(id,{limit:1})
+  assert.equal(firstPage.values.length,1)
+  assert.equal(firstPage.total,2)
+  assert.equal(firstPage.schemaRevisionId,nextSchema)
+  assert.deepEqual(firstPage.schemaRevisions.map(revision=>revision.revisionNumber),[1,2])
+  assert.deepEqual((await durable.historySummary(id)).schemaRevisions,firstPage.schemaRevisions)
+  assert.deepEqual((await durable.history(id)).schemaRevisions,firstPage.schemaRevisions)
+  const otherDurable=createDurableRepository(stranger,source)
+  for(const read of [()=>otherDurable.read(id),()=>otherDurable.page(id),()=>otherDurable.historySummary(id)])
+    await assert.rejects(read,/That Extraction was not found/)
 
   // Completion comes from attempt history after Stop changes the visible acknowledgement.
   const memberId=batch!.batch.members[0].extractionId

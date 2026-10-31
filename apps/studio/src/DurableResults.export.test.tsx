@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DurableResults } from './DurableResults'
+import { createDurableReader } from './durableReader'
+import { createSelectionChannel } from './selectionChannel'
 import { durableRequest, readDurable, readDurableHistory } from './durableExtractionApi'
 import { downloadDurableExport } from './durableExport'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -13,6 +16,14 @@ vi.mock('./durableExtractionApi', () => ({
 }))
 vi.mock('./durableExport', () => ({ downloadDurableExport: vi.fn() }))
 afterEach(() => { cleanup(); vi.resetAllMocks() })
+
+/** Results with the workspace's reader of its attempt (the real reader over the mocked reads) and its channel. */
+function Results(props: Omit<ComponentProps<typeof DurableResults>, 'reader' | 'selection'>) {
+  const [reader] = useState(() => createDurableReader(props.attempt!))
+  const [selection] = useState(createSelectionChannel)
+  useEffect(() => () => reader.dispose(), [reader])
+  return <DurableResults {...props} reader={reader} selection={selection} />
+}
 
 const title = { id: 'title', recordId: 'record', fieldId: 'title', path: ['records', 0, 'title'], selectionId: 'selection', schemaRevisionId: 'schema',
   node: { id: 'title', name: 'title', type: 'string' }, modelValue: 'Grave 8', evidence: [], links: [], grounding: 'ungrounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null }
@@ -28,7 +39,7 @@ function renderResults(values: unknown[] = [title, finds]) {
     pendingSelection: null, counts: { saved: values.length, inFlight: 0 }, records: null, reading: [] }
   vi.mocked(readDurable).mockResolvedValue({ state, page } as never)
   vi.mocked(durableRequest).mockResolvedValue([])
-  return render(<DurableResults attempt={{ extractionId: 'extraction', strategy: 'CATALOG' } as ExtractionAttempt}
+  return render(<Results attempt={{ extractionId: 'extraction', strategy: 'CATALOG' } as ExtractionAttempt}
     document={null} currentSchema={null} sourceDocumentName="Beretning.pdf" onEvidence={() => {}} />)
 }
 
@@ -40,7 +51,7 @@ async function openOptions() {
 
 it.each(['a', 'r', 'e', 'j', 'k', 'z'])('the export dialog owns %s instead of changing the open review', async key => {
   renderResults()
-  fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Review one by one' }))
   await openOptions()
   const excel = screen.getByRole('button', { name: 'Excel' })
   excel.focus()
@@ -54,7 +65,7 @@ it.each(['a', 'r', 'e', 'j', 'k', 'z'])('the export dialog owns %s instead of ch
 
 it('Escape closes the export dialog while preserving an unsaved review edit', async () => {
   renderResults([title])
-  fireEvent.click(await screen.findByRole('button', { name: 'One by one' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Review one by one' }))
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Reviewed value' }), { target: { value: 'Keep this draft' } })
   await openOptions()

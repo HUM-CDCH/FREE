@@ -5,7 +5,7 @@ normalised view (NFKC, case folded, whitespace collapsed, soft hyphens dropped, 
 a map to raw offsets, so every match comes back as spans of canonical segment text and never covers a separator.
 """
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract.locate import BlockText, forms, locate
+from kei_exp.kie.extract.locate import BlockText, forms, locate, nearly, printed
 
 TEXT = "9. Großenhain. Fdpl. Mühle. Mbl. 2457 (4335). FA: G. Groß-\nsteingrab mit ﬂacher Schale."
 SECOND = "Mus. Halle 12. Mbl. 2457 steht auch hier."
@@ -94,3 +94,44 @@ def test_a_match_never_takes_part_of_what_one_source_character_expands_to():
     assert found(1, "Mbl. \u00bd") == [] and found("1", "Mbl. \u00bd") == []  # ½ reads as 1⁄2
     assert found(2, "Mbl. \u00bd") == [] and found(1, "Mbl. \u00bc") == []
     assert found("flacher", "mit \ufb02acher Schale") == ["\ufb02acher"]  # a whole expansion is matched
+
+# --- nearly verbatim text ---------------------------------------------------------------------------------------------
+
+NOTE = ("The lighthouse keeper logged a calm night with light rain from the west, two cargo ships passing well offshore "
+        "and a small sailing boat that anchored in the bay until dawn.")
+
+
+def one(text: str) -> BlockText:
+    return BlockText.of([("p1_s1", text, Span(segment_id="p1_s1", start=0, end=len(text)))])
+
+
+def test_a_quote_a_few_edits_off_is_found_at_its_one_place():
+    view = one(f"Log. {NOTE} End.")
+    (found,) = nearly(view, NOTE.replace("small ", ""), 6)
+    assert view.text[found[0].start:found[-1].end] == NOTE
+
+
+def test_two_places_within_the_bound_are_both_returned():
+    twin = NOTE.replace("small ", "").replace("dawn", "noon")
+    assert len(nearly(one(f"{NOTE} {twin}"), NOTE.replace("small ", ""), 6)) == 2
+
+
+def test_a_place_inside_a_longer_word_is_not_a_place():
+    text = "The reconstructed harbour wall stood on a stone footing laid in the dry summer of that year."
+    assert nearly(one(text), "constructed harbour wall stood on a stone footing laid in the dry", 3) == []
+
+
+def test_text_too_repetitive_to_tell_one_place_from_another_gives_none():
+    rows = "\n".join(f"{n}\tTooth, human\tLevel 6\tWell preserved" for n in range(1, 40))
+    assert nearly(one(rows), "Tooth, human\tLevel 6\tWell preservd", 3) == []
+
+
+def test_two_copies_of_a_repetitive_passage_are_never_one_place():
+    """Seeds every few characters must not chain one group across both copies, which would fit only one of them."""
+    passage = ("unknown " * 100)[:799]
+    quote = passage[:400] + "x" + passage[401:]
+    assert len(nearly(one(f"{passage} END OF ITEM {passage}"), quote, 15)) != 1
+
+
+def test_printed_text_joins_a_word_hyphenated_at_a_break_and_drops_soft_hyphens():
+    assert printed("Groß-\nsteingrab mit Trag\xadsteinen, Nord-\nSüd") == "Großsteingrab mit Tragsteinen, Nord- Süd"

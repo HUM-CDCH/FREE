@@ -658,6 +658,25 @@ test('pressing and dragging a grip at 264px moves no row, and the drop lands whe
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await resizeRail(page, 264)
+  // A pointer held within 60px of the fields' scroll box's top or bottom edge scrolls the list 7px a frame from the
+  // press on, which moves every row by design. So bring sex's grip to the middle of the box before measuring the rows at
+  // rest, and check that both gestures start and end clear of those edges.
+  const grip = (name: string) => page.getByRole('listitem', { name, exact: true }).locator('span', { hasText: '⠿' })
+  await grip('sex').evaluate((element) => element.scrollIntoView({ block: 'center' }))
+  const scroller = await page.getByRole('list', { name: 'Schema fields' }).evaluate((list) => {
+    let element = list.parentElement
+    while (element && getComputedStyle(element).overflowY !== 'auto') element = element.parentElement
+    const box = element!.getBoundingClientRect()
+    return { top: box.top, bottom: box.bottom }
+  })
+  const expectClearOfScrollEdges = async (name: string, above: string) => {
+    const pressed = (await grip(name).boundingBox())!
+    const slot = (await page.locator(`[data-schema-node-id="${idOf(above)}"] > div`).first().boundingBox())!
+    for (const [what, y] of [[`${name}'s grip`, pressed.y + pressed.height / 2], [`the slot above ${above}`, slot.y + slot.height / 2]] as const) {
+      expect(y, `264px: ${what} clear of the scroll box's top edge`).toBeGreaterThan(scroller.top + 60)
+      expect(y, `264px: ${what} clear of the scroll box's bottom edge`).toBeLessThan(scroller.bottom - 60)
+    }
+  }
   await page.mouse.move(0, 0)
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   const rest = await rowGeometry(page)
@@ -668,6 +687,7 @@ test('pressing and dragging a grip at 264px moves no row, and the drop lands whe
     expect(row.actions!.inert, `264px, ${row.name}: actions not inert at rest`).toBe(false)
   }
 
+  await expectClearOfScrollEdges('sex', 'archaeological_context')
   await dragAbove(page, 'sex', 'archaeological_context', rest)
   const moved = ['title', 'sex', 'archaeological_context', 'findings', 'kind', 'deposit', 'layer']
   await expect.poll(async () => (await rowGeometry(page)).map((row) => row.name), 'sex dropped above archaeological_context').toEqual(moved)
@@ -687,6 +707,7 @@ test('pressing and dragging a grip at 264px moves no row, and the drop lands whe
 
   // The seed is shared with the other tests: put the field back, by the same gesture.
   await page.mouse.move(0, 0)
+  await expectClearOfScrollEdges('archaeological_context', 'sex')
   await dragAbove(page, 'archaeological_context', 'sex', after)
   await expect.poll(async () => (await rowGeometry(page)).map((row) => row.name), 'the original order restored').toEqual(rows)
 })

@@ -8,17 +8,18 @@ const FIXTURES = new URL('../../../apps/parsing_service/tests/fixtures/contracts
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`${name}.json`, FIXTURES), 'utf8'))
 
 type Client = Parameters<typeof handoff.createKeiHandoff>[0]
-type Row = { status: string; output?: unknown; deadlineEpochMS?: number; updatedAt?: number }
+type Row = { status: string; output?: unknown; deadlineEpochMS?: number; updatedAt?: number; completedAt?: number; dequeuedAt?: number; input?: unknown[] }
 
 /** A kei client double: listWorkflows answers the scripted rows in turn (the last one repeats; none = missing). */
-function fakeClient(rows: Row[] = []) {
+function fakeClient(rows: Row[] = [], history: Row[] = []) {
   const calls = { list: 0, cancelled: [] as string[], enqueued: [] as Array<{ options: unknown; args: unknown[] }> }
   const client = {
     async enqueuePortable(options: unknown, args: unknown[]) {
       calls.enqueued.push({ options, args })
       return {}
     },
-    async listWorkflows() {
+    async listWorkflows(input?: { status?: unknown }) {
+      if (input?.status === 'SUCCESS') return history.map((row, index) => ({ workflowID: `history:${index}`, ...row }))
       const row = rows[Math.min(calls.list, rows.length - 1)]
       calls.list += 1
       return row ? [{ workflowID: 'kei-convert:x', ...row }] : []
@@ -56,7 +57,7 @@ test('Studio\'s lanes, priorities, prefixes and small-document threshold are the
   assert.deepEqual(Object.keys(queues.workflow_id_prefixes).sort(), ['convert', 'deleteRuns'])
   assert.equal(queues.workflow_id_prefixes.deleteRuns, handoff.GC_PREFIX)
   const convert = fixture('convert.input')
-  assert.equal(convert.enqueue.priority, handoff.CONVERSION_PRIORITY)
+  assert.equal(convert.enqueue.priority, handoff.KEI_PRIORITY.interactive)
   assert.equal(
     convert.enqueue.workflow_id,
     handoff.keiConvertWorkflowId('ingest:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222'),
@@ -64,12 +65,20 @@ test('Studio\'s lanes, priorities, prefixes and small-document threshold are the
   assert.equal(convert.enqueue.application_name, handoff.KEI_APPLICATION)
 })
 
-test('the conversion budget is deadlines.json\'s formula at every listed page count', () => {
-  const cases: Array<[number, number]> = fixture('deadlines').convert.cases
+test('conversion submission applies the contract page budget and preserves the admitted lane', async () => {
+  const cases: Array<[number | null, number]> = fixture('deadlines').convert.cases
   assert.ok(cases.length > 0)
-  for (const [pages, ms] of cases) assert.equal(handoff.conversionTimeoutMs(pages), ms, `${pages} pages`)
-  assert.equal(handoff.conversionTimeoutMs(null), handoff.conversionTimeoutMs(2000))
-  assert.equal(fixture('convert.input').enqueue.workflow_timeout_ms, handoff.conversionTimeoutMs(3))
+  cases.push([null, 37_860_000], [3, fixture('convert.input').enqueue.workflow_timeout_ms])
+  for (const [pageCount, ms] of cases) {
+    const { client, calls } = fakeClient()
+    await handoff.createKeiHandoff(client, { conversionParallelRequests: 4 }).submitConversion({
+      workflowId: 'kei-convert:x', lane: handoff.KEI_QUEUE.convertLarge, pageCount,
+      request: fixture('convert.input').request, owner: 'owner', attributes: {},
+    })
+    const options = calls.enqueued[0]!.options as { workflowTimeoutMS: number; queueName: string }
+    assert.equal(options.workflowTimeoutMS, ms, `${pageCount} pages`)
+    assert.equal(options.queueName, 'kei-convert-large', `${pageCount} pages keep the admitted lane`)
+  }
 })
 
 test('30 pages convert on kei-convert-small, 31 and an uncounted PDF on kei-convert-large', () => {
@@ -201,24 +210,22 @@ test('a poll reads the child until it is terminal or its window ends, and a canc
   assert.deepEqual(enqueued.calls.cancelled, ['kei-convert:x'])
 })
 
-test('submit enqueues the child portably by name, as kei\'s application, with its lane, priority, deadline, owner and the parent\'s attributes', async () => {
+test('submitConversion enqueues the child portably by name, as kei\'s application, with its lane, priority, deadline, owner and the parent\'s attributes', async () => {
   const { client, calls } = fakeClient()
   const request = fixture('convert.input').request
   const attributes = { projectContextId: 'p' }
-  await handoff.createKeiHandoff(client).submit({
-    workflow: 'convert',
+  await handoff.createKeiHandoff(client).submitConversion({
     workflowId: 'kei-convert:x',
-    queueName: handoff.KEI_QUEUE.convertLarge,
-    priority: handoff.CONVERSION_PRIORITY,
-    timeoutMs: handoff.conversionTimeoutMs(40),
+    lane: handoff.KEI_QUEUE.convertLarge,
+    pageCount: 40,
     request,
-    authenticatedUser: 'owner',
+    owner: 'owner',
     attributes,
   })
   assert.deepEqual(calls.enqueued, [{
     options: {
       workflowName: 'convert', queueName: 'kei-convert-large', workflowID: 'kei-convert:x', priority: 1,
-      workflowTimeoutMS: 816_000, applicationName: 'kei', authenticatedUser: 'owner',
+      workflowTimeoutMS: 3_084_000, applicationName: 'kei', authenticatedUser: 'owner',
       attributes: { projectContextId: 'p' },
     },
     args: [request],
@@ -227,7 +234,7 @@ test('submit enqueues the child portably by name, as kei\'s application, with it
   assert.notEqual(calls.enqueued[0]?.options.attributes, attributes)
 })
 
-test('submit hands a traced step\'s trace context to kei, whose DBOS parents the child\'s spans to it', async (t) => {
+test('submitConversion hands a traced step\'s trace context to kei, whose DBOS parents the child\'s spans to it', async (t) => {
   const traceparent = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
   propagation.setGlobalPropagator({
     inject: (_context, carrier, setter) => setter.set(carrier, 'traceparent', traceparent),
@@ -236,9 +243,9 @@ test('submit hands a traced step\'s trace context to kei, whose DBOS parents the
   })
   t.after(() => propagation.disable())
   const { client, calls } = fakeClient()
-  await handoff.createKeiHandoff(client).submit({
-    workflow: 'convert', workflowId: 'kei-convert:x', queueName: handoff.KEI_QUEUE.convertSmall, priority: 1,
-    timeoutMs: 1, request: fixture('convert.input').request, authenticatedUser: 'owner', attributes: { projectContextId: 'p' },
+  await handoff.createKeiHandoff(client).submitConversion({
+    workflowId: 'kei-convert:x', lane: handoff.KEI_QUEUE.convertSmall, pageCount: 3,
+    request: fixture('convert.input').request, owner: 'owner', attributes: { projectContextId: 'p' },
   })
   assert.deepEqual((calls.enqueued[0]?.options as { attributes: unknown }).attributes,
     { projectContextId: 'p', 'dbos.otelContext': { traceparent } })
@@ -294,4 +301,84 @@ test('keiRunOf reads kei-exp:<run>:<generation> and nothing else', () => {
 test('keiGcWorkflowId names the schedule\'s instant', () => {
   assert.equal(handoff.keiGcWorkflowId(new Date('2026-09-26T12:00:00Z')), 'kei-gc:2026-09-26T12:00:00.000Z')
   assert.equal(handoff.keiGcWorkflowId(new Date('2026-09-26T12:00:00Z')), fixture('deleteRuns.input').enqueue.workflow_id)
+})
+
+
+test('a single-request laptop admits both the 19-page and 71-page scans with longer budgets', async () => {
+  for (const [pageCount, expected] of [[19, 2_400_000], [71, 5_427_600]]) {
+    const { client, calls } = fakeClient()
+    await handoff.createKeiHandoff(client).submitConversion({
+      workflowId: 'kei-convert:laptop', lane: handoff.conversionLane(pageCount!), pageCount: pageCount!,
+      request: fixture('convert.input').request, owner: 'owner', attributes: {},
+    })
+    assert.equal((calls.enqueued[0]!.options as { workflowTimeoutMS: number }).workflowTimeoutMS, expected)
+  }
+})
+
+test('slow matching history raises the budget using execution time and never learns a shorter one from reuse', async () => {
+  const request = fixture('convert.input').request
+  const slow: Row = {
+    status: 'SUCCESS', input: [request], output: { ...fixture('convert.output.ok'), page_count: 10 },
+    dequeuedAt: 1_000_000, completedAt: 1_620_000,
+  }
+  const fast: Row = { ...slow, completedAt: 1_001_000 }
+  for (const [history, expected] of [[[slow], 3_480_000], [[fast], 2_400_000]] as const) {
+    const { client, calls } = fakeClient([], [...history])
+    await handoff.createKeiHandoff(client).submitConversion({
+      workflowId: 'kei-convert:history', lane: handoff.KEI_QUEUE.convertSmall, pageCount: 19,
+      request, owner: 'owner', attributes: {},
+    })
+    assert.equal((calls.enqueued[0]!.options as { workflowTimeoutMS: number }).workflowTimeoutMS, expected)
+  }
+})
+
+test('other OCR settings, failures and invalid timing samples do not calibrate a conversion', async () => {
+  const request = fixture('convert.input').request
+  const slow: Row = {
+    status: 'SUCCESS', input: [request], output: { ...fixture('convert.output.ok'), page_count: 10 },
+    dequeuedAt: 1_000, completedAt: 10_001_000,
+  }
+  const history: Row[] = [
+    { ...slow, input: [{ ...request, model: 'another-model' }] },
+    { ...slow, input: [{ ...request, layout_model: 'another-layout' }] },
+    { ...slow, input: [{ ...request, page_source: 'ingest' }] },
+    { ...slow, input: [{ ...request, cut: 'none' }] },
+    { ...slow, output: fixture('convert.output.failed') },
+    { ...slow, dequeuedAt: undefined },
+    { ...slow, completedAt: 0 },
+  ]
+  const { client, calls } = fakeClient([], history)
+  await handoff.createKeiHandoff(client).submitConversion({
+    workflowId: 'kei-convert:settings', lane: handoff.KEI_QUEUE.convertSmall, pageCount: 19,
+    request, owner: 'owner', attributes: {},
+  })
+  assert.equal((calls.enqueued[0]!.options as { workflowTimeoutMS: number }).workflowTimeoutMS, 2_400_000)
+})
+
+
+test('invalid OCR capacity fails before any workflow can be enqueued', () => {
+  for (const conversionParallelRequests of [0, -1, 1.5, 65, NaN, Infinity]) {
+    const { client, calls } = fakeClient()
+    assert.throws(() => handoff.createKeiHandoff(client, { conversionParallelRequests }), /FREE_PARSING_OCR_PARALLEL/)
+    assert.equal(calls.enqueued.length, 0)
+  }
+})
+
+
+test('mixed matching histories can lower a learned allowance only as far as the static concurrency floor', async () => {
+  const request = fixture('convert.input').request
+  const slow: Row = {
+    status: 'SUCCESS', input: [request], output: { ...fixture('convert.output.ok'), page_count: 10 },
+    dequeuedAt: 1_000_000, completedAt: 1_620_000,
+  }
+  // Fast native/reused work still has a valid positive per-page sample, below the static seed.
+  const fast: Row = { ...slow, completedAt: 1_040_000 }
+  for (const [fastCount, expected] of [[0, 3_480_000], [8, 3_480_000], [9, 2_400_000], [49, 2_400_000]] as const) {
+    const { client, calls } = fakeClient([], [slow, ...Array.from({ length: fastCount }, () => fast)])
+    await handoff.createKeiHandoff(client).submitConversion({
+      workflowId: 'kei-convert:mixed', lane: handoff.KEI_QUEUE.convertSmall, pageCount: 19,
+      request, owner: 'owner', attributes: {},
+    })
+    assert.equal((calls.enqueued[0]!.options as { workflowTimeoutMS: number }).workflowTimeoutMS, expected)
+  }
 })

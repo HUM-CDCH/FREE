@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { conversionTimeoutMs, type KeiPoll } from 'extraction/kei-handoff'
+import type { KeiPoll } from 'extraction/kei-handoff'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { ReprocessConflictError } from '../../../packages/db/src/project-store.js'
 import { keiReadApi } from '../test/support/keiReadApi.js'
@@ -34,14 +34,14 @@ beforeEach(async () => { inbox = await mkdtemp(join(tmpdir(), 'free-reprocess-')
 afterEach(async () => { vi.restoreAllMocks(); await rm(inbox, { recursive: true, force: true }) })
 
 function harness(options: { poll?: KeiPoll; publish?: () => unknown; beforeStep?: (name: string) => void;
-  submit?: () => Promise<void> } = {}) {
+  submitConversion?: () => Promise<void> } = {}) {
   const names: string[] = []
   const steps: WorkflowSteps = {
     async step(name, run) { names.push(name); options.beforeStep?.(name); return run() },
     cancelSignal: () => undefined,
   }
   const kei = {
-    submit: vi.fn(options.submit ?? (async () => {})), poll: vi.fn(async () => options.poll ?? ok), cancel: vi.fn(async () => {}),
+    submitConversion: vi.fn(options.submitConversion ?? (async () => {})), poll: vi.fn(async () => options.poll ?? ok), cancel: vi.fn(async () => {}),
     requestDeleteRuns: vi.fn(async () => {}),
   }
   const store = {
@@ -72,9 +72,8 @@ describe('reprocessSource', () => {
     const h = harness()
     await expect(h.run()).resolves.toMatchObject({ ok: true, pageCount: 1 })
     expect(h.packageStore.read).toHaveBeenCalledWith(DESCRIPTOR, 'pdf')
-    expect(h.kei.submit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      workflow: 'convert', workflowId: CHILD, queueName: 'kei-convert-small', priority: 1,
-      timeoutMs: conversionTimeoutMs(3), authenticatedUser: OWNER,
+    expect(h.kei.submitConversion).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      workflowId: CHILD, lane: 'kei-convert-small', pageCount: 3, owner: OWNER,
       request: expect.objectContaining({ source: SOURCE, source_sha256: SHA, model: 'surya', layout_model: 'layout_heron_101' }),
     }))
     expect(h.names).toEqual(['stageReprocessSource', 'submitToKei', 'pollKei', 'acceptConversion', 'publishRevision', 'removeStagedSource'])
@@ -111,7 +110,7 @@ describe('reprocessSource', () => {
 
   it('cancels a child whose submission committed but lost its acknowledgement', async () => {
     let admitted = false
-    const h = harness({ submit: async () => { admitted = true; throw new Error('acknowledgement lost') } })
+    const h = harness({ submitConversion: async () => { admitted = true; throw new Error('acknowledgement lost') } })
     await expect(h.run()).rejects.toThrow('acknowledgement lost')
     expect(admitted).toBe(true)
     expect(h.kei.cancel).toHaveBeenCalledWith(CHILD)

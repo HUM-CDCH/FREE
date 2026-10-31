@@ -9,6 +9,7 @@ import {
 import { json, parseTemperature } from './_http.js'
 import { awaitOperation, startOrJoinOperation, type ModelOperationClient } from './_model_operation.js'
 import {
+  formChatHistory,
   formContextIdentity,
   loadOwnedSchemaRevision,
   ownedSourceScope,
@@ -22,6 +23,7 @@ const FIELDS = [
   'schema_revision_id',
   'operation_id',
   'instruction',
+  'history',
   'temperature',
 ] as const
 
@@ -66,6 +68,7 @@ export function createPostEditSchema(
         baseSchemaRevisionId: schemaRevisionId,
         sourceRepresentationRevisionId,
         instruction: instruction.trim(),
+        history: formChatHistory(form),
         temperature,
       }
       const workflowID = `edit:${operationId}`

@@ -154,7 +154,9 @@ class _Run:
         final = attempts[-1]
         if not final.ok:
             self.issue("call_failed", final.error or f"{stage} call failed", record)
-        if final.input_tokens is not None and final.input_tokens != counted:
+        # An upper-bound counter (Codex) reserves at least the served count; an exact one must equal it.
+        if final.input_tokens is not None and (final.input_tokens > counted if getattr(
+                self.counters[ROLE[stage]], "upper_bound", False) else final.input_tokens != counted):
             self.issue("budget_count_mismatch", f"the server counted {final.input_tokens} input tokens where the "
                        f"tokenizer counted {counted}", record)
         if final.ok and not isinstance(answer, dict):  # readable JSON (null included) is not yet the requested object
@@ -167,21 +169,19 @@ class _Run:
 
 
 def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
-            counter: Counter | dict[str, Counter] | None = None, chunks: int = 1,
-            before_entry: Callable[[], None] | None = None) -> dict:
+            counter: Counter | dict[str, Counter] | None = None, chunks: int = 1) -> dict:
     """The recipe Catalog artifact for `request` (the validated `run.ExtractRequest`) over `evidence`: the proven
     segmentation (computed and published under `run_dir` when absent), a verified token counter for each serving
     endpoint (one per distinct chat) unless `counter` is given, and the version 2 artifact.
 
-    `before_entry` is called before every entry, and what it raises ends the extraction; the entries run in `chunks`
-    parallel contiguous chunks."""
+    The entries run in `chunks` parallel contiguous chunks."""
     options = request.options
     recipe = load_recipe(options.catalog.recipe)
     segmentation = obtain(run_dir, evidence, recipe)
     if counter is None:
         counter = counters_for(chat)
     body = extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
-                            chunks=chunks, before_entry=before_entry)
+                            chunks=chunks)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
               "model": chat.model, "models": chat.models,
               "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
@@ -193,14 +193,13 @@ def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
 
 def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options: CatalogOptions,
                      segmentation: Segmentation, chat: Chat | Router, counter: Counter | dict[str, Counter], *,
-                     chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+                     chunks: int = 1) -> dict:
     """The version 2 artifact body for `schema` over `segmentation` (without run identity and fingerprint). `counter`
     is one counter for every call, or one per role when the roles are served apart.
 
     `chunks` contiguous runs of entries are extracted at once, each in its own thread with its own `_Run`, because
     `_Run.call` mutates run state; the segmentation, budget checks, bindings and document fields are computed once,
-    and the chunks' records, calls and issues are merged back in entry order. `before_entry` is called before every
-    entry, and what it raises ends the extraction."""
+    and the chunks' records, calls and issues are merged back in entry order."""
     if chunks < 1:
         raise ValueError("chunks must be at least 1")
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
@@ -248,7 +247,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
             result = _block(part, number, block, headings, bindings, segmentation)
             saved_record(as_router(chat), result[0], scope, record=number, primary=scope if not part.refused and all(call.ok or call.recovered for call in part.calls[before_calls:]) else [])
             return result
-        for part, found in _in_chunks(run, pieces, before_entry, retained_block):
+        for part, found in _in_chunks(run, pieces, retained_block):
             run.calls += part.calls        # chunk order is entry order: prelude calls, then each chunk's
             run.issues += part.issues
             run.refused = run.refused or part.refused
@@ -322,7 +321,7 @@ def _pieces(entries: list, chunks: int) -> list[list]:
     return [entries[bounds[index]:bounds[index + 1]] for index in range(count)]
 
 
-def _in_chunks(prelude: _Run, pieces: list[list[tuple[int, Block]]], before_entry: Callable[[], None] | None,
+def _in_chunks(prelude: _Run, pieces: list[list[tuple[int, Block]]],
                work: Callable[[_Run, int, Block], tuple]) -> list[tuple[_Run, list]]:
     """Each piece with its own `_Run`, one thread per piece when there are several. A failed piece stops the others
     at their next entry; the first failure in entry order is raised once every thread has returned."""
@@ -338,8 +337,6 @@ def _in_chunks(prelude: _Run, pieces: list[list[tuple[int, Block]]], before_entr
             for number, block in piece:  # the document-wide entry number, so issues and calls name the record
                 if halt.is_set():
                     break
-                if before_entry is not None:
-                    before_entry()
                 found.append(work(part, number, block))
         except BaseException:
             halt.set()

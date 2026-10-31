@@ -41,6 +41,7 @@ vi.mock('./savedMethod', async (importOriginal) => ({
 }))
 // The developer evaluation panel is off unless FREE_DEVELOPER_EVAL is set; its read stays out of these fetch counts.
 vi.mock('./projectContexts/evaluationRounds', () => ({ readEvaluationRounds: async () => null }))
+const delayedAdmission=vi.hoisted(()=>({finish:null as null|(()=>void)}))
 
 vi.mock('./App', () => ({
   default: ({
@@ -52,8 +53,13 @@ vi.mock('./App', () => ({
     sourceRepresentationCurrent,
     extractionSchema,
     persistedExtraction,
+    latestReviewedExtraction,
+    routedValue,
     onInitialResourceLoadFailure,
     onSourceSuperseded,
+    onReviewFinalized,
+    onExtractionAdmitted,
+    routeExtractionId,
   }: DocumentWorkspaceProps) => (
     <>
       <p>
@@ -78,11 +84,24 @@ vi.mock('./App', () => ({
       <p data-testid="workspace-result">
         {JSON.stringify(persistedExtraction?.extractionId ?? null)}
       </p>
+      <p data-testid="workspace-reviewed">
+        {JSON.stringify(latestReviewedExtraction?.extractionId ?? null)}
+      </p>
+      <p data-testid="workspace-routed-value">{JSON.stringify(routedValue ?? null)}</p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
         Fail retained artifact
       </button>
       <button type="button" onClick={onSourceSuperseded}>
         Refuse a run as superseded
+      </button>
+      <button type="button" onClick={onReviewFinalized}>
+        Finalize a review
+      </button>
+      <button type="button" onClick={()=>onExtractionAdmitted?.('51000000-0000-4000-8006-000000000099',routeExtractionId)}>
+        Acknowledge a new extraction
+      </button>
+      <button type="button" onClick={()=>{delayedAdmission.finish=()=>onExtractionAdmitted?.('51000000-0000-4000-8006-000000000099',routeExtractionId)}}>
+        Delay extraction acknowledgement
       </button>
     </>
   ),
@@ -228,25 +247,31 @@ const failureResponse = (
 /** The persisted per-project summary as the list contract ships it. */
 function projectSummary(
   overrides: Partial<{
-    phase: 'ingest' | 'chat' | 'approve' | 'extract' | 'validate'
+    phase: 'upload' | 'schema' | 'pilot' | 'approve' | 'batch' | 'review'
     extractionCount: number
     extractedSourceDocumentCount: number
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
+    pendingExtractionSourceDocumentCount: number
     schemaDraftCount: number
+    currentSchemaRevisionId: string | null
     schemaStabilised: boolean
+    currentSchemaRevisionReviewed: boolean
     lastActivityAt: string
     runningBatch: { completedMemberCount: number; memberCount: number } | null
   }> = {},
 ) {
   return {
-    phase: 'chat' as const,
+    phase: 'schema' as const,
     extractionCount: 0,
     extractedSourceDocumentCount: 0,
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
+    pendingExtractionSourceDocumentCount: 1,
     schemaDraftCount: 0,
+    currentSchemaRevisionId: null,
     schemaStabilised: false,
+    currentSchemaRevisionReviewed: false,
     lastActivityAt: project.createdAt,
     runningBatch: null,
     ...overrides,
@@ -469,8 +494,8 @@ describe('Studio home', () => {
         name: 'From source to structured data, with the evidence to prove it',
       }),
     ).toBeVisible()
-    // The five workflow phases, named per the design.
-    for (const phase of ['Ingest', 'Chat', 'Approve', 'Extract', 'Validate'])
+    // The six workflow steps, named as the workflow bar names them.
+    for (const phase of ['Upload', 'Create schema', 'Pilot', 'Approve', 'Batch extract', 'Review'])
       expect(home().getByText(phase)).toBeInTheDocument()
     expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
 
@@ -523,7 +548,7 @@ describe('Studio home', () => {
           projectListResponse(
             [project],
             projectSummary({
-              phase: 'validate',
+              phase: 'review',
               extractionCount: 3,
               extractedSourceDocumentCount: 3,
               reviewedSourceDocumentCount: 2,
@@ -539,27 +564,28 @@ describe('Studio home', () => {
 
   it('shows the phase bar and state line for each summary state', async () => {
     const states = [
-      { name: 'Chatting', summary: projectSummary({ phase: 'chat' }) },
+      { name: 'Chatting', summary: projectSummary({ phase: 'schema' }) },
       {
         name: 'Running',
         summary: projectSummary({
-          phase: 'extract',
+          phase: 'batch',
           runningBatch: { completedMemberCount: 31, memberCount: 42 },
         }),
       },
       {
         name: 'Reviewed',
         summary: projectSummary({
-          phase: 'validate',
+          phase: 'review',
           extractionCount: 2,
           extractedSourceDocumentCount: 2,
           reviewedSourceDocumentCount: 2,
+          pendingExtractionSourceDocumentCount: 0,
         }),
       },
       {
         name: 'Drifted',
         summary: projectSummary({
-          phase: 'extract',
+          phase: 'pilot',
           extractionCount: 1,
           extractedSourceDocumentCount: 1,
           staleSourceDocumentCount: 1,
@@ -595,8 +621,8 @@ describe('Studio home', () => {
 
     const drifted = within(home().getByRole('button', { name: 'Drifted' }))
     expect(drifted.getByText('Re-run needed')).toBeInTheDocument()
-    // Every card carries the five-segment bar from the shared primitive.
-    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(5)
+    // Every card carries the six-segment bar from the shared primitive.
+    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(6)
   })
 
   it('lists persisted recent activity beside the cards, and nothing when empty', async () => {
@@ -665,7 +691,7 @@ describe('Studio home', () => {
           projectListResponse(
             [project],
             projectSummary({
-              phase: 'validate',
+              phase: 'review',
               extractedSourceDocumentCount: 3,
               reviewedSourceDocumentCount: 3,
               staleSourceDocumentCount: 2,
@@ -1274,6 +1300,106 @@ describe('Project Context navigation', () => {
     ).toBeInTheDocument()
   })
 
+  it('opens the only Source Document in the schema builder from "Next: Create schema"', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes()
+
+    const page = await screen.findByRole('region', { name: 'Project' })
+    fireEvent.click(
+      await within(page).findByRole('button', { name: /^Next: Create schema/ }),
+    )
+    expect(location.pathname).toBe(documentPath())
+    expect(location.search).toContain('fromSchemaBuilder=1')
+  })
+
+  it('brings the document picker into focus from "Next: Create schema", even on the Schemas tab', async () => {
+    renderRoutes(
+      studioFetch(undefined, {
+        ...detail,
+        sourceDocuments: [
+          { ...beretning, pageCount: 6 },
+          { ...historical, pageCount: 2 },
+        ],
+      }),
+    )
+    const page = await openProjectPage()
+    const next = await within(page).findByRole('button', {
+      name: /^Next: Create schema/,
+    })
+    fireEvent.click(next)
+    expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
+    const picker = within(page).getByRole('region', { name: 'From a document' })
+    await waitFor(() => expect(picker).toHaveFocus())
+
+    // The spreadsheet route stays folded away until asked for.
+    const spreadsheet = within(page).getByRole('button', {
+      name: 'Or suggest a schema from a spreadsheet of examples',
+    })
+    expect(spreadsheet).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      within(page).queryByText('How should I format my spreadsheet?'),
+    ).not.toBeInTheDocument()
+    fireEvent.click(spreadsheet)
+    expect(spreadsheet).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      within(page).getByText('How should I format my spreadsheet?'),
+    ).toBeInTheDocument()
+
+    // Already on the tab, the button still visibly does something.
+    spreadsheet.focus()
+    fireEvent.click(next)
+    await waitFor(() => expect(picker).toHaveFocus())
+  })
+
+  it('imports an Excel codebook from the Schemas tab as a new Extraction Schema named after the workbook', async () => {
+    const extractionSchemaId = '51000000-0000-4000-8003-000000000009'
+    const column = { id: 'site-column', column: 1, name: 'site', type: 'string', include: true,
+      examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
+    const writes: Array<{ url: string; method: string; body: Record<string, unknown> }> = []
+    const base = studioFetch()
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes(vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/schema_import_preview?'))
+        return Response.json({ worksheets: ['Codebook'], columns: url.includes('worksheet=') ? [column] : [] })
+      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        writes.push({ url, method: 'POST', body })
+        return Response.json({ revision: {
+          schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
+          origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
+          recordDescription: body.recordDescription, recordScope: 'document', schemaNodes: body.schemaNodes,
+        } }, { status: 201 })
+      }
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        writes.push({ url, method: 'PATCH', body })
+        return Response.json({ extractionSchema: { extractionSchemaId, name: body.name, createdAt: '2026-08-14T10:00:00.000Z' } })
+      }
+      return base(input)
+    }))
+
+    const page = await screen.findByRole('region', { name: 'Project' })
+    fireEvent.click(await within(page).findByRole('button', { name: 'Or import an Excel codebook…' }))
+    fireEvent.change(screen.getByLabelText('Excel codebook file'), {
+      target: { files: [new File(['bytes'], 'Site codebook.xlsx')] },
+    })
+    await screen.findByRole('option', { name: 'Codebook' })
+    fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
+    fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+
+    await waitFor(() => expect(writes).toHaveLength(2))
+    expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
+    expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
+    expect(writes[1]).toMatchObject({
+      url: `/api/extraction-schemas/${extractionSchemaId}`,
+      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Schema' },
+    })
+    expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
+  })
+
   it('opens the Sources tab for a Source Document list path', async () => {
     history.replaceState(null, '', `/projects/${projectContextId}/documents`)
     renderRoutes()
@@ -1871,6 +1997,7 @@ describe('Source Ingestions on the Project Context page', () => {
     completedAt?: string
     sourceDocumentId?: string
     failure?: { code: string; message: string }
+    retryable?: true
     /** false: only answered when the tab names it (outside every window). */
     windowed: boolean
   }
@@ -1898,11 +2025,13 @@ describe('Source Ingestions on the Project Context page', () => {
     const posts: { name: string; layout: FormDataEntryValue | null; ingestionKey: FormDataEntryValue | null }[] = []
     const listings: string[][] = []
     const dismissed: string[] = []
+    const retried: string[] = []
     const reads = { branch: 0, list: 0 }
     const control = {
       listing: (): Response | Promise<Response> | undefined => undefined,
       branch: (): Response | Promise<Response> | undefined => undefined,
       dismiss: (): Response | undefined => undefined,
+      retry: (): Response | undefined => undefined,
     }
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -1916,6 +2045,17 @@ describe('Source Ingestions on the Project Context page', () => {
         if (!rows.has(workflowId))
           rows.set(workflowId, { workflowId, name: file.name, status: 'queued', createdAt: '2026-08-12T10:00:00.000Z', windowed: true })
         return Response.json({ workflowId }, { status: 202 })
+      }
+      if (init?.method === 'POST' && url.endsWith('/retry')) {
+        const workflowId = decodeURIComponent(url.split('/').at(-2)!)
+        retried.push(workflowId)
+        const refused = control.retry()
+        if (refused) return refused
+        const old = rows.get(workflowId)!
+        const admitted = `${workflowId}:retry`
+        rows.delete(workflowId)
+        rows.set(admitted, { workflowId: admitted, name: old.name, status: 'queued', createdAt: '2026-08-12T12:00:00.000Z', windowed: true })
+        return Response.json({ workflowId: admitted }, { status: 202 })
       }
       if (init?.method === 'DELETE' && url.includes('/source-ingestions/')) {
         const workflowId = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1))
@@ -1951,7 +2091,7 @@ describe('Source Ingestions on the Project Context page', () => {
       rows.set(workflowId, { ...row, ...change })
     }
     return {
-      fetch, posts, listings, dismissed, reads, control,
+      fetch, posts, listings, dismissed, retried, reads, control, set,
       parse: (name: string) => set(name, { status: 'parsing' }),
       succeed: (name: string, n: number, change: Partial<Row> = {}) => {
         const document = documentOf(n, name)
@@ -2128,6 +2268,36 @@ describe('Source Ingestions on the Project Context page', () => {
     fireEvent.click(within(page).getByRole('button', { name: 'Dismiss Broken.pdf' }))
     await waitFor(() => expect(within(page).queryByText('kei refused the PDF.')).not.toBeInTheDocument())
     expect(studio.dismissed).toEqual([workflowOf('Broken.pdf')])
+  })
+
+  it('Retry admits a retained failure again without the file chooser', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'Timed out.' }, retryable: true as const }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    const chooser = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    expect(within(page).queryByRole('button', { name: 'Upload Broken.pdf again' })).not.toBeInTheDocument()
+    fireEvent.click(await within(page).findByRole('button', { name: 'Retry Broken.pdf' }))
+    await waitFor(() => expect(within(page).queryByText('Timed out.')).not.toBeInTheDocument())
+    await waitFor(() => expect(within(page).getByRole('status')).toHaveTextContent('Broken.pdf: queued.'))
+    expect(studio.retried).toEqual([workflowOf('Broken.pdf')])
+    expect(studio.posts).toEqual([])
+    expect(chooser).not.toHaveBeenCalled()
+    chooser.mockRestore()
+  })
+
+  it('a Retry Studio can no longer serve says so, and the row offers Upload again', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'Timed out.' }, retryable: true as const }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    studio.control.retry = () => {
+      studio.set('Broken.pdf', { retryable: undefined })
+      return failureResponse('source_not_retained', 'Studio no longer holds this PDF. Upload it again.', 410)
+    }
+    fireEvent.click(await within(page).findByRole('button', { name: 'Retry Broken.pdf' }))
+    expect(await within(page).findByText('Studio no longer holds this PDF. Upload it again.')).toBeInTheDocument()
+    expect(await within(page).findByRole('button', { name: 'Upload Broken.pdf again' })).toBeInTheDocument()
   })
 
   it('Upload again opens the file chooser', async () => {
@@ -2347,6 +2517,56 @@ describe('routed Source Document reopening', () => {
     ).toBeInTheDocument()
   })
 
+  it('replaces an old Extraction address after new admission and reloads the new one', async () => {
+    const oldId='51000000-0000-4000-8006-000000000001',newId='51000000-0000-4000-8006-000000000099'
+    const batchId='51000000-0000-4000-8007-000000000001'
+    const rest=studioFetch(),reopens:string[]=[]
+    history.replaceState(null,'',`${documentPath()}?extractionId=${oldId}&snapshotVersion=1&feedbackVersion=0&value=old-value&fromBatchExtractionId=${batchId}`)
+    const reads=vi.fn(async(input:RequestInfo|URL)=>{
+      const url=String(input)
+      if(!url.includes('/reopen'))return rest(input)
+      reopens.push(url)
+      const data=hydratedSnapshot()
+      return Response.json({...data,latestAttempt:{...data.latestAttempt,extractionId:url.includes(newId)?newId:oldId}})
+    })
+    renderRoutes(reads)
+    await screen.findByTestId('workspace-result')
+    const historyLength=history.length
+    fireEvent.click(screen.getByRole('button',{name:'Acknowledge a new extraction'}))
+    await waitFor(()=>expect(new URLSearchParams(location.search).get('extractionId')).toBe(newId))
+    expect(history.length).toBe(historyLength)
+    expect(new URLSearchParams(location.search).get('fromBatchExtractionId')).toBe(batchId)
+    for(const key of ['snapshotVersion','feedbackVersion','value'])expect(new URLSearchParams(location.search).has(key)).toBe(false)
+    await waitFor(()=>expect(screen.getByTestId('workspace-result')).toHaveTextContent(newId))
+    cleanup()
+    renderRoutes(reads)
+    await waitFor(()=>expect(screen.getByTestId('workspace-result')).toHaveTextContent(newId))
+    expect(reopens.at(-1)).toMatch(new RegExp(`/reopen\\?extractionId=${newId}$`))
+  })
+
+  it('keeps a later history navigation when an earlier new admission resolves before its reopen',async()=>{
+    const oldId='51000000-0000-4000-8006-000000000001',chosenId='51000000-0000-4000-8006-000000000088'
+    const later=Promise.withResolvers<Response>(),rest=studioFetch()
+    history.replaceState(null,'',`${documentPath()}?extractionId=${oldId}`)
+    const reads=vi.fn(async(input:RequestInfo|URL)=>{
+      const url=String(input)
+      if(!url.includes('/reopen'))return rest(input)
+      if(url.includes(chosenId))return later.promise
+      return Response.json(hydratedSnapshot())
+    })
+    renderRoutes(reads)
+    await screen.findByTestId('workspace-result')
+    fireEvent.click(screen.getByRole('button',{name:'Delay extraction acknowledgement'}))
+    back(`${documentPath()}?extractionId=${chosenId}`)
+    await waitFor(()=>expect(reads.mock.calls.some(([input])=>String(input).includes(`/reopen?extractionId=${chosenId}`))).toBe(true))
+    delayedAdmission.finish?.()
+    delayedAdmission.finish=null
+    expect(new URLSearchParams(location.search).get('extractionId')).toBe(chosenId)
+    const next=hydratedSnapshot()
+    later.resolve(Response.json({...next,latestAttempt:{...next.latestAttempt,extractionId:chosenId}}))
+    await waitFor(()=>expect(screen.getByTestId('workspace-result')).toHaveTextContent(chosenId))
+  })
+
   it('tells the workspace whether its Source Representation is current, per reopen', async () => {
     const extractionId = '51000000-0000-4000-8006-000000000001'
     const reopens: string[] = []
@@ -2426,6 +2646,75 @@ describe('routed Source Document reopening', () => {
     expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^superseded$/)
     expect(screen.getByTestId('workspace-result')).toHaveTextContent('51000000-0000-4000-8006-000000000001')
     expect(screen.queryByRole('heading', { name: /could not be opened|cannot be reopened/ })).not.toBeInTheDocument()
+  })
+
+  it('gives the workspace a value link with its Extraction, never the old document\'s while another one opens', async () => {
+    const opened = hydratedSnapshot(), other = Promise.withResolvers<Response>()
+    history.replaceState(null, '', `${documentPath()}?value=place`)
+    renderRoutes(studioFetch((documentId) => documentId === otherSourceDocumentId ? other.promise : Response.json(opened),
+      { ...detail, sourceDocuments: [{ ...beretning, pageCount: 6 }, { ...historical, pageCount: 4 }] }))
+    const routed = () => screen.getByTestId('workspace-routed-value')
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'place', extractionId: opened.latestAttempt.extractionId })))
+    // Back onto another document's value link: until it opens, the old snapshot stays, and its attempt is not this one's.
+    back(`${documentPath(otherSourceDocumentId)}?value=site`)
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'site', extractionId: null })))
+    const attempt = { ...opened.latestAttempt, extractionId: '51000000-0000-4000-8006-000000000002', sourceDocumentId: otherSourceDocumentId }
+    other.resolve(Response.json({ ...opened, sourceDocument: { ...opened.sourceDocument, sourceDocumentId: otherSourceDocumentId }, latestAttempt: attempt }))
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'site', extractionId: attempt.extractionId })))
+    // The URL keeps the value, so a reload opens it again.
+    expect(location.search).toBe('?value=site')
+  })
+
+  it('names a value link\'s Extraction from the open document only once its reopen has answered', async () => {
+    const opened = hydratedSnapshot(), named = opened.latestAttempt.extractionId, again = Promise.withResolvers<Response>()
+    const rest = studioFetch()
+    history.replaceState(null, '', `${documentPath()}?extractionId=${named}`)
+    renderRoutes(vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (!url.includes('/reopen')) return rest(input)
+      return url.includes('extractionId=') ? Response.json(opened) : again.promise
+    }))
+    const routed = () => screen.getByTestId('workspace-routed-value')
+    await waitFor(() => expect(routed()).toHaveTextContent('null'))
+    // Back onto the same document's value link: the snapshot still open is the Extraction named before, not its latest.
+    back(`${documentPath()}?value=place`)
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'place', extractionId: null })))
+    const latest = { ...opened.latestAttempt, extractionId: '51000000-0000-4000-8006-000000000002' }
+    again.resolve(Response.json({ ...opened, latestAttempt: latest }))
+    await waitFor(() => expect(routed()).toHaveTextContent(JSON.stringify({ key: 'place', extractionId: latest.extractionId })))
+  })
+
+  it('re-reads only "Latest reviewed" once a review is finalized, and keeps the shown Extraction', async () => {
+    const reopened = hydratedSnapshot()
+    const shown = reopened.latestAttempt.extractionId
+    const reopens: string[] = []
+    const rest = studioFetch()
+    history.replaceState(null, '', documentPath())
+    renderRoutes(
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (!url.includes('/reopen')) return rest(input)
+        reopens.push(url)
+        if (reopens.length === 1) return Response.json(reopened)
+        // The shown Extraction is now reviewed; the plain read's latest attempt is a newer one (a batch member, say).
+        return Response.json({
+          ...reopened,
+          latestAttempt: { ...reopened.latestAttempt, extractionId: '51000000-0000-4000-8006-000000000002' },
+          latestReviewed: {
+            ...reopened.latestAttempt,
+            finalizedReview: { snapshotVersion: 1, feedbackVersion: 2, createdAt: '2026-07-31T12:04:00.000Z' },
+          },
+        })
+      }),
+    )
+    expect(await screen.findByTestId('workspace-reviewed')).toHaveTextContent('null')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finalize a review' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-reviewed')).toHaveTextContent(shown))
+    expect(screen.getByTestId('workspace-result')).toHaveTextContent(shown)
+    // The same reopen read that opened it, for the same route.
+    expect(reopens).toEqual([reopens[0], reopens[0]])
   })
 
   it('moves a plain route to the reprocessed head when a superseded refusal re-reads it', async () => {

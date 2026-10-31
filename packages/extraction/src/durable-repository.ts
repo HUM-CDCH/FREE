@@ -2,13 +2,14 @@ import { randomUUID, createHash } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import { pool as sharedPool, stableJson, withPoolClientTransaction } from 'db'
 import { extractionMethod, keiMethodOptions, canonicalIntent } from './extraction-method.js'
-import { parseExtractionSchema, type SchemaNode } from './schema.js'
+import { parseExtractionSchema, type RecordScope, type SchemaNode } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
   durableSelectionSchema, durableStatus, durableValueSchema, type DurableHead, type DurableValue } from './durable-contract.js'
-import { correctionValueFits, fieldMeaning, adaptedCorrection } from './durable-feedback.js'
+import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
+import { segmentPage } from './parsed-document.js'
 import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 export class DurableConflict extends Error {
@@ -17,7 +18,17 @@ export class DurableConflict extends Error {
 export class DurableNotFound extends Error {}
 export class DurableInvalid extends Error {}
 const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
-const modelDigest = (value: DurableValue) => hash([value.selectionId,value.node,value.modelValue])
+export type ResultSchemaRevision = {
+  schemaRevisionId: string; extractionSchemaId: string; name: string; revisionNumber: number; recordScope: RecordScope | null
+}
+/** All producing selections stay available, including those behind historical and mixed-schema saved values. */
+async function resultSchemaRevisions(client: PoolClient, head: DurableHead): Promise<ResultSchemaRevision[]> {
+  return (await client.query<ResultSchemaRevision>(`SELECT DISTINCT r.id AS "schemaRevisionId",r."extractionSchemaId",
+    s.name,r."revisionNumber",r."recordScope" FROM extraction_runtime.selection i
+    JOIN public."schemaRevision" r ON r.id=i."schemaRevisionId"
+    JOIN public."extractionSchema" s ON s.id=r."extractionSchemaId"
+    WHERE i."extractionId"=$1 AND s."projectContextId"=$2 ORDER BY r."revisionNumber",r.id`, [head.id,head.projectId])).rows
+}
 function reviewFits(correction: {candidate:{meaning:string;node:SchemaNode;modelDigest:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue): boolean {
   if(correction.candidate.meaning!==fieldMeaning(value.node)) return false
   if(correction.decision.action==='EDITED') return adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
@@ -34,8 +45,7 @@ export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
 /** The page a planned record starts on: its first source range's segment (`p{page}_s{n}`). */
 function firstPage(scope: unknown): number | null {
   const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
-  const page = typeof segment === 'string' ? /^p(\d+)_s\d+$/.exec(segment)?.[1] : undefined
-  return page === undefined ? null : Number(page)
+  return segmentPage(segment)
 }
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
@@ -115,19 +125,26 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         count(*) FILTER (WHERE o.id IS NULL)::int AS pending FROM extraction_runtime.capture c
         LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1`, [id])).rows[0]
       // The Catalog records the current selection reads, once discovery has found them, and those with a model call
-      // still unanswered: the rail lists each as queued, reading or read while the run goes on.
+      // still unanswered: the rail lists each as queued, reading or read while the run goes on. A pipelined unified
+      // Catalog (defaults 3) lists the records of the windows its attempt has read so far, each final, before
+      // discovery ends: `recordsFinal` says whether the list is whole.
+      type Listed = {units:{ordinal:number;scope:unknown}[]}
       const plan = (await client.query(`SELECT manifest FROM extraction_runtime.plan WHERE "extractionId"=$1
         AND stage IN ('unified-records','generic-records','recipe-records') AND manifest->>'selectionId'=$2
-        ORDER BY generation DESC LIMIT 1`, [id, head.selectionId])).rows[0]?.manifest as {units:{ordinal:number;scope:unknown}[]} | undefined
+        ORDER BY generation DESC LIMIT 1`, [id, head.selectionId])).rows[0]?.manifest as Listed | undefined
+      const partial = plan || !head.attemptId ? undefined : (await client.query(`SELECT manifest FROM extraction_runtime.plan
+        WHERE "extractionId"=$1 AND stage LIKE $2 AND manifest->>'selectionId'=$3
+        ORDER BY jsonb_array_length(manifest->'units') DESC LIMIT 1`, [id, `unified-prefix:${head.attemptId}:%`, head.selectionId])).rows[0]?.manifest as Listed | undefined
       const reading = (await client.query(`SELECT DISTINCT (i.request->'body'->>'record')::int AS record FROM extraction_runtime.capture c
         JOIN extraction_runtime.input i ON i.id=c.id LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id
         WHERE c."extractionId"=$1 AND c."selectionId"=$2 AND o.id IS NULL AND jsonb_typeof(i.request->'body'->'record')='number'`,
         [id, head.selectionId])).rows.map(row => row.record as number)
-      const records = plan ? plan.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
+      const listed = plan ?? partial
+      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
       const feedbackVersion = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0]?.version as number ?? 0
       return { protocol:1 as const, projectId:head.projectId, extractionId:id, strategy:head.strategy, status:durableStatus(head), controlVersion:head.controlVersion,
-        pendingResume:head.pendingResume, selection,pendingSelection, source:head.sourcePin,
-        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,feedbackVersion,counts,failure,records,reading,
+        pendingResume:head.pendingResume, selection,pendingSelection, schemaRevisions:await resultSchemaRevisions(client,head),source:head.sourcePin,
+        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,feedbackVersion,counts,failure,records,recordsFinal:plan!==undefined,reading,
         attempt:attempt?{id:attempt.id,workflowId:attempt.workflowId}:null }
     }) },
     command(id: string, raw: unknown) {
@@ -140,6 +157,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         }
         version(head,command.expectedVersion)
         if (head.intent === 'STOP') throw new DurableConflict('Stopped Extractions cannot resume or retry.')
+        if (head.acknowledgement === 'COMPLETED' && (command.action === 'pause' || command.action === 'stop')) throw new DurableConflict('The Extraction is complete.')
         const idle = ['PAUSED','FAILED','COMPLETED'].includes(head.acknowledgement)
         if (command.action === 'resume' || command.action === 'retry') {
           if (head.pendingSelectionId) throw new DurableConflict('Changes pending — apply or discard, then resume.')
@@ -213,7 +231,9 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
     page(id: string, input: { snapshotVersion?: number; feedbackVersion?: number; offset?: number; limit?: number; valueId?: string } = {}) {
       return owned(id,async (client,head) => {
         const snapshotVersion = input.snapshotVersion ?? head.snapshotVersion
-        const snapshot = (await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,snapshotVersion])).rows[0]
+        const snapshot = (await client.query(`SELECT s.*,i."schemaRevisionId" FROM extraction_runtime.snapshot s
+          JOIN extraction_runtime.selection i ON i.id=s."selectionId" AND i."extractionId"=s."extractionId"
+          WHERE s."extractionId"=$1 AND s.version=$2`, [id,snapshotVersion])).rows[0]
         if (!snapshot && snapshotVersion !== 0) throw new DurableNotFound('That saved result snapshot is unavailable.')
         const feedbackVersion = input.feedbackVersion ?? (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0].version
         const latestFeedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0].version
@@ -245,7 +265,10 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const reviewCounts={required:saved.length,approved:count('APPROVED'),edited:count('EDITED'),rejected:count('REJECTED'),
           toCheck:saved.filter(value=>!value.correction||value.correction.decision.action==='PENDING').length}
         const selected=input.valueId?projected.filter(value=>value.id===input.valueId):projected
+        const schemaRevisionId: string = snapshot?.schemaRevisionId ?? (await client.query(
+          'SELECT "schemaRevisionId" FROM extraction_runtime.selection WHERE id=$1 AND "extractionId"=$2', [head.selectionId,id])).rows[0].schemaRevisionId
         return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
+          schemaRevisionId,schemaRevisions:await resultSchemaRevisions(client,head),
           total:values.length,values:selected.slice(offset,offset+limit),
           next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
@@ -272,19 +295,24 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
         if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
         const feedbackVersion = feedback.version+1, correctionId = randomUUID()
-        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:input.value ?? null,
+        // Approving a Value Disagreement saves the reading chosen at each place and the value they make.
+        const choosing = input.action === 'APPROVED' && (input.choices !== undefined || value.disagreement !== undefined)
+        const decision = choosing ? {...input,value:resolvedValue(value,input.choices ?? [])} : input
+        if (choosing && decision.value === undefined) throw new DurableInvalid('Choose one reading for each part of this value whose readings disagree.')
+        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:decision.value ?? null,
           sourceContext:stableJson({...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
         const included = input.included && input.action === 'EDITED'
         await client.query(`INSERT INTO extraction_runtime.correction
           (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,input,candidate,included])
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,decision,candidate,included])
         await client.query('UPDATE extraction_runtime."feedbackHead" SET version=$2 WHERE id=$1', [head.projectId,feedbackVersion])
         return { id:correctionId,revision:revision+1,feedbackVersion,included }
       })
     },
     history(id: string) { return runtimeTransaction(source,async (client)=> {
-      await ownedHead(client,owner,id)
+      const head=await ownedHead(client,owner,id)
       return {
+      schemaRevisions:await resultSchemaRevisions(client,head),
       capturedAt:(await client.query('SELECT transaction_timestamp() AS at')).rows[0].at.toISOString(),
       selections:(await client.query('SELECT * FROM extraction_runtime.selection WHERE "extractionId"=$1 ORDER BY ordinal',[id])).rows,
       snapshots:(await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 ORDER BY version',[id])).rows,
@@ -300,8 +328,9 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
     /** The History tab's list, small however long the run: each snapshot's value count, never its values or the
      *  calls' requests; those are `history`'s, read for audit. */
     historySummary(id: string) { return runtimeTransaction(source,async (client)=> {
-      await ownedHead(client,owner,id)
+      const head=await ownedHead(client,owner,id)
       return {
+      schemaRevisions:await resultSchemaRevisions(client,head),
       selections:(await client.query('SELECT * FROM extraction_runtime.selection WHERE "extractionId"=$1 ORDER BY ordinal',[id])).rows,
       snapshots:(await client.query('SELECT id,version,jsonb_array_length(values) AS "valueCount" FROM extraction_runtime.snapshot WHERE "extractionId"=$1 ORDER BY version',[id])).rows,
       finalizations:(await client.query('SELECT * FROM extraction_runtime.finalization WHERE "extractionId"=$1 ORDER BY "createdAt"',[id])).rows,

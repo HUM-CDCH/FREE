@@ -14,7 +14,7 @@ from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.method import LimitedCounter
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Issue, leaves
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import evidence, passages
 
 SCHEMA = Schema.model_validate({"recordDescription": "One price list.", "schemaNodes": [
@@ -167,6 +167,8 @@ def test_a_bounded_article_root_with_many_items_is_grounded_where_each_value_was
         if "items" in schema["properties"]:  # the document root, read in each value context
             numbers = sorted({int(n) for n in re.findall(r"77(\d{3}) elbow", user)})
             return {"publisher": "Viega", "currency": "USD", "items": [item(n) for n in numbers]}
+        if resolving(user):
+            return keeps_every_reading(schema)
         return labelling(users)(system, user, schema)
     request = run.ExtractRequest.model_validate({"schema": {**SCHEMA.model_dump(by_alias=True, exclude_none=True),
         "recordScope": "document"}, "options": {"strategy": "article", "article": {"context": "bounded",
@@ -180,11 +182,11 @@ def test_a_bounded_article_root_with_many_items_is_grounded_where_each_value_was
     item_users = [user for user in users if "77" in user]
     assert item_users and all(len(set(re.findall(r"Page (\d)", user.split("### Evidence")[1]))) == 1
                               for user in item_users)  # each item claim is checked in the context it was read from
-    assert result["article_version"] == article.ARTICLE_VERSION == 8
+    assert result["article_version"] == article.ARTICLE_VERSION == 15
 
 
 def test_contested_unsupported_and_uncompleted_claims_stay_distinct_through_the_article_path():
-    """Scripted outcomes: two contexts disagree on the currency (contested: null, no claim is made of it); item 1's
+    """Scripted outcomes: two contexts disagree on the currency (a Value Disagreement: claimed, never checked); item 1's
     description is printed nowhere (checked everywhere: unsupported); item 2's own fields cannot fit any request (not
     completed, refused by the budget in every context it is routed to)."""
     texts = ["Viega price list. Currency USD. 77000 elbow 0 per 100 7.5" + " filler" * 2600,
@@ -206,9 +208,9 @@ def test_contested_unsupported_and_uncompleted_claims_stay_distinct_through_the_
     assert record["currency"] is None and result["conflicts"]["records"] == [
         {"record": 0, "path": ["currency"], "candidates": ["USD", "EUR"]}]
     accounting = result["grounding"]
-    assert accounting["claims"] == accounting["eligible"] == 1 + 3 * 4  # no claim of the contested currency
-    assert accounting["unsupported"] == 1 and accounting["not_completed"] == 4
-    assert accounting["reasons"] == {"grounding_exceeds_budget": 4}
+    assert accounting["claims"] == accounting["eligible"] == 2 + 3 * 4  # the disagreeing currency is an unverified claim
+    assert accounting["unsupported"] == 1 and accounting["not_completed"] == 5
+    assert accounting["reasons"] == {"conflicting_values": 1, "grounding_exceeds_budget": 4}
     refusals = [issue for issue in result["issues"] if issue["code"] == "grounding_exceeds_budget"]
     assert len({tuple(issue["path"]) for issue in refusals}) == 4 <= len(refusals)  # four claims, refused per context
     linked = {tuple(link["path"]) for link in result["evidence"]}

@@ -100,8 +100,10 @@ class NativeCounter:
 
 
 def read_entry(backend: GLiFormerFields, counter: NativeCounter, schema: Schema, entry: dict,
-               texts: dict[str, str], *, ceiling: int, overlap: int, check, number: int) -> tuple[list, list]:
-    """Window only inside a settled entry; never inject its discovered label or neighboring text."""
+               texts: dict[str, str], *, ceiling: int, overlap: int, number: int,
+               unit: str | None = None) -> tuple[list, list]:
+    """Window only inside a settled entry; never inject its discovered label or neighboring text. `unit` as for
+    `calls.complete`."""
     shape = native_schema(schema)
     units = [Unit(row["segment"], row["start"], row["end"]) for row in entry["ranges"]]
 
@@ -110,7 +112,6 @@ def read_entry(backend: GLiFormerFields, counter: NativeCounter, schema: Schema,
         return "\n".join(texts[u.segment][u.start:u.end] for u in shown), ranges_json(shown)
 
     def fits(window):
-        check()
         return counter.request_tokens("", source(window)[0], shape) <= ceiling
 
     windows = plan(units, texts, fits, overlap=overlap)
@@ -118,13 +119,12 @@ def read_entry(backend: GLiFormerFields, counter: NativeCounter, schema: Schema,
         raise ValueError("GLiFormer schema and one source character exceed the input budget")
     outputs, calls = [], []
     for window in windows:
-        check()
         text, ranges = source(window)
         count = counter.request_tokens("", text, shape)
         if count > ceiling:
             raise ValueError("GLiFormer request exceeds its pinned input budget")
         reply, call = structure(backend, record=number, text=text, schema=shape, identity=counter.info["identity"],
-                                counted=count, context=counter.context_tokens)
+                                counted=count, context=counter.context_tokens, unit=unit)
         outputs.append({**reply, "ranges": ranges, "input_text": text})
         calls.append(call)
     return outputs, calls

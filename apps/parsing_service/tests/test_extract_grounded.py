@@ -57,6 +57,17 @@ class CountingChat(FakeChat):
         return reply
 
 
+def resolving(user: str) -> bool:
+    """An Article resolution call (`resolution.resolve`)."""
+    return user.startswith("### Document opening\n") and "\n### Places\n" in user
+
+
+def keeps_every_reading(schema: dict) -> dict:
+    """A resolution answer that settles nothing away: each place's first candidate, every list item its own."""
+    return {key: {label: {"of": "", "label": "OWN"} for label in spec["properties"]} if "properties" in spec
+            else spec["enum"][0] for key, spec in schema["properties"].items()}
+
+
 def entry_text(user: str) -> str:
     return user.split("### ENTRY\n", 1)[1].split("\n### END ENTRY", 1)[0]
 
@@ -253,6 +264,17 @@ def test_a_served_count_that_differs_from_the_count_is_reported(tmp_path):
     result, _, _ = run("two-in-one-segment", tmp_path, reported)
     assert "budget_count_mismatch" in {issue["code"] for issue in result["issues"]}
     assert result["complete"] is False
+
+
+@pytest.mark.parametrize("input_tokens, mismatch", [(1, False), (9_999, True)])
+def test_an_upper_bound_count_accepts_any_served_count_within_it(tmp_path, input_tokens, mismatch):
+    def reported(system, user, schema):
+        return Reply(text=json.dumps(honest(system, user, schema)), input_tokens=input_tokens, output_tokens=5,
+                     finish="stop", seconds=0.0)
+    counter = type("Reserved", (WordCounter,), {"upper_bound": True})()
+    result, _, _ = run("two-in-one-segment", tmp_path, reported, counter=counter)
+    assert ("budget_count_mismatch" in {issue["code"] for issue in result["issues"]}) is mismatch
+    assert result["completeness"]["processing"] is not mismatch
 
 
 def test_no_records_is_an_explicit_outcome_not_a_complete_catalogue(tmp_path):

@@ -53,7 +53,7 @@ How FREE applies an Extraction Schema to Source Context: Article or Catalog. The
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context; values read in separate parts of the source are combined into that one object without dropping list items.
+An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context, in separate parts when the whole source does not fit one model call; a model call then settles each place to the document's own reading and keeps the list items that belong to the document, and readings it cannot settle stay a Value Disagreement.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:
@@ -116,6 +116,19 @@ value, bound to that value's stable identity and producing type, and saved in a
 numbered Decision Version of its Project.
 _Avoid_: status, vote, review draft
 
+**Value Disagreement**:
+A saved value whose readings in separate parts of the source differ at one
+place, and that resolution did not settle: the field itself or a value nested
+in its objects, never inside a list. When an Article is read in parts, the model
+first settles each such place with a reading or none (ADR 0019); a place it
+leaves unsure, or that a failed resolution left, stays a Value Disagreement.
+FREE leaves that place empty and keeps each distinct reading as an alternative,
+with where it was read; it picks none and marks them not checked. Approving it
+means choosing one alternative per place; an edit or a rejection also decides
+it. A choice or a rejection holds while the value and its readings stay the
+same; when they change, the value is to be checked again.
+_Avoid_: conflict, contested value, merge conflict, candidate, unresolved
+
 **Decision Version**:
 The numbered version of a Project's corrections: saving a correction raises it
 by one, and earlier corrections stay. A Finalized Review names one beside a
@@ -155,7 +168,7 @@ A Researcher Account's choice of Model Connection and model for a related family
 _Avoid_: task route, model setting, project model
 
 **Schema Suggestion Route**:
-The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
+The Capability Route used for Schema Suggestion, including the edit proposals of the schema panel's chat and, unless it is NuExtract, the chat's answers to questions. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
@@ -175,11 +188,11 @@ The versioned Catalog method a deployment can enable for new single and batch Ca
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:
-A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, and a role left unchosen uses the deployment's default.
+A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, except that its textless artwork and its blocks with undecodable font glyphs are read by the OCR model, and a role left unchosen uses the deployment's default.
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:
-The Capability Route used for conversational Extraction Schema editing: the schema panel's "Describe a change to the schema…" and the edit proposals it returns. The Model Configuration page calls it the *Assistant model*.
+The Capability Route an unset Schema Suggestion Route follows. Conversational Extraction Schema editing (the schema panel's "Describe a change to the schema…") is a Schema Suggestion request; the Interaction Route's own work is answering the schema chat's questions when the Schema Suggestion Route is NuExtract, which only generates templates (ADR 0023). The Model Configuration page calls it the *Assistant model*.
 _Avoid_: chat model, chat route
 
 **Model Attribution**:

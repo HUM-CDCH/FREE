@@ -31,12 +31,14 @@ from kei_exp.transcription.types import TRANSCRIBER_KNOBS, ConversionError, Exec
 from kei_exp.transcription.tables import table_of_html
 
 
-def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[OcrRegion, ...] | None:
+def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
+                   allow_large_raster_artwork: bool = False) -> tuple[OcrRegion, ...] | None:
     """Native PDF with its textless artwork, or None when any nonblank page requires the scan path; () when the
     selected pages need no OCR at all.
 
-    Keep the existing 5% artwork threshold and page-sized raster safeguard. A digital page with an image
-    table needs only that image read; an OCR overlay on a page-sized scan is not treated as digital prose.
+    Keep the 5% artwork threshold and scan-overlay safeguard. A large raster without native text on it may
+    use the artwork path when allowed; the default retains the conservative route for book splitting.
+    A digital page's image table needs OCR, while native text overlapping a large scan may be an OCR overlay.
     PDFium measures objects and text in canvas space, whose origin is the MediaBox's, not the displayed page's:
     a region is returned in displayed top-left points (what `PdfPage.render` crops and Docling's boxes use).
     """
@@ -55,14 +57,25 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
             try:
                 textpage = page.get_textpage()
                 try:
-                    text = textpage.get_text_bounded().strip()
+                    x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
+                    # Only painted characters on the displayed page show that it prints text: an unpainted glyph
+                    # (render mode 3) prints nothing, so a hidden note must not route a page natively and lose its
+                    # raster's OCR. (A broken ToUnicode map can report a code past Unicode's last, which still prints.)
+                    invisible = pdfium.raw.FPDF_TEXTRENDERMODE_INVISIBLE
+                    printed = any((glyph := pdfium.raw.FPDFText_GetTextObject(textpage, char))
+                                  and pdfium.raw.FPDFTextObj_GetTextRenderMode(glyph) != invisible
+                                  and not chr(min(pdfium.raw.FPDFText_GetUnicode(textpage, char), 0x10FFFF)).isspace()
+                                  and (box := textpage.get_charbox(char))[0] < x1 and box[2] > x0
+                                  and box[1] < y1 and box[3] > y0
+                                  for char in range(textpage.count_chars()))
                     objects = list(page.get_objects())
-                    if not text:
-                        if objects:
+                    if not printed:
+                        # Unpainted text alone prints nothing, like a blank page.
+                        if any(obj.type != pdfium.raw.FPDF_PAGEOBJ_TEXT
+                               or pdfium.raw.FPDFTextObj_GetTextRenderMode(obj.raw) != invisible for obj in objects):
                             return None
                         continue
                     width, height = page.get_size()
-                    x0, y0, x1, y1 = page.get_bbox()  # the displayed page in canvas space: MediaBox and CropBox
                     page_regions: list[OcrRegion] = []
                     for obj in objects:
                         if obj.type not in {pdfium.raw.FPDF_PAGEOBJ_IMAGE, pdfium.raw.FPDF_PAGEOBJ_FORM}:
@@ -70,17 +83,22 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
                         left, bottom, right, top = _canvas_bounds(obj)
                         left, bottom, right, top = max(left, x0), max(bottom, y0), min(right, x1), min(top, y1)
                         area = max(0, right - left) * max(0, top - bottom)
-                        # A page-sized scan with an OCR overlay still needs OCR. A substantial textless
-                        # form/image can be a table whose letters are outlines: native text loses its body
-                        # completely (Akita 2020, p4). Include embedded artwork rather than guessing its text.
-                        if obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2:
-                            return None
-                        if area >= width * height / 20 and not textpage.get_text_bounded(left, bottom, right, top).strip():
-                            # PDFium object bounds are unrotated; the crop renderer uses displayed page space.
-                            # Until the projection is supported, rotated artwork retains the established scan path.
-                            if page.get_rotation():
+                        # Artwork needs OCR of its own contents, regardless of its size. Native text on a
+                        # large raster may be a scan's OCR overlay, so retain the scan route in that case.
+                        if area < width * height / 20:
+                            continue
+                        large_raster = obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2
+                        if textpage.get_text_bounded(left, bottom, right, top).strip():
+                            if large_raster:
                                 return None
-                            page_regions.append(OcrRegion(index + 1, (left - x0, y1 - top, right - x0, y1 - bottom)))
+                            continue
+                        if large_raster and not allow_large_raster_artwork:
+                            return None
+                        # PDFium object bounds are unrotated; the crop renderer uses displayed page space.
+                        # Until the projection is supported, rotated artwork retains the scan path.
+                        if page.get_rotation():
+                            return None
+                        page_regions.append(OcrRegion(index + 1, (left - x0, y1 - top, right - x0, y1 - bottom)))
                     distinct = _distinct_regions(page_regions)
                     # A bounding union of overlapping objects can enclose native prose between them. Retain
                     # the scan path in that case rather than replace those original characters with OCR.
@@ -94,6 +112,43 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None) -> tuple[Oc
             finally:
                 page.close()
         return tuple(regions) if found_text else None
+
+
+_TEXT_CONTROLS = frozenset(map(ord, "\t\n\r"))  # the C0 controls that are real text
+
+
+def undecodable_glyphs(path: Path, pages: tuple[int, int] | None = None) -> bool:
+    """Whether a selected page's embedded font renders a symbol (a minus, a degree sign) whose Unicode map exposes
+    only a control code. Native text would lose it, so the blocks carrying one are read by OCR (`undecodable`)."""
+    with pdfium_lock, pdfium.PdfDocument(str(path)) as document:
+        first, last = pages or (1, len(document))
+        for index in range(first - 1, last):
+            page = document[index]
+            try:
+                textpage = page.get_textpage()
+                try:
+                    if _has_undecodable_glyph(textpage):
+                        return True
+                finally:
+                    textpage.close()
+            finally:
+                page.close()
+    return False
+
+
+def undecodable(text: str) -> bool:
+    """Native text where Docling kept an undecodable glyph's control code; never guess the symbol it renders."""
+    return any(ord(char) < 32 and ord(char) not in _TEXT_CONTROLS for char in text)
+
+
+def _has_undecodable_glyph(textpage: pdfium.PdfTextPage) -> bool:
+    for index in range(textpage.count_chars()):
+        code = pdfium.raw.FPDFText_GetUnicode(textpage, index)
+        if code < 32 and code not in _TEXT_CONTROLS \
+                and not pdfium.raw.FPDFText_IsGenerated(textpage, index) \
+                and not pdfium.raw.FPDFText_IsHyphen(textpage, index):
+            return True
+    return False
 
 
 def _canvas_bounds(obj: pdfium.PdfObject) -> tuple[float, float, float, float]:
@@ -225,6 +280,12 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
             block["boxes"] = boxes
         if isinstance(item, TableItem):
             block["table"] = _table_of(item, document, page_no, html)
+            # Where the caption its HTML carries is printed: OCR read in the table's place must read it too.
+            captions = [[box.l, box.t, box.r, box.b] for reference in item.captions
+                        for prov in getattr(reference.resolve(document), "prov", []) if prov.page_no == page_no
+                        for box in [prov.bbox.to_top_left_origin(page.size.height)]]
+            if captions:
+                block["caption_boxes"] = captions
         blocks.append(block)
     return blocks
 

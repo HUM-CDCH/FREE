@@ -32,19 +32,30 @@ class ExtractModel:
     key: str
     repo: str                          # the served model id
     url: str                           # chat completions URL, or the native service base URL
-    adapter: Literal["instruct", "nuextract", "gliformer"]
+    adapter: Literal["instruct", "nuextract", "gliformer", "codex-cli"]
     roles: frozenset[Role]
 
     def chat(self) -> Chat | GLiFormerFields:
         if self.adapter == "gliformer":
             from kei_exp.kie.extract.gliformer import GLiFormerFields
             return GLiFormerFields(url=self.url, model=self.repo)
+        if self.adapter == "codex-cli":
+            from kei_exp.kie.extract.codex import CodexChat
+            return CodexChat(model=self.repo, url=self.url)
         kind = OpenAIChat if self.adapter == "instruct" else NuExtractChat
         return kind(url=self.url, model=self.repo)
 
 
 def registry(environ: Mapping[str, str]) -> dict[str, ExtractModel]:
     """The instruction model always; optional fields backends only where the deployment names their server."""
+    provider = environ.get("KEI_EXTRACT_PROVIDER", "vllm")
+    if provider not in ("vllm", "codex-cli"):
+        raise ValueError("KEI_EXTRACT_PROVIDER must be vllm or codex-cli")
+    if provider == "codex-cli":
+        model = environ.get("KEI_EXTRACT_MODEL")
+        if not model:
+            raise ValueError("Codex extraction requires KEI_EXTRACT_MODEL")
+        return {"instruct": ExtractModel("instruct", model, "codex://local", "codex-cli", frozenset(ROLES))}
     models = {"instruct": ExtractModel("instruct", environ.get("KEI_EXTRACT_MODEL", llm.EXTRACT_MODEL),
                                        environ.get("KEI_EXTRACT_URL", llm.EXTRACT_URL), "instruct",
                                        frozenset(ROLES))}
@@ -65,14 +76,26 @@ EXTRACT_MODELS = registry(os.environ)
 DEFAULTS = defaults(EXTRACT_MODELS)
 
 
+def resolve(key: str) -> ExtractModel:
+    """Resolve saved Codex model IDs locally; planning never performs discovery or rewrites a chosen ID."""
+    model = EXTRACT_MODELS.get(key)
+    if model is not None:
+        return model
+    default = EXTRACT_MODELS.get("instruct")
+    if default is not None and default.adapter == "codex-cli" and key.startswith("codex:"):
+        from kei_exp.kie.extract.codex import MODEL_ID
+        repo = key.removeprefix("codex:")
+        if MODEL_ID.fullmatch(repo):
+            return ExtractModel(key, repo, default.url, "codex-cli", frozenset(ROLES))
+    raise ValueError(f"unknown extraction model {key!r}; this deployment serves {sorted(EXTRACT_MODELS)}")
+
+
 def check(choice: Mapping[str, str]) -> None:
     """Refuse a run's choice the deployment cannot serve; called when the `extract` step validates its request, before any model call."""
     for role, key in choice.items():
         if role not in ROLES:
             raise ValueError(f"{role!r} is not an extraction role (fields, reasoning)")
-        model = EXTRACT_MODELS.get(key)
-        if model is None:
-            raise ValueError(f"unknown extraction model {key!r}; this deployment serves {sorted(EXTRACT_MODELS)}")
+        model = resolve(key)
         if role not in model.roles:
             raise ValueError(f"{key!r} cannot take the {role} role")
 
@@ -122,5 +145,5 @@ def as_router(chat: Chat | Router) -> Router:
 def chats_for(options: Choice) -> Router:
     """The clients a run talks to: each role goes to its routed model, one client per server."""
     keys = routes(options)
-    clients = {key: EXTRACT_MODELS[key].chat() for key in set(keys.values())}
+    clients = {key: resolve(key).chat() for key in set(keys.values())}
     return Router(fields=clients[keys["fields"]], reasoning=clients[keys["reasoning"]])

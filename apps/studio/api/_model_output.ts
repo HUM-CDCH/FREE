@@ -9,7 +9,11 @@ const templateEnvelopeSchema = z.object({
 export async function parseTemplate(text: string): Promise<Record<string, unknown>> {
   const object = await parseJsonObject(text, 'Model returned an invalid extraction schema.')
   const envelope = templateEnvelopeSchema.safeParse(object)
-  return envelope.success ? envelope.data.template : object
+  if (!envelope.success) return object
+  // Recover NuExtract's two-member envelope only: other siblings could be schema fields named beside `template`.
+  return typeof object._description === 'string' && Object.keys(object).every(key => key === '_description' || key === 'template')
+    ? { _description: object._description, ...envelope.data.template }
+    : envelope.data.template
 }
 
 /**
@@ -43,7 +47,7 @@ function withoutOuterFraming(text: string): string {
   return OUTER_FENCE.exec(reply)?.[1] ?? reply
 }
 
-async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
+export async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
   const parsed = await parseUnknownJson(text, message)
   if (!isRecord(parsed)) {
     throw new ApiError(502, 'invalid_model_output', message)

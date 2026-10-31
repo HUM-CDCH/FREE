@@ -7,8 +7,8 @@ refusal surfaces unchanged. The refused attempt is kept on the reply, so the art
 is the server's finish_reason: "length" means the reply was cut off, which the caller treats as a failed call
 rather than a short answer. `tokenize_body` is the same request as vLLM's `/tokenize` counts it. A chat `bounded` to a
 whitespace limit sends the schema instead as xgrammar's grammar for it admitting at most that much whitespace between
-JSON tokens (`bounded_grammar`), never falling back to unconstrained generation; only the version 1 Catalog's
-recovery of a record call that looped on whitespace uses it.
+JSON tokens (`bounded_grammar`), never falling back to unconstrained generation; recovery of a record or entry call
+that already looped on whitespace uses it.
 """
 from __future__ import annotations
 
@@ -186,6 +186,23 @@ def _plain(schema: Any) -> Any:
     if isinstance(schema, list):
         return [_plain(item) for item in schema]
     return schema
+
+
+def composed_order(value: Any) -> Any:
+    """`value` with every object schema's `properties` back in its `required` order. A captured request is stored as
+    PostgreSQL jsonb, which sorts object keys (shortest first) but keeps array order, and under constrained decoding a
+    schema's property order is the reply's generation order: replayed unsorted, a reply would fill `year` before
+    `title`. `schema.json_schema` requires every field in field order; an object whose `required` does not name exactly
+    its properties is left as it is."""
+    if isinstance(value, list):
+        return [composed_order(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    restored = {key: composed_order(item) for key, item in value.items()}
+    properties, required = restored.get("properties"), restored.get("required")
+    if isinstance(properties, dict) and isinstance(required, list) and sorted(required) == sorted(properties):
+        restored["properties"] = {name: properties[name] for name in required}
+    return restored
 
 
 def nuextract_template(schema: dict) -> Any:

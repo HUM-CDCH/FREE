@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { adaptedCorrection, correctionSourceContext, correctionValueFits, fieldMeaning, selectFeedback } from './durable-feedback.js'
+import { adaptedCorrection, correctionSourceContext, correctionValueFits, fieldMeaning, modelDigest, resolvedValue, selectFeedback } from './durable-feedback.js'
 import type { SchemaNode } from './schema.js'
 import sourceFixture from '../../../apps/studio/src/assets/parsed_document.v2.json' with {type:'json'}
 import { decodeParsedDocument } from './parsed-document.js'
@@ -88,4 +88,31 @@ test('oversize examples are omitted whole with a reason', () => {
 test('child ordering uses the same UTF-8 order as the Python planner',()=> {
   const node:SchemaNode={id:'person',name:'person',type:'object',children:[{id:'Z',name:'name',type:'string'},{id:'a',name:'age',type:'integer'}]}
   assert.equal(fieldMeaning(node),'f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626')
+})
+
+const alternative=(value:unknown)=>({value,segments:['p3_s0']})
+const work:SchemaNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
+const titles={path:['t'],alternatives:[alternative('A'),alternative('C')]}
+const years={path:['y'],alternatives:[alternative(1827),alternative(1828)]}
+const disputed=durableValueSchema.parse({...saved,node:work,modelValue:{title:null,year:1827},disagreement:[titles]})
+test('a decision binds to the model value and each place\'s readings, never to where they were read',()=> {
+  assert.equal(modelDigest(saved),'a5595d6633f64f2f08efa0c946b3ec6f94e9a9e5f28958669582fce245c21113')
+  const relocated={...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives].reverse()
+    .map(a=>({...a,segments:[...a.segments,'p9_s0']}))}]}
+  assert.equal(modelDigest(relocated),modelDigest(disputed))
+  assert.notEqual(modelDigest({...disputed,disagreement:[{...titles,alternatives:[...titles.alternatives,alternative('D')]}]}),modelDigest(disputed))
+  // A second part that comes to disagree changes what a decision on the whole value reviewed.
+  assert.notEqual(modelDigest({...disputed,modelValue:{title:null,year:null},disagreement:[titles,years]}),modelDigest(disputed))
+})
+test('approving a disagreement takes exactly one of its own readings per place, never one by order',()=> {
+  const both=durableValueSchema.parse({...disputed,modelValue:{title:null,year:null},disagreement:[titles,years]})
+  assert.equal(resolvedValue(both,[]),undefined)
+  assert.equal(resolvedValue(both,[{path:['t'],value:'A'}]),undefined)
+  assert.equal(resolvedValue(both,[{path:['t'],value:'D'},{path:['y'],value:1827}]),undefined)
+  assert.equal(resolvedValue(both,[{path:['t'],value:'A'},{path:['t'],value:'C'}]),undefined)
+  assert.equal(resolvedValue(saved,[{path:[],value:'Original interpretation'}]),undefined)
+  assert.deepEqual(resolvedValue(both,[{path:['y'],value:1828},{path:['t'],value:'C'}]),{title:'C',year:1828})
+  assert.deepEqual(both.modelValue,{title:null,year:null})
+  const title=durableValueSchema.parse({...saved,modelValue:null,disagreement:[{path:[],alternatives:titles.alternatives}]})
+  assert.equal(resolvedValue(title,[{path:[],value:'A'}]),'A')
 })

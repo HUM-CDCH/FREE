@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 const root=resolve(import.meta.dirname,'../migrations/app')
@@ -27,5 +27,16 @@ test('the durable expansion preserves the complete public contract and advances 
   assert.equal(goldRows.from,recovery.to)
   const evaluationRounds=JSON.parse(readFileSync(resolve(root,'20261006T0837_iterative_evaluation_rounds/migration.json'),'utf8'))
   assert.equal(evaluationRounds.from,goldRows.to)
-  assert.equal(ref.hash,evaluationRounds.to)
+  const whitespaceRecovery=JSON.parse(readFileSync(resolve(root,'20261010T0842_durable_whitespace_recovery/migration.json'),'utf8'))
+  assert.equal(whitespaceRecovery.from,evaluationRounds.to)
+  const disagreement=JSON.parse(readFileSync(resolve(root,'20261011T1000_value_disagreement/migration.json'),'utf8'))
+  assert.equal(disagreement.from,whitespaceRecovery.to)
+  assert.equal(disagreement.to,whitespaceRecovery.to)
+  const catalogRecovery=JSON.parse(readFileSync(resolve(root,'20261013T0902_catalog_whitespace_recovery/migration.json'),'utf8'))
+  assert.equal(catalogRecovery.from,disagreement.to)
+  assert.equal(catalogRecovery.to,disagreement.to)
+  assert.equal(ref.hash,catalogRecovery.to)
+  const required=[...new Set(readdirSync(root).filter(dir=>existsSync(resolve(root,dir,'migration.json')))
+    .flatMap(dir=>JSON.parse(readFileSync(resolve(root,dir,'migration.json'),'utf8')).providedInvariants??[]))].sort()
+  assert.deepEqual(ref.invariants.toSorted(),required,`Preserve required invariants in refs/db.json: ${required.join(', ')}`)
 })

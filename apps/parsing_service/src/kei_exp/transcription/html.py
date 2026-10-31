@@ -17,7 +17,9 @@ def markdown(converter: DocumentConverter, html: str, name: str) -> tuple[str, s
     """Block HTML as Markdown, or an explicit conversion failure."""
     if not html.strip():
         return "", None
-    source = DocumentStream(name=f"{name}.html", stream=BytesIO(f"<html><body>{html}</body></html>".encode()))
+    # Declared, or Docling guesses the bytes' encoding and can read UTF-8 superscripts (cm⁻¹) as Shift JIS.
+    page = f'<html><head><meta charset="utf-8"></head><body>{html}</body></html>'
+    source = DocumentStream(name=f"{name}.html", stream=BytesIO(page.encode()))
     result = converter.convert(source, raises_on_error=False)
     if result.status != ConversionStatus.SUCCESS:
         return "", "; ".join(error.error_message for error in result.errors) or result.status.value

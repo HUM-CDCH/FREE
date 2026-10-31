@@ -3,7 +3,8 @@
 Date: 2026-09-29. Status: accepted; amends 0011 (the Extraction Model Choice is
 submitted with each start, not applied from the account per request); amended
 by [0017](0017-durable-extraction-control-and-call-checkpoints.md) (the pin
-applies to each durable input selection).
+applies to each durable input selection) and on 2026-10-12 (single Run shows
+no method and submits the saved one).
 
 ## Context
 
@@ -66,3 +67,16 @@ The [durable-only amendment of ADR 0017](0017-durable-extraction-control-and-cal
 extends the pin from one admission to each linked input selection: each
 selection pins its requested method, and a later immutable selection may be
 adopted at a paused boundary. Valid requests admit durable work directly.
+
+## Amendment (2026-10-12)
+
+Single Run shows no method: its summary left the tab strip with the one-row
+layout on 2026-10-03. Run saves pending schema edits, then reads the account's
+saved Extraction Model Choice and settings again and submits them, so admission
+pins what was saved at that read. A `method_changed` refusal means they changed
+between that read and admission: Run reads them once more and retries, and a
+second refusal starts nothing ("Your saved settings changed. Run again."). A
+re-read that switches to the Unified Catalog Method drops the run's recipe,
+which that method does not take. Batch and suggested-batch starts still show
+the method they submit, and Extraction details (History's technical details)
+show the method a single Run was admitted with.

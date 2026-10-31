@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Profiler } from 'react'
 import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
@@ -19,14 +20,16 @@ import type {
   SchemaSaveState,
 } from './schemaSaveCoordinator'
 // The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
-const { requestSchemaEdit, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
+const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
   requestSchemaEdit: vi.fn(),
+  requestSchemaChat: vi.fn(),
   deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
   listModelOperations: vi.fn<() => Promise<ModelOperation[]>>(async () => []),
 }))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
   requestSchemaEdit,
+  requestSchemaChat,
   deleteModelOperation,
   listModelOperations,
 }))
@@ -269,6 +272,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       'Update fields',
       expect.any(AbortSignal),
       expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      [],
     )
 
     const row = screen.getByText('title').closest('[role="listitem"]')!
@@ -817,6 +821,21 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('grave')).toBeInTheDocument()
     expect(screen.getByText('year')).toBeInTheDocument()
     expect(screen.getByText('new_field')).toBeInTheDocument()
+  })
+
+  it('re-renders nothing for a mouse move while no field is dragged', async () => {
+    const setup = setupController()
+    const onRender = vi.fn()
+    render(
+      <Profiler id="schema" onRender={onRender}>
+        <SchemaPanel schema={setup.schema} onClearDraft={() => setup.schema.reset()} sourceDocumentName="test.pdf" />
+      </Profiler>,
+    )
+    await act(async () => {})
+    const commits = onRender.mock.calls.length
+    fireEvent.mouseMove(window, { clientX: 10, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 30, clientY: 40 })
+    expect(onRender).toHaveBeenCalledTimes(commits)
   })
 
   it('a drag from the slot above an open group into its header drops the field into the group', async () => {
@@ -1666,11 +1685,6 @@ describe('schema header (redesign §5)', () => {
     expect(screen.getByRole('dialog', { name: 'Import from Excel codebook' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
-
-    cleanup()
-    renderPanel({ durableScope: true, noSchema: true }, { schemaName: null })
-    fireEvent.click(screen.getByRole('button', { name: 'Import from Excel codebook…' }))
-    expect(screen.getByRole('dialog', { name: 'Import from Excel codebook' })).toBeInTheDocument()
   })
 
   it('the import action is disabled without a project to import into', () => {
@@ -1678,12 +1692,6 @@ describe('schema header (redesign §5)', () => {
     expect(setup.schema.operationScope()).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
     expect(screen.getByRole('menuitem', { name: 'Import from Excel codebook…' })).toBeDisabled()
-
-    cleanup()
-    const empty = renderPanel({ noSchema: true }, { schemaName: null })
-    expect(empty.schema.operationScope()).toBeNull()
-    expect(screen.getByRole('heading', { name: 'No schema yet' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Import from Excel codebook…' })).toBeDisabled()
   })
 
   it('says the saved record scope in words and saves a change at once', () => {
@@ -1961,68 +1969,14 @@ describe('schema header (redesign §5)', () => {
     expect(screen.queryByText(/\d+ fields?\s*$/)).not.toBeInTheDocument()
   })
 
-  it('the empty state offers Generate and Start blank; Start blank creates an empty schema named Untitled schema and focuses its description', async () => {
-    const onRenameSchema = vi.fn(async () => null)
+  it('the empty state offers Generate schema as its only action', () => {
     const onGenerateInstructions = vi.fn()
-    const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, onRenameSchema, schemaName: null })
-    expect(screen.getByRole('heading', { name: 'No schema yet' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate from the document' }))
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, schemaName: null })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('')
-    fireEvent.click(screen.getByRole('button', { name: 'Start blank' }))
-    await waitFor(() => expect(setup.initialized).toEqual([{ recordDescription: 'Untitled record', schemaNodes: [] }]))
-    await waitFor(() => expect(onRenameSchema).toHaveBeenCalledWith('Untitled schema'))
-    const description = (await screen.findByLabelText('What one record is')) as HTMLTextAreaElement
-    await waitFor(() => expect(description).toHaveFocus())
-    expect(description.value.slice(description.selectionStart, description.selectionEnd)).toBe('Untitled record')
-  })
-
-  it('Start blank after a named schema was cleared keeps its name', async () => {
-    const onRenameSchema = vi.fn(async () => null)
-    const setup = renderPanel({ durableScope: true, noSchema: true }, { onRenameSchema, schemaName: 'Places' })
-    fireEvent.click(screen.getByRole('button', { name: 'Start blank' }))
-    await waitFor(() => expect(setup.initialized).toHaveLength(1))
-    expect(await screen.findByLabelText('What one record is')).toHaveValue('Untitled record')
-    expect(onRenameSchema).not.toHaveBeenCalled()
-  })
-
-  it('Start blank creates one schema however often it is clicked, and is absent from a read-only panel', async () => {
-    const setup = renderPanel({ durableScope: true, noSchema: true }, { schemaName: null })
-    const start = screen.getByRole('button', { name: 'Start blank' })
-    fireEvent.click(start)
-    fireEvent.click(start)
-    await screen.findByLabelText('What one record is')
-    expect(setup.initialized).toHaveLength(1)
-
-    cleanup()
-    renderPanel({ durableScope: true, noSchema: true }, { readOnly: true })
-    expect(screen.getByRole('heading', { name: 'No schema yet' })).toBeInTheDocument()
+    // A codebook is imported a step earlier, on the Schemas tab; what a record is goes into the instructions.
+    expect(screen.queryByRole('button', { name: 'Import from Excel codebook…' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start blank' })).not.toBeInTheDocument()
-  })
-
-  it('an imported first schema is named after the document, and a refused name shows as an error', async () => {
-    const column = { id: 'stable-import-id', column: 1, name: 'site', type: 'string', include: true,
-      examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => Response.json({
-      worksheets: ['Codebook'], columns: String(input).includes('worksheet=') ? [column] : [],
-    })))
-    try {
-      const onRenameSchema = vi.fn(async () => 'That name is taken.')
-      const setup = renderPanel({ durableScope: true, noSchema: true }, { onRenameSchema, schemaName: null, sourceDocumentName: 'Sites.pdf' })
-      fireEvent.click(screen.getByRole('button', { name: 'Import from Excel codebook…' }))
-      fireEvent.change(screen.getByLabelText('Excel codebook file'), { target: { files: [new File(['bytes'], 'codebook.xlsx')] } })
-      await screen.findByRole('option', { name: 'Codebook' })
-      fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
-      fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
-
-      await waitFor(() => expect(setup.initialized).toHaveLength(1))
-      await waitFor(() => expect(onRenameSchema).toHaveBeenCalledWith('Sites'))
-      expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
-      expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
-    } finally {
-      vi.unstubAllGlobals()
-    }
   })
 
   it('the Regenerate dialog cannot start a second generation, and closes when the draft is replaced', async () => {
@@ -2394,7 +2348,7 @@ describe('chat composer and drawer (redesign §7)', () => {
   it('the instructions composer clears and scrolls back to its start after a send, so its placeholder reads from the beginning', () => {
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
     const input = screen.getByPlaceholderText(/Add a generation instruction/) as HTMLTextAreaElement
-    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations")…')
+    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…')
     let scrollTop = 0
     Object.defineProperty(input, 'scrollTop', { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value } })
     fireEvent.change(input, { target: { value: 'Focus on the burials and their grave goods, layer by layer, with dates' } })
@@ -2432,69 +2386,119 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
   })
 
-  it('before a schema exists the instructions conversation is open with Generate schema in its header', () => {
+  it('before a schema exists the panel is the instructions conversation, and Generate schema sends its instructions', () => {
     const onGenerateInstructions = vi.fn()
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
-    expect(within(drawer).getByRole('button', { name: /^Generate schema/ })).toBeInTheDocument()
+    // No drawer: the conversation is the panel's body, with nothing to collapse.
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse conversation' })).not.toBeInTheDocument()
     const input = screen.getByPlaceholderText(/Add a generation instruction/)
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(within(drawer).getByText('Focus on dates')).toBeInTheDocument()
-    fireEvent.click(within(drawer).getByRole('button', { name: /^Generate schema/ }))
+    expect(screen.getByText('Focus on dates')).toBeInTheDocument()
+    expect(screen.getByText('Message 1 of 1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show conversation' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
 
-  it('the new schema rests with one composer line, though instructions opened the drawer before it', async () => {
+  it('with a source, a question before the first schema is answered and is not an instruction', async () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockResolvedValueOnce({ kind: 'answer', answer: 'The register lists 42 burials.' })
+    requestSchemaChat.mockResolvedValueOnce({ kind: 'instruction' })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('The register lists 42 burials.')).toBeInTheDocument()
+    expect(screen.getByText('Question')).toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[0]!.slice(0, 2)).toEqual([
+      { projectContextId: modelContext.projectContextId, sourceRepresentationRevisionId: modelContext.sourceRepresentationRevisionId },
+      'How many burials are there?',
+    ])
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Message 1 of 1')).toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[1]![4]).toEqual([
+      { role: 'user', text: 'How many burials are there?' },
+      { role: 'assistant', text: 'The register lists 42 burials.' },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('a message the model could not reply to goes back to the composer, unrecorded', async () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn(), sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockRejectedValueOnce(new Error('No model is configured.'))
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Could not send the message: No model is configured.')).toBeInTheDocument()
+    expect(input).toHaveValue('How many burials are there?')
+    expect(screen.getByRole('button', { name: 'Generate schema' })).toBeEnabled()
+  })
+
+  it('an edit chat question is answered in the conversation, with no proposal', async () => {
+    renderPanel({ durableScope: true })
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'Gender takes woman or man.' })
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'What values can gender take?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('Gender takes woman or man.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([])
+
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'No.' })
+    fireEvent.change(input, { target: { value: 'Can it be blank?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('No.')).toBeInTheDocument()
+    expect(requestSchemaEdit.mock.calls[1]![4]).toEqual([
+      { role: 'user', text: 'What values can gender take?' },
+      { role: 'assistant', text: 'Gender takes woman or man.' },
+    ])
+  })
+
+  it('a removed instruction leaves the conversation and the generation', () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(screen.getByTitle('Remove this instruction'))
+    expect(screen.queryByText('Focus on dates')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('')
+  })
+
+  it('a failed generation keeps the conversation, and Retry sends its instructions', async () => {
+    const onGenerateInstructions = vi.fn()
+    const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await act(async () => {
+      await setup.schema.generate(async () => { throw new Error('The model is unavailable.') }).catch(() => undefined)
+    })
+
+    expect(await screen.findByText(/The model is unavailable/)).toBeInTheDocument()
+    expect(screen.getByText('Focus on dates')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+  })
+
+  it('the new schema rests with one composer line after the instructions conversation', async () => {
     const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
     const input = screen.getByPlaceholderText(/Add a generation instruction/)
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(screen.getByRole('region', { name: 'Conversation' })).toBeInTheDocument()
 
     await act(async () => {
       await setup.schema.generate(async () => ({ _description: 'One test record.', title: 'string' }))
     })
 
     expect(await screen.findByPlaceholderText('Describe a change to the schema…')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-  })
-
-  it('the instructions drawer header fits the narrow rail: a truncating title, a fixed actions group, no message count', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
-    // The drawer lists "Message 1 of 1" already.
-    const generate = within(drawer).getByRole('button', { name: 'Generate schema' })
-    expect(within(drawer).getByText('Message 1 of 1')).toBeInTheDocument()
-    const actions = generate.parentElement!
-    expect(actions).toContainElement(within(drawer).getByRole('button', { name: 'Collapse conversation' }))
-    expect(actions.className).toMatch(/\bshrink-0\b/)
-    const title = within(drawer).getByText('Instructions for generation')
-    expect(title.className).toMatch(/\bmin-w-0\b/)
-    expect(title.className).toMatch(/\btruncate\b/)
-  })
-
-  it('a collapsed instructions drawer comes back from the dot, with its instructions and Generate schema', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show conversation' }))
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
-    expect(within(drawer).getByText('Focus on dates')).toBeInTheDocument()
-    expect(within(drawer).getByRole('button', { name: /^Generate schema/ })).toBeInTheDocument()
-  })
-
-  it('an empty instruction does not reopen the collapsed drawer', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    fireEvent.keyDown(screen.getByPlaceholderText(/Add a generation instruction/), { key: 'Enter' })
+    expect(screen.queryByPlaceholderText(/Add a generation instruction/)).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
   })
 

@@ -1,17 +1,31 @@
 """The unified Catalog's source units, counted windows and general record discovery with its source ledger.
 
 The admitted canonical text is cut into units: its nonblank source lines, as raw code-point ranges of their segments
-(only Unicode White_Space is blank). `plan` groups consecutive units into windows whose rendered request fits a
+(only Unicode White_Space is blank); page furniture (a running head or folio) is left out, so it never ends a record,
+and is ledgered `other`. `plan` groups consecutive units into windows whose rendered request fits a
 stage's budget, with disjoint primary text and up to `overlap` units of context on each side; a unit too long for any
 window is cut at whitespace, then at code points (`windows.windows_of`), keeping its raw offsets. Supplementary
 context that does not fit is dropped and named, never primary text. `split` halves a window whose reply failed.
+A WINDOW line's label names its layout kind when ingestion gave its segment one (a heading or a table row). Measured
+on one 6-page excavation report (7 records; Qwen3.8-27B-NVFP4 at temperature 0, 13 October 2026, page windows under
+12 to 24 concurrent requests): without kinds, one record's heading was missed in up to 12 of 12 identical requests,
+as the server's batching decided; with kinds, 48 of 48 windows were read right.
 
 Each discovery reply names, by line label and the exact text where it starts, every place in its window's primary
 text where a record or record-free text ("other": front matter, headings, an index) begins, and says whether the
 window begins and ends inside a record. A place counts only where that text occurs exactly once in the named line;
-a line with a place that cannot be located stays unresolved up to the next place. A record continues across a window
-boundary only when the earlier window says it ends inside a record and the later one says it begins inside one:
-silence, disagreement or a failed window leaves the affected text unresolved, never the preceding record's. A record
+a line with a place that cannot be located stays unresolved up to the next place. A `record` and an `other` place at
+one spot are a record start, its printed label kept. A window's opening text continues the open record only when the
+earlier window says it ends inside a record and the later one says it begins inside one; then an unlabelled place
+(`other`, or a `record` without a located label) or a `record` with the open record's own printed label (compared as
+`locate` compares text) at the start of the later window is ignored and the record continues there, while a `record`
+with another printed label there begins a new record and ends the open one cleanly: two printed labels mark the
+boundary between them. Silence, disagreement or a failed window leaves the affected text unresolved, never the
+preceding record's. A record never directly follows itself: a `record` place with the printed label of the record just
+before it, inside a window or at a window's start whatever the edge flags, continues that record (a paragraph that
+opens with its grave's own number is not another grave), and any record-free or unresolved text between them keeps
+its own disposition. A missing label never matches, nor does a bare mark without a letter or digit (a bullet may be
+printed on every record), so numbering that restarts after other records stays apart. A record
 the last window says continues after it is cut by the end of the supplied source (an excerpt): its end is
 `source_end`, as settled as a `validated` one, when no nonblank withheld text follows it in reading order, since then
 nothing after it was left unread; when withheld text does follow, the record may continue there and its end is
@@ -25,18 +39,27 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import unicodedata
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from itertools import groupby
 
+from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
 from kei_exp.kie.extract.locate import normalise
 from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 3  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
-# withheld text follows it, where it may continue: then its end is unresolved
+VERSION = 8  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+# withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
+# windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
+# when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
+# both edge flags say the record continues, a record start at the window's start with the open record's own printed
+# label is ignored too, and one with another printed label ends the open record cleanly; 8: a `record` and an `other`
+# place at one spot are a record start (`_observe`), and a record start with the printed label of the record just
+# before it continues that record anywhere
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -52,7 +75,9 @@ DISCOVERY = (
     "Answer "
     "\"begins_inside_record\": true when the first WINDOW line continues a record that began before the WINDOW, false "
     "when it does not, null when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW "
-    "continues after it, false when it does not, null when you cannot tell. CONTEXT lines are shown for orientation "
+    "continues after it, false when it does not, null when you cannot tell. A WINDOW line's label may name its "
+    "layout kind (heading or table row); a kind is a hint, never text of the line. CONTEXT lines are shown for "
+    "orientation "
     "only: never report a place in them. Return only the JSON object, on one line, without indentation.")
 
 
@@ -167,10 +192,22 @@ class _Seen:
     ends: bool | None = None
 
 
-def _render(window: Window, texts: dict[str, str]) -> tuple[str, list[str]]:
+def kinds_of(passages: Sequence[Passage]) -> dict[str, str]:
+    """The layout kind a segment's lines are shown with: `heading` or `table row` (a table's lines are its rows)."""
+    return {passage.id: "heading" if passage.label in HEADINGS else "table row" for passage in passages
+            if passage.label in HEADINGS or passage.label == "Table" or passage.table is not None}
+
+
+def window_text(units: Sequence[Unit], texts: dict[str, str], kinds: dict[str, str]) -> str:
+    """The WINDOW's lines as the model reads them: `[L1] …`, the label naming the line's layout kind when it has one."""
+    return text_of(units, texts, [f"L{number} {kinds[unit.segment]}" if unit.segment in kinds else f"L{number}"
+                                  for number, unit in enumerate(units, 1)])
+
+
+def _render(window: Window, texts: dict[str, str], kinds: dict[str, str]) -> tuple[str, list[str]]:
     labels = [f"L{number}" for number in range(1, len(window.primary) + 1)]
     parts = ([f"### CONTEXT BEFORE\n{text_of(window.before, texts)}"] if window.before else []) + \
-        [f"### WINDOW\n{text_of(window.primary, texts, labels)}"] + \
+        [f"### WINDOW\n{window_text(window.primary, texts, kinds)}"] + \
         ([f"### CONTEXT AFTER\n{text_of(window.after, texts)}"] if window.after else [])
     return "\n\n".join(parts) + "\n\nReturn the JSON object now.", labels
 
@@ -234,7 +271,8 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
             same = {(kind, label) for at, kind, label in found[index] if at == offset}
             kinds = {kind for kind, _ in same}
             labels_at = {label for _, label in same if label is not None}
-            kind = kinds.pop() if len(kinds) == 1 else "unresolved"
+            kind = "record" if "record" in kinds else "other"  # a record and an `other` at one spot are the record: a
+            # heading read as both begins it rather than leaving it unresolved
             located.append((index, offset, kind, labels_at.pop() if len(labels_at) == 1 else None))
     return _Seen(window, True, located, begins, ends)
 
@@ -250,22 +288,32 @@ def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> li
 
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
-             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict | None:
+             progress: Callable[[list[dict], list[dict]], None] | None = None, frontier: bool = False,
+             unanswered: tuple[type[BaseException], ...] = ()) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
     boundary; context does. Windows are asked in source order, `workers` at once, slice by slice, then every failed
     one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
     raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
-    call, `progress` is given the record starts the earlier slices found, in source order, and the lines the window
-    labels: a view of the run while it reads, never an input to discovery."""
+    call and after each valid reply, `progress` is given every record start found so far, in source order, and the
+    lines the window labels: a view of the run while it reads, never an input to discovery.
+
+    With `frontier`, windows are read as a sliding frontier instead: no slices, a failed window's halves asked as soon
+    as it fails, and the body also says whether it is `complete`. `unanswered` are the exceptions an `ask` raises for a
+    call whose reply is not there yet, a durable planning round's: such an `ask` never waits on a model, so windows are
+    read in turn, without threads, until `workers` are unanswered, and nothing of `unanswered` is raised. Until the
+    body is complete, it holds only the windows of the read prefix (the windows before the first one not yet read
+    whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`). Without
+    `unanswered`, every window is answered: `workers` are asked at once, and the first error stops the rest."""
     texts = {passage.id: passage.text for passage in evidence.passages}
+    kinds = kinds_of(evidence.passages)
     system = DISCOVERY.format(description=description)
 
     def fits(window: Window) -> bool:
-        user, labels = _render(window, texts)
+        user, labels = _render(window, texts, kinds)
         return fits_budget(system, user, _reply(labels))
-    units, windows, at = units_of(evidence.passages), [], 0
+    units, windows, at = units_of([each for each in evidence.passages if each.label not in FURNITURE]), [], 0
     for group in groups_of(units, evidence.passages, by):
         planned = plan(group, texts, fits, overlap=overlap, lead=units[max(0, at - overlap):at],
                        trail=units[at + len(group):at + len(group) + overlap])
@@ -275,29 +323,39 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         at += len(group)
     rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
     done: list[_Seen] = []
+    lock = threading.Lock()
 
-    def one(window: Window, found: list[dict]) -> tuple[_Seen | None, list, list[Issue]]:
-        user, labels = _render(window, texts)
+    def report(window: Window) -> None:
+        # Called under the lock: a slower peer must never publish an older snapshot over a completed window.
         if progress is not None:
+            found = record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
+                                                                each.window.primary[0].start)))
             progress(found, ranges_json(window.primary))
+
+    def one(window: Window) -> tuple[_Seen | None, list, list[Issue]]:
+        user, labels = _render(window, texts, kinds)
+        with lock:
+            report(window)
         calls: list = []
         issues: list[Issue] = []
         answer = ask(None, system, user, _reply(labels), calls, issues)
-        return (_observe(answer, window, texts, labels, issues) if answer is not None else None), calls, issues
+        observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
+        if observed is not None:
+            with lock:
+                done.append(observed)
+                report(window)
+        return observed, calls, issues
 
     def read(batch: list[Window], depth: int) -> list[list[tuple[_Seen | None, list, list[Issue]]]]:
         """Per window of `batch`, in order: its reading, then its halves' when it failed and may still be halved."""
         size, results = max(1, workers), []
         with ThreadPoolExecutor(max_workers=size, thread_name_prefix="discovery") as pool:
             for at in range(0, len(batch), size):
-                found = record_starts(sorted(done, key=lambda each: (rank[each.window.primary[0].segment],
-                                                                    each.window.primary[0].start)))
-                futures = [pool.submit(one, window, found) for window in batch[at:at + size]]
+                futures = [pool.submit(one, window) for window in batch[at:at + size]]
                 for future in futures:
                     if (error := future.exception()) is not None:
                         raise error
                 results += [future.result() for future in futures]
-                done.extend(observed for observed, _, _ in results[-len(futures):] if observed is not None)
         cut = [split(window, texts, fits, overlap=overlap) if observed is None and len(window.primary) > 1
                and depth < splits else [] for window, (observed, _, _) in zip(batch, results, strict=True)]
         halves = iter(read([half for each in cut for half in each], depth + 1) if any(cut) else ())
@@ -310,12 +368,59 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
                 issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
             readings.append([(observed or _Seen(window, False, []), calls, issues)])
         return readings
-    readings = [item for each in read(windows, 0) for item in each]
+
+    def resolve(window: Window, depth: int) -> list | None:
+        """The window's reading, then its halves' when it failed and may still be halved, each half once the one
+        before it is read; None once one of them is unanswered."""
+        try:
+            observed, calls, issues = one(window)
+        except unanswered:
+            return None
+        if observed is None and len(window.primary) > 1 and depth < splits:
+            readings = [(None, calls, issues)]
+            for half in split(window, texts, fits, overlap=overlap):
+                if (more := resolve(half, depth + 1)) is None:
+                    return None
+                readings += more
+            return readings
+        elif observed is None:
+            issues.append(Issue("discovery_window_failed", f"no valid discovery reply for {_where(window)}"))
+        return [(observed or _Seen(window, False, []), calls, issues)]
+
+    if frontier:
+        resolved, waiting = [], 0
+        if unanswered:
+            for window in windows:
+                resolved.append(each := resolve(window, 0))
+                waiting += each is None
+                if waiting == max(1, workers):
+                    break
+        else:
+            halt = threading.Event()
+
+            def turn(window: Window) -> list:
+                if halt.is_set():
+                    return []
+                try:
+                    return resolve(window, 0)
+                except BaseException:
+                    halt.set()
+                    raise
+            with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="discovery") as pool:
+                futures = [pool.submit(turn, window) for window in windows]
+            for future in futures:  # the first error in source order, once every window has stopped
+                if (error := future.exception()) is not None:
+                    raise error
+            resolved = [future.result() for future in futures]
+        complete = None not in resolved
+        readings = [item for each in resolved[:None if complete else resolved.index(None)] for item in each]
+    else:
+        readings, complete = [item for each in read(windows, 0) for item in each], True
     seen = [observed for observed, _, _ in readings if observed is not None]
-    return {**_assemble(seen, evidence, texts), "windows": [_window_json(each) for each in seen],
+    return {**_assemble(seen, evidence, texts, prefix=not complete), "windows": [_window_json(each) for each in seen],
             "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
                        *(issue for _, _, issues in readings for issue in issues)],
-            "calls": [call for _, calls, _ in readings for call in calls]}
+            "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if frontier else {})
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:
@@ -366,8 +471,13 @@ def _window_json(seen: _Seen) -> dict:
             "context_omitted": [{"kind": kind, **ranges_json([unit])[0]} for kind, unit in seen.window.omitted]}
 
 
-def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str]) -> dict:
-    """Regions from the windows' places and their explicit continuation observations; then entries and the ledger."""
+def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, prefix: bool = False) -> dict:
+    """Regions from the windows' places and their explicit continuation observations; then entries and the ledger.
+
+    A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
+    so every entry here is final (number, ranges, context, end) except the last, when it is still open at the prefix's
+    end (the next window decides its end) or a later record start could still continue it (its printed label names a
+    record); it is left out."""
     units: list[Unit] = [unit for each in seen for unit in each.window.primary]
     regions: list[list] = []  # [kind, entry index or None, (unit index, offset)]
     entries: list[dict] = []
@@ -390,30 +500,61 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str]) -> d
             open_entry, previous = None, each
             continue
         closed_cleanly = previous is not None and previous.ok and previous.ends is False
+        joins = (previous is not None and previous.ok and previous.ends is True and each.begins is True
+                 and open_entry is not None)
+        if (joins and places and places[0][0] == start
+                and (places[0][1] == "other" or places[0][1:] == ("record", None)
+                     or (places[0][1] == "record" and _same_label(places[0][2], entries[open_entry]["label"])))):
+            places = places[1:]  # both flags say the record continues: an unlabelled place, or the open record's own
+            # label reprinted (a continued heading), at the start does not end it
         if not places or places[0][0] != start:  # the head: text before the window's first place
-            joins = (previous is not None and previous.ok and previous.ends is True and each.begins is True
-                     and open_entry is not None)
             if not joins:
                 close("validated" if closed_cleanly else "unresolved")
                 head = "other" if each.begins is False and (previous is None or closed_cleanly) else "unresolved"
                 regions.append([head, None, start])
                 open_entry = None
         else:
-            close("validated" if closed_cleanly and each.begins is False else "unresolved")
+            # both flags say the record continues, but a record with another printed label begins the window: the two
+            # labels mark the boundary, so the open record ends where the new one begins
+            switches = (joins and places[0][1] == "record" and places[0][2] is not None
+                        and entries[open_entry]["label"] is not None)
+            close("validated" if (closed_cleanly and each.begins is False) or switches else "unresolved")
             open_entry = None
         for position, kind, label in places:
+            again = kind == "record" and bool(entries) and _names(label) and _same_label(label, entries[-1]["label"])
+            if again and open_entry is not None:
+                continue  # the open record's own label again, directly after its text: the record goes on
             close("unresolved" if kind == "unresolved" else "validated")
             open_entry = None
-            if kind == "record":
+            if again:  # after record-free or unresolved text, which keeps its own disposition: the record goes on
+                open_entry = len(entries) - 1
+            elif kind == "record":
                 entries.append({"id": f"{units[position[0]].segment}@{position[1]}", "label": label, "ranges": [],
                                 "context": [], "end": "validated"})
                 open_entry = len(entries) - 1
             regions.append([kind, open_entry, position])
         previous = each
+    if prefix:
+        body = _ledger(regions, units, entries, evidence, texts)
+        waiting = open_entry is not None or bool(entries) and _names(entries[-1]["label"])
+        return {**body, "entries": entries[:-1]} if waiting else body
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])
     return _ledger(regions, units, entries, evidence, texts)
+
+
+def _same_label(one: str | None, other: str | None) -> bool:
+    """Whether two printed labels are the same one, compared as `locate` compares text (NFKC, case folded, whitespace
+    collapsed); a missing label or a bare mark never names the same record."""
+    return (one is not None and other is not None and any(char.isalnum() for char in one)
+            and normalise(one.strip()).text == normalise(other.strip()).text)
+
+
+def _names(label: str | None) -> bool:
+    """Whether a printed label can name one record: it holds a letter or digit. A bare mark (a bullet, a dash) may be
+    printed on every record, so it names none."""
+    return label is not None and any(unicodedata.category(char)[0] in "LN" for char in label)
 
 
 def _unread_after(last: Unit, evidence: Evidence) -> bool:
@@ -428,6 +569,7 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
             texts: dict[str, str]) -> dict:
     ledger: list[dict] = []
     others: list[Unit] = []
+    begun: set[int] = set()  # an entry continued after other text owns several regions; its context is its first's
     ends = [region[2] for region in regions[1:]] + [(len(units), 0)] * bool(regions)
     for (kind, entry, (first, offset)), (last, stop) in zip(regions, ends, strict=True):
         owned = [piece for index in range(first, min(last, len(units) - 1) + 1)
@@ -435,8 +577,10 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
                                       offset if index == first else units[index].start,
                                       stop if index == last else units[index].end)]
         if entry is not None:
-            entries[entry]["ranges"] = ranges_json(owned)
-            entries[entry]["context"] = ranges_json(others[-CONTEXT_UNITS:])
+            if entry not in begun:
+                begun.add(entry)
+                entries[entry]["context"] = ranges_json(others[-CONTEXT_UNITS:])
+            entries[entry]["ranges"] += ranges_json(owned)
         elif kind == "other":
             others += owned
         for piece in owned:
@@ -447,6 +591,8 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
                 ledger[-1]["end"] = piece.end  # the same region's next line of one segment: only White_Space between
             else:
                 ledger.append(row)
+    ledger += [{**row, "disposition": "other", "entry": None}
+               for row in ranges_json(units_of([each for each in evidence.passages if each.label in FURNITURE]))]
     ledger += [{"segment": unit.segment, "start": unit.start, "end": unit.end, "disposition": "withheld", "entry": None}
                for unit in units_of(evidence.withheld)]
     return {"entries": entries, "ledger": ledger}

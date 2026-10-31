@@ -37,7 +37,7 @@
   --text-secondary: 12px;
   --text-compact: 11px;
   --text-overline: 10.5px;
-  /* The rail's one display size: the To check count and the one-by-one value (results review redesign §12). */
+  /* The rail's one display size: the To check count and the one-by-one value. */
   --text-display: 20px;
   --text-display--line-height: 1.25;
 
@@ -101,6 +101,14 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+/* A chat composer's text field sits in its own bordered box, which marks focus
+   by darkening its border (ChatDrawer); the ring around the field inside that
+   box would only double it. Its buttons keep the ring. */
+.chat-composer :is(input, textarea):focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* The routed content region is focused on navigation, and the shell clips

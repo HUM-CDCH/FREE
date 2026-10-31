@@ -4,13 +4,13 @@ import { join } from 'node:path'
 import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  conversionTimeoutMs, keiConvertWorkflowId, type KeiPoll, type KeiSubmission,
+  keiConvertWorkflowId, type KeiPoll, type KeiConversionSubmission,
 } from 'extraction/kei-handoff'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { keiReadApi } from '../test/support/keiReadApi.js'
 import { stageSource, uploadSourcePath } from './_source_inbox.js'
 import {
-  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId,
+  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId, RETAIN_FAILED_SOURCE,
   type IngestionInput, type IngestionStore, type IngestionWorkflowPorts,
 } from './_ingestion_workflow.js'
 
@@ -77,7 +77,7 @@ function harness(scenario: {
   }
   const polls = [...(scenario.polls ?? [convertOk()])]
   const kei = {
-    submit: vi.fn<(submission: KeiSubmission) => Promise<void>>(async () => {}),
+    submitConversion: vi.fn<(submission: KeiConversionSubmission) => Promise<void>>(async () => {}),
     poll: vi.fn(async () => polls.length > 1 ? polls.shift()! : polls[0]!),
     cancel: vi.fn(async () => {}),
     requestDeleteRuns: vi.fn(async () => {}),
@@ -122,21 +122,19 @@ describe('ingestSource', () => {
     expect(h.storeFor).toHaveBeenCalledWith(OWNER)
     expect(h.store.findSourceDocumentByContent).toHaveBeenCalledWith(PROJECT, PDF_SHA256)
     expect(h.packageStore.read).toHaveBeenCalledWith(OTHER_PACKAGE, 'source')
-    expect(h.kei.submit).not.toHaveBeenCalled()
+    expect(h.kei.submitConversion).not.toHaveBeenCalled()
     expect(await staged()).toEqual([])
   })
 
-  it('submits the staged source to its admitted lane with the admitted models, one priority and the page budget', async () => {
+  it('submits the staged source with its admitted lane, models and page count', async () => {
     const h = harness()
 
     await h.run()
-    expect(h.kei.submit).toHaveBeenCalledExactlyOnceWith({
-      workflow: 'convert',
+    expect(h.kei.submitConversion).toHaveBeenCalledExactlyOnceWith({
       workflowId: CHILD,
-      queueName: 'kei-convert-small',
-      priority: 1,
-      timeoutMs: conversionTimeoutMs(12),
-      authenticatedUser: OWNER,
+      lane: 'kei-convert-small',
+      pageCount: 12,
+      owner: OWNER,
       attributes: { projectContextId: PROJECT },
       request: {
         source: `${PROJECT}/${ATTEMPT}.pdf`, source_sha256: PDF_SHA256, source_name: 'report.pdf', page_source: 'pdf',
@@ -150,14 +148,14 @@ describe('ingestSource', () => {
     const h = harness()
     // Three pages admitted as large (a count that was unknown or timed out at admission): never recounted.
     await h.run(input({ pageCount: 3, lane: 'kei-convert-large', models: { ocr: null, layout: null } }))
-    expect(h.kei.submit.mock.calls[0]![0]).toMatchObject({
-      queueName: 'kei-convert-large', timeoutMs: conversionTimeoutMs(3), request: { model: null, layout_model: null },
+    expect(h.kei.submitConversion.mock.calls[0]![0]).toMatchObject({
+      lane: 'kei-convert-large', pageCount: 3, request: { model: null, layout_model: null },
     })
 
     await stageSource(inbox, SOURCE, PDF)
     const uncounted = harness()
     await uncounted.run(input({ pageCount: null, lane: 'kei-convert-large' }))
-    expect(uncounted.kei.submit.mock.calls[0]![0]).toMatchObject({ queueName: 'kei-convert-large', timeoutMs: conversionTimeoutMs(null) })
+    expect(uncounted.kei.submitConversion.mock.calls[0]![0]).toMatchObject({ lane: 'kei-convert-large', pageCount: null })
   })
 
   it('polls kei until its child settles, then packages and publishes', async () => {
@@ -189,6 +187,30 @@ describe('ingestSource', () => {
       ok: false, status: 504, code: 'source_ingestion_timeout', message: 'Source Document parsing did not finish within its time limit.',
     })
     expect(late.packageStore.save).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([])
+  })
+
+  it('past the retention patch, a failed attempt keeps its staged file for Retry and a success still removes it', async () => {
+    const patched = vi.fn(async (name: string) => name === RETAIN_FAILED_SOURCE)
+    const failed = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
+    await expect(ingestSourceWorkflow(input(), { ...failed.ports, patched })).resolves.toMatchObject({ ok: false, status: 504 })
+    expect(patched).toHaveBeenCalledWith(RETAIN_FAILED_SOURCE)
+    expect(failed.names).not.toContain('removeStagedSource')
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
+
+    patched.mockClear()
+    const published = harness()
+    await expect(ingestSourceWorkflow(input(), { ...published.ports, patched })).resolves.toMatchObject({ ok: true })
+    // A success never reaches the marker: its history is the one a run before the patch wrote.
+    expect(patched).not.toHaveBeenCalled()
+    expect(published.names.at(-1)).toBe('removeStagedSource')
+    expect(await staged()).toEqual([])
+  })
+
+  it('a failure replayed from before the patch still removes its staged file', async () => {
+    const failed = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
+    await ingestSourceWorkflow(input(), { ...failed.ports, patched: async () => false })
+    expect(failed.names.at(-1)).toBe('removeStagedSource')
     expect(await staged()).toEqual([])
   })
 
@@ -258,7 +280,7 @@ describe('ingestSource', () => {
       ok: false, status: 502, code: 'source_artifact_unavailable', message: 'The retained canonical package is unavailable.',
     })
     expect(h.names).toEqual(['replayCompletedContent', 'removeStagedSource'])
-    expect(h.kei.submit).not.toHaveBeenCalled()
+    expect(h.kei.submitConversion).not.toHaveBeenCalled()
     expect(await staged()).toEqual([])
   })
 
@@ -317,7 +339,7 @@ describe('ingestSource', () => {
   it('an uncertain submission cancels the same child and retains its staged source', async () => {
     const h = harness()
     const lost = new Error('kei committed but the acknowledgement was lost')
-    h.kei.submit.mockRejectedValueOnce(lost)
+    h.kei.submitConversion.mockRejectedValueOnce(lost)
 
     await expect(h.run()).rejects.toBe(lost)
     expect(h.names).toEqual(['replayCompletedContent', 'submitToKei', 'cancelKeiChild'])

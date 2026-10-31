@@ -8,6 +8,17 @@ OIDC identity provider, the certificates come from `mkcert`, and nginx always
 runs as a container, rendering the same
 `docker/nginx/free-studio-locations.inc.template` as production.
 
+Parsing deadlines adapt to OCR capacity and recent matching conversion times.
+The standalone default assumes one concurrent OCR request; GPU/model overlays
+pass their `OCR_MAX_NUM_SEQS` (default four) to Studio as
+`FREE_PARSING_OCR_PARALLEL`. The Codex overlay pins this value and the worker's
+OCR client concurrency to one, regardless of the OCR server's capacity.
+A single-request deployment starts with a
+40-minute minimum and increases the budget for larger or slower documents.
+The admitted deadline survives a worker restart. For long parsing runs, avoid
+editing the watched service checkout: a source reload repeats the unfinished
+conversion step and consumes that same deadline.
+
 ## Prerequisites
 
 - Node.js 24, pnpm and `uv`, as in the README's
@@ -70,6 +81,18 @@ Stop with Ctrl+C. Data lives in named Docker volumes and survives restarts;
 the parsing run volume and the source inbox are durable inputs to future
 extraction. `docker compose down --volumes` destroys all of these volumes and
 is never needed for ordinary restarts.
+
+The development stack is the Compose project `free-dev` (`compose.override.yaml`),
+never production's `free`, so a `docker compose` command in a clone cannot reach a
+production stack on the same host. A stack started before this name was set is the
+project `free`, with its data in `free_*` volumes: on your own machine stop it with
+`docker compose -p free stop` and, to keep that data, export
+`COMPOSE_PROJECT_NAME=free`. Never do either on a host that runs production. To run
+beside another stack on one host, give each its own `COMPOSE_PROJECT_NAME`,
+`FREE_PHOENIX_PORT` (default 6006) and `FREE_PROXY_SUBNET_PREFIX`, the first three
+octets of its `/24` proxy network (default `172.30.0`, production's).
+`FREE_GPU=shared` uses the other stack's model servers instead of starting a second
+set ([sharing model servers](deployment.md#sharing-model-servers-between-stacks)).
 
 ## Development identity
 
@@ -218,6 +241,28 @@ in the shell, because Compose interpolates the whole development overlay;
 `db` itself does not use the secret. After a first `pnpm dev`, use the
 launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
 
+- After `pnpm db:generate`, plan a migration with
+  `pnpm --filter db db:migration plan --name <slug>`. Prisma Next 0.16 copies
+  the predecessor's end contract into each new migration as `start-contract.*`;
+  the script replaces that copy with imports of the existing `end-contract.*`.
+  It also shares copies after `migration new`. Other migration subcommands pass
+  through without editing files; without arguments it only shares copies already
+  on disk. Historical snapshots stay intact; `pnpm --filter db test` rejects a
+  shareable start copy in a new migration.
+  Upgrading to Prisma Next 0.17's snapshot store also changes contract and
+  migration hashes. Its layout migrator recognizes only `./start-contract`
+  imports, so restore those import paths before that upgrade; the migrator
+  reconstructs missing start snapshots from preceding end snapshots.
+- A data-only migration with an unchanged contract is a self-edge (`from === to`)
+  whose data operation provides an `invariantId`; keep that invariant in
+  `migrations/app/refs/db.json`. `db:init` targets `--to db` so it applies the
+  invariant even when the contract hash is already current. `prisma-next ref set`,
+  `migrate --advance-ref`, and `db init`/`db update` without `--db` write
+  `invariants: []`: restore the invariants after running them. The migration
+  chain guard test names any missing invariant. While the self-edge is the tip,
+  `migration new` and a snapshot-based `migration plan` need `--from <hash>`;
+  otherwise `findLeaf` throws `MIGRATION.NO_TARGET`, as does migrate's
+  marker-mismatch branch. The next ordinary contract migration clears this.
 - `pnpm --filter db db:init` replays authored forward migrations against
   `DATABASE_URL`. It does not reset or seed data and may deliberately target a
   deployment database.

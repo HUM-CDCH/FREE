@@ -8,6 +8,7 @@ import {
   deleteProjectContext,
   deleteSourceDocument,
   dismissSourceIngestion,
+  retrySourceIngestion,
   getProjectContextWithDocuments,
   ingestSourceDocument,
   listSourceIngestions,
@@ -314,7 +315,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
       })
       // `sourceDocumentCount` is patched in locally above for an instant
       // count, but the first ingested Source Document also moves this
-      // Project Context's persisted phase (ingest -> chat) — a value only
+      // Project Context's persisted phase (upload -> schema) — a value only
       // the list read carries. Without this, the stepper and its "Next"
       // button keep showing "Upload" as current until something else
       // happens to refetch the list.
@@ -497,6 +498,29 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     [setProjectIngestions],
   )
 
+  const retryIngestion = useCallback(
+    async (projectContextId: string, workflowId: string): WriteResult => {
+      const poller = () => pollers.current.get(projectContextId)
+      try {
+        const admitted = await retrySourceIngestion(projectContextId, workflowId)
+        // The new attempt supersedes this failure in the listing; the next read shows it.
+        const current = ingestionsRef.current[projectContextId]
+        if (current)
+          setProjectIngestions(projectContextId, {
+            ...current, ingestions: current.ingestions.filter((row) => row.workflowId !== workflowId),
+          })
+        if (admitted.kind === 'replayed') reloadBranch.current(projectContextId)
+        poller()?.readNow()
+        return null
+      } catch (error) {
+        // A PDF Studio no longer holds turns the row into Upload again on the next read.
+        poller()?.readNow()
+        return failure(error)
+      }
+    },
+    [setProjectIngestions],
+  )
+
   const addSources = useCallback<ProjectContextsValue['addSources']>(
     (sources) =>
       sendIngestion({
@@ -614,6 +638,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         ingestions,
         observeIngestions,
         dismissIngestion,
+        retryIngestion,
         reprocessSource,
         sourceRevisions,
         addSources,

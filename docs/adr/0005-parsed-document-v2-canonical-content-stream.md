@@ -11,16 +11,27 @@
 
 The typed, page-scoped semantic content stream is authoritative for ordered
 content, physical pages, table placement, canonical Markdown, and text
-Evidence. The renderer emits reserved page markers and records half-open
-UTF-8 byte spans into the exact Markdown bytes.
+Evidence. The renderer separates blocks and pages with blank lines and records
+page and block spans as half-open UTF-8 byte ranges into the exact Markdown
+bytes; physical page identity lives in the typed representation.
+
+Producer-labelled footnotes remain `footnote` blocks, distinct from `caption`
+blocks, with their original text, order and Evidence. Previously saved captions
+remain captions; reading a revision does not reclassify it. This adopts the
+footnote/caption distinction from [Document Parsing Protocol, LlamaIndex,
+§5.3](https://github.com/run-llama/document_parsing_protocol/blob/a9c49e24f6db653500cf7eab4b08019f23b74ea6/public/protocol/rfc.md#53-block-classes).
+It is a selected representation rule, not a claim of full DPP conformance.
 
 The public document contains sanitized parser provenance and typed diagnostics.
 Cache paths, raw parser artifacts, parser input/output refs, and internal
 digests stay in the generation manifest.
 
 Every published Evidence occurrence carries finite, ordered, page-bounded
-geometry in displayed top-left physical-page space. Canonical v2 publication
-fails when safe geometry is unavailable. Rotation metadata does not invalidate
+geometry in displayed top-left physical-page space. The adapter can retain a
+text block without safe geometry, reporting a diagnostic and publishing no text
+Evidence anchor for it; table cells without geometry are omitted with a
+diagnostic. The decoder rejects an Evidence occurrence without safe geometry.
+Rotation metadata does not invalidate
 already normalized displayed-page geometry; consumers repeat the bounds check
 before rendering it. An occurrence that fails the check is not drawn, and Studio
 never locates Evidence by matching text in the PDF.

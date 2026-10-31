@@ -84,17 +84,6 @@ def test_bounded_pipeline_reaches_late_evidence_and_never_claims_measured_recall
     assert all(c["counted_input_tokens"] + c["max_output_tokens"] <= 8192 for c in result["calls"])
 
 
-def test_cancel_during_partition_prevents_model_calls(monkeypatch):
-    monkeypatch.setattr(run, "load", lambda _: evidence(passages()))
-    chat = CountingChat(lambda *_: pytest.fail("cancelled call"))
-    def cancel():
-        raise RuntimeError("cancelled")
-    with pytest.raises(RuntimeError, match="cancelled"):
-        run.extract(None, run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
-            "context": "bounded"}}), chat, before_entry=cancel,
-            counter={role: WordCounter() for role in ("fields", "reasoning")})
-
-
 @pytest.mark.parametrize("quote,attribution,accepted", [("Hill 1827", True, True),
                                                       ("invented sentence", True, False),
                                                       ("Hill 1827", False, False)])

@@ -4,6 +4,18 @@ import { parseTemplate } from './_model_output'
 const INVALID = { status: 502, code: 'invalid_model_output' }
 
 describe('parseTemplate', () => {
+  it('keeps an envelope record description with its template fields', async () => {
+    await expect(parseTemplate(JSON.stringify({
+      _description: 'One grave.', template: { number: 'integer' },
+    }))).resolves.toEqual({ _description: 'One grave.', number: 'integer' })
+  })
+
+  it('keeps the template description when the envelope also supplies one', async () => {
+    await expect(parseTemplate(JSON.stringify({
+      _description: 'Outer description.', template: { _description: 'One grave.', number: 'integer' },
+    }))).resolves.toEqual({ _description: 'One grave.', number: 'integer' })
+  })
+
   it('keeps literal fences and tags anywhere inside valid values', async () => {
     const template = {
       _description: '<think>a</think> then ```json``` and </think> again',

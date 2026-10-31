@@ -9,6 +9,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from kei_exp.kie.extract.stages import occurrences
+from kei_exp.kie.extract.schema import Node
+from kei_exp.kie.extract.durable import canonical
 from kei_exp.kie.passages import Passage
 
 GROUPING_VERSION = 1
@@ -154,7 +156,8 @@ def sharing(units: Sequence[Context]) -> Callable[[int, int, object], bool]:
 
 
 def assemble_document(values: Sequence[dict],
-                      shared: Callable[[int, int, object], bool] = lambda first, second, item: False
+                      shared: Callable[[int, int, object], bool] = lambda first, second, item: False, *,
+                      item_sources: dict[tuple, list[dict]] | None = None
                       ) -> tuple[dict, list[dict], list[dict], list[dict]]:
     """One document root from its readings' answers, in reading order: the root, its conflicts, the possible repeats
     and the joined overlap items. Not `reconcile_values`, whose exact array union would collapse equal items into one.
@@ -167,10 +170,14 @@ def assemble_document(values: Sequence[dict],
     "indices"}`) as possible repeats, never merged. Objects merge field by field; a missing or null contribution never
     erases another reading's value. Equal scalars are one value; different ones are null, with their conflict
     (`{"path", "candidates"}`) as `reconcile_values` reports it. Order is reading order, then each reply's own order.
+    When supplied, `item_sources` records each assembled list item's conformed reading and item path. Nested lists
+    stay inside their whole item, so their original positions remain unchanged.
     """
     conflicts: list[dict] = []
     repeats: list[dict] = []
     joined: list[dict] = []
+    if item_sources is not None:
+        item_sources.clear()
 
     def combine(items, path):
         present = [(context, v) for context, v in items if v is not None]
@@ -182,14 +189,17 @@ def assemble_document(values: Sequence[dict],
         if all(isinstance(v, list) for _, v in present):
             kept: list[tuple[int, object, list[int]]] = []  # origin, item, every reading that returned it
             for context, v in present:
-                for item in v:
+                for position, item in enumerate(v):
                     match = next((index for index, (_, other, readers) in enumerate(kept) if other == item
                                   and context not in readers and any(shared(reader, context, item) for reader in readers)),
                                  None)
                     if match is None:
+                        match = len(kept)
                         kept.append((context, item, [context]))
                     else:
                         kept[match][2].append(context)
+                    if item_sources is not None:
+                        item_sources.setdefault((*path, match), []).append({"unit": context, "path": [*path, position]})
             joined.extend({"path": path, "contexts": readers, "index": index}
                           for index, (_, _, readers) in enumerate(kept) if len(readers) > 1)
             seen: list = []
@@ -212,3 +222,28 @@ def assemble_document(values: Sequence[dict],
         return None
 
     return combine(list(enumerate(values)), []) or {}, conflicts, repeats, joined
+
+
+def value_disagreements(readings: Sequence[dict], conflicts: Sequence[dict], nodes: Sequence[Node]) -> list[dict]:
+    """Each nulled scalar's distinct readings (already typed, `article._typed_reading`), by child IDs and reading
+    indices; never enter lists."""
+    found = []
+    for conflict in conflicts:
+        node, ids, children = None, [], nodes
+        for name in conflict["path"]:
+            node = next((n for n in children if n.name == name), None)
+            if node is None:
+                break
+            ids.append(node.id)
+            children = node.children or []
+        if node is None or node.type in ("object", "array"):
+            continue
+        groups = {}
+        for index, reading in enumerate(readings):
+            value = reading
+            for name in conflict["path"]:
+                value = value.get(name) if isinstance(value, dict) else None
+            if value is not None:
+                groups.setdefault(canonical(value), {"value": value, "readings": []})["readings"].append(index)
+        found.append({"path": ids, "names": conflict["path"], "alternatives": list(groups.values())})
+    return found

@@ -3,7 +3,8 @@
 Date: 2026-10-04. Status: accepted; amends
 [0012](0012-one-durable-execution-layer.md) (Extraction status authority) and
 [0015](0015-extraction-method-pinned-at-admission.md) (method pins per input
-selection).
+selection); amended by [0018](0018-value-disagreements-stay-saved.md)
+(Article scalar readings, review coverage).
 
 ## Context
 
@@ -96,6 +97,25 @@ the stream answers once and is read as before). While it is generated, the
 worker shows the places it has completed, and the planner the record starts
 earlier windows found, as DBOS events Studio reads for display only; nothing in
 a run reads them back, and failing to write them never fails a call.
+
+NuExtract entry calls also stream at the captured transport, including a new
+physical Retry of an already finalized request. Guard `nuextract-item-text-v1`
+stops a run of adjacent identical array objects only when their nonempty
+`_item_text` is found in the source, the run exceeds both 32 items and twice the
+overlapping source occurrences plus eight, and its objects occupy at least 2048
+UTF-8 bytes. It saves an explicit failed call with no finish reason or invented
+usage, pauses new admission, and becomes Failed after admitted calls drain. It
+never removes values or repairs JSON. A buffered response gets the same check but
+cannot be stopped early. Alternating items, scalar repetition and unclosed
+strings are not detected, and legitimate expansions may still trip the
+heuristic. Successful checkpoints stay unchanged; an unchanged Retry can fail
+again. After the Extraction becomes Failed, a researcher can use Change inputs
+to select an available instruction model for fields, save and apply the
+selection, then Resume. The new model handles remaining work and re-reads
+provisional records; saved values, Evidence and their producing inputs remain
+historical. A different model does not guarantee complete lists.
+Before deployment, verify on the target vLLM build that streamed prompt usage
+matches preflight counts and closing a response releases the server request.
 
 ## Discovery guidance amendment (2026-10-07)
 
