@@ -60,7 +60,7 @@ and Studio starts only once they are healthy. With the default models they need
 about 60 GB of GPU memory; on a smaller GPU, choose smaller models (see
 [Models](#models)) or set `FREE_GPU=off`. Set `FREE_GPU=required` to stop with
 an error when no GPU is available. Without model servers you can still upload
-text PDFs and build schemas. Extraction can also use your Codex login; scanned PDFs need an OCR server.
+text PDFs and build schemas. Extraction can also use your Codex or Claude Code login; scanned PDFs need an OCR server.
 
 `pnpm dev` reads settings from your shell, not from `.env` (only `DATABASE_URL`,
 and the `FREE_ENTRA_*` values of `pnpm dev -- --entra`, come from `.env`), so
@@ -108,6 +108,16 @@ Codex has no preflight tokenizer: FREE uses an explicit conservative UTF-8 budge
 before accepting a reply. See the [Parsing Service's policy](apps/parsing_service/README.md#codex-extraction).
 OCR remains a separate service; native text PDFs need no OCR model.
 
+**Extraction can use Claude Code the same way.** Create a token with `claude setup-token` and give the full model ID:
+
+```bash
+KEI_EXTRACT_PROVIDER=claude-code KEI_CLAUDE_MODEL=<model-id> CLAUDE_CODE_OAUTH_TOKEN=<token> FREE_GPU=off pnpm dev
+```
+
+Each call is an isolated, tool-free `claude -p` turn under its own conservative budget
+([ADR 0025](docs/adr/0025-deployment-owned-claude-code-extraction.md)). It runs on the token's account and rate
+limits: a batch of documents makes many calls.
+
 **Schema help and chat run on any connection you add in Studio.** Open
 **Configure models** → **Connections**. Each researcher adds their own. API keys
 are kept in the browser; Studio holds them in memory only and never stores them.
@@ -138,8 +148,8 @@ CLAUDE_CODE_OAUTH_TOKEN=<token> pnpm dev          # production: put it in .env
 ```
 
 The Codex login lives in a Docker volume, so it survives image rebuilds. Claude
-Code reads its token from the environment at every start. Both support schema help and chat. Codex also supports extraction when the deployment selects
-`KEI_EXTRACT_PROVIDER=codex-cli`; Claude Code is not an extraction backend.
+Code reads its token from the environment at every start. Both support schema help and chat. Either can also serve extraction when the deployment selects
+`KEI_EXTRACT_PROVIDER=codex-cli` or `KEI_EXTRACT_PROVIDER=claude-code`.
 
 ## Use
 

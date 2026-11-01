@@ -170,6 +170,11 @@ preflight tokenization. Returned input and output usage must fit the saved reser
 the output reserve is verified after inference, not a provider-enforced generation cap. vLLM keeps exact preflight
 counts and the existing mismatch refusal.
 
+A deployment may instead select Claude Code ([ADR 0025](adr/0025-deployment-owned-claude-code-extraction.md)) on the
+same terms, with its operator token and its own versioned budget policy. Each call runs in an isolated, empty home
+with only its structured-output tool; a call that uses any other tool, compacts, or reaches any model other than the
+selected one fails.
+
 Admission pins the method a start submits: what a batch start view showed, or
 the saved method single Run reads after saving the schema
 ([ADR 0015](adr/0015-extraction-method-pinned-at-admission.md)). It starts

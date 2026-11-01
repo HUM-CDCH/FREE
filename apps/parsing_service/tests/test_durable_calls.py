@@ -14,14 +14,14 @@ from kei_exp.workflows import durable_extract as worker
 
 
 @pytest.mark.parametrize("context", ["full", "bounded"])
-@pytest.mark.parametrize("adapter", ["instruct", "codex-cli"])
+@pytest.mark.parametrize("adapter", ["instruct", "codex-cli", "claude-code"])
 def test_explicit_article_settings_are_frozen_and_restored_without_serializer_conflicts(monkeypatch,context,adapter):
     from kei_exp.kie.extract.models import ExtractModel
     key = "codex:gpt-6.1-sol" if adapter == "codex-cli" else "instruct"
-    repo = "gpt-6.1-sol" if adapter == "codex-cli" else "fixture/model"
+    repo = {"codex-cli": "gpt-6.1-sol", "claude-code": "claude-test-1"}.get(adapter, "fixture/model")
     monkeypatch.setitem(models.EXTRACT_MODELS,"instruct",ExtractModel("instruct",repo,
-        "codex://local" if adapter == "codex-cli" else "http://127.0.0.1:12345/v1/chat/completions",
-        adapter,frozenset({"fields","reasoning"})))
+        {"codex-cli": "codex://local", "claude-code": "claude://local"}.get(adapter,
+         "http://127.0.0.1:12345/v1/chat/completions"),adapter,frozenset({"fields","reasoning"})))
     class Lease:
         state={"selection":{"schemaTree":{"recordDescription":"A document","recordScope":"document",
             "schemaNodes":[{"id":"title","name":"title","type":"string"}]},

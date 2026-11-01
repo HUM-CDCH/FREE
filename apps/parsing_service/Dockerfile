@@ -12,6 +12,19 @@ RUN node --input-type=module -e '\
     copyFileSync(join(dirname(native), "vendor", `${arch}-unknown-linux-musl`, "bin/codex"), "/codex"); \
     chmodSync("/codex", 0o755)'
 
+# Claude Code's standalone executable for the glibc runtime below, the version Studio pins.
+FROM node:24-bookworm-slim AS claude
+RUN npm install --prefix /opt/claude --ignore-scripts @anthropic-ai/claude-code@2.1.263
+RUN node --input-type=module -e '\
+    import { createRequire } from "node:module"; \
+    import { dirname, join } from "node:path"; \
+    import { copyFileSync, chmodSync } from "node:fs"; \
+    const require = createRequire("/opt/claude/package.json"); \
+    const launcher = require.resolve("@anthropic-ai/claude-code/package.json"); \
+    const native = createRequire(launcher).resolve(`@anthropic-ai/claude-code-linux-${process.arch}/package.json`); \
+    copyFileSync(join(dirname(native), "claude"), "/claude"); \
+    chmodSync("/claude", 0o755)'
+
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 WORKDIR /app
@@ -34,6 +47,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 COPY --from=codex /codex /usr/local/bin/codex
+COPY --from=claude /claude /usr/local/bin/claude
 
 ENV PATH="/app/.venv/bin:$PATH" \
     KEI_RUNS="/app/runs" \
