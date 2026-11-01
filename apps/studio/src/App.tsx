@@ -38,7 +38,11 @@ import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
-import type { DocumentSnapshot } from './projectContexts/transport'
+import type { DocumentSnapshot, ProjectContextActivitySummary } from './projectContexts/transport'
+import { BatchRequestError, openBatchExtraction } from './projectContexts/batchExtractions'
+import ApproveSchemaDialog from './projectContexts/ApproveSchemaDialog'
+import type { ProjectDocument } from './chatGuide'
+import { useProjectBatches } from './useProjectBatches'
 import { renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
 import { strategyOf } from 'extraction/schema'
@@ -170,20 +174,23 @@ export type DocumentWorkspaceProps = {
       ahead (default 20 s; tests shorten it). */
   automaticRenameTimeoutMs?: number
   /** Set when the Project Context page's "Build your schema from a document"
-   *  picker opened this document — offers a "Next step" control that saves
-   *  the schema and returns to the project's Schemas tab. */
+   *  picker opened this document: the schema is built toward a pilot round, so the chat offers no run of this
+   *  document alone. */
   fromSchemaBuilder?: boolean
   onNavigate?: (route: NavigableRoute) => void
-  /** Fired once the "Save schema and pilot it" flush durably
-   *  commits a Schema Revision — the caller's cue to refresh whatever
-   *  persisted project summary (phase, etc.) it's holding, since this
-   *  component has no reason to know about that store itself. */
-  onSchemaApproved?: () => void
-  /** Fired once a review is finalized (accepted) on this Extraction — like
-   *  `onSchemaApproved`, this can move the project's workflow phase
-   *  (extract -> validate), so the caller's persisted summary needs the
-   *  same refresh cue. */
+  /** Fired once a review is finalized (accepted) on this Extraction: this
+   *  can move the project's workflow phase (extract -> validate), so the
+   *  caller's persisted summary needs a refresh. */
   onReviewFinalized?: () => void
+  /** The project around this document, where the caller knows it: its persisted summary and Source Documents, and a
+   *  fresh read of the summary. The chat leads the project's workflow from them (pilot, approval, batch, review). */
+  project?: {
+    summary: ProjectContextActivitySummary
+    documents: readonly ProjectDocument[]
+    /** The Batch Extraction this document was opened from to review, if any. */
+    roundId: string | null
+    refresh: () => void
+  } | null
 }
 
 /** An admission refusal useExtraction reported through `onMethodChanged`: nothing was started. */
@@ -217,7 +224,7 @@ export function DocumentWorkspace({
   automaticRenameTimeoutMs = 20_000,
   fromSchemaBuilder = false,
   onNavigate,
-  onSchemaApproved,
+  project = null,
   onReviewFinalized,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -242,7 +249,6 @@ export function DocumentWorkspace({
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   // The "Save schema and pilot it" flush is in flight.
-  const [confirmingSchema, setConfirmingSchema] = useState(false)
   // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
   // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
   // first-generation name can then never replace a rename the researcher made meanwhile: on screen by this order, on the
@@ -939,34 +945,50 @@ export function DocumentWorkspace({
   // pilot Batch Extraction. Stabilising the Revision itself is a later step:
   // the server refuses to stabilise a Schema Revision until a pilot Extraction
   // has been run and reviewed against it.
-  async function approveSchemaAndGoToNextStep() {
-    if (!onNavigate) return
-    setConfirmingSchema(true)
+  // The project's workflow, led by the chat: a pilot or batch start, the approval, and the next document to review.
+  const projectBatches = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
+  const [projectBusy, setProjectBusy] = useState(false)
+  const [projectError, setProjectError] = useState<string | null>(null)
+  const [approvingSchema, setApprovingSchema] = useState(false)
+  // A revision saved here can move the project's phase (schema -> pilot): read its summary again.
+  const refreshProject = project?.refresh
+  const savedRevisionId = schemaSnap.extractableSchemaRevisionId
+  useEffect(() => { if (savedRevisionId) refreshProject?.() }, [savedRevisionId, refreshProject])
+
+  /** Saves the schema, re-reads the saved method and opens a Batch Extraction over the ticked documents, as a run
+   *  does (ADR 0015): a `method_changed` refusal re-reads once. A pilot then opens its first document to review. */
+  async function startProjectBatch(kind: 'pilot' | 'batch', sourceDocumentIds: readonly string[]) {
+    if (projectBusy || !project) return
+    setProjectBusy(true)
+    setProjectError(null)
     try {
-      const acknowledged = await schema.flush()
-      const revisionId =
-        acknowledged?.schemaRevisionId ??
-        schemaSnap.extractableSchemaRevisionId ??
-        undefined
-      // The persisted Schema Revision just moved this project's workflow phase
-      // (schema -> pilot) — the rail's project list only ever read that
-      // summary once, so without this it would keep showing the pre-approval
-      // phase until an unrelated write happened to refetch it.
-      onSchemaApproved?.()
-      onNavigate({
-        kind: 'project',
-        projectContextId,
-        tab: 'extractions',
-        ...(revisionId ? { pilotSchemaRevisionId: revisionId } : {}),
-      })
+      const revision = await schema.flush()
+      if (!revision) throw new Error('Save the Current Schema Revision first.')
+      if (revision.recordScope === null) throw new Error('Choose Article or Catalog first.')
+      const strategy = strategyOf(revision.recordScope)
+      let opened: Awaited<ReturnType<typeof openBatchExtraction>> | null = null
+      for (let round = 0; round < 2 && !opened; round += 1) {
+        const savedState = (await saved.refresh()) ?? (await saved.refresh())
+        if (!savedState) throw new Error('Saved advanced settings could not be read. Nothing was started.')
+        try {
+          opened = await openBatchExtraction({ projectContextId, schemaRevisionId: revision.schemaRevisionId, strategy,
+            sourceDocumentIds, method: savedMethodFor(savedState, strategy, null) })
+        } catch (error) {
+          if (round === 0 && error instanceof BatchRequestError && error.code === METHOD_CHANGED) continue
+          throw error
+        }
+      }
+      if (!opened) throw new Error('Your saved settings changed. Start again.')
+      project.refresh()
+      const { batchExtraction } = opened
+      const first = batchExtraction.members.find((member) => member.sourceDocumentId === sourceDocumentId) ?? batchExtraction.members[0]
+      if (kind === 'pilot' && first)
+        onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: first.sourceDocumentId, extractionId: first.extractionId,
+          fromBatchExtractionId: batchExtraction.batchExtractionId })
     } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : 'Could not save the Extraction Schema.',
-      )
+      setProjectError(error instanceof Error ? error.message : 'The extraction could not be started.')
     } finally {
-      setConfirmingSchema(false)
+      setProjectBusy(false)
     }
   }
 
@@ -1068,6 +1090,14 @@ export function DocumentWorkspace({
         // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
+        project={project && sourceDocumentId ? {
+          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, roundId: project.roundId,
+            busy: projectBusy || approvingSchema, error: projectError },
+          start: (kind, ids) => void startProjectBatch(kind, ids),
+          approve: () => setApprovingSchema(true),
+          open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
+            extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId }),
+        } : null}
         boundaries={
           !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
             ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
@@ -1106,6 +1136,19 @@ export function DocumentWorkspace({
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
       {/* The open document's tab carries the review's progress as a ring, and says it. */}
+      {approvingSchema && project?.summary.currentSchemaRevisionId && (
+        <ApproveSchemaDialog
+          projectContextId={projectContextId}
+          schemaRevisionId={project.summary.currentSchemaRevisionId}
+          reapproval={project.summary.phase === 'batch' || project.summary.phase === 'review'}
+          pendingExtractionCount={project.summary.pendingExtractionSourceDocumentCount}
+          onApproved={() => {
+            setApprovingSchema(false)
+            project.refresh()
+          }}
+          onDismiss={() => setApprovingSchema(false)}
+        />
+      )}
       {tabRingSlot && inspectedAttempt && createPortal((() => {
         const progress=durableReviewProgress?.extractionId===inspectedAttempt.extractionId?durableReviewProgress:null
         const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
@@ -1123,32 +1166,6 @@ export function DocumentWorkspace({
             <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
           )}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
-          {/* Picked the wrong document: back to the Schemas tab's picker, one click away rather than hidden in the
-              tab bar's project link. */}
-          {fromSchemaBuilder && onNavigate && (
-            <Button
-              size="md"
-              disabled={confirmingSchema}
-              onClick={() => onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })}
-            >
-              <span aria-hidden="true">←</span> Choose another document
-            </Button>
-          )}
-          {fromSchemaBuilder && (
-            <Button
-              variant="positive"
-              size="md"
-              disabled={confirmingSchema || schemaSnap.extractionSchemaId === null}
-              title={
-                schemaSnap.extractionSchemaId === null
-                  ? 'Create a schema in the chat first'
-                  : 'Save this Schema Revision, then pick 2-3 documents for a pilot extraction'
-              }
-              onClick={() => void approveSchemaAndGoToNextStep()}
-            >
-              {confirmingSchema ? 'Saving…' : 'Save schema and pilot it'}
-            </Button>
-          )}
         </>,
         tabBarSlot,
       )}

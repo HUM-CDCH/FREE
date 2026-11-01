@@ -149,7 +149,7 @@ function isPilotRound(batch: BatchExtraction): boolean {
 }
 
 /** Where a settled batch stands for the researcher: what is left before it is done, or that it is. Null while it runs
- *  and for a pilot round, whose end is the schema's approval (the document's PilotReviewGuide leads there). */
+ *  and for a pilot round, whose end is the schema's approval (the chat's review step leads there). */
 function batchOutcome(batch: BatchExtraction): { done: boolean; title: string; detail: string } | null {
   if (isPilotRound(batch) || batchStatus(batch).running) return null
   const progress = batchExtractionProgress(batch)

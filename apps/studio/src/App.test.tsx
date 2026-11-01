@@ -361,12 +361,75 @@ async function renderReopened(overrides: Partial<DocumentWorkspaceProps> = {}) {
 }
 
 describe('reopened Source Document workspace', () => {
-  it('opened from the schema builder, offers a way back to choose another document instead of Run', async () => {
-    const onNavigate = vi.fn()
-    await renderReopened({ persistedExtraction: null, fromSchemaBuilder: true, onNavigate })
-    expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Choose another document/ }))
-    expect(onNavigate).toHaveBeenCalledWith({ kind: 'project', projectContextId: reopened.projectContextId, tab: 'schemas' })
+  describe('the project\'s workflow, led by the chat', () => {
+    const here = '51000000-0000-4000-8001-000000000001'
+    const others = ['51000000-0000-4000-8001-000000000002', '51000000-0000-4000-8001-000000000003', '51000000-0000-4000-8001-000000000004']
+    const documents = [here, ...others].map((id, index) => ({ id, name: index === 0 ? 'Beretning.pdf' : `Letter ${index}.pdf` }))
+    const summary = (overrides: Partial<NonNullable<DocumentWorkspaceProps['project']>['summary']> = {}) => ({
+      phase: 'pilot' as const, extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0, staleSourceDocumentCount: 0,
+      pendingExtractionSourceDocumentCount: 4, schemaDraftCount: 0, currentSchemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides })
+    const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: sourceDocumentId.replace('-8001-', '-8006-'), sourceDocumentId,
+      sourceRepresentationRevisionId: sourceDocumentId.replace('-8001-', '-8002-'), executionStatus: 'COMPLETED', completed: true, reviewable: true,
+      currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId } : null })
+    const batch = (members: ReturnType<typeof member>[]) => ({ batchExtractionId: '51000000-0000-4000-8007-000000000001',
+      projectContextId: reopened.projectContextId, schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      extractionSchemaId: reopened.extractionSchema!.extractionSchemaId, extractionSchemaName: 'Places', schemaRevisionNumber: 1,
+      strategy: 'ARTICLE', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', members })
+    /** The workspace in its project, with the project's Batch Extractions and every batch it opens recorded. */
+    async function renderInProject(projectSummary: ReturnType<typeof summary>, batches: ReturnType<typeof batch>[], overrides: Partial<DocumentWorkspaceProps> = {}) {
+      const opened: Array<Record<string, unknown>> = []
+      vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/batch-extractions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { sourceDocumentIds: string[] }
+          opened.push(body)
+          return Promise.resolve(Response.json({ batchExtraction: batch(body.sourceDocumentIds.map((id) => ({ ...member(id), completed: false, executionStatus: 'QUEUED' }))), disposition: 'created' }, { status: 201 }))
+        }
+        if (url.startsWith('/api/batch-extractions?')) return Promise.resolve(Response.json({ batchExtractions: batches }))
+        return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
+      }))
+      const onNavigate = vi.fn(), refresh = vi.fn()
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} sourceDocumentId={here} onNavigate={onNavigate}
+        project={{ summary: projectSummary, documents, roundId: null, refresh }} {...overrides} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      return { opened, onNavigate, refresh }
+    }
+
+    it('pilots the schema on the ticked documents from the chat, then opens the first to review', async () => {
+      const { opened, onNavigate, refresh } = await renderInProject(summary(), [], { fromSchemaBuilder: true })
+      // Built toward a pilot: no run of this document alone.
+      expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
+      const step = await screen.findByRole('region', { name: 'Pilot the schema' })
+      expect(within(step).getAllByRole('checkbox', { checked: true }).map((box) => box.closest('label')!.textContent)).toEqual(['Beretning.pdf', 'Letter 1.pdf', 'Letter 2.pdf'])
+      fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
+      fireEvent.click(within(step).getByRole('button', { name: 'Run pilot on 2 documents' }))
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledOnce())
+      expect(opened).toEqual([expect.objectContaining({ sourceDocumentIds: [here, others[0]], strategy: 'ARTICLE',
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId })])
+      expect(onNavigate).toHaveBeenCalledWith({ kind: 'document', projectContextId: reopened.projectContextId, sourceDocumentId: here,
+        extractionId: member(here).extractionId, fromBatchExtractionId: '51000000-0000-4000-8007-000000000001' })
+      expect(refresh).toHaveBeenCalled()
+    })
+
+    it('leads a pilot round\'s review to its next document, then asks for the approval in a dialog', async () => {
+      const round = batch([member(here, true), member(others[0]!), member(others[1]!)])
+      const { onNavigate } = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round],
+        { project: undefined })
+      expect(screen.queryByRole('region', { name: 'Pilot review' })).not.toBeInTheDocument()
+      cleanup()
+      const rendered = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round])
+      const step = await screen.findByRole('region', { name: 'Pilot review' })
+      expect(step).toHaveTextContent('1 of 3 documents reviewed')
+      fireEvent.click(within(step).getByRole('button', { name: 'Next document · Letter 1.pdf' }))
+      expect(rendered.onNavigate).toHaveBeenCalledExactlyOnceWith({ kind: 'document', projectContextId: reopened.projectContextId,
+        sourceDocumentId: others[0], extractionId: member(others[0]!).extractionId, fromBatchExtractionId: round.batchExtractionId })
+      expect(onNavigate).not.toHaveBeenCalled()
+      cleanup()
+      await renderInProject(summary({ phase: 'approve', currentSchemaRevisionReviewed: true }), [batch([member(here, true), member(others[0]!, true)])])
+      fireEvent.click(within(await screen.findByRole('region', { name: 'Approve schema' })).getByRole('button', { name: 'Approve schema' }))
+      expect(await screen.findByText('Approve the schema for Batch Extraction?')).toBeInTheDocument()
+    })
   })
 
 

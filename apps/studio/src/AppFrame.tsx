@@ -4,10 +4,8 @@ import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
-import PilotReviewGuide from './PilotReviewGuide'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
-import { usePilotRoundProgress } from './usePilotRoundProgress'
 import { useShiftWheelHorizontalScroll } from './useShiftWheelHorizontalScroll'
 import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -169,7 +167,7 @@ export default function AppFrame({
         : JSON.stringify(route)
   const previousRouteFocusKey = useRef(routeFocusKey)
   const tabs = useOpenDocumentTabs()
-  const { projects, refreshProjects } = useProjectContexts()
+  const { projects, refreshProjects, branches } = useProjectContexts()
   useShiftWheelHorizontalScroll()
 
   useEffect(() => {
@@ -371,14 +369,16 @@ export default function AppFrame({
     )?.name ?? null
   const backToBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
-  const [reviewRevision,setReviewRevision]=useState(0)
-  const reviewFinalized=useCallback(()=>{void refreshProjects();onRefreshReviewed();setReviewRevision(revision=>revision+1)},[refreshProjects,onRefreshReviewed])
-  const pilotRoundProgress = usePilotRoundProgress(
-    route.kind === 'document' ? route.projectContextId : null,
-    backToBatchExtractionId,
-    route.kind === 'document' ? route.sourceDocumentId : null,
-    reviewRevision,
-  )
+  const reviewFinalized=useCallback(()=>{void refreshProjects();onRefreshReviewed()},[refreshProjects,onRefreshReviewed])
+  // The project around the open document, for the chat to lead its workflow: its summary, documents and round.
+  const routedSummary = projects.find((project) => project.projectContextId === routedProjectContextId)?.summary ?? null
+  const routedBranchState = routedProjectContextId ? branches[routedProjectContextId] : undefined
+  const routedDocuments = useMemo(() => routedBranchState?.status === 'ready'
+    ? routedBranchState.detail.sourceDocuments.map(({ sourceDocumentId, name }) => ({ id: sourceDocumentId, name }))
+    : null, [routedBranchState])
+  const workspaceProject = useMemo(() => routedSummary && routedDocuments
+    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: () => void refreshProjects() }
+    : null, [routedSummary, routedDocuments, backToBatchExtractionId, refreshProjects])
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
   )
@@ -581,33 +581,6 @@ export default function AppFrame({
             navigationToggle={narrowNavToggle}
           />
         )}
-        {pilotRoundProgress && backToBatchExtractionId && route.kind === 'document' && (
-          <PilotReviewGuide
-            reviewed={pilotRoundProgress.reviewed}
-            total={pilotRoundProgress.total}
-            currentReviewed={pilotRoundProgress.currentReviewed}
-            onNext={
-              pilotRoundProgress.nextMember
-                ? () =>
-                    onNavigate({
-                      kind: 'document',
-                      projectContextId: route.projectContextId,
-                      sourceDocumentId: pilotRoundProgress.nextMember!.sourceDocumentId,
-                      extractionId: pilotRoundProgress.nextMember!.extractionId,
-                      fromBatchExtractionId: backToBatchExtractionId,
-                    })
-                : undefined
-            }
-            onBackToBatch={() =>
-              onNavigate({
-                kind: 'project',
-                projectContextId: route.projectContextId,
-                tab: 'extractions',
-                batchExtractionId: backToBatchExtractionId,
-              })
-            }
-          />
-        )}
         <section
           id="main-content"
           ref={contentRef}
@@ -638,7 +611,7 @@ export default function AppFrame({
                   {...workspace}
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
                   onNavigate={onNavigate}
-                  onSchemaApproved={refreshProjects}
+                  project={workspaceProject}
                   onReviewFinalized={reviewFinalized}
                   chatColumn={chatColumn}
                   projectName={activeProjectName}

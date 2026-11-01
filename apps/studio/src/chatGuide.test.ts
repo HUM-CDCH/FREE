@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { nextStep, type GuideInput } from './chatGuide'
+import { nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
+import type { BatchExtraction } from '../shared/batchExtraction.contract'
+import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
 const base: GuideInput = {
   view: 'editing',
@@ -99,5 +101,62 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, readOnly: true, proposal: { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true } })?.key).toBe('run:first')
     expect(nextStep({ ...base, readOnly: true, recordScope: null })?.key).toBe('run:first')
     expect(actions({ readOnly: true, latest: latest('PAUSED') })).toEqual(['resume', 'stop'])
+  })
+})
+
+describe('nextStep in a project', () => {
+  const summary = (overrides: Partial<ProjectContextActivitySummary> = {}): ProjectContextActivitySummary => ({
+    phase: 'pilot', extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0, staleSourceDocumentCount: 0,
+    pendingExtractionSourceDocumentCount: 4, schemaDraftCount: 0, currentSchemaRevisionId: 'revision-2', schemaStabilised: false,
+    currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides,
+  })
+  const documents = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: `${id}.pdf` }))
+  const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
+    sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true,
+    currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: 'revision-2' } : null })
+  const batch = (members: ReturnType<typeof member>[], schemaRevisionId = 'revision-2'): BatchExtraction => ({
+    batchExtractionId: `batch-${schemaRevisionId}`, projectContextId: 'project', schemaRevisionId, extractionSchemaId: 'schema',
+    extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', members })
+  const project = (overrides: Partial<ProjectGuideInput> = {}): ProjectGuideInput => ({
+    summary: summary(), documents, currentDocumentId: 'b', batches: [], roundId: null, busy: false, error: null, ...overrides })
+  const step = (overrides: Partial<ProjectGuideInput> = {}, input: Partial<GuideInput> = {}) => nextStep({ ...base, project: project(overrides), ...input })
+
+  it('pilots a ready schema on this document and the next ones, with a run of this document alone beside it', () => {
+    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the schema',
+      picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [{ action: 'pilot', picks: true }, { action: 'run', label: 'Only this document' }, { action: 'dismiss' }] })
+    // A schema saved here leads to the pilot before the summary is read again.
+    expect(step({ summary: summary({ phase: 'schema' }) })?.key).toBe('pilot:revision-2')
+    // Its own steps lead until the schema is ready.
+    expect(step({}, { recordScope: null })?.key).toBe('scope')
+    expect(step({}, { view: 'empty' })?.key).toBe('generate:0')
+  })
+
+  it('leads a pilot round\'s review: this document\'s Results, else the next document to review', () => {
+    const pilot = { summary: summary({ extractedSourceDocumentCount: 3 }), batches: [batch([member('a', true), member('b'), member('c')])] }
+    expect(step(pilot)).toMatchObject({ key: 'review:extraction-b', title: 'Pilot review', detail: [['Progress', '1 of 3 documents reviewed']], options: [{ action: 'review' }] })
+    expect(step(pilot, { resultsShown: true })).toMatchObject({ options: [], notice: expect.stringContaining('save the review') })
+    expect(step({ ...pilot, currentDocumentId: 'd' })).toMatchObject({ key: 'review-next:extraction-b', options: [
+      { action: 'open-document', label: 'Next document · b.pdf', target: { sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'batch-revision-2' } },
+      { action: 'dismiss' }] })
+    // Reviewed here, the round's next document after this one, round the round.
+    expect(step({ ...pilot, batches: [batch([member('a'), member('b', true), member('c')])] })).toMatchObject({
+      key: 'review-next:extraction-c', question: 'This document is reviewed. Open c.pdf next?' })
+  })
+
+  it('follows a running batch, then asks for the approval, then extracts the documents left', () => {
+    expect(step({ summary: summary({ runningBatch: { completedMemberCount: 1, memberCount: 3 } }) })).toMatchObject({ busy: true, notice: 'Extraction running · 1/3' })
+    expect(step({ summary: summary({ phase: 'approve', currentSchemaRevisionReviewed: true }) })).toMatchObject({
+      key: 'approve:revision-2', options: [{ action: 'approve', label: 'Approve schema' }, { action: 'dismiss' }] })
+    const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true })
+    expect(step({ summary: approved, batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
+      question: 'Extract the 2 documents left with the approved schema?', picker: { initial: ['c', 'd'], limit: 50 }, options: [{ action: 'batch', picks: true }, { action: 'dismiss' }] })
+    expect(step({ summary: approved, batches: null })).toMatchObject({ busy: true })
+  })
+
+  it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {
+    expect(actions({ project: project(), latest: latest('RUNNING') })).toEqual(['pause', 'stop'])
+    const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+      extractedSourceDocumentCount: 4, reviewedSourceDocumentCount: 4 })
+    expect(step({ summary: done })?.key).toBe('run:first')
   })
 })

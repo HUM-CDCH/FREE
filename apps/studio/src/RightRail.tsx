@@ -11,7 +11,7 @@ import { countTemplateFields } from '../shared/template'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
 import { durableRailModel, statusLine } from './durableRailModel'
-import RailChat from './RailChat'
+import RailChat, { type RailChatProps } from './RailChat'
 import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
 import { useSchemaChat } from './useSchemaChat'
 import type { CurrentResultSchema } from './resultSchema'
@@ -76,6 +76,8 @@ type RightRailProps = {
   run?: { start: () => void; available: boolean } | null
   /** The latest Extraction's commands, which the chat's step offers while it can go on. */
   control?: { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void; busy: boolean } | null
+  /** The project's workflow, which the chat's steps lead. */
+  project?: RailChatProps['project']
 }
 
 const VIEW_TITLES: Record<Exclude<RailView, 'chat'>, string> = {
@@ -135,6 +137,7 @@ function RightRail({
   onReviewFinalized,
   run = null,
   control = null,
+  project = null,
 }: RightRailProps) {
   const { parsedDocument } = inspection
   // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
@@ -340,6 +343,7 @@ function RightRail({
           toCheck: latestModel?.counts.toCheck ?? null,
         } : null}
         readOnly={inspection.readOnly}
+        project={project}
         resultsShown={open && activeView === 'results'}
         onShowView={onViewChange}
         mode={activeView === 'chat' ? 'full' : 'step'}

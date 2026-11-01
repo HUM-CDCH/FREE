@@ -4,7 +4,7 @@ import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { nextStep, type GuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
+import { nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
@@ -22,6 +22,13 @@ export type RailChatProps = {
   recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
   /** Run extraction, where the workspace offers it. */
   run?: { start: () => void; available: boolean; unavailableReason: string | null } | null
+  /** The project's workflow, where the workspace knows its project: the guide's view of it, and what its steps do. */
+  project?: {
+    guide: ProjectGuideInput
+    start: (kind: 'pilot' | 'batch', sourceDocumentIds: readonly string[]) => void
+    approve: () => void
+    open: (target: NonNullable<StepOption['target']>) => void
+  } | null
   /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
   control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
   latest: GuideInput['latest']
@@ -40,7 +47,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -76,11 +83,16 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     latest,
     resultsShown,
     dismissed,
+    project: project?.guide ?? null,
   })
+  // The documents ticked in the step's picker: its own initial ones until the researcher changes them.
+  const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<string> } | null>(null)
+  const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
 
   function choose(card: StepCard, option: StepOption) {
-    if (option.disabled) return
-    if (option.action !== 'review-schema') chat.appendStep(card.title, option.label)
+    const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
+    if (option.disabled || (option.picks && !pickable(card, ids.length))) return
+    if (option.action !== 'review-schema') chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
     const act: Record<StepAction, () => void> = {
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),
@@ -95,6 +107,10 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       resume: () => control?.command('resume'),
       retry: () => control?.command('retry'),
       stop: () => control?.command('stop'),
+      pilot: () => project?.start('pilot', ids),
+      batch: () => project?.start('batch', ids),
+      approve: () => project?.approve(),
+      'open-document': () => option.target && project?.open(option.target),
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
@@ -114,7 +130,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ask = () => { reveal(); void chat.ask() }
   const send = () => { reveal(); void chat.send(chat.input) }
 
-  const card = step && <StepCardView card={step} scopeDisabled={!!recordScope?.disabled} onChoose={(option) => choose(step, option)} />
+  const card = step && <StepCardView card={step} scopeDisabled={!!recordScope?.disabled} onChoose={(option) => choose(step, option)}
+    picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
   const blocked = !!pending || chat.loading
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
@@ -165,10 +182,21 @@ const optionClass: Record<StepOption['tone'], string> = {
   dismiss: 'border-transparent bg-transparent text-ink-muted hover:bg-surface-muted hover:text-ink',
 }
 
-/** The next step: a permission card with numbered options. 1–9 choose while it has focus; Esc is "Not yet". */
-export function StepCardView({ card, scopeDisabled = false, onChoose }: { card: StepCard; scopeDisabled?: boolean; onChoose: (option: StepOption) => void }) {
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+/** A picking option's label with the documents it acts on. */
+const pickedLabel = (option: StepOption, count: number) => `${option.label} on ${plural(count, 'document')}`
+const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
+
+/** The next step: a permission card with numbered options. 1–9 choose while it has focus; Esc is "Not yet". A step that
+ *  acts on documents lists the project's to tick. */
+export function StepCardView({ card, scopeDisabled = false, onChoose, picked = null, onPick }: {
+  card: StepCard; scopeDisabled?: boolean; onChoose: (option: StepOption) => void
+  picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
+}) {
+  const count = picked?.size ?? 0
   const options = card.options.map((option) =>
-    scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true } : option)
+    scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
+      : option.picks ? { ...option, label: pickedLabel(option, count), disabled: option.disabled || !pickable(card, count) } : option)
   return (
     <section aria-label={card.title} className="mx-4 my-2 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface"
       onKeyDown={(event) => {
@@ -199,6 +227,26 @@ export function StepCardView({ card, scopeDisabled = false, onChoose }: { card: 
         {card.error && <p role="alert" className="text-compact leading-snug text-danger">{card.error}</p>}
         {card.notice && <p role="status" className="text-compact leading-snug text-ink-muted">{card.notice}</p>}
         {card.question && <p className="text-secondary font-semibold text-ink">{card.question}</p>}
+        {card.picker && picked && (
+          <fieldset className="scrollbar-subtle flex max-h-44 min-w-0 flex-col gap-0.5 overflow-y-auto rounded-[3px] border border-line bg-surface-muted px-2 py-1.5">
+            <legend className="sr-only">Documents</legend>
+            {card.picker.documents.map((document) => (
+              <label key={document.id} className="flex min-w-0 cursor-pointer items-center gap-2 text-compact text-ink">
+                <input type="checkbox" className="shrink-0 accent-accent" checked={picked.has(document.id)}
+                  onChange={(event) => {
+                    const next = new Set(picked)
+                    if (event.target.checked) next.add(document.id)
+                    else next.delete(document.id)
+                    onPick?.(next)
+                  }} />
+                <span className="min-w-0 truncate" title={document.name}>{document.name}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {card.picker && count > card.picker.limit && (
+          <p role="status" className="text-compact leading-snug text-danger">At most {plural(card.picker.limit, 'document')} at once.</p>
+        )}
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
             {options.map((option, index) => (

@@ -1,6 +1,10 @@
 import type { RecordScope } from 'extraction/schema'
+import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, type BatchExtraction,
+  type BatchExtractionMember } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
+import { guidedWorkflow } from './projectContexts/guidedWorkflow'
+import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
 /** What the researcher can do from a step: the rail chat carries each key out (RailChat.tsx). */
 export type StepAction =
@@ -17,6 +21,10 @@ export type StepAction =
   | 'resume'
   | 'retry'
   | 'stop'
+  | 'pilot'
+  | 'batch'
+  | 'approve'
+  | 'open-document'
   | 'dismiss'
 
 export type StepOption = {
@@ -28,7 +36,13 @@ export type StepOption = {
   /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. */
   tone: 'positive' | 'secondary' | 'danger' | 'dismiss'
   disabled?: boolean
+  /** Acts on the documents ticked in the step's picker, whose count it says; refused with none or past the limit. */
+  picks?: boolean
+  /** The document `open-document` opens, on its Extraction in its Batch Extraction. */
+  target?: { sourceDocumentId: string; extractionId: string; batchExtractionId: string }
 }
+
+export type ProjectDocument = { id: string; name: string }
 
 /** The next step the chat offers: a question with numbered options, or a notice while work runs or waits. */
 export type StepCard = {
@@ -42,7 +56,25 @@ export type StepCard = {
   error?: string
   /** Work is under way: the card shows a spinner. */
   busy?: boolean
+  /** The project's documents to tick for the options that pick them, first ticked `initial`, at most `limit`. */
+  picker?: { documents: readonly ProjectDocument[]; initial: readonly string[]; limit: number }
   options: readonly StepOption[]
+}
+
+/** The project around the open document, where the host knows it: its workflow's next step is the chat's too. */
+export type ProjectGuideInput = {
+  summary: ProjectContextActivitySummary
+  /** The project's Source Documents, in its order. */
+  documents: readonly ProjectDocument[]
+  currentDocumentId: string
+  /** The project's Batch Extractions; null until read. */
+  batches: readonly BatchExtraction[] | null
+  /** The Batch Extraction (a pilot round, or a batch) this document was opened from to review, if any. */
+  roundId: string | null
+  /** A batch start or an approval is under way. */
+  busy: boolean
+  /** Why the last batch start failed. */
+  error: string | null
 }
 
 export type GuideInput = {
@@ -76,6 +108,7 @@ export type GuideInput = {
   /** Results is already in view: a finished run needs no step to open it. */
   resultsShown: boolean
   dismissed: ReadonlySet<string>
+  project?: ProjectGuideInput | null
 }
 
 const ACTIVE: ReadonlySet<ExtractionExecutionStatus> = new Set(['QUEUED', 'RUNNING', 'PAUSING', 'STOPPING'])
@@ -127,8 +160,113 @@ export function nextStep(input: GuideInput): StepCard | null {
 }
 
 function currentStep(input: GuideInput): StepCard | null {
-  // An older Extraction or revision shown read-only takes no schema step; a run is still the host's to allow.
-  return (input.readOnly ? null : schemaStep(input)) ?? runStep(input)
+  // An older Extraction or revision shown read-only takes no schema step; a run is still the host's to allow. The
+  // open document's own run goes on before anything else; then the project's workflow leads, then this document.
+  return (input.readOnly ? null : schemaStep(input)) ?? controlStep(input) ?? projectStep(input) ?? runStep(input)
+}
+
+/**
+ * The project's next step (guidedWorkflow, the server's phase): pilot the schema on a few documents, review the pilot,
+ * approve the schema, extract the rest, review the results. Starting, approving and opening the next document to
+ * review all happen here, so no other place leads the workflow.
+ */
+function projectStep(input: GuideInput): StepCard | null {
+  const project = input.project
+  if (!project) return null
+  const { summary, documents, batches, currentDocumentId } = project
+  const workflow = guidedWorkflow(summary)
+  if (workflow.waiting) return { key: 'project-running', title: 'Batch extraction', notice: workflow.waiting, busy: true, options: [] }
+  const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
+  // A schema saved here moves the phase on before the project's summary is read again.
+  const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Pilot extraction', action: 'pilot' as const } : workflow.next
+  if (!next) return null
+  const revisionId = summary.currentSchemaRevisionId
+  if (next.step === 'pilot' && next.action === 'pilot') {
+    if (!schemaReady) return null
+    const initial = [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)]
+      .filter((id) => documents.some((document) => document.id === id)).slice(0, 3)
+    return {
+      key: `pilot:${input.revision.id}`,
+      title: next.label === 'Pilot the revised schema' ? next.label : 'Pilot the schema',
+      question: `Try the schema on a few documents before extracting all ${plural(documents.length, 'document')}?`,
+      detail: [['Schema', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`]],
+      error: project.error ?? undefined,
+      picker: { documents, initial, limit: PILOT_BATCH_SELECTION_LIMIT },
+      options: [
+        { action: 'pilot', label: 'Run pilot', tone: 'positive', picks: true, disabled: project.busy },
+        ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without a pilot round', tone: 'secondary',
+          disabled: !input.run.available, description: runDescription(input, input.latest !== null) } as const] : []),
+        notYet,
+      ],
+    }
+  }
+  if (next.step === 'pilot' || next.step === 'review')
+    return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId)
+  if (next.step === 'approve')
+    return {
+      key: `approve:${revisionId}`,
+      title: next.label,
+      question: next.label === 'Re-approve schema'
+        ? 'The schema changed since its approval. Approve the current revision for the whole project?'
+        : 'Every pilot document is reviewed. Approve the schema for the whole project?',
+      options: [{ action: 'approve', label: next.label, tone: 'positive', disabled: project.busy || !revisionId }, notYet],
+    }
+  if (next.step === 'batch') {
+    if (batches === null) return { key: 'batch-reading', title: 'Batch extraction', notice: 'Reading the project’s extractions…', busy: true, options: [] }
+    // Every document without a result on the approved revision yet.
+    const covered = new Set(batches.filter((batch) => batch.schemaRevisionId === revisionId)
+      .flatMap((batch) => batch.members.filter((member) => member.completed || member.currentReview).map((member) => member.sourceDocumentId)))
+    const left = documents.filter(({ id }) => !covered.has(id)).map(({ id }) => id)
+    return {
+      key: `batch:${revisionId}:${left.length}`,
+      title: 'Batch extraction',
+      question: `Extract ${left.length === documents.length ? 'every document' : `the ${plural(left.length, 'document')} left`} with the approved schema?`,
+      error: project.error ?? undefined,
+      picker: { documents, initial: left.slice(0, BATCH_EXTRACTION_SELECTION_LIMIT), limit: BATCH_EXTRACTION_SELECTION_LIMIT },
+      options: [{ action: 'batch', label: 'Extract', tone: 'positive', picks: true, disabled: project.busy }, notYet],
+    }
+  }
+  return null
+}
+
+const waitingReview = (member: BatchExtractionMember) => member.reviewable && !member.currentReview
+
+/**
+ * The review of a round (a Batch Extraction): the one this document was opened from while it has values waiting,
+ * else the newest that has. This document's review if it waits, else the round's next document after this one.
+ */
+function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batch: BatchExtraction) => boolean): StepCard | null {
+  if (project.batches === null) return null
+  const opened = project.batches.find((batch) => batch.batchExtractionId === project.roundId)
+  const round = opened?.members.some(waitingReview) ? opened
+    : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .find((batch) => batch.members.some(waitingReview))
+  if (!round) return null
+  const title = round.members.length <= PILOT_BATCH_SELECTION_LIMIT ? 'Pilot review' : 'Review results'
+  const { reviewed, reviewable } = batchExtractionProgress(round)
+  const detail: [string, string][] = [['Progress', `${reviewed} of ${plural(reviewable, 'document')} reviewed`]]
+  const index = round.members.findIndex(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
+  const here = round.members[index]
+  if (here && waitingReview(here))
+    return {
+      key: `review:${here.extractionId}`,
+      title,
+      question: input.resultsShown ? undefined : 'Check each value against its source in Results, then save the review.',
+      notice: input.resultsShown ? 'Check each value against its highlighted source, then save the review.' : undefined,
+      detail,
+      options: input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' }],
+    }
+  // The next one after this document, round the round.
+  const next = [...round.members.slice(index + 1), ...round.members.slice(0, index + 1)].find(waitingReview)!
+  const name = project.documents.find(({ id }) => id === next.sourceDocumentId)?.name ?? 'the next document'
+  return {
+    key: `review-next:${next.extractionId}`,
+    title,
+    question: here ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
+    detail,
+    options: [{ action: 'open-document', label: `Next document · ${name}`, tone: 'positive',
+      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: round.batchExtractionId } }, notYet],
+  }
 }
 
 /** Generating, generating again, a proposal, or the Record Scope: the schema's own next step, if it has one. */
