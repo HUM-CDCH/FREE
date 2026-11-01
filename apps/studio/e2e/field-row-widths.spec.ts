@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import { loginResearcher } from './auth.js'
+import { openRailView } from './rail.js'
 
 // §6 field rows at the rail's minimum (264px) and default (344px) widths, measured in a real browser: every row's name,
 // pills and three 28px actions sit inside the schema list, nothing scrolls sideways, Tab reaches the actions, a pointer on
@@ -85,11 +86,11 @@ async function openSchema(page: Page) {
   await page.route(`${representation}/source**`, (route) => route.fulfill({ body: parsedDocument, contentType: 'application/json' }))
   await loginResearcher(page, id.object)
   await page.goto(`/projects/${id.project}/documents/${id.document}`)
-  await page.getByRole('tab', { name: /^Schema/ }).click()
+  await openRailView(page, 'Schema')
   await expect(page.getByRole('listitem', { name: 'layer' })).toBeVisible({ timeout: 20_000 })
 }
 
-const rail = (page: Page) => page.getByRole('complementary', { name: 'Evidence, schema and results' })
+const rail = (page: Page) => page.getByRole('complementary', { name: 'Chat, schema and results' })
 
 async function resizeRail(page: Page, width: number) {
   // The rail's handle, not the project navigation's (that one is a separator).
@@ -514,10 +515,10 @@ test('the record description re-measures its rows when the rail is resized or th
   expect(narrow.hidden, 'narrowed: no text hidden').toBe(false)
   await resizeRail(page, 344)
   await expect.poll(async () => (await fit()).rows, 'widened: back to its rows').toBe(wide)
-  // Narrowed while the Schema tab is hidden: measured once it shows again.
-  await page.getByRole('tab', { name: /^Results/ }).click()
+  // Narrowed while the Schema view is hidden: measured once it shows again.
+  await openRailView(page, 'Results')
   await resizeRail(page, 264)
-  await page.getByRole('tab', { name: /^Schema/ }).click()
+  await openRailView(page, 'Schema')
   await expect.poll(async () => (await fit()).rows, 'shown again: narrow rows').toBe(narrow.rows)
   expect((await fit()).hidden).toBe(false)
 })

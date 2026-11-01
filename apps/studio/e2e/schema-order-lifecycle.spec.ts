@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import { e2eStudioPath, loginResearcher } from './auth.js'
+import { openRailView } from './rail.js'
 
 const id = {
   account: '73000000-0000-4000-8000-000000000000',
@@ -153,7 +154,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
 
   await installArtifactRoutes(page)
   await page.goto(e2eStudioPath(`/projects/${id.project}/documents/${id.document}`))
-  await page.getByRole('tab', { name: /^Schema / }).click()
+  await openRailView(page, 'Schema')
   await page.getByRole('button', { name: 'Schema actions' }).click()
   const history = page.getByRole('menuitem', { name: 'History' })
   await expect(history).toBeEnabled({ timeout: 15_000 })
@@ -201,7 +202,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await loginResearcher(freshPage, id.object)
   await installArtifactRoutes(freshPage)
   await freshPage.goto(e2eStudioPath(`/projects/${id.project}/documents/${id.document}`))
-  await freshPage.getByRole('tab', { name: /^Schema / }).click()
+  await openRailView(freshPage, 'Schema')
   await freshPage.getByRole('button', { name: 'Schema actions' }).click()
   const freshHistory = freshPage.getByRole('menuitem', { name: 'History' })
   await expect(freshHistory).toBeEnabled({ timeout: 15_000 })

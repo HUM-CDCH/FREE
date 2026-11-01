@@ -20,7 +20,8 @@ import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
 import type { ParsedDocument, ParsedEvidenceAnchor } from 'extraction/parsed-document'
-export type RailTab = 'evidence' | 'schema' | 'results' | 'history'
+/** The rail's views. The chat is its home and the only way the work goes on; the others open from it and lead back. */
+export type RailView = 'chat' | 'evidence' | 'schema' | 'results' | 'history'
 
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
@@ -36,8 +37,8 @@ export type ExtractionInspection = {
 type RightRailProps = {
   open: boolean
   onToggle: () => void
-  tab: RailTab
-  onTabChange: (tab: RailTab) => void
+  view: RailView
+  onViewChange: (view: RailView) => void
   schema: SchemaEditorController
   onGenerateInstructions?: (instruction: string) => void
   onClearDraft: () => void | Promise<void>
@@ -72,33 +73,37 @@ type RightRailProps = {
   run?: { start: () => void; available: boolean } | null
 }
 
-/** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
- *  tab's label stays whole; its full words stay its name and title. */
-function TabBadge({ label, active }: { label: string; active: boolean }) {
-  const tone = `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
-  const count = /^\d+(?=\D)/.exec(label)?.[0]
+const VIEW_TITLES: Record<Exclude<RailView, 'chat'>, string> = {
+  evidence: 'Evidence', schema: 'Schema', results: 'Results', history: 'History',
+}
+
+const iconButtonClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink'
+
+function HistoryIcon() {
   return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      className={`inline-grid h-4 min-w-4.5 shrink-0 place-items-center whitespace-nowrap rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
-    >
-      {count ? (
-        <>
-          <span className="@max-[300px]:hidden">{label}</span>
-          <span className="hidden @max-[300px]:inline">{count}</span>
-        </>
-      ) : label}
-    </span>
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.6h2.6M8 5v3l2 1.5" />
+    </svg>
+  )
+}
+
+/** One of the chat's context lines: what the schema or the results are now, opening them in full. */
+function ContextLine({ label, detail, onOpen }: { label: string; detail: string; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} aria-label={`Open ${label.toLowerCase()}: ${detail}`}
+      className="flex min-w-0 cursor-pointer items-baseline gap-2 rounded-[3px] px-1.5 py-1 text-left text-compact outline-none transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted">
+      <span className="shrink-0 font-bold text-ink">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-ink-muted" title={detail}>{detail}</span>
+      <span aria-hidden="true" className="shrink-0 text-ink-faint">›</span>
+    </button>
   )
 }
 
 function RightRail({
   open,
   onToggle,
-  tab,
-  onTabChange,
+  view,
+  onViewChange,
   schema,
   onGenerateInstructions,
   onClearDraft,
@@ -166,45 +171,15 @@ function RightRail({
   const shown = inspection.attempt ?? extraction.attempt
   // History lists the document's Extractions even when none is shown, e.g. all read an earlier source text.
   const historyAvailable = Boolean(shown || documentHistory)
-  const activeTab = (!showDeveloperUi && tab === 'evidence') || (!historyAvailable && tab === 'history') ? 'schema' : tab
-  // Results renders its guidance and saved versions into this tab's body.
+  const activeView: RailView = (!showDeveloperUi && view === 'evidence') || (!historyAvailable && view === 'history') ? 'chat' : view
+  // Results renders its guidance and saved versions into the History view's body.
   const [historySlot, setHistorySlot] = useState<HTMLDivElement | null>(null)
-  // The tab names the shown Extraction's lifecycle; its review counts live in the Results header.
-  const resultsBadge = shown ? { label: shown.executionStatus.toLowerCase() } : null
-  const tabs: {
-    key: RailTab
-    label: string
-    badge?: { label: string } | null
-    /** An icon-only tab, so four tabs keep "Results" and its badge whole at the 264px rail. */
-    icon?: ReactNode
-  }[] = [
-    ...(showDeveloperUi
-      ? [
-          {
-            key: 'evidence' as const,
-            label: 'Evidence',
-            badge: parsedDocument
-              ? {
-                  label: String(
-                    parsedDocument.evidence_index.anchors.length,
-                  ),
-                }
-              : null,
-          },
-        ]
-      : []),
-    {
-      key: 'schema',
-      label: 'Schema',
-      badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
-    },
-    { key: 'results', label: 'Results', badge: resultsBadge },
-    ...(historyAvailable ? [{ key: 'history' as const, label: 'History', icon: (
-      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.6h2.6M8 5v3l2 1.5" />
-      </svg>
-    ) }] : []),
-  ]
+  const scopeWord = recordScope?.value === 'records' ? 'Catalog' : recordScope?.value === 'document' ? 'Article' : null
+  const schemaDetail = schemaSnap.view === 'generating' ? 'Generating…'
+    : schemaReady ? [`${schemaFieldCount} field${schemaFieldCount === 1 ? '' : 's'}`, scopeWord].filter(Boolean).join(' · ')
+      : 'Not created yet'
+  // Its lifecycle, as the old tab's badge said it; review counts live in the Results header.
+  const resultsDetail = shown ? shown.executionStatus.toLowerCase() : 'No extraction yet'
 
   return (
     <>
@@ -220,41 +195,37 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
         <span className="mt-0.5 text-overline font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
-          {tabs.map(({ label }) => label).join(' · ')}
+          {activeView === 'chat' ? 'Chat' : `Chat · ${VIEW_TITLES[activeView]}`}
         </span>
       </div>
     )}
     {/* Collapsed, the rail keeps everything below mounted, so a collapse never destroys work in it. `hidden` beats
         `flex` only through the preflight's `[hidden] { display: none !important }`. */}
     <div hidden={!open} className="flex h-full min-h-0 flex-col">
-      <div className="@container flex shrink-0 items-stretch border-b border-line" role="tablist">
-        {tabs.map(({ key, label, badge, icon }) => {
-          const active = activeTab === key
-          return (
-            <button
-              key={key}
-              className={`flex min-w-0 ${icon ? 'flex-none px-3' : 'flex-1 px-1'} cursor-pointer items-center justify-center gap-1.5 border-b-2 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
-                active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
-              }`}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`rail-panel-${key}`}
-              id={`rail-tab-${key}`}
-              onClick={() => onTabChange(key)}
-              aria-label={icon ? label : undefined}
-              title={icon ? label : undefined}
-            >
-              {/* At the 264px rail a worded badge shows its number only, so the label stays whole; truncating it is the
-                  last resort. The badge keeps one line. */}
-              {icon ?? <span className="min-w-0 truncate">{label}</span>}
-              {badge && <TabBadge label={badge.label} active={active} />}
+      <div className="flex min-h-11 shrink-0 items-center gap-1 border-b border-line py-1.5 pl-3 pr-1">
+        {activeView === 'chat' ? (
+          <h2 className="m-0 min-w-0 flex-1 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">Chat</h2>
+        ) : (
+          <>
+            <button type="button" aria-label="Back to chat" title="Back to chat" onClick={() => onViewChange('chat')}
+              className="flex shrink-0 cursor-pointer items-center gap-1 rounded-[3px] px-1.5 py-1 text-compact font-semibold text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink">
+              <span aria-hidden="true">←</span> Chat
             </button>
-          )
-        })}
+            <h2 className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-ink">{VIEW_TITLES[activeView]}</h2>
+          </>
+        )}
+        {activeView === 'chat' && showDeveloperUi && (
+          <button type="button" className={`${iconButtonClass} w-auto px-1.5 text-overline font-bold uppercase`} title="Evidence" aria-label="Evidence"
+            onClick={() => onViewChange('evidence')}>Ev{parsedDocument ? ` ${parsedDocument.evidence_index.anchors.length}` : ''}</button>
+        )}
+        {activeView === 'chat' && historyAvailable && (
+          <button type="button" className={iconButtonClass} title="History" aria-label="History" onClick={() => onViewChange('history')}>
+            <HistoryIcon />
+          </button>
+        )}
         <button
           ref={collapseButton}
-          className="flex cursor-pointer items-center justify-center border-b-2 border-transparent px-2.5 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
+          className={iconButtonClass}
           type="button"
           title="Collapse panel"
           onClick={onToggle}
@@ -262,6 +233,12 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
       </div>
+      {activeView === 'chat' && (
+        <nav aria-label="Schema and results" className="flex shrink-0 flex-col border-b border-line px-1.5 py-1">
+          <ContextLine label="Schema" detail={schemaDetail} onOpen={() => onViewChange('schema')} />
+          <ContextLine label="Results" detail={resultsDetail} onOpen={() => onViewChange('results')} />
+        </nav>
+      )}
 
       {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. Mounted only
           while open, so expanding announces its alert. */}
@@ -274,13 +251,13 @@ function RightRail({
         </div>
       </div>}
 
-      {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches and a collapse. */}
+      {/* Every view's body stays mounted so chat drafts and schema edit state survive leaving a view and a collapse. */}
       {showDeveloperUi && (
-        <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
+        <div id="rail-panel-evidence" role="region" aria-label="Evidence" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'evidence'}>
           <EvidenceTab document={parsedDocument} onSelectAnchor={onSelectEvidence} />
         </div>
       )}
-      <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'schema'}>
+      <div id="rail-panel-schema" role="region" aria-label="Schema" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'schema'}>
         <SchemaPanel
           schema={schema}
           onGenerateInstructions={onGenerateInstructions}
@@ -294,7 +271,7 @@ function RightRail({
           chat={chat}
         />
       </div>
-      <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
+      <div id="rail-panel-results" role="region" aria-label="Results" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'results'}>
         {shown ? <DurableResults
           key={`${shown.extractionId}:${inspection.cut ? `${inspection.cut.snapshotVersion}:${inspection.cut.feedbackVersion}` : 'live'}`}
           attempt={shown}
@@ -304,7 +281,7 @@ function RightRail({
           document={parsedDocument}
           documentRevisionId={sourceRepresentationId}
           currentSchema={currentSchemaRevision}
-          onSchema={()=>onTabChange('schema')}
+          onSchema={()=>onViewChange('schema')}
           controlled={shown.extractionId===extraction.attempt?.extractionId}
           sourceDocumentName={sourceDocumentName}
           readOnly={inspection.readOnly}
@@ -318,19 +295,19 @@ function RightRail({
           onPinnedDocument={onPinnedDocument}
           railOpen={open}
           historySlot={historySlot}
-          historyShown={open && activeTab === 'history'}
-          onShowResults={() => onTabChange('results')}
-          onShowHistory={() => onTabChange('history')}
+          historyShown={open && activeView === 'history'}
+          onShowResults={() => onViewChange('results')}
+          onShowHistory={() => onViewChange('history')}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
           <p className="m-0 text-content font-semibold text-ink">No results yet</p>
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
-            {schemaReady ? 'Run extraction to apply the schema across the source document.' : 'Generate a schema in the Schema tab first, then run extraction.'}
+            {schemaReady ? 'Run extraction to apply the schema across the source document.' : 'Create a schema in the chat first, then run extraction.'}
           </p>
-          {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'Press ▶ Run extraction above.'}</p>}
+          {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'The chat offers Run extraction as its next step.'}</p>}
         </div>}
       </div>
-      {historyAvailable && <div id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'}>
-        {documentHistory && <div className="p-3 pb-0">{documentHistory(open && activeTab === 'history')}</div>}
+      {historyAvailable && <div id="rail-panel-history" role="region" aria-label="History" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto" hidden={activeView !== 'history'}>
+        {documentHistory && <div className="p-3 pb-0">{documentHistory(open && activeView === 'history')}</div>}
         <div ref={setHistorySlot} />
       </div>}
       <RailChat
@@ -348,8 +325,9 @@ function RightRail({
           toCheck: latestModel?.counts.toCheck ?? null,
         } : null}
         readOnly={inspection.readOnly}
-        resultsShown={open && activeTab === 'results'}
-        onShowTab={onTabChange}
+        resultsShown={open && activeView === 'results'}
+        onShowView={onViewChange}
+        mode={activeView === 'chat' ? 'full' : 'step'}
       />
     </div>
     </>

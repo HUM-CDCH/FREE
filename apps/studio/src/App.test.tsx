@@ -12,6 +12,18 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 // The run action is "▶ Run extraction" until the document has an Extraction, then "↻ Re-run extraction".
 const RUN_EXTRACTION = /^(▶ Run|↻ Re-run) extraction$/
+/** The rail, whose views open from the chat's context lines and lead back to the chat. */
+const railScope = () => within(screen.getByRole('complementary', { name: 'Chat, schema and results' }))
+/** Opens a rail view as the researcher does: back to the chat, then its context line (History: its button). */
+function openRailView(view: 'Schema' | 'Results' | 'History') {
+  const rail = railScope()
+  const back = rail.queryByRole('button', { name: 'Back to chat' })
+  if (back) fireEvent.click(back)
+  fireEvent.click(view === 'History' ? rail.getByRole('button', { name: 'History' })
+    : rail.getByRole('button', { name: new RegExp(`^Open ${view.toLowerCase()}:`) }))
+}
+/** The rail view shown: its header's title. */
+const shownRailView = () => railScope().getAllByRole('heading', { level: 2 })[0]!.textContent
 
 HTMLElement.prototype.scrollIntoView = vi.fn()
 
@@ -409,16 +421,16 @@ describe('reopened Source Document workspace', () => {
     // Run is the screen's positive; Stop is red (decision 02).
     expect(screen.getByRole('button', { name: RUN_EXTRACTION }).className).toMatch(/(^|\s)bg-green(\s|$)/)
     // While Run can start, Results' empty state points at it.
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(screen.getByText('Press ▶ Run extraction above.')).toBeVisible()
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Results')
+    expect(screen.getByText('The chat offers Run extraction as its next step.')).toBeVisible()
+    openRailView('Schema')
     if (panel === 'collapsed') fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }))
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
-    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(shownRailView()).toBe('Results')
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
     expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
-    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(shownRailView()).toBe('Results')
     expect(screen.getByRole('button', { name: 'Collapse panel' })).toBeVisible()
     // An admitted Extraction is paused or stopped where it was run; Pause is not the screen's positive.
     expect(screen.getByRole('button', { name: '❚❚ Pause extraction' }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
@@ -465,7 +477,7 @@ describe('reopened Source Document workspace', () => {
       return
     }
     expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(shownRailView()).toBe('Results')
   })
 
   // Review now opens the Results tab even when the researcher collapsed the rail during the run: it opens the rail too.
@@ -494,7 +506,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await screen.findByRole('button', { name: '❚❚ Pause extraction' })
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(await screen.findByText('Elmbrooke')).toBeVisible()
     if (inspection === 'the rail collapses') fireEvent.click(screen.getByTitle('Collapse panel'))
     else if (inspection === 'Latest reviewed is inspected') {
@@ -533,7 +545,7 @@ describe('reopened Source Document workspace', () => {
     // The reviewed Extraction is routed; the latest keeps the run controls.
     render(<DocumentWorkspace {...reopened} persistedExtraction={reviewed} newestExtraction={latest} latestReviewedExtraction={reviewed} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
     // The latest can still continue: the run button stays its control, whatever is inspected.
     expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
@@ -668,10 +680,10 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     fireEvent.click(screen.getByTitle('Collapse panel'))
-    expect(screen.queryByRole('tab', { name: /^Results/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Results' })).not.toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Review now' }, { timeout: 4_000 }))
-    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(shownRailView()).toBe('Results')
     expect(screen.getByTitle('Collapse panel')).toBeVisible()
     expect(screen.getByTitle('Collapse panel')).toHaveFocus()
   })
@@ -757,7 +769,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
     expect(screen.queryByText(/Press Run extraction/)).not.toBeInTheDocument()
     // Results' empty state says why, in the same words, instead of pointing at a disabled Run.
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(screen.getByText('Choose Article or Catalog in the schema header')).toBeVisible()
     expect(screen.queryByText('Press ▶ Run extraction above.')).not.toBeInTheDocument()
   })
@@ -838,7 +850,7 @@ describe('reopened Source Document workspace', () => {
   it('conceals the previous Source Document while switched resources load', async () => {
     const mounted = await renderReopened()
     await waitFor(() => expect(getDocument).toHaveBeenCalledOnce())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(screen.getByText('Elmbrooke')).toBeVisible()
 
     const nextSourceRepresentationId =
@@ -890,7 +902,7 @@ describe('reopened Source Document workspace', () => {
   it('keeps the collapsed right rail narrow at mobile widths', async () => {
     await renderReopened()
     const rail = screen.getByRole('complementary', {
-      name: 'Evidence, schema and results',
+      name: 'Chat, schema and results',
     })
     const mobileDrawerWidth = 'max-[859px]:!w-[min(90vw,100%,32rem)]'
 
@@ -911,7 +923,7 @@ describe('reopened Source Document workspace', () => {
       finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }
     const routedValue = { extractionId: reopened.persistedExtraction!.extractionId, key: 'place' }
     const view = await renderReopened({ latestReviewedExtraction: reviewed, routedValue })
-    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(shownRailView()).toBe('Results')
     expect(await screen.findByRole('region', { name: 'Review place' })).toBeVisible()
     // History opens the reviewed Extraction, then the latest again, by their addresses.
     for (const persistedExtraction of [reviewed, reopened.persistedExtraction!]) {
@@ -944,7 +956,7 @@ describe('reopened Source Document workspace', () => {
     const ring = document.body.appendChild(document.createElement('span'))
     try {
       await renderReopened({ tabRingSlot: ring })
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      openRailView('Results')
       fireEvent.click(await screen.findByRole('button', { name: 'Review one by one' }))
       expect(screen.getByRole('heading', { name: 'Elmbrooke' })).toHaveFocus()
       // The ring's progress is reported from an effect after the values read.
@@ -1071,6 +1083,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Rename schema Places' }))
     fireEvent.change(screen.getByLabelText('Schema name for Places'), {
       target: { value: ' Historic places ' },
@@ -1144,7 +1157,7 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     const view = within(screen.getByRole('group', { name: 'Document view' }))
     fireEvent.click(view.getByRole('button', { name: 'Markdown' }))
     fireEvent.click(await screen.findByRole('button', { name: 'place: Harlow; parish: Elmbrooke' }))
@@ -1200,7 +1213,7 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
     const passage = await screen.findByRole('button', { name: /^place: Harlow; parish: / })
     fireEvent.click(passage)
@@ -1230,7 +1243,7 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
     const passage = await screen.findByRole('button', { name: /^site › place: Harlow, Edited; site: / })
     const place = () => screen.getByRole('button', { name: 'site › place: Harlow' })
@@ -1261,7 +1274,7 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
     // The passage's one mark, whose label lists the reviewed value last.
     const name = /place: Harlow/
@@ -1340,7 +1353,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Schema actions' }))
@@ -1398,7 +1411,7 @@ describe('reopened Source Document workspace', () => {
     )
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
@@ -1460,7 +1473,7 @@ describe('reopened Source Document workspace', () => {
     )
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
@@ -1533,7 +1546,7 @@ describe('reopened Source Document workspace', () => {
     )
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
@@ -1600,7 +1613,7 @@ describe('reopened Source Document workspace', () => {
     )
     const generated = render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
     expect(await screen.findByText(notice)).toBeInTheDocument()
@@ -1628,7 +1641,7 @@ describe('reopened Source Document workspace', () => {
     )
     const view = render(workspace(reopened.sourceRepresentationId))
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     expect(await screen.findByText(notice)).toBeInTheDocument()
 
     // Another Source Document of the project shares the schema, not the declaration.
@@ -1735,7 +1748,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
@@ -1834,7 +1847,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'locality' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -1858,8 +1871,8 @@ describe('reopened Source Document workspace', () => {
   it('hydrates the Extraction Schema and Extraction Result', async () => {
     await renderReopened()
 
-    // The Schema tab's badge is the field count derived from the reopened template.
-    expect(screen.getByRole('tab', { name: /^Schema\s*1$/ })).toBeInTheDocument()
+    // The chat's schema line counts the fields derived from the reopened template.
+    expect(screen.getByRole('button', { name: /^Open schema: 1 field\b/ })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: RUN_EXTRACTION }),
     ).toBeInTheDocument()
@@ -1913,7 +1926,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     const input = screen.getByPlaceholderText(
       'Describe a change to the schema…',
     )
@@ -1977,7 +1990,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2230,7 +2243,7 @@ describe('reopened Source Document workspace', () => {
     /** The one run (decision 03): the tab strip's, titled for the schema's strategy (decision 05). Results, opened,
      *  offers no run of its own. */
     function tabStripRun(strategy: 'ARTICLE' | 'CATALOG') {
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      openRailView('Results')
       expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
       const run = screen.getByRole('button', { name: RUN_EXTRACTION })
       expect(run).toHaveAttribute('title', expect.stringMatching(strategy === 'CATALOG'
@@ -2337,11 +2350,11 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(await screen.findByText('Elmbrooke')).toBeVisible()
       expect(screen.queryByRole('button', { name: 'Open latest' })).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('tab', { name: 'History' }))
+      openRailView('History')
       fireEvent.click(await screen.findByRole('button', { name: /^Open Extraction of / }))
       // The route stays on the reopened Extraction, so nothing navigates: History pins it again.
       expect(onOpenExtraction).toHaveBeenCalledExactlyOnceWith(oldId, undefined)
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      openRailView('Results')
       expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
     })
 
@@ -2408,6 +2421,8 @@ describe('reopened Source Document workspace', () => {
     async function renderWith(extractionSchema: DocumentWorkspaceProps['extractionSchema']) {
       render(<DocumentWorkspace {...reopened} extractionSchema={extractionSchema} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      // The schema header holds the scope: its view, opened from the chat.
+      openRailView('Schema')
     }
 
     it('shows the revision\'s scope, and a legacy revision with none waits for a choice that is saved before Run', async () => {
@@ -2423,7 +2438,7 @@ describe('reopened Source Document workspace', () => {
       const run = screen.getByRole('button', { name: RUN_EXTRACTION })
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      openRailView('Results')
       // The Results tab offers no run of its own (decision 03).
       expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
 
@@ -2443,7 +2458,7 @@ describe('reopened Source Document workspace', () => {
       await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
-      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      openRailView('Schema')
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2458,7 +2473,7 @@ describe('reopened Source Document workspace', () => {
 
     /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
     function renamePlaceField() {
-      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      openRailView('Schema')
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2504,9 +2519,9 @@ describe('reopened Source Document workspace', () => {
       const run = screen.getByRole('button', { name: RUN_EXTRACTION })
 
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
-      // One alert and one Retry, the toolbar's (reachable with the Schema tab hidden); the Schema panel's footer says it
+      // One alert and one Retry, the toolbar's (reachable with the Schema view hidden); the Schema panel's footer says it
       // as status text.
-      const schemaPanel = screen.getByRole('tabpanel', { name: /^Schema/ })
+      const schemaPanel = screen.getByRole('region', { name: 'Schema' })
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
       expect(schemaPanel).not.toContainElement(alert)
@@ -2600,7 +2615,7 @@ describe('reopened Source Document workspace', () => {
       // The scope is chosen in the schema header, which exists once there is a schema.
       expect(screen.queryByLabelText('Record scope')).not.toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      openRailView('Schema')
       fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
       await waitFor(() => expect(written).toHaveLength(1))
       expect(written[0]).not.toHaveProperty('recordScope')
@@ -2659,6 +2674,7 @@ describe('reopened Source Document workspace', () => {
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
+      openRailView('Schema')
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2675,7 +2691,7 @@ describe('reopened Source Document workspace', () => {
       expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
 
       // Uncertain (the gateway failed, and so does reading it): Reconnect reads the reserved identity.
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      openRailView('Results')
       expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
       fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
@@ -2720,7 +2736,7 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      openRailView('Results')
       expect(screen.getByText('Elmbrooke')).toBeVisible()
 
       fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
@@ -3039,7 +3055,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), {
       target: { value: 'location' },
@@ -3165,7 +3181,7 @@ describe('reopened Source Document workspace', () => {
     )
     // The record scope is the schema's own, and is locked while the run is active.
     expect(screen.getByLabelText('Record scope')).toBeDisabled()
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     // The durable reader owns the running Extraction's status in Results.
     expect(await screen.findByText('Elmbrooke')).toBeVisible()
     expect(screen.getByRole('button', { name: '❚❚ Pause extraction' })).toHaveTextContent(/^❚❚ Pause extraction$/)
@@ -3355,7 +3371,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeDisabled()
     expect(run).toHaveAttribute('title', earlierSourceRunTitle)
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     // Results keeps the Extraction's saved values beside its lifecycle.
     expect(await screen.findByText(shown, { exact: true })).toBeVisible()
     expect(resultsRunActions()).toEqual([])
@@ -3390,7 +3406,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeEnabled()
     expect(run).toHaveAttribute('title', expect.stringMatching(/^Extract one record from the whole document/))
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     // The tab strip's Run is the only run (decision 03).
     expect(resultsRunActions()).toEqual([])
     fireEvent.click(run)
@@ -3425,7 +3441,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeEnabled()
     // "Open latest reviewed" sits in the Results header.
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
     expect(resultsRunActions()).toEqual([])
 
@@ -3459,7 +3475,7 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} newestExtraction={reopened.persistedExtraction}
       persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} latestReviewedExtraction={finalizedA} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
     expect(screen.getByRole('button', { name: 'Open latest' })).toBeVisible()
     expect(requests).toContain(finalizedCut(finalizedA.extractionId))
@@ -3482,7 +3498,7 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} newestExtraction={{ ...reopened.persistedExtraction!, executionStatus: 'COMPLETED' }}
       persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} latestReviewedExtraction={finalizedA} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
@@ -3506,10 +3522,10 @@ describe('updated latest reviewed extraction', () => {
     }))
     render(<DocumentWorkspace {...reopened} sourceDocumentId={sourceDocumentId} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     fireEvent.click(await screen.findByRole('button', { name: /To check place/ }))
     fireEvent.click(screen.getByRole('button', { name: 'History of this value' }))
-    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
+    expect(shownRailView()).toBe('History')
     const readings = await screen.findByRole('list', { name: 'Readings of place' })
     expect(readings).toHaveTextContent('Elmbrooke')
     expect(within(readings).getByText('Shown')).toBeVisible()
@@ -3523,7 +3539,7 @@ describe('updated latest reviewed extraction', () => {
     const latest = { ...reopened.persistedExtraction!, finalizedReview: finalizedA.finalizedReview }
     render(<DocumentWorkspace {...reopened} persistedExtraction={latest} latestReviewedExtraction={latest} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(await screen.findByText('Elmbrooke')).toBeVisible()
     expect(screen.queryByText(/Showing saved results/)).not.toBeInTheDocument()
     expect(requests.some((url) => url.includes('feedbackVersion='))).toBe(false)
@@ -3535,7 +3551,7 @@ describe('updated latest reviewed extraction', () => {
     const elsewhere = { ...finalizedA, sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000077' }
     render(<DocumentWorkspace {...reopened} latestReviewedExtraction={elsewhere} onOpenExtraction={onOpenExtraction} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     fireEvent.click(await screen.findByRole('button', { name: 'Open latest reviewed' }))
     expect(onOpenExtraction).toHaveBeenCalledWith(elsewhere.extractionId, { snapshotVersion: 1, feedbackVersion: 2 })
   })
@@ -3544,7 +3560,7 @@ describe('updated latest reviewed extraction', () => {
     const requests = stubLatestReviewed()
     render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    openRailView('Results')
     expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
     expect(requests).toContain(finalizedCut(finalizedA.extractionId))
   })

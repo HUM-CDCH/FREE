@@ -5,7 +5,7 @@ import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nextStep, type GuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
-import { ChatLabel, ChatTranscript } from './SchemaChatParts'
+import { ChatTranscript } from './SchemaChatParts'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { SchemaInstructionsChat } from './SchemaInstructions'
@@ -25,16 +25,20 @@ export type RailChatProps = {
   latest: GuideInput['latest']
   /** A read-only inspection: the chat offers no step. */
   readOnly?: boolean
-  /** Results is the rail's open tab. */
+  /** Results is the rail's open view. */
   resultsShown?: boolean
-  onShowTab: (tab: 'schema' | 'results') => void
+  onShowView: (view: 'chat' | 'schema' | 'results') => void
+  /** `full`: the rail's home, the whole conversation filling it. `step`: under another view, the next step and the
+   *  composer; sending, or the conversation's dot, returns to the home to show the reply. */
+  mode?: 'full' | 'step'
 }
 
 /**
- * The workspace's chat, docked under every rail tab: the schema chat's conversation (instructions and answers before
- * the first schema, edit requests and proposals after) and, always in view, the next step with its numbered options.
+ * The workspace's chat, the rail's home: the schema chat's conversation (instructions and answers before the first
+ * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
+ * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, latest, readOnly = false, resultsShown = false, onShowTab }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -77,19 +81,19 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),
       apply: chat.apply,
-      'review-schema': () => onShowTab('schema'),
+      'review-schema': () => onShowView('schema'),
       discard: chat.discard,
       'scope:records': () => recordScope?.onChange('records'),
       'scope:document': () => recordScope?.onChange('document'),
       run: () => run?.start(),
-      review: () => onShowTab('results'),
+      review: () => onShowView('results'),
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
   }
 
-  // Before the first schema the conversation is the way in, so it shows unless the researcher collapsed it.
-  const open = chat.drawerOpen ?? (recovery.running.length > 0 || preSchema)
+  // The home always shows the conversation; elsewhere the step stands in for it.
+  const open = mode === 'full'
   const bodyRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const element = bodyRef.current
@@ -97,6 +101,10 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   }, [chat.messages.length, instructions.items.length, chat.asking, pending, open])
   const dot = open ? null : recovery.running.length > 0 ? { title: 'An earlier request is still running' }
     : chat.messages.length > 0 || instructions.items.length > 0 || pending ? { title: 'Show conversation' } : null
+  // A message sent from another view is answered in the conversation: the home shows it.
+  const reveal = () => { if (mode === 'step') onShowView('chat') }
+  const ask = () => { reveal(); void chat.ask() }
+  const send = () => { reveal(); void chat.send(chat.input) }
 
   const card = step && <StepCardView card={step} scopeDisabled={!!recordScope?.disabled} onChoose={(option) => choose(step, option)} />
   const blocked = !!pending || chat.loading
@@ -107,22 +115,22 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       <textarea className={composerClass} rows={3}
         placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
         onChange={(event) => instructions.setDraft(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void chat.ask() } }} />
+        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} />
       <button type="button" aria-label="Send message" className={sendClass}
-        disabled={!instructions.draft.trim() || chat.asking !== null} onClick={() => void chat.ask()}>↑</button>
+        disabled={!instructions.draft.trim() || chat.asking !== null} onClick={ask}>↑</button>
     </>
   ) : (
     <>
       <textarea className={composerClass} rows={3}
         placeholder={editable ? 'Describe a change to the schema…' : 'The chat continues once the schema is ready.'} value={chat.input} disabled={!editable || blocked}
         onChange={(event) => chat.setInput(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void chat.send(chat.input) } }} />
+        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
         <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
           onClick={chat.cancel} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
       ) : (
         <button type="button" className={sendClass}
-          aria-label="Send" disabled={!editable || !chat.input.trim() || blocked} onClick={() => void chat.send(chat.input)}>↑</button>
+          aria-label="Send" disabled={!editable || !chat.input.trim() || blocked} onClick={send}>↑</button>
       )}
     </>
   )
@@ -135,9 +143,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   ) : undefined
 
   return (
-    <ChatDrawer open={open} onCollapse={() => chat.setDrawerOpen(false)} onExpand={() => chat.setDrawerOpen(true)}
-      title="Conversation" label={<>{card}<ChatLabel optional={preSchema} /></>} dot={dot} bodyRef={bodyRef}
-      bar={card ?? undefined} composer={composer}>
+    <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
+      title="Conversation" label={card} dot={dot} bodyRef={bodyRef} bar={card ?? undefined} composer={composer}>
       <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
     </ChatDrawer>
   )

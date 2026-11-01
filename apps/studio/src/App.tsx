@@ -12,7 +12,7 @@ import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import DocumentHistory from './DocumentHistory'
 import ValueHistory from './ValueHistory'
-import type { RailTab } from './RightRail'
+import type { RailView } from './RightRail'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { deleteModelOperation, requestSchema } from './api'
@@ -295,7 +295,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
-  const [railTab, setRailTab] = useState<RailTab>(() => routedValue ? 'results' : 'schema')
+  const [railView, setRailView] = useState<RailView>(() => routedValue ? 'results' : 'chat')
   // The History tab follows one value when set, until "Whole document"; it belongs to the document it was opened on.
   const [valueScope, setValueScope] = useState<{ sourceDocumentId: string; extractionId: string; valueId: string; name: string } | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
@@ -669,7 +669,7 @@ export function DocumentWorkspace({
     showToast(
       reviewingLatest ? 'Extraction complete — saved values are ready to review.'
         : isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
-      reviewNow && !reviewingLatest ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setSelectedInspectionId(null); setRailOpen(true); setRailTab('results') } } } : undefined,
+      reviewNow && !reviewingLatest ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setSelectedInspectionId(null); setRailOpen(true); setRailView('results') } } } : undefined,
     )
   }
   // The newest Extraction on the shown Source Representation keeps the run controls.
@@ -760,8 +760,8 @@ export function DocumentWorkspace({
     if (state) acceptDurableStatus(latestReader.extractionId, state.status)
   }), [latestReader, acceptDurableStatus])
   useEffect(() => {
-    railOnResultsRef.current = railOpen && railTab === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
-  }, [railOpen, railTab, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
+    railOnResultsRef.current = railOpen && railView === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
+  }, [railOpen, railView, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
   // A routed cut (a finalized review) applies to the routed Extraction only. Ordinary inspection opens the live cut.
   const inspectionCut: SavedReviewCut | null = inspectedAttempt?.extractionId === persistedExtraction?.extractionId ? persistedReviewCut : null
   // The document's latest is another Extraction: the latest here, or the newest on a later Source Representation.
@@ -806,7 +806,7 @@ export function DocumentWorkspace({
         : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
       if (!key) return
       setRailOpen(true)
-      setRailTab('results')
+      setRailView('results')
       selection.select(key, false, publishedMarks.extractionId, keys)
     },
   } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
@@ -816,7 +816,7 @@ export function DocumentWorkspace({
     parsedDocument:inspectionDocument,
     attempt: inspectedAttempt,
     marks,
-    active: effectiveRailOpen && railTab === 'results',
+    active: effectiveRailOpen && railView === 'results',
     railOpen: effectiveRailOpen,
     dimLink: marks ? publishedDim : null,
   })
@@ -839,7 +839,7 @@ export function DocumentWorkspace({
     admissionOrigin.current=routeExtractionId
     setSavingForRun(true)
     setRailOpen(true)
-    setRailTab('results')
+    setRailView('results')
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
@@ -1207,13 +1207,13 @@ export function DocumentWorkspace({
                 ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
                 : ''
             }`}
-            aria-label="Evidence, schema and results"
+            aria-label="Chat, schema and results"
           >
             <RightRail
               open={effectiveRailOpen}
               onToggle={() => setRailOpen((open) => !open)}
-              tab={railTab}
-              onTabChange={setRailTab}
+              view={railView}
+              onViewChange={setRailView}
               schema={schema}
               onGenerateInstructions={handleGenerate}
               onClearDraft={resetSchema}
@@ -1229,7 +1229,7 @@ export function DocumentWorkspace({
               onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
               onValueHistory={sourceDocumentId ? (extractionId, valueId, name) => {
                 setValueScope({ sourceDocumentId, extractionId, valueId, name })
-                setRailTab('history')
+                setRailView('history')
               } : undefined}
               documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
                 ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
