@@ -56,7 +56,7 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 10  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 11  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
@@ -66,6 +66,9 @@ VERSION = 10  # 2: a record the last window says continues ends at the source en
 # before it continues that record anywhere
 # 9 (defaults 7): clarify record starts and retain all preceding record-free context, selected within counted budgets.
 # 10 (defaults 7): bounded split recovery for unplaceable boundaries, retaining superseded replies' calls and issues.
+# 11 (defaults 8): a record start found nowhere in its named line is placed where it occurs once nearby (`_nearby`);
+# one more reading carves records printed inside the discovered records out of them (`children`); its failed
+# windows count as failed discovery processing.
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -108,6 +111,23 @@ HEADING_DISCOVERY = (
     "layout kind (heading or table row); a kind is a hint, never text of the line. CONTEXT lines are shown for "
     "orientation "
     "only: never report a place in them. Return only the JSON object, on one line, without indentation.")
+
+
+# Defaults 8: one more reading over the discovered records finds records printed inside them (`children`).
+CHILDREN = (
+    "You list the records printed inside other records of a source document. A record is: {description}\n"
+    "Each RECORD section lists the source lines of one record already found, each after a label such as [L1]. Inside "
+    "a RECORD, other entities may be separately identified, each with its own printed number or name: in a table "
+    "row, a list item or lines of their own. List, in source order, every such entity that itself meets the record "
+    "definition, as a list: the label of its first line, the label of its last line, and its printed number or name, "
+    "else null. Its lines are its own description and continuation lines only, never later statements about the "
+    "enclosing record. A table header, a caption, a property or measurement of the enclosing record, a citation or a "
+    "mention of a record described elsewhere is not one, and the enclosing record's own first line never is. Never "
+    "list one line twice. A line's label may name its layout kind (heading or table row); a kind is a hint, never "
+    "text of the line. Return only the JSON object, on one line, without indentation.")
+# Measured on one excavation report's 7 graves (the discovery model of 1 November 2026, temperature 0): asked for "child
+# records" with an explicit empty answer, the model listed none of its 74 numbered finds; asked to list the
+# separately identified entities inside each record, all 74.
 
 
 @dataclass(frozen=True)
@@ -295,9 +315,26 @@ def occurrences(haystack: str, needle: str) -> list[tuple[int, int]]:
     return found
 
 
+def _nearby(window: Window, texts: dict[str, str], index: int, text: str) -> tuple[int, int, str] | None:
+    """Where a copied record start found nowhere in its named line lies, when the window's primary text holds exactly
+    one such place: in a neighbouring line (its label off by one), or running from the named line onto the next line
+    of the same segment. The primary index, the start offset in that line and the text its printed label is sought in.
+    """
+    units = window.primary
+    lines = [texts[unit.segment][unit.start:unit.end] for unit in units]
+    hits = {(other, start): lines[other][start:] for other in (index - 1, index + 1) if 0 <= other < len(lines)
+            for start, _ in occurrences(lines[other], text)}
+    if index + 1 < len(lines) and units[index].segment == units[index + 1].segment and \
+            not texts[units[index].segment][units[index].end:units[index + 1].start].strip(WHITE_SPACE):
+        joined, seam = f"{lines[index]} {lines[index + 1]}", len(lines[index])
+        hits |= {(index, start): joined[start:] for start, end in occurrences(joined, text) if start < seam < end}
+    return (*next(iter(hits)), next(iter(hits.values()))) if len(hits) == 1 else None
+
+
 def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[str],
-             issues: list[Issue]) -> _Seen | None:
-    """The window's places located in its own lines, or None when the reply is not the requested shape."""
+             issues: list[Issue], *, nearby: bool = False) -> _Seen | None:
+    """The window's places located in its own lines, or None when the reply is not the requested shape. With
+    `nearby` (defaults 8), a start found nowhere in its named line is placed where `_nearby` finds it once."""
     places, begins, ends = (answer.get(key) for key in ("places", "begins_inside_record", "ends_inside_record"))
     if not isinstance(places, list) or begins not in (True, False, None) or ends not in (True, False, None):
         return None
@@ -312,6 +349,12 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
         unit = window.primary[index]
         line = texts[unit.segment][unit.start:unit.end]
         starts = [0] if not isinstance(text, str) or not text.strip() else [a for a, _ in occurrences(line, text)]
+        if nearby and kind == "record" and not starts and (moved := _nearby(window, texts, index, text)) is not None:
+            issues.append(Issue("boundary_relocated", f"a record start {text!r} named {line_label} was found once "
+                                f"nearby, in {window.primary[moved[0]].segment} at {window.primary[moved[0]].start + moved[1]}"))
+            index, start, rest = moved
+            unit = window.primary[index]
+            line, starts = " " * start + rest, [start]  # the label is sought from the start on, across the join
         if len(starts) != 1:
             issues.append(Issue("boundary_unplaced", f"a {kind} start {text!r} occurs {len(starts)} times in "
                                 f"{unit.segment} [{unit.start}:{unit.end}]"))
@@ -350,7 +393,8 @@ def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> li
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
              progress: Callable[[list[dict], list[dict]], None] | None = None, frontier: bool = False,
-             unanswered: tuple[type[BaseException], ...] = (), heading_context: bool = False) -> dict | None:
+             unanswered: tuple[type[BaseException], ...] = (), heading_context: bool = False,
+             nearby: bool = False) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
@@ -400,7 +444,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         calls: list = []
         issues: list[Issue] = []
         answer = ask(None, system, user, _reply(labels), calls, issues)
-        observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
+        observed = _observe(answer, window, texts, labels, issues, nearby=nearby) if answer is not None else None
         if heading_context and observed is not None and len(window.primary) > 1 and depth < splits and \
                 any(kind == "unresolved" for _, _, kind, _ in observed.places):
             return None, calls, issues  # the halves replace this reading, including its provisional progress
@@ -485,6 +529,121 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
             "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
                        *(issue for _, _, issues in readings for issue in issues)],
             "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if frontier else {})
+
+
+def _children_reply(labels: list[str]) -> dict:
+    child = {"type": "array", "prefixItems": [{"type": "string", "enum": labels}, {"type": "string", "enum": labels},
+                                              {"type": ["string", "null"]}], "items": False, "minItems": 3, "maxItems": 3}
+    return {"type": "object", "properties": {"children": {"type": "array", "items": child}}, "required": ["children"],
+            "additionalProperties": False}
+
+
+def children(body: dict, evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
+             ask: Callable[..., dict | None], *,
+             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
+    """Defaults 8: the completed discovery body with the records printed inside its records (a numbered find in a
+    grave's list) carved out of them. Counted windows over the entries' own lines ask which whole lines describe a
+    child record; a child owns those lines, the enclosing entry keeps the rest (several ranges) and is each child's
+    `context`, and the child names it as `parent`. A child that leaves its line range's entry, takes that entry's
+    first line or overlaps an earlier child is dropped with an issue. Entries are returned in source order. Before
+    each call, `progress` is given the discovered record starts and the lines the window labels, as in `discover`."""
+    texts = {passage.id: passage.text for passage in evidence.passages}
+    kinds = kinds_of(evidence.passages)
+    system = CHILDREN.format(description=description)
+    entries = body["entries"]
+    ids = {entry["id"] for entry in entries}
+    owned = [(Unit(each["segment"], each["start"], each["end"]), number)
+             for number, entry in enumerate(entries) for each in entry["ranges"]]
+
+    def owner(unit: Unit) -> int:  # a planned piece may be part of a range too long for one window
+        return next(number for each, number in owned if each.segment == unit.segment
+                    and each.start <= unit.start and unit.end <= each.end)
+
+    def render(window: Window) -> tuple[str, list[str]]:
+        labels, shown, current = [], [], None
+        for number, unit in enumerate(window.primary, 1):
+            if owner(unit) != current:
+                current = owner(unit)
+                label = entries[current]["label"]
+                shown.append(f"### RECORD {current + 1}" + (f" (printed label {label})" if label else ""))
+            labels.append(f"L{number}")
+            kind = f" {kinds[unit.segment]}" if unit.segment in kinds else ""
+            shown.append(f"[L{number}{kind}] {texts[unit.segment][unit.start:unit.end]}")
+        return "\n".join(shown) + "\n\nReturn the JSON object now.", labels
+
+    def fits(window: Window) -> bool:
+        user, labels = render(window)
+        return fits_budget(system, user, _children_reply(labels))
+    windows = plan([unit for unit, _ in owned], texts, fits, overlap=0) if owned else []
+    calls, issues, found, failed = [], [], [], 0
+    if windows is None:  # a line that fit a discovery request beside its longer instructions fits this one
+        issues.append(Issue("children_window_failed", "a record line fits no children request"))
+        windows, failed = [], 1
+    starts = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"]} for entry in entries]
+    for window in windows:
+        user, labels = render(window)
+        if progress is not None:
+            progress(starts, ranges_json(window.primary))
+        answer = ask(None, system, user, _children_reply(labels), calls, issues)
+        rows = answer.get("children") if isinstance(answer, dict) else None
+        if not isinstance(rows, list):
+            issues.append(Issue("children_window_failed", f"no valid children reply for {_where(window)}"))
+            failed += 1
+            continue
+        for row in rows:
+            first, last = (labels.index(row[0]), labels.index(row[1])) if isinstance(row, list) and len(row) == 3 \
+                and row[0] in labels and row[1] in labels else (None, None)
+            lines = window.primary[first:last + 1] if first is not None and first <= last else ()
+            parents = {owner(unit) for unit in lines}
+            parent = parents.pop() if len(parents) == 1 else None
+            first_line = entries[parent]["ranges"][0] if parent is not None else None
+            if parent is None or (lines[0].segment, lines[0].start) == (first_line["segment"], first_line["start"]) \
+                    or f"{lines[0].segment}@{lines[0].start}" in ids or \
+                    any(set(lines) & set(other) for _, other, _ in found):
+                issues.append(Issue("child_dropped", f"child {row!r} is not whole lines of one record after its "
+                                    "first line, apart from other children"))
+                continue
+            label = row[2] if isinstance(row[2], str) and row[2].strip() and any(
+                occurrences(texts[unit.segment][unit.start:unit.end], row[2]) for unit in lines) else None
+            found.append((parent, lines, label))
+    return {**_carved(body, found, evidence), "calls": [*body["calls"], *calls],
+            "issues": [*body["issues"], *issues], "children": {"windows": len(windows), "failed": failed}}
+
+
+def _carved(body: dict, found: list[tuple[int, tuple[Unit, ...], str | None]], evidence: Evidence) -> dict:
+    """The body with each found child's lines cut from its parent entry's ranges and ledger rows into its own entry."""
+    entries = [dict(entry) for entry in body["entries"]]
+    taken: dict[Unit, str] = {}
+    for parent, lines, label in found:
+        child = {"id": f"{lines[0].segment}@{lines[0].start}", "label": label, "ranges": ranges_json(lines),
+                 "context": [], "end": "validated", "parent": entries[parent]["id"]}
+        entries.append(child)
+        taken |= dict.fromkeys(lines, child["id"])
+    texts = {passage.id: passage.text for passage in evidence.passages}
+
+    def pieces(row: dict) -> list[tuple[Unit, str | None]]:  # a child line may be a planned piece of a longer range
+        cuts = sorted((unit.start, unit.end, child) for unit, child in taken.items() if unit.segment == row["segment"]
+                      and row["start"] <= unit.start and unit.end <= row["end"])
+        at, cut = row["start"], []
+        for start, end, child in [*cuts, (row["end"], row["end"], None)]:
+            cut += [(unit, None) for unit in trimmed(row["segment"], texts[row["segment"]], at, start)]
+            cut += [(Unit(row["segment"], start, end), child)] if child else []
+            at = end
+        return cut
+    for entry in entries:
+        if "parent" not in entry:
+            entry["ranges"] = ranges_json([unit for each in entry["ranges"] for unit, child in pieces(each) if not child])
+    by_id = {entry["id"]: entry for entry in entries}
+    for entry in entries:
+        if "parent" in entry:
+            entry["context"] = list(by_id[entry["parent"]]["ranges"])
+    ledger = [{**row, "start": unit.start, "end": unit.end} | ({"entry": child} if child else {})
+              for row in body["ledger"]
+              for unit, child in (pieces(row) if row["disposition"] == "entry" else [(Unit(row["segment"], row["start"], row["end"]), None)])]
+    rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
+    entries.sort(key=lambda entry: (rank[entry["ranges"][0]["segment"]], entry["ranges"][0]["start"])
+                 if entry["ranges"] else (len(rank), 0))
+    return {**body, "entries": [entry for entry in entries if entry["ranges"]], "ledger": ledger}
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:

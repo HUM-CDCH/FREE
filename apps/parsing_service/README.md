@@ -270,6 +270,19 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   require the entry's own text. Without verification, eligible literals are linked
   `lexical`; `verification: true` checks applicability and supersession against the
   same shown context, without re-extracting values.
+  Defaults 8 is defaults 6 with two discovery readings for prose reports. A copied
+  record start found nowhere in its named line is placed where it occurs exactly once
+  in a neighbouring line or across the named line's break (`boundary_relocated`).
+  Once discovery is complete, one more counted reading per window of the entries' own
+  lines lists the records printed inside them (a numbered find in a grave's list):
+  each becomes its own entry owning its whole lines, names its enclosing entry as
+  `parent` and is read with that entry's remaining text as context, from which a scalar
+  stated for the enclosing record as a whole may be taken. The ledger stays disjoint;
+  a child that is not whole lines of one entry after its first line is dropped
+  (`child_dropped`); a failed children reply leaves the parents whole and processing
+  incomplete. Entries are read only after the whole discovery, so a durable run shows
+  no records before it. Known limit: a rerun masks retained records' text, so a child
+  reread after its parent was retained loses that parent as context.
   Studio still admits defaults 6 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces

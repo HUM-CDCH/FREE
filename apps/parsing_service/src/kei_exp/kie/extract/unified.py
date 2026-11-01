@@ -66,12 +66,14 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 9  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 10  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6 (defaults 5): verification may correct a scalar, with its complete source quote.
 # 7 (defaults 6): the entry call shows the requested value structure and asks for complete values.
 # 8: every defaults version shows the full reply schema, included in token counts; replaces the unwrapped structure.
 # 9 (defaults 7): ordered heading excerpts, counted selection and literal scalar inheritance.
+# 10 (defaults 8): a child record's entry and verification calls read it beside its enclosing record's text
+# (`CHILD`, `VERIFY_CHILD`).
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -147,14 +149,17 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True},
             7: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "heading_context": True, "candidates": discovery.CANDIDATES}}
+                "heading_context": True, "candidates": discovery.CANDIDATES},
+            8: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
+                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
+                "nearby": True, "children": True}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6, 7]
+    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -262,13 +267,14 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
-               if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass", "heading_context")}
+               if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass", "heading_context",
+                           "nearby", "children")}
             | ({"candidates": options.setting("candidates")} if options.defaults >= 7 else {})
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": PROMPT_VERSION if options.defaults >= 7 else 8,
-            "discovery_version": discovery.VERSION if options.defaults >= 7 else 8,
+            "models": chat.models, "prompt_version": {7: 9}.get(options.defaults, PROMPT_VERSION if options.defaults >= 7 else 8),
+            "discovery_version": {7: 10}.get(options.defaults, discovery.VERSION if options.defaults >= 7 else 8),
             **({"entry_version": ENTRY_VERSION} if options.defaults >= 7 else {}),
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -359,11 +365,21 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                                   splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
                                   progress=partial(discovering, chat), frontier=pipelined,
                                   unanswered=(NeedsCall,) if durable else (),
-                                  heading_context=effective.get("heading_context", False))
+                                  heading_context=effective.get("heading_context", False),
+                                  nearby=effective.get("nearby", False))
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
+        if effective.get("children") and body.get("complete", True):
+            try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
+                body = discovery.children(body, evidence, schema.record_description,
+                                          partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat))
+            except NeedsCall:
+                if stopped:  # a pause or stop, not a call still to make
+                    raise stopped[0] from None
+                raise
         return {"version": execution["discovery_version"], "execution_sha256": execution_sha256, "entries": body["entries"],
                 "ledger": body["ledger"], "windows": body["windows"],
+                **({"children": body["children"]} if "children" in body else {}),
                 "issues": [_issue_json(issue) for issue in body["issues"]],
                 "calls": [_call_json(call) for call in body["calls"]]}, body.get("complete", True)
     found, complete = discover()
@@ -432,6 +448,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         if raised:
             raise raised[min(raised)]
         return works
+    if not complete and effective.get("children"):
+        raise stopped[0] if stopped else NeedsCall()  # children carved later change the prefix entries' ranges
     if not complete:
         # Each entry of the windows read so far is final, so its number is: it is read and listed now.
         try:
@@ -749,6 +767,14 @@ VERIFY_HEADING = ("You check values extracted from one record of a source docume
           "or superseded value or one belonging to another record, and \"unclear\" when applicability is uncertain. "
           "List items and their values require the record text. Judge only from the text shown. "
           "Return only the JSON object.")
+VERIFY_CHILD = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
+                "The RECORD is printed inside another record, whose own text is shown as CONTEXT. For each candidate "
+                "answer \"supported\" when the RECORD states that value for that field of this record, or, for a "
+                "scalar field outside lists, when CONTEXT states it for the enclosing record as a whole or for a group "
+                "of records containing this one and the RECORD does not contradict it. Answer \"unsupported\" for a "
+                "contradicted or unrelated value or one belonging to another record, and \"unclear\" when "
+                "applicability is uncertain. List items and their values require the RECORD text. Judge only from the "
+                "text shown. Return only the JSON object.")
 VERIFY_COMPLETE = (
     "You check values extracted from one source record. A record is: {description}\n{notes}"
     "For each scalar field, read the source afresh and return the final complete value and an exact quote "
@@ -756,6 +782,19 @@ VERIFY_COMPLETE = (
     "and exclude other fields. Do not summarize or invent. Return null if the record supplies no value. "
     "For list-item fields, return supported, unsupported, or unclear without changing the item identity. "
     "Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
+# Defaults 8: a record printed inside another one, read beside its enclosing record's text.
+CHILD = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
+         "The RECORD is printed inside another record, whose own text (before and after it in the source) is shown as "
+         "CONTEXT. Answer every field with null when the shown source does not support it, or with an object: "
+         "\"value\" (typed as the field) and \"quote\" (the exact source text that states or supports the value, "
+         "copied character for character). For each object in a list also give \"_item_text\": the exact text of the "
+         "record where that item appears, or null. Read values from the RECORD text; EARLIER and LATER text belongs to "
+         "the same record and is shown so that a value crossing the cut is whole. For a scalar field outside lists, "
+         "CONTEXT may supply the value only when it states it for the enclosing record as a whole or for a group that "
+         "contains this record (such as where it lies or how it is dated); quote that statement. A value CONTEXT gives "
+         "for another record, or a property of the enclosing record that does not hold for what it contains, is not "
+         "this record's, and the RECORD's own statement wins over a conflicting one. List items and all their values "
+         "must come from the RECORD. Never invent a value. Return only the JSON object.")
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
@@ -795,9 +834,15 @@ def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str,
 
 
 def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable], *,
-          heading_context: bool = False) -> str:
+          heading_context: bool = False, parent: bool = False) -> str:
     def source(units):
         return _source_text(units, texts, tables)
+    if parent:
+        return "\n\n".join(([f"### CONTEXT (the enclosing record's own text, in source order)\n{source(window.heading)}"]
+                             if window.heading else []) +
+                            ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) +
+                            [f"### {marker}\n{source(window.primary)}\n### END {marker}"] +
+                            ([f"### LATER TEXT\n{source(window.after)}"] if window.after else []))
     if heading_context:
         heading = [f"#### CONTEXT {index}/{len(window.heading)} "
                    f"({'latest' if index == len(window.heading) else 'earlier'} shown; source {unit.segment})\n"
@@ -857,15 +902,19 @@ class _Run:
         self.nodes = schema.record_nodes
 
     def _read(self, stage: str, number: int | None, units: list[Unit], system: str, schema: dict, marker: str,
-              heading: tuple[Unit, ...], out: _Work) -> list[tuple[Window, dict | None]]:
-        """Every window's reply in source order; a failed window is halved up to the versioned number of times."""
+              heading: tuple[Unit, ...], out: _Work, *, parent: bool = False) -> list[tuple[Window, dict | None]]:
+        """Every window's reply in source order; a failed window is halved up to the versioned number of times.
+        With `parent` (a child record, defaults 8) `heading` is its enclosing record's text, selected as headings are."""
+        selected = self.effective.get("heading_context", False) or parent
+
         def fits(window: Window) -> bool:
             user = _user(window, self.texts, marker, self.tables,
-                         heading_context=self.effective.get("heading_context", False)) + "\n\nReturn the JSON object now."
+                         heading_context=self.effective.get("heading_context", False), parent=parent) + \
+                "\n\nReturn the JSON object now."
             return self.budget.fits(stage, system, user, schema)
         windows = plan(units, self.texts, fits, overlap=self.effective["overlap"], heading=heading,
                        candidates=self.effective.get("candidates", discovery.CANDIDATES),
-                       heading_context=self.effective.get("heading_context", False))
+                       heading_context=selected)
         if windows is None:
             raise BudgetRefused(f"not even one character of source fits a {stage} request beside its instructions")
         replies = []
@@ -873,12 +922,13 @@ class _Run:
         while queue:
             window, depth = queue.pop(0)
             user = _user(window, self.texts, marker, self.tables,
-                         heading_context=self.effective.get("heading_context", False)) + "\n\nReturn the JSON object now."
+                         heading_context=self.effective.get("heading_context", False), parent=parent) + \
+                "\n\nReturn the JSON object now."
             answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit, out.page)
             if answer is None and len(window.primary) > 1 and depth < self.effective["splits"]:
                 halves = split(window, self.texts, fits, overlap=self.effective["overlap"],
                                candidates=self.effective.get("candidates", discovery.CANDIDATES),
-                               heading_context=self.effective.get("heading_context", False))
+                               heading_context=selected)
                 queue[0:0] = [(half, depth + 1) for half in halves]
                 continue
             out.omitted += [{"stage": stage, "record": number, "kind": kind, **ranges_json([unit])[0]}
@@ -916,13 +966,17 @@ class _Run:
         units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["ranges"]]
         heading = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"]) \
             if self.effective["headings"] else ()
-        heading_context = self.effective.get("heading_context", False)
-        system = (ENTRY_HEADING if heading_context else ENTRY).format(
+        parent = entry.get("parent") is not None
+        if parent:  # a child record's context is its enclosing record's text, whatever the heading setting
+            heading = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"])
+        heading_context = self.effective.get("heading_context", False) or parent
+        system = (CHILD if parent else ENTRY_HEADING if heading_context else ENTRY).format(
             description=self.schema.record_description, notes=_notes(self.nodes))
         single = self.effective.get("single_pass", False)
         if single:
             system += SINGLE_PASS
-        replies = self._read("entry", number, units, system, candidates_schema(self.nodes), "RECORD", heading, out)
+        replies = self._read("entry", number, units, system, candidates_schema(self.nodes), "RECORD", heading, out,
+                             parent=parent)
         view = _view(units, self.texts)
         found: list[_Found] = []
         for index, (window, answer) in enumerate(replies):
@@ -940,7 +994,7 @@ class _Run:
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
-        self._verify(number, replies, out)
+        self._verify(number, replies, out, parent=parent)
         if heading_context:
             order = {segment: index for index, segment in enumerate(self.texts)}
             shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
@@ -982,7 +1036,8 @@ class _Run:
                         and all(superseded(span) for span in found.spans):
                     found.kind, found.reason = "proposed", "context_incomplete"
 
-    def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work) -> None:
+    def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
+                parent: bool = False) -> None:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
         for found in out.found:
             if found.kind != "candidate":
@@ -1004,7 +1059,8 @@ class _Run:
                     nodes[key] = node
         if self.effective.get("corrections") and self.effective["verification"]:
             scalars(self.nodes)
-        prompt = VERIFY_COMPLETE if nodes else VERIFY_HEADING if self.effective.get("heading_context") else VERIFY
+        prompt = VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
+            if self.effective.get("heading_context") else VERIFY
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
@@ -1015,7 +1071,8 @@ class _Run:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
                 user = _user(window, self.texts, "RECORD", self.tables,
-                             heading_context=self.effective.get("heading_context", False)) + "\n\n### CANDIDATES\n" + "\n".join(
+                             heading_context=self.effective.get("heading_context", False) or parent,
+                             parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
                     f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
                     ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
                      f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
@@ -1334,7 +1391,9 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         [call for work in (*entries, *([document] if document else [])) for call in work.calls]
     unresolved = [row for row in found["ledger"] if row["disposition"] == "unresolved"]
     processing = {
-        "discovery": {"windows": len(found["windows"]), "failed": sum(not window["ok"] for window in found["windows"])},
+        "discovery": {"windows": len(found["windows"]), "failed": sum(not window["ok"] for window in found["windows"])
+                      + found.get("children", {}).get("failed", 0),
+                      **({"children_windows": found["children"]["windows"]} if "children" in found else {})},
         "entries": {"entries": len(entries), "windows": sum(each.windows for each in entries),
                     "failed": sum(each.failed for each in entries)},
         "verification": {"enabled": execution["effective"]["verification"],

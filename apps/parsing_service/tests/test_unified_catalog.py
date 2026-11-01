@@ -64,14 +64,17 @@ def marks(text: str) -> list[tuple[int, str, str | None]]:
 class Model:
     """A careful scripted model; each stage's answer can be replaced by a test."""
 
-    def __init__(self, source: Evidence, *, discovery=None, entry=None, verdict=None, choice="C1", document=None):
+    def __init__(self, source: Evidence, *, discovery=None, entry=None, verdict=None, choice="C1", document=None,
+                 children=None):
         self.full = "\n".join(each.text for each in source.passages)
         self.discovery, self.entry_fields, self.verdict, self.choice = discovery, entry, verdict, choice
-        self.document_fields = document
+        self.document_fields, self.children = document, children
 
     def __call__(self, system: str, user: str, schema: dict):
         if system.startswith("You find where records begin"):
             return (self.discovery or self.discover)(user)
+        if system.startswith("You list the records printed inside"):
+            return (self.children or (lambda _: {"children": []}))(user)
         if system.startswith("You extract structured data from one record"):
             return (self.entry_fields or fields)(section(user, "RECORD"), user, schema)
         if system.startswith("You check values"):
@@ -486,14 +489,15 @@ def labelled(source: Evidence, result: dict) -> list[tuple[str | None, list[str]
     return [(entry["label"], [text(source, row) for row in entry["ranges"]]) for entry in result["entries"]]
 
 
-def one_window(lines: list[str], places: list[list], *, heading_context: bool = False) -> tuple[Evidence, dict]:
+def one_window(lines: list[str], places: list[list], *, heading_context: bool = False,
+               nearby: bool = False) -> tuple[Evidence, dict]:
     """Discovery over one page read as one window whose reply names `places`."""
     source = evidence("\n".join(lines))
 
     def ask(record, system, user, schema, calls, issues):
         return {"places": places, "begins_inside_record": False, "ends_inside_record": False}
     result = discovery.discover(source, "entry", lambda *_: True, ask, overlap=0, splits=0,
-                                heading_context=heading_context)
+                                heading_context=heading_context, nearby=nearby)
     assert len(result["windows"]) == 1 and all(entry["end"] == "validated" for entry in result["entries"])
     assert_accounted(source, {"discovery": result})
     return source, result
@@ -788,6 +792,107 @@ def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
     assert any(issue["code"] == "boundary_unplaced" for issue in result["issues"])
 
 
+@pytest.mark.parametrize("nearby", [False, True])
+def test_defaults_8_places_a_start_named_one_line_off_where_it_occurs_once_nearby(nearby):
+    source, result = one_window(["1. Alpha. Material: wood.", "2. Beta. Material: stone."],
+                                [["L1", "record", "1."], ["L1", "record", "2.", "2. Beta"]], nearby=nearby)
+    assert labelled(source, result) == ([("1.", ["1. Alpha. Material: wood."]), ("2.", ["2. Beta. Material: stone."])]
+                                        if nearby else [])
+    assert [issue.code for issue in result["issues"]] == ["boundary_relocated" if nearby else "boundary_unplaced"]
+
+
+def test_a_start_copied_across_a_line_break_begins_in_its_named_line():
+    source, result = one_window(["1. Alpha ends here. 2.", "Beta. Material: stone."],
+                                [["L1", "record", "1."], ["L1", "record", "2.", "2. Beta"]], nearby=True)
+    assert labelled(source, result) == [("1.", ["1. Alpha ends here."]), ("2.", ["2.", "Beta. Material: stone."])]
+
+
+@pytest.mark.parametrize("lines", [["2. Beta one.", "Plan 1.", "2. Beta two."],
+                                   ["2. Beta one.", "Plan 1. 2.", "Beta. Material: stone."]])
+def test_a_start_found_more_than_once_nearby_stays_unresolved(lines):
+    source, result = one_window(lines, [["L2", "record", "2.", "2. Beta"]], nearby=True)
+    assert labelled(source, result) == [] and ranges({"discovery": result}, "unresolved") == [
+        ("p1_s0", len(lines[0]) + 1, len("\n".join(lines)))]
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
+
+
+GRAVES = ["Grave 1. Inhumation.", "Finds:", "1. Bowl, red ware.", "2. Pin, bronze.", "Grave 2. Cremation."]
+
+
+def graves(user):
+    return {"places": [["L1", "record", "Grave 1"], ["L5", "record", "Grave 2"]], "begins_inside_record": False,
+            "ends_inside_record": False}
+
+
+def test_records_listed_inside_a_record_are_carved_out_and_name_it_as_their_parent():
+    source, body = one_window(GRAVES, [["L1", "record", "Grave 1"], ["L5", "record", "Grave 2"]])
+    asked = []
+
+    def ask(record, system, user, schema, calls, issues):
+        asked.append((system, user))
+        return {"children": [["L3", "L3", "1."], ["L4", "L4", "2"], ["L1", "L1", None], ["L4", "L5", None],
+                             ["L3", "L4", None]]}
+    result = discovery.children(body, source, "One grave or find.", lambda *_: True, ask)
+    assert "One grave or find." in asked[0][0] and len(asked) == 1
+    assert "### RECORD 1 (printed label Grave 1)\n[L1] Grave 1. Inhumation." in asked[0][1]
+    assert labelled(source, result) == [("Grave 1", ["Grave 1. Inhumation.", "Finds:"]), ("1.", ["1. Bowl, red ware."]),
+                                        ("2", ["2. Pin, bronze."]), ("Grave 2", ["Grave 2. Cremation."])]
+    grave, *found, _ = result["entries"]
+    assert all(each["parent"] == grave["id"] and each["context"] == grave["ranges"] for each in found)
+    assert [issue.code for issue in result["issues"]] == ["child_dropped"] * 3
+    assert_accounted(source, {"discovery": result})
+    assert {row["entry"] for row in result["ledger"]} == {entry["id"] for entry in result["entries"]}
+
+
+def test_a_child_cut_from_a_range_that_spans_several_lines_leaves_its_parent_the_rest():
+    source, body = one_window(GRAVES, [["L1", "record", "Grave 1"], ["L5", "record", "Grave 2"]])
+    whole = {**body, "entries": [{**entry, "ranges": [{"segment": "p1_s0", "start": entry["ranges"][0]["start"],
+                                                      "end": entry["ranges"][-1]["end"]}]} for entry in body["entries"]]}
+    child = discovery.Unit("p1_s0", *[(m.start(), m.end()) for m in re.finditer(r"1\. Bowl, red ware\.", source.passages[0].text)][0])
+    result = discovery._carved(whole, [(0, (child,), "1.")], source)
+    assert labelled(source, result) == [("Grave 1", ["Grave 1. Inhumation.\nFinds:", "2. Pin, bronze."]),
+                                        ("1.", ["1. Bowl, red ware."]), ("Grave 2", ["Grave 2. Cremation."])]
+    assert_accounted(source, {"discovery": result})
+
+
+def test_defaults_8_reads_a_child_record_beside_its_parents_text():
+    source = evidence("\n".join(GRAVES[:4]) + "\nMaterial: Holz.\n" + GRAVES[4])
+    model = Model(source, discovery=lambda user: {"places": [["L1", "record", "Grave 1"], ["L6", "record", "Grave 2"]],
+                                                  "begins_inside_record": False, "ends_inside_record": False},
+                  children=lambda user: {"children": [["L3", "L3", "1."], ["L4", "L4", "2."]]})
+    result, chat = extract(source, model, defaults=8)
+    assert (result["execution"]["discovery_version"], result["prompt_version"]) == (discovery.VERSION,
+                                                                                   unified.PROMPT_VERSION)
+    reads = [call for call in chat.calls if call["system"].startswith("You extract structured data from one record")]
+    child = [call for call in reads if "is printed inside another record" in call["system"]]
+    assert len(reads) == 4 and len(child) == 2
+    assert sorted(section(call["user"], "RECORD") for call in child) == ["1. Bowl, red ware.", "2. Pin, bronze."]
+    assert all("### CONTEXT" in call["user"] and "Grave 1. Inhumation.\nFinds:" in call["user"]
+               and "Material: Holz." in call["user"] for call in child)
+    assert [record["label"] for record in result["records"]] == [None, "1", "2", None]
+    assert [record["material"] for record in result["records"]] == ["Holz", None, None, None]
+    assert_accounted(source, result)
+
+
+def test_a_failed_children_reply_keeps_the_parents_and_leaves_processing_incomplete():
+    source = evidence("\n".join(GRAVES))
+    result, _ = extract(source, Model(source, discovery=graves, children=lambda user: {"rows": []}), defaults=8)
+    assert len(result["records"]) == 2 and result["discovery"]["children"] == {"windows": 1, "failed": 1}
+    assert not result["completeness"]["processing"]
+    assert "children_window_failed" in [issue["code"] for issue in result["issues"]]
+
+
+def test_verification_of_a_child_record_reads_its_parents_text_as_context():
+    source = evidence("\n".join(GRAVES))
+    model = Model(source, discovery=graves, children=lambda user: {"children": [["L3", "L3", "1."]]})
+    result, chat = extract(source, model, defaults=8, verification=True)
+    checks = [call for call in chat.calls if call["system"].startswith("You check values")]
+    child = [call for call in checks if "printed inside another record" in call["system"]]
+    assert len(child) == 1 and "### CONTEXT" in child[0]["user"] and "Grave 1. Inhumation.\nFinds:" in child[0]["user"]
+    assert section(child[0]["user"], "RECORD") == "1. Bowl, red ware."
+    assert len(result["records"]) == 3
+
+
 @pytest.mark.parametrize("frontier", [False, True], ids=["slices", "frontier"])
 def test_source_invalid_boundaries_retry_bounded_halves_without_publishing_the_superseded_parent(frontier):
     source = evidence("1. Alpha.\ncontinued Alpha.\n2. Beta.\ncontinued Beta.")
@@ -866,7 +971,7 @@ def test_source_valid_semantic_decisions_are_not_retried_as_invalid_anchors(fron
     assert_accounted(source, {"discovery": result})
 
 
-@pytest.mark.parametrize("defaults", range(1, 8))
+@pytest.mark.parametrize("defaults", range(1, 9))
 def test_only_defaults_7_retries_unplaceable_boundaries(defaults):
     source = evidence("1. Alpha. Material: wood.\n2. Beta. Material: stone.")
     model = Model(source)
@@ -882,8 +987,8 @@ def test_only_defaults_7_retries_unplaceable_boundaries(defaults):
     assert len(asked) == (3 if defaults == 7 else 1)
     assert [entry["label"] for entry in result["discovery"]["entries"]] == \
         (["1.", "2."] if defaults == 7 else ["2."])
-    assert result["execution"]["discovery_version"] == (10 if defaults == 7 else 8)
-    assert result["discovery"]["version"] == (10 if defaults == 7 else 8)
+    assert result["execution"]["discovery_version"] == {7: 10, 8: discovery.VERSION}.get(defaults, 8)
+    assert result["discovery"]["version"] == {7: 10, 8: discovery.VERSION}.get(defaults, 8)
     assert [issue["code"] for issue in result["issues"]].count("boundary_unplaced") == 1
     assert_accounted(source, result)
 
