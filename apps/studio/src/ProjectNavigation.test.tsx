@@ -43,7 +43,9 @@ vi.mock('./savedMethod', async (importOriginal) => ({
 vi.mock('./projectContexts/evaluationRounds', () => ({ readEvaluationRounds: async () => null }))
 const delayedAdmission=vi.hoisted(()=>({finish:null as null|(()=>void)}))
 
-vi.mock('./App', () => ({
+vi.mock('./App', async () => {
+  const { createPortal } = await import('react-dom')
+  return {
   default: ({
     pdfUrl,
     filename,
@@ -60,8 +62,11 @@ vi.mock('./App', () => ({
     onReviewFinalized,
     onExtractionAdmitted,
     routeExtractionId,
+    chatColumn,
+    projectName,
   }: DocumentWorkspaceProps) => (
     <>
+      {chatColumn && createPortal(<p>Project chat of {projectName}</p>, chatColumn)}
       <p>
         {/* DocumentWorkspace no longer reads annotationSet — the Annotation
             tab was retired in favor of SchemaPanel's own doc chat. Left in
@@ -105,7 +110,8 @@ vi.mock('./App', () => ({
       </button>
     </>
   ),
-}))
+  }
+})
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const sourceDocumentId = '51000000-0000-4000-8001-000000000001'
@@ -2508,6 +2514,15 @@ describe('routed Source Document reopening', () => {
     expect(
       screen.getByRole('button', { name: 'Beretning.pdf' }),
     ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('gives the workspace\'s chat a column of its own beside the document area, titled with the project', async () => {
+    history.replaceState(null, '', documentPath())
+    renderRoutes()
+
+    const chat = await screen.findByText(`Project chat of ${project.name}`)
+    expect(document.querySelector('[data-project-chat]')).toContainElement(chat)
+    expect(document.getElementById('main-content')).not.toContainElement(chat)
   })
 
   it('threads durable research state into the workspace', async () => {

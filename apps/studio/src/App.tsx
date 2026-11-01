@@ -161,6 +161,11 @@ export type DocumentWorkspaceProps = {
   tabBarSlot?: HTMLElement | null
   /** The active document tab's ring slot. */
   tabRingSlot?: HTMLElement | null
+  /** AppFrame's project chat column, beside the whole document area and its tabs, which the rail is portalled into so
+      it reads as the project's, not this document's. Undefined (a bare workspace) keeps the rail inline; null waits. */
+  chatColumn?: HTMLElement | null
+  /** The open project's name, which the chat is titled with. */
+  projectName?: string | null
   /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
       ahead (default 20 s; tests shorten it). */
   automaticRenameTimeoutMs?: number
@@ -207,6 +212,8 @@ export function DocumentWorkspace({
   onSourceSuperseded,
   tabBarSlot = null,
   tabRingSlot = null,
+  chatColumn,
+  projectName = null,
   automaticRenameTimeoutMs = 20_000,
   fromSchemaBuilder = false,
   onNavigate,
@@ -996,6 +1003,98 @@ export function DocumentWorkspace({
                     ? 'The latest Extraction can still continue: pause, resume or stop it in the chat.'
                     : null
   // The latest Extraction, while it can still continue, takes the run button's place: Pause while it runs, Resume or
+  const railColumn = (
+    <>
+    {effectiveRailOpen && (
+      <div
+        className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
+        title="Drag to resize"
+        onMouseDown={startResize}
+      />
+    )}
+    <aside
+      style={{ width: effectiveRailWidth }}
+      className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+        effectiveRailOpen
+          ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
+          : ''
+      }`}
+      aria-label="Chat, schema and results"
+    >
+      <RightRail
+        open={effectiveRailOpen}
+        onToggle={() => setRailOpen((open) => !open)}
+        view={railView}
+        onViewChange={setRailView}
+        schema={schema}
+        onGenerateInstructions={handleGenerate}
+        onClearDraft={resetSchema}
+        extraction={extraction}
+        inspection={{
+          attempt: inspectedAttempt,
+          cut: inspectionCut,
+          readOnly: inspectionReadOnly,
+          parsedDocument:inspectionDocument,
+          reader: inspectedId ? inspectedReader : latestReader,
+        }}
+        latestReader={latestReader}
+        onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
+        onValueHistory={sourceDocumentId ? (extractionId, valueId, name) => {
+          setValueScope({ sourceDocumentId, extractionId, valueId, name })
+          setRailView('history')
+        } : undefined}
+        documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
+          ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+            extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible} refreshKey={historyRefreshKey}
+            shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => {
+              setValueScope(null)
+              // Its control leaves with it: focus stays in the History panel.
+              requestAnimationFrame(() => document.getElementById('rail-panel-history')?.focus())
+            }} />
+          : <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+          visible={visible} refreshKey={historyRefreshKey}
+          shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
+          currentSchemaRevision={currentSchemaRevision} onOpen={openFromHistory} /> : undefined}
+        currentSchemaRevision={currentSchemaRevision}
+        runUnavailableReason={runUnavailableReason}
+        sourceDocumentName={filename}
+        projectName={projectName}
+        sourceRepresentationId={sourceRepresentationId}
+        onPinnedDocument={onPinnedDocument}
+        onReviewProgress={setDurableReviewProgress}
+        onReviewFinalized={onReviewFinalized}
+        schemaName={schemaName}
+        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
+        // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
+        run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
+        control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
+        boundaries={
+          !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
+            ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
+            : null
+        }
+        resultsHeaderExtras={
+          <>
+            {reviewedOnAnotherSource && latestReviewedExtraction && (
+              <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
+                ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
+                : undefined)}>Open latest reviewed</Button>
+            )}
+          </>
+        }
+        onRenameSchema={async (name) => {
+          // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
+          const extractionSchemaId = schema.snapshot().extractionSchemaId
+          if (!projectContextId || !extractionSchemaId)
+            return 'No durable schema is open.'
+          return renameSchema(extractionSchemaId, name)
+        }}
+        onSelectEvidence={selectEvidenceAnchor}
+        selection={selection}
+      />
+    </aside>
+    </>
+  )
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -1148,93 +1247,8 @@ export function DocumentWorkspace({
               />
             )}
           </section>
-          {effectiveRailOpen && (
-            <div
-              className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
-              title="Drag to resize"
-              onMouseDown={startResize}
-            />
-          )}
-          <aside
-            style={{ width: effectiveRailWidth }}
-            className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
-              effectiveRailOpen
-                ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
-                : ''
-            }`}
-            aria-label="Chat, schema and results"
-          >
-            <RightRail
-              open={effectiveRailOpen}
-              onToggle={() => setRailOpen((open) => !open)}
-              view={railView}
-              onViewChange={setRailView}
-              schema={schema}
-              onGenerateInstructions={handleGenerate}
-              onClearDraft={resetSchema}
-              extraction={extraction}
-              inspection={{
-                attempt: inspectedAttempt,
-                cut: inspectionCut,
-                readOnly: inspectionReadOnly,
-                parsedDocument:inspectionDocument,
-                reader: inspectedId ? inspectedReader : latestReader,
-              }}
-              latestReader={latestReader}
-              onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
-              onValueHistory={sourceDocumentId ? (extractionId, valueId, name) => {
-                setValueScope({ sourceDocumentId, extractionId, valueId, name })
-                setRailView('history')
-              } : undefined}
-              documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
-                ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
-                  extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible} refreshKey={historyRefreshKey}
-                  shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => {
-                    setValueScope(null)
-                    // Its control leaves with it: focus stays in the History panel.
-                    requestAnimationFrame(() => document.getElementById('rail-panel-history')?.focus())
-                  }} />
-                : <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
-                visible={visible} refreshKey={historyRefreshKey}
-                shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
-                currentSchemaRevision={currentSchemaRevision} onOpen={openFromHistory} /> : undefined}
-              currentSchemaRevision={currentSchemaRevision}
-              runUnavailableReason={runUnavailableReason}
-              sourceDocumentName={filename}
-              sourceRepresentationId={sourceRepresentationId}
-              onPinnedDocument={onPinnedDocument}
-              onReviewProgress={setDurableReviewProgress}
-              onReviewFinalized={onReviewFinalized}
-              schemaName={schemaName}
-              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
-              // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
-              run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
-              control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
-              boundaries={
-                !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
-                  ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
-                  : null
-              }
-              resultsHeaderExtras={
-                <>
-                  {reviewedOnAnotherSource && latestReviewedExtraction && (
-                    <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
-                      ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
-                      : undefined)}>Open latest reviewed</Button>
-                  )}
-                </>
-              }
-              onRenameSchema={async (name) => {
-                // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
-                const extractionSchemaId = schema.snapshot().extractionSchemaId
-                if (!projectContextId || !extractionSchemaId)
-                  return 'No durable schema is open.'
-                return renameSchema(extractionSchemaId, name)
-              }}
-              onSelectEvidence={selectEvidenceAnchor}
-              selection={selection}
-            />
-          </aside>
+          {/* The project's chat: AppFrame's own column beside the whole document area, else (a bare workspace) here. */}
+          {chatColumn === undefined ? railColumn : chatColumn && createPortal(railColumn, chatColumn)}
         </div>
       </div>
     </div>

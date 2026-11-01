@@ -52,6 +52,8 @@ type RightRailProps = {
   /** Why the tab strip's Run cannot start now (its disabled title); Results' empty state says it. */
   runUnavailableReason?: string | null
   sourceDocumentName: string
+  /** The open project, whose chat this is. */
+  projectName?: string | null
   sourceRepresentationId: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
@@ -116,6 +118,7 @@ function RightRail({
   currentSchemaRevision,
   runUnavailableReason = null,
   sourceDocumentName,
+  projectName = null,
   sourceRepresentationId,
   schemaName,
   onRenameSchema,
@@ -182,8 +185,8 @@ function RightRail({
   const schemaDetail = schemaSnap.view === 'generating' ? 'Generating…'
     : schemaReady ? [`${schemaFieldCount} field${schemaFieldCount === 1 ? '' : 's'}`, scopeWord].filter(Boolean).join(' · ')
       : 'Not created yet'
-  // Its lifecycle, as the old tab's badge said it; review counts live in the Results header.
-  const resultsDetail = shown ? shown.executionStatus.toLowerCase() : 'No extraction yet'
+  // The schema is the project's; results are one document's, named so the chat never reads as that document's own.
+  const resultsDetail = `${sourceDocumentName} · ${shown ? shown.executionStatus.toLowerCase() : 'not run yet'}`
 
   return (
     <>
@@ -199,16 +202,20 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
         <span className="mt-0.5 text-overline font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
-          {activeView === 'chat' ? 'Chat' : `Chat · ${VIEW_TITLES[activeView]}`}
+          {activeView === 'chat' ? 'Project chat' : `Project chat · ${VIEW_TITLES[activeView]}`}
         </span>
       </div>
     )}
     {/* Collapsed, the rail keeps everything below mounted, so a collapse never destroys work in it. `hidden` beats
         `flex` only through the preflight's `[hidden] { display: none !important }`. */}
     <div hidden={!open} className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-11 shrink-0 items-center gap-1 border-b border-line py-1.5 pl-3 pr-1">
+      {/* As tall as the tab strip and the navigation's header, so the three columns' top lines meet. */}
+      <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-line py-1.5 pl-3 pr-1">
         {activeView === 'chat' ? (
-          <h2 className="m-0 min-w-0 flex-1 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">Chat</h2>
+          <div className="min-w-0 flex-1">
+            <h2 className="m-0 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">Project chat</h2>
+            {projectName && <p className="m-0 truncate text-[13px] font-bold text-ink" title={projectName}>{projectName}</p>}
+          </div>
         ) : (
           <>
             <button type="button" aria-label="Back to chat" title="Back to chat" onClick={() => onViewChange('chat')}

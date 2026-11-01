@@ -146,7 +146,7 @@ describe('RightRail Results', () => {
   it('gives guidance and saved versions their own History view, only when there is an Extraction', () => {
     renderRail({ view: 'history' })
     expect(screen.queryByRole('button', { name: 'History' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Chat' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Project chat' })).toBeInTheDocument()
     cleanup()
     renderRail({ view: 'history', extraction: { ...defaultController, attempt } })
     expect(screen.getByRole('heading', { name: 'History' })).toBeInTheDocument()
@@ -205,7 +205,7 @@ describe('RightRail Results', () => {
     const onViewChange = vi.fn()
     renderRail({ extraction: { ...defaultController, attempt }, onViewChange })
     const context = screen.getByRole('navigation', { name: 'Schema and results' })
-    fireEvent.click(within(context).getByRole('button', { name: 'Open results: paused' }))
+    fireEvent.click(within(context).getByRole('button', { name: 'Open results: test.pdf · paused' }))
     expect(onViewChange).toHaveBeenLastCalledWith('results')
     fireEvent.click(within(context).getByRole('button', { name: 'Open schema: 2 fields' }))
     expect(onViewChange).toHaveBeenLastCalledWith('schema')
@@ -229,16 +229,16 @@ describe('RightRail developer UI visibility', () => {
   it('falls back to the chat when the hidden Evidence view was selected', () => {
     renderRail({ open: true, view: 'evidence' })
 
-    expect(screen.getByRole('heading', { name: 'Chat' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Project chat' })).toBeInTheDocument()
   })
 
   it('names the view in the collapsed strip', () => {
     renderRail({ open: false })
     // The strip's word, beside the hidden header that keeps its own.
-    expect(screen.getByText('Chat', { selector: 'span' })).toBeVisible()
+    expect(screen.getByText('Project chat', { selector: 'span' })).toBeVisible()
     cleanup()
     renderRail({ open: false, view: 'results' })
-    expect(screen.getByText('Chat · Results')).toBeInTheDocument()
+    expect(screen.getByText('Project chat · Results')).toBeInTheDocument()
   })
 
   it('restores the Evidence view when VITE_SHOW_DEVELOPER_UI=true', () => {
@@ -257,7 +257,7 @@ describe('RightRail collapsed', () => {
     const body = screen.getByText('Durable results'), chat = screen.getByPlaceholderText('Describe a change to the schema…')
     const slot = results().historySlot
     view.setOpen(false)
-    expect(screen.getByText('Chat · Results')).toBeVisible()
+    expect(screen.getByText('Project chat · Results')).toBeVisible()
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
     expect(body).toBeInTheDocument()
     expect(body).not.toBeVisible()
@@ -269,7 +269,7 @@ describe('RightRail collapsed', () => {
     expect(screen.getByText('Durable results')).toBe(body)
     expect(screen.getByText('Durable results')).toBeVisible()
     expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBe(chat)
-    expect(screen.queryByText('Chat · Results')).not.toBeInTheDocument()
+    expect(screen.queryByText('Project chat · Results')).not.toBeInTheDocument()
     expect(results().railOpen).toBe(true)
     expect(results().historySlot).toBe(slot)
   })

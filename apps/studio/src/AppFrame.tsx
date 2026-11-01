@@ -158,6 +158,7 @@ export default function AppFrame({
   const providerInitialFocus = useRef<HTMLButtonElement>(null)
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
   const [tabRingSlot, setTabRingSlot] = useState<HTMLSpanElement | null>(null)
+  const [chatColumn, setChatColumn] = useState<HTMLDivElement | null>(null)
   const resizeControllerRef = useRef<AbortController | null>(null)
   const contentRef = useRef<HTMLElement>(null)
   const routeFocusKey =
@@ -639,6 +640,8 @@ export default function AppFrame({
                   onNavigate={onNavigate}
                   onSchemaApproved={refreshProjects}
                   onReviewFinalized={reviewFinalized}
+                  chatColumn={chatColumn}
+                  projectName={activeProjectName}
                 />
               </Suspense>
             </RouteLoadBoundary>
@@ -682,6 +685,10 @@ export default function AppFrame({
           )}
         </section>
       </div>
+      {/* The project's chat: a full-height column of its own beside the document area and its tabs, as the
+          navigation is on the left, so it reads as the project's rather than the open document's. The workspace
+          portals its chat here; with none open the column is empty and takes no width. */}
+      <div ref={setChatColumn} data-project-chat className="relative flex min-h-0 shrink-0" />
       {providersOpen && (
         <ModalDialog
           className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-visible border-0 bg-transparent p-0 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
