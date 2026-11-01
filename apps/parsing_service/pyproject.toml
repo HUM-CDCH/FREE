@@ -13,6 +13,9 @@ dependencies = [
     "numpy>=2.5.3",
     "pillow>=10.4.0",
     "pydantic>=2.13.5",
+    # Page geometry alone, before Docling decodes a page (transcription/vlm.py whole_page_renders); `crypto` reads the
+    # AES-encrypted PDFs Docling opens with an empty password.
+    "pypdf[crypto]>=6.21.2",
     "pypdfium2>=5.13.0",
     "pyyaml>=6.0.3",
     "surya-ocr>=0.22.1",
@@ -23,8 +26,8 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "dbos[otel]==3.1.0",
     "opentelemetry-instrumentation-requests>=0.63b0",
-    # Pinned to the extraction server's xgrammar: the EBNF the worker writes for a whitespace-loop recovery must
-    # parse on the server (kie/extract/llm.py bounded_grammar).
+    # The worker generates recovery EBNF here (kie/extract/llm.py bounded_grammar). Validate it against
+    # each selected instruction-server parser; the worker and server use separate Python environments.
     "xgrammar==0.2.7",
 ]
 
@@ -38,6 +41,18 @@ link-mode = "copy"
 # build. Both wheels unpack into the same cv2/ package, so whichever installs
 # last leaves a mixed module that fails to import. Keep only the headless one.
 override-dependencies = ["opencv-python; sys_platform == 'never'"]
+
+# Layout and native parsing run on the CPU (cut.py) and OCR goes to a model server, so on Linux x86_64 torch comes
+# from PyTorch's CPU index instead of PyPI's CUDA build and its NVIDIA libraries. Other platforms keep PyPI's wheels.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" }]
+torchaudio = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]

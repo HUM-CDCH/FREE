@@ -39,7 +39,8 @@ EXTRACTION_VERSION = 1
 # 14: Catalog discovery examples are domain-neutral structure, not from the development corpus.
 # 15: every grounding batch shows the record's fields, so a claim split from its record's name keeps its record.
 # 16: grounding offers precise cells first, then restores hidden evidence for unresolved claims.
-PROMPT_VERSION = 16
+# 17: instruction-model messages show the full reply schema, included in token counts.
+PROMPT_VERSION = 17
 # Article's own version, pinned in its fingerprint and artifact beside the shared PROMPT_VERSION (which the version 1
 # Catalog's frozen artifact also carries). 2: document scope, one root and no identity inventory; its prompt is
 # `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication. 3: document-level fields are
@@ -67,7 +68,12 @@ PROMPT_VERSION = 16
 # repeat beside an equal item labelled another's leaves with it.
 # 14: a list item's answer names the work its source gives it to before its label; another's item leaves only where
 # its part prints that work, and an item kept unsettled (UNSURE, or another's without it) is named for review.
-ARTICLE_VERSION = 14
+# 15: a list item whose values its source gives to a group (an average, range or total over several items) is
+# another's, given to that group, and leaves where its part prints the group.
+# 16: an `of` that reached its length limit is printed up to its last word, which may be cut; a string item printed
+# again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
+# `of` is asked as the shortest excerpt naming the work.
+ARTICLE_VERSION = 16
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

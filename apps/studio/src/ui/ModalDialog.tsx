@@ -72,8 +72,21 @@ export default function ModalDialog({
         if (!dismissDisabled) onDismiss()
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget && !dismissDisabled)
-          onDismiss()
+        if (event.target !== event.currentTarget || dismissDisabled) return
+        // The dialog itself is the target of a click on its backdrop and of one on its own padding or border: only a
+        // click outside its box, whose right and bottom edges lie outside as for any hit test, is on the backdrop.
+        // Browsers may report a click in whole pixels (Chromium truncates y 292.5 on a border whose top is 292.25 to
+        // 292), so both are compared as pixel indices: a pixel the box partly covers counts as inside, which keeps
+        // the edge of a fractional border and leaves under 1px of backdrop beside it that does not dismiss.
+        const box = event.currentTarget.getBoundingClientRect()
+        const x = Math.floor(event.clientX)
+        const y = Math.floor(event.clientY)
+        const inside =
+          x >= Math.floor(box.left) &&
+          x < Math.ceil(box.right) &&
+          y >= Math.floor(box.top) &&
+          y < Math.ceil(box.bottom)
+        if (!inside) onDismiss()
       }}
     >
       {children}

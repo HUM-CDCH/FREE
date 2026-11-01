@@ -1,45 +1,26 @@
-import { createHash, randomUUID } from 'node:crypto'
-import { link, lstat, mkdir, readdir, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { link, lstat, mkdir, readdir, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { Worker } from 'node:worker_threads'
 import envPaths from 'env-paths'
-import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { strToU8, unzipSync, zipSync } from 'fflate'
+import {
+  DOCUMENT_VERSION, ENTRIES, PACKAGE_VERSION, READER_ROLE, sha256, validateEntries,
+  type CanonicalArtifact, type Manifest, type PackageReadRequest,
+} from './canonical-package-worker.js'
 
-const PACKAGE_VERSION = 'canonical-ingestion-package.v1'
-const DOCUMENT_VERSION = 'parsed_document.v2'
+export type { CanonicalArtifact } from './canonical-package-worker.js'
+
 const REFERENCE = /^[a-f0-9]{64}$/
 const PACKAGE_FILE = /^([a-f0-9]{64})\.zip$/
 /** What `save` (`.tmp`) and `remove` (`.deleting`) leave behind when interrupted: `<sha>.<uuid>.tmp|deleting`. */
-const LEFTOVER = /^[a-f0-9]{64}\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(tmp|deleting)$/
-const ENTRIES = {
-  pdf: { path: 'source.pdf', mediaType: 'application/pdf' },
-  source: { path: 'parsed_document.json', mediaType: 'application/json' },
-  markdown: {
-    path: 'artifacts/document.llm.md',
-    mediaType: 'text/markdown; charset=utf-8',
-  },
-} as const
-const PACKAGE_NAMES = [
-  'manifest.json',
-  ...Object.values(ENTRIES).map(({ path }) => path),
-].sort()
+const LEFTOVER = /^([a-f0-9]{64})\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(tmp|deleting)$/
 
-export type CanonicalArtifact = keyof typeof ENTRIES
 export type CanonicalPackageDescriptor = {
   artifactReference: string
   artifactSha256: string
-}
-type ManifestEntry = {
-  path: string
-  media_type: string
-  size: number
-  sha256: string
-}
-type Manifest = {
-  package_version: string
-  parsed_document_schema_version: string
-  source_sha256: string
-  preprocess_id: string
-  entries: ManifestEntry[]
 }
 export type CanonicalArtifactRead = {
   bytes: Uint8Array
@@ -54,6 +35,7 @@ export type CanonicalPackageStore = {
       published: boolean
     }
   >
+  /** Recovers the package from an interrupted removal's intact quarantine when its canonical file is missing. */
   read(
     descriptor: CanonicalPackageDescriptor,
     artifact: CanonicalArtifact,
@@ -63,8 +45,16 @@ export type CanonicalPackageStore = {
   list(): Promise<readonly { descriptor: CanonicalPackageDescriptor; modifiedMs: number }[]>
   /** Interrupted writes and removals (`<sha>.<uuid>.tmp`, `<sha>.<uuid>.deleting`). */
   leftovers(): Promise<readonly { name: string; modifiedMs: number }[]>
-  /** Deletes one name `leftovers` lists; refuses any other name. */
-  removeLeftover(name: string): Promise<void>
+  /**
+   * Deletes one name `leftovers` lists, true when it is gone; refuses any other name. A `.deleting` quarantine is an
+   * interrupted removal's only copy, so it goes through `remove` (with `isReferenced` for its package and the same
+   * cutoff) and is kept, intact, whenever that removal cannot settle.
+   */
+  removeLeftover(
+    name: string,
+    isReferenced: (artifactReference: string) => Promise<boolean>,
+    options?: { modifiedBeforeMs?: number },
+  ): Promise<boolean>
   /**
    * With `modifiedBeforeMs`, a package modified at or after that time (a writer reused it after the sweep judged it
    * old) is restored instead of deleted.
@@ -76,86 +66,109 @@ export type CanonicalPackageStore = {
   ): Promise<boolean>
 }
 
-function sha256(value: Uint8Array): string {
-  return createHash('sha256').update(value).digest('hex')
-}
-
-function jsonObject(bytes: Uint8Array, label: string): Record<string, unknown> {
-  try {
-    const value: unknown = JSON.parse(strFromU8(bytes))
-    if (value && typeof value === 'object' && !Array.isArray(value))
-      return value as Record<string, unknown>
-  } catch {
-    // The bounded error below is the public storage contract.
+/**
+ * Runs requests on one worker thread, one at a time, in arrival order: a request's working set (a whole package, or a
+ * whole parsed document) is in memory for at most one request per lane. The thread starts on first use, does not keep
+ * the process alive while idle, and is replaced on the next request after it crashes or exits; the request it was
+ * running, and only that one, rejects. A worker program answers each message it receives with `{ value }` or
+ * `{ error: { message, code? } }`.
+ *
+ * At most `maxWaiting` requests wait, holding at most `maxWaitingBytes` of transferred input between them (a request
+ * arriving at an empty queue always waits, whatever its size); past either bound a request rejects at once.
+ */
+export function createWorkerLane<Input, Output>(
+  spawn: () => Worker,
+  bounds: { maxWaiting: number; maxWaitingBytes?: number },
+): (input: Input, transfer?: readonly ArrayBuffer[]) => Promise<Output> {
+  type Job = {
+    input: Input
+    transfer: readonly ArrayBuffer[]
+    bytes: number
+    resolve(value: Output): void
+    reject(error: unknown): void
   }
-  throw new Error(`${label} is not a JSON object.`)
-}
+  const waiting: Job[] = []
+  let waitingBytes = 0
+  let worker: Worker | undefined
+  let active: Job | undefined
 
-function manifestFrom(bytes: Uint8Array): Manifest {
-  const value = jsonObject(bytes, 'Canonical package manifest')
-  if (
-    value.package_version !== PACKAGE_VERSION ||
-    value.parsed_document_schema_version !== DOCUMENT_VERSION ||
-    typeof value.source_sha256 !== 'string' ||
-    typeof value.preprocess_id !== 'string' ||
-    !Array.isArray(value.entries)
-  )
-    throw new Error('Canonical package manifest is invalid.')
-  return value as Manifest
-}
+  function started(): Worker {
+    const thread = spawn()
+    let failure: unknown
+    thread.on('message', (reply: { value?: Output; error?: { message: string; code?: string } } | null) => {
+      if (thread !== worker || !active) return
+      const job = active
+      active = undefined
+      if (reply?.error) job.reject(Object.assign(new Error(reply.error.message), { code: reply.error.code }))
+      else job.resolve(reply?.value as Output)
+      next()
+    })
+    thread.on('messageerror', (error) => { failure = error; void thread.terminate() })
+    thread.on('error', (error) => { failure = error })
+    thread.on('exit', (code) => {
+      if (thread !== worker) return
+      worker = undefined
+      const job = active
+      active = undefined
+      job?.reject(failure ?? new Error(`The worker thread exited (code ${code}).`))
+      next()
+    })
+    return thread
+  }
 
-function validateEntries(
-  archive: Record<string, Uint8Array>,
-): { manifest: Manifest; document: Record<string, unknown> } {
-  const names = Object.keys(archive).sort()
-  if (
-    names.length !== PACKAGE_NAMES.length ||
-    names.some((name, index) => name !== PACKAGE_NAMES[index])
-  )
-    throw new Error('Canonical package entries do not match the fixed layout.')
+  function next(): void {
+    if (active) return
+    active = waiting.shift()
+    if (!active) {
+      worker?.unref()
+      return
+    }
+    waitingBytes -= active.bytes
+    try {
+      worker ??= started()
+      worker.ref()
+      worker.postMessage(active.input, active.transfer) // the input's buffers leave this thread here
+    } catch (error) {
+      const job = active
+      active = undefined
+      job.reject(error)
+      next()
+    }
+  }
 
-  const manifest = manifestFrom(archive['manifest.json'])
-  const expected = Object.values(ENTRIES)
-  if (manifest.entries.length !== expected.length)
-    throw new Error('Canonical package manifest entries are incomplete.')
-
-  for (const [index, { path, mediaType }] of expected.entries()) {
-    const bytes = archive[path]
-    const record = manifest.entries[index]
+  return (input, transfer = []) => new Promise<Output>((resolve, reject) => {
+    const bytes = transfer.reduce((total, buffer) => total + buffer.byteLength, 0)
     if (
-      !bytes ||
-      record?.path !== path ||
-      record.media_type !== mediaType ||
-      record.size !== bytes.byteLength ||
-      record.sha256 !== sha256(bytes)
-    )
-      throw new Error('Canonical package entry integrity check failed.')
-  }
-
-  const pdf = archive[ENTRIES.pdf.path]
-  if (strFromU8(pdf.subarray(0, 5)) !== '%PDF-')
-    throw new Error('Canonical package Source Document is not a PDF.')
-  const document = jsonObject(
-    archive[ENTRIES.source.path],
-    'Canonical parsed document',
-  )
-  const identity = document.document
-  const preprocessing = document.preprocessing
-  const sourceSha256 = sha256(pdf)
-  if (
-    document.schema_version !== DOCUMENT_VERSION ||
-    !identity ||
-    typeof identity !== 'object' ||
-    (identity as Record<string, unknown>).content_sha256 !== sourceSha256 ||
-    manifest.source_sha256 !== sourceSha256 ||
-    !preprocessing ||
-    typeof preprocessing !== 'object' ||
-    (preprocessing as Record<string, unknown>).preprocess_id !==
-      manifest.preprocess_id
-  )
-    throw new Error('Canonical package identity is inconsistent.')
-  return { manifest, document }
+      waiting.length >= bounds.maxWaiting ||
+      (waiting.length > 0 && waitingBytes + bytes > (bounds.maxWaitingBytes ?? Infinity))
+    ) {
+      reject(new Error('Too many requests are waiting for the worker thread.'))
+      return
+    }
+    waiting.push({ input, transfer, bytes, resolve, reject })
+    waitingBytes += bytes
+    next()
+  })
 }
+
+/**
+ * The process's one package-reading thread, shared by every store. Its entry is the `db/canonical-package-worker`
+ * export, resolved from this module's location: the workspace source in tests and development, and, from the built
+ * Studio server bundle, the same file through Studio's `db` dependency. A worker inherits the main script's
+ * `--input-type` (`node --input-type=module -e ...`), which refuses a file entry, so the thread starts from a program
+ * that is valid as either CommonJS or an ES module and imports the entry.
+ */
+let packageReader: ((request: PackageReadRequest) => Promise<Uint8Array | null>) | undefined
+const readPackage = (request: PackageReadRequest) => (packageReader ??= createWorkerLane(() => new Worker(
+  "import('node:worker_threads').then(({ workerData }) => import(workerData.entry))",
+  {
+    eval: true,
+    workerData: {
+      role: READER_ROLE,
+      entry: pathToFileURL(createRequire(import.meta.url).resolve('db/canonical-package-worker')).href,
+    },
+  },
+), { maxWaiting: 1024 }))(request) // a waiting read holds only its path and digest
 
 /**
  * Packs a parsed document, its Markdown and the Source Document bytes into the
@@ -214,38 +227,75 @@ export function createCanonicalPackageStore(
     return join(root, `${descriptor.artifactReference}.zip`)
   }
 
-  async function load(descriptor: CanonicalPackageDescriptor) {
+  /** Validates the whole package file at `path` on the reader thread; returns `artifact`'s entry, or null without one. */
+  function validated(path: string, descriptor: CanonicalPackageDescriptor, artifact: CanonicalArtifact | null) {
+    return readPackage({ path, artifactSha256: descriptor.artifactSha256, artifact })
+  }
+
+  /** The canonical file, reinstalled from an interrupted removal's quarantine first when it is missing. */
+  async function canonical(descriptor: CanonicalPackageDescriptor, artifact: CanonicalArtifact | null) {
     const path = packagePath(descriptor)
-    const info = await lstat(path)
-    if (!info.isFile() || info.isSymbolicLink())
-      throw new Error('Canonical package is unavailable.')
-    const packageBytes = await readFile(path)
-    if (sha256(packageBytes) !== descriptor.artifactSha256)
-      throw new Error('Canonical package integrity check failed.')
-    const archive = unzipSync(packageBytes)
-    return { archive, ...validateEntries(archive) }
+    try {
+      return await validated(path, descriptor, artifact)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || !(await recover(descriptor))) throw error
+      return validated(path, descriptor, artifact)
+    }
   }
 
   async function read(
     descriptor: CanonicalPackageDescriptor,
     artifact: CanonicalArtifact,
   ): Promise<CanonicalArtifactRead> {
-    // ponytail: decode per read; index ZIP entries only if large-document
+    // ponytail: validate the whole package per read; index ZIP entries only if large-document
     // profiling shows this prototype needs random-access package reads.
-    const { archive } = await load(descriptor)
-    const expected = ENTRIES[artifact]
-    return { bytes: archive[expected.path], mediaType: expected.mediaType }
+    const bytes = (await canonical(descriptor, artifact)) as Uint8Array
+    return { bytes, mediaType: ENTRIES[artifact].mediaType }
   }
 
   async function available(
     descriptor: CanonicalPackageDescriptor,
   ): Promise<boolean> {
     try {
-      await load(descriptor)
+      await canonical(descriptor, null)
       return true
     } catch {
       return false
     }
+  }
+
+  async function quarantined(descriptor: CanonicalPackageDescriptor): Promise<string[]> {
+    return (await entries())
+      .filter((name) => LEFTOVER.exec(name)?.[1] === descriptor.artifactReference && name.endsWith('.deleting'))
+      .sort()
+  }
+
+  /**
+   * Gives a quarantine `name` back its canonical name when it is the whole, valid package `descriptor` names. The
+   * hard link never replaces a canonical file another writer published (that file wins and is validated by whoever
+   * reads it next), and the quarantine stays: a removal still running may yet restore or delete it.
+   */
+  async function install(descriptor: CanonicalPackageDescriptor, name: string): Promise<boolean> {
+    const quarantine = join(root, name)
+    try {
+      await validated(quarantine, descriptor, null)
+    } catch {
+      return false // corrupt, truncated, not a regular file, or gone: never promoted
+    }
+    try {
+      await link(quarantine, packagePath(descriptor))
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') return false
+      if (code !== 'EEXIST') throw error
+    }
+    return true
+  }
+
+  /** True when a canonical file exists again: a removal interrupted between its quarantine and its decision left one. */
+  async function recover(descriptor: CanonicalPackageDescriptor): Promise<boolean> {
+    for (const name of await quarantined(descriptor)) if (await install(descriptor, name)) return true
+    return false
   }
 
   /**
@@ -270,8 +320,9 @@ export function createCanonicalPackageStore(
       artifactSha256,
     }
     const { manifest, document } = validateEntries(unzipSync(packageBytes))
+    const stored = () => validated(packagePath(descriptor), descriptor, null).then(() => true, () => false)
     // A sweep that quarantined it between the check and the touch leaves nothing to touch: publish it again below.
-    if ((await available(descriptor)) && (await touch(descriptor)))
+    if ((await stored()) && (await touch(descriptor)))
       return { ...descriptor, document, manifest, published: false }
 
     await mkdir(root, { recursive: true })
@@ -283,13 +334,13 @@ export function createCanonicalPackageStore(
         await link(temporary, destination)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-        if (!(await available(descriptor)) || !(await touch(descriptor))) throw error
+        if (!(await stored()) || !(await touch(descriptor))) throw error
         return { ...descriptor, document, manifest, published: false }
       }
     } finally {
       await rm(temporary, { force: true })
     }
-    if (!(await available(descriptor)))
+    if (!(await stored()))
       throw new Error('Canonical package was not published.')
     return { ...descriptor, document, manifest, published: true }
   }
@@ -304,6 +355,10 @@ export function createCanonicalPackageStore(
     options?: { modifiedBeforeMs?: number },
   ): Promise<boolean> {
     const path = packagePath(descriptor)
+    // References are read twice. This first read leaves a package that is still referenced under its canonical name,
+    // where its readers find it; the second, after the quarantine, sees a reference published meanwhile (a writer
+    // that found the name missing in between published the package again).
+    if (await isReferenced()) return false
     const quarantine = join(root, `${descriptor.artifactReference}.${randomUUID()}.deleting`)
     try {
       await rename(path, quarantine)
@@ -312,15 +367,17 @@ export function createCanonicalPackageStore(
       throw error
     }
 
+    // Restoring never replaces a canonical file a writer published meanwhile: that file's fresh age is what a later
+    // sweep's cutoff reads. When it is a valid package, this quarantine is its stale twin; when it is not, the
+    // quarantine stays as the valid copy.
     const restore = async () => {
       try {
-        await rename(quarantine, path)
+        await link(quarantine, path)
       } catch (error) {
-        // A concurrent content-addressed save may already have restored the
-        // same valid package. In that case only its quarantined twin is stale.
-        if (!(await available(descriptor))) throw error
-        await rm(quarantine, { force: true })
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+        await validated(path, descriptor, null)
       }
+      await rm(quarantine, { force: true })
     }
 
     try {
@@ -329,7 +386,7 @@ export function createCanonicalPackageStore(
         await restore() // touched after the sweep's cutoff: a writer reuses it
         return false
       }
-      if (await isReferenced()) {
+      if (await isReferenced()) { // the second reference read
         await restore()
         return false
       }
@@ -380,9 +437,32 @@ export function createCanonicalPackageStore(
     return found
   }
 
-  async function removeLeftover(name: string) {
-    if (!LEFTOVER.test(name)) throw new Error('Not a canonical package leftover.')
+  async function removeLeftover(
+    name: string,
+    isReferenced: (artifactReference: string) => Promise<boolean>,
+    options?: { modifiedBeforeMs?: number },
+  ): Promise<boolean> {
+    const match = LEFTOVER.exec(name)
+    if (!match) throw new Error('Not a canonical package leftover.')
+    if (match[2] === 'tmp') {
+      await rm(join(root, name), { force: true }) // a partial write, never a package anyone references
+      return true
+    }
+    // An interrupted removal: its package goes back under the canonical name, then through the ordinary removal with
+    // fresh reference reads and the sweep's cutoff. Only once that settles is this name a redundant copy of whatever
+    // remains (nothing, or the canonical file). An invalid quarantine, or one whose canonical name is taken by an
+    // invalid file, is kept as it is: it may be the only evidence of the package.
+    const reference = match[1]
+    const descriptor = { artifactReference: reference, artifactSha256: reference }
+    if (!(await install(descriptor, name))) return false
+    try {
+      await validated(packagePath(descriptor), descriptor, null)
+    } catch {
+      return false
+    }
+    await remove(descriptor, () => isReferenced(reference), options)
     await rm(join(root, name), { force: true })
+    return true
   }
 
   return { save, read, available, list, leftovers, removeLeftover, remove }

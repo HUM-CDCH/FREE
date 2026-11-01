@@ -6,14 +6,15 @@ import json
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from kei_exp.kie.extract.article import document_root, extract_records
-from kei_exp.kie.extract.contexts import Context, reconcile_values
+from kei_exp.kie.extract.article import document_root
+from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.passages import load
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Issue, extract_document, merge
 
+from .legacy_article import extract_records, reconcile_values
 from .manifest import checked, pin, read, write_new
 from .replay_reference import Captured, key
 
@@ -75,10 +76,11 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     if source.get("pdf"):
         checked(source["pdf"])
     expected = read(directory / "result.json")["artifact"]
-    # Version 13 sizes and counts list parts and drops repeats of OTHER items unlike version 12, and version 14 asks
-    # and decides list items unlike both, so neither's requests and records can be reproduced.
-    if expected.get("article_version") in (12, 13):
-        raise ValueError(f"Article version {expected['article_version']} resolution cannot be replayed by version 14; "
+    # Version 13 sizes and counts list parts and drops repeats of OTHER items unlike version 12, versions 14 and 15
+    # ask and decide list items unlike the earlier ones, and version 16 asks and decides them unlike 15, so none's
+    # requests and records can be reproduced.
+    if expected.get("article_version") in (12, 13, 14, 15):
+        raise ValueError(f"Article version {expected['article_version']} resolution cannot be replayed by version 16; "
                          "run the cell again")
     if expected["schema"] != read(checked(source["schema"])):
         raise ValueError("parent schema differs from source pin")

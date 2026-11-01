@@ -24,9 +24,10 @@ conversion step and consumes that same deadline.
 - Node.js 24, pnpm and `uv`, as in the README's
   [requirements](../../README.md#requirements). `pnpm install` at the root
   also syncs the Parsing Service's Python environment through `uv`.
-  `FREE_SKIP_PYTHON=1` is CI-only: it makes `pnpm install` skip the parsing
-  service's `uv sync --frozen`, because the CUDA PyTorch wheels do not fit
-  GitHub's hosted runner. Leave it unset on development and deployment hosts.
+  `FREE_SKIP_PYTHON=1` is for Node-only work: it makes `pnpm install` skip
+  the parsing service's `uv sync --frozen`. CI does not set it. Parsing
+  Service execution requires its Python environment: install without the skip
+  or run `uv sync --frozen` from `apps/parsing_service`.
 - Docker Engine or Docker Desktop with Docker Compose v2.40.0 or later
   (Compose Watch, optional profile dependencies, `!reset`, and `gw_priority`
   are used). The launcher checks this before starting the host stack.
@@ -43,8 +44,8 @@ pnpm dev
 ```
 
 The launcher generates `.certs/studio.crt`/`.certs/studio.key` with `mkcert`
-when missing, builds the images, then stops Studio and the parsing API/worker
-with a 60-second grace period. It runs
+when missing, builds the images, then stops Studio, the parsing API/worker
+and the nginx container with a 60-second grace period. It runs
 `docker compose --profile mock-oidc up --watch` after they stop, so no old
 process overlaps its replacement. Failed builds
 leave the running application intact; a failed migration prevents startup.
@@ -273,9 +274,11 @@ launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
   user `postgres`, explicit port `5432`, database `free`, and a loopback host.
 - Disposable PostgreSQL integration targets must use user `postgres`, explicit
   port `5432`, a loopback host, and a database named `free_test_*`.
-- Startup replays `pnpm --filter db db:init` and creates the Parsing Service's
-  role (`pnpm --filter db db:kei-role`); each DBOS process migrates its own
-  schema at launch. None of these resets data.
+- Studio's container startup replays `pnpm --filter db db:init` as
+  `postgres`, then prepares the Parsing Service's `kei` role and Studio's
+  restricted `free_studio` role (`pnpm --filter db db:roles`) and starts
+  Studio as `free_studio`; each DBOS process migrates its own schema at launch.
+  None of these resets data. Host-run tooling keeps using `postgres`.
 
 The Parsing Service's API, worker and model servers are private to the
 Compose network. For service commands use `docker compose exec
@@ -298,11 +301,11 @@ deliberately according to their infrastructure and mutation boundaries:
 | --- | --- |
 | `pnpm test:safety` | Requires pnpm, Git, and a working Docker engine. It checks destructive-target rejection, deployment/Compose configuration, secrets policy, and nginx rendering without a running FREE stack. It uses temporary files and a throwaway nginx container but does not mutate a database. |
 | `pnpm test:postgres` | Requires caller-created and migrated disposable databases. Set `PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL` to separate fresh targets such as `postgresql://postgres:postgres@localhost:5432/free_test_cascade` and `postgresql://postgres:postgres@localhost:5432/free_test_extraction`. `DATABASE_URL` must equal `EXTRACTION_TEST_DATABASE_URL` for Studio's DBOS tier, which creates and drops its own `dbos_t_*`/`kei_dbos_t_*` schemas. Also set `PARSING_TEST_DATABASE_URL` to an existing `postgres` loopback:5432 `free_test_parsing` database. The Parsing Service creates and drops fresh `free_test_parsing_*` databases for individual cases. The checks write and delete integration fixtures; a failed run may leave data, so do not reuse that database as if it were fresh. |
-| `pnpm test:e2e` | Requires Docker and Playwright's browser. By default it removes any prior `free-studio-e2e` test stack, creates isolated PostgreSQL and interactive mock-OIDC containers, migrates the test database, starts Studio on a test loopback port, and removes the stack and volumes afterward. Browser sign-in runs through that mock OIDC service; kei is a TypeScript stand-in speaking kei's workflow contract, and the default development stack is not used. |
-| `pnpm test:service` | Creates its own PostgreSQL and mock-OIDC stack and starts the real Python API and DBOS worker. Exercises native conversion recovery and reuse, durable Article/Catalog controls, retained corrections after reload and export, deletion and garbage collection. Model responses are scripted by default; the first native conversion may download Docling weights. Set both `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` for the separate real-provider checks. |
-| `pnpm test:all` | Runs typecheck, lint, unit, safety, PostgreSQL integration, E2E, and `test:service` sequentially. The caller must provide the Docker/browser prerequisites and three fresh PostgreSQL targets (the two Studio targets must be migrated) required by `test:postgres`. |
-| `pnpm test:all:node` | Runs typecheck, lint, the Node unit tiers, safety, the `db` and `extraction` PostgreSQL integration tiers, and E2E sequentially: `test:all` without the Parsing Service tiers and `test:service`, so it needs no Python environment. The caller must provide the Docker/browser prerequisites and the two fresh, migrated Studio PostgreSQL targets (`PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL`). |
-| `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store` and `free_test_extraction` on PostgreSQL at `127.0.0.1:5432`. It also requires the fixed `free_test_parsing` URL unless `FREE_SKIP_PYTHON=1`; a parsing URL that is present is always validated. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both Studio targets (a migration failure stops the run), then runs each step of `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's `verify` job) and of `test:all` otherwise. A failing step does not stop the later ones; a PASS/FAIL summary follows and the command fails if any step failed. |
+| `pnpm test:e2e` | Requires Docker and Playwright's browser. It runs the default browser suite, then the recovery, durable, `/free` base-path and unified Catalog (`FREE_CATALOG_METHOD=unified` in Studio) suites, each on its own test stack. Under `CI` every suite refuses a committed `test.only`. By default each removes any prior test stack of its own, creates isolated PostgreSQL and interactive mock-OIDC containers, migrates the test database, starts Studio on a test loopback port, and removes the stack and volumes afterward. Browser sign-in runs through that mock OIDC service; kei is a TypeScript stand-in speaking kei's workflow contract, and the default development stack is not used. |
+| `pnpm test:service` | Creates its own PostgreSQL and mock-OIDC stack and starts the real Python API and DBOS worker. Exercises native conversion recovery and reuse, durable Article/Catalog controls, retained corrections after reload and export, deletion and garbage collection. Model responses are scripted by default; the first native conversion may download Docling weights. Set both `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` for the separate real-provider checks. Then it runs the Parsing Service's native service smoke (`tests/test_service_smoke.py`): a real worker on `PARSING_TEST_DATABASE_URL`, a generated born-digital PDF and no model server. |
+| `pnpm test:all` | Runs typecheck, lint, the production build (`pnpm build`), unit, safety, PostgreSQL integration, E2E, and `test:service` sequentially. The caller must provide the Docker/browser prerequisites and three fresh PostgreSQL targets (the two Studio targets must be migrated) required by `test:postgres`. |
+| `pnpm test:all:node` | Runs typecheck, lint, the production build, the Node unit tiers, safety, the `db` and `extraction` PostgreSQL integration tiers, and E2E sequentially: `test:all` without the Parsing Service tiers and `test:service`, so it needs no Python environment. The caller must provide the Docker/browser prerequisites and the two fresh, migrated Studio PostgreSQL targets (`PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL`). |
+| `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store` and `free_test_extraction` on PostgreSQL at `127.0.0.1:5432`. It also requires the fixed `free_test_parsing` URL unless `FREE_SKIP_PYTHON=1`; a parsing URL that is present is always validated. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both Studio targets (a migration failure stops the run), then runs each step of `test:all:node` when `FREE_SKIP_PYTHON=1` and of `test:all` otherwise (GitHub's `verify` job). A failing step does not stop the later ones; a PASS/FAIL summary follows and the command fails if any step failed. |
 | `pnpm test:live-model` | Studio's check requires a vLLM server at `FREE_LIVE_VLLM_URL` (default `http://127.0.0.1:8002/v1`) serving `FREE_LIVE_VLLM_MODEL` (default `Qwen/Qwen3.8-27B-FP8`); its NuExtract case runs only when `FREE_LIVE_NUEXTRACT_URL` is set (`FREE_LIVE_NUEXTRACT_MODEL` defaults to `numind/NuExtract3-FP8`). The Parsing Service's checks run the real Docling conversion, which may download models into the local cache; its real-model cases run only when `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` (or the `KEI_*` test URLs) are set. |
 | `pnpm test:system` | Requires Docker and `mkcert` (or an existing local certificate pair). It builds an isolated Compose project with a disposable PostgreSQL volume and scripted external extraction-model responses, then checks authentication, upload, Schema Suggestion, durable Article admission/completion, saved values, whole-stack restart persistence, deletion and garbage collection over HTTPS. It does not assert producer Evidence or a correction write. It removes its own project and volume afterward; the development stack and its database are outside this test's scope. |
 | `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
@@ -311,12 +314,15 @@ deliberately according to their infrastructure and mutation boundaries:
 The extraction PostgreSQL tier also runs Python-backed durable lifecycle and
 process-recovery checks unless `FREE_SKIP_PYTHON=1`. They require a built
 `free-parsing_worker` image (or `DURABLE_TEST_WORKER_IMAGE` naming an
-equivalent image), Docker and the guarded disposable PostgreSQL target. The
-Node-only CI tier skips these two checks; full-host verification must run them.
+equivalent image), Docker and the guarded disposable PostgreSQL target. CI
+builds `free-parsing_worker` and runs them.
 
 `test:live-model` and `test:system` are intentionally excluded from the three
 aggregates (`test:all`, `test:all:node`, and `test:ci`) because the former needs
 an external model and the latter builds and restarts a full Docker stack. The
-GitHub `verify` workflow runs `test:ci` on Linux for pull requests into `main`
-(the merge PRs from `dev`) and pushes to `main`, so the POSIX session-secret
-permission check is part of the required deterministic gate.
+GitHub `verify` workflow runs `test:ci` on Linux only for pull requests into
+`main` (the merge PRs from `dev`), pushes to `main` and `main`'s merge queue,
+so the POSIX session-secret permission check is part of the required
+deterministic gate. `dev` has no automatic CI: before review, run
+`pnpm typecheck`, `pnpm lint` and `pnpm test:unit` locally, plus the tiers
+your change touches.

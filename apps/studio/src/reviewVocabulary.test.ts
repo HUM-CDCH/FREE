@@ -14,3 +14,11 @@ it('says what tied a recipe value to its field, until it is edited or rejected',
   expect(groundingDetail(link)).toBe('Read after its printed key · 1 other match in the entry · glossary: Grab')
   expect(groundingDetail(link, 'EDITED')).toBeNull()
 })
+
+it('never calls a single-pass unified link verified', async () => {
+  const { groundingDetail } = await import('./reviewVocabulary')
+  const located = (support: string) => ({ resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a',
+    grounding: { linkedBy: 'lexical', support, textSpans: [], alternatives: [], precision: 'segment', raw: 'x', itemSpans: null } }) as unknown as EvidenceLink
+  expect(groundingDetail(located('literal'))).toBe('Located by code; the value is printed in the entry')
+  expect(groundingDetail(located('supporting'))).toBe('Located by code in a supporting passage; no verifier checked it')
+})

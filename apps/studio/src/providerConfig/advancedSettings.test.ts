@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
+import { methodLines } from '../methodSummary'
 import {
-  ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, sectionSummary,
-  settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
+  ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, orderedCatalog,
+  resetArticleSetting, settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
 } from './advancedSettings'
 
 const inventory = JSON.parse(readFileSync(new URL(
@@ -27,7 +28,7 @@ function* inputs(): Generator<Record<string, unknown>> {
   yield* walk(0, {})
 }
 
-describe('every categorical combination through the Advanced controls', () => {
+describe('availability rules for the complete admitted Article contract', () => {
   it('each accepted one is reachable without a disabled choice; each refused one ends disabled or blocked', () => {
     let index = 0
     for (const target of inputs()) {
@@ -45,6 +46,41 @@ describe('every categorical combination through the Advanced controls', () => {
     }
     expect(index).toBe(6144)
   })
+})
+
+describe('resetting additional saved settings', () => {
+  const article: ArticleSettings = {
+    ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 16384, overlap_passages: 2, grouping: 'structural',
+    rendering: 'structured', grounding: 'spans', evidence_policy: 'schema', identity: 'conservative', identity_fields: ['Species'],
+    prompt: 'schema', selection: 'supported', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical',
+  }
+
+  it('keeps every retired setting readable in Method used', () => {
+    expect(methodLines({ article })).toEqual(expect.arrayContaining([
+      { label: 'Value evidence', value: 'Supported units' },
+      { label: 'Reconciliation', value: 'Declared identity fields' },
+      { label: 'Identity fields', value: 'Species' },
+      { label: 'Instructions', value: 'Schema-driven' },
+      { label: 'Continue verification', value: 'Until first support' },
+      { label: 'Unit order', value: 'Origin and lexical relevance' },
+    ]))
+  })
+
+  it('resets identity and its fields together, retaining every other setting', () => {
+    const reset = resetArticleSetting(article, 'identity')
+    expect(reset).toEqual({ ...article, identity: 'reference', identity_fields: [] })
+    expect(settingsDelta(article, reset)).toEqual([
+      { label: 'Reconciliation', from: 'Declared identity fields', to: 'Reference' },
+      { label: 'Identity fields', from: 'Species', to: 'None' },
+    ])
+  })
+
+  it.each(['prompt', 'selection', 'grounding_schedule', 'grounding_routing'] as const)(
+    'resets only %s while preserving all other settings', (key) => {
+      expect(resetArticleSetting(article, key)).toEqual(orderedArticle({ ...article, [key]: REFERENCE_ARTICLE[key] }))
+      expect(article.prompt).toBe('schema')
+      expect(article.identity_fields).toEqual(['Species'])
+    })
 })
 
 describe('choices', () => {
@@ -73,23 +109,13 @@ describe('summaries', () => {
   it('service defaults and the explicit reference read as the documented reference', () => {
     expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification')
     expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
-    expect(sectionSummary(REFERENCE_ARTICLE, 'context')).toBe('Full source')
-    // Retired settings never reach a summary: they no longer describe what Article does.
-    expect(sectionSummary(REFERENCE_ARTICLE, 'identity')).toBe('Not used by Article')
-    expect(sectionSummary(REFERENCE_ARTICLE, 'input')).toBe('Plain text')
-    expect(sectionSummary(REFERENCE_ARTICLE, 'evidence')).toBe('Source labels · All fields')
   })
 
   it('inactive values never reach a summary', () => {
     const full = { ...REFERENCE_ARTICLE, context_tokens: 16384 }
-    expect(sectionSummary(full, 'context')).toBe('Full source')
+    expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification')
     const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
     expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
-    expect(sectionSummary(spans, 'evidence')).toBe('Source spans · Schema policies')
-    expect(sectionSummary({ ...spans, identity: 'conservative', identity_fields: ['species', 'preparation'] }, 'identity'))
-      .toBe('Not used by Article')
-    expect(sectionSummary({ ...spans, selection: 'supported' }, 'context')).toBe('Bounded · 12,288 tokens')
-    expect(sectionSummary({ ...spans, prompt: 'schema' }, 'input')).toBe('Plain text')
   })
 
   it('a section is Changed only when one of its values differs from the saved settings', () => {
@@ -123,4 +149,12 @@ describe('starting points', () => {
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])
   })
+})
+
+
+it('keeps the heading candidate override in Catalog drafts without changing Article scoped resets', () => {
+  expect(orderedCatalog({ unified: { verification: false, headings: true, candidates: 8, overlap: 0 } }))
+    .toEqual({ unified: { overlap: 0, candidates: 8, headings: true, verification: false } })
+  expect(Object.keys(orderedCatalog({ unified: { headings: true, candidates: 8, overlap: 0 } }).unified!))
+    .toEqual(['overlap', 'candidates', 'headings'])
 })

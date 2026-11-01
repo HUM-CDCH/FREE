@@ -28,6 +28,54 @@ describe('durable extraction reads require an owned runtime head',()=> {
   })
 })
 
+describe('document history',()=> {
+  const project='00000000-0000-4000-8000-000000000002', document='00000000-0000-4000-8000-000000000003'
+  const historyRequest=(path=`${project}/source-documents/${document}`)=>new Request(`https://localhost/api/project-contexts/${path}/history`)
+  const listed={truncated:false,extractions:[{extractionId:id,createdAt:'2026-10-28T10:00:00.000Z',status:'COMPLETED',strategy:'ARTICLE',
+    batchExtractionId:null,sourceRevisionNumber:1,currentSource:true,schemaRevisions:[{schemaRevisionId:project,revisionNumber:2}],
+    pendingSchemaRevision:null,finalizations:[{snapshotVersion:1,feedbackVersion:0,createdAt:'2026-10-28T11:00:00.000Z'}]}]}
+  it('reads the owned document\'s Extractions uncached',async()=> {
+    const documentHistory=vi.fn().mockResolvedValue(listed)
+    vi.mocked(createDurableRepository).mockReturnValue({documentHistory} as never)
+    const response=await createResearcherApiHandlers(store).GET(historyRequest())
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
+    expect(await response.json()).toEqual(listed)
+    expect(documentHistory).toHaveBeenCalledWith(project,document)
+  })
+  it('refuses malformed identities before reading, and conceals a document outside the owned Project',async()=> {
+    const documentHistory=vi.fn().mockRejectedValue(new DurableNotFound('That Source Document was not found in this Project.'))
+    vi.mocked(createDurableRepository).mockReturnValue({documentHistory} as never)
+    expect((await createResearcherApiHandlers(store).GET(historyRequest(`${project}/source-documents/NOT-A-UUID`))).status).toBe(422)
+    expect((await createResearcherApiHandlers(store).GET(historyRequest(`00000000-0000-4000-8000-00000000000A/source-documents/${document}`))).status).toBe(422)
+    expect(documentHistory).not.toHaveBeenCalled()
+    const response=await createResearcherApiHandlers(store).GET(historyRequest())
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({error:{code:'not_found'}})
+  })
+  const valueRequest=(query:string)=>new Request(`https://localhost/api/project-contexts/${project}/source-documents/${document}/history/value?${query}`)
+  const traced={truncated:false,untraceableRevisions:1,unmatched:2,readings:[{extractionId:id,createdAt:'2026-10-28T10:00:00.000Z',status:'COMPLETED',
+    snapshotVersion:3,schemaRevision:{schemaRevisionId:project,revisionNumber:2},node:{id:'title-node',name:'title',type:'string'},processing:'saved',
+    modelValue:'Old title',disagreement:null,decision:{action:'EDITED',value:'New title'},decisionIncompatible:false}]}
+  it('reads one value\'s history from an owned Extraction of the document uncached',async()=> {
+    const valueHistory=vi.fn().mockResolvedValue(traced)
+    vi.mocked(createDurableRepository).mockReturnValue({valueHistory} as never)
+    const response=await createResearcherApiHandlers(store).GET(valueRequest(`extractionId=${id}&valueId=v%3Atitle`))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
+    expect(await response.json()).toEqual(traced)
+    expect(valueHistory).toHaveBeenCalledWith(project,document,id,'v:title')
+  })
+  it('refuses a missing or malformed Extraction or value before reading, and conceals one outside the document',async()=> {
+    const valueHistory=vi.fn().mockRejectedValue(new DurableNotFound('That Extraction was not found for this Source Document.'))
+    vi.mocked(createDurableRepository).mockReturnValue({valueHistory} as never)
+    for(const query of ['valueId=title',`extractionId=${id}`,`extractionId=${id}&valueId=`,'extractionId=NOT-A-UUID&valueId=title',`extractionId=${id}&valueId=${'x'.repeat(513)}`])
+      expect((await createResearcherApiHandlers(store).GET(valueRequest(query))).status).toBe(422)
+    expect(valueHistory).not.toHaveBeenCalled()
+    expect((await createResearcherApiHandlers(store).GET(valueRequest(`extractionId=${id}&valueId=title`))).status).toBe(404)
+  })
+})
+
 describe('discovery progress',()=> {
   const attempt={id:'attempt',workflowId:'kei-durable:extraction:attempt'}
   it('lists the record starts of the windows read and those each window being read has generated so far, by its own lines',async()=> {

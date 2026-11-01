@@ -1,5 +1,5 @@
 """Article reads one document root with complete input and served-token admission; the inventory of
-noncontiguous records it used to take stays for the research replays and is tested here as a unit."""
+noncontiguous records it used to take lives in research tooling and is tested here as a unit."""
 import dataclasses
 
 import pytest
@@ -7,7 +7,8 @@ import pytest
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.llm import Reply
-from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered, inventory
+from experiments.extraction.legacy_article import inventory
+from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered
 from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
 from kei_exp.kie.extract.stages import DOCUMENT, extract_record, record_request
@@ -46,7 +47,7 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
                                   "title": "Sites", "filename": "bauer.pdf"}]
     assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
-    assert not result["issues"] and result["article_version"] == 14
+    assert not result["issues"] and result["article_version"] == 16
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])

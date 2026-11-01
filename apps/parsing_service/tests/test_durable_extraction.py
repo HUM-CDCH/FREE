@@ -11,7 +11,7 @@ import pytest
 
 from kei_exp.kie.extract import calls, run, unified
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
-from kei_exp.kie.extract.models import ROLE, Router
+from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract import retained
 from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
@@ -47,7 +47,8 @@ class MemoryLease:
         self.state = {"selection":{"id":str(uuid4()),"schemaRevisionId":str(uuid4()),"schemaTree":tree},
                       "generation": 1,
                       "source":{"generation":"g1","sourceRevisionId":str(uuid4())},
-                      "effective":{"models":{role:{"model":"fake/extractor"} for role in ("fields","reasoning")}}}
+                      "effective":{"models":{role:{"model":"fake/extractor"} for role in ("fields","reasoning")},
+                                    "options":{}}}
         self.units, self.plans, self.publications = {}, {}, {}
         self.candidates, self.historical, self.intent = [], {}, "RUN"
 
@@ -329,7 +330,7 @@ def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its
     assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
 
 
-@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3)])
+@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3),(6,"budget",3)])
 def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
     """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
     source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
@@ -558,13 +559,51 @@ def test_format_fallback_is_a_separate_capture_with_the_original_input():
     parent["checkpoint"]={"outputDigest":"refusal","output":{"formatRefused":True,"parsed":None,
       "calls":[asdict(calls.Call("record",0,None,None,0.0,None,False,"format refused",recovered=True))]}}
     lease.candidates=[{"id":"new correction that must not recompose the fallback"}]
+    lease.state["effective"]["options"]={"start_page":1}
+    planner=CapturePlanner(lease,{"fields":Counter()})
     with pytest.raises(NeedsCall):
-        CapturePlanner(lease,{"fields":Counter()}).complete(chat,**args)
+        planner.complete(chat,**args,page=20)
     fallback=list(lease.units.values())[1]
     before=deepcopy(parent["input"]["request"])
     before["body"]["httpRequest"].pop("response_format")
     assert fallback["input"]["request"]==before
     assert fallback["descriptor"]["derivedFrom"]==parent["id"]
+    assert planner.priorities=={fallback["id"]:2}  # the parent's page, 19 pages from the start
+
+
+@pytest.mark.parametrize("start,page,priority", [(None, 5, 3), (None, None, 3), (10, None, 0), (10, 10, 0),
+                                                 (10, 17, 0), (10, 2, 1), (10, 33, 2), (10, 34, 3), (10, 300, 3)])
+def test_a_calls_priority_is_its_pages_distance_from_the_start_page_and_never_changes_what_it_saves(start, page,
+                                                                                                    priority):
+    from kei_exp.kie.extract.llm import OpenAIChat
+    def planned(options, **where):
+        lease=MemoryLease({"recordDescription":"document","schemaNodes":[]})
+        lease.state["selection"]["id"],lease.state["effective"]["options"]="one selection",options
+        planner=CapturePlanner(lease,{"fields":Counter()})
+        with pytest.raises(NeedsCall):
+            planner.complete(OpenAIChat(model="fake/extractor",max_tokens=10),stage="record",record=0,
+                             system="fixed instructions",user="fixed source",schema={"type":"object"},**where)
+        (unit,)=lease.units.items()
+        return planner.priorities[unit[1]["id"]],(unit[0],unit[1]["descriptor"],unit[1]["input"])
+    found,saved=planned({} if start is None else {"start_page":start},page=page)
+    assert found==priority
+    assert saved==planned({})[1]  # the same capture key, descriptor and finalized input as a call with no page
+
+
+def test_an_article_record_call_is_planned_with_the_page_it_is_read_for():
+    from kei_exp.kie.extract.llm import OpenAIChat
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import extract_record
+    tree={"recordDescription":"An article","recordScope":"document",
+          "schemaNodes":[{"id":"year","name":"year","type":"integer"}]}
+    lease=MemoryLease(tree)
+    lease.state["effective"]["options"]={"start_page":1}
+    planner=CapturePlanner(lease,{"fields":Counter()})
+    chat=OpenAIChat(model="fake/extractor")
+    with pytest.raises(NeedsCall):
+        extract_record(passages(["Published in 2020."]),Schema.model_validate(tree),Router(chat,chat,planner),
+                       budget=48000,record=0,counter=Counter(),document=True,page=12)
+    assert list(planner.priorities.values())==[1]
 
 
 @pytest.mark.parametrize("recovery_ok", [True, False])
@@ -811,8 +850,8 @@ def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves(
 @pytest.mark.parametrize("chunks",[1,2])
 def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks):
     """Each entry of the windows read so far is read, and shown with its candidates, before discovery has read the
-    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. A round plans
-    at most `chunks` calls per role however many pages there are, and the result is a plain run's."""
+    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. However many
+    entries a round plans, the workflow runs `chunks` calls per role (`drive`), and the result is a plain run's."""
     from tests.test_unified_catalog import untimed
     source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
     request=unified_request(defaults=3)
@@ -822,8 +861,6 @@ def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks
     last_window=len(answered)-1-answered[::-1].index("discovery")
     assert answered.index("entry")<last_window<answered.index("verification")
     assert any("discovery" in each["planned"].values() and 0 in each["saved"] for each in rounds)
-    assert all(sum(ROLE[stage]==role for stage in each["planned"].values())<=chunks
-               for each in rounds for role in ("fields","reasoning"))
     # discovery keeps `chunks` windows asked until none is left to ask
     assert all(list(each["planned"].values()).count("discovery")==min(chunks,12-each["answered"].count("discovery"))
                for each in rounds if each["answered"].count("discovery")<12)

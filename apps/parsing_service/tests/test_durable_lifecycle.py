@@ -17,7 +17,7 @@ from tests.helpers import catalogue
 from tests.helpers.postgres import checked_conninfo
 from tests.test_durable_workflow_recovery import CHILD,until
 from tests.test_extract_grounded import honest
-from tests.test_unified_catalog import Model
+from tests.test_unified_catalog import Model,section
 
 FIXTURE=os.environ.get('DURABLE_LIFECYCLE_FIXTURE')
 pytestmark=[pytest.mark.postgres,pytest.mark.slow,pytest.mark.skipif(not FIXTURE,reason='run durable-lifecycle.postgres.check.ts')]
@@ -131,7 +131,8 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
         assert completed['page']['total']>0
         assert completed['state']['counts']['saved']==len(calls)-(1 if failed_at else 0)
         assert all(capture['request']==captured[capture['id']] for capture in completed['history']['captures'] if capture['id'] in captured)
-        assert len({capture['id'] for capture in completed['history']['captures']})==len(calls)-(1 if failed_at else 0)
+        # Planning captures every entry ahead of execution; Stop can leave captures without a successful checkpoint.
+        assert len({capture['id'] for capture in completed['history']['captures'] if capture['output'] is not None})==len(calls)-(1 if failed_at else 0)
         if case['terminal']=='stop':
             refused=requests.post(fixture['bridge'],json={'id':case['id'],'action':'resume'},
                 headers={'Authorization':f"Bearer {fixture['token']}"},timeout=15)
@@ -322,3 +323,129 @@ def hold_lane(number):
         log.close()
         if client:client.destroy()
         server.shutdown();server.server_close();thread.join(timeout=5)
+
+
+def test_guard_failure_can_resume_with_new_model_and_retained_values(tmp_path):
+    """A new selection finishes the failed entry without rewriting its sibling or failed input."""
+    fixture = json.loads(Path(FIXTURE).read_text())
+    fields = checked_conninfo(fixture['admin'])
+    case = next(case for case in fixture['cases'] if case['terminal'] == 'repetition-recovery')
+    source = tmp_path / 'runs' / case['source']['runId']
+    texts = ['1. Hill. Material: gold. Find: coin (2).',
+             '2. Valley. Material: flint. Bundle: 40 beads. ' + 'Find: bead (2). ' * 40]
+    catalogue.write({'transcriber': 'native', 'pages': [{'page': 1, 'units': [{'index': 0, 'segments': texts}]}]},
+                    source, generation=case['source']['generation'])
+    (source / 'params.json').write_text('{}')
+    model = Model(load(source))
+    requests_seen = []
+
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *_): pass
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            messages = body['messages']
+            counted = sum(len(message['content'].split()) for message in messages) + 5
+            if self.path == '/tokenize':
+                output = {'count': counted, 'max_model_len': 32768}
+            else:
+                requests_seen.append(body)
+                controls = body.get('chat_template_kwargs', {})
+                native = 'template' in controls
+                system = controls['instructions'] if native else messages[0]['content']
+                user = messages[-1]['content']
+                schema = ({'properties': {name: {} for name in ('label', 'site', 'material', 'gilded', 'finds')}}
+                          if native else body['response_format']['json_schema']['schema'])
+                parsed = model(system, user, schema)
+                if native and '2. Valley.' in section(user, 'RECORD'):
+                    assert len(parsed['finds']) == 40
+                    for found in parsed['finds']:
+                        found['_item_text'] = 'Bundle: 40 beads'
+                output = {'choices': [{'message': {'content': json.dumps(parsed)}, 'finish_reason': 'stop'}],
+                          'usage': {'prompt_tokens': counted, 'completion_tokens': 10}}
+            raw = json.dumps(output).encode()
+            self.send_response(200); self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(raw))); self.end_headers(); self.wfile.write(raw)
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    log = open(tmp_path / 'worker.log', 'w+')
+    serving = tmp_path / 'serving'
+    url = f'http://127.0.0.1:{server.server_port}/v1/chat/completions'
+    env = {**os.environ, 'PYTHONPATH': '/test/src', 'KEI_RUNS': str(tmp_path / 'runs'),
+           'MODEL_URL': url, 'KEI_NUEXTRACT_URL': url, 'FAULT': '', 'CRASHED': str(tmp_path / 'crashed'),
+           'SERVING': str(serving), 'DURABLE_RECOVERY_FIXTURE': FIXTURE}
+    child = CHILD.replace("url=json.loads(Path(os.environ['DURABLE_RECOVERY_FIXTURE'])",
+                          "config.CATALOG_CHUNKS=1\nurl=json.loads(Path(os.environ['DURABLE_RECOVERY_FIXTURE'])")
+    process = subprocess.Popen([sys.executable, '-c', child], env=env, stdout=log, stderr=log)
+    client = None
+    def control(action=None):
+        response = requests.post(fixture['bridge'], json={'id': case['id'], **({'action': action} if action else {})},
+                                 headers={'Authorization': f"Bearer {fixture['token']}"}, timeout=15)
+        assert response.ok, response.text
+        return response.json()
+    def enqueue(attempt, workflow):
+        client.enqueue({'workflow_name': 'extractDurableV1', 'queue_name': 'kei-extract', 'application_name': 'kei',
+                        'workflow_id': workflow, 'serialization_type': WorkflowSerializationFormat.PORTABLE},
+                       {'protocol': 1, 'extraction_id': case['id'], 'attempt_id': attempt})
+        status = until(lambda: (result := client.retrieve_workflow(workflow).get_status()).status in {'SUCCESS', 'ERROR'}
+                       and result, timeout=90)
+        assert status.status == 'SUCCESS', status.error
+    try:
+        until(lambda: serving.exists() or process.poll() is not None)
+        if process.poll() is not None:
+            log.seek(0); raise AssertionError(log.read())
+        client = DBOSClient(system_database_url=fixture['worker'], dbos_system_schema='kei_dbos', application_name='kei')
+        enqueue(case['attempt'], case['workflow'])
+        failed = control()
+        assert failed['state']['status'] == 'FAILED'
+        assert any('nuextract-item-text-v1' in call['output']['calls'][0].get('error', '')
+                   for call in failed['history']['failedCalls'])
+        saved = [value for value in failed['page']['values'] if value['node']['name'] == 'material']
+        assert len(saved) == 1 and saved[0]['modelValue'] == 'gold' and saved[0]['evidence']
+        with psycopg.connect(**fields) as db:
+            original_input = db.execute('''SELECT i.request FROM extraction_runtime.input i
+                JOIN extraction_runtime.capture c ON c.id=i.id
+                JOIN extraction_runtime.checkpoint o ON o.id=i.id WHERE c."extractionId"=%s
+                AND i.request->'body'->>'stage'='entry' ''', [case['id']]).fetchall()
+            history = db.execute('''SELECT i.request,f.output FROM extraction_runtime."callFailure" f
+                JOIN extraction_runtime.input i ON i.id=f."captureId"
+                JOIN extraction_runtime.capture c ON c.id=i.id WHERE c."extractionId"=%s''', [case['id']]).fetchall()
+        assert len(history) == 1 and len(original_input) == 1
+        before_resume = len(requests_seen)
+        resumed = control('change-model')
+        assert resumed['state']['selection']['id'] != failed['state']['selection']['id']
+        enqueue(resumed['attempt']['id'], resumed['attempt']['workflowId'])
+        completed = control()
+        assert completed['state']['status'] == 'COMPLETED'
+        final_values = {value['id']: value for value in completed['page']['values']}
+        for value in failed['page']['values']:
+            assert final_values[value['id']] == value
+        finds = [value for value in completed['page']['values'] if value['node']['name'] == 'finds'
+                 and value['modelValue'] and value['modelValue'][0]['name'] == 'bead']
+        assert len(finds) == 1 and finds[0]['modelValue'] == [{'name': 'bead', 'count': 2}] * 40
+        assert finds[0]['evidence'] and finds[0]['selectionId'] == resumed['state']['selection']['id']
+        reread_sibling = False
+        for body in requests_seen[before_resume:]:
+            controls = body.get('chat_template_kwargs', {})
+            system = controls.get('instructions') or body['messages'][0]['content']
+            if system.startswith('You extract structured data from one record'):
+                reread_sibling |= '1. Hill.' in section(body['messages'][-1]['content'], 'RECORD')
+                assert 'template' not in controls
+        assert reread_sibling  # Live publications are provisional, so adoption re-reads their record.
+
+        with psycopg.connect(**fields) as db:
+            assert db.execute('''SELECT i.request FROM extraction_runtime.input i
+                JOIN extraction_runtime.capture c ON c.id=i.id
+                JOIN extraction_runtime.checkpoint o ON o.id=i.id WHERE c."extractionId"=%s
+                AND c."selectionId"=%s AND i.request->'body'->>'stage'='entry' ''',
+                [case['id'], failed['state']['selection']['id']]).fetchall() == original_input
+            assert db.execute('''SELECT i.request,f.output FROM extraction_runtime."callFailure" f
+                JOIN extraction_runtime.input i ON i.id=f."captureId"
+                JOIN extraction_runtime.capture c ON c.id=i.id WHERE c."extractionId"=%s''', [case['id']]).fetchall() == history
+    finally:
+        if process.poll() is None: process.terminate()
+        try: process.wait(timeout=10)
+        except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=5)
+        log.close()
+        if client: client.destroy()
+        server.shutdown(); server.server_close(); thread.join(timeout=5)

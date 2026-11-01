@@ -36,10 +36,11 @@ export const groundedEvidenceSchema = evidenceSchema.extend({
   // The document's own glossary expansion of the raw value, which the record keeps unchanged.
   normalized: z.object({ value: z.string(), rule: z.literal('glossary'), key_span: span, expansion_span: span }).nullable(),
 })
-/** Version 3 evidence (`kie/extract/unified.py` `_link`): a verified value, its literal span or the passage that
- *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. */
+/** Version 3 evidence (`kie/extract/unified.py` `_link`): a located value, its literal span or the passage that
+ *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. `verification`:
+ *  a separate verification accepted it; `lexical`: a single-pass method (defaults 6) where only code located it. */
 export const unifiedEvidenceSchema = evidenceSchema.extend({
-  linked_by: z.literal('verification'),
+  linked_by: z.enum(['verification', 'lexical']),
   support: z.enum(['literal', 'supporting']),
   spans: z.array(span).min(1),
   alternatives: z.array(z.array(span)),
@@ -52,7 +53,7 @@ export const unifiedEvidenceSchema = evidenceSchema.extend({
 export const evidenceAnchorIdOf = (link: { segment: string; cell?: string | null }): string =>
   `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
 
-/** A version 3 link as the Extraction keeps it: a verified value with its spans (`VerifiedGrounding`). */
+/** A version 3 link as the Extraction keeps it: a located value with its spans (`VerifiedGrounding`). */
 export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string) {
   return {
     resultPath: link.path, evidenceAnchorId, precision: link.precision, verbatim: link.verbatim, lexicalHits: link.hits,

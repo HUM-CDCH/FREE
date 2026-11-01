@@ -268,7 +268,7 @@ def main():
     one = sub.add_parser("record")
     one.add_argument("out", type=Path)
     one.add_argument("--records", type=int, default=40)
-    one.add_argument("--defaults", type=int, default=3, choices=(3, 4))
+    one.add_argument("--defaults", type=int, default=3, choices=(3, 4, 7))
     one.add_argument("--chunks", type=int, default=4)
     two = sub.add_parser("replay")
     two.add_argument("replies", type=Path)

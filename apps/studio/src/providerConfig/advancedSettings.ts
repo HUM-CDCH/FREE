@@ -14,7 +14,7 @@ export type NumberPath =
   | 'article.context_tokens'
   | 'catalog.generic.discovery_chars' | 'catalog.generic.record_chars'
   | 'catalog.recipe.input_tokens' | 'catalog.recipe.output_tokens'
-  | 'catalog.unified.input_tokens' | 'catalog.unified.output_tokens' | 'catalog.unified.overlap'
+  | 'catalog.unified.input_tokens' | 'catalog.unified.output_tokens' | 'catalog.unified.overlap' | 'catalog.unified.candidates'
 
 export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string; keys: readonly ArticleKey[] }[] = [
   { section: 'context', title: 'Source context', keys: ['context', 'context_tokens', 'grouping', 'overlap_passages', 'selection'] },
@@ -22,15 +22,16 @@ export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string
   { section: 'input', title: 'Extraction input', keys: ['prompt', 'rendering'] },
   { section: 'evidence', title: 'Evidence', keys: ['grounding', 'evidence_policy', 'grounding_schedule', 'grounding_routing'] },
 ]
-/** Settings today's Article method ignores. Article extracts one document-level object: it keeps no record-identity
- *  inventory (`identity`, `identity_fields`), its model requests do not change with `prompt`, and it reads every source
- *  unit for values (`selection`). Their controls stay visible but read-only, and a saved value is kept and sent as
- *  saved: the contract still accepts it, and historical settings are research state. */
-export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([
-  'selection', 'identity', 'identity_fields', 'prompt', 'grounding_schedule', 'grounding_routing',
-])
-/** Said beside every retired control. */
-export const RETIRED_NOTE = 'No longer used by Article. A saved value is kept unchanged.'
+/** Retired controls whose saved values remain part of the admitted method. `source_contexts` still counts
+ *  `inventory_request` using identity, identity_fields and prompt for preliminary bounded source sizing (including
+ *  full-source fallback). They do not change the document-value prompt or reconcile records. The remaining keys
+ *  keep their validation and diagnostic metadata. Saved values change only through an explicit edit or reset. */
+export const ADDITIONAL_ARTICLE_KEYS = ['selection', 'identity', 'prompt', 'grounding_schedule', 'grounding_routing'] as const
+export type AdditionalArticleKey = typeof ADDITIONAL_ARTICLE_KEYS[number]
+export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([...ADDITIONAL_ARTICLE_KEYS, 'identity_fields'])
+/** Live controls, separate from the complete recorded-setting order used by summaries and deltas. */
+export const ARTICLE_CONTROL_SECTIONS = ARTICLE_SECTIONS.map(({ keys, ...section }) =>
+  ({ ...section, keys: keys.filter((key) => !RETIRED_ARTICLE_KEYS.has(key)) })).filter(({ keys }) => keys.length > 0)
 
 export const SECTION_OF = Object.fromEntries(
   ARTICLE_SECTIONS.flatMap(({ section, keys }) => keys.map((key) => [key, section])),
@@ -43,20 +44,14 @@ export const CONTROL_LABELS: Readonly<Record<ArticleKey, string>> = {
   grounding_schedule: 'Continue verification', grounding_routing: 'Unit order',
 }
 
-export const CONTROL_HINTS: Readonly<Record<ArticleKey, string>> = {
+export const CONTROL_HINTS: Readonly<Record<Exclude<ArticleKey, AdditionalArticleKey | 'identity_fields'>, string>> = {
   context: 'Full source reads the whole document at once; bounded source units split it into parts that fit a ceiling.',
   context_tokens: 'Tokens per request, including instructions and the output reserve; each served model can lower it.',
   grouping: 'How bounded units are formed: by token budget, or following headings, captions and tables.',
   overlap_passages: 'Whole earlier passages repeated as context. They never own records; not pages or sentences.',
-  selection: 'Article now reads every source unit for values, so this choice no longer changes what is read.',
-  identity: 'Article now extracts one document-level object, so there are no records to reconcile.',
-  identity_fields: 'Article now extracts one document-level object, so no fields key records.',
-  prompt: 'Article’s model requests no longer change with this choice.',
   rendering: 'Structured input labels blocks and table cells. It keeps the source characters and cannot recover missing OCR text or cells.',
   grounding: 'How each populated record value is checked against the source.',
   evidence_policy: 'All populated record fields, or only those your schema policies mark quoted.',
-  grounding_schedule: 'Article now checks each value where it was read first and stops at support, whichever is chosen.',
-  grounding_routing: 'Article now checks each value in the source unit it was read from first, whichever is chosen.',
 }
 
 type Choice<V> = Readonly<{ value: V; label: string }>
@@ -92,12 +87,18 @@ export const NUMBER_MESSAGES: Readonly<Record<NumberPath, string>> = {
   'catalog.unified.input_tokens': METHOD_MESSAGES.inputTokens,
   'catalog.unified.output_tokens': METHOD_MESSAGES.replyTokens,
   'catalog.unified.overlap': METHOD_MESSAGES.catalogOverlap,
+  'catalog.unified.candidates': METHOD_MESSAGES.catalogCandidates,
 }
 
 /** Rebuilds an Article draft in `ArticleOptions` order without unset factors, so equal drafts serialize alike. */
 export function orderedArticle(article: Readonly<Partial<Record<ArticleKey, unknown>>>): ArticleSettings {
   return Object.fromEntries(ARTICLE_KEYS.flatMap((key) =>
     article[key] === undefined || article[key] === null ? [] : [[key, article[key]]])) as ArticleSettings
+}
+
+/** Reset one saved setting without changing other draft values; identity and its fields reset together. */
+export function resetArticleSetting(article: ArticleSettings, key: AdditionalArticleKey): ArticleSettings {
+  return orderedArticle({ ...article, [key]: REFERENCE_ARTICLE[key], ...(key === 'identity' ? { identity_fields: [] } : {}) })
 }
 
 /** Why choosing `value` would break a rule at this very control, or null. A parent choice that breaks a child stays
@@ -120,28 +121,6 @@ export function effectiveSummary(article: ArticleSettings | undefined): string {
   const shown = article ?? REFERENCE_ARTICLE
   const scope = shown.context === 'bounded' ? `Bounded source units (${numberText(shown.context_tokens)} tokens)` : 'Full source'
   return [scope, label('rendering', shown.rendering), VERIFICATION[shown.grounding]].join(' · ')
-}
-
-/** A collapsed row's value, derived from the draft; inactive values are left out. */
-export function sectionSummary(article: ArticleSettings, section: ArticleSection): string {
-  switch (section) {
-    case 'context':
-      return article.context === 'full' ? 'Full source' : [
-        'Bounded', `${numberText(article.context_tokens)} tokens`,
-        ...(article.grouping ? ['Structure-aware'] : []),
-        ...(article.overlap_passages > 0 ? [`${article.overlap_passages} previous passage${article.overlap_passages === 1 ? '' : 's'}`] : []),
-      ].join(' · ')
-    // Retired settings (`RETIRED_ARTICLE_KEYS`) are left out: they no longer describe what Article does.
-    case 'identity':
-      return 'Not used by Article'
-    case 'input':
-      return label('rendering', article.rendering)
-    case 'evidence':
-      return [
-        label('grounding', article.grounding),
-        article.evidence_policy ? 'Schema policies' : 'All fields',
-      ].join(' · ')
-  }
 }
 
 /** A setting's value as a researcher reads it; the unused ceiling says so. */
@@ -199,17 +178,9 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
   ]
 }
 
-/** Which disclosure an issue opens: an Article section, or a Catalog one. */
-export function issueSection(path: string): ArticleSection | 'generic' | 'recipe' | 'unified' | null {
-  const [scope, member] = path.split('.')
-  if (scope === 'article' && member) return SECTION_OF[member as ArticleKey] ?? null
-  if (scope === 'catalog' && (member === 'generic' || member === 'recipe' || member === 'unified')) return member
-  return null
-}
-
 const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const
 const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const
-const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'headings', 'verification'] as const
+const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
 
 /** A Catalog draft in the contract's key order, without unset values; like `orderedArticle`, it never validates. */
 export function orderedCatalog(catalog: Readonly<{ generic?: Record<string, unknown>; recipe?: Record<string, unknown>; unified?: Record<string, unknown> }>): CatalogSettings {

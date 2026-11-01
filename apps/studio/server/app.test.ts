@@ -57,9 +57,12 @@ async function fixture(options: {
     }
     return account
   })
+  const revoked = new Set<string>()
   const accountStore: ResearcherAccountStore = {
     findOrCreate,
     findById: vi.fn(async (id) => (account?.id === id ? account : null)),
+    revokeSession: vi.fn(async (digest) => { revoked.add(digest) }),
+    isSessionRevoked: vi.fn(async (digest) => revoked.has(digest)),
   }
   const dispatcher = vi.fn(async (_request, store: ResearcherProjectStore) =>
     Response.json({
@@ -507,5 +510,116 @@ describe('Studio key custody', () => {
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toBe(`${ORIGIN}/auth/signed-out`)
     expect(setCookies(response)).toEqual(LOGOUT_COOKIES)
+  })
+})
+
+describe('durable sign-out', () => {
+  const custody = () => ({ bootId: 'boot-1', keys: { forgetAccount: vi.fn() } })
+  const logout = (test: Fixture, cookie: string) =>
+    test.app.request(`${ORIGIN}/auth/logout`, { method: 'POST', headers: { origin: ORIGIN, cookie } })
+
+  it('refuses a copied cookie on every protected path after sign-out, and clears no newer session', async () => {
+    const test = await fixture({ modelKeys: custody() })
+    const copied = (await signIn(test)).sessionCookie!
+    expect((await test.app.request(`${ORIGIN}/api/example`, { headers: { cookie: copied } })).status).toBe(200)
+    test.dispatcher.mockClear()
+    expect((await logout(test, copied)).status).toBe(302)
+
+    const read = await test.app.request(`${ORIGIN}/api/example`, { headers: { cookie: copied } })
+    const write = await test.app.request(`${ORIGIN}/api/example`, {
+      method: 'POST',
+      headers: { cookie: copied, origin: ORIGIN, 'content-type': 'application/json' },
+      body: '{}',
+    })
+    const handoff = await test.app.request(`${ORIGIN}/api/model-keys`, {
+      method: 'PUT',
+      headers: { cookie: copied, origin: ORIGIN, 'content-type': 'application/json' },
+      body: JSON.stringify({ account: ACCOUNT_ID, keys: {} }),
+    })
+    for (const denied of [read, write, handoff]) {
+      expect(denied.status).toBe(401)
+      await expect(denied.json()).resolves.toMatchObject({ error: { code: 'authentication_required' } })
+      expect(setCookies(denied)).toEqual([])
+    }
+    const session = await test.app.request(`${ORIGIN}/api/auth/session`, { headers: { cookie: copied } })
+    await expect(session.json()).resolves.toEqual({ authenticated: false })
+    expect(setCookies(session)).toEqual([])
+    const page = await test.app.request(`${ORIGIN}/projects`, { headers: { cookie: copied } })
+    expect(page.status).toBe(302)
+    expect(page.headers.get('location')).toBe('/auth/login?returnTo=%2Fprojects')
+    expect(setCookies(page)).toEqual([])
+    expect(test.dispatcher).not.toHaveBeenCalled()
+  })
+
+  it('gives sessions signed in at the same instant their own cookies, and signs out only the one that leaves', async () => {
+    const test = await fixture({ modelKeys: custody() })
+    const first = (await signIn(test)).sessionCookie!
+    const second = (await signIn(test)).sessionCookie!
+    expect(first).not.toBe(second)
+
+    await logout(test, first)
+    const api = (cookie: string) => test.app.request(`${ORIGIN}/api/example`, { headers: { cookie } })
+    expect((await api(first)).status).toBe(401)
+    expect((await api(second)).status).toBe(200)
+    const again = (await signIn(test)).sessionCookie!
+    expect((await api(again)).status).toBe(200)
+  })
+
+  it('evicts keys and clears cookies when the sign-out cannot be saved, and says it was not recorded', async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const copied = (await signIn(test)).sessionCookie!
+    const other = (await signIn(test)).sessionCookie!
+    vi.mocked(test.accountStore.revokeSession).mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await logout(test, copied)
+    expect(modelKeys.keys.forgetAccount).toHaveBeenCalledExactlyOnceWith(ACCOUNT_ID)
+    expect(response.status).toBe(503)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(setCookies(response)).toEqual([
+      'free_entra_transaction=; Max-Age=0; Path=/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
+      'free_session=; Max-Age=0; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
+      'free_signed_out=1; Path=/; HttpOnly; Secure; SameSite=Lax',
+    ])
+    const page = await response.text()
+    expect(page).toContain('could not record the sign-out')
+    expect(page).toContain(new Date(NOW + 8 * 60 * 60 * 1_000).toUTCString())
+
+    // This process still refuses the copy; with the database down, any other session fails closed.
+    expect((await test.app.request(`${ORIGIN}/api/example`, { headers: { cookie: copied } })).status).toBe(401)
+    vi.mocked(test.accountStore.isSessionRevoked).mockRejectedValue(new Error('database unavailable'))
+    expect((await test.app.request(`${ORIGIN}/api/example`, { headers: { cookie: other } })).status).toBe(503)
+    expect((await test.app.request(`${ORIGIN}/api/example`, { headers: { cookie: copied } })).status).toBe(401)
+  })
+})
+
+describe('sign-out during a key handoff', () => {
+  it('refuses a handoff whose session signed out while its authentication waited on the database', async () => {
+    const test = await fixture({ modelKeys: { bootId: 'boot-1', keys: { forgetAccount: vi.fn() } } })
+    const cookie = (await signIn(test)).sessionCookie!
+    const lookup = Promise.withResolvers<void>()
+    const waiting = Promise.withResolvers<void>()
+    const isSessionRevoked = vi.mocked(test.accountStore.isSessionRevoked)
+    isSessionRevoked.mockImplementationOnce(async () => {
+      waiting.resolve()
+      await lookup.promise
+      return false
+    })
+
+    const handoff = test.app.request(`${ORIGIN}/api/model-keys`, {
+      method: 'PUT',
+      headers: { origin: ORIGIN, cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ account: ACCOUNT_ID, keys: {} }),
+    })
+    await waiting.promise
+    const logout = await test.app.request(`${ORIGIN}/auth/logout`, { method: 'POST', headers: { origin: ORIGIN, cookie } })
+    expect(logout.status).toBe(302)
+    lookup.resolve()
+
+    const late = await handoff
+    expect(late.status).toBe(401)
+    expect(setCookies(late)).toEqual([])
+    expect(test.dispatcher).not.toHaveBeenCalled()
   })
 })

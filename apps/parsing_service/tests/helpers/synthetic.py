@@ -4,6 +4,7 @@ Built from the same interfaces the replay uses, so the version 3 writer at e5ad7
 the same inputs."""
 from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -42,7 +43,15 @@ def record(ordinal, *, blocks=None, image_bbox=None, markdown="md", text="txt", 
 
 
 def crop(page, kind, bbox, order, transform, size=(500, 700)):
-    return (page, Region(kind, bbox, order, 0.5, transform), Image.new("L", size))
+    """A planned crop (`kei_exp.regions.CropPlan`): what a run keeps of a crop, its size and no image."""
+    return (page, Region(kind, bbox, order, 0.5, transform), size)
+
+
+def rendering(plans):
+    """`ocr.render_region` patched to render each of `plans` blank at its planned size, for a test whose cut is patched
+    away and whose source renders nothing real."""
+    sizes = {region: size for _, region, size in plans}
+    return patch("kei_exp.kie.stages.ocr.render_region", side_effect=lambda page, region, dpi: Image.new("L", sizes[region]))
 
 
 def three_crops() -> tuple[list, Inventory]:

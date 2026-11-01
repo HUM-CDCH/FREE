@@ -51,10 +51,12 @@ def read_stream(response: requests.Response, on_token: Callable[[str], None] | N
 
 
 class StreamingVlmEngine(ApiVlmEngine):
-    def __init__(self, *args, emit: Emit | None = None, **kwargs):
+    def __init__(self, *args, emit: Emit | None = None, offset: int = 0, **kwargs):
         super().__init__(*args, **kwargs)
         self.emit = emit
-        self.page = 0  # running page number across every batch of this run
+        # The run's ordinal of the page streamed last, across Docling's batches; a call for a later batch of the
+        # run's inputs (`Execution.batch`) starts after the `offset` inputs before it.
+        self.page = offset
 
     def _on_token(self, page: int) -> Callable[[str], None] | None:
         """The callback that emits page's tokens as they stream, bound to page now; None without an emit."""

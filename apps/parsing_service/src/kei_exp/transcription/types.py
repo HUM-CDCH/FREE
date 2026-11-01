@@ -15,7 +15,7 @@ from PIL import Image
 from kei_exp.files import load_dotenv
 from kei_exp.geometry import PointBox
 from kei_exp.progress import Emit
-from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Crop
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Crop, CropPlan
 
 load_dotenv()
 DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/completions")
@@ -23,6 +23,8 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
 # native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
 # native 3: a block merged across a column break publishes every box it is printed in (`PageSegment.boxes_pt`).
+# native 4: line joins preserve identifier/compound hyphens; overlapping paragraphs retain their line order;
+# horizontally separated native cells retain their whitespace boundary.
 # hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
 # publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
 # hybrid 2: native blocks with undecodable font glyphs read by OCR in place, from a white-margined crop (`cut.TEXT_MARGIN`);
@@ -32,7 +34,9 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # hybrid 4: repeated empty artwork can retry once with real page context; only text owned by the original
 # artwork is accepted. Surya full-page scans retain their previous policy.
 # surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
-TEXT_RULES: dict[str, int] = {"native": 3, "hybrid": 4, "surya": 1}
+# surya 2: an input whose full-page generation produced looping or token-capped text and whose final recognition
+# holds no text (before artwork ownership filtering) is incomplete, not an empty success. Hybrid recipes record it.
+TEXT_RULES: dict[str, int] = {"native": 4, "hybrid": 4, "surya": 2}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
@@ -99,6 +103,10 @@ class Execution:
     ingest: dict | None = None               # the requested IngestConfig settings; None for defaults and native runs
     ocr_regions: tuple[OcrRegion, ...] = ()   # hybrid only: native text plus these image/form crops
     ocr_text: bool = False                    # hybrid only: also OCR native blocks with undecodable glyphs
+    # The run's input ordinals (first, last) one transcriber call is given: the OCR stage transcribes a run batch by
+    # batch (`kei_exp.kie.stages.ocr.transcribe`). Its crops are exactly those inputs; whole pages, the pages at
+    # those positions of `pages`. Records, events and messages number every input by its run ordinal. None: all.
+    batch: tuple[int, int] | None = None
 
 
 class ConversionError(RuntimeError):
@@ -132,7 +140,8 @@ class PageRecord:
     """
     page: int                      # input ordinal
     region: dict | None            # region_info(crop); None for whole pages
-    image: Image.Image | None      # exactly what the model received, in the mode to save; None when not kept
+    image: Image.Image | None      # the input given to the backend, in the mode to save, before its own resizing
+                                   # (Surya scales to fit); None when not kept
     seconds: float | None          # generation time when the backend reports one
     input_tokens: int | None
     output_tokens: int | None
@@ -151,7 +160,7 @@ class PageRecord:
 class OcrRecord:
     """One image-only OCR input and its unchanged backend outcome, attached to its native page."""
     ordinal: int                   # the crop: its position in the run's OCR regions (artwork, then text), 1-based
-    crop: Crop
+    crop: CropPlan                 # as it was read; its image is released with its batch
     record: PageRecord
     anchor: int                    # reads before this index of the native page's blocks (len: after the last)
 
@@ -167,6 +176,7 @@ class Transcription:
                                    # generation_params, errors (plus docling_status for VLMs)
     pages: list[PageRecord]
     unattributed: str | None = None
+    advice: str | None = None      # what to change when anything is incomplete, said once after every reason
 
     @property
     def incomplete(self) -> str | None:
@@ -174,6 +184,8 @@ class Transcription:
         reasons = [record.incomplete for record in self.pages if record.incomplete]
         if self.unattributed:
             reasons.append(self.unattributed)
+        if self.advice and reasons:
+            reasons.append(self.advice)
         return "; ".join(reasons) or None
 
 

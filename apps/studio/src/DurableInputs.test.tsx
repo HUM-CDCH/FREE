@@ -19,9 +19,13 @@ it.each([
   {strategy:'CATALOG',settings:{recipe:null},recipe:'numbered-catalogue-de@1'},
   {strategy:'CATALOG',settings:{unified:{defaults:1}},recipe:null},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}},recipe:null},
+  {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',identity:'conservative',identity_fields:['Species'],prompt:'schema',selection:'supported',grounding:'spans',grounding_schedule:'unresolved',grounding_routing:'origin_lexical'}},recipe:null},
   {strategy:'CATALOG',settings:{generic:{discovery_chars:8000,record_chars:4000}},recipe:null},
   {strategy:'CATALOG',settings:{recipe:{input_tokens:4096,output_tokens:512,factors:{overlap:false}}},recipe:'numbered-catalogue-de@1'},
   {strategy:'CATALOG',settings:{unified:{defaults:1,input_tokens:8192,output_tokens:1024,overlap:0,headings:false,verification:false}},recipe:null},
+  // A pinned version keeps its own verification: verification on never turns into Pro mode's version here.
+  {strategy:'CATALOG',settings:{unified:{defaults:6,verification:true}},recipe:null},
+  {strategy:'CATALOG',settings:{unified:{defaults:7,candidates:8,verification:true}},recipe:null},
 ])('can save unchanged $strategy inputs with pinned settings $settings',async({strategy,settings,recipe})=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{catalogRecipe:recipe}},pendingSelection:null} as unknown as DurableRead
@@ -33,7 +37,7 @@ it.each([
   expect(save).toBeEnabled()
   expect(screen.getByRole('radio',{name:strategy==='ARTICLE'?'Article':'Catalog'})).toBeChecked()
   // A unified Extraction's editor shows the defaults version it runs under, not the latest.
-  if('unified' in settings&&settings.unified&&!('input_tokens' in settings.unified))expect(screen.getByText('Service defaults, version 1')).toBeInTheDocument()
+  if('unified' in settings&&settings.unified&&Object.keys(settings.unified).length===1)expect(screen.getByText('Service defaults, version 1')).toBeInTheDocument()
   fireEvent.click(save)
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/selection',{
     expectedVersion:3,schemaRevisionId:'schema',method:{models:null,settings},

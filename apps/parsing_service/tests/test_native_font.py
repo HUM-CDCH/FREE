@@ -189,11 +189,13 @@ def test_ocr_returning_no_text_for_a_native_block_is_incomplete(tmp_path, monkey
 
 @pytest.mark.parametrize("bbox", [(50.0, 60.0, 250.0, 100.0), (50.0, 60.0, 70.0, 72.0)], ids=["line", "short word"])
 def test_a_text_crop_gets_a_white_margin_and_its_pixels_still_map_to_the_block(tmp_path, bbox):
-    from kei_exp.cut import artwork_crops
+    from kei_exp.cut import artwork_crops, render_region
     from kei_exp.pages import PdfPages
     pdf, _ = _pdfs(tmp_path)
     with PdfPages(pdf) as pages:
-        (_, figure, plain), (_, text, image) = artwork_crops(pages, [(1, bbox, 0, "figure"), (1, bbox, 1, "text")], 144)
+        (_, figure, plain_size), (_, text, size) = artwork_crops(pages, [(1, bbox, 0, "figure"), (1, bbox, 1, "text")], 144)
+        plain, image = render_region(pages.page(1), figure, 144), render_region(pages.page(1), text, 144)
+    assert (plain.size, image.size) == (plain_size, size)  # each planned at the size it renders
     pad = (image.width - plain.width) // 2
     assert pad == 48 and image.height == plain.height + 2 * pad  # 24 pt at 144 dpi, whatever the block's size
     assert image.getpixel((0, 0)) == image.getpixel((image.width - 1, image.height - 1)) == 255

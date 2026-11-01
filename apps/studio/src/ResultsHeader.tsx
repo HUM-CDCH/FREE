@@ -17,6 +17,8 @@ export type StatusLine = {
   schemaRevision?: number
   /** "Why?" after the rest, a link to the drawer's Extraction section. */
   why?: boolean
+  /** Opens the document's latest Extraction while another one is shown. */
+  onLatest?: () => void
   /** A failed run's message, on a second line with "Show details". */
   failure?: string
   /** The date of a saved review, as the line's title. */
@@ -87,7 +89,7 @@ export default function ResultsHeader({
     { value: 'all', label: 'All' },
   ]
   return (
-    <div className="@container flex shrink-0 flex-col gap-2.5 border-b border-line bg-surface px-3 pt-1 pb-2.5">
+    <div className="@container flex shrink-0 flex-col gap-2 border-b border-line bg-surface px-3 pt-1 pb-2">
       <div className="flex min-h-8 flex-wrap items-center gap-1.5 text-secondary">
         <Mark mark={status.mark} />
         <p role="status" aria-atomic="true" className="m-0 flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1" title={status.title}>
@@ -95,7 +97,8 @@ export default function ResultsHeader({
           {status.rest && <span className="text-ink-muted tabular-nums">{status.mark === 'completed'
             ? <><span className="@max-[344px]:hidden">{status.rest}</span><span className="hidden @max-[344px]:inline">{status.rest.replace(/^· Catalog /, '').replace(/ ·$/, '')}</span></>
             : status.rest}</span>}
-          {status.schemaRevision !== undefined && <button type="button" className={`${linkButton} @max-[344px]:hidden`} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
+          {status.schemaRevision !== undefined && <button type="button" className={linkButton} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
+          {status.onLatest && <button type="button" className={linkButton} onClick={status.onLatest}>Open latest</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
         {/* Snapshot, export and revision controls take a second row when the status would be squeezed. */}
@@ -116,47 +119,45 @@ export default function ResultsHeader({
         </p>
       )}
       {alert}
-      <div>
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div className="min-w-40 flex-1">
-            {readOnlyNote === undefined ? (
-              <p className="m-0 mb-1.5 text-secondary text-ink-muted">
-                <b className="mr-1 text-display text-ink tabular-nums">{counts.toCheck}</b>{running ? 'to check so far' : 'to check'}
-              </p>
-            ) : readOnlyNote && <p className="m-0 mb-1.5 text-secondary text-ink-muted">{readOnlyNote}</p>}
-            <div role="img" className="flex h-2 overflow-hidden rounded-full bg-line"
-              aria-label={`${counts.approved} approved, ${counts.edited} edited, ${counts.rejected} rejected, ${counts.toCheck} to check, of ${counts.required}`}>
-              <span className="bg-green" style={{ width: `${fraction(counts.approved)}%` }} />
-              <span className="bg-ink-muted" style={{ width: `${fraction(counts.edited)}%` }} />
-              <span className="bg-danger" style={{ width: `${fraction(counts.rejected)}%` }} />
-            </div>
-          </div>
-          <div className="flex gap-2 @max-[264px]:w-full @max-[264px]:flex-col">
-            {actions.list && (
-              <Button size="md" className="h-8 font-semibold" aria-label="Leave one-by-one review, back to the list" onClick={onList}>
-                <ListGlyph />List <kbd aria-hidden="true" className="rounded border border-line px-1 font-mono text-compact">Esc</kbd>
-              </Button>
-            )}
-            {actions.oneByOne && (
-              // Checking each value against its source is the review's main action: filled while any is left.
-              <Button size="md" variant={actions.oneByOne.disabled === null ? 'positive' : 'secondary'} className="h-8 font-semibold"
-                disabled={actions.oneByOne.disabled !== null}
-                title={actions.oneByOne.disabled ?? 'Check each value against its highlighted source, one at a time'}
-                onClick={onOneByOne}><OneByOneGlyph />Review one by one</Button>
-            )}
-            {actions.saveReview && (
-              <Button size="md" variant={actions.oneByOne?.disabled === null ? 'outline-positive' : 'positive'} className="h-8 font-semibold" onClick={onSaveReview}>{actions.saveReview}</Button>
-            )}
+      <div className="flex flex-wrap items-end gap-2.5">
+        <div className="min-w-40 flex-1">
+          <p className="m-0 mb-1 flex flex-wrap items-baseline gap-x-2 text-secondary text-ink-muted">
+            {readOnlyNote === undefined
+              ? <span><b className="mr-1 text-display text-ink tabular-nums">{counts.toCheck}</b>{running ? 'to check so far' : 'to check'}</span>
+              : readOnlyNote && <span>{readOnlyNote}</span>}
+            <span aria-live="off" className="text-compact tabular-nums">{breakdown}</span>
+          </p>
+          <div role="img" className="flex h-1.5 overflow-hidden rounded-full bg-line"
+            aria-label={`${counts.approved} approved, ${counts.edited} edited, ${counts.rejected} rejected, ${counts.toCheck} to check, of ${counts.required}`}>
+            <span className="bg-green" style={{ width: `${fraction(counts.approved)}%` }} />
+            <span className="bg-ink-muted" style={{ width: `${fraction(counts.edited)}%` }} />
+            <span className="bg-danger" style={{ width: `${fraction(counts.rejected)}%` }} />
           </div>
         </div>
-        <p aria-live="off" className="m-0 mt-1.5 text-compact text-ink-muted tabular-nums">{breakdown}</p>
+        <div className="flex gap-2 @max-[264px]:w-full @max-[264px]:flex-col">
+          {actions.list && (
+            <Button size="md" className="h-8 font-semibold" aria-label="Leave one-by-one review, back to the list" onClick={onList}>
+              <ListGlyph />List <kbd aria-hidden="true" className="rounded border border-line px-1 font-mono text-compact">Esc</kbd>
+            </Button>
+          )}
+          {actions.oneByOne && (
+            // Checking each value against its source is the review's main action: filled while any is left.
+            <Button size="md" variant={actions.oneByOne.disabled === null ? 'positive' : 'secondary'} className="h-8 font-semibold"
+              disabled={actions.oneByOne.disabled !== null}
+              title={actions.oneByOne.disabled ?? 'Check each value against its highlighted source, one at a time'}
+              onClick={onOneByOne}><OneByOneGlyph />Review one by one</Button>
+          )}
+          {actions.saveReview && (
+            <Button size="md" variant={actions.oneByOne?.disabled === null ? 'outline-positive' : 'positive'} className="h-8 font-semibold" onClick={onSaveReview}>{actions.saveReview}</Button>
+          )}
+        </div>
       </div>
       {chips && (
         <>
           <div role="group" aria-label="Show values" className="scrollbar-subtle flex gap-1.5 overflow-x-auto @max-[264px]:hidden">
             {chipList.map((chip) => (
               <button key={chip.value} type="button" aria-pressed={filter === chip.value} onClick={() => onFilter(chip.value)}
-                className="h-7 shrink-0 cursor-pointer rounded-full border border-line px-2.5 text-compact font-semibold whitespace-nowrap text-ink-muted outline-none hover:border-line-strong focus-visible:ring-2 focus-visible:ring-accent aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-canvas">
+                className="h-6 shrink-0 cursor-pointer rounded-full border border-line px-2.5 text-compact font-semibold whitespace-nowrap text-ink-muted outline-none hover:border-line-strong focus-visible:ring-2 focus-visible:ring-accent aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-canvas">
                 {chip.label}{chip.count !== undefined && <span className="ml-1 tabular-nums">{chip.count}</span>}
               </button>
             ))}

@@ -9,12 +9,14 @@ node scripts/free.mjs production
 
 It validates `.env`, renders the shared nginx application behavior for a host
 nginx into `.nginx/free-studio-locations.conf`, and builds the images. Only
-after a successful build does it stop Studio and the parsing API/worker
-(60-second grace period) and run
+after a successful build does it stop Studio, the parsing API/worker and,
+where they run, the bundled nginx and the evaluation watcher (60-second grace
+period); those two start again only once the migrated Studio is healthy. It
+then runs
 `docker compose -f compose.yaml -f compose.prod.yaml up --no-build -d --wait`
 with the deployment's overlays (`compose.nginx.yaml`, `compose.gpu.yaml`),
 returning once the configured health checks pass. Each built image is labelled
-with the last commit of its build context (`org.opencontainers.image.revision`,
+by this launcher with the last commit of its build context (`org.opencontainers.image.revision`,
 suffixed `-dirty` when tracked files there changed), so an unchanged context is
 not recreated, and the launcher reports each service's revision as `current` or
 `STALE`. It needs an installed workspace (`pnpm install --frozen-lockfile`,
@@ -28,6 +30,31 @@ terminates in the host nginx; hosts without one use the
 [bundled nginx container](#bundled-nginx-hosts-without-a-managed-nginx). This
 stack never touches the host nginx configuration outside the one include
 described below.
+
+## Installed operator wrappers
+
+A managed host may install `free-deploy` and `free-compose` over this same
+Compose topology. These are host-provisioned operator tools, not repository
+commands; inspect their configuration before using them. The protected
+checkout, deployment overlays and secrets remain operator-owned. Do not run
+the portable launcher over an installed wrapper's overlays without checking
+that it preserves the existing model routes, proxy networks and volumes.
+
+The installed wrapper's `free-deploy check` reports its source commit,
+configuration digest, changed service configurations and active work.
+`free-deploy release --branch dev` builds and replaces only Studio and the
+parsing API/worker, with backups and a drain check. Its app-only
+`up --no-deps` deliberately leaves model, database and proxy containers alone;
+a changed model configuration in the preflight report is not an applied model
+upgrade. Model maintenance is separate, as described below.
+
+An installed wrapper must supply `FREE_REVISION_STUDIO` and
+`FREE_REVISION_PARSING` to obtain the launcher's image revision labels;
+otherwise Compose labels them `unknown`. Verify actual image labels and
+runtime source before recording a release. The wrapper's `source_sha256`
+hashes the working-tree delta, not the committed source tree: a clean checkout
+correctly has the SHA256 of empty input. Identify source by both the commit
+and delta digest, and record the configuration digest separately.
 
 ## Prerequisites and hosted settings
 
@@ -71,8 +98,8 @@ openssl pkey -in /srv/free-tls/studio.key -pubout -outform DER \
 The two SHA-256 outputs must match. Also validate the chain with the
 institution's or VPN's trust procedure.
 
-Generate the session secret and two independent database passwords once and
-retain them across restarts (run the hexadecimal command once per database):
+Generate the session secret and three independent database passwords once and
+retain them across restarts (run the hexadecimal command once per password):
 
 ```bash
 openssl rand -base64 32
@@ -87,6 +114,7 @@ STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_KEI_POSTGRES_PASSWORD=<separately-generated-hex-output>
+FREE_STUDIO_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
@@ -112,15 +140,27 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   certificate's SHA-256 fingerprint with or without colons.
 - `FREE_POSTGRES_PASSWORD` must be the generated hexadecimal value. Compose
   supplies this one value to PostgreSQL and interpolates it into Studio's
-  `DATABASE_URL`; restricting it to hexadecimal avoids URI-encoding and
-  Compose-interpolation ambiguity. Changing it does not update an existing
-  PostgreSQL volume's password, so retain it with that volume.
+  `FREE_ADMIN_DATABASE_URL`, which only Studio's entrypoint uses: it migrates
+  and prepares the roles below as `postgres`, then starts Studio without it.
+  Restricting it to hexadecimal avoids URI-encoding and Compose-interpolation
+  ambiguity. Changing it does not update an existing PostgreSQL volume's
+  password, so retain it with that volume. The value stays in the container's
+  configuration, where `docker inspect` and `docker exec` show it; only the
+  Studio server process and what it spawns run without it.
 - `FREE_KEI_POSTGRES_PASSWORD` is the password of the Parsing Service's own
   database role, `kei`, which owns only the `kei_dbos` schema: the service
   parses untrusted PDFs and must not be able to read Studio's tables or rewrite
   Studio's workflow inputs. Studio's entrypoint creates the role and its
   schema from this value at every start, so changing it takes effect at the
   next start. Use a generated hexadecimal value.
+- `FREE_STUDIO_POSTGRES_PASSWORD` is the password of `free_studio`, the role
+  Studio and the evaluation watcher run as. It reads and writes FREE's data but
+  cannot create databases or roles, create schemas in `free`, change the
+  migrated schemas or act as another role; it owns only Studio's `dbos` schema, and uses `kei_dbos` to
+  submit, read, cancel and delete kei's workflows. Studio's entrypoint creates
+  the role from this value at every start, and on the first start after an
+  upgrade gives it the `dbos` schema and the workflow history an earlier
+  Studio created there as `postgres`. Use a generated hexadecimal value.
 - `FREE_DEPLOYMENT_CLI_PROVIDERS` (optional; `codex-cli`, `claude-code`,
   comma-separated) offers the Codex CLI and Claude Code to every researcher as
   read-only deployment connections. They run on this server's own CLI login,
@@ -137,9 +177,19 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   before their next Catalog Extraction; admitted work, including a retried
   Extraction ID, keeps the method it was admitted with. Unsetting it again
   pauses new unified admissions; admitted unified work still runs and reads.
-- Studio's `DATABASE_URL` role must own database `free` or hold `CREATE` on it
-  (DBOS creates the `dbos` schema at launch) and `CREATEROLE` (the entrypoint
-  creates `kei`); Compose uses `postgres`.
+- `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
+  on it, and be able to create roles; Compose uses `postgres`. The entrypoint
+  refuses to prepare a `free_studio` or `kei` that is a superuser or owns
+  anything else, since an owner keeps its object's DDL whatever is revoked.
+  At every start it also revokes what either role was granted in `free` and
+  grants only what it needs again. Studio does not start, and the error names
+  the objects, while either role still holds a grant another role made, can
+  create schemas in `free` or objects in `free` outside its own schema
+  (`PUBLIC` included), or reaches FREE's tables or `extraction_runtime`
+  routines through `PUBLIC`. Neither the revocation nor the refusal looks at
+  privileges on other databases of the same server, including `PUBLIC`'s
+  default `CONNECT`; restrict those yourself if the server hosts more than
+  `free`.
 
 ### GPU and DGX Spark
 
@@ -151,9 +201,26 @@ calls. A run may choose the instruction model for field values too. No model
 endpoint is published to the LAN. The servers start one after another, since
 each profiles the GPU's free memory when it starts.
 
-`VLLM_IMAGE` selects the image of the GPU overlay's OCR, NuExtract and instruction
-servers. The default is `vllm/vllm-openai:v0.31.0`, the stable release validated
-on ARM64/GB10. A deployment may pin the selected platform image by digest.
+`VLLM_IMAGE` selects the image of the GPU overlay's OCR, NuExtract and
+instruction servers. The default pins `vllm/vllm-openai:v0.31.0` by its
+multi-platform manifest digest in `compose.gpu.yaml`; Docker selects the host
+architecture. Deployment overlays can select a different image per role.
+Inspect each running container rather than inferring its version from the
+generic default.
+
+On ARM64/GB10, Surya returned corrupt repeated text on vLLM 0.32.0 while 0.31.0
+passed the same real-scan compatibility check. The tested combination of OCR
+0.31.0, NuExtract/Qwen 0.32.0 and worker xgrammar 0.2.8 passed nested-schema and
+grammar micro-tests but failed real-corpus quality and warm-latency gates. That
+comparison does not isolate the cause; micro-tests alone do not justify promotion.
+A deployment can advance its extraction roles separately through service-level
+`image` overrides in deployment overlays, after their acceptance checks pass. Preserve the tested checkpoint, quantization,
+MTP, eager-execution and memory settings together with the image digest.
+NVFP4 with MTP requires its own validation; it does not validate the generic
+FP8 instruction-model default without MTP. Promote a stable release only after
+testing the exact configuration on the target hardware, then deploy the same
+digest that passed. A mutable `latest` tag does not identify the running
+runtime.
 NuExtract uses eager execution: default graph execution stalled with multiple
 resident models on GB10, while eager serving passed four concurrent extractions.
 When changing the OCR runtime, change `KEI_OCR_REVISION` too to prevent
@@ -164,6 +231,21 @@ that its CUDA kernels or model architecture work. For extraction's
 `Qwen/Qwen3.8-27B-FP8` (the `qwen3_5` architecture), the image must also
 support that architecture and FP8 on the target GPU.
 
+The OCR server runs Surya 2 with its multi-token prediction (MTP) head,
+`--speculative-config` with two speculative tokens, as surya-ocr's own vLLM
+launcher does. On GB10 with vLLM 0.31.0 the measurement showed:
+
+- at four concurrent requests: 1.6 times the pages per second, and the same
+  page text as serving without MTP on 24 of 24 pages;
+- one request at a time: 1.9 times, and the same page text on 13 of 14 pages,
+  with one table cell gaining a fragment;
+- about four minutes to start.
+
+The output is not byte-identical. Box coordinates and confidences can differ
+slightly, about as much as batched serving varies between two runs of the same
+pages. Enabling or disabling MTP is therefore an OCR server change
+([OCR result reuse](#ocr-result-reuse)).
+
 `OCR_KV_CACHE_BYTES` (default 4G) sizes the OCR server's KV cache; with a cache
 size set, vLLM ignores `OCR_GPU_MEMORY_UTILIZATION`. The context is 24,576
 tokens with up to `OCR_MAX_NUM_SEQS` (default 4) simultaneous sequences. The
@@ -173,9 +255,12 @@ requests would sit ahead of a small document's. `EXTRACT_MAX_MODEL_LEN`
 (default 32,768 tokens) and `EXTRACT_KV_CACHE_BYTES` (default 8G) size the
 extraction server; it loads the text model only. `KEI_NUEXTRACT_MODEL`
 (default `numind/NuExtract3-FP8`), `NUEXTRACT_MAX_MODEL_LEN` and
-`NUEXTRACT_KV_CACHE_BYTES` (default 4G) do the same for the NuExtract server,
-which runs its repository's processor code (`--trust-remote-code`); pin a
-reviewed model revision if that matters to the deployment.
+`NUEXTRACT_KV_CACHE_BYTES` (default 4G) do the same for the NuExtract server.
+Each server loads a fixed Hugging Face commit of its model and runs no code
+from the model repository. `KEI_EXTRACT_REVISION` and `KEI_NUEXTRACT_REVISION`
+default to the commits of the default models: set the matching commit whenever
+you change `KEI_EXTRACT_MODEL` or `KEI_NUEXTRACT_MODEL`, since a commit of
+another repository does not exist and the server does not start.
 `NUEXTRACT_MAX_NUM_SEQS` (default 4) sets how many requests the NuExtract
 server runs at once and, as the worker's `KEI_CATALOG_CHUNKS`, how many model
 calls a recipe or unified Catalog Extraction makes at once. Its reasoning
@@ -189,9 +274,10 @@ system; on DGX Spark, system memory is shared with the GPU.
 Constrained decoding can loop on whitespace between JSON tokens; the Parsing
 Service recovers a generic Catalog record call that does with a bounded
 xgrammar grammar ([service contract](../../apps/parsing_service/README.md)).
-The worker pins `xgrammar` to the extraction server's version so that grammar
-parses there: when you change `VLLM_IMAGE`, check that the image's xgrammar
-matches the pin in `apps/parsing_service/pyproject.toml`. Do not enable vLLM's
+The worker pins its `xgrammar` EBNF generator in
+`apps/parsing_service/pyproject.toml`; each server image supplies its own grammar
+parser. Validate the generated recovery grammar against every selected
+instruction-server image and record both versions when either changes. Do not enable vLLM's
 `--structured-outputs-config '{"disable_any_whitespace": true}'` for the
 extraction server: the compact grammar it forces changes the answers, which is
 worse than the loop.
@@ -248,15 +334,55 @@ called anonymously even when the operator's environment sets `OLLAMA_API_KEY`.
 A stored key is bound to its connection's provider and API base and is never
 sent to a changed one.
 
+## Model runtime upgrades
+
+1. Freeze the candidate image by digest and record the previous per-role
+   images, checkpoint revisions, commands and settings. Retain the old images
+   and configuration for recovery. Do not update checkpoints, prompts or
+   unrelated packages in the same comparison. Changing a default image from a
+   tag to a digest changes the Compose configuration hash for every role that
+   inherits it, even with identical image bytes; the portable launcher then
+   recreates and reloads those servers. Drain work before applying that change.
+2. Isolate validation from serving work. Use separate hardware, or close FREE
+   admissions, drain workflows and model requests, and stop the role under test
+   before starting its candidate on a shared host. Restore the baseline and
+   verify it before reopening admissions after each trial. Validate startup
+   and inference one server at a time with the deployment's shared-memory
+   budgets. Exercise real scanned/native/
+   hybrid parsing, scientific values, strict nested schemas and enums, exact
+   token counts, and bounded-whitespace grammar recovery. The worker's pinned
+   `xgrammar` generates the recovery grammar; test it against each selected
+   server image's parser. These are separate environments.
+3. Compare real-document output, Evidence and warm operation latency against
+   the running baseline before promotion. Report cold startup separately;
+   health checks alone do not validate extraction quality or capacity.
+4. For rollout, block new FREE admissions without stopping other applications
+   on a shared proxy. Let existing work finish, then recheck it is drained.
+   Keep admissions closed throughout the remaining maintenance steps.
+5. Upgrade the worker first, after testing its grammar generator against the
+   retained instruction server. Then replace only the intended model servers,
+   sequentially, using the tested digests and preserved deployment overlays.
+   An app-only release leaves model servers unchanged. Change
+   `KEI_OCR_REVISION` with the OCR implementation and recreate both parsing
+   processes with that identity before reopening admissions.
+6. Verify actual per-role image digests, served package/model versions, API and
+   worker settings, canonical readback and authenticated UI behavior, then
+   reopen admissions. Existing parse generations stay readable.
+7. If a gate fails, restore the previous model servers before the previous
+   worker and OCR identity. Keep admissions closed until the restored
+   combination has passed readiness and inference.
+
 ## OCR result reuse
 
 A parse of PDF bytes the Parsing Service already converted with the same
 effective settings reuses the earlier result instead of running OCR again; the
 match is on the fingerprint of the parse's recipe: its settings, library
-versions and text rules ([service contract](../../apps/parsing_service/README.md)). The OCR server's
-image (`VLLM_IMAGE`, default `vllm/vllm-openai:latest`) and its weights
-(`datalab-to/surya-ocr-2`) are not pinned, so the recipe cannot see a change to
-either.
+versions and text rules ([service contract](../../apps/parsing_service/README.md)).
+The recipe does not discover the OCR server's image digest or model weight
+revision automatically. The GPU default is defined in `compose.gpu.yaml`
+([GPU deployment](#gpu-and-dgx-spark)); `VLLM_IMAGE` and deployment overlays can
+override it. A configured tag, a cached image and a running container can
+identify different versions, even when a deployment normally pins digests.
 
 - **When the OCR server changes**, set a new `KEI_OCR_REVISION` in `.env` (any
   label, such as the date and what changed) and redeploy. This covers pulling a
@@ -587,7 +713,7 @@ them.
 
 ## Back up and restore
 
-Stop `studio` and `parsing_worker` first, so nothing writes while the backup
+Stop `studio`, `parsing_service` and `parsing_worker` first, so nothing writes while the backup
 runs. The backup set is:
 
 - `pg_dump -Fc free`, for example
@@ -614,20 +740,42 @@ then restore the dump:
 docker compose -f compose.yaml -f compose.prod.yaml up -d --wait db
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free \
   -c "CREATE ROLE kei LOGIN" \
+  -c "CREATE ROLE free_studio LOGIN" \
   -c "CREATE ROLE free_extraction_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db pg_restore -U postgres -d free < free.dump
 ```
 
 Then restore the volumes and start normally: migrations are already applied,
-and the entrypoint sets the `kei` role's password from `.env` again.
+and the entrypoint sets the `kei` and `free_studio` passwords from `.env`
+again.
 
 Migrations are forward-only. To upgrade, take the backup set, update the
 checkout and run `node scripts/free.mjs production`. On a GPU host,
 `docker compose … config --hash '*'` shows beforehand whether a model server's
 configuration changed: Compose recreates a container whose hash differs from
 its `com.docker.compose.config-hash` label, and a recreated model server loads
-its model again. To roll back, stop the application processes, remove the `db`
-container and its `postgres-data` volume (`docker compose … rm -sf db`, then
-`docker volume rm <project>_postgres-data`; `docker volume ls` lists it),
-restore the pre-upgrade backup set as above, check out the previous release and
-run the launcher again; anything saved after the backup is lost.
+its model again. Installed app-only wrappers keep model containers unchanged.
+The worker sends each extraction call's priority to the servers that
+`KEI_PRIORITY_URLS` names. A vLLM server started without
+`--scheduling-policy priority` accepts and ignores it, serving in arrival
+order: after an app-only release, recreate `nuextract_model`, then
+`extraction_model`, for calls nearest the researcher's page to go first.
+`KEI_PRIORITY_URLS=` (empty) in `.env` sends no priority.
+
+For a compatible application rollback, prepare a release branch at the
+known-good commit, drain work, and release it with its matching configuration,
+retaining current durable state. A
+prepared release branch is not proof of compatibility: check migrations,
+workflow state and artifact formats first. If they are incompatible, prefer a
+forward fix or stop the application and restore the complete matching backup
+set into an empty database and volumes before starting the older checkout.
+Restoration loses writes made after that snapshot. Only for this incompatible
+recovery, after verifying the complete backup set, stop the application
+processes and remove the stopped database container with
+`docker compose … rm -sf db`. Verify its database volume name before removing
+that volume (`docker volume rm <project>_postgres-data` for the default named
+volume), then recreate only `db` and follow the restore commands above. Verify
+the names of the artifact volumes covered by the backup set, remove and recreate
+only those volumes, and restore their matching archives into the empty volumes
+before starting the older application. Do not overlay a snapshot onto artifact
+files left from the newer database.

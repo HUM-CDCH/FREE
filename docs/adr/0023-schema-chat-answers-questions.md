@@ -27,6 +27,10 @@ The chat tells a question from an instruction in the request it already makes, w
   is excerpted for the first request, as Schema Suggestion already is. When that request answers, the question is
   answered again from every window of the source (`answerWindow:<n>`), and the window answers are combined in one
   more request (`combineAnswers`), so the answer reads the whole source. A request for the schema keeps today's path.
+- **Every request reads the whole conversation before its message**, oldest first: the messages before the first
+  schema (each with its answer, or that it was kept as an instruction), then the edit chat's messages and replies. The
+  page sends it as `history`, and the workflow input records it beside the message, so a follow-up can refer to an
+  earlier question or answer. The conversation itself is still kept only in the page.
 - The edit workflow's new behaviour is behind DBOS patch `schema-chat-answers`; a run before it never answers.
 
 ## Consequences
@@ -36,6 +40,8 @@ The chat tells a question from an instruction in the request it already makes, w
 - Every message before the first schema waits for one model request, and a long source's question for one per window
   plus one.
 - On NuExtract, an edit chat message that is not a question costs one Interaction Route request before NuExtract's.
+- The conversation is not budgeted: it is sent whole beside the (possibly excerpted) source, so a very long chat over
+  a long source can exceed a 32k-token model's context.
 - `chat:` workflows are not model operations: a reload neither lists nor reopens them, as the instructions they sit
   beside live only in the page. Garbage collection keeps their history for the interactive retention.
 - An answered edit is a finished `edit:` operation that a reload does not reopen.

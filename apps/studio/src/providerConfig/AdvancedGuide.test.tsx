@@ -129,7 +129,7 @@ describe('the Explain guide', () => {
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'selection')!.takeaway)
       .toBe('Lower value-call count could omit relevant evidence; this is history, not a current choice.')
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.takeaway)
-      .toBe("Verification Off yields proposals; a recipe's applicability is source-specific.")
+      .toBe("For a recipe, Verification Off yields proposals; a recipe's applicability is source-specific.")
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.combinations).toContain('retired limits and recipe factors are never converted')
     for (const source of EVIDENCE_SOURCES) for (const field of [source.date, source.corpus, source.revision, source.evidence, source.limits]) expect(field).not.toBe('')
   })
@@ -137,7 +137,7 @@ describe('the Explain guide', () => {
   it('the retired schedule and routing controls are described as history, not as live choices', () => {
     const scheduling = GUIDE_TOPICS.find((topic) => topic.id === 'scheduling')!
     expect(scheduling.purpose).toMatch(/^Retired:/)
-    expect(scheduling.combinations).toMatch(/read-only/)
+    expect(scheduling.combinations).toContain('reset individually under Additional saved settings')
     expect(scheduling.technical).toContain('RETIRED_ARTICLE_KEYS')
     const affectsVerification = /(routing|scheduling)[^.]*\baffects? verification|\b(routing|scheduling)\b[^.]*\bonly orders verification/i
     for (const topic of GUIDE_TOPICS) expect(topic.combinations, topic.id).not.toMatch(affectsVerification)
@@ -157,9 +157,10 @@ describe('the Explain guide', () => {
     for (const gap of scheduling.gaps) expect(gap.text).toMatch(/^Historical \(controls retired\): /)
     const [, unit1, unit3] = scheduling.example.options[0]!.blocks
     expect([unit1, unit3].map((block) => block && 'inactive' in block ? block.inactive : undefined)).toEqual([true, true])
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.purpose).toMatch(/Instructions are retired/)
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.combinations).toContain('retired')
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.technical).toMatch(/prompt[^;]*retired key kept for historical settings/)
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.purpose).toContain('Saved instructions still affect preliminary bounded source sizing')
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'identity')!.purpose).toContain('Saved identity settings still affect preliminary bounded source sizing')
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.combinations).toContain('document-value extraction prompt stays the same')
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.technical).toContain('inventory_request counted by source_contexts')
   })
 
   it('every study names its document count and states the semantic review it still lacks', () => {

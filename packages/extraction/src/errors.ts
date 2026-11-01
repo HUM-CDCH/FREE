@@ -50,14 +50,3 @@ export class ExtractionError extends Error {
     this.extractionId = options?.extractionId
   }
 }
-
-export function extractionError(error: unknown, fallback: ExtractionErrorCode = 'extraction_failed'): ExtractionError {
-  if (error instanceof ExtractionError) return error
-  if (error instanceof DOMException && error.name === 'AbortError')
-    return new ExtractionError('cancelled', 'The Extraction was cancelled.', { cause: error })
-  return new ExtractionError(
-    fallback,
-    error instanceof Error ? error.message : 'The Extraction failed.',
-    { cause: error },
-  )
-}

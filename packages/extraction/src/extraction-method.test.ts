@@ -5,10 +5,11 @@ import {
   activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
-  storedSettings, UNIFIED_CATALOG_DEFAULTS, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
+  storedSettings, UNIFIED_CATALOG_DEFAULTS, UNIFIED_CATALOG_PRO_VERSION, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
   type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
+import { gliformerIssues } from './gliformer-compatibility.js'
 import { parseSchemaDefinition } from './schema.js'
 
 const FIXTURES = new URL('../../../apps/parsing_service/tests/fixtures/contracts/', import.meta.url)
@@ -236,11 +237,11 @@ test('where the deployment enables it, a new Catalog Extraction uses the unified
   assert.equal(unifiedCatalogEnabled({ FREE_CATALOG_METHOD: 'unified' }), true)
   const saved: ExtractionSettings = { catalog: { unified: { overlap: 0, verification: false } } }
   // The latest defaults version is always pinned, so a method left wholly to the defaults stays identifiable.
-  assert.deepEqual(activeMethod(null, {}, 'CATALOG', null, true), { models: null, settings: { unified: { defaults: 4 } } })
+  assert.deepEqual(activeMethod(null, {}, 'CATALOG', null, true), { models: null, settings: { unified: { defaults: 6 } } })
   const method = activeMethod({ fields: 'nuextract' }, saved, 'CATALOG', 'numbered-catalogue-de@1', true)
-  assert.deepEqual(method.settings, { unified: { defaults: 4, overlap: 0, verification: false } })
+  assert.deepEqual(method.settings, { unified: { defaults: 6, overlap: 0, verification: false } })
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, method.models, method.settings)), {
-    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 4, overlap: 0, verification: false },
+    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 6, overlap: 0, verification: false },
   })
   // Article and the legacy slots are untouched by the unified preference.
   assert.deepEqual(activeSettings(saved, 'CATALOG', null), { generic: null })
@@ -268,7 +269,29 @@ test('legacy Catalog preferences refuse new unified Catalog admission until migr
   assert.deepEqual(accountMethod(legacy, 'CATALOG', null), { models: null, settings: { generic: { record_chars: 30_000 } } })
   // Applying the unified group replaces the Catalog branch: nothing legacy is left to migrate.
   const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
-  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG', null, true).settings, { unified: { defaults: 4, overlap: 2 } })
+  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG', null, true).settings, { unified: { defaults: 6, overlap: 2 } })
+  // Pro mode: the account's verification on admits the version whose verification call reads every value again.
+  const pro = accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG', null, true).settings
+  assert.deepEqual(pro, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
+  // A native fields model cannot verify, so its admission still refuses Pro mode.
+  assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: pro }, []).includes('verification must be Auto or off'))
+  assert.deepEqual(accountMethod(account({ unified: { verification: false } }), 'CATALOG', null, true).settings,
+    { unified: { defaults: 6, verification: false } })
+  // A method that names its version keeps its own verification.
+  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { defaults: 6, verification: true } } }, 'CATALOG', null),
+    { models: null, settings: { unified: { defaults: 6, verification: true } } })
   assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
   assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
+})
+
+
+test('heading candidate overrides survive saved settings and pinned defaults 7 methods', () => {
+  const settings: ExtractionSettings = { catalog: { unified: { candidates: 8, headings: true } } }
+  assert.deepEqual(canonicalExtractionSettings(settings), settings)
+  const pinned = { unified: { defaults: 7 as const, candidates: 8, headings: true } }
+  assert.deepEqual(storedSettings(pinned, 'CATALOG', null), pinned)
+  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, null, pinned)), {
+    strategy: 'catalog', ...pinned,
+  })
+  assert.deepEqual(canonicalIntent({ models: null, settings: pinned }, 'CATALOG', null), { models: null, settings: pinned })
 })

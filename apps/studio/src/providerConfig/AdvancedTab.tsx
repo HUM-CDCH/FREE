@@ -1,22 +1,22 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
-  CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
-  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
+  articleSettingsIssues, canonicalUnified, CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
+  UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
 import { SECTION_TOPIC, type GuideTopicId } from './advancedGuide.data'
 import {
-  ARTICLE_CHOICES, ARTICLE_SECTIONS, CATALOG_LABELS, CONTROL_HINTS, CONTROL_LABELS, changedSections, effectiveSummary,
-  RETIRED_ARTICLE_KEYS, RETIRED_NOTE, unavailableReason, type AdvancedStrategy, type ArticleKey,
-  type ArticleSection, type CatalogFactor, type NumberPath,
+  ADDITIONAL_ARTICLE_KEYS, ARTICLE_CHOICES, ARTICLE_CONTROL_SECTIONS, CATALOG_LABELS, CONTROL_HINTS, CONTROL_LABELS,
+  changedSections, describeArticleValue, effectiveSummary, resetArticleSetting, unavailableReason,
+  type AdditionalArticleKey, type AdvancedStrategy, type ArticleKey, type CatalogFactor, type NumberPath,
 } from './advancedSettings'
 import type { ProviderConfigDraft } from './useProviderConfigDraft'
 import { SettingsViews } from './SettingsViews'
 
 export type AdvancedEditor = Pick<ProviderConfigDraft,
-  'customize' | 'useServiceDefaults' | 'setArticle' | 'replaceArticle' | 'addIdentityField' | 'removeIdentityField' |
+  'customize' | 'useServiceDefaults' | 'setArticle' | 'replaceArticle' |
   'setCatalogFactor' | 'customizeUnified' | 'setUnified' | 'setNumber' | 'numberEdits' | 'settingsIssues'>
 
 type Props = {
@@ -30,7 +30,7 @@ type Props = {
   unifiedCatalog?: boolean
   /** A pending input editor changes only the current Extraction's strategy. */
   extractionStrategy?: AdvancedStrategy
-  /** The unified defaults version shown: an Extraction's own, else the latest that new Extractions use. */
+  /** An Extraction's own unified defaults version; absent, the account's, where verification on is Pro mode. */
   unifiedDefaults?: UnifiedCatalogSettings['defaults']
 }
 
@@ -64,7 +64,7 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
 export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy,
-  unifiedDefaults = UNIFIED_CATALOG_DEFAULTS_VERSION }: Props) {
+  unifiedDefaults }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -72,7 +72,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
   const [applied, setApplied] = useState<Applied | null>(null)
   // Discard and Apply make the draft the saved document again (the same object): that ends the notice and its Undo.
   if (applied && draft === saved) setApplied(null)
-  // It also ends at the first Article edit after it (settings, identity fields or number text), for good: an Undo
+  // It also ends at the first Article edit after it (settings or number text), for good: an Undo
   // shown again later would discard the edits made in between.
   const current = { article: draft.extractionSettings.article, edits: articleEdits(editor.numberEdits) }
   if (applied && !applied.shown) setApplied({ ...applied, shown: current })
@@ -154,7 +154,8 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
         {strategy === 'article'
           ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
           : unifiedView
-            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} unifiedDefaults={unifiedDefaults} />
+            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue}
+                unifiedDefaults={unifiedDefaults ?? UNIFIED_CATALOG_DEFAULTS_VERSION} pinned={unifiedDefaults !== undefined} />
             : <CatalogSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />}
       </section>
     </GuideProvider>
@@ -162,34 +163,38 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
 }
 
 function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
+  const savedId = useId()
   const explicit = draft.extractionSettings.article
   const custom = explicit !== undefined
   const article = explicit ?? REFERENCE_ARTICLE
   const changed = changedSections(article, saved.extractionSettings.article)
   const issueAt = (key: ArticleKey) => editor.settingsIssues.find((issue) => issue.path === `article.${key}`)?.message ?? null
-  const choice = (key: keyof typeof ARTICLE_CHOICES) => (
+  const choice = (key: ArticleChoiceKey) => (
     <ChoiceGroup key={key} settingKey={key} article={article} custom={custom} error={issueAt(key)}
-      retired={RETIRED_ARTICLE_KEYS.has(key)} onChange={(value) => editor.setArticle(key, value)} />
+      onChange={(value) => editor.setArticle(key, value)} />
   )
-  const controls: Readonly<Record<ArticleSection, ReactNode[]>> = {
-    context: [
-      choice('context'),
-      <NumberField key="context_tokens" path="article.context_tokens" label={CONTROL_LABELS.context_tokens} hint={CONTROL_HINTS.context_tokens}
-        unit="tokens, at least 8,192" value={article.context_tokens} edit={editor.numberEdits['article.context_tokens']}
-        disabled={!custom} inactive={article.context === 'full'} error={issueAt('context_tokens')} onText={editor.setNumber} />,
-      choice('grouping'), choice('overlap_passages'), choice('selection'),
-    ],
-    identity: [
-      choice('identity'),
-      <IdentityFields key="identity_fields" fields={article.identity_fields} custom={custom} error={issueAt('identity_fields')}
-        retired={RETIRED_ARTICLE_KEYS.has('identity_fields')} add={editor.addIdentityField} remove={editor.removeIdentityField} />,
-    ],
-    input: [choice('prompt'), choice('rendering')],
-    evidence: [choice('grounding'), choice('evidence_policy'), choice('grounding_schedule'), choice('grounding_routing')],
+  const controls: Partial<Record<ArticleKey, ReactNode>> = {
+    context: choice('context'),
+    context_tokens: <NumberField path="article.context_tokens" label={CONTROL_LABELS.context_tokens} hint={CONTROL_HINTS.context_tokens}
+      unit="tokens, at least 8,192" value={article.context_tokens} edit={editor.numberEdits['article.context_tokens']}
+      disabled={!custom} inactive={article.context === 'full'} error={issueAt('context_tokens')} onText={editor.setNumber} />,
+    grouping: choice('grouping'), overlap_passages: choice('overlap_passages'), rendering: choice('rendering'),
+    grounding: choice('grounding'), evidence_policy: choice('evidence_policy'),
   }
+  const existingIssues = new Set(articleSettingsIssues(article).map(({ path }) => path))
+  const savedArticle = saved.extractionSettings.article ?? REFERENCE_ARTICLE
+  const valueOf = (settings: ArticleSettings, key: AdditionalArticleKey) => [describeArticleValue(settings, key),
+    ...(key === 'identity' ? [describeArticleValue(settings, 'identity_fields')] : [])].join(' · ')
+  const sameSetting = (left: ArticleSettings, right: ArticleSettings, key: AdditionalArticleKey) =>
+    key === 'identity' ? left.identity === right.identity && JSON.stringify(left.identity_fields) === JSON.stringify(right.identity_fields)
+      : (left[key] ?? undefined) === (right[key] ?? undefined)
+  const savedIssue = (key: AdditionalArticleKey) => editor.settingsIssues.find(({ path }) => path === `article.${key}` ||
+    (key === 'identity' && path === 'article.identity_fields'))
+  const additional = ADDITIONAL_ARTICLE_KEYS.filter((key) =>
+    savedIssue(key) || [article, savedArticle].some((settings) => !sameSetting(settings, REFERENCE_ARTICLE, key)))
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('article.')) : undefined
   const issueKey = issue?.path.slice('article.'.length) as ArticleKey | undefined
-  const pages = ARTICLE_SECTIONS.flatMap(({ section, title, keys }) => keys.map((key, at) => ({
+  const pages = ARTICLE_CONTROL_SECTIONS.flatMap(({ section, title, keys }) => keys.map((key) => ({
     title: `${title}: ${CONTROL_LABELS[key]}`,
     key,
     content: <section key={key} aria-label={title} className="flex flex-col gap-2">
@@ -198,14 +203,34 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
         {changed.has(section) && <span className="text-[10.5px] font-semibold text-accent">Changed</span>}
         {explain(SECTION_TOPIC[section], title)}
       </div>
-      <fieldset disabled={!custom}>{controls[section][at]}</fieldset>
+      <fieldset disabled={!custom}>{controls[key]}</fieldset>
       {key === 'grounding' && <p className="text-[11px] text-ink-faint">Article document-level fields currently remain unverified.</p>}
     </section>,
   })))
   const options = editor.settingsIssues.some((item) => item.path.startsWith('article.')) ? null :
     keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: explicit ?? null }))
   const entries = options ? requestEntries(options) : []
-  return (
+  return <>
+    {additional.length > 0 && <section aria-label="Additional saved settings" className="flex flex-col gap-1 text-[11px] text-ink-muted">
+      <h4 className="font-semibold">Additional saved settings</h4>
+      <p>Saved identity and instructions still affect preliminary bounded source sizing. Resets take effect for future Extractions when applied, or for pending inputs when saved.</p>
+      {additional.map((key) => {
+        const next = resetArticleSetting(article, key)
+        const reason = articleSettingsIssues(next).find(({ path }) => !existingIssues.has(path))?.message ?? null
+        const issue = savedIssue(key)
+        const label = key === 'identity' ? 'Record identity' : CONTROL_LABELS[key]
+        const value = valueOf(article, key), before = valueOf(savedArticle, key)
+        return <div key={key} className="flex flex-wrap items-baseline gap-x-2">
+          <span>{label}: {value}</span>
+          {!sameSetting(article, savedArticle, key) && <span className="text-accent">Changed from {before}</span>}
+          <button type="button" disabled={!custom || reason !== null || sameSetting(article, REFERENCE_ARTICLE, key)} data-setting={issue?.path ?? `article.${key}`}
+            aria-label={`Reset ${label}`} aria-describedby={reason || issue ? `${savedId}-${key}-issue` : undefined}
+            className={`${textButton} text-accent disabled:text-ink-faint`}
+            onClick={() => editor.replaceArticle(next, editor.numberEdits)}>Reset</button>
+          <FieldError id={`${savedId}-${key}-issue`} message={reason ?? issue?.message ?? null} />
+        </div>
+      })}
+    </section>}
     <SettingsViews label="Article setting" titles={[...pages.map((page) => page.title), 'Effective settings', 'Technical details']}
       selected={pages.find((page) => page.key === issueKey)?.title}>
       {pages.map((page) => page.content)}
@@ -222,7 +247,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
           </SettingsViews>}
       </section>
     </SettingsViews>
-  )
+  </>
 }
 
 /** Always rendered, so a message that appears in it is announced. */
@@ -230,35 +255,31 @@ function FieldError({ id, message }: { id: string; message: string | null }) {
   return <p id={id} aria-live="polite" className="text-[11px] font-semibold text-danger">{message}</p>
 }
 
-/** A retired setting (`RETIRED_ARTICLE_KEYS`) shows its saved value read-only, unless that value breaks a rule another
- *  choice brought in: then it stays changeable, or Apply could never succeed. Its reference choice is always open, so a
- *  stale saved value (one admission still checks against the schema) can be cleared. */
-function ChoiceGroup<K extends keyof typeof ARTICLE_CHOICES>({ settingKey, article, custom, error, retired, onChange }: {
-  settingKey: K; article: ArticleSettings; custom: boolean; error: string | null; retired: boolean
+type ArticleChoiceKey = Exclude<keyof typeof ARTICLE_CHOICES, AdditionalArticleKey>
+
+function ChoiceGroup<K extends ArticleChoiceKey>({ settingKey, article, custom, error, onChange }: {
+  settingKey: K; article: ArticleSettings; custom: boolean; error: string | null
   onChange: (value: ArticleSettings[K] | undefined) => void
 }) {
   const id = useId()
-  const locked = retired && error === null
   // One key's choices; the cast only names the element type the `as const` table already has for this key.
   const options = ARTICLE_CHOICES[settingKey] as readonly Readonly<{ value: ArticleSettings[K] | undefined; label: string }>[]
   return (
     <fieldset className="flex min-w-0 flex-col gap-1">
       <legend className="text-[11px] font-semibold text-ink-muted">{CONTROL_LABELS[settingKey]}</legend>
       <p id={`${id}-hint`} className="text-[10.5px] text-ink-faint">{CONTROL_HINTS[settingKey]}</p>
-      {retired && <p id={`${id}-retired`} className="text-[10.5px] font-semibold text-ink-muted">{RETIRED_NOTE}</p>}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {options.map((option, index) => {
           const selected = (article[settingKey] ?? undefined) === option.value
-          const reference = option.value === (REFERENCE_ARTICLE[settingKey] ?? undefined)
-          const reason = custom && !locked ? unavailableReason(article, settingKey, option.value) : null
+          const reason = custom ? unavailableReason(article, settingKey, option.value) : null
           return (
             // The reason sits beside the label, not in it: it describes the choice without renaming it.
             <span key={option.label} className="flex flex-wrap items-baseline gap-x-1.5">
               <label className="flex items-baseline gap-1.5 text-[12px] text-ink">
-                <input type="radio" name={id} checked={selected} disabled={reason !== null || (locked && !reference)}
+                <input type="radio" name={id} checked={selected} disabled={reason !== null}
                   data-setting={selected ? `article.${settingKey}` : undefined}
                   aria-invalid={selected && error ? true : undefined}
-                  aria-describedby={describedBy(`${id}-hint`, retired && `${id}-retired`, reason && `${id}-reason-${index}`, selected && error && `${id}-error`)}
+                  aria-describedby={describedBy(`${id}-hint`, reason && `${id}-reason-${index}`, selected && error && `${id}-error`)}
                   onChange={() => onChange(option.value)} />
                 {option.label}
               </label>
@@ -294,50 +315,6 @@ function NumberField({ path, label, hint, unit, value, edit, disabled, inactive 
       </div>
       <FieldError id={`${id}-error`} message={error} />
     </div>
-  )
-}
-
-function IdentityFields({ fields, custom, error, retired, add, remove }: {
-  fields: readonly string[]; custom: boolean; error: string | null; retired: boolean
-  add: (text: string) => string | null; remove: (name: string) => void
-}) {
-  const id = useId()
-  // Retired like `ChoiceGroup`: no name can be added unless the saved ones break a rule. A saved name can always be
-  // removed, since admission still refuses names the pinned schema lacks; clearing them unlocks Reconciliation.
-  const editable = custom && !(retired && error === null)
-  const [text, setText] = useState('')
-  const [refusal, setRefusal] = useState<string | null>(null)
-  const [selectedField, setSelectedField] = useState('')
-  const selected = fields.includes(selectedField) ? selectedField : fields[0]
-  const submit = () => {
-    const refused = add(text)
-    setRefusal(refused)
-    if (refused === null) setText('')
-  }
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-1">
-      <legend className="text-[11px] font-semibold text-ink-muted">{CONTROL_LABELS.identity_fields}</legend>
-      <p id={`${id}-hint`} className="text-[10.5px] text-ink-faint">{CONTROL_HINTS.identity_fields}</p>
-      {retired && <p id={`${id}-retired`} className="text-[10.5px] font-semibold text-ink-muted">{RETIRED_NOTE}</p>}
-      {selected && <div className="flex min-w-0 items-center gap-2">
-        <select aria-label="Declared identity fields" value={selected} onChange={(event) => setSelectedField(event.target.value)}
-          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1 font-mono text-[12px] text-ink">
-          {fields.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
-        <button type="button" aria-label={`Remove ${selected}`} disabled={!custom} className={`${textButton} text-danger`} onClick={() => remove(selected)}>Remove</button>
-      </div>}
-      <div className="flex flex-wrap items-center gap-2">
-        <input aria-label="Identity field name" data-setting="article.identity_fields" value={text} disabled={!editable}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(`${id}-hint`, retired && `${id}-retired`, error && `${id}-error`, refusal && `${id}-refusal`)}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); submit() } }}
-          className="w-48 rounded-md border border-line bg-surface px-2 py-1 font-mono text-[12px] text-ink" />
-        <button type="button" disabled={!editable} onClick={submit} className={`${textButton} text-accent hover:underline`}>Add field</button>
-      </div>
-      <p id={`${id}-refusal`} aria-live="polite" className="text-[11px] text-danger">{refusal}</p>
-      <FieldError id={`${id}-error`} message={error} />
-    </fieldset>
   )
 }
 
@@ -410,31 +387,34 @@ function retiredCatalog(catalog: CatalogSettings | undefined): string[] {
   return lines
 }
 
-/** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
+/** The unified Catalog's six controls: one group for every new single and batch Catalog Extraction. Retired generic
  *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
-function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
-  & { unifiedDefaults: UnifiedCatalogSettings['defaults'] }) {
+function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults, pinned }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
+  & { unifiedDefaults: UnifiedCatalogSettings['defaults']; pinned: boolean }) {
   const catalog = draft.extractionSettings.catalog
   const unified = catalog?.unified
   const custom = unified !== undefined
   const shown = unified ?? {}
-  const defaults = UNIFIED_CATALOG_DEFAULTS[unifiedDefaults]
+  const method = canonicalUnified(pinned ? { ...shown, defaults: unifiedDefaults } : shown)
+  // The version admitted, Pro mode's included, so placeholders and reply reserves are that version's.
+  const defaults = UNIFIED_CATALOG_DEFAULTS[method.defaults]
   const retired = retiredCatalog(catalog)
   const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
-  const number = (key: 'input_tokens' | 'output_tokens' | 'overlap', unit: string, hint: string, placeholder: string) => {
+  const number = (key: 'input_tokens' | 'output_tokens' | 'overlap' | 'candidates', unit: string, hint: string, placeholder: string) => {
     const path = `catalog.unified.${key}` as const
     return <NumberField path={path} label={UNIFIED_LABELS[key]} hint={hint} unit={unit} value={shown[key]} placeholder={placeholder}
       edit={editor.numberEdits[path]} disabled={!custom} error={issueAt(path)} onText={editor.setNumber} />
   }
+  // The account's verification switch is Pro mode: on, new Extractions run the version that reads every value twice.
+  const label = (key: keyof typeof UNIFIED_LABELS) => key === 'verification' && !pinned ? 'Pro mode' : UNIFIED_LABELS[key]
   const toggle = (key: 'headings' | 'verification') => (
     <label className="flex items-center gap-2 text-[12px] text-ink">
       <input type="checkbox" role="switch" aria-checked={shown[key] ?? defaults[key]} checked={shown[key] ?? defaults[key]}
         data-setting={`catalog.unified.${key}`} onChange={(event) => editor.setUnified(key, event.target.checked)} />
-      {UNIFIED_LABELS[key]}
+      {label(key)}
     </label>
   )
   const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
-  const method = { defaults: unifiedDefaults, ...shown }
   const changed = JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null)
   // One control per view, as for the other strategies: the dialog fits the viewport without an inner scroll area.
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
@@ -443,8 +423,9 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
     ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.${'entry_reply' in defaults ? ' An entry reply may also use the context its input leaves (not with a native fields model); a value here caps every reply at it.' : ''}`, 'Stage defaults')],
     ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
     ['headings', toggle('headings')],
+    ['candidates', number('candidates', 'excerpts, 1 to 1024', 'From defaults 7: how many earlier excerpts each request measures against its budget, latest first. Older ones are left out without being measured; a value read behind an omitted excerpt stays a proposal.', String(UNIFIED_CATALOG_DEFAULTS[7].candidates))],
     ['verification', toggle('verification')],
-  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${UNIFIED_LABELS[key]}`, control }))
+  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${label(key)}`, control }))
   return (
     <>
       <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${unifiedDefaults}`}</p>
@@ -467,8 +448,13 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults 
           </div>
           <p className="text-[11px] text-ink-faint">One method for every new single and batch Catalog Extraction.</p>
           <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
-          {page.path === 'catalog.unified.verification' && !(shown.verification ?? defaults.verification) &&
-            <p className="text-[11px] text-ink-muted">Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.</p>}
+          {page.path === 'catalog.unified.candidates' && !(shown.headings ?? defaults.headings) &&
+            <p className="text-[11px] text-ink-muted">Heading context is off, so no excerpt is measured or shown.</p>}
+          {page.path === 'catalog.unified.verification' && (!pinned && method.defaults === UNIFIED_CATALOG_PRO_VERSION
+            ? <p className="text-[11px] text-ink-muted">{`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}: a second call reads every value again and may correct it, completing long passages; about twice the calls and time.`}</p>
+            : !(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">{'single_pass' in defaults
+              ? 'Off reads each value once: a value code locates in its own entry is linked by rule, unverified; one without a locatable quote stays for review without Evidence.'
+              : 'Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.'}</p>)}
         </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>

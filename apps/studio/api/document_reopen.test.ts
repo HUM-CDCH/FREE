@@ -262,6 +262,26 @@ describe('document reopen ExtractionModule projection', () => {
     )
   })
 
+  it('names the Extraction the document opens on beside a routed older one', async () => {
+    const newest = { ...extraction, extractionId: '88888888-8888-4888-8888-888888888888' }
+    const module = extractionModule({
+      readDocumentExtractions: vi.fn(async (input: { extractionId?: string }) => ({
+        sourceRepresentationRevisionId: representationId,
+        latestAttempt: input.extractionId ? extraction : newest,
+        latestReviewed: null,
+      })),
+    })
+    const reopen = createGetDocumentReopen({ getDocumentReopenSnapshot: vi.fn(async () => snapshot()) }, module)
+    const routed = documentReopenResponseSchema.parse(await (await reopen(url(`?extractionId=${extractionId}`))).json())
+    expect(routed.latestAttempt?.extractionId).toBe(extractionId)
+    expect(routed.newestAttempt?.extractionId).toBe(newest.extractionId)
+    expect(module.readDocumentExtractions).toHaveBeenCalledWith({ sourceDocumentId: documentId })
+    vi.mocked(module.readDocumentExtractions).mockClear()
+    const plain = documentReopenResponseSchema.parse(await (await reopen(url())).json())
+    expect(plain.newestAttempt).toEqual(plain.latestAttempt)
+    expect(module.readDocumentExtractions).toHaveBeenCalledOnce()
+  })
+
   it('fails closed before extraction reads when the project/source is inaccessible', async () => {
     const module = extractionModule()
     const response = await createGetDocumentReopen(

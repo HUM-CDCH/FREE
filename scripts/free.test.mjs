@@ -109,13 +109,21 @@ describe('ordered Compose startup', () => {
     { FREE_NGINX: 'container' },
     ['-f', 'compose.gpu.yaml'],
   )
+  const evaluationProduction = productionComposeArguments({ FREE_DEVELOPER_EVAL: '1' })
 
   it('never asks development Compose for --no-build, which it rejects with --watch', () => {
     // `docker compose up --no-build --watch` fails: "--no-build and --watch are incompatible".
     assert.ok(local.includes('--watch') && !local.includes('--no-build'))
   })
 
-  for (const [target, up] of [['development', local], ['production', production], ['production with GPU', gpuProduction]]) {
+  // An nginx container resolves Studio's address only when it starts, so it stops with Studio and starts after the
+  // replacement is healthy; the evaluation watcher reads the schema, so it never runs across a migration.
+  for (const [target, up, alsoStopped] of [
+    ['development', local, ['nginx', 'eval_watcher']],
+    ['production', production, ['eval_watcher']],
+    ['production with GPU and the bundled nginx', gpuProduction, ['nginx', 'eval_watcher']],
+    ['production with developer evaluation', evaluationProduction, ['eval_watcher']],
+  ]) {
     it(`builds before stopping schema consumers and starting ${target}`, async () => {
       const environment = { FREE_SESSION_SECRET: 'test-only' }
       for (const existing of [false, true]) {
@@ -134,15 +142,44 @@ describe('ordered Compose startup', () => {
           return child
         })
         const prefix = up.slice(0, up.indexOf('up'))
+        // The stop selects the evaluation profile once, whether or not the next start enables it.
+        const stopPrefix = up === evaluationProduction ? prefix : ['compose', '--profile', 'eval', ...prefix.slice(1)]
         assert.equal(status, 0)
         assert.deepEqual(calls, [
           [...prefix, 'build'],
-          [...prefix, 'stop', '--timeout', '60', 'studio', 'parsing_service', 'parsing_worker'],
+          [...stopPrefix, 'stop', '--timeout', '60', 'studio', 'parsing_service', 'parsing_worker', ...alsoStopped],
           up,
         ])
       }
     })
   }
+
+  // Compose's stop walks only the services of the project it loaded, so a service whose profile that command leaves
+  // disabled is skipped even when named; an existing container is not an orphan either, so `up` leaves it running.
+  it('stops a watcher left running by an evaluation-enabled start when evaluation is now disabled', async () => {
+    for (const [target, up] of [['development', local], ['production', production]]) {
+      assert.ok(!up.includes('eval'), `${target} starts without the evaluation profile`)
+      for (const previous of [['eval_watcher'], []]) {
+        const running = new Set(['studio', 'parsing_service', 'parsing_worker', 'nginx', ...previous])
+        const calls = []
+        const status = await startComposeStack(up, {}, (_command, args) => {
+          calls.push(args)
+          const subcommand = args.findIndex((argument) => ['build', 'stop', 'up'].includes(argument))
+          const evaluation = args.some((argument, index) => args[index - 1] === '--profile' && argument === 'eval')
+          if (args[subcommand] === 'stop')
+            for (const service of args.slice(subcommand + 3))
+              if (service !== 'eval_watcher' || evaluation) running.delete(service)
+          if (args[subcommand] === 'up')
+            assert.ok(!running.has('eval_watcher'), `${target}: the watcher cannot run across the migration`)
+          const child = new EventEmitter()
+          queueMicrotask(() => child.emit('exit', 0))
+          return child
+        })
+        assert.equal(status, 0)
+        assert.deepEqual(calls.at(-1), up, 'the next start keeps its own profile choice')
+      }
+    }
+  })
 
   it('stops after any failed command, preserving its exit status', async () => {
     for (const outcomes of [[12], [0, 17], [0, 0, 23]]) {
@@ -321,6 +358,7 @@ describe('development launcher profiles', () => {
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
     // Studio's entrypoint creates kei's role with this password and kei's worker connects with it.
     assert.equal(environment.FREE_KEI_POSTGRES_PASSWORD, 'kei-development')
+    assert.equal(environment.FREE_STUDIO_POSTGRES_PASSWORD, 'studio-development')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
     assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
@@ -594,6 +632,7 @@ const productionEnvironment = {
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
   FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
+  FREE_STUDIO_POSTGRES_PASSWORD: 'e'.repeat(64),
   FREE_ENTRA_TENANT_ID: '00000000-0000-4000-8000-000000000001',
   FREE_ENTRA_CLIENT_ID: '00000000-0000-4000-8000-000000000002',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
@@ -723,6 +762,7 @@ describe('production environment validation', () => {
       ...SHARED_STUDIO_CONFIGURATION_FIELDS,
       'FREE_POSTGRES_PASSWORD',
       'FREE_KEI_POSTGRES_PASSWORD',
+      'FREE_STUDIO_POSTGRES_PASSWORD',
     ])
       assert.ok(
         errors.some((error) => error.includes(`${name} is required`)),
@@ -795,7 +835,7 @@ describe('production environment validation', () => {
   })
 
   it('rejects weak or URL-unsafe passwords for every database role', () => {
-    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
+    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD', 'FREE_STUDIO_POSTGRES_PASSWORD']) {
       const errors = validateProductionEnvironment(
         { ...productionEnvironment, [field]: 'p@ss word' },
         () => true,

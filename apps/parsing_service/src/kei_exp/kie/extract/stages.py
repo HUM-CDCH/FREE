@@ -138,11 +138,12 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
                    record: int | None = None, identity: dict | None = None, record_name: str | None = None,
                    counter: TokenCounter | None = None, neutral: bool = False,
                    structured: bool = False, document: bool = False,
-                   bounded_document: bool = False) -> tuple[dict, list[Call], list[Issue]]:
+                   bounded_document: bool = False, page: int | None = None) -> tuple[dict, list[Call], list[Issue]]:
     """One record's fields from one structured-output call over its passages; with `document`, the document's own
     root (Article) from one of its value contexts. A counted record call may reply with `REPLY_TOKENS`; the root
     restates every item its context gives, so its reply may use the served context its counted input leaves, and a
-    context too full for `REPLY_TOKENS` is refused before sending (`calls.complete`)."""
+    context too full for `REPLY_TOKENS` is refused before sending (`calls.complete`). `page` is the page the call is
+    read for, which sets its priority (`calls.complete`)."""
     nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
     if not nodes:
         return dict(identity or {}), [], []
@@ -161,7 +162,7 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
         max_tokens = max(REPLY_TOKENS, (counter.context_tokens or 0) - counted)
     answer, attempts = complete(chat, stage="record", record=record, system=system, user=user,
                                 schema=reply_schema, counter=counter, max_tokens=max_tokens,
-                                minimum_reply_tokens=minimum_reply_tokens)
+                                minimum_reply_tokens=minimum_reply_tokens, page=page)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed", record))
     return {**(identity or {}), **conform(answer, nodes)}, attempts, issues

@@ -489,8 +489,8 @@ describe('reopened Source Document workspace', () => {
       }
       return Promise.resolve(new Response('pdf'))
     }))
-    render(<DocumentWorkspace {...reopened} persistedExtraction={null} latestReviewedExtraction={{ ...reopened.persistedExtraction!,
-      finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }} />)
+    const reviewed = { ...reopened.persistedExtraction!, finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }
+    const view = render(<DocumentWorkspace {...reopened} persistedExtraction={null} latestReviewedExtraction={reviewed} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await screen.findByRole('button', { name: '❚❚ Pause extraction' })
@@ -498,7 +498,9 @@ describe('reopened Source Document workspace', () => {
     expect(await screen.findByText('Elmbrooke')).toBeVisible()
     if (inspection === 'the rail collapses') fireEvent.click(screen.getByTitle('Collapse panel'))
     else if (inspection === 'Latest reviewed is inspected') {
-      fireEvent.change(screen.getByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reopened.persistedExtraction!.extractionId } })
+      // History opens the reviewed Extraction by its address; the running one stays the document's latest.
+      view.rerender(<DocumentWorkspace {...reopened} persistedExtraction={reviewed} newestExtraction={{ ...reopened.persistedExtraction!, extractionId, executionStatus: 'RUNNING' as const }} latestReviewedExtraction={reviewed} />)
+      expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
       expect(await screen.findByText('Elmbrooke')).toBeVisible()
     }
     status = 'COMPLETED'
@@ -509,7 +511,7 @@ describe('reopened Source Document workspace', () => {
       const reviewNow=await screen.findByRole('button', { name: 'Review now' }, { timeout: 4_000 })
       expect(reviewNow).toBeVisible()
       fireEvent.click(reviewNow)
-      expect(await screen.findByRole('combobox', { name: 'Extraction snapshot' })).toHaveValue(extractionId)
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Open latest' })).not.toBeInTheDocument())
       // The workspace's reader of the latest saw it complete; the Extraction itself is never polled.
       expect(reads).toEqual([])
     }
@@ -528,10 +530,11 @@ describe('reopened Source Document workspace', () => {
       return Promise.resolve(durableRead(url, url.includes(latest.extractionId) ? status : 'COMPLETED') ??
         (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
     }))
-    render(<DocumentWorkspace {...reopened} persistedExtraction={latest} latestReviewedExtraction={reviewed} />)
+    // The reviewed Extraction is routed; the latest keeps the run controls.
+    render(<DocumentWorkspace {...reopened} persistedExtraction={reviewed} newestExtraction={latest} latestReviewedExtraction={reviewed} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reviewed.extractionId } })
+    expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
     // The latest can still continue: the run button stays its control, whatever is inspected.
     expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: { PAUSED: '▶ Resume extraction', FAILED: '↻ Retry extraction', PAUSING: 'Pausing…', STOPPING: 'Stopping…' }[status] })).toBeInTheDocument()
@@ -906,11 +909,14 @@ describe('reopened Source Document workspace', () => {
   it('opens a value link\'s value once on Results, and a snapshot switch neither opens it again nor errors', async () => {
     const reviewed = { ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000074',
       finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }
-    await renderReopened({ latestReviewedExtraction: reviewed, routedValue: { extractionId: reopened.persistedExtraction!.extractionId, key: 'place' } })
+    const routedValue = { extractionId: reopened.persistedExtraction!.extractionId, key: 'place' }
+    const view = await renderReopened({ latestReviewedExtraction: reviewed, routedValue })
     expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('region', { name: 'Review place' })).toBeVisible()
-    for (const extractionId of [reviewed.extractionId, reopened.persistedExtraction!.extractionId]) {
-      fireEvent.change(screen.getByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: extractionId } })
+    // History opens the reviewed Extraction, then the latest again, by their addresses.
+    for (const persistedExtraction of [reviewed, reopened.persistedExtraction!]) {
+      view.rerender(<DocumentWorkspace {...reopened} persistedExtraction={persistedExtraction} newestExtraction={reopened.persistedExtraction}
+        latestReviewedExtraction={reviewed} routedValue={routedValue} />)
       expect(await screen.findByText('Elmbrooke')).toBeVisible()
       expect(screen.queryByRole('region', { name: 'Review place' })).not.toBeInTheDocument()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -1174,6 +1180,69 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
     fireEvent.click(view.getByRole('button', { name: 'PDF' }))
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the selected value when its correction Evidence shares the clicked passage with another value', async () => {
+    const linked = (id: string, modelValue: string) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id, name: id, type: 'string' }, modelValue, evidence: [], links: [{ resultPath: ['records', 0, id], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null })
+    // parish's only Evidence on the page is its correction's, in place's passage.
+    const parish = { ...linked('parish', 'Elmbrooke'), links: [], grounding: 'ungrounded', correction: { revision: 1,
+      decision: { action: 'EDITED', value: 'Elmbrook', included: true, evidence: [{ anchorId: 'bundled-anchor', occurrenceIds: ['bundled-occurrence'] }] } } }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 2, toCheck: 1, approved: 0, edited: 1, rejected: 0 }, values: [linked('place', 'Harlow'), parish], total: 2, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: 1, feedbackVersion: 0 })
+        ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
+    const passage = await screen.findByRole('button', { name: /^place: Harlow; parish: / })
+    fireEvent.click(passage)
+    expect(screen.getByRole('region', { name: 'Review place' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /^Edited parish/ }))
+    expect(screen.getByRole('region', { name: 'Review parish' })).toBeVisible()
+    fireEvent.click(passage)
+    expect(screen.getByRole('region', { name: 'Review parish' })).toBeVisible()
+  })
+
+  it('picks the selected value\'s part from a passage that also holds its correction Evidence, also from a sibling part', async () => {
+    const node = { id: 'site', name: 'site', type: 'object', children: [{ id: 'place', name: 'place', type: 'string' },
+      { id: 'note', name: 'note', type: 'string' }, { id: 'kind', name: 'kind', type: 'string' }] }
+    // site's unedited place is linked to the passage its correction Evidence names too; its unedited note to none.
+    const site = { id: 'site', recordId: 'record', fieldId: 'site', path: ['records', 0, 'site'],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node, modelValue: { place: 'Harlow', note: 'Dry', kind: 'Pit' }, evidence: [], links: [{ resultPath: ['records', 0, 'site', 'place'], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], historicalCorrection: null, correction: { revision: 1,
+        decision: { action: 'EDITED', value: { place: 'Harlow', note: 'Dry', kind: 'Ditch' }, included: true, evidence: [{ anchorId: 'bundled-anchor', occurrenceIds: ['bundled-occurrence'] }] } } }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 1, toCheck: 0, approved: 0, edited: 1, rejected: 0 }, values: [site], total: 1, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: 1, feedbackVersion: 0 })
+        ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
+    const passage = await screen.findByRole('button', { name: /^site › place: Harlow, Edited; site: / })
+    const place = () => screen.getByRole('button', { name: 'site › place: Harlow' })
+    fireEvent.click(await screen.findByRole('button', { name: /^Edited site/ }))
+    expect(place()).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(passage)
+    expect(place()).toHaveAttribute('aria-pressed', 'true')
+    // With the note chosen, the passage picks its sibling place, not the whole value.
+    fireEvent.click(screen.getByRole('button', { name: 'site › note: Dry' }))
+    expect(place()).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(passage)
+    expect(place()).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('hides the Markdown marks while the rail is collapsed, and marks the selected value again on expand', async () => {
@@ -2058,7 +2127,7 @@ describe('reopened Source Document workspace', () => {
       // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
       await waitFor(() => expect(extractionRequests).toHaveLength(2))
       for (const request of extractionRequests) {
-        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 4 } } } })
+        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 6 } } } })
         expect(request).not.toHaveProperty('catalogRecipe')
       }
       expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
@@ -2249,6 +2318,31 @@ describe('reopened Source Document workspace', () => {
       expect(await screen.findByText('Current article metadata')).toBeVisible()
       expect(screen.queryByText('Elmbrooke')).not.toBeInTheDocument()
       expect(screen.getByRole('button',{name:'▶ Resume extraction'})).toBeVisible()
+    })
+
+    it('History opens the routed Extraction again after an unrouted run showed the new one', async () => {
+      const bodies = stubRuns('SUCCEEDED')
+      const previousFetch = vi.mocked(fetch).getMockImplementation()!
+      const oldId = catalogAttempts.SUCCEEDED.extractionId, onOpenExtraction = vi.fn()
+      const sourceDocumentId = catalogAttempts.SUCCEEDED.sourceDocumentId
+      const listed = (extractionId: string, createdAt: string) => ({ extractionId, createdAt, status: 'COMPLETED', strategy: 'CATALOG',
+        batchExtractionId: null, sourceRevisionNumber: 1, currentSource: true, finalizations: [], pendingSchemaRevision: null,
+        schemaRevisions: [{ schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, revisionNumber: 1 }] })
+      vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).endsWith(`/source-documents/${sourceDocumentId}/history`)
+        ? Promise.resolve(Response.json({ truncated: false, extractions: [listed(bodies[0]!.id, '2026-08-13T00:00:00.000Z'), listed(oldId, '2026-08-12T00:00:00.000Z')] }))
+        : previousFetch(input, init)))
+      await renderWorkspace({ ...catalogAttempts.SUCCEEDED, sourceRepresentation: reopened.persistedExtraction!.sourceRepresentation,
+        extractionSchema: reopened.persistedExtraction!.extractionSchema }, { sourceDocumentId, onOpenExtraction })
+      fireEvent.click(tabStripRun('ARTICLE'))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(await screen.findByText('Elmbrooke')).toBeVisible()
+      expect(screen.queryByRole('button', { name: 'Open latest' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('tab', { name: 'History' }))
+      fireEvent.click(await screen.findByRole('button', { name: /^Open Extraction of / }))
+      // The route stays on the reopened Extraction, so nothing navigates: History pins it again.
+      expect(onOpenExtraction).toHaveBeenCalledExactlyOnceWith(oldId, undefined)
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
     })
 
     it.each([
@@ -3360,32 +3454,68 @@ describe('updated latest reviewed extraction', () => {
     finalizedReview: { snapshotVersion: 1, feedbackVersion: 2, createdAt: '2026-08-08T00:00:00.000Z' } }
   const finalizedCut = (id: string) => `/api/extractions/${id}/durable/values?limit=500&snapshotVersion=1&feedbackVersion=2`
 
-  it('refreshes the historical choice after rerender', async () => {
-    stubLatestReviewed()
-    const first = finalizedA
-    const second = { ...first, extractionId: '51000000-0000-4000-8006-000000000009', finalizedReview: { snapshotVersion: 2, feedbackVersion: 3, createdAt: '2026-08-09T00:00:00.000Z' } }
-    const { rerender } = render(<DocumentWorkspace {...reopened} latestReviewedExtraction={first} />)
-    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    rerender(<DocumentWorkspace {...reopened} latestReviewedExtraction={second} />)
-    // The snapshot choice sits in the Results header.
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect((await screen.findByRole<HTMLOptionElement>('option', { name: 'Latest reviewed' })).value).toBe(second.extractionId)
-  })
-
-  it('opens the same-source latest reviewed Extraction on its finalized result and decision pair, not its later live cut', async () => {
+  it('opens a routed same-source finalized review on its result and decision pair, not its later live cut', async () => {
     const requests = stubLatestReviewed()
-    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={finalizedA} />)
+    render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} newestExtraction={reopened.persistedExtraction}
+      persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} latestReviewedExtraction={finalizedA} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    // Ordinary inspection of the latest attempt follows its live cut.
-    expect(await screen.findByText('Elmbrooke')).toBeVisible()
-    expect(screen.queryByText(/Showing saved results/)).not.toBeInTheDocument()
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: finalizedA.extractionId } })
     expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Open latest' })).toBeVisible()
     expect(requests).toContain(finalizedCut(finalizedA.extractionId))
     // The later unfinalized work in the same visible Extraction is one click away.
     expect(screen.getByRole('button', { name: 'Show the latest results' })).toBeVisible()
     expect(requests.some((url) => url.includes(`/api/extractions/${reopened.persistedExtraction!.extractionId}/durable/values?`) && url.includes('feedbackVersion'))).toBe(false)
+  })
+
+  it('keeps a routed older Extraction shown when a run from it is refused', async () => {
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+        posts.push(init.body)
+        return Promise.resolve(Response.json({ error: { code: 'method_changed', message: 'Stale.' } }, { status: 409 }))
+      }
+      return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: 3, feedbackVersion: 4 }) ??
+        (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} newestExtraction={{ ...reopened.persistedExtraction!, executionStatus: 'COMPLETED' }}
+      persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} latestReviewedExtraction={finalizedA} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
+    expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+    expect(posts).toHaveLength(2)
+    expect(screen.getByText(/Showing saved results 1/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Open latest' })).toBeVisible()
+  })
+
+  it('follows an open value into History and back to the whole document', async () => {
+    const sourceDocumentId = '51000000-0000-4000-8001-000000000001', extractionId = reopened.persistedExtraction!.extractionId
+    const historyUrls: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes(`/source-documents/${sourceDocumentId}/history`)) historyUrls.push(url)
+      if (url.includes('/history/value?')) return Promise.resolve(Response.json({ truncated: false, untraceableRevisions: 0, unmatched: 0, readings: [{
+        extractionId, createdAt: '2026-08-08T00:00:00.000Z', status: 'COMPLETED', snapshotVersion: 1,
+        schemaRevision: { schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, revisionNumber: 1 },
+        node: { id: 'place', name: 'place', type: 'string' }, processing: 'saved', modelValue: 'Elmbrooke', disagreement: null, decision: null, decisionIncompatible: false }] }))
+      if (url.endsWith(`/source-documents/${sourceDocumentId}/history`)) return Promise.resolve(Response.json({ truncated: false, extractions: [] }))
+      return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')))
+    }))
+    render(<DocumentWorkspace {...reopened} sourceDocumentId={sourceDocumentId} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /To check place/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'History of this value' }))
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
+    const readings = await screen.findByRole('list', { name: 'Readings of place' })
+    expect(readings).toHaveTextContent('Elmbrooke')
+    expect(within(readings).getByText('Shown')).toBeVisible()
+    expect(historyUrls).toContain(`/api/project-contexts/${reopened.projectContextId}/source-documents/${sourceDocumentId}/history/value?extractionId=${extractionId}&valueId=place`)
+    fireEvent.click(screen.getByRole('button', { name: 'Whole document' }))
+    expect(await screen.findByText('No Extractions of this document yet.')).toBeVisible()
   })
 
   it('keeps the live cut when the latest attempt is itself the latest reviewed', async () => {

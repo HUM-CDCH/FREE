@@ -23,7 +23,7 @@ from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.models import MODELS
 import kei_exp.pagefile as pagefile
 from kei_exp.pages import BookPages, PdfPages
-from kei_exp.regions import Crop, splice
+from kei_exp.regions import CropPlan, splice
 from kei_exp.transcription.specs import VLM_SPECS
 from kei_exp.transcription.types import TEXT_RULES, Execution, PageRecord, Transcription, html_to_text
 
@@ -34,7 +34,7 @@ class Input:
     ordinal: int
     page: int                          # PDF page
     unit: int                          # 0 for the page itself; the book page index over the ingest
-    crop: Crop | None                  # None for a whole-page input
+    crop: CropPlan | None              # its region, transform and image size; None for a whole-page input
 
 
 @dataclass(frozen=True)
@@ -267,15 +267,15 @@ def publish_pages(directory: Path, pages: Iterable[pagefile.PageResult]) -> dict
     return entries
 
 
-def _crop_result(ordinal: int, crop: Crop, record: PageRecord,
+def _crop_result(ordinal: int, crop: CropPlan, record: PageRecord,
                  to_page: Callable[[PointBox], PointBox]) -> pagefile.CropResult:
-    _, region, image = crop
+    _, region, image_px = crop
     assert region.transform is not None
     return pagefile.CropResult(
         crop=ordinal, kind=region.kind, order=region.order, bbox_pt=to_page(region.bbox), ink=region.ink,
         origin_pt=(region.transform.origin_x, region.transform.origin_y),
         pt_per_px=(region.transform.pt_per_px_x, region.transform.pt_per_px_y),
-        source_px=region.transform.source_px, image_px=image.size,
+        source_px=region.transform.source_px, image_px=image_px,
         input_tokens=record.input_tokens, output_tokens=record.output_tokens, seconds=record.seconds,
         stop=record.stop, capped=record.capped, incomplete=record.incomplete,
     )

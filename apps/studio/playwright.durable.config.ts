@@ -18,6 +18,7 @@ for(const [value,prefix] of [[process.env.FREE_DURABLE_E2E_STATE,'free-durable-e
 process.env.XDG_DATA_HOME=process.env.FREE_DURABLE_E2E_STATE
 process.env.FREE_PLAYWRIGHT_SOURCE_INBOX=process.env.FREE_DURABLE_E2E_INBOX
 export default defineConfig({testDir:'./e2e',testMatch:'durable-extraction.spec.ts',workers:1,timeout:120_000,
+  forbidOnly:Boolean(process.env.CI),
   globalTeardown:'./e2e/globalTeardown.ts',use:{baseURL:origin,channel:browser==='chrome'?'chrome':undefined,trace:'retain-on-failure',actionTimeout:15_000},
   webServer:{command:playwrightWebServerCommand,url:origin,timeout:180_000,env:{DATABASE_URL:stack.databaseUrl,
     KEI_EXP_URL:'http://127.0.0.1:29789',FREE_SOURCE_INBOX:process.env.FREE_PLAYWRIGHT_SOURCE_INBOX,

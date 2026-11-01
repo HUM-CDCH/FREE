@@ -5,6 +5,9 @@
 # two profiling at once on one GPU can misjudge it. Each server's memory is a
 # fixed KV-cache budget rather than a fraction of the GPU, so the budgets add
 # up predictably on a shared-memory DGX Spark.
+# Each server loads one Hugging Face commit (--revision; vLLM loads the
+# tokenizer and processor at the same commit), so a restart never picks up new
+# upstream weights. A model id an operator overrides needs its own revision.
 x-gpu: &gpu
   resources:
     reservations:
@@ -14,7 +17,7 @@ x-gpu: &gpu
           capabilities: [gpu]
 
 x-vllm: &vllm
-  image: "${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0}"
+  image: "${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3}"
   init: true
   # Both the generic vLLM image and an operator-selected Spark image use
   # this explicit CLI, independent of their image entrypoint defaults.
@@ -50,6 +53,8 @@ services:
     <<: *vllm
     command:
       - datalab-to/surya-ocr-2
+      - --revision
+      - 3b3d4cdf88d6928b0acdc75181b13206ea67c4a3
       - --host
       - 0.0.0.0
       - --port
@@ -62,18 +67,24 @@ services:
       - "24576"
       - --max-num-seqs
       - "${OCR_MAX_NUM_SEQS:-4}"
+      # Surya 2's multi-token prediction head, as surya-ocr's own vLLM launcher runs it: on GB10 1.6x the pages per
+      # second at 4 requests, output not byte-identical (docs/operations/deployment.md#gpu-and-dgx-spark)
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":2}'
 
-  # Extraction's template extractor, for the fields role. Text only. The repo
-  # ships its processor code, which --trust-remote-code runs.
+  # Extraction's template extractor, for the fields role. Text only. Its
+  # architecture, tokenizer and processor are vLLM's and Transformers' own (the
+  # OCR model's), so no code from the model repository runs.
   nuextract_model:
     <<: *vllm
     command:
       - "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+      - --revision
+      - "${KEI_NUEXTRACT_REVISION:-d88964bad5ba47333cb721b351e19045ee6a6fc0}"
       - --host
       - 0.0.0.0
       - --port
       - "8000"
-      - --trust-remote-code
       - --language-model-only
       - --chat-template-content-format
       - openai
@@ -90,6 +101,9 @@ services:
       - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
       # GB10 with multiple resident models: graph execution stalled; eager serving passed concurrent extraction.
       - --enforce-eager
+      # Waiting requests go nearest the researcher's page first (parsing_worker's KEI_PRIORITY_URLS).
+      - --scheduling-policy
+      - priority
     depends_on:
       ocr_model:
         condition: service_healthy
@@ -102,6 +116,8 @@ services:
     <<: *vllm
     command:
       - "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      - --revision
+      - "${KEI_EXTRACT_REVISION:-017b9c7af6b5689d5dd426a76e0bc077eb5ca20a}"
       - --host
       - 0.0.0.0
       - --port
@@ -117,6 +133,8 @@ services:
       - "${EXTRACT_KV_CACHE_BYTES:-8G}"
       - --max-num-seqs
       - "4"
+      - --scheduling-policy
+      - priority
     depends_on:
       nuextract_model:
         condition: service_healthy
@@ -134,6 +152,10 @@ services:
       # kei accepts 1 to 64 (MAX_CATALOG_CHUNKS): NUEXTRACT_MAX_NUM_SEQS above 64 stops the worker at
       # boot, and `restart: unless-stopped` then restarts it in a loop.
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
+      # The servers above schedule by priority: each durable call asks with its page's distance from the page the
+      # researcher read at start. Until they are recreated with --scheduling-policy priority (an app-only release
+      # does not) they ignore it and serve in arrival order; an empty value in .env sends none.
+      KEI_PRIORITY_URLS: "${KEI_PRIORITY_URLS-http://nuextract_model:8000/v1/chat/completions,http://extraction_model:8000/v1/chat/completions}"
     depends_on:
       ocr_model:
         condition: service_healthy

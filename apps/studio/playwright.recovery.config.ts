@@ -29,6 +29,8 @@ process.env.FREE_PLAYWRIGHT_RECOVERY_STATE = state
 process.env.FREE_PLAYWRIGHT_STUDIO_LOG = resolve(recoveryTests, 'studio.log')
 
 export default defineConfig({
+  // CI never runs a suite narrowed by a committed test.only.
+  forbidOnly: Boolean(process.env.CI),
   testDir: './e2e',
   testMatch: ['interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts'],
   outputDir: resolve(recoveryTests, 'results'),

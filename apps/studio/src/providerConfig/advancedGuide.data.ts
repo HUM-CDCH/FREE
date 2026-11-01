@@ -125,7 +125,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'selection', title: 'Value evidence (retired)',
-    purpose: 'Retired: Article now reads every source unit for values, whichever value this control holds. It stays visible read-only; a saved value is kept and sent unchanged, and choosing a starting point clears it.',
+    purpose: 'Retired: Article now reads every source unit for values, whichever value this setting holds. Non-default saved values appear under Additional saved settings with a reset action; choosing a starting point also clears them.',
     stage: 'Record values; not inventory, document fields or verification.',
     example: {
       caption: 'Historical: One identity supported in units 1 and 4.',
@@ -147,7 +147,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'identity', title: 'Record identity (retired)',
-    purpose: 'Retired: Article now extracts one document-level object, so there are no records to reconcile, whichever values Reconciliation and Identity fields hold. They stay visible read-only; saved values are kept and sent unchanged, and choosing a starting point resets Reconciliation.',
+    purpose: 'Retired: Article extracts one document-level object without reconciling record identities. Saved identity settings still affect preliminary bounded source sizing, including full-source fallback. Additional saved settings can reset identity and its fields together; a starting point resets Reconciliation but keeps identity fields.',
     stage: 'Inventory and identity.',
     example: {
       caption: 'Historical: Two records share a species but differ by preparation.',
@@ -160,7 +160,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
           outcome: 'One record: a key that is too broad merges them.' },
       ],
     },
-    combinations: 'None: both controls are read-only.',
+    combinations: 'Saved identity and its fields reset together under Additional saved settings.',
     takeaway: 'Too broad a key can merge records; missing declared keys can leave duplicates.',
     evidence: [{ source: 'r1r3r4', finding: 'Against the reference, declared identity changed mean accuracy by −0.18 [−0.53, 0.00].' }],
     gaps: [],
@@ -168,7 +168,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'format', title: 'Extraction input',
-    purpose: 'Choose how source text is presented to the model. Instructions are retired: Article’s model requests no longer change with that choice (its saved value is kept and sent unchanged).',
+    purpose: 'Choose how source text is presented to the model. Saved instructions still affect preliminary bounded source sizing, including full-source fallback. Additional saved settings offers a reset; starting points also set instructions.',
     stage: 'Model input for record values and verification.',
     example: {
       caption: 'The same small 2×2 table.',
@@ -179,7 +179,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
           outcome: 'The same characters, plus labels that consume tokens.' },
       ],
     },
-    combinations: 'Both representations work with every other choice; the instructions choice is retired and no longer changes Article’s requests.',
+    combinations: 'Both representations work with every other choice. Saved instructions affect preliminary bounded source sizing; the document-value extraction prompt stays the same.',
     takeaway: 'Exact input text is preserved; added markup consumes tokens.',
     evidence: [
       { source: 'r1r3r4', finding: 'On full source, structured blocks and tables changed mean accuracy by −24.12 [−49.79, −3.93]; calls fell by 1.33 and input tokens rose by 4,810 per document on average, and the refused Harvey inventory contributes to both.' },
@@ -187,7 +187,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       { source: 'r1r3r4', finding: 'With declared identity, schema-driven instructions changed mean accuracy by −0.76 [−2.27, 0.00].' },
     ],
     gaps: [{ kind: 'Not measured', text: 'Structured blocks and tables with bounded source units: they were compared on full source only.' }],
-    technical: 'prompt=reference|schema is a retired key kept for historical settings; rendering=structured (plain text is omitted). Runs record rendering_version.',
+    technical: 'prompt=reference|schema still affects the inventory_request counted by source_contexts for preliminary bounded source sizing; rendering=structured (plain text is omitted). Runs record rendering_version.',
   },
   {
     id: 'grounding', title: 'Verification',
@@ -248,7 +248,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'scheduling', title: 'Continue verification and unit order (retired)',
-    purpose: 'Retired: Article now checks every claim first in the source unit its value was read from and stops at the first support, whichever value these two controls hold. They stay visible read-only; a saved value is kept and sent unchanged. Choosing a starting point clears them.',
+    purpose: 'Retired: Article now checks every claim first in the source unit its value was read from and stops at the first support, whichever values these settings hold. Non-default saved values appear under Additional saved settings, each with a reset action. Choosing a starting point clears them.',
     stage: 'Order and extent of evidence verification (no longer a setting since ARTICLE_VERSION 6).',
     example: {
       caption: 'One claim against three units: Article now.',
@@ -257,7 +257,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
           outcome: 'NONE or a failed call does not end the search; support does. Contradictions in units never reached stay unknown.' },
       ],
     },
-    combinations: 'None: both controls are read-only. The historical findings below were measured when they were live.',
+    combinations: 'Saved values can be reset individually under Additional saved settings. Routing must be reset before its schedule. The historical findings below were measured when they were live.',
     takeaway: 'First support does not settle contradictions: a value supported in one unit may be contradicted in a unit that was never checked.',
     evidence: [
       { source: 'pilot', finding: 'With source spans on one selected document, until first support used 14 versus 16 calls and 122 versus 156 claim–source decisions; its one fewer link also differed between byte-identical requests.' },
@@ -286,8 +286,8 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
         { label: 'Verification off', blocks: [unit('Entry', 'Kn.', 'proposal')], outcome: 'Typed values are kept as proposals, not accepted evidence.' },
       ],
     },
-    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction. In the unified Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; retired limits and recipe factors are never converted.',
-    takeaway: "Verification Off yields proposals; a recipe's applicability is source-specific.",
+    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction. In the unified Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; from defaults version 6 verification is off and each value is read once: a value code locates in its entry is linked by rule, unverified, and one without a locatable quote stays for review; Pro mode (verification on) runs version 5 instead, where a second call reads every value again and may correct it; retired limits and recipe factors are never converted.',
+    takeaway: "For a recipe, Verification Off yields proposals; a recipe's applicability is source-specific.",
     evidence: [{ source: 'r1catalog', finding: 'Recipe, recipe without neighboring context and recipe without verification each made seven calls and returned seven records; without neighboring context it used 440 fewer input tokens; generic Catalog made 14 calls.' }],
     gaps: [
       { kind: 'Not measured', text: 'Catalog accuracy, exhaustive recall and any benefit of switching verification off; glossary and inherited headings were not varied.' },
@@ -301,4 +301,4 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
 export const FLOW_TEXT =
   'Canonical Source Context feeds Context and grouping. Context and grouping feeds Inventory and identity, Record values and Evidence verification. Inventory and identity feeds Record values. Record values feeds Evidence verification. Schema policies feed Evidence verification. Evidence verification feeds Extraction Result and review.'
 export const FLOW_NOTE =
-  'Rendering affects model input; verification is routed to the unit each value was read from and stops at first support. Selection, scheduling and routing are retired controls kept for historical settings. The diagram is conceptual: filename and document fields and recipe Catalog have their own paths and are not Article stages.'
+  'Rendering affects model input; verification is routed to the unit each value was read from and stops at first support. Saved selection, scheduling and routing values are retained under Additional saved settings. The diagram is conceptual: filename and document fields and recipe Catalog have their own paths and are not Article stages.'

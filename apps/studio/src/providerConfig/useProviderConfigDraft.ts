@@ -2,7 +2,6 @@ import { useState } from 'react'
 import {
   extractionSettingsIssues,
   extractionSettingsSchema,
-  METHOD_MESSAGES,
   REFERENCE_ARTICLE,
   REFERENCE_CATALOG,
   settingsShapeIssues,
@@ -224,19 +223,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     }))
   }
 
-  /** Returns the refusal shown beside the input, or null once the trimmed, exact-case name is added. */
-  function addIdentityField(text: string): string | null {
-    const name = text.trim()
-    const fields = draft?.extractionSettings.article?.identity_fields ?? []
-    if (name === '' || fields.includes(name)) return METHOD_MESSAGES.identityNames
-    setArticle('identity_fields', [...fields, name])
-    return null
-  }
-
-  function removeIdentityField(name: string): void {
-    setArticle('identity_fields', (draft?.extractionSettings.article?.identity_fields ?? []).filter((field) => field !== name))
-  }
-
   /** Catalog edits keep what the saved override omits omitted once an edit returns to the value shown for it. */
   function setCatalog(change: (catalog: Record<string, Record<string, unknown> | undefined>) => Parameters<typeof orderedCatalog>[0]): void {
     setSettings((settings) => ({
@@ -363,8 +349,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     useServiceDefaults,
     setArticle,
     replaceArticle,
-    addIdentityField,
-    removeIdentityField,
     setCatalogFactor,
     customizeUnified,
     setUnified,

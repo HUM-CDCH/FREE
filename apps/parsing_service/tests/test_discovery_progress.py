@@ -48,6 +48,38 @@ def test_pipelined_tail_window_is_in_the_last_progress_event():
     assert shown[-1] == [{"segment": "p2_s0", "label": "2"}], shown
 
 
+def test_invalid_parent_boundaries_wait_for_their_children_without_duplicate_progress():
+    class Pending(BaseException):
+        pass
+
+    def read(answered):
+        shown = []
+
+        def ask(_record, _system, user, *_):
+            if "[L2]" in user:
+                return {"places": [["L1", "record", "Site 1"], ["L2", "record", "2", "absent anchor"]],
+                        "begins_inside_record": False, "ends_inside_record": False}
+            number = 1 if "[L1] 1. Site" in user else 2
+            if number > answered:
+                raise Pending()
+            return reply(user)
+
+        result = discovery.discover(source(), "numbered site", lambda *_: True, ask, overlap=0, splits=1,
+            progress=lambda found, lines: shown.append(deepcopy(found)), frontier=True, unanswered=(Pending,),
+            heading_context=True)
+        assert all(found["label"] != "Site 1" for snapshot in shown for found in snapshot)
+        return result, shown
+
+    for answered in (0, 1):
+        result, shown = read(answered)
+        assert not result["complete"] and not result["entries"]
+        assert shown[-1] == ([{"segment": "p1_s0", "label": "1"}] if answered else [])
+    result, shown = read(2)
+    assert result["complete"] and [entry["label"] for entry in result["entries"]] == ["1", "2"]
+    assert shown[-1] == [{"segment": "p1_s0", "label": "1"}, {"segment": "p2_s0", "label": "2"}]
+    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
+
+
 @pytest.mark.parametrize("defaults", [1, 2])
 def test_slice_publishes_a_finished_window_before_its_slow_peer(defaults):
     first_returned, second_waiting, release, published = Event(), Event(), Event(), Event()
@@ -128,3 +160,79 @@ def test_durable_planning_publishes_each_checkpoint_while_its_peer_is_pending(mo
     })
     assert {key: unit["input"] for key, unit in lease.units.items()} == before
     assert len(chat.calls) == 1  # Planning only replays the saved reply; it never calls a model.
+
+
+@pytest.mark.parametrize('start_page', [1, 3, 5])
+def test_planned_catalog_calls_start_nearest_the_requested_page(monkeypatch, tmp_path, start_page):
+    """Planning and the worker preserve page priority even with more captures than execution slots."""
+    from tests.test_durable_calls import Calls, run_loop
+    from tests.test_durable_entry_reuse import answer
+
+    document = evidence(*(f'{n}. Site{n}. Material: m{n}.' for n in range(1, 6)))
+    selected = request(defaults=5, start_page=start_page)
+    lease = MemoryLease(selected.schema_.model_dump(by_alias=True, exclude_none=True))
+    lease.state['intent'] = 'RUN'
+    lease.state['source']['runId'] = document.run_id
+    chat = CountingChat(Model(document))
+    monkeypatch.setattr(worker, 'Lease', lambda *_: nullcontext(lease))
+    monkeypatch.setattr(worker, 'coordinator', lambda: None)
+    monkeypatch.setattr(worker, 'effective', lambda _: (selected, Router(chat, chat)))
+    monkeypatch.setattr(worker.runs, 'directory_of', lambda _: tmp_path)
+    monkeypatch.setattr(worker, 'load', lambda _: document)
+    monkeypatch.setattr(worker.config, 'CATALOG_CHUNKS', 2)
+    monkeypatch.setattr(unified, 'counters_for', lambda _: {role: Counter() for role in ('fields', 'reasoning')})
+    monkeypatch.setattr(worker, 'show', lambda *_: None)
+    plan = unwrap(worker.plan_next)
+    pending = plan(f'priority-{start_page}', 'attempt')
+    assert all(role == 'reasoning' for role in pending['roles'].values())
+    for capture in pending['pending']:
+        answer(lease, chat, capture, Counter())
+    pending = plan(f'priority-{start_page}', 'attempt')
+    units = {unit['id']: unit for unit in lease.units.values()}
+    record = lambda capture: units[capture]['input']['request']['body']['record']
+    expected = sorted(range(5), key=lambda number: (abs(number + 1 - start_page), number))
+    assert [record(capture) for capture in pending['pending']] == expected
+
+    scheduled = Calls({capture: pending['roles'][capture] for capture in pending['pending']})
+    first_batch = []
+    wait = scheduled.wait_first
+
+    def wait_first(handles, polling_interval_sec):
+        if not first_batch:
+            first_batch.extend(scheduled.running)
+        return wait(handles, polling_interval_sec)
+
+    scheduled.wait_first = wait_first
+    assert run_loop(monkeypatch, scheduled, chunks=2) == {'status': 'ACK'}
+    assert [record(capture) for capture in first_batch] == expected[:2]
+    assert scheduled.peak == {'fields': 2}
+
+
+def test_planned_catalog_calls_carry_their_entrys_distance_from_the_start_page_as_priority(monkeypatch, tmp_path):
+    from tests.test_durable_entry_reuse import answer
+
+    document = evidence(*(f'{n}. Site{n}. Material: m{n}.' for n in range(1, 21)))
+    selected = request(defaults=5, start_page=20)
+    lease = MemoryLease(selected.schema_.model_dump(by_alias=True, exclude_none=True))
+    lease.state['intent'], lease.state['source']['runId'] = 'RUN', document.run_id
+    lease.state['effective']['options'] = {'start_page': 20}  # as `worker.effective` pins it
+    chat = CountingChat(Model(document))
+    monkeypatch.setattr(worker, 'Lease', lambda *_: nullcontext(lease))
+    monkeypatch.setattr(worker, 'coordinator', lambda: None)
+    monkeypatch.setattr(worker, 'effective', lambda _: (selected, Router(chat, chat)))
+    monkeypatch.setattr(worker.runs, 'directory_of', lambda _: tmp_path)
+    monkeypatch.setattr(worker, 'load', lambda _: document)
+    monkeypatch.setattr(unified, 'counters_for', lambda _: {role: Counter() for role in ('fields', 'reasoning')})
+    monkeypatch.setattr(worker, 'show', lambda *_: None)
+    plan = unwrap(worker.plan_next)
+    pending = plan('distance', 'attempt')
+    assert set(pending['priorities'].values()) == {0}  # discovery reads no one page
+    while all(role == 'reasoning' for role in pending['roles'].values()):
+        for capture in pending['pending']:
+            answer(lease, chat, capture, Counter())
+        pending = plan('distance', 'attempt')
+    units = {unit['id']: unit for unit in lease.units.values()}
+    page = {capture: units[capture]['input']['request']['body']['record'] + 1 for capture in pending['pending']}
+    assert sorted(page.values()) == list(range(1, 21))
+    assert {capture: pending['priorities'][capture] for capture in page} == {
+        capture: (20 - page[capture]) // 8 for capture in page}  # pages 1-4 at 2, 5-12 at 1, 13-20 at 0

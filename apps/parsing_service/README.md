@@ -144,7 +144,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
-- A PDF with text on every selected nonblank page parses natively; substantial
+- A PDF with text on every selected nonblank page parses natively. For this
+  route decision, a non-whitespace character counts when its box meets the
+  displayed page and its render mode is not 3 (invisible, such as a scan's
+  search layer or a hidden note); clipping-only text (mode 7) still counts. A
+  page holding only directly placed invisible text counts as blank, and a PDF
+  of blank pages takes the scan path; a page without counting text but with any
+  other object, including a form that wraps invisible text, sends the PDF to
+  the scan path. Native parsing still reads invisible text. Substantial
   textless artwork on such pages is OCR'd as crops placed in the page's reading
   order, where a crop's `order` is its reading rank and its `crop` ordinal is
   discovery order. A native block whose text keeps an undecodable font glyph's
@@ -161,7 +168,11 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   crops gain 24 pt of real page context. Other crop pixels stay unchanged.
   Context outside the original artwork is excluded; a text block crossing that
   boundary or another figure loop refuses publication. Scans and native-text
-  replacement crops keep their existing retry policy.
+  replacement crops keep their existing retry policy. Any Surya input whose
+  full-page generation produced looping or token-capped text and whose final
+  recognition holds no text at all, read before artwork ownership filtering, is
+  incomplete: lost text and a textless input are indistinguishable there. Text
+  lost while other text survives is not detected.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
@@ -178,8 +189,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   retained there, never published beside the run or served by this API. A
   request may name `start_page`, the page the researcher is reading: the unified
   Catalog reads the records nearest it first and Article its bounded value
-  contexts, the admitted source range unchanged. Changing the schema reruns
-  Extraction without rerunning OCR.
+  contexts, the admitted source range unchanged. Each call also asks its model
+  server (when `KEI_PRIORITY_URLS` names it) with a vLLM priority: its page's
+  distance from `start_page` in steps of 8 pages, 0 to 3; a call that reads no
+  one page (discovery, the document's root) 0, and every call of a run without
+  `start_page` (a batch member) 3. Changing the schema reruns Extraction
+  without rerunning OCR.
 - Extraction calls take one of two roles. `fields` reads values off the source
   (document, record and grounded entry calls); `reasoning` decides over labelled
   text (discovery, grounding, arbitration). `GET /api/extraction-models` lists
@@ -213,7 +228,7 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   2, with structural segmentation and code-verified span Evidence (see the
   [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
-  headings?, verification?}` runs the unified Catalog: result version 3, no
+  candidates?, headings?, verification?}` runs the unified Catalog: result version 3, no
   recipe and no character limits (a request naming either is refused). From
   `defaults` 3 a durable run reads the entries the windows already read decide
   while discovery asks the rest, lists them under its `unified-prefix:<attempt>:<count>`
@@ -221,8 +236,43 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   an entry's calls are captured by where it starts and what it covers, not by
   its number. From `defaults` 4 an entry's reply may use the served context its
   counted input leaves, its reserve the floor (an explicit `output_tokens` or a
-  native fields model keeps the reserve). New admissions use it only where Studio's
-  `FREE_CATALOG_METHOD=unified` gate is on. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
+  native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
+  within the counted token budget, retaining internal sections and lists as record content.
+  The existing verification call reads scalar fields afresh, without the draft
+  values anchoring its answer, and returns each complete value with a source quote;
+  code checks the field type and the quoted record text before acceptance. List
+  identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
+  corrected passages. Defaults 6 drops that compulsory verification: the entry call
+  is shown the full reply schema, code checks each value once (type, quoted
+  record text, table row, list item occurrence) and links a located value `lexical`,
+  never as verified; a value whose quote is missing or found nowhere stays a proposal
+  without Evidence, one printed neither in its located quote nor in source text
+  enclosing that quote stays rejected. Located
+  values that disagree still go to arbitration; `verification: true` adds verdicts on
+  the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
+  Defaults 7 builds on the same single pass, with heading context selected within counted
+  budgets. Discovery also retries a copied boundary that cannot be located uniquely in
+  its source line on the window's two halves, within the existing split bound. Superseded
+  replies keep their calls and issues; only final readings own source text, and exhausted
+  recovery leaves affected text unresolved. Discovery keeps all preceding record-free
+  ranges as candidates. Primary windows and overlap are fixed first; whole excerpts are considered newest first,
+  skipping an oversized one so smaller older excerpts can still fit. When the full
+  context does not fit, `candidates` (default 32, range 1–1024) bounds individual
+  measurements; older excerpts are omitted unmeasured. Split retries reconsider
+  kept and omitted context. Every omission is named in `context_omitted`.
+  Shown excerpts retain source order and source identities, marking the latest;
+  labels are metadata, never quotable evidence. A scalar outside lists may inherit
+  only a printed non-Boolean literal from shown context. Derived heading values
+  retain their supporting spans as proposals, never accepted Evidence. A candidate
+  whose spans all lie in shown context followed by an omitted excerpt stays a
+  `context_incomplete` proposal: the unseen excerpt could supersede it. Older
+  omissions do not prevent acceptance. List values and item occurrences still
+  require the entry's own text. Without verification, eligible literals are linked
+  `lexical`; `verification: true` checks applicability and supersession against the
+  same shown context, without re-extracting values.
+  Studio still admits defaults 6 by default, only where its
+  `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
+  Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
 Limitations:
@@ -239,6 +289,10 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
+- Under defaults 7 heading applicability is a model judgement, not a code check
+  of heading hierarchy. A stale heading the model accepts can still be wrong.
+  Standing headings can be omitted when requests have no room; long histories
+  repeat context references and one omission row per range per entry in artifacts.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership. For
@@ -310,7 +364,11 @@ shown while generated, but only a validated completed reply becomes a checkpoint
 ## Verification
 
 From the FREE root, install once with `pnpm --filter parsing-service install:python`.
-All commands use this directory's locked Python environment.
+All commands use this directory's locked Python environment. The service never runs
+torch on a GPU (layout and native parsing use the CPU, OCR is a model server), so
+on Linux x86_64, the image's platform, the lock takes torch, torchvision and
+torchaudio from PyTorch's CPU index, without CUDA libraries; other platforms,
+Linux aarch64 included, keep PyPI's wheels.
 
 | Command after `pnpm --filter parsing-service` | Requirements and effects |
 | --- | --- |

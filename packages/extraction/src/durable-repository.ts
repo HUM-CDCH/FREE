@@ -42,10 +42,40 @@ function executionDefinition(raw:unknown) {
   return parseExtractionSchema(raw)
 }
 export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
-/** The page a planned record starts on: its first source range's segment (`p{page}_s{n}`). */
-function firstPage(scope: unknown): number | null {
+/** The document History list shows the newest this many Extractions and says when there are more. */
+export const DOCUMENT_HISTORY_LIMIT = 100
+
+/** A value's latest decision as review shows it: a fitting one, an edit adapted to the value's own node, applies; one
+ *  that no longer fits stays historical. */
+function reviewProjection<C extends Parameters<typeof reviewFits>[0]>(historicalCorrection: C | null, value: DurableValue) {
+  const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
+  return {correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,
+    historicalCorrection:compatible ? null : historicalCorrection,correctionCompatibility:compatible ? 'compatible' as const : 'incompatible' as const}
+}
+
+/** The document History window: its live Extractions newest first, one more than it shows to tell it is truncated. Only
+ *  the Project's researcher reads it. */
+async function documentWindow(client: PoolClient, owner: string, projectId: string, sourceDocumentId: string) {
+  const owns=await client.query(`SELECT 1 FROM public."sourceDocument" d JOIN public."projectContext" p ON p.id=d."projectContextId"
+    WHERE d.id=$1 AND p.id=$2 AND p."researcherAccountId"=$3`,[sourceDocumentId,projectId,owner])
+  if(!owns.rowCount) throw new DurableNotFound('That Source Document was not found in this Project.')
+  const rows=(await client.query<{id:string;createdAt:Date;strategy:'ARTICLE'|'CATALOG';batchExtractionId:string|null;sourceRepresentationRevisionId:string;
+    sourceRevisionNumber:number;currentSource:boolean}>(
+    `SELECT e.id,e."createdAt",e.strategy,e."batchExtractionId",e."sourceRepresentationRevisionId",r."revisionNumber" AS "sourceRevisionNumber",
+      r.id=(SELECT c.id FROM public."sourceRepresentationRevision" c WHERE c."sourceDocumentId"=$1
+        ORDER BY c."revisionNumber" DESC,c.id DESC LIMIT 1) AS "currentSource"
+    FROM public.extraction e JOIN extraction_runtime.head h ON h.id=e.id AND NOT h.deleted
+    JOIN public."sourceRepresentationRevision" r ON r.id=e."sourceRepresentationRevisionId"
+    WHERE e."sourceDocumentId"=$1 ORDER BY e."createdAt" DESC,e.id DESC LIMIT $2`,[sourceDocumentId,DOCUMENT_HISTORY_LIMIT+1])).rows
+  const shown=rows.slice(0,DOCUMENT_HISTORY_LIMIT)
+  const heads=new Map((await client.query('SELECT * FROM extraction_runtime.head WHERE id=ANY($1)',[shown.map(row=>row.id)])).rows
+    .map(row=>{const head=durableHeadSchema.parse(row);return [head.id,head] as const}))
+  return {truncated:rows.length>DOCUMENT_HISTORY_LIMIT,shown,heads}
+}
+/** The canonical segment and page a planned record starts on, kept after discovery for source markers. */
+function recordStart(scope: unknown): { segment: string | null; page: number | null } {
   const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
-  return segmentPage(segment)
+  return { segment: typeof segment === 'string' ? segment : null, page: segmentPage(segment) }
 }
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
@@ -140,7 +170,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         WHERE c."extractionId"=$1 AND c."selectionId"=$2 AND o.id IS NULL AND jsonb_typeof(i.request->'body'->'record')='number'`,
         [id, head.selectionId])).rows.map(row => row.record as number)
       const listed = plan ?? partial
-      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
+      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, ...recordStart(unit.scope) })) : null
       const feedbackVersion = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0]?.version as number ?? 0
       return { protocol:1 as const, projectId:head.projectId, extractionId:id, strategy:head.strategy, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, schemaRevisions:await resultSchemaRevisions(client,head),source:head.sourcePin,
@@ -250,15 +280,12 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const finalization = (await client.query(`SELECT id,"snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
           WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"=$3`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
         const projected = allValues.map(value => {
-            const historicalCorrection = correctionsByValue.get(value.id) ?? null
-            const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
             const links=value.evidence.map(({anchorId,producer}) => {
               if ('provenance' in producer) return groundedEvidenceLink(producer,anchorId)
               if ('support' in producer) return unifiedEvidenceLink(producer,anchorId)
               return plainEvidenceLink(producer,anchorId)
             })
-            return {...value,links,correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,historicalCorrection:compatible ? null : historicalCorrection,
-              correctionCompatibility:compatible ? 'compatible' : 'incompatible'}
+            return {...value,links,...reviewProjection(correctionsByValue.get(value.id) ?? null,value)}
           })
         const saved=projected.filter(value=>value.processing==='saved')
         const count=(action:string)=>saved.filter(value=>value.correction?.decision.action===action).length
@@ -336,6 +363,70 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       finalizations:(await client.query('SELECT * FROM extraction_runtime.finalization WHERE "extractionId"=$1 ORDER BY "createdAt"',[id])).rows,
       effective:(await client.query('SELECT e.* FROM extraction_runtime.effective e JOIN extraction_runtime.selection s ON s.id=e.id WHERE s."extractionId"=$1',[id])).rows,
     }},'REPEATABLE READ') },
+    /** The document History list: its live Extractions newest first, at most DOCUMENT_HISTORY_LIMIT, each with its
+     *  lifecycle, pins, the schema revisions its results and inputs used, and its finalized reviews; never values. */
+    documentHistory(projectId: string, sourceDocumentId: string) { return runtimeTransaction(source,async client=> {
+      const {truncated,shown,heads}=await documentWindow(client,owner,projectId,sourceDocumentId), ids=shown.map(row=>row.id)
+      const selections=new Map((await client.query<{id:string;schemaRevisionId:string;revisionNumber:number}>(`SELECT i.id,r.id AS "schemaRevisionId",r."revisionNumber"
+        FROM extraction_runtime.selection i JOIN public."schemaRevision" r ON r.id=i."schemaRevisionId" WHERE i."extractionId"=ANY($1)`,[ids])).rows
+        .map(row=>[row.id,{schemaRevisionId:row.schemaRevisionId,revisionNumber:row.revisionNumber}] as const))
+      // Saved results name their inputs through their snapshot's selection; reading it never reads the values.
+      const published=(await client.query<{extractionId:string;selectionId:string}>(`SELECT DISTINCT "extractionId","selectionId"
+        FROM extraction_runtime.snapshot WHERE "extractionId"=ANY($1)`,[ids])).rows
+      const finalizations=(await client.query<{extractionId:string;snapshotVersion:number;feedbackVersion:number;createdAt:Date}>(
+        `SELECT "extractionId","snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
+        WHERE "extractionId"=ANY($1) ORDER BY "createdAt" DESC`,[ids])).rows
+      return {truncated,extractions:shown.map(row=> {
+        const head=heads.get(row.id)!
+        const used=new Set([...published.filter(each=>each.extractionId===row.id).map(each=>each.selectionId),head.selectionId])
+        const revisions=[...new Map([...used].flatMap(id=>selections.get(id)??[]).map(each=>[each.schemaRevisionId,each])).values()]
+          .sort((left,right)=>left.revisionNumber-right.revisionNumber||left.schemaRevisionId.localeCompare(right.schemaRevisionId))
+        const pending=head.pendingSelectionId&&head.pendingSelectionId!==head.selectionId?selections.get(head.pendingSelectionId)??null:null
+        return {extractionId:row.id,createdAt:row.createdAt.toISOString(),status:durableStatus(head),strategy:row.strategy,
+          batchExtractionId:row.batchExtractionId,sourceRevisionNumber:row.sourceRevisionNumber,currentSource:row.currentSource,
+          schemaRevisions:revisions,pendingSchemaRevision:pending,
+          finalizations:finalizations.filter(each=>each.extractionId===row.id)
+            .map(({snapshotVersion,feedbackVersion,createdAt})=>({snapshotVersion,feedbackVersion,createdAt:createdAt.toISOString()}))}
+      })}
+    },'REPEATABLE READ') },
+    /** One value's latest reading in each Extraction of the document History window, newest first. A value is the same
+     *  only by its identity, which names its Source Representation, record and field: Extractions on another one are
+     *  counted, never searched, and the others without it counted too. Never transfers values or Evidence it does not show. */
+    valueHistory(projectId: string, sourceDocumentId: string, anchorExtractionId: string, valueId: string) { return runtimeTransaction(source,async client=> {
+      const {truncated,shown,heads}=await documentWindow(client,owner,projectId,sourceDocumentId)
+      const anchor=(await client.query<{sourceRepresentationRevisionId:string}>(`SELECT e."sourceRepresentationRevisionId" FROM public.extraction e
+        JOIN extraction_runtime.head h ON h.id=e.id AND NOT h.deleted WHERE e.id=$1 AND e."sourceDocumentId"=$2`,[anchorExtractionId,sourceDocumentId])).rows[0]
+      if(!anchor) throw new DurableNotFound('That Extraction was not found for this Source Document.')
+      const same=shown.filter(row=>row.sourceRepresentationRevisionId===anchor.sourceRepresentationRevisionId), ids=same.map(row=>row.id)
+      // Each head snapshot is filtered inside PostgreSQL: only the matching value leaves it.
+      const readings=new Map((await client.query<{extractionId:string;snapshotVersion:number;revisionNumber:number;value:unknown}>(
+        `SELECT h.id AS "extractionId",s.version AS "snapshotVersion",r."revisionNumber",m.value
+        FROM extraction_runtime.head h JOIN extraction_runtime.snapshot s ON s."extractionId"=h.id AND s.version=h."snapshotVersion"
+        CROSS JOIN LATERAL jsonb_path_query_first(s.values,'$[*] ? (@.id == $id)',jsonb_build_object('id',$2::text)) m(value)
+        JOIN public."schemaRevision" r ON r.id=(m.value->>'schemaRevisionId')::uuid
+        WHERE h.id=ANY($1)`,[ids,valueId])).rows.map(row=>[row.extractionId,row] as const))
+      const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[projectId])).rows[0]?.version ?? 0
+      const corrections=new Map((await client.query(`SELECT DISTINCT ON ("extractionId") * FROM extraction_runtime.correction
+        WHERE "extractionId"=ANY($1) AND "valueId"=$2 AND "feedbackVersion"<=$3 ORDER BY "extractionId",revision DESC`,[ids,valueId,feedback])).rows
+        .map(row=>[row.extractionId as string,row] as const))
+      return {truncated,
+        untraceableRevisions:new Set(shown.filter(row=>row.sourceRepresentationRevisionId!==anchor.sourceRepresentationRevisionId)
+          .map(row=>row.sourceRepresentationRevisionId)).size,
+        unmatched:same.filter(row=>!readings.has(row.id)).length,
+        readings:same.flatMap(row=> {
+          const reading=readings.get(row.id)
+          if(!reading) return []
+          const value=durableValueSchema.parse(reading.value)
+          const {correction,correctionCompatibility}=reviewProjection(corrections.get(row.id) ?? null,value)
+          const decision=correction?.decision as {action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING';value?:unknown;choices?:unknown} | undefined
+          return [{extractionId:row.id,createdAt:row.createdAt.toISOString(),status:durableStatus(heads.get(row.id)!),snapshotVersion:reading.snapshotVersion,
+            schemaRevision:{schemaRevisionId:value.schemaRevisionId,revisionNumber:reading.revisionNumber},node:value.node,processing:value.processing,
+            // An edit, or the readings chosen at a Value Disagreement, gives the value review shows (`reviewedValue`).
+            modelValue:value.modelValue,disagreement:value.disagreement ?? null,
+            decision:decision ? {action:decision.action,...(decision.action==='EDITED' || decision.choices ? {value:decision.value} : {})} : null,
+            decisionIncompatible:correctionCompatibility==='incompatible'}]
+        })}
+    },'REPEATABLE READ') },
     finalize(id: string, input: {snapshotVersion:number;feedbackVersion:number}) { return owned(id,async(client,head)=> {
       const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]

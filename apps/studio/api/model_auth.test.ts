@@ -108,9 +108,12 @@ async function modelAuthFixture(): Promise<ModelAuthFixture> {
     account(ACCOUNT_ID, '30000000-0000-4000-8000-000000000004'),
     account(OTHER_ACCOUNT_ID, '30000000-0000-4000-8000-000000000007'),
   ]
+  const revoked = new Set<string>()
   const accountStore: ResearcherAccountStore = {
     findOrCreate: vi.fn(async () => accounts[0]),
     findById: vi.fn(async (id) => accounts.find((candidate) => candidate.id === id) ?? null),
+    revokeSession: vi.fn(async (digest) => { revoked.add(digest) }),
+    isSessionRevoked: vi.fn(async (digest) => revoked.has(digest)),
   }
 
   // One configuration store and one key cache shared by both accounts, as in the deployment.

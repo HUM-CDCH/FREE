@@ -17,6 +17,7 @@ import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import { captures, inSpan } from '../server/tracing.js'
 import {
   appendProviderResource,
+  readBoundedBody,
   resolveCapabilityRoute,
   type ExecutionTarget,
   THINKING_OFF,
@@ -27,6 +28,12 @@ import {
 } from './_provider.js'
 
 const NON_THINKING_TEMPERATURE = 0.2
+const NUEXTRACT_MAX_TOKENS = 8192
+/**
+ * The largest chat completion read for one NuExtract call: a fixed 4 MiB policy. `max_tokens` asks the server to stop;
+ * this cap stops reading if it does not, so a misbehaving endpoint cannot make the transport buffer an unbounded body.
+ */
+const MAX_NUEXTRACT_RESPONSE_BYTES = 4 * 1024 * 1024
 
 export type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
 type NuExtractMode = 'template-generation'
@@ -181,7 +188,7 @@ async function generateWithNuExtract(
     messages: [{ role: 'user', content: input.documentParts.map(chatContentPart) }],
     chat_template_kwargs: { mode: input.mode, ...THINKING_OFF },
     temperature: input.temperature ?? NON_THINKING_TEMPERATURE,
-    max_tokens: 8192,
+    max_tokens: NUEXTRACT_MAX_TOKENS,
   })
   // The AI SDK traces the general path; this span is the same record for NuExtract's raw chat completion.
   const attributes = { 'openinference.span.kind': 'LLM', 'llm.model_name': target.modelId }
@@ -202,13 +209,23 @@ async function generateWithNuExtract(
       throw asModelOperationError(error, 'NuExtract generation failed.')
     }
 
-    const bodyText = await response.text()
     if (!response.ok) {
+      // The error body is never read, so a failing server cannot make Studio hold it.
+      await response.body?.cancel().catch(() => undefined)
       throw new ApiError(502, 'model_operation_failed', 'NuExtract generation failed.')
+    }
+    let bounded: Awaited<ReturnType<typeof readBoundedBody>>
+    try {
+      bounded = await readBoundedBody(response, MAX_NUEXTRACT_RESPONSE_BYTES)
+    } catch (error) {
+      throw asModelOperationError(error, 'NuExtract generation failed.')
+    }
+    if (bounded.exceeded) {
+      throw new ApiError(502, 'invalid_model_output', 'NuExtract returned a chat completion larger than 4 MiB.')
     }
     let body: unknown
     try {
-      body = JSON.parse(bodyText)
+      body = JSON.parse(new TextDecoder().decode(bounded.bytes))
     } catch (cause) {
       throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', { cause })
     }

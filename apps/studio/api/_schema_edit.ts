@@ -21,6 +21,9 @@ import type { ScalarFieldType } from 'extraction/allowed-values'
 import type { ModelCaller } from './_model_execution.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { respondToSchemaEdit } from './_schema_chat.js'
+import { withFieldDescriptions } from './_schema_edit_output.js'
+import { chatHistoryText } from './_schema.js'
+import { chatHistorySchema, type ChatHistory } from '../shared/schemaChat.contract.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
 type SchemaEditOptions = {
@@ -33,6 +36,8 @@ type SchemaEditOptions = {
   /** A chat message may ask a question instead: answer it (`answered`) rather than propose a change. */
   answerable?: boolean
   respond?: typeof respondToSchemaEdit
+  /** The chat before this message, oldest first, which the model reads with it. */
+  history?: ChatHistory
 }
 
 export { parseSchemaNodes } from 'extraction/schema'
@@ -79,6 +84,21 @@ export async function ownedSourceScope(
   return { sourceDocumentId: descriptor.sourceDocumentId }
 }
 
+/** The form's `history`: the chat before the message, as JSON (422 when malformed); none when absent. */
+export function formChatHistory(form: FormData): ChatHistory {
+  const value = form.get('history')
+  if (value === null) return []
+  let parsed: unknown
+  try {
+    parsed = typeof value === 'string' ? JSON.parse(value) : null
+  } catch {
+    parsed = null
+  }
+  const history = chatHistorySchema.safeParse(parsed)
+  if (!history.success) throw new ApiError(422, 'invalid_request', 'history must be a JSON list of chat messages.')
+  return history.data
+}
+
 /** A generation's base, when the form names one: both fields or neither (422 otherwise). */
 export function optionalSchemaBase(form: FormData): { extractionSchemaId: string; schemaRevisionId: string } | null {
   const hasSchema = form.get('extraction_schema_id') !== null
@@ -119,7 +139,8 @@ export async function loadOwnedSchemaRevision(
 /**
  * A schema edit proposal through Schema Suggestion: the model receives the current schema as a template, its field
  * notes and the researcher's change request (with the source, when one is named) and returns the whole revised
- * template, which is compared with the current tree to give the per-field proposal the researcher reviews.
+ * template with scalar note changes beside it, which are compared with the current tree to give the per-field
+ * proposal the researcher reviews.
  */
 export async function proposeSchemaEdit(
   definition: SchemaDefinition,
@@ -136,19 +157,24 @@ export async function proposeSchemaEdit(
     document: source
       ? { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans }
       : { file: null, pages: null, markdown: NO_SOURCE },
-    instruction: schemaRevisionInstruction(definition, instruction),
+    instruction: schemaRevisionInstruction(definition, instruction, options.history),
+    edit: true as const,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     signal: options.signal,
   }
   let template: Record<string, unknown>
+  let fieldDescriptions: unknown
   try {
     if (options.answerable) {
       const reply = await (options.respond ?? respondToSchemaEdit)(
-        options.caller, input, { message: instruction, context: schemaChatContext(definition) })
+        options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [] })
       if ('answer' in reply) return { status: 'answered', answer: reply.answer }
       template = reply.template
+      fieldDescriptions = reply.fieldDescriptions
     } else {
-      template = (await (options.generate ?? generateSchemaWithModel)(options.caller, input)).template
+      const reply = await (options.generate ?? generateSchemaWithModel)(options.caller, input)
+      template = reply.template
+      fieldDescriptions = reply.fieldDescriptions
     }
   } catch (error) {
     if (error instanceof ApiError && isModelProposalFailure(error)) return FAILED
@@ -157,6 +183,7 @@ export async function proposeSchemaEdit(
   let revised: SchemaDefinition
   try {
     revised = templateToSchemaDefinition(template)
+    revised.schemaNodes = withFieldDescriptions(revised.schemaNodes, fieldDescriptions)
   } catch {
     return FAILED
   }
@@ -176,15 +203,16 @@ function isModelProposalFailure(error: ApiError): boolean {
 }
 
 /** The Schema Suggestion instruction for an edit: the current template, its field notes and the change request. */
-export function schemaRevisionInstruction(definition: SchemaDefinition, request: string): string {
+export function schemaRevisionInstruction(definition: SchemaDefinition, request: string, history: ChatHistory = []): string {
   const notes = enumerateFieldPaths(definition.schemaNodes)
     .filter(({ node }) => node.description)
     .map(({ path, node }) => `- ${path.join('.')}: ${node.description}`)
+  const conversation = chatHistoryText(history)
   return `Revise the researcher's current extraction schema according to the change request, and return the complete revised schema in the same template form.
 
 Current schema:
 ${JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}
-${notes.length ? `\nField notes from the current schema:\n${notes.join('\n')}\n` : ''}
+${notes.length ? `\nField notes from the current schema:\n${notes.join('\n')}\n` : ''}${conversation ? `\n${conversation}\n` : ''}
 Change request:
 ${request.trim()}
 
@@ -224,10 +252,10 @@ export function schemaEditBetween(
         fields[old.id] = { name: old.name, removed: true, ...nodeShape(old) }
         continue
       }
-      // A template carries a group's note but not a scalar's: a note the revision does not mention is kept.
+      // Absent notes stay unchanged; an edit's scalar-note sidecar can also supply text or an explicit empty clear.
       const edit: FieldEdit = { name: node.name, removed: false, description: node.description ?? null, ...nodeShape(node, old) }
       if (changesField(old, edit)) fields[old.id] = edit
-      if (old.children && node.children) compare(old.children, node.children, [...parentPath, node.name])
+      if (node.children) compare(old.children ?? [], node.children, [...parentPath, node.name])
     }
     for (const node of unmatched) if (!renamedTo.has(node)) add(node, parentPath)
   }

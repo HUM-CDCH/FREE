@@ -91,9 +91,10 @@ FREE's normative product and safety contract is:
    whenever it is saved, so there is no reset.
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Studio's
-   entrypoint then creates the Parsing Service's restricted database role and
-   schema, and each process migrates its own DBOS system schema (`dbos`,
-   `kei_dbos`) when it launches. Normal startup never resets the database or
+   entrypoint runs them as the administrative role, then prepares the Parsing
+   Service's restricted role and schema and Studio's own restricted runtime
+   role, and starts Studio without the administrative credential. Each process
+   migrates its own DBOS system schema (`dbos`, `kei_dbos`) when it launches. Normal startup never resets the database or
    seeds an account, Project Context, provider, route, or credential.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
@@ -119,20 +120,32 @@ deployment paths, and speculative extensibility.
   fragment from the same template local nginx consumes.
 - `packages/db` enforces the reset and disposable-test target restrictions
   before opening an administrative connection.
-- Session cookies are signed; API writes are origin-checked; uploads are
-  validated (`application/pdf`, magic bytes, 100 MiB cap).
+- Only migrations and role preparation use the administrative `postgres`
+  role. Studio and the evaluation watcher connect as `free_studio`, which
+  reads and writes FREE's data but cannot create databases or roles, create
+  schemas in FREE's database, change the migrated schemas or act as another
+  role (role preparation does not change privileges the role may hold on other
+  databases in the same PostgreSQL server); it owns only Studio's
+  `dbos` schema. The Parsing Service's `kei` owns only `kei_dbos` and calls
+  only its allowlisted coordination routines.
+- Session cookies are signed, and logout saves the session's sign-out in
+  PostgreSQL so a copy of the cookie is refused until it would have expired,
+  also after a restart; a logout the database cannot save signs the browser
+  out and says the sign-out was not recorded. API writes are origin-checked;
+  uploads are validated (`application/pdf`, magic bytes, 100 MiB cap).
 
 ## Verification
 
 `pnpm test` is the fast tier: it needs no running stack, PostgreSQL, browser
 or model. A tier that mutates data touches only disposable targets: the
 guarded `free_test_*` databases, or a stack it creates and removes itself.
-GitHub's `verify` workflow runs `pnpm test:ci` on pull requests into and
-pushes to `main` with `FREE_SKIP_PYTHON=1`, because the Parsing Service's CUDA PyTorch
-wheels do not fit the hosted runner. CI therefore skips the Parsing Service
-tiers, `test:service` and the Python-backed durable lifecycle and recovery
-checks, which full-host verification (`pnpm test:all`) must run;
-`test:live-model` and `test:system` stay outside both. The
+GitHub's `verify` workflow runs `pnpm test:ci` (the whole of `pnpm test:all`:
+the Parsing Service tiers, `test:service` and the Python-backed durable
+lifecycle and recovery checks included, on PyTorch's CPU wheels) on pull
+requests into, pushes to and merge queues for `main`, and nowhere else. `dev`
+has no automatic CI: contributors run typecheck, lint, `pnpm test:unit` and
+the tiers their change touches locally before review. `test:live-model` and
+`test:system` stay outside CI. The
 [local development runbook](operations/local-development.md#verification)
 lists every tier with its prerequisites.
 
@@ -147,7 +160,7 @@ transaction, or none of them. The Parsing Service's worker runs each attempt
 calls only the deployment's extraction models; Model Connections, Capability
 Routes and researchers' keys never reach it. An Extraction has no overall
 deadline; each chat model call times out after waiting `KEI_EXTRACT_TIMEOUT`
-seconds for its reply, or for the next piece of a streamed discovery reply.
+seconds for its reply, or for the next piece of a streamed discovery or NuExtract entry reply.
 
 A deployment may select the Codex CLI ([ADR 0021](adr/0021-deployment-owned-codex-extraction.md)) for both extraction roles using its own operator login, with no researcher
 key or Model Connection entering the worker. It uses the same admission, captures, checkpoints, evidence and
@@ -173,7 +186,11 @@ result that is not exactly one record.
 
 Pause drains admitted calls and saves their output before the Extraction
 becomes Paused; Stop is terminal and keeps saved values and corrections; Retry
-continues a failed Extraction with its saved work. Pause and Stop are refused
+continues a failed Extraction with its saved work and may repeat the same model
+failure. After failure, Change inputs can save and apply an available instruction
+model for fields before Resume: it handles remaining work and re-reads provisional
+records while saved values, Evidence and producing inputs remain historical. A
+different model does not guarantee complete lists. Pause and Stop are refused
 once an Extraction is complete. Revised inputs are saved as a separate
 selection and adopted only at a drained boundary. Studio offers no Resume
 while an Extraction is pausing; a Resume an API client sends meanwhile runs

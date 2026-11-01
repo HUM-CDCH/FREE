@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { deleteModelOperation, requestSchemaChat, requestSchemaEdit } from './api'
+import type { ChatHistory } from '../shared/schemaChat.contract'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { deriveSchemaProposal } from '../shared/schemaChanges'
 import { useSchemaInstructions, type SchemaInstructions } from './useSchemaInstructions'
@@ -149,11 +150,15 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         return
       }
       const originalSchemaRevisionId = modelContext.schemaRevisionId
+      // The whole conversation goes with the message: the instructions before the first schema, then this chat. An
+      // answered step is the researcher's click, not something said, so it stays out.
+      const history = messages.flatMap((message): ChatHistory => message.role === 'step' ? [] : [message])
       const response = await requestSchemaEdit(
         modelContext,
         userMsg,
         controller.signal,
         operationId,
+        [...instructions.history, ...history],
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -238,6 +243,7 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         text,
         controller.signal,
         crypto.randomUUID(),
+        instructions.history,
       )
       if (askAbortRef.current !== controller) return
       instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)

@@ -1,8 +1,13 @@
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdtemp, readdir, readFile, rename, rm, utimes } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk'
 import { describe, expect, it, vi } from 'vitest'
+import { createCanonicalPackageStore, packCanonicalPackage } from '../../../packages/db/src/artifact-store.js'
 import { GC_POLICY, type WorkflowRow } from './_garbage_plan.js'
 import {
-  collectGarbageWorkflow, repairCancellations, collectStudioHistory, collectKei, type GarbagePorts,
+  collectGarbageWorkflow, repairCancellations, collectStudioHistory, collectKei, collectPackages, type GarbagePorts,
 } from './_garbage_workflow.js'
 
 const NOW = Date.parse('2026-09-26T12:00:00Z')
@@ -49,7 +54,7 @@ function fakePorts(studioRows: WorkflowRow[] = [], keiRows: WorkflowRow[] = []) 
     list: vi.fn(async () => { calls.push('packages:list'); return [] }),
     leftovers: vi.fn(async () => { calls.push('packages:leftovers'); return [] }),
     remove: vi.fn(async () => { calls.push('packages:remove'); return true }),
-    removeLeftover: vi.fn(async () => { calls.push('packages:removeLeftover') }),
+    removeLeftover: vi.fn(async () => { calls.push('packages:removeLeftover'); return true }),
   }
   const inbox = {
     root: '/test/inbox',
@@ -183,5 +188,69 @@ describe('collectGarbage', () => {
     expect(await collectStudioHistory(fake.ports, NOW)).toBe(205)
     expect(fake.studio.deleteWorkflows.mock.calls.map(([ids]) => ids.length)).toEqual([100, 100, 5])
     expect(fake.calls.indexOf('references:scopes')).toBeLessThan(fake.calls.indexOf('studio:delete:100'))
+  })
+})
+
+describe('collectPackages with an interrupted removal', () => {
+  /** A real store holding one package only under the `.deleting` name a removal killed mid-way leaves, aged two days. */
+  async function quarantinedPackage() {
+    const root = await mkdtemp(join(tmpdir(), 'free-gc-quarantine-'))
+    const packages = createCanonicalPackageStore(root)
+    const pdf = new TextEncoder().encode('%PDF-1.7\nsynthetic')
+    const bytes = packCanonicalPackage({
+      pdf,
+      document: {
+        schema_version: 'parsed_document.v2',
+        document: { content_sha256: createHash('sha256').update(pdf).digest('hex') },
+        preprocessing: { preprocess_id: 'synthetic-preprocess' },
+      },
+      markdown: '# Synthetic\n',
+    })
+    const { artifactReference } = await packages.save(bytes)
+    const quarantine = `${artifactReference}.${randomUUID()}.deleting`
+    await rename(join(root, `${artifactReference}.zip`), join(root, quarantine))
+    const aged = new Date(NOW - 2 * 24 * 3600_000)
+    await utimes(join(root, quarantine), aged, aged)
+    return { root, packages, bytes, artifactReference, quarantine }
+  }
+
+  it('keeps a still-referenced package readable and asks for that package\'s references', async () => {
+    const { root, packages, bytes, artifactReference } = await quarantinedPackage()
+    try {
+      const fake = fakePorts()
+      fake.references.packageIsReferenced.mockResolvedValue(true)
+      const ports = { ...fake.ports, packages } as GarbagePorts
+      expect(await collectPackages(ports, NOW)).toEqual({ packages: 0, leftovers: 1 })
+      expect(fake.references.packageIsReferenced).toHaveBeenCalledWith(artifactReference)
+      expect(await readdir(root)).toEqual([`${artifactReference}.zip`])
+      expect(new Uint8Array(await readFile(join(root, `${artifactReference}.zip`)))).toEqual(bytes)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails the phase and keeps the quarantine when references cannot be read', async () => {
+    const { root, packages, bytes, quarantine } = await quarantinedPackage()
+    try {
+      const fake = fakePorts()
+      fake.references.packageIsReferenced.mockRejectedValue(new Error('database unavailable'))
+      const ports = { ...fake.ports, packages } as GarbagePorts
+      await expect(collectPackages(ports, NOW)).rejects.toThrow('database unavailable')
+      expect(new Uint8Array(await readFile(join(root, quarantine)))).toEqual(bytes)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('removes the package once nothing references it', async () => {
+    const { root, packages } = await quarantinedPackage()
+    try {
+      const fake = fakePorts()
+      const ports = { ...fake.ports, packages } as GarbagePorts
+      expect(await collectPackages(ports, NOW)).toEqual({ packages: 0, leftovers: 1 })
+      expect(await readdir(root)).toEqual([])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

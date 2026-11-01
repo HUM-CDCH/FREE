@@ -223,6 +223,47 @@ afterEach(() => {
 })
 
 describe.sequential('SchemaPanel schema proposal review', () => {
+  it('shows and selectively accepts a scalar note-only proposal, then flushes that note in the saved definition', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the full heading exactly.' } },
+      additions: [], issues: [],
+    })
+    expect(screen.getByLabelText('Previous note')).toHaveTextContent('Research rule')
+    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the full heading exactly.')
+    expect(setup.edits).toHaveLength(0)
+    const accept = screen.getByRole('checkbox', { name: 'Accept change to title' })
+    fireEvent.click(accept)
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+    fireEvent.click(accept)
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0]).toEqual({ recordDescription: 'One test record.', schemaNodes: [
+      { ...nodes[0], description: 'Copy the full heading exactly.' }, nodes[1],
+    ] })
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: 'title' })).getByText('Copy the full heading exactly.')).toBeInTheDocument()
+    await act(async () => {
+      expect(await setup.schema.flush()).toMatchObject(setup.edits[0])
+    })
+    expect(setup.schema.snapshot().draft?.schemaNodes).toEqual(setup.edits[0].schemaNodes)
+  })
+
+  it('shows a proposed scalar note clear before it can be applied', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: { title: { name: 'title', type: 'string', removed: false, description: '' } },
+      additions: [], issues: [],
+    })
+    expect(screen.getByLabelText('Previous note')).toHaveTextContent('Research rule')
+    expect(screen.getByText('Note removed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(setup.edits[0].schemaNodes[0]).toEqual({ id: 'title', name: 'title', type: 'string' })
+  })
+
   it('each edit request carries a new operation ID', async () => {
     renderPanel()
     const input = screen.getByPlaceholderText('Describe a change to the schema…')
@@ -272,6 +313,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       'Update fields',
       expect.any(AbortSignal),
       expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      [],
     )
 
     const row = screen.getByText('title').closest('[role="listitem"]')!
@@ -1390,6 +1432,24 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(requestSchemaEdit).not.toHaveBeenCalled()
   })
 
+  it('reopens a description-only proposal after reload without another model request', async () => {
+    const restored: ModelOperation = {
+      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
+      status: 'SUCCEEDED', instruction: 'Copy the complete heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
+      baseSchemaRevisionId: modelContext.schemaRevisionId,
+      response: { status: 'proposed', fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the complete heading.' } }, additions: [], issues: [] },
+    }
+    listModelOperations.mockResolvedValueOnce([restored])
+    const setup = renderPanel({ durableScope: true })
+    const apply = await screen.findByRole('button', { name: 'Apply changes' })
+    expect(apply).toBeEnabled()
+    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the complete heading.')
+    fireEvent.click(apply)
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0].schemaNodes).toEqual([{ ...nodes[0], description: 'Copy the complete heading.' }, nodes[1]])
+    expect(requestSchemaEdit).not.toHaveBeenCalled()
+  })
+
   it('Stop on a running edit cancels edit:<operationId> on the server and says Cancelled.', async () => {
     requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
       new Promise<SchemaEditResponse>((_resolve, reject) => {
@@ -2418,6 +2478,10 @@ describe('chat composer and drawer (redesign §7)', () => {
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(await screen.findByText('Message 1 of 1')).toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[1]![4]).toEqual([
+      { role: 'user', text: 'How many burials are there?' },
+      { role: 'assistant', text: 'The register lists 42 burials.' },
+    ])
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema (1 message)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
@@ -2441,6 +2505,16 @@ describe('chat composer and drawer (redesign §7)', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(await screen.findByText('Gender takes woman or man.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([])
+
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'No.' })
+    fireEvent.change(input, { target: { value: 'Can it be blank?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('No.')).toBeInTheDocument()
+    expect(requestSchemaEdit.mock.calls[1]![4]).toEqual([
+      { role: 'user', text: 'What values can gender take?' },
+      { role: 'assistant', text: 'Gender takes woman or man.' },
+    ])
   })
 
   it('a removed instruction leaves the conversation and the generation', () => {

@@ -3,11 +3,13 @@
 ## Workflow
 
 - Work on a branch from `dev`, open a pull request against `dev`, get one
-  review, then merge. `dev` reaches `main` through merge PRs, which run the
-  [`verify`](.github/workflows/verify.yml) workflow; a pull request against
-  `dev` runs no CI, so run `pnpm typecheck`, `pnpm lint`, `pnpm test` and the
+  review, then merge. GitHub CI runs only for `main`: merge PRs from `dev`,
+  pushes to `main` and `main`'s merge queue run the full
+  [`verify`](.github/workflows/verify.yml) workflow. `dev` has no automatic
+  CI, so before asking for review run `pnpm typecheck`, `pnpm lint` and
+  `pnpm test:unit` locally, plus the
   [tiers](docs/operations/local-development.md#verification) your change
-  touches before asking for review.
+  touches.
 - Reviewers, human or agent, also check the diff against
   [CODING_STANDARDS.md](CODING_STANDARDS.md).
 - Give each PR one coherent, testable review boundary: the smallest change that
