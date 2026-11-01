@@ -305,7 +305,8 @@ def _request(opening: str, sections: Sequence[dict]) -> tuple[str, dict, int]:
     """The user prompt, reply schema and reply reserve of one call over `sections`."""
     user = f"### Document opening\n{opening}\n\n### Places\n" + "\n\n".join(section["text"] for section in sections)
     schema = {"type": "object", "properties": {section["key"]: section["schema"] for section in sections},
-              "required": [section["key"] for section in sections], "additionalProperties": False}
+              "required": [section["key"] for section in sections], "additionalProperties": False,
+              "x-free-hidden": True}  # RESOLUTION states the reply's shape: constrained, not shown
     # A list item's answer: its label and, at most, a copied `of` of one token per two characters.
     reserve = 256 + sum(8 if section["kind"] == "scalar" else (16 + OF_CHARS // 2) * len(section["options"])
                         for section in sections)

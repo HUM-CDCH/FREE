@@ -29,6 +29,7 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
 
     def reason(system, user, schema):
         assert "records" not in schema["properties"], "no identity inventory"
+        assert schema.get("x-free-hidden"), "grounding states its reply's shape: its schema constrains, unshown"
         assert f"### Record identity\n{DOCUMENT_LABEL}" in user and "Results: Hill 1827" in user
         return {claim: "NONE" for claim in schema["properties"]}
 
@@ -47,7 +48,7 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
                                   "title": "Sites", "filename": "bauer.pdf"}]
     assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
-    assert not result["issues"] and result["article_version"] == 16
+    assert not result["issues"] and result["article_version"] == 17
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])

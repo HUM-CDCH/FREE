@@ -957,3 +957,10 @@ def test_a_shortened_header_name_and_cited_authors_leave_through_durable_complet
     assert completion["diagnostics"] == {"issues": result["issues"]}
     count = len(chat.calls)
     assert finish(lease, chat, extract)["issues"] == result["issues"] and len(chat.calls) == count
+
+
+def test_resolution_constrains_its_reply_without_showing_the_schema():
+    # RESOLUTION states the reply's shape; the per-place label enums constrain decoding but are not shown.
+    _, schema, _ = resolution._request("Opening", [{"key": "S1", "kind": "scalar", "options": [], "text": "S1: x",
+                                                    "schema": {"type": "string", "enum": ["A", "NONE", "UNSURE"]}}])
+    assert schema["x-free-hidden"] and schema["required"] == ["S1"]

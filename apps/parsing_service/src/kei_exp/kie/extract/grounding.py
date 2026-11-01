@@ -291,9 +291,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             [(label, candidate) for label, candidate in labelled.items() if label in shown],
             context_rows={row for claim in batch for row in context_rows.get(claim, ())},
             passages={candidate.passage.id: candidate.passage for candidate in candidates})
+        # The instruction states the reply's shape and the evidence lists the labels: constrained, not shown, since
+        # showing every claim's label enum grew each request by claims x labels and halved batches.
         reply_schema = {"type": "object", "properties": {
             claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
-            "required": batch, "additionalProperties": False}
+            "required": batch, "additionalProperties": False, "x-free-hidden": True}
         if quoted:
             reply_schema["properties"] = {claim: {"type": "object", "properties": {
                 "label": {"type": "string", "enum": [*eligible[claim], NONE]},

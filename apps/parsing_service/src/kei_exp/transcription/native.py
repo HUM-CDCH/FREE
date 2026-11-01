@@ -78,17 +78,30 @@ def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
                         continue
                     width, height = page.get_size()
                     page_regions: list[OcrRegion] = []
+                    tiles: list[tuple[float, float, float, float]] = []
+                    bounded = []
                     for obj in objects:
                         if obj.type not in {pdfium.raw.FPDF_PAGEOBJ_IMAGE, pdfium.raw.FPDF_PAGEOBJ_FORM}:
                             continue
                         left, bottom, right, top = _canvas_bounds(obj)
                         left, bottom, right, top = max(left, x0), max(bottom, y0), min(right, x1), min(top, y1)
                         area = max(0, right - left) * max(0, top - bottom)
-                        # Artwork needs OCR of its own contents, regardless of its size. Native text on a
-                        # large raster may be a scan's OCR overlay, so retain the scan route in that case.
                         if area < width * height / 20:
+                            if obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area:
+                                tiles.append((left, bottom, right, top))
                             continue
-                        large_raster = obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2
+                        bounded.append((obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE, left, bottom, right, top, area))
+                    # A scan stored as many small strips is one raster: judged by their union, as a single image is,
+                    # so a sparse caption layer over it cannot leave the scanned page unread.
+                    if sum((u1 - u0) * (v1 - v0) for u0, v0, u1, v1 in tiles) >= width * height / 2:
+                        u0, v0 = min(tile[0] for tile in tiles), min(tile[1] for tile in tiles)
+                        u1, v1 = max(tile[2] for tile in tiles), max(tile[3] for tile in tiles)
+                        bounded.append((True, u0, v0, u1, v1, (u1 - u0) * (v1 - v0)))
+                    for is_image, left, bottom, right, top, area in bounded:
+                        # Artwork needs OCR of its own contents, small artwork aside (under 5% of the page, unless
+                        # its strips together make a raster). Native text on a large raster may be a scan's OCR
+                        # overlay, so retain the scan route in that case.
+                        large_raster = is_image and area >= width * height / 2
                         if textpage.get_text_bounded(left, bottom, right, top).strip():
                             if large_raster:
                                 return None

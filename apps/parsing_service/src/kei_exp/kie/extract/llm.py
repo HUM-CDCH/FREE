@@ -64,8 +64,9 @@ THINKING_OFF = {"enable_thinking": False}
 
 
 def _messages(system: str, user: str, schema: dict | None) -> list[dict]:
-    """Show the reply shape as well as constraining it; tokenization counts exactly these messages."""
-    if schema is not None:
+    """Show the reply shape as well as constraining it; tokenization counts exactly these messages. A schema marked
+    `x-free-hidden` (a stage whose instruction already states its reply's shape) constrains without being shown."""
+    if schema is not None and not schema.get("x-free-hidden"):
         system += "\nReply JSON schema:\n" + json.dumps(_plain(schema), ensure_ascii=False, separators=(",", ":"))
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
@@ -177,7 +178,7 @@ def _reply(response, started: float, attempts: tuple[str, ...]) -> Reply:
 
 
 # The annotations FREE writes into a reply schema (`schema.json_schema`); constrained decoding never sees them.
-_FREE_ANNOTATIONS = frozenset({"x-free-type"})
+_FREE_ANNOTATIONS = frozenset({"x-free-type", "x-free-hidden"})
 
 
 def _plain(schema: Any) -> Any:
