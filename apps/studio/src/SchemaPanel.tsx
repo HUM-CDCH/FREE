@@ -7,7 +7,6 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { deleteModelOperation, requestSchemaChat, requestSchemaEdit } from './api'
 import { sourceCoverageNotice } from './sourceCoverageNotice'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { isRecord } from '../shared/template'
@@ -34,35 +33,24 @@ import ActionsMenu, { type ActionItem } from './ActionsMenu'
 import SchemaNameEditor from './SchemaNameEditor'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { defaultSchemaName } from './schemaNames'
-import { deriveSchemaProposal } from '../shared/schemaChanges'
 import {
   SchemaInstructionsChat,
   SchemaInstructionsDrawer,
 } from './SchemaInstructions'
-import { useSchemaInstructions } from './useSchemaInstructions'
 import { ProposalReviewBar } from './SchemaProposalReview'
-import { useSchemaProposalReview } from './useSchemaProposalReview'
-import { useModelOperationRecovery } from './useModelOperationRecovery'
+import { useSchemaChat, type SchemaChat } from './useSchemaChat'
+import { ChatLabel, ChatTranscript, RunningRequests } from './SchemaChatParts'
+import { chatMessageClass } from './chatMessageClass'
 import {
   moveSchemaNodes,
   removeSchemaNode,
   restoreSchemaNode,
-  schemaAncestorIds,
   schemaDragMode,
   updateSchemaNode,
 } from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
 
-/** The label over the panel's chat composer, before and after the first schema alike. */
-function ChatLabel({ optional = false }: { optional?: boolean }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">Chat</span>
-      {optional && <span className="rounded bg-canvas px-1.5 py-0.5 text-overline font-semibold uppercase tracking-wide text-ink-faint">Optional</span>}
-    </span>
-  )
-}
 /** `ids` taken out of the collapsed set, so those groups show their children. */
 const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
   const next = new Set(current)
@@ -71,7 +59,7 @@ const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
 }
 
 
-const CONVERSATION_EMPTY = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
+export const CONVERSATION_EMPTY = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
 
 export type SchemaPanelProps = {
   schema: SchemaEditorController
@@ -97,6 +85,9 @@ export type SchemaPanelProps = {
     onChange: (id: string) => void
     disabled?: boolean
   } | null
+  /** The schema chat, when the host shows it outside the panel (the workspace rail). Omitted, the panel owns its chat and
+   *  shows it: the instructions conversation in its body before the first schema, the edit chat's drawer after. */
+  chat?: SchemaChat
 }
 
 type DragState = {
@@ -150,7 +141,6 @@ function editingOf(node: SchemaNode): FieldEditing {
   }
 }
 
-type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 
 
@@ -373,7 +363,17 @@ function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCan
 // Main component
 // ────────────────────────────────────────────────────────────────────────────
 
-function SchemaPanel({
+/** The schema panel; without a host's `chat` it owns one (the batch editors). */
+function SchemaPanel(props: SchemaPanelProps) {
+  return props.chat ? <SchemaPanelView {...props} chat={props.chat} docked /> : <SchemaPanelWithChat {...props} />
+}
+
+function SchemaPanelWithChat(props: SchemaPanelProps) {
+  const chat = useSchemaChat({ schema: props.schema, sourceRepresentationId: props.sourceRepresentationId })
+  return <SchemaPanelView {...props} chat={chat} docked={false} />
+}
+
+function SchemaPanelView({
   schema,
   onGenerateInstructions,
   onClearDraft,
@@ -386,12 +386,14 @@ function SchemaPanel({
   onPendingLocalEditChange,
   recordScope,
   boundaries,
-}: SchemaPanelProps) {
+  chat,
+  docked,
+}: SchemaPanelProps & { chat: SchemaChat; docked: boolean }) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
     snap.historicalPreview?.schemaNodes ?? snap.draft?.schemaNodes ?? EMPTY_NODES
   const editorReadOnly = readOnly || snap.historicalPreview !== null
-  const instructions = useSchemaInstructions()
+  const { instructions, proposalReview, recovery, asking, askError } = chat
   // ── render state ──
   const [dragging, setDragging] = useState<DragState | null>(null)
   const [dragX, setDragX] = useState(0)
@@ -404,39 +406,8 @@ function SchemaPanel({
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast, holdToast: holdPanelToast } = useToast()
-  const [chat, setChat] = useState<ChatMsg[]>([])
-  /** The researcher's open or collapse of the edit chat's drawer; null keeps the default: open while a recovered
-   *  request runs, collapsed otherwise. */
-  const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null)
-  const appendChatMessage = useCallback(
-    (message: string) =>
-      setChat((current) => [...current, { role: 'assistant', text: message }]),
-    [],
-  )
-  const proposalReview = useSchemaProposalReview(schema, appendChatMessage)
-  const {
-    pending,
-    acceptedChangeIds,
-    replay,
-    canApply,
-    reset: resetProposal,
-  } = proposalReview
-  const resetInstructions = instructions.reset
-  const [chatInput, setChatInput] = useState('')
-  const [chatLoading, setChatLoading] = useState(false)
-  const chatAbortRef = useRef<AbortController | null>(null)
-  /** The running edit's operation ID: Stop cancels it on the server (Task 6) and Discard names it (Task 7). */
-  const editOperationRef = useRef<string | null>(null)
-  /** The pre-generation message whose reply is coming, and why the last one got none. */
-  const [asking, setAsking] = useState<string | null>(null)
-  const [askError, setAskError] = useState<string | null>(null)
-  const askAbortRef = useRef<AbortController | null>(null)
-  useEffect(() => () => {
-    chatAbortRef.current?.abort()
-    chatAbortRef.current = null
-    askAbortRef.current?.abort()
-    askAbortRef.current = null
-  }, [])
+  const { pending, acceptedChangeIds, replay, canApply } = proposalReview
+  const chatLoading = chat.loading
   const [view, setView] = useState<'fields' | 'code'>('fields')
   /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
@@ -467,45 +438,28 @@ function SchemaPanel({
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
     () => snap.draft?.recordDescription ?? '',
   )
-  // What a reloaded page found (spec, *What the schema panel does on load*): running operations to show and poll, a
-  // finished generation to save onto its base, an unreviewed proposal to reopen.
-  const recovery = useModelOperationRecovery({
-    schema,
-    proposalReview,
-    busy: chatLoading || pending !== null,
-    appendMessage: appendChatMessage,
-    onReopened: (proposal) => {
-      // A reopened proposal is reviewed in the conversation, as one that has just arrived.
-      setDrawerOpen(true)
-      const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
-      setCollapsedIds((current) => withoutIds(current, ancestors))
-    },
-  })
+  // A proposal that arrives or is reopened shows its changes: the groups holding them open.
+  // Adjusted while rendering, as the request that sets it is no longer the panel's own handler.
+  const [revealedSeq, setRevealedSeq] = useState(chat.revealed.seq)
+  if (revealedSeq !== chat.revealed.seq) {
+    setRevealedSeq(chat.revealed.seq)
+    setCollapsedIds((current) => withoutIds(current, chat.revealed.ids))
+  }
   // Shown wherever the chat lives: before the first schema (the instructions conversation) and after (the edit chat).
-  const runningRows = recovery.running.map((operation) => (
-    <div
-      key={operation.workflowId}
-      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-secondary text-ink-muted"
-    >
-      <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
-      <button
-        type="button"
-        className="min-h-6 shrink-0 cursor-pointer text-compact text-ink underline"
-        aria-label={`Stop earlier request “${operation.instruction}”`}
-        onClick={() => recovery.stop(operation.workflowId)}
-      >
-        Stop
-      </button>
-    </div>
-  ))
+  const runningRows = <RunningRequests recovery={recovery} />
+  const runningCount = recovery.running.length
   const chatRef = useRef<HTMLDivElement>(null)
   const creatingFromHistoryRef = useRef(false)
 
   const ready = snap.view === 'editing'
   // A recovered running request continues a send made before the reload, and a send opens the conversation.
-  const drawerShown = drawerOpen ?? recovery.running.length > 0
+  const drawerShown = chat.drawerOpen ?? recovery.running.length > 0
   const shownScope = snap.historicalPreview ? snap.historicalPreview.recordScope ?? null : recordScope?.value ?? null
+  // The drag's start is set with `dragging` in the same handler, so it is current whenever a drag renders. Unchanged
+  // since the chat moved out of the panel, which is what lets the compiler lint this component now.
+  // eslint-disable-next-line react-hooks/refs
   const dx = dragging ? dragX - dragStartXRef.current : 0
+  // eslint-disable-next-line react-hooks/refs
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const dragMode = schemaDragMode(dx, dy)
 
@@ -515,6 +469,8 @@ function SchemaPanel({
     snap.historicalPreview?.recordDescription ?? snap.draft?.recordDescription
   useEffect(() => {
     if (committedRecordDescription === undefined) return
+    // Unchanged since the chat moved out of the panel, which is what lets the compiler lint this component now.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRecordDescriptionDraft(committedRecordDescription)
   }, [committedRecordDescription])
 
@@ -535,16 +491,14 @@ function SchemaPanel({
     [onPendingLocalEditChange],
   )
 
+  // The chat resets itself on a replacement (useSchemaChat); a cleared schema also clears its conversation.
+  const resetChat = chat.reset
   const resetEditorUi = useCallback(
     (clearConversation = false) => {
-      chatAbortRef.current?.abort()
-      chatAbortRef.current = null
-      setChatLoading(false)
       setEditing(null)
       setProvisionalField(null)
       setEditingError(null)
       setMutationError(null)
-      resetProposal()
       setOpenDescId(null)
       setJsonEditMode(false)
       setJsonDraft('')
@@ -552,7 +506,6 @@ function SchemaPanel({
       setView('fields')
       setCollapsedIds(new Set())
       setDescDraft('')
-      setChatInput('')
       setHistoryError(null)
       setConfirmingDeleteSchema(false)
       setRegenerateOpen(false)
@@ -563,12 +516,10 @@ function SchemaPanel({
       )
       if (clearConversation) {
         setHistoryOpen(false)
-        resetInstructions()
-        setChat([])
-        setDrawerOpen(null)
+        resetChat(true)
       }
     },
-    [dismissPanelToast, resetInstructions, resetProposal, schema],
+    [dismissPanelToast, resetChat, schema],
   )
   const observedReplacementVersion = useRef(snap.replacementVersion)
   useEffect(() => {
@@ -581,7 +532,7 @@ function SchemaPanel({
   useEffect(() => {
     const el = chatRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [chat.length, pending, drawerShown])
+  }, [chat.messages.length, pending, drawerShown])
   // Before the first schema the instructions conversation is the panel's body: keep its newest message in view too.
   useEffect(() => {
     if (ready) return
@@ -950,110 +901,6 @@ function SchemaPanel({
     schema.setRecordDescription(recordDescriptionDraft)
   }
 
-  // ── Chat ──
-  async function sendChatMessage(text: string) {
-    if (!text.trim() || chatLoading || pending) return
-    setDrawerOpen(true)
-    const userMsg = text.trim()
-    setChat(c => [...c, { role: 'user', text: userMsg }])
-    setChatInput('')
-    setChatLoading(true)
-    const controller = new AbortController()
-    chatAbortRef.current = controller
-    // A new user action, a new ID (spec, *Client IDs*): Studio replays the same one if the POST is repeated.
-    const operationId = crypto.randomUUID()
-    editOperationRef.current = operationId
-
-    const versionBeforeFlush = schema.snapshot().draftVersion
-    try {
-      const modelContext = await schema.requestModelEdit()
-      if (schema.snapshot().draftVersion !== versionBeforeFlush) {
-        setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
-        return
-      }
-      const original = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
-      const originalDraftVersion = schema.snapshot().draftVersion
-      if (!modelContext) {
-        setChat(c => [
-          ...c,
-          {
-            role: 'assistant',
-            text: 'Save this Extraction Schema before requesting a model edit.',
-          },
-        ])
-        return
-      }
-      const originalSchemaRevisionId = modelContext.schemaRevisionId
-      const response = await requestSchemaEdit(
-        modelContext,
-        userMsg,
-        controller.signal,
-        operationId,
-      )
-      const currentAfterResponse = schema.snapshot()
-      if (
-        currentAfterResponse.draftVersion !== originalDraftVersion ||
-        currentAfterResponse.extractableSchemaRevisionId !==
-          originalSchemaRevisionId
-      ) {
-        setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
-        return
-      }
-      if (response.status === 'answered') {
-        setChat(c => [...c, { role: 'assistant', text: response.answer }])
-      } else if (response.status === 'refused' || response.status === 'failed') {
-        setChat(c => [...c, { role: 'assistant', text: `${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}` }])
-      } else {
-        const proposal = deriveSchemaProposal(original, response)
-        if (proposal.changes.length === 0 && proposal.issues.length === 0) {
-          setChat(c => [...c, { role: 'assistant', text: 'Proposal checked every field: 0 changes proposed.' }])
-        } else {
-          proposalReview.start(
-            proposal,
-            original,
-            originalDraftVersion,
-            originalSchemaRevisionId,
-            `edit:${operationId}`,
-          )
-          // A pending proposal keeps the drawer open with its Apply / Discard bar, even if it was collapsed meanwhile.
-          setDrawerOpen(true)
-          const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
-          setCollapsedIds((current) => withoutIds(current, ancestors))
-        }
-      }
-    } catch (err) {
-      if (chatAbortRef.current !== controller) return
-      if (
-        typeof err === 'object' &&
-        err !== null &&
-        'name' in err &&
-        err.name === 'AbortError'
-      ) {
-        setChat(c => [...c, { role: 'assistant', text: 'Cancelled.' }])
-      } else {
-        // The sent message stays in the conversation above the error; the composer stays empty for the next one.
-        setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
-      }
-    } finally {
-      if (chatAbortRef.current === controller) {
-        chatAbortRef.current = null
-        editOperationRef.current = null
-        setChatLoading(false)
-      }
-    }
-  }
-
-  function cancelChat() {
-    // A user's Stop: cancel the proposal on the server, then stop waiting. The unmount cleanup only aborts.
-    const operationId = editOperationRef.current
-    if (operationId)
-      void deleteModelOperation(`edit:${operationId}`).catch(() =>
-        appendChatMessage('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.'),
-      )
-    chatAbortRef.current?.abort()
-  }
-
-
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
     const on =
@@ -1064,53 +911,14 @@ function SchemaPanel({
     return `h-1.5 border-t-2 transition-[border-color] duration-100 ${on ? 'border-accent' : 'border-transparent'}`
   }
 
-  const msgCls = (role: 'user' | 'assistant') =>
-    role === 'user'
-      ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-secondary leading-relaxed text-white'
-      : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-secondary leading-relaxed text-ink'
+  const msgCls = chatMessageClass
 
   const editDisabled = editorReadOnly || !!dragging
 
   const chatBlocked = !!pending || chatLoading
-  // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
-  const applyProposal = () => { if (proposalReview.apply()) setDrawerOpen(false) }
-  const discardProposal = () => { proposalReview.discard(); setDrawerOpen(false) }
-  // A message before the first schema asks the model whether it is a question: a question is answered from the document,
-  // anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
-  const sendInstruction = async () => {
-    const text = instructions.draft.trim()
-    const projectContextId = schema.operationScope()?.projectContextId
-    if (!text || asking !== null) return
-    if (!projectContextId || !sourceRepresentationId) {
-      instructions.send()
-      return
-    }
-    const controller = new AbortController()
-    askAbortRef.current = controller
-    instructions.setDraft('')
-    setAskError(null)
-    setAsking(text)
-    try {
-      const reply = await requestSchemaChat(
-        { projectContextId, sourceRepresentationRevisionId: sourceRepresentationId },
-        text,
-        controller.signal,
-        crypto.randomUUID(),
-      )
-      if (askAbortRef.current !== controller) return
-      instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)
-    } catch (err) {
-      if (askAbortRef.current !== controller) return
-      // Nothing was recorded: the message goes back to the composer to send again.
-      instructions.setDraft(text)
-      setAskError(`Could not send the message: ${err instanceof Error ? err.message : 'Request failed'}`)
-    } finally {
-      if (askAbortRef.current === controller) {
-        askAbortRef.current = null
-        setAsking(null)
-      }
-    }
-  }
+  const applyProposal = chat.apply
+  const discardProposal = chat.discard
+  const sendInstruction = chat.ask
   // The instructions field keeps the scroll of the text it held; emptied, it would show its wrapped
   // placeholder from that offset (its tail). Back to the start once it is empty.
   const instructionInputRef = useRef<HTMLTextAreaElement>(null)
@@ -1122,7 +930,7 @@ function SchemaPanel({
   }, [instructions.draft])
   // Before a schema exists the panel's body is the instructions conversation (empty, or a failed generation to retry).
   const instructing = (snap.view === 'empty' || snap.view === 'failed') && !!onGenerateInstructions
-  const dot = drawerShown ? null : runningRows.length > 0 ? { title: 'An earlier request is still running' } : chat.length > 0 || pending ? { title: 'Show conversation' } : null
+  const dot = drawerShown ? null : runningCount > 0 ? { title: 'An earlier request is still running' } : chat.messages.length > 0 || pending ? { title: 'Show conversation' } : null
 
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
@@ -1310,7 +1118,21 @@ function SchemaPanel({
             // schema. Generating is the panel's one way in; a codebook import is chosen a step earlier, on the
             // Schemas tab, and what a record is gets said here.
             // With nothing said yet, Generate schema stands alone at the body's centre; after instructions it follows them.
-            <div className={`flex min-h-full flex-col gap-2 ${instructions.items.length === 0 && asking === null && runningRows.length === 0 ? 'justify-center' : ''}`}>
+            // Docked, the conversation and Generate schema live in the rail's chat; the body only points there.
+            docked ? (
+              <div className="flex min-h-full flex-col justify-center gap-2">
+                {snap.view === 'empty' ? (
+                  <p className="mx-auto max-w-[34ch] text-center text-secondary leading-relaxed text-ink-muted">
+                    Ask about the document or say what to extract in the chat below, then generate the schema there.
+                  </p>
+                ) : (
+                  <div className="flex flex-col items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+                    <p className="text-compact leading-snug text-danger">{snap.generationError}</p>
+                  </div>
+                )}
+              </div>
+            ) :
+            <div className={`flex min-h-full flex-col gap-2 ${instructions.items.length === 0 && asking === null && runningCount === 0 ? 'justify-center' : ''}`}>
               {runningRows}
               <SchemaInstructionsChat instructions={instructions} messageClass={msgCls} asking={asking} />
               {askError && <p className="text-compact text-danger" role="alert">{askError}</p>}
@@ -1463,7 +1285,7 @@ function SchemaPanel({
       </div>
 
       {/* Before a schema exists: the instructions conversation's composer, under the conversation in the panel's body. */}
-      {instructing && (
+      {instructing && !docked && (
         <ChatComposer standalone label={<ChatLabel optional />}>
           <textarea ref={instructionInputRef} className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint" rows={3}
             placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
@@ -1476,41 +1298,26 @@ function SchemaPanel({
 
       {/* After: the schema edit chat, which proposes changes for review. One composer line at rest; sending opens the
           drawer. */}
-      {ready && !editorReadOnly && (
-        <ChatDrawer open={drawerShown} onCollapse={() => setDrawerOpen(false)} onExpand={() => setDrawerOpen(true)}
+      {ready && !editorReadOnly && !docked && (
+        <ChatDrawer open={drawerShown} onCollapse={() => chat.setDrawerOpen(false)} onExpand={() => chat.setDrawerOpen(true)}
           title="Conversation" label={<ChatLabel />} dot={dot} bodyRef={chatRef}
           bar={pending ? <ProposalReviewBar proposal={pending} canApply={canApply} onApply={applyProposal} onDiscard={discardProposal} /> : undefined}
           composer={
             <>
               <textarea className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50" rows={3}
-                placeholder="Describe a change to the schema…" value={chatInput} disabled={chatBlocked}
-                onChange={(event) => setChatInput(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendChatMessage(chatInput) } }} />
+                placeholder="Describe a change to the schema…" value={chat.input} disabled={chatBlocked}
+                onChange={(event) => chat.setInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void chat.send(chat.input) } }} />
               {chatLoading ? (
                 <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
-                  onClick={cancelChat} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
+                  onClick={chat.cancel} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
               ) : (
                 <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
-                  aria-label="Send" disabled={!chatInput.trim() || chatBlocked} onClick={() => void sendChatMessage(chatInput)}>↑</button>
+                  aria-label="Send" disabled={!chat.input.trim() || chatBlocked} onClick={() => void chat.send(chat.input)}>↑</button>
               )}
             </>
           }>
-          <div className="flex flex-col gap-2">
-            {runningRows}
-            {chat.length === 0 && runningRows.length === 0 && !chatLoading && (
-              <p className="text-secondary leading-relaxed text-ink-faint">{CONVERSATION_EMPTY}</p>
-            )}
-            {chat.map((message, index) => <div key={index} className={msgCls(message.role)}>{message.text}</div>)}
-            {chatLoading && (
-              <div className="self-start rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2">
-                <span className="flex gap-1">
-                  <span className="animate-pulse text-content text-ink-faint">•</span>
-                  <span className="animate-pulse text-content text-ink-faint" style={{ animationDelay: '0.15s' }}>•</span>
-                  <span className="animate-pulse text-content text-ink-faint" style={{ animationDelay: '0.3s' }}>•</span>
-                </span>
-              </div>
-            )}
-          </div>
+          <ChatTranscript chat={chat} empty={CONVERSATION_EMPTY} />
         </ChatDrawer>
       )}
 

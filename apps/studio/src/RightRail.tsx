@@ -4,12 +4,15 @@ import type { SelectionChannel } from './selectionChannel'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
 import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
+import { durableRailModel, statusLine } from './durableRailModel'
+import RailChat from './RailChat'
+import { useSchemaChat } from './useSchemaChat'
 import type { CurrentResultSchema } from './resultSchema'
 import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
@@ -60,6 +63,8 @@ type RightRailProps = {
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void
   onReviewFinalized?:()=>void
+  /** Run extraction from the chat's step, where the workspace offers it; `available` as the tab strip's Run. */
+  run?: { start: () => void; available: boolean } | null
 }
 
 /** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
@@ -109,6 +114,7 @@ function RightRail({
   onPinnedDocument,
   onReviewProgress,
   onReviewFinalized,
+  run = null,
 }: RightRailProps) {
   const { parsedDocument } = inspection
   // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
@@ -136,6 +142,14 @@ function RightRail({
   const latestReading = useDurableReading(latestReader)
   const statusError = extraction.monitorError ?? latestReading?.error ?? null
 
+  // The schema chat lives with the rail, under every tab, so its conversation and next step follow the researcher.
+  const chat = useSchemaChat({ schema, sourceRepresentationId })
+  const latestAttempt = extraction.attempt
+  const latestPage = latestReading?.latestPage?.extractionId === latestAttempt?.extractionId ? latestReading?.latestPage ?? null : null
+  const latestModel = useMemo(() => latestPage ? durableRailModel(latestPage, null) : null, [latestPage])
+  const latestStatus = latestReading?.state && latestModel && latestAttempt
+    ? statusLine(latestReading.state, latestModel, latestAttempt.strategy === 'ARTICLE', Boolean(latestPage?.finalization))
+    : null
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
   const schemaFieldCount = schemaReady
@@ -267,6 +281,7 @@ function RightRail({
           onRenameSchema={onRenameSchema}
           recordScope={recordScope}
           boundaries={boundaries}
+          chat={chat}
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
@@ -303,6 +318,24 @@ function RightRail({
         </div>}
       </div>
       {shown && <div ref={setHistorySlot} id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'} />}
+      <RailChat
+        chat={chat}
+        schema={schema}
+        sourceDocumentName={sourceDocumentName}
+        onGenerate={onGenerateInstructions}
+        recordScope={recordScope}
+        run={run && { ...run, unavailableReason: runUnavailableReason }}
+        latest={latestAttempt ? {
+          extractionId: latestAttempt.extractionId,
+          schemaRevisionId: latestAttempt.schemaRevisionId,
+          status: latestAttempt.executionStatus,
+          progress: latestStatus && `${latestStatus.word} ${latestStatus.rest}`.trim(),
+          toCheck: latestModel?.counts.toCheck ?? null,
+        } : null}
+        readOnly={inspection.readOnly}
+        resultsShown={open && activeTab === 'results'}
+        onShowTab={onTabChange}
+      />
     </div>
     </>
   )

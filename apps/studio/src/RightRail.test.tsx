@@ -289,6 +289,12 @@ describe('RightRail collapsed', () => {
     expect(screen.getByTitle('Collapse panel')).toHaveFocus()
   })
 
+  it('docks the schema chat under every tab, not only Schema', () => {
+    renderRail({ tab: 'results', extraction: { ...defaultController, attempt } })
+    expect(document.getElementById('rail-panel-schema')).not.toBeVisible()
+    expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeVisible()
+  })
+
   it('keeps a schema chat request running through a collapse', async () => {
     const schema = testSchema()
     vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema', schemaRevisionId: 'revision' })
