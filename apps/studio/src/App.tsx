@@ -1252,6 +1252,8 @@ export function DocumentWorkspace({
               onReviewFinalized={onReviewFinalized}
               schemaName={schemaName}
               recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
+              // The chat's Run step is the tab strip's Run, where the strip offers one.
+              run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
               boundaries={
                 !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
                   ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }

@@ -656,6 +656,9 @@ const idOf = (name: string) => {
 test('pressing and dragging a grip at 264px moves no row, and the drop lands where the pointer was @deterministic', async ({ page }) => {
   test.setTimeout(90_000)
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  // Room for the gesture: at 720px the rail chat below the list leaves sex's grip under it or within the list's 60px
+  // auto-scroll edge, and a scroll moves every row.
+  await page.setViewportSize({ width: 1280, height: 1000 })
   await openSchema(page)
   await resizeRail(page, 264)
   // A pointer held within 60px of the fields' scroll box's top or bottom edge scrolls the list 7px a frame from the

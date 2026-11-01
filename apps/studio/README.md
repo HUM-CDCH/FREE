@@ -79,4 +79,8 @@ the researcher reviews and applies, including description-only edits. Invalid,
 duplicate, ambiguous or unknown note targets fail the proposal without saving
 any changes. This edit-only envelope uses the selected Schema Suggestion Route
 and adds no inference call; initial suggestions and extraction templates keep
-their existing form.
+their existing form. In the document workspace the chat
+is docked under every rail tab and offers the next step (Generate schema, a
+proposal, the Record Scope, Run extraction, Results) as a card that Studio
+works out from the workspace's state; actions happen only through those cards
+(ADR 0024).

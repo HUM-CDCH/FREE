@@ -5,7 +5,7 @@ import type { DurablePage, DurableHistory, DurableHistorySummary } from 'extract
 import { durableSchemaNodes, type ExportChoices, type ExportFormat } from 'extraction-result-export'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { decodeParsedDocument, type ParsedDocument } from 'extraction/parsed-document'
-import { durableRequest, durableRoot, readDurableHistory, readDurableHistorySummary, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
+import { durableRequest, durableRoot, readDurableHistory, readDurableHistorySummary, readValues, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import { transientReadError, useDurableReading, type DurableReader } from './durableReader'
 import { durableReviewMachine } from './durableReviewMachine'
 import Button from './ui/Button'
@@ -17,16 +17,16 @@ import ReviewRow from './ReviewRow'
 import type { PartPick } from './ui/ReviewedValueDisplay'
 import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
-import ResultsHeader, { type StatusLine } from './ResultsHeader'
+import ResultsHeader from './ResultsHeader'
 import ResultsMenu from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
-import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
+import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
 import { provisionalMarks } from './provisionalMarks'
 import type { MarkInfo } from './useEvidenceOverlays'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
-import { shownValue, stateLabel, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SelectionChannel } from './selectionChannel'
 import { sourceEvidenceLinks } from './evidenceNavigation'
@@ -41,29 +41,6 @@ const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text
 const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
 const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
-
-/** The status line for a durable Extraction: its lifecycle, and how far the run is. */
-function statusLine(state:DurableState,model:RailModel,article:boolean,finalized:boolean):StatusLine {
-  // Until discovery ends the records listed are those found so far (a pipelined run reads them meanwhile): no total.
-  const planned=state.recordsFinal?state.records?.length??null:null,read=model.records.filter(record=>record.state==='finished').length
-  const found=state.discovery?.found.length??0
-  const kept=model.records.length+model.document.length>0
-  switch(state.status) {
-    case 'QUEUED': return {mark:'spinner',word:'Queued',rest:'· waiting for the extraction worker'}
-    case 'RUNNING': return article?{mark:'spinner',word:'Reading the document',rest:''}
-      :planned!==null?{mark:'spinner',word:'Reading records',rest:`· ${read} of ${planned}`}
-      :found>0||read>0?{mark:'spinner',word:'Finding records',rest:`· ${found} found so far${read>0?` · ${read} read`:''}`}
-      :{mark:'spinner',word:'Starting',rest:'· finding records…'}
-    case 'PAUSING': return {mark:'spinner',word:'Pausing',rest:'· saving the calls in flight'}
-    case 'STOPPING': return {mark:'spinner',word:'Stopping',rest:'· the run ends after the current call'}
-    case 'PAUSED': return {mark:'incomplete',word:'Paused',rest:article?'':planned!==null?`· ${read} of ${planned} records read`
-      :read>0?`· ${read} ${read===1?'record':'records'} read`:''}
-    case 'STOPPED': return {mark:'stopped',word:'Stopped',rest:kept?'· its saved values stay':'· nothing to review'}
-    case 'FAILED': return {mark:'failed',word:'Failed',rest:'',failure:'Its saved values stay; Retry continues the unfinished work.'}
-    default: return finalized?{mark:'saved',word:'Review saved',rest:''}
-      :{mark:'completed',word:'Completed',rest:article?'· Article':`· Catalog · ${read===0?'no records found':`${read} ${read===1?'record':'records'}`}`}
-  }
-}
 
 function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick,onHistory}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;

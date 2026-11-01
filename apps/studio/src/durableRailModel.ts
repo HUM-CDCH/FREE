@@ -4,6 +4,8 @@ import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
+import type { DurableState } from './durableExtractionApi'
+import type { StatusLine } from './ResultsHeader'
 import { evidenceCheck, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
 
 export type RetainedValue = DurablePage['values'][number]
@@ -157,4 +159,27 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
     required: rows.filter(row => row.retained?.reviewable).length,
     doubtful: rows.filter(row => row.doubt).length, notReviewable: rows.filter(row => !row.retained?.reviewable).length,
   }}
+}
+
+/** The status line for a durable Extraction: its lifecycle, and how far the run is. */
+export function statusLine(state:DurableState,model:RailModel,article:boolean,finalized:boolean):StatusLine {
+  // Until discovery ends the records listed are those found so far (a pipelined run reads them meanwhile): no total.
+  const planned=state.recordsFinal?state.records?.length??null:null,read=model.records.filter(record=>record.state==='finished').length
+  const found=state.discovery?.found.length??0
+  const kept=model.records.length+model.document.length>0
+  switch(state.status) {
+    case 'QUEUED': return {mark:'spinner',word:'Queued',rest:'· waiting for the extraction worker'}
+    case 'RUNNING': return article?{mark:'spinner',word:'Reading the document',rest:''}
+      :planned!==null?{mark:'spinner',word:'Reading records',rest:`· ${read} of ${planned}`}
+      :found>0||read>0?{mark:'spinner',word:'Finding records',rest:`· ${found} found so far${read>0?` · ${read} read`:''}`}
+      :{mark:'spinner',word:'Starting',rest:'· finding records…'}
+    case 'PAUSING': return {mark:'spinner',word:'Pausing',rest:'· saving the calls in flight'}
+    case 'STOPPING': return {mark:'spinner',word:'Stopping',rest:'· the run ends after the current call'}
+    case 'PAUSED': return {mark:'incomplete',word:'Paused',rest:article?'':planned!==null?`· ${read} of ${planned} records read`
+      :read>0?`· ${read} ${read===1?'record':'records'} read`:''}
+    case 'STOPPED': return {mark:'stopped',word:'Stopped',rest:kept?'· its saved values stay':'· nothing to review'}
+    case 'FAILED': return {mark:'failed',word:'Failed',rest:'',failure:'Its saved values stay; Retry continues the unfinished work.'}
+    default: return finalized?{mark:'saved',word:'Review saved',rest:''}
+      :{mark:'completed',word:'Completed',rest:article?'· Article':`· Catalog · ${read===0?'no records found':`${read} ${read===1?'record':'records'}`}`}
+  }
 }
