@@ -4,7 +4,7 @@ import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
+import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
@@ -56,7 +56,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const editable = ready && snap.historicalPreview === null
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
 
-  const step = nextStep({
+  const guide: GuideInput = {
     view: snap.view,
     generationError: snap.generationError,
     readOnly: readOnly || snap.historicalPreview !== null,
@@ -84,7 +84,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     resultsShown,
     dismissed,
     project: project?.guide ?? null,
-  })
+  }
+  // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
+  const step = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
   // The documents ticked in the step's picker: its own initial ones until the researcher changes them.
   const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<string> } | null>(null)
   const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
@@ -93,6 +95,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
     if (option.action !== 'review-schema') chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
+    // The extract step answers one request: any choice ends it.
+    if (card.key.startsWith('extract:')) {
+      chat.clearExtractRequest()
+      if (option.action === 'dismiss') return
+    }
     const act: Record<StepAction, () => void> = {
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),

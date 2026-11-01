@@ -42,6 +42,9 @@ export type SchemaChat = {
   discard(): void
   appendMessage(message: string): void
   appendStep(title: string, choice: string): void
+  /** A message asked for the extraction to run: its request, until the researcher chooses what to extract. */
+  readonly extractRequest: number | null
+  clearExtractRequest(): void
   /** Stops a running request and drops the proposal; with `clearConversation` also the conversation and instructions. */
   reset(clearConversation?: boolean): void
 }
@@ -60,6 +63,9 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
   const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null)
   const [revealed, setRevealed] = useState<{ seq: number; ids: ReadonlySet<string> }>(() => ({ seq: 0, ids: new Set() }))
   const reveal = useCallback((ids: ReadonlySet<string>) => setRevealed((current) => ({ seq: current.seq + 1, ids })), [])
+  // Each request its own number, so a new one is a new step (its ticks start afresh).
+  const [extractRequest, setExtractRequest] = useState<number | null>(null)
+  const extractRequests = useRef(0)
   const appendMessage = useCallback(
     (message: string) => setMessages((current) => [...current, { role: 'assistant', text: message }]),
     [],
@@ -105,6 +111,7 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
       abortRef.current = null
       setLoading(false)
       resetProposal()
+      setExtractRequest(null)
       setInput('')
       if (clearConversation) {
         resetInstructions()
@@ -171,12 +178,16 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
       }
       if (response.status === 'answered') {
         appendMessage(response.answer)
+      } else if (response.status === 'requested') {
+        // Studio, not the model, offers what may run: the step below asks which documents.
+        appendMessage('Choose what to extract below.')
+        setExtractRequest(extractRequests.current += 1)
       } else if (response.status === 'refused' || response.status === 'failed') {
         appendMessage(`${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}`)
       } else {
         const proposal = deriveSchemaProposal(original, response)
         if (proposal.changes.length === 0 && proposal.issues.length === 0) {
-          appendMessage('Proposal checked every field: 0 changes proposed.')
+          appendMessage('That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.')
         } else {
           proposalReview.start(
             proposal,
@@ -281,6 +292,8 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     discard: () => { proposalReview.discard(); setDrawerOpen(false) },
     appendMessage,
     appendStep,
+    extractRequest,
+    clearExtractRequest: () => setExtractRequest(null),
     reset,
   }
 }

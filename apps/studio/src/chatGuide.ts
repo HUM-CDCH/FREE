@@ -167,6 +167,46 @@ function currentStep(input: GuideInput): StepCard | null {
 }
 
 /**
+ * What to extract, once a chat message asked for it (`requested`, ADR 0027): this document alone, or the project's
+ * documents ticked here. Studio offers only what may run now: before the template's approval the project's documents
+ * run as a pilot of at most PILOT_BATCH_SELECTION_LIMIT, after it as a batch; nothing runs while a batch does.
+ */
+export function extractStep(input: GuideInput, request: number): StepCard {
+  const { run, project } = input
+  const options: StepOption[] = []
+  if (run)
+    options.push({ action: 'run', label: 'Only this document', hint: input.sourceDocumentName, tone: 'secondary',
+      disabled: !run.available, description: runDescription(input, input.latest !== null) })
+  const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
+  let picker: StepCard['picker']
+  if (project && schemaReady) {
+    const { summary, documents, batches, currentDocumentId } = project
+    const approved = summary.schemaStabilised
+    // Approved, every document without a result on the revision yet; before, a pilot from this document on.
+    const covered = new Set((batches ?? []).filter((batch) => batch.schemaRevisionId === summary.currentSchemaRevisionId)
+      .flatMap((batch) => batch.members.filter((member) => member.completed || member.currentReview).map((member) => member.sourceDocumentId)))
+    const initial = approved
+      ? documents.map(({ id }) => id).filter((id) => !covered.has(id)).slice(0, BATCH_EXTRACTION_SELECTION_LIMIT)
+      : [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)].slice(0, 3)
+    picker = { documents, initial, limit: approved ? BATCH_EXTRACTION_SELECTION_LIMIT : PILOT_BATCH_SELECTION_LIMIT }
+    options.push({ action: approved ? 'batch' : 'pilot', label: 'Documents in this project · {n}', tone: 'positive', picks: true,
+      hint: approved ? undefined : `Before the template's approval, a run of the project's documents is a pilot of at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
+      disabled: project.busy || summary.runningBatch !== null })
+  }
+  const blocked = options.every(({ disabled }) => disabled)
+  return {
+    key: `extract:${request}`,
+    title: 'Extract',
+    question: 'Which documents should be extracted?',
+    notice: !blocked ? undefined : project?.summary.runningBatch ? 'A batch extraction is running: wait for it to finish.'
+      : run?.unavailableReason ?? 'Nothing can be extracted until the template is ready.',
+    error: project?.error ?? undefined,
+    picker,
+    options: [...options, { action: 'dismiss', label: 'Not now', tone: 'dismiss' }],
+  }
+}
+
+/**
  * The project's next step (guidedWorkflow, the server's phase): pilot the schema on a few documents, review the pilot,
  * approve the schema, extract the rest, review the results. Starting, approving and opening the next document to
  * review all happen here, so no other place leads the workflow.

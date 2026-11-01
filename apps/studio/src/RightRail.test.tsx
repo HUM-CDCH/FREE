@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -84,6 +84,8 @@ function renderRail({
   onSelectEvidence = vi.fn(),
   selection = createSelectionChannel(),
   documentHistory,
+  run = null,
+  project = null,
 }: {
   open?: boolean
   view?: RailView
@@ -96,6 +98,8 @@ function renderRail({
   onSelectEvidence?: (anchor: ParsedEvidenceAnchor) => void
   selection?: SelectionChannel
   documentHistory?: (visible: boolean) => ReactNode
+  run?: { start: () => void; available: boolean } | null
+  project?: ComponentProps<typeof RightRail>['project']
 } = {}) {
   const rail = (open: boolean) => (
     <RightRail
@@ -114,6 +118,9 @@ function renderRail({
       onSelectEvidence={onSelectEvidence}
       selection={selection}
       documentHistory={documentHistory}
+      recordScope={{ value: 'document', onChange: vi.fn() }}
+      run={run}
+      project={project}
     />
   )
   const rendered = render(rail(open))
@@ -207,7 +214,7 @@ describe('RightRail Results', () => {
     const context = screen.getByRole('navigation', { name: 'Template and results' })
     fireEvent.click(within(context).getByRole('button', { name: 'Open results: test.pdf · paused' }))
     expect(onViewChange).toHaveBeenLastCalledWith('results')
-    fireEvent.click(within(context).getByRole('button', { name: 'Open template: 2 fields' }))
+    fireEvent.click(within(context).getByRole('button', { name: 'Open template: 2 fields · Article' }))
     expect(onViewChange).toHaveBeenLastCalledWith('schema')
     cleanup()
     renderRail({ view: 'schema', onViewChange })
@@ -335,5 +342,57 @@ describe('RightRail collapsed', () => {
     expect(signal.aborted).toBe(false)
     view.unmount()
     expect(signal.aborted).toBe(true)
+  })
+})
+
+describe('RightRail asked to extract in the chat', () => {
+  const summary = { phase: 'pilot' as const, extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0,
+    staleSourceDocumentCount: 0, pendingExtractionSourceDocumentCount: 3, schemaDraftCount: 0, currentSchemaRevisionId: 'revision',
+    schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null }
+  const documents = [{ id: 'here', name: 'test.pdf' }, { id: 'b', name: 'b.pdf' }, { id: 'c', name: 'c.pdf' }]
+
+  async function ask(text: string) {
+    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    fireEvent.change(input, { target: { value: text } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    return screen.findByRole('region', { name: 'Extract' })
+  }
+
+  it('lets the researcher run this document alone, and offers the project\'s documents only once the template is saved', async () => {
+    const schema = testSchema()
+    // The model context names the revision the draft stands on, so the reply is not taken as stale.
+    vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema',
+      schemaRevisionId: schema.snapshot().extractableSchemaRevisionId as string })
+    vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'extract' })
+    const run = { start: vi.fn(), available: true }
+    const project = { guide: { summary, documents, currentDocumentId: 'here', batches: [], roundId: null, busy: false, error: null },
+      start: vi.fn(), approve: vi.fn(), open: vi.fn() }
+    renderRail({ schema, run, project })
+
+    let step = await ask('Generate the results')
+    expect(screen.getByText('Choose what to extract below.')).toBeInTheDocument()
+    fireEvent.click(within(step).getByRole('button', { name: /^Only this document/ }))
+    expect(run.start).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('region', { name: 'Extract' })).not.toBeInTheDocument()
+
+    // This draft has no saved revision yet, so nothing of the project can run on it; Not now ends the request.
+    step = await ask('Now extract the others too')
+    expect(within(step).queryByRole('checkbox')).not.toBeInTheDocument()
+    fireEvent.click(within(step).getByRole('button', { name: 'Not now' }))
+    expect(screen.queryByRole('region', { name: 'Extract' })).not.toBeInTheDocument()
+    expect(project.start).not.toHaveBeenCalled()
+  })
+
+  it('leaves the template as it is for a message that changes nothing, and says how to extract', async () => {
+    const schema = testSchema()
+    // The model context names the revision the draft stands on, so the reply is not taken as stale.
+    vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema',
+      schemaRevisionId: schema.snapshot().extractableSchemaRevisionId as string })
+    vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'proposed', fields: {}, additions: [], issues: [] })
+    renderRail({ schema })
+    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    fireEvent.change(input, { target: { value: 'keep it' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText(/That leaves the template as it is/)).toBeInTheDocument()
   })
 })

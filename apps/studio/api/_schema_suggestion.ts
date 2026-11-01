@@ -82,7 +82,7 @@ export async function suggestOrAnswer(
   { document, instruction, edit, window, temperature, signal }: SchemaModelInput,
   chat: SchemaChatMessage | null,
   dependencies: ModelDependencies = {},
-): Promise<SchemaSuggested | { readonly answer: string }> {
+): Promise<SchemaSuggested | { readonly answer: string } | { readonly action: 'extract' }> {
   const answerable = chat !== null && resolved.profile === 'general'
   const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
@@ -91,7 +91,7 @@ export async function suggestOrAnswer(
     instructions: edit
       ? 'Revise the researcher\'s extraction schema' + (answerable ? ' or answer their question' : '') + '. ' +
         'Return only one JSON object, with no Markdown or commentary. ' +
-        (answerable ? 'For a question, return only {"answer":"<your answer>"}. Otherwise, ' : '') +
+        (answerable ? 'For a question, return only {"answer":"<your answer>"}; to run the extraction, return only {"action":"extract"}. Otherwise, ' : '') +
         'return the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
       : answerable
       ? 'Propose a compact extraction schema grounded in the supplied source document, or answer the researcher\'s question about it. ' +
@@ -106,6 +106,7 @@ export async function suggestOrAnswer(
   if (answerable) {
     const answer = await answerOf(generated.response)
     if (answer !== null) return { answer }
+    if (await requestedExtraction(generated.response)) return { action: 'extract' }
   }
   const output = edit ? await parseSchemaEditOutput(generated.response) : { template: await parseTemplate(generated.response) }
   const parsed = output.template
@@ -117,6 +118,18 @@ export async function suggestOrAnswer(
     pages: documentParts.pages ?? document.pages,
     sourceCoverage: excerpts?.sourceCoverage ?? { complete: true },
   }
+}
+
+/** Whether a reply is exactly `{"action": "extract"}`: the chat message asked for the extraction to run. */
+export async function requestedExtraction(response: string): Promise<boolean> {
+  let parsed: unknown
+  try {
+    parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
+  } catch {
+    return false
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false
+  return Object.keys(parsed).length === 1 && (parsed as Record<string, unknown>).action === 'extract'
 }
 
 /** The answer of a reply that is exactly `{"answer": "<text>"}`; null for any other reply. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
+import { extractStep, nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
@@ -151,6 +151,26 @@ describe('nextStep in a project', () => {
     expect(step({ summary: approved, batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
       question: 'Extract the 2 documents left with the approved template?', picker: { initial: ['c', 'd'], limit: 50 }, options: [{ action: 'batch', picks: true }, { action: 'dismiss' }] })
     expect(step({ summary: approved, batches: null })).toMatchObject({ busy: true })
+  })
+
+  it('asked to extract, offers this document alone or the project\'s ticked documents, as a pilot before the approval', () => {
+    expect(extractStep({ ...base, project: project() }, 1)).toMatchObject({ key: 'extract:1', title: 'Extract',
+      picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [
+        { action: 'run', label: 'Only this document', disabled: false },
+        { action: 'pilot', label: 'Documents in this project · {n}', picks: true, disabled: false },
+        { action: 'dismiss', label: 'Not now' }] })
+    const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true })
+    expect(extractStep({ ...base, project: project({ summary: approved, batches: [batch([member('a', true)])] }) }, 2)).toMatchObject({
+      picker: { initial: ['b', 'c', 'd'], limit: 50 }, options: [{ action: 'run' }, { action: 'batch', picks: true }, { action: 'dismiss' }] })
+  })
+
+  it('asked to extract, says why nothing can run: a running batch, the host\'s reason, or no template yet', () => {
+    const running = extractStep({ ...base, run: null, project: project({ summary: summary({ runningBatch: { completedMemberCount: 0, memberCount: 2 } }) }) }, 1)
+    expect(running).toMatchObject({ notice: expect.stringContaining('batch extraction is running'), options: [{ action: 'pilot', disabled: true }, { action: 'dismiss' }] })
+    expect(extractStep({ ...base, run: { available: false, unavailableReason: 'The document is still being indexed' } }, 1).notice)
+      .toBe('The document is still being indexed')
+    expect(extractStep({ ...base, view: 'empty', run: null, project: project() }, 1)).toMatchObject({
+      notice: 'Nothing can be extracted until the template is ready.', options: [{ action: 'dismiss' }] })
   })
 
   it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {

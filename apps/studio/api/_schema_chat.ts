@@ -7,8 +7,8 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget, GeneralExecutionTarget } from './_provider.js'
-import { chatHistoryText, schemaSourceExcerpts } from './_schema.js'
-import { answerOf, suggestOrAnswer, type SchemaModelInput } from './_schema_suggestion.js'
+import { chatHistoryText, EXTRACT_CLAUSE, schemaSourceExcerpts } from './_schema.js'
+import { answerOf, requestedExtraction, suggestOrAnswer, type SchemaModelInput } from './_schema_suggestion.js'
 import { traceModelCall } from '../server/tracing.js'
 import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
@@ -64,19 +64,23 @@ async function ask(target: GeneralExecutionTarget, guidance: string, text: strin
 /**
  * The answer when the message asks a question, or null when it gives an instruction for the schema. The model reads
  * the source as Schema Suggestion does (excerpted past `EXCERPT_THRESHOLD`); a long source's question is then answered
- * again from every window (`answerFromWindow`).
+ * again from every window (`answerFromWindow`). With `extractable` (an edit chat's message, once a schema exists), a
+ * request to run the extraction is `{ action: 'extract' }`.
  */
 export async function answerIfQuestion(
   target: GeneralExecutionTarget,
   source: ChatSource | null,
   question: SchemaChatQuestion,
   call: SchemaChatCall = {},
-): Promise<string | null> {
+  extractable = false,
+): Promise<string | { readonly action: 'extract' } | null> {
   const text = source ? schemaSourceExcerpts(source.markdown, source.pageSpans).text : NO_SOURCE
-  return answerOf(await ask(target, `${questionText(question)}
+  const response = await ask(target, `${questionText(question)}
 
 If that message asks a question (about the source document or the extraction schema) instead of giving an instruction for generating or changing the schema, answer it from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.
-Otherwise return only {"answer":null}.`, text, call))
+${extractable ? `${EXTRACT_CLAUSE}\n` : ''}Otherwise return only {"answer":null}.`, text, call)
+  if (extractable && await requestedExtraction(response)) return { action: 'extract' }
+  return answerOf(response)
 }
 
 /** What one window of a long source contributes to the answer; empty when it has nothing relevant. */
@@ -126,7 +130,7 @@ export function answerSchemaChat(
 ): Promise<string | null> {
   return traceModelCall('schema-chat', async () => {
     const { answer } = await schemaChatRoutes(caller, call.temperature, dependencies)
-    return answer ? answerIfQuestion(answer, source, { ...message, context: null }, call) : null
+    return answer ? answerIfQuestion(answer, source, { ...message, context: null }, call) as Promise<string | null> : null
   })
 }
 
@@ -146,7 +150,8 @@ export function respondToSchemaEdit(
     if (suggestion.profile === 'general') return suggestOrAnswer(suggestion, input, question, dependencies)
     const answered = answer && await answerIfQuestion(answer, input.document.markdown
       ? { markdown: input.document.markdown, pageSpans: input.document.pageSpans }
-      : null, question, input)
-    return answered ? { answer: answered } : suggestOrAnswer(suggestion, input, null, dependencies)
-  }, (result) => ('answer' in result ? result : result.template))
+      : null, question, input, true)
+    if (typeof answered === 'string') return { answer: answered }
+    return answered ?? suggestOrAnswer(suggestion, input, null, dependencies)
+  }, (result) => ('answer' in result || 'action' in result ? result : result.template))
 }

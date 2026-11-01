@@ -1536,7 +1536,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
       },
       additions: [],
       issues: [],
-    } as const, 'Proposal checked every field: 0 changes proposed.'],
+    } as const, 'That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.'],
   ])('reports non-review outcome without inventing intent', async (response, message) => {
     const setup = renderPanel()
     requestSchemaEdit.mockResolvedValueOnce(response)

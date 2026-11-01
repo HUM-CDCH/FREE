@@ -387,6 +387,8 @@ describe('reopened Source Document workspace', () => {
           return Promise.resolve(Response.json({ batchExtraction: batch(body.sourceDocumentIds.map((id) => ({ ...member(id), completed: false, executionStatus: 'QUEUED' }))), disposition: 'created' }, { status: 201 }))
         }
         if (url.startsWith('/api/batch-extractions?')) return Promise.resolve(Response.json({ batchExtractions: batches }))
+        // Every chat message here asks to run the extraction.
+        if (url.endsWith('/edit_schema')) return Promise.resolve(Response.json({ status: 'requested', action: 'extract' }))
         return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
       }))
       const onNavigate = vi.fn(), refresh = vi.fn()
@@ -410,6 +412,21 @@ describe('reopened Source Document workspace', () => {
       expect(onNavigate).toHaveBeenCalledWith({ kind: 'document', projectContextId: reopened.projectContextId, sourceDocumentId: here,
         extractionId: member(here).extractionId, fromBatchExtractionId: '51000000-0000-4000-8007-000000000001' })
       expect(refresh).toHaveBeenCalled()
+    })
+
+    it('runs the documents ticked when a chat message asks to extract, as a pilot before the approval', async () => {
+      const { opened, onNavigate } = await renderInProject(summary(), [])
+      const input = screen.getByPlaceholderText('Describe a change to the template…')
+      fireEvent.change(input, { target: { value: 'Generate the results for the other letters' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      const step = await screen.findByRole('region', { name: 'Extract' })
+      expect(within(step).getByRole('button', { name: /^Only this document/ })).toBeEnabled()
+      fireEvent.click(within(step).getByRole('checkbox', { name: 'Beretning.pdf' }))
+      fireEvent.click(within(step).getByRole('button', { name: /^Documents in this project · 2 documents/ }))
+      await waitFor(() => expect(opened).toHaveLength(1))
+      expect(opened[0]).toMatchObject({ sourceDocumentIds: [others[0], others[1]] })
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ sourceDocumentId: others[0] })))
+      expect(screen.queryByRole('region', { name: 'Extract' })).not.toBeInTheDocument()
     })
 
     it('leads a pilot round\'s review to its next document, then asks for the approval in a dialog', async () => {
