@@ -907,6 +907,24 @@ def test_defaults_8_reads_a_child_record_beside_its_parents_text():
     assert_accounted(source, result)
 
 
+def test_children_windows_follow_source_order_across_ten_and_more_pages():
+    source = evidence(*(f"Grave {n}. Inhumation.\n{n}a. Pot, red ware." for n in range(1, 13)))
+    units = discovery.units_of(source.passages)
+    entries = [{"id": f"{units[2 * n].segment}@0", "label": f"Grave {n + 1}", "context": [], "end": "validated",
+                "ranges": discovery.ranges_json(units[2 * n:2 * n + 2])} for n in range(12)]
+    body = {"entries": entries, "calls": [], "issues": [], "windows": [], "ledger": [
+        {"segment": unit.segment, "start": unit.start, "end": unit.end, "disposition": "entry",
+         "entry": entries[n // 2]["id"]} for n, unit in enumerate(units)]}
+    asked = []
+
+    def ask(record, system, user, schema, calls, issues):
+        asked.append(user)
+        return {"children": []}
+    discovery.children(body, source, "One grave or find.", lambda _s, user, _r: user.count("\n") < 8, ask)
+    assert len(asked) > 1 and [int(n) for user in asked for n in re.findall(r"\] Grave (\d+)\.", user)] == \
+        list(range(1, 13))
+
+
 def test_a_child_repeating_its_records_printed_label_is_the_record_itself():
     source, body = one_window(["Grave 1", "Grave 1. Inhumation, north-south.", "1. Bowl, red ware."],
                               [["L1", "record", "Grave 1"]])

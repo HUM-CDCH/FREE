@@ -548,13 +548,15 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     system = CHILDREN.format(description=description)
     entries = body["entries"]
 
-    # (1) The entries' lines, by segment and start, and the entry owning each.
-    owned = sorted(((Unit(each["segment"], each["start"], each["end"]), number)
-                    for number, entry in enumerate(entries) for each in entry["ranges"]),
-                   key=lambda pair: (pair[0].segment, pair[0].start))
-    starts = {segment: [unit.start for unit, _ in group]
-              for segment, group in groupby(owned, key=lambda pair: pair[0].segment)}
-    by_segment = {segment: list(group) for segment, group in groupby(owned, key=lambda pair: pair[0].segment)}
+    # (1) The entries' lines in source order, and per segment by start, the entry owning each.
+    owned = [(Unit(each["segment"], each["start"], each["end"]), number)
+             for number, entry in enumerate(entries) for each in entry["ranges"]]
+    by_segment: dict[str, list[tuple[Unit, int]]] = {}
+    for unit, number in owned:
+        by_segment.setdefault(unit.segment, []).append((unit, number))
+    for lines in by_segment.values():
+        lines.sort(key=lambda pair: pair[0].start)
+    starts = {segment: [unit.start for unit, _ in lines] for segment, lines in by_segment.items()}
 
     def owner(unit: Unit) -> int:  # a planned piece of a line too long for one window is owned like the line
         line, number = by_segment[unit.segment][bisect_right(starts[unit.segment], unit.start) - 1]
