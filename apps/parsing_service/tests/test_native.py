@@ -618,3 +618,34 @@ def test_an_out_of_range_page_range_is_refused_before_a_server_could_start(digit
     ):
         conversion.main()
     assert refused.value.code == 1, refused.value.code
+
+
+@pytest.mark.parametrize("strips,top,route", [
+    (25, 842, "surya"),   # a whole-page scan in 4% strips under a caption layer: the scan is read
+    (15, 600, "hybrid"),  # strips making 60% of the page, below the native prose: OCR'd as one artwork region
+    (10, 400, "native"),  # strips making 40%: small artwork, as before
+])
+def test_a_scan_stored_as_small_strips_is_judged_as_one_raster(tmp_path, strips, top, route):
+    path = tmp_path / "native.pdf"
+    text_pdf(path, [["Fig. 3. Caption printed over the scanned page."]])
+    output = tmp_path / "strips.pdf"
+    with pdfium.PdfDocument(path) as document:
+        page = document[0]
+        width, height = page.get_size()
+        strip = height / 25  # each under the 5% artwork threshold
+        with Image.new("RGB", (40, 4), "white") as pixels:
+            bitmap = pdfium.PdfBitmap.from_pil(pixels)
+            for n in range(strips):
+                image = pdfium.PdfImage.new(document)
+                image.set_bitmap(bitmap)
+                image.set_matrix(pdfium.PdfMatrix(width, 0, 0, strip, 0, top - (n + 1) * strip))
+                page.insert_obj(image)
+            page.gen_content()
+            document.save(output)
+            bitmap.close()
+        page.close()
+    execution = resolve(RunParams(pdf=output, model="surya", page_source="pdf"))
+    assert execution.transcriber == route
+    if route == "hybrid":
+        region, = execution.ocr_regions
+        assert region.bbox == pytest.approx((0, height - top, width, height - top + strips * strip))
