@@ -50,6 +50,23 @@ def test_a_call_sends_the_messages_and_the_json_schema_and_reads_the_reply(monke
         "name": "reply", "schema": {"type": "object"}, "strict": True}}
 
 
+def test_a_hidden_reply_schema_constrains_without_being_shown_and_is_counted_as_sent(monkeypatch):
+    # Grounding and resolution state their reply's shape: their schema constrains decoding but is not shown, and
+    # /tokenize renders exactly the messages the request sends.
+    sent = []
+    body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
+    chat = OpenAIChat(url="http://server/v1/chat/completions", model="m", timeout=5.0)
+    schema = {"type": "object", "properties": {"C1": {"type": "string", "enum": ["E1", "NONE"]}},
+              "required": ["C1"], "additionalProperties": False, "x-free-hidden": True}
+    chat.complete(system="S", user="U", schema=schema)
+    payload, = sent
+    assert payload["messages"] == [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}]
+    shown = {key: value for key, value in schema.items() if key != "x-free-hidden"}
+    assert payload["response_format"]["json_schema"]["schema"] == shown
+    assert chat.tokenize_body(system="S", user="U", schema=schema)["messages"] == payload["messages"]
+
+
 def test_a_server_that_says_it_lacks_structured_output_is_asked_again_and_both_attempts_are_kept(monkeypatch):
     sent = []
     body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
