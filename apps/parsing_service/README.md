@@ -293,11 +293,16 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   identifying excerpt of one line, its printed label and the line ranges of its evidence
   passages. An entity owns only its excerpt (the ledger stays disjoint; the rest keeps
   its disposition) and is read by the ordinary entry reader over its passages, told to
-  extract only that entity; passages may be shared. An excerpt not found once in its
-  line, or overlapping an earlier entity's, is dropped (`entity_dropped`). Known limits:
+  extract only that entity, named by its excerpt and the line holding it (verification
+  and arbitration are told the same); passages may be shared. An excerpt not found once
+  in its line, overlapping an earlier entity's or reading like one in an identical line,
+  or citing a passage range that is not one, is dropped (`entity_dropped`). Known limits:
   one inventory reply per source (a cut-off or invalid one leaves processing incomplete,
   `inventory_failed`, never paged or retried); a source with even one discovered record
-  is never inventoried; reruns mask retained excerpts as for defaults 8.
+  is never inventoried; a source with retained records of an earlier selection is not
+  inventoried at all (`inventory_skipped`: masking hides their excerpts, not their
+  passages, so they would be listed again); GLiFormer fields do not read inventoried
+  entities (`entry_unread`).
   Studio still admits defaults 6 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces

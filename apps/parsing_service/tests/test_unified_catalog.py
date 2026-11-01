@@ -944,7 +944,7 @@ PROSE = ["Excavation report.", "The north trench held a bronze pin and a red bow
 
 
 def nothing(user):
-    return {"places": [["L1", "other", None], ["L2", "other", None], ["L3", "other", None]],
+    return {"places": [[label, "other", None] for label in re.findall(r"^\[(L\d+)", section(user, "WINDOW"), re.M)],
             "begins_inside_record": False, "ends_inside_record": False}
 
 
@@ -960,7 +960,8 @@ def test_defaults_9_inventories_a_source_without_records_and_reads_each_entity_o
     assert len(asked) == 1 and "[L3] The bowl lay beside it." in asked[0]
     entries = result["discovery"]["entries"]
     assert [(text(source, entry["ranges"][0]), entry["label"], entry["target"]) for entry in entries] == [
-        ("a bronze pin", "pin", "a bronze pin"), ("a red bowl", None, "a red bowl")]
+        ("a bronze pin", "pin", {"excerpt": "a bronze pin", "line": PROSE[1]}),
+        ("a red bowl", None, {"excerpt": "a red bowl", "line": PROSE[1]})]
     assert [[text(source, row) for row in entry["passages"]] for entry in entries] == [PROSE[1:2], PROSE[1:3]]
     reads = [call for call in chat.calls if call["system"].startswith("You extract structured data")]
     assert len(reads) == 2 and all("Extract only the entity identified by this source excerpt" in call["system"]
@@ -985,6 +986,37 @@ def test_only_defaults_9_inventories_and_only_a_source_without_records(defaults)
     with_records = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
     result, _ = extract(with_records, Model(with_records, inventory=lambda user: asked.append(user)), defaults=9)
     assert len(asked) == (defaults == 9) and len(result["records"]) == 2
+
+
+def test_an_inventoried_entity_is_named_by_its_line_and_one_that_cannot_be_told_apart_is_dropped():
+    lines = ["Finds.", "North: a pin, bronze.", "South: a pin, iron.", "North: a pin, bronze."]
+    source = evidence("\n".join(lines))
+    listed = {"entities": [["L2", "a pin", None, [["L2", "L3"]]], ["L3", "a pin", None, [["L2", "L3"]]],
+                           ["L4", "a pin", None, []], ["L1", "Finds", None, [["L3", "L2"]]]]}
+    result, chat = extract(source, Model(source, discovery=nothing, inventory=lambda user: listed), defaults=9)
+    reads = [call["system"] for call in chat.calls if call["system"].startswith("You extract structured data")]
+    assert ['"a pin" in the source line "North: a pin, bronze."' in reads[0],
+            '"a pin" in the source line "South: a pin, iron."' in reads[1]] == [True, True] and len(reads) == 2
+    assert [issue["detail"] for issue in result["issues"] if issue["code"] == "entity_dropped"] == [
+        "excerpt 'a pin' cannot be told from an earlier entity's: their lines read alike",
+        "entity 'Finds' cites a passage range that is not one"]
+
+
+def test_values_of_an_inventoried_entity_that_disagree_are_arbitrated_for_that_entity():
+    source = evidence("Excavation report.\nA pin. Material: Holz. " + " ".join(["Text"] * 200) + " Material: Stein.")
+    listed = {"entities": [["L2", "A pin", None, [["L2", "L2"]]]]}
+
+    def entry(record, user, schema):
+        answer = fields(record, user, schema)
+        if material := re.findall(r"Material: (\w+)", record):
+            answer["material"] = candidate(material[-1], f"Material: {material[-1]}")
+        return answer
+    result, chat = extract(source, Model(source, discovery=nothing, inventory=lambda user: listed, entry=entry),
+                           defaults=9, input_tokens=520, output_tokens=64)
+    [arbitration] = [call for call in chat.calls if call["system"].startswith("Several ")]
+    assert arbitration["user"].startswith('### Entity\n"A pin" in the source line "A pin. Material: Holz.')
+    assert arbitration["system"].endswith(unified.ARBITRATION_ENTITY)
+    assert result["competitors"][0]["outcome"] == "arbitrated"
 
 
 def test_a_failed_inventory_reply_is_incomplete_processing_not_no_records():

@@ -688,19 +688,24 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
 
 def inventory(body: dict, evidence: Evidence, description: str, fields: str,
               fits_budget: Callable[[str, str, dict], bool], ask: Callable[..., dict | None], *,
-              progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
+              progress: Callable[[list[dict], list[dict]], None] | None = None, retained: bool = False) -> dict:
     """Defaults 9: a completed discovery body that holds no entry at all (a report in prose) with the entities its
     source describes, read top to bottom: (1) only a body that is complete, without entries and without a failed
     window qualifies; (2) one counted call over every admitted source line lists each entity as an identifying excerpt
     of one line, its printed label and the line ranges of its evidence passages; (3) an entity whose excerpt is not
-    found once in its line, or overlaps an earlier entity's, is dropped with an issue; (4) each kept entity becomes an
-    entry owning only its excerpt, with its `passages` (its line and ranges, shared with other entities) and its
-    `target` excerpt for the reader, and the ledger rows are cut around the excerpts. A failed, cut-off or oversized
-    request is an issue and a failed window, never "no records"."""
+    found once in its line, overlaps an earlier entity's or reads like one in a line alike, or that cites a passage
+    range that is not one, is dropped with an issue; (4) each kept entity becomes an entry owning only its excerpt,
+    with its `passages` (its line and ranges, shared with other entities) and its `target` (the excerpt and its line)
+    for the reader, and the ledger rows are cut around the excerpts. A failed, cut-off or oversized
+    request is an issue and a failed window, never "no records". A source with `retained` records of an earlier
+    selection is not inventoried: an issue says so."""
     # (1) Only a source discovery found no record in qualifies.
     if body["entries"] or not body.get("complete", True) or any(not window["ok"] for window in body["windows"]) \
             or body.get("children", {}).get("failed"):
         return body
+    if retained:  # shortcut: retained records' excerpts are masked, not their passages; skip until saved plans are reused
+        return {**body, "issues": [*body["issues"], Issue("inventory_skipped", "the source has retained records, "
+                                                                               "which an inventory would list again")]}
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     units = units_of(evidence.passages)
@@ -751,14 +756,21 @@ def inventory(body: dict, evidence: Evidence, description: str, fields: str,
                and anchor.start < other["ranges"][0]["end"] for other in entries):
             issues.append(Issue("entity_dropped", f"excerpt {row[1]!r} overlaps an earlier entity's"))
             continue
-        lines = {index[row[0]]} | {number for each in row[3] if isinstance(each, list) and len(each) == 2
-                                   and each[0] in index and each[1] in index
-                                   for number in range(index[each[0]], index[each[1]] + 1)}
+        target = {"excerpt": row[1], "line": text}
+        if any(other["target"] == target for other in entries):
+            issues.append(Issue("entity_dropped", f"excerpt {row[1]!r} cannot be told from an earlier entity's: "
+                                                  "their lines read alike"))
+            continue
+        if not all(isinstance(each, list) and len(each) == 2 and each[0] in index and each[1] in index
+                   and index[each[0]] <= index[each[1]] for each in row[3]):
+            issues.append(Issue("entity_dropped", f"entity {row[1]!r} cites a passage range that is not one"))
+            continue
+        lines = {index[row[0]]} | {number for each in row[3] for number in range(index[each[0]], index[each[1]] + 1)}
         passages = [units[number] for number in sorted(lines)]
         label = row[2] if isinstance(row[2], str) and row[2].strip() and any(
             occurrences(texts[each.segment][each.start:each.end], row[2]) for each in passages) else None
         entries.append({"id": f"{anchor.segment}@{anchor.start}", "label": label, "ranges": ranges_json([anchor]),
-                        "context": [], "passages": ranges_json(passages), "target": row[1], "end": "validated"})
+                        "context": [], "passages": ranges_json(passages), "target": target, "end": "validated"})
 
     # (4) Each entity owns its excerpt: the ledger rows are cut around the excerpts, the rest keeps its disposition.
     cuts: dict[str, list[tuple[int, int, str]]] = {}
@@ -779,7 +791,7 @@ def inventory(body: dict, evidence: Evidence, description: str, fields: str,
         ledger += [{**row, "start": each.start, "end": each.end}
                    for each in trimmed(row["segment"], texts[row["segment"]], at, row["end"])] if inside else [row]
     owners = {row.get("entry") for row in ledger}
-    issues += [Issue("entity_dropped", f"excerpt {entry['target']!r} crosses a ledger row") for entry in entries
+    issues += [Issue("entity_dropped", f"excerpt {entry['target']['excerpt']!r} crosses a ledger row") for entry in entries
                if entry["id"] not in owners]
     rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
     entries = sorted((entry for entry in entries if entry["id"] in owners),

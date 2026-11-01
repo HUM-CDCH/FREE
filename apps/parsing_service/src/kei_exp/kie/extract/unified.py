@@ -74,8 +74,8 @@ PROMPT_VERSION = 11  # 3: compact discovery places; 4: discovery WINDOW labels n
 # 9 (defaults 7): ordered heading excerpts, counted selection and literal scalar inheritance.
 # 10 (defaults 8): a child record's entry and verification calls read it beside its enclosing record's text
 # (`CHILD`, `VERIFY_CHILD`).
-# 11 (defaults 9): an inventoried entity is read over its evidence passages for its target excerpt (`ENTITY`,
-# `VERIFY_ENTITY`).
+# 11 (defaults 9): an inventoried entity is read over its evidence passages for its target excerpt and the line
+# holding it (`ENTITY`, `VERIFY_ENTITY`, `ARBITRATION_ENTITY`).
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -382,7 +382,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                     body = discovery.inventory(
                         body, evidence, schema.record_description,
                         ", ".join(node.name for node in schema.record_nodes) + "\n" + _notes(schema.record_nodes),
-                        partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat))
+                        partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat),
+                        retained=durable and bool(((getattr(chat.runtime, "historical", None) or {}).get("snapshot")
+                                                   or {}).get("coverage", {}).get("completedScopes")))
             except NeedsCall:
                 if stopped:  # a pause or stop, not a call still to make
                     raise stopped[0] from None
@@ -818,6 +820,7 @@ ARBITRATION = ("Several verified candidate values were found in one record of a 
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
 # With verification off (a single pass) candidates are located by code, never verified, and arbitration says so.
+ARBITRATION_ENTITY = " The record is the entity named under Entity: a value of another entity is not correct."
 ARBITRATION_LOCATED = ARBITRATION.replace("Several verified candidate values were found",
                                           "Several candidate values, each located in the record's text, were found")
 DOCUMENT = ("You extract fields that describe a whole source document, not one record.\n{notes}"
@@ -968,6 +971,11 @@ class _Run:
         out = _Work(unit=unit, page=page)
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
             out.native = []
+            if entry.get("target") is not None:  # shortcut: GLiFormer reads owned ranges only; read passages when needed
+                out.failed = 1
+                out.issues.append(Issue("entry_unread", "GLiFormer does not read an inventoried entity's passages",
+                                        number))
+                return out
             if entry["end"] not in ("validated", "source_end"):
                 out.failed = 1
                 out.issues.append(Issue("entry_boundary_unresolved", "GLiFormer did not read an entry with an "
@@ -992,10 +1000,12 @@ class _Run:
         system = (CHILD if parent else ENTRY_HEADING if heading_context else ENTRY).format(
             description=self.schema.record_description, notes=_notes(self.nodes))
         target = entry.get("target")  # an inventoried entity (defaults 9) is read over its evidence passages
-        if target is not None:
+        if target is not None:  # named by its excerpt and the line holding it, which no other entity shares
+            target = f"{json.dumps(target['excerpt'], ensure_ascii=False)} in the source line " \
+                     f"{json.dumps(target['line'], ensure_ascii=False)}"
             units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["passages"]]
             system = ENTRY.format(description=self.schema.record_description, notes=_notes(self.nodes)) + \
-                ENTITY.format(target=json.dumps(target, ensure_ascii=False))
+                ENTITY.format(target=target)
         single = self.effective.get("single_pass", False)
         if single:
             system += SINGLE_PASS
@@ -1024,7 +1034,7 @@ class _Run:
             shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
                                    key=lambda unit: (order[unit.segment], unit.start, unit.end))
             view = _view([*shown_heading, *units], self.texts)
-        out.contest = self._settle(number, out, view)
+        out.contest = self._settle(number, out, view, target)
         if not single:
             _renumbered(out.found)
             out.record = conform(_placed(out.found), self.nodes)
@@ -1086,7 +1096,7 @@ class _Run:
         prompt = VERIFY_COMPLETE if nodes else VERIFY_ENTITY if target is not None else VERIFY_CHILD if parent \
             else VERIFY_HEADING if self.effective.get("heading_context") else VERIFY
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes),
-                               target=json.dumps(target, ensure_ascii=False))
+                               target=target)
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
                 found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
@@ -1150,9 +1160,10 @@ class _Run:
                         group[0].kind, group[0].reason = "proposed", "verification_unresolved"
                     out.undecided += 1
 
-    def _settle(self, number: int, out: _Work, view: BlockText) -> list[dict]:
+    def _settle(self, number: int, out: _Work, view: BlockText, target: str | None = None) -> list[dict]:
         """One accepted value per scalar field: equal values join as alternative places; values that disagree go to
-        one counted arbitration over all of them, or all stay unresolved proposals."""
+        one counted arbitration over all of them, or all stay unresolved proposals. An inventoried entity's `target`
+        names the entity the value must belong to."""
         groups: dict[tuple, list[_Found]] = {}
         for found in out.found:
             if found.kind == "accepted" and found.item is None:
@@ -1178,6 +1189,8 @@ class _Run:
             schema = {"type": "object", "properties": {"choice": {"type": "string", "enum": [*labels, "NONE"]}},
                       "required": ["choice"], "additionalProperties": False}
             system = ARBITRATION if self.effective["verification"] else ARBITRATION_LOCATED
+            if target is not None:  # its passages describe other entities too
+                user, system = f"### Entity\n{target}\n\n{user}", system + ARBITRATION_ENTITY
             answer = self.budget.ask("arbitration", number, system, user, schema, out.calls, out.issues,
                                      out.unit, out.page) \
                 if self.budget.fits("arbitration", system, user, schema) else None

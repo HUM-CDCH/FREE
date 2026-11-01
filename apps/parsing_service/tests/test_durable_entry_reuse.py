@@ -640,3 +640,15 @@ def test_defaults_8_reads_entries_only_after_its_children_call_and_a_pause_there
         if attempt.plan() is not None:
             break
     assert [record["label"] for record in attempt.result["records"]] == ["1", "2", "3"]
+
+
+def test_defaults_9_does_not_inventory_a_source_with_retained_records(monkeypatch):
+    schema = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
+    source = evidence("Excavation report.\nThe north trench held a bronze pin.")
+    attempt = Attempt(monkeypatch, unified_request(schema=schema, defaults=9), source, chunks=1)
+    attempt.lease.historical = {"manifest": {"coverage": {"reprocessValueIds": []}}, "snapshot": {
+        "values": [], "coverage": {"completedScopes": {"old": {"scope": {}, "primary": []}}}}}
+    result = attempt.finish()
+    assert result["records"] == [] and "inventory" not in result["discovery"]
+    assert "inventory_skipped" in [issue["code"] for issue in result["issues"]]
+    assert not [call for call in attempt.chat.calls if call["system"].startswith("List all distinct entities")]

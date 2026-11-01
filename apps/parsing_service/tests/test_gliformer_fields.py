@@ -155,6 +155,15 @@ def test_uncertain_end_is_not_sent_to_model():
 
 
 
+def test_an_inventoried_entity_is_not_read_from_its_excerpt_alone():
+    native = Native()
+    budget = unified._Budget(Router(native, None), {"fields": Counter()}, {"entry": {"input_tokens": 1000}})
+    reader = unified._Run(request().schema_, budget, {"p1_s0": "200. Male"}, {"overlap": 1})
+    work = reader.entry(0, {"end": "validated", "ranges": [{"segment": "p1_s0", "start": 0, "end": 4}],
+                            "target": {"excerpt": "200.", "line": "200. Male"}})
+    assert native.inputs == [] and work.failed == 1 and [issue.code for issue in work.issues] == ["entry_unread"]
+
+
 def test_native_health_listing_does_not_probe_a_chat_api(monkeypatch):
     from fastapi.testclient import TestClient
     from kei_exp import api
