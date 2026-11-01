@@ -66,16 +66,18 @@ class Model:
     """A careful scripted model; each stage's answer can be replaced by a test."""
 
     def __init__(self, source: Evidence, *, discovery=None, entry=None, verdict=None, choice="C1", document=None,
-                 children=None):
+                 children=None, inventory=None):
         self.full = "\n".join(each.text for each in source.passages)
         self.discovery, self.entry_fields, self.verdict, self.choice = discovery, entry, verdict, choice
-        self.document_fields, self.children = document, children
+        self.document_fields, self.children, self.inventory = document, children, inventory
 
     def __call__(self, system: str, user: str, schema: dict):
         if system.startswith("You find where records begin"):
             return (self.discovery or self.discover)(user)
         if system.startswith("You list the records printed inside"):
             return (self.children or (lambda _: {"children": []}))(user)
+        if system.startswith("List all distinct entities"):
+            return (self.inventory or (lambda _: {"entities": []}))(user)
         if system.startswith("You extract structured data from one record"):
             return (self.entry_fields or fields)(section(user, "RECORD"), user, schema)
         if system.startswith("You check values"):
@@ -937,6 +939,62 @@ def test_a_child_repeating_its_records_printed_label_is_the_record_itself():
     assert [issue.code for issue in result["issues"]] == ["child_dropped"]
 
 
+PROSE = ["Excavation report.", "The north trench held a bronze pin and a red bowl. Material: Holz.",
+         "The bowl lay beside it."]
+
+
+def nothing(user):
+    return {"places": [["L1", "other", None], ["L2", "other", None], ["L3", "other", None]],
+            "begins_inside_record": False, "ends_inside_record": False}
+
+
+def test_defaults_9_inventories_a_source_without_records_and_reads_each_entity_over_its_passages():
+    source = evidence("\n".join(PROSE))
+    asked = []
+
+    def listed(user):
+        asked.append(user)
+        return {"entities": [["L2", "a bronze pin", "pin", [["L2", "L2"]]], ["L2", "a red bowl", None, [["L2", "L3"]]],
+                             ["L2", "bronze", None, []], ["L1", "absent excerpt", None, []], ["L9", "x", None, []]]}
+    result, chat = extract(source, Model(source, discovery=nothing, inventory=listed), defaults=9)
+    assert len(asked) == 1 and "[L3] The bowl lay beside it." in asked[0]
+    entries = result["discovery"]["entries"]
+    assert [(text(source, entry["ranges"][0]), entry["label"], entry["target"]) for entry in entries] == [
+        ("a bronze pin", "pin", "a bronze pin"), ("a red bowl", None, "a red bowl")]
+    assert [[text(source, row) for row in entry["passages"]] for entry in entries] == [PROSE[1:2], PROSE[1:3]]
+    reads = [call for call in chat.calls if call["system"].startswith("You extract structured data")]
+    assert len(reads) == 2 and all("Extract only the entity identified by this source excerpt" in call["system"]
+                                   for call in reads)
+    assert "The bowl lay beside it." in reads[1]["user"] and "The bowl lay beside it." not in reads[0]["user"]
+    assert len(result["records"]) == 2 and [record["material"] for record in result["records"]] == ["Holz", "Holz"]
+    assert [issue["code"] for issue in result["issues"]].count("entity_dropped") == 3
+    assert result["discovery"]["inventory"] == {"windows": 1, "failed": 0} and result["completeness"]["processing"]
+    assert (result["execution"]["discovery_version"], result["prompt_version"]) == (12, 11)
+    assert_accounted(source, result)
+    assert {row["entry"] for row in result["discovery"]["ledger"] if row["disposition"] == "entry"} == \
+        {entry["id"] for entry in entries}
+
+
+@pytest.mark.parametrize("defaults", [8, 9])
+def test_only_defaults_9_inventories_and_only_a_source_without_records(defaults):
+    source = evidence("\n".join(PROSE))
+    asked = []
+    result, _ = extract(source, Model(source, inventory=lambda user: asked.append(user) or {"entities": []}),
+                        defaults=defaults)  # the scripted discovery finds no record here: the inventory is asked
+    assert len(asked) == (defaults == 9) and result["records"] == []
+    with_records = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    result, _ = extract(with_records, Model(with_records, inventory=lambda user: asked.append(user)), defaults=9)
+    assert len(asked) == (defaults == 9) and len(result["records"]) == 2
+
+
+def test_a_failed_inventory_reply_is_incomplete_processing_not_no_records():
+    source = evidence("\n".join(PROSE))
+    result, _ = extract(source, Model(source, discovery=nothing, inventory=lambda user: {"rows": []}), defaults=9)
+    assert result["records"] == [] and result["discovery"]["inventory"] == {"windows": 1, "failed": 1}
+    assert not result["completeness"]["processing"]
+    assert "inventory_failed" in [issue["code"] for issue in result["issues"]]
+
+
 def test_a_failed_children_reply_keeps_the_parents_and_leaves_processing_incomplete():
     source = evidence("\n".join(GRAVES))
     result, _ = extract(source, Model(source, discovery=graves, children=lambda user: {"rows": []}), defaults=8)
@@ -1034,7 +1092,7 @@ def test_source_valid_semantic_decisions_are_not_retried_as_invalid_anchors(fron
     assert_accounted(source, {"discovery": result})
 
 
-@pytest.mark.parametrize("defaults", range(1, 9))
+@pytest.mark.parametrize("defaults", range(1, 10))
 def test_only_defaults_7_retries_unplaceable_boundaries(defaults):
     source = evidence("1. Alpha. Material: wood.\n2. Beta. Material: stone.")
     model = Model(source)
@@ -1050,9 +1108,9 @@ def test_only_defaults_7_retries_unplaceable_boundaries(defaults):
     assert len(asked) == (3 if defaults == 7 else 1)
     assert [entry["label"] for entry in result["discovery"]["entries"]] == \
         (["1.", "2."] if defaults == 7 else ["2."])
-    assert result["execution"]["discovery_version"] == {7: 10, 8: 11}.get(defaults, 8)  # pinned: a later bump keeps them
-    assert result["discovery"]["version"] == {7: 10, 8: 11}.get(defaults, 8)
-    assert result["prompt_version"] == {7: 9, 8: 10}.get(defaults, 8)
+    assert result["execution"]["discovery_version"] == {7: 10, 8: 11, 9: 12}.get(defaults, 8)  # pinned per version
+    assert result["discovery"]["version"] == {7: 10, 8: 11, 9: 12}.get(defaults, 8)
+    assert result["prompt_version"] == {7: 9, 8: 10, 9: 11}.get(defaults, 8)
     assert [issue["code"] for issue in result["issues"]].count("boundary_unplaced") == 1
     assert_accounted(source, result)
 

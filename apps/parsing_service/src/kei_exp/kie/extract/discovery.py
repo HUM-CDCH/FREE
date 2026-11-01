@@ -57,7 +57,7 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 11  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 12  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
@@ -70,6 +70,9 @@ VERSION = 11  # 2: a record the last window says continues ends at the source en
 # 11 (defaults 8): a record start found nowhere in its named line is placed where it occurs once nearby (`_nearby`);
 # one more reading carves records printed inside the discovered records out of them (`children`), never one that
 # repeats its record's printed label; its failed windows count as failed discovery processing. Pinned for defaults 8.
+# 12 (defaults 9): when discovery and children leave no entry at all, one inventory call over the whole source lists
+# the entities it describes, each owning its exact identifying excerpt and read over its evidence passages
+# (`inventory`); a failed inventory counts as failed discovery processing.
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -126,6 +129,26 @@ CHILDREN = (
     "mention of a record described elsewhere is not one, and the enclosing record's own first line never is. Never "
     "list one line twice. A line's label may name its layout kind (heading or table row); a kind is a hint, never "
     "text of the line. Return only the JSON object, on one line, without indentation.")
+# Defaults 9: for a source whose discovery found no record at all, one reading lists the entities it describes
+# (`inventory`).
+INVENTORY = (
+    "List all distinct entities individually described in this source that meet this definition: {description}\n"
+    "The requested fields are: {fields}\n"
+    "An entity may have a printed number or name, or be identified by an individual description without a number. It "
+    "may be described inside another entity's account or across several thematic sections. List both the enclosing "
+    "entity and a contained entity when each independently meets the definition. Do not substitute a whole paragraph "
+    "or section for the entities it describes. Repeated mentions of the same entity are one item. Do not expand an "
+    "unspecified count into invented individuals; retain a described group as a group only when the definition "
+    "permits it. Exclude generic examples, entities merely cited from elsewhere, and entities outside the definition.\n"
+    "For each entity return a list: the label of a SOURCE line that identifies it; an exact excerpt of that line "
+    "identifying it in its local context, occurring once in that line, with enough words to tell it from other "
+    "entities in the same line; its printed number or name, else null; and the inclusive SOURCE line ranges, as pairs "
+    "of line labels, holding the statements needed for its requested fields. Include earlier and later mentions, "
+    "applicable shared descriptions and headings, and enough text to resolve pronouns and comparisons. The same "
+    "passage may support several entities: these are evidence passages, not exclusive record boundaries. Do not use a "
+    "caption describing another entity as evidence about its surrounding section's entity. A line's label may name "
+    "its layout kind (heading or table row); a kind is a hint, never text of the line. Return only the JSON object, "
+    "on one line, without indentation.")
 # Measured on one excavation report's 7 graves (the discovery model of 1 November 2026, temperature 0): asked for "child
 # records" with an explicit empty answer, the model listed none of its 74 numbered finds; asked to list the
 # separately identified entities inside each record, all 74.
@@ -661,6 +684,108 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     return {**body, "entries": [entry for entry in carved if entry["ranges"]], "ledger": ledger,
             "calls": [*body["calls"], *calls], "issues": [*body["issues"], *issues],
             "children": {"windows": len(windows), "failed": failed}}
+
+
+def inventory(body: dict, evidence: Evidence, description: str, fields: str,
+              fits_budget: Callable[[str, str, dict], bool], ask: Callable[..., dict | None], *,
+              progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
+    """Defaults 9: a completed discovery body that holds no entry at all (a report in prose) with the entities its
+    source describes, read top to bottom: (1) only a body that is complete, without entries and without a failed
+    window qualifies; (2) one counted call over every admitted source line lists each entity as an identifying excerpt
+    of one line, its printed label and the line ranges of its evidence passages; (3) an entity whose excerpt is not
+    found once in its line, or overlaps an earlier entity's, is dropped with an issue; (4) each kept entity becomes an
+    entry owning only its excerpt, with its `passages` (its line and ranges, shared with other entities) and its
+    `target` excerpt for the reader, and the ledger rows are cut around the excerpts. A failed, cut-off or oversized
+    request is an issue and a failed window, never "no records"."""
+    # (1) Only a source discovery found no record in qualifies.
+    if body["entries"] or not body.get("complete", True) or any(not window["ok"] for window in body["windows"]) \
+            or body.get("children", {}).get("failed"):
+        return body
+    texts = {passage.id: passage.text for passage in evidence.passages}
+    kinds = kinds_of(evidence.passages)
+    units = units_of(evidence.passages)
+    if not units:
+        return body
+    labels = [f"L{number}" for number in range(1, len(units) + 1)]
+    index = {label: number for number, label in enumerate(labels)}
+
+    # (2) One counted call over the whole labelled source.
+    system = INVENTORY.format(description=description, fields=fields)
+    user = "### SOURCE\n" + "\n".join(
+        f"[{label}{' ' + kinds[unit.segment] if unit.segment in kinds else ''}] {texts[unit.segment][unit.start:unit.end]}"
+        for label, unit in zip(labels, units, strict=True)) + "\n### END SOURCE\n\nReturn the JSON object now."
+    line = {"type": "string", "enum": labels}
+    pair = {"type": "array", "prefixItems": [line, line], "items": False, "minItems": 2, "maxItems": 2}
+    entity = {"type": "array", "prefixItems": [line, {"type": "string"}, {"type": ["string", "null"]},
+                                               {"type": "array", "items": pair}], "items": False, "minItems": 4,
+              "maxItems": 4}
+    reply = {"type": "object", "properties": {"entities": {"type": "array", "items": entity}},
+             "required": ["entities"], "additionalProperties": False}
+    calls, issues, entries = [], [], []
+    if not fits_budget(system, user, reply):
+        issues.append(Issue("inventory_failed", "the whole source does not fit one inventory request"))
+        return {**body, "issues": [*body["issues"], *issues], "inventory": {"windows": 1, "failed": 1}}
+    if progress is not None:
+        progress([], ranges_json(units))
+    answer = ask(None, system, user, reply, calls, issues)
+    rows = answer.get("entities") if isinstance(answer, dict) else None
+    if not isinstance(rows, list):
+        issues.append(Issue("inventory_failed", "no valid inventory reply"))
+        return {**body, "calls": [*body["calls"], *calls], "issues": [*body["issues"], *issues],
+                "inventory": {"windows": 1, "failed": 1}}
+
+    # (3) Each entity's excerpt is placed once in its line, apart from every earlier entity's.
+    for row in rows:
+        if not (isinstance(row, list) and len(row) == 4 and row[0] in index and isinstance(row[1], str)
+                and isinstance(row[3], list)):
+            issues.append(Issue("entity_dropped", f"entity {row!r} is not the requested shape"))
+            continue
+        unit = units[index[row[0]]]
+        text = texts[unit.segment][unit.start:unit.end]
+        hits = occurrences(text, row[1]) if row[1].strip() else []
+        if len(hits) != 1:
+            issues.append(Issue("entity_dropped", f"excerpt {row[1]!r} occurs {len(hits)} times in its line"))
+            continue
+        anchor = Unit(unit.segment, unit.start + hits[0][0], unit.start + hits[0][1])
+        if any(other["ranges"][0]["segment"] == anchor.segment and other["ranges"][0]["start"] < anchor.end
+               and anchor.start < other["ranges"][0]["end"] for other in entries):
+            issues.append(Issue("entity_dropped", f"excerpt {row[1]!r} overlaps an earlier entity's"))
+            continue
+        lines = {index[row[0]]} | {number for each in row[3] if isinstance(each, list) and len(each) == 2
+                                   and each[0] in index and each[1] in index
+                                   for number in range(index[each[0]], index[each[1]] + 1)}
+        passages = [units[number] for number in sorted(lines)]
+        label = row[2] if isinstance(row[2], str) and row[2].strip() and any(
+            occurrences(texts[each.segment][each.start:each.end], row[2]) for each in passages) else None
+        entries.append({"id": f"{anchor.segment}@{anchor.start}", "label": label, "ranges": ranges_json([anchor]),
+                        "context": [], "passages": ranges_json(passages), "target": row[1], "end": "validated"})
+
+    # (4) Each entity owns its excerpt: the ledger rows are cut around the excerpts, the rest keeps its disposition.
+    cuts: dict[str, list[tuple[int, int, str]]] = {}
+    for entry in entries:
+        cuts.setdefault(entry["ranges"][0]["segment"], []).append(
+            (entry["ranges"][0]["start"], entry["ranges"][0]["end"], entry["id"]))
+    ledger = []
+    for row in body["ledger"]:
+        inside = sorted(cut for cut in cuts.get(row["segment"], []) if row["disposition"] != "withheld"
+                        and row["start"] <= cut[0] and cut[1] <= row["end"])
+        at = row["start"]
+        for start, end, owner in inside:
+            ledger += [{**row, "start": each.start, "end": each.end}
+                       for each in trimmed(row["segment"], texts[row["segment"]], at, start)]
+            ledger.append({**{key: value for key, value in row.items() if key != "entry"}, "start": start, "end": end,
+                           "disposition": "entry", "entry": owner})
+            at = end
+        ledger += [{**row, "start": each.start, "end": each.end}
+                   for each in trimmed(row["segment"], texts[row["segment"]], at, row["end"])] if inside else [row]
+    owners = {row.get("entry") for row in ledger}
+    issues += [Issue("entity_dropped", f"excerpt {entry['target']!r} crosses a ledger row") for entry in entries
+               if entry["id"] not in owners]
+    rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
+    entries = sorted((entry for entry in entries if entry["id"] in owners),
+                     key=lambda entry: (rank[entry["ranges"][0]["segment"]], entry["ranges"][0]["start"]))
+    return {**body, "entries": entries, "ledger": ledger, "calls": [*body["calls"], *calls],
+            "issues": [*body["issues"], *issues], "inventory": {"windows": 1, "failed": 0}}
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:

@@ -66,7 +66,7 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 10  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 11  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6 (defaults 5): verification may correct a scalar, with its complete source quote.
 # 7 (defaults 6): the entry call shows the requested value structure and asks for complete values.
@@ -74,6 +74,8 @@ PROMPT_VERSION = 10  # 3: compact discovery places; 4: discovery WINDOW labels n
 # 9 (defaults 7): ordered heading excerpts, counted selection and literal scalar inheritance.
 # 10 (defaults 8): a child record's entry and verification calls read it beside its enclosing record's text
 # (`CHILD`, `VERIFY_CHILD`).
+# 11 (defaults 9): an inventoried entity is read over its evidence passages for its target excerpt (`ENTITY`,
+# `VERIFY_ENTITY`).
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -152,14 +154,17 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
                 "heading_context": True, "candidates": discovery.CANDIDATES},
             8: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "nearby": True, "children": True}}
+                "nearby": True, "children": True},
+            9: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
+                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
+                "nearby": True, "children": True, "inventory": True}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8]
+    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -268,13 +273,13 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
                if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass", "heading_context",
-                           "nearby", "children")}
+                           "nearby", "children", "inventory")}
             | ({"candidates": options.setting("candidates")} if options.defaults >= 7 else {})
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": {7: 9, 8: 10}.get(options.defaults, PROMPT_VERSION if options.defaults > 8 else 8),
-            "discovery_version": {7: 10, 8: 11}.get(options.defaults, discovery.VERSION if options.defaults > 8 else 8),
+            "models": chat.models, "prompt_version": {7: 9, 8: 10, 9: 11}.get(options.defaults, PROMPT_VERSION if options.defaults > 9 else 8),
+            "discovery_version": {7: 10, 8: 11, 9: 12}.get(options.defaults, discovery.VERSION if options.defaults > 9 else 8),
             **({"entry_version": ENTRY_VERSION} if options.defaults >= 7 else {}),
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -373,13 +378,18 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
                 body = discovery.children(body, evidence, schema.record_description,
                                           partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat))
+                if effective.get("inventory"):  # only a source discovery found no record in is inventoried
+                    body = discovery.inventory(
+                        body, evidence, schema.record_description,
+                        ", ".join(node.name for node in schema.record_nodes) + "\n" + _notes(schema.record_nodes),
+                        partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat))
             except NeedsCall:
                 if stopped:  # a pause or stop, not a call still to make
                     raise stopped[0] from None
                 raise
         return {"version": execution["discovery_version"], "execution_sha256": execution_sha256, "entries": body["entries"],
                 "ledger": body["ledger"], "windows": body["windows"],
-                **({"children": body["children"]} if "children" in body else {}),
+                **({key: body[key] for key in ("children", "inventory") if key in body}),
                 "issues": [_issue_json(issue) for issue in body["issues"]],
                 "calls": [_call_json(call) for call in body["calls"]]}, body.get("complete", True)
     found, complete = discover()
@@ -775,6 +785,13 @@ VERIFY_CHILD = ("You check values extracted from one record of a source document
                 "contradicted or unrelated value or one belonging to another record, and \"unclear\" when "
                 "applicability is uncertain. List items and their values require the RECORD text. Judge only from the "
                 "text shown. Return only the JSON object.")
+VERIFY_ENTITY = ("You check values extracted for exactly one entity of a source document. A record is: {description}\n"
+                 "{notes}TARGET: {target}\nTARGET quotes the source text identifying the entity; it is never "
+                 "evidence for a field value. The shown text holds selected passages that may describe several "
+                 "entities. For each candidate answer \"supported\" only when its quote supports that value for "
+                 "TARGET, list item membership included; \"unsupported\" when the value is contradicted or belongs "
+                 "to another entity; \"unclear\" when attribution cannot be resolved. Judge only from the text "
+                 "shown. Return only the JSON object.")
 VERIFY_COMPLETE = (
     "You check values extracted from one source record. A record is: {description}\n{notes}"
     "For each scalar field, read the source afresh and return the final complete value and an exact quote "
@@ -795,6 +812,8 @@ CHILD = ("You extract structured data from one record of a source document. A re
          "for another record, or a property of the enclosing record that does not hold for what it contains, is not "
          "this record's, and the RECORD's own statement wins over a conflicting one. List items and all their values "
          "must come from the RECORD. Never invent a value. Return only the JSON object.")
+ENTITY = ("Extract only the entity identified by this source excerpt: {target}. Other entities in the supplied text are "
+          "context, not this record.\n")  # appended to ENTRY for an inventoried entity (defaults 9)
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
@@ -972,6 +991,11 @@ class _Run:
         heading_context = self.effective.get("heading_context", False) or parent
         system = (CHILD if parent else ENTRY_HEADING if heading_context else ENTRY).format(
             description=self.schema.record_description, notes=_notes(self.nodes))
+        target = entry.get("target")  # an inventoried entity (defaults 9) is read over its evidence passages
+        if target is not None:
+            units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["passages"]]
+            system = ENTRY.format(description=self.schema.record_description, notes=_notes(self.nodes)) + \
+                ENTITY.format(target=json.dumps(target, ensure_ascii=False))
         single = self.effective.get("single_pass", False)
         if single:
             system += SINGLE_PASS
@@ -994,7 +1018,7 @@ class _Run:
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
-        self._verify(number, replies, out, parent=parent)
+        self._verify(number, replies, out, parent=parent, target=target)
         if heading_context:
             order = {segment: index for index, segment in enumerate(self.texts)}
             shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
@@ -1037,7 +1061,7 @@ class _Run:
                     found.kind, found.reason = "proposed", "context_incomplete"
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                parent: bool = False) -> None:
+                parent: bool = False, target: str | None = None) -> None:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
         for found in out.found:
             if found.kind != "candidate":
@@ -1059,9 +1083,10 @@ class _Run:
                     nodes[key] = node
         if self.effective.get("corrections") and self.effective["verification"]:
             scalars(self.nodes)
-        prompt = VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
-            if self.effective.get("heading_context") else VERIFY
-        system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
+        prompt = VERIFY_COMPLETE if nodes else VERIFY_ENTITY if target is not None else VERIFY_CHILD if parent \
+            else VERIFY_HEADING if self.effective.get("heading_context") else VERIFY
+        system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes),
+                               target=json.dumps(target, ensure_ascii=False))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
                 found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
@@ -1392,7 +1417,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     unresolved = [row for row in found["ledger"] if row["disposition"] == "unresolved"]
     processing = {
         "discovery": {"windows": len(found["windows"]), "failed": sum(not window["ok"] for window in found["windows"])
-                      + found.get("children", {}).get("failed", 0),
+                      + found.get("children", {}).get("failed", 0) + found.get("inventory", {}).get("failed", 0),
                       **({"children_windows": found["children"]["windows"]} if "children" in found else {})},
         "entries": {"entries": len(entries), "windows": sum(each.windows for each in entries),
                     "failed": sum(each.failed for each in entries)},
