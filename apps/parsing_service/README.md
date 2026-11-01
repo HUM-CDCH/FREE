@@ -278,11 +278,15 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   each becomes its own entry owning its whole lines, names its enclosing entry as
   `parent` and is read with that entry's remaining text as context, from which a scalar
   stated for the enclosing record as a whole may be taken. The ledger stays disjoint;
-  a child that is not whole lines of one entry after its first line is dropped
-  (`child_dropped`); a failed children reply leaves the parents whole and processing
-  incomplete. Entries are read only after the whole discovery, so a durable run shows
-  no records before it. Known limit: a rerun masks retained records' text, so a child
-  reread after its parent was retained loses that parent as context.
+  a child that is not whole lines of one entry after its first line, or that repeats
+  the entry's own printed label, is dropped (`child_dropped`); a failed children reply
+  leaves the parents whole and processing incomplete. Entries are read only after the
+  whole discovery, so a durable run shows no records before it. Known limits: a durable
+  run asks the children windows one per planning round; a cut-off or invalid children
+  reply is not split or retried; children windows have no overlap, so a child listed
+  across a window cut is lost to its parent; a rerun masks retained records' text, so a
+  child reread after its parent was retained loses that parent as context; a child may
+  still take its parent's identifier from context when the parent states it for itself.
   Studio still admits defaults 6 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces

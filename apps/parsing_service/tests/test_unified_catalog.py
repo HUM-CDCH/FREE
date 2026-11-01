@@ -9,6 +9,7 @@ budgets are easy to reason about; the chat reports the same count, as an honest 
 import json
 import os
 import re
+import time
 from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -177,7 +178,8 @@ def assert_accounted(source: Evidence, result: dict) -> None:
     for each in (*source.passages, *source.withheld):
         positions = owned.get(each.id, [])
         assert len(positions) == len(set(positions)), each.id
-        blank = [at for at, char in enumerate(each.text) if at not in set(positions)]
+        covered = set(positions)
+        blank = [at for at, char in enumerate(each.text) if at not in covered]
         assert all(each.text[at] in discovery.WHITE_SPACE for at in blank), each.id
 
 
@@ -845,13 +847,45 @@ def test_records_listed_inside_a_record_are_carved_out_and_name_it_as_their_pare
 
 
 def test_a_child_cut_from_a_range_that_spans_several_lines_leaves_its_parent_the_rest():
-    source, body = one_window(GRAVES, [["L1", "record", "Grave 1"], ["L5", "record", "Grave 2"]])
-    whole = {**body, "entries": [{**entry, "ranges": [{"segment": "p1_s0", "start": entry["ranges"][0]["start"],
-                                                      "end": entry["ranges"][-1]["end"]}]} for entry in body["entries"]]}
-    child = discovery.Unit("p1_s0", *[(m.start(), m.end()) for m in re.finditer(r"1\. Bowl, red ware\.", source.passages[0].text)][0])
-    result = discovery._carved(whole, [(0, (child,), "1.")], source)
-    assert labelled(source, result) == [("Grave 1", ["Grave 1. Inhumation.\nFinds:", "2. Pin, bronze."]),
-                                        ("1.", ["1. Bowl, red ware."]), ("Grave 2", ["Grave 2. Cremation."])]
+    source = evidence("\n".join(GRAVES))
+    text = source.passages[0].text
+    second = text.index("Grave 2")
+    entries = [{"id": "p1_s0@0", "label": "Grave 1", "context": [], "end": "validated",
+                "ranges": [{"segment": "p1_s0", "start": 0, "end": second - 1}]},
+               {"id": f"p1_s0@{second}", "label": "Grave 2", "context": [], "end": "validated",
+                "ranges": [{"segment": "p1_s0", "start": second, "end": len(text)}]}]
+    body = {"entries": entries, "calls": [], "issues": [], "windows": [], "ledger": [
+        {**entry["ranges"][0], "disposition": "entry", "entry": entry["id"]} for entry in entries]}
+
+    def ask(record, system, user, schema, calls, issues):  # a window too small for the whole range shows its pieces
+        return {"children": [[label, label, None] for label, line in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
+                             if "Bowl" in line]}
+    result = discovery.children(body, source, "One grave or find.", lambda _s, user, _r: len(user) < 90, ask)
+    grave, child, *_ = result["entries"]
+    assert child["parent"] == grave["id"] and "Bowl" in text[child["ranges"][0]["start"]:child["ranges"][0]["end"]]
+    assert [text[row["start"]:row["end"]] for row in grave["ranges"]] == [
+        text[row["start"]:row["end"]] for row in result["ledger"] if row["entry"] == grave["id"]]
+    assert_accounted(source, {"discovery": result})
+
+
+def test_the_children_pass_over_1500_records_stays_fast():
+    """Durable planning repeats discovery and the children pass every round, so they must scale with the records."""
+    lines = [line for n in range(1, 1501) for line in (f"Grave {n}. Inhumation.", f"{n}a. Pot, red ware.")]
+    source = evidence("\n".join(lines))
+    units = discovery.units_of(source.passages)
+    entries = [{"id": f"p1_s0@{units[2 * n].start}", "label": f"Grave {n + 1}", "context": [], "end": "validated",
+                "ranges": discovery.ranges_json(units[2 * n:2 * n + 2])} for n in range(1500)]
+    body = {"entries": entries, "calls": [], "issues": [], "windows": [], "ledger": [
+        {"segment": unit.segment, "start": unit.start, "end": unit.end, "disposition": "entry",
+         "entry": entries[n // 2]["id"]} for n, unit in enumerate(units)]}
+
+    def ask(record, system, user, schema, calls, issues):
+        labels = re.findall(r"^\[(L\d+)\] \d+a\. ", user, re.M)
+        return {"children": [[label, label, None] for label in labels]}
+    started = time.perf_counter()
+    result = discovery.children(body, source, "One grave or find.", lambda _s, user, _r: user.count("\n") < 400, ask)
+    assert time.perf_counter() - started < 3
+    assert len(result["entries"]) == 3000 and sum("parent" in entry for entry in result["entries"]) == 1500
     assert_accounted(source, {"discovery": result})
 
 
@@ -861,8 +895,7 @@ def test_defaults_8_reads_a_child_record_beside_its_parents_text():
                                                   "begins_inside_record": False, "ends_inside_record": False},
                   children=lambda user: {"children": [["L3", "L3", "1."], ["L4", "L4", "2."]]})
     result, chat = extract(source, model, defaults=8)
-    assert (result["execution"]["discovery_version"], result["prompt_version"]) == (discovery.VERSION,
-                                                                                   unified.PROMPT_VERSION)
+    assert (result["execution"]["discovery_version"], result["prompt_version"]) == (11, 10)
     reads = [call for call in chat.calls if call["system"].startswith("You extract structured data from one record")]
     child = [call for call in reads if "is printed inside another record" in call["system"]]
     assert len(reads) == 4 and len(child) == 2
@@ -872,6 +905,18 @@ def test_defaults_8_reads_a_child_record_beside_its_parents_text():
     assert [record["label"] for record in result["records"]] == [None, "1", "2", None]
     assert [record["material"] for record in result["records"]] == ["Holz", None, None, None]
     assert_accounted(source, result)
+
+
+def test_a_child_repeating_its_records_printed_label_is_the_record_itself():
+    source, body = one_window(["Grave 1", "Grave 1. Inhumation, north-south.", "1. Bowl, red ware."],
+                              [["L1", "record", "Grave 1"]])
+
+    def ask(record, system, user, schema, calls, issues):
+        return {"children": [["L2", "L2", "Grave 1"], ["L3", "L3", "1."]]}
+    result = discovery.children(body, source, "One grave or find.", lambda *_: True, ask)
+    assert labelled(source, result) == [("Grave 1", ["Grave 1", "Grave 1. Inhumation, north-south."]),
+                                        ("1.", ["1. Bowl, red ware."])]
+    assert [issue.code for issue in result["issues"]] == ["child_dropped"]
 
 
 def test_a_failed_children_reply_keeps_the_parents_and_leaves_processing_incomplete():
@@ -987,8 +1032,9 @@ def test_only_defaults_7_retries_unplaceable_boundaries(defaults):
     assert len(asked) == (3 if defaults == 7 else 1)
     assert [entry["label"] for entry in result["discovery"]["entries"]] == \
         (["1.", "2."] if defaults == 7 else ["2."])
-    assert result["execution"]["discovery_version"] == {7: 10, 8: discovery.VERSION}.get(defaults, 8)
-    assert result["discovery"]["version"] == {7: 10, 8: discovery.VERSION}.get(defaults, 8)
+    assert result["execution"]["discovery_version"] == {7: 10, 8: 11}.get(defaults, 8)  # pinned: a later bump keeps them
+    assert result["discovery"]["version"] == {7: 10, 8: 11}.get(defaults, 8)
+    assert result["prompt_version"] == {7: 9, 8: 10}.get(defaults, 8)
     assert [issue["code"] for issue in result["issues"]].count("boundary_unplaced") == 1
     assert_accounted(source, result)
 

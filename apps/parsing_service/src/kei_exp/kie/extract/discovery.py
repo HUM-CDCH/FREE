@@ -45,6 +45,7 @@ import json
 import re
 import threading
 import unicodedata
+from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -67,8 +68,8 @@ VERSION = 11  # 2: a record the last window says continues ends at the source en
 # 9 (defaults 7): clarify record starts and retain all preceding record-free context, selected within counted budgets.
 # 10 (defaults 7): bounded split recovery for unplaceable boundaries, retaining superseded replies' calls and issues.
 # 11 (defaults 8): a record start found nowhere in its named line is placed where it occurs once nearby (`_nearby`);
-# one more reading carves records printed inside the discovered records out of them (`children`); its failed
-# windows count as failed discovery processing.
+# one more reading carves records printed inside the discovered records out of them (`children`), never one that
+# repeats its record's printed label; its failed windows count as failed discovery processing. Pinned for defaults 8.
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -531,35 +532,37 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
             "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if frontier else {})
 
 
-def _children_reply(labels: list[str]) -> dict:
-    child = {"type": "array", "prefixItems": [{"type": "string", "enum": labels}, {"type": "string", "enum": labels},
-                                              {"type": ["string", "null"]}], "items": False, "minItems": 3, "maxItems": 3}
-    return {"type": "object", "properties": {"children": {"type": "array", "items": child}}, "required": ["children"],
-            "additionalProperties": False}
-
-
 def children(body: dict, evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *,
              progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
     """Defaults 8: the completed discovery body with the records printed inside its records (a numbered find in a
-    grave's list) carved out of them. Counted windows over the entries' own lines ask which whole lines describe a
-    child record; a child owns those lines, the enclosing entry keeps the rest (several ranges) and is each child's
-    `context`, and the child names it as `parent`. A child that leaves its line range's entry, takes that entry's
-    first line or overlaps an earlier child is dropped with an issue. Entries are returned in source order. Before
-    each call, `progress` is given the discovered record starts and the lines the window labels, as in `discover`."""
+    grave's list) carved out of them, read top to bottom: (1) which entry owns each of the entries' lines; (2) counted
+    windows over those lines, shown under their record's heading; (3) one call per window lists the entities inside
+    each record, and a listed child is kept only as whole lines of one entry after its first line, apart from other
+    children, without the entry's own printed label; (4) each kept child becomes an entry owning its lines and naming
+    its enclosing entry as `parent`, whose remaining ranges are the child's `context`; the parent's ranges and the
+    ledger rows are cut to match. A failed reply is an issue and a failed window, never retried. Before each call,
+    `progress` is given the discovered record starts and the lines the window labels, as in `discover`."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     system = CHILDREN.format(description=description)
     entries = body["entries"]
-    ids = {entry["id"] for entry in entries}
-    owned = [(Unit(each["segment"], each["start"], each["end"]), number)
-             for number, entry in enumerate(entries) for each in entry["ranges"]]
 
-    def owner(unit: Unit) -> int:  # a planned piece may be part of a range too long for one window
-        return next(number for each, number in owned if each.segment == unit.segment
-                    and each.start <= unit.start and unit.end <= each.end)
+    # (1) The entries' lines, by segment and start, and the entry owning each.
+    owned = sorted(((Unit(each["segment"], each["start"], each["end"]), number)
+                    for number, entry in enumerate(entries) for each in entry["ranges"]),
+                   key=lambda pair: (pair[0].segment, pair[0].start))
+    starts = {segment: [unit.start for unit, _ in group]
+              for segment, group in groupby(owned, key=lambda pair: pair[0].segment)}
+    by_segment = {segment: list(group) for segment, group in groupby(owned, key=lambda pair: pair[0].segment)}
 
-    def render(window: Window) -> tuple[str, list[str]]:
+    def owner(unit: Unit) -> int:  # a planned piece of a line too long for one window is owned like the line
+        line, number = by_segment[unit.segment][bisect_right(starts[unit.segment], unit.start) - 1]
+        assert line.start <= unit.start and unit.end <= line.end, unit
+        return number
+
+    # (2) Counted windows; each request shows its lines under their record's heading and names them in its reply.
+    def render(window: Window) -> tuple[str, list[str], dict]:
         labels, shown, current = [], [], None
         for number, unit in enumerate(window.primary, 1):
             if owner(unit) != current:
@@ -569,22 +572,30 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
             labels.append(f"L{number}")
             kind = f" {kinds[unit.segment]}" if unit.segment in kinds else ""
             shown.append(f"[L{number}{kind}] {texts[unit.segment][unit.start:unit.end]}")
-        return "\n".join(shown) + "\n\nReturn the JSON object now.", labels
+        child = {"type": "array", "prefixItems": [{"type": "string", "enum": labels}, {"type": "string", "enum": labels},
+                                                  {"type": ["string", "null"]}], "items": False, "minItems": 3,
+                 "maxItems": 3}
+        reply = {"type": "object", "properties": {"children": {"type": "array", "items": child}},
+                 "required": ["children"], "additionalProperties": False}
+        return "\n".join(shown) + "\n\nReturn the JSON object now.", labels, reply
 
     def fits(window: Window) -> bool:
-        user, labels = render(window)
-        return fits_budget(system, user, _children_reply(labels))
+        user, _, reply = render(window)
+        return fits_budget(system, user, reply)
     windows = plan([unit for unit, _ in owned], texts, fits, overlap=0) if owned else []
-    calls, issues, found, failed = [], [], [], 0
+    calls, issues, found, failed, claimed = [], [], [], 0, set()
     if windows is None:  # a line that fit a discovery request beside its longer instructions fits this one
         issues.append(Issue("children_window_failed", "a record line fits no children request"))
         windows, failed = [], 1
-    starts = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"]} for entry in entries]
+
+    # (3) Ask each window; keep each listed child that is whole lines of one record after its first line.
+    ids = {entry["id"] for entry in entries}
+    record_starts_ = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"]} for entry in entries]
     for window in windows:
-        user, labels = render(window)
+        user, labels, reply = render(window)
         if progress is not None:
-            progress(starts, ranges_json(window.primary))
-        answer = ask(None, system, user, _children_reply(labels), calls, issues)
+            progress(record_starts_, ranges_json(window.primary))
+        answer = ask(None, system, user, reply, calls, issues)
         rows = answer.get("children") if isinstance(answer, dict) else None
         if not isinstance(rows, list):
             issues.append(Issue("children_window_failed", f"no valid children reply for {_where(window)}"))
@@ -598,52 +609,56 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
             parent = parents.pop() if len(parents) == 1 else None
             first_line = entries[parent]["ranges"][0] if parent is not None else None
             if parent is None or (lines[0].segment, lines[0].start) == (first_line["segment"], first_line["start"]) \
-                    or f"{lines[0].segment}@{lines[0].start}" in ids or \
-                    any(set(lines) & set(other) for _, other, _ in found):
+                    or f"{lines[0].segment}@{lines[0].start}" in ids or claimed.intersection(lines):
                 issues.append(Issue("child_dropped", f"child {row!r} is not whole lines of one record after its "
                                     "first line, apart from other children"))
                 continue
             label = row[2] if isinstance(row[2], str) and row[2].strip() and any(
                 occurrences(texts[unit.segment][unit.start:unit.end], row[2]) for unit in lines) else None
+            if _same_label(label, entries[parent]["label"]):  # the record itself, listed again
+                issues.append(Issue("child_dropped", f"child {row!r} repeats its record's printed label"))
+                continue
+            claimed.update(lines)
             found.append((parent, lines, label))
-    return {**_carved(body, found, evidence), "calls": [*body["calls"], *calls],
-            "issues": [*body["issues"], *issues], "children": {"windows": len(windows), "failed": failed}}
 
-
-def _carved(body: dict, found: list[tuple[int, tuple[Unit, ...], str | None]], evidence: Evidence) -> dict:
-    """The body with each found child's lines cut from its parent entry's ranges and ledger rows into its own entry."""
-    entries = [dict(entry) for entry in body["entries"]]
+    # (4) Carve: each child owns its lines; its parent's ranges and the ledger rows are cut around them.
+    carved = [dict(entry) for entry in entries]
     taken: dict[Unit, str] = {}
     for parent, lines, label in found:
         child = {"id": f"{lines[0].segment}@{lines[0].start}", "label": label, "ranges": ranges_json(lines),
                  "context": [], "end": "validated", "parent": entries[parent]["id"]}
-        entries.append(child)
+        carved.append(child)
         taken |= dict.fromkeys(lines, child["id"])
-    texts = {passage.id: passage.text for passage in evidence.passages}
+    cuts = {segment: [(unit.start, unit.end, child) for unit, child in group] for segment, group in groupby(
+        sorted(taken.items(), key=lambda pair: (pair[0].segment, pair[0].start)), key=lambda pair: pair[0].segment)}
+    cut_starts = {segment: [start for start, _, _ in each] for segment, each in cuts.items()}
 
-    def pieces(row: dict) -> list[tuple[Unit, str | None]]:  # a child line may be a planned piece of a longer range
-        cuts = sorted((unit.start, unit.end, child) for unit, child in taken.items() if unit.segment == row["segment"]
-                      and row["start"] <= unit.start and unit.end <= row["end"])
+    def pieces(row: dict) -> list[tuple[Unit, str | None]]:  # `row` cut around the child lines inside it
+        within = cuts.get(row["segment"], [])
         at, cut = row["start"], []
-        for start, end, child in [*cuts, (row["end"], row["end"], None)]:
+        for start, end, child in within[bisect_right(cut_starts.get(row["segment"], []), row["start"] - 1):]:
+            if end > row["end"]:
+                break
             cut += [(unit, None) for unit in trimmed(row["segment"], texts[row["segment"]], at, start)]
-            cut += [(Unit(row["segment"], start, end), child)] if child else []
+            cut += [(Unit(row["segment"], start, end), child)]
             at = end
-        return cut
-    for entry in entries:
+        return cut + [(unit, None) for unit in trimmed(row["segment"], texts[row["segment"]], at, row["end"])]
+    for entry in carved:
         if "parent" not in entry:
             entry["ranges"] = ranges_json([unit for each in entry["ranges"] for unit, child in pieces(each) if not child])
-    by_id = {entry["id"]: entry for entry in entries}
-    for entry in entries:
+    by_id = {entry["id"]: entry for entry in carved}
+    for entry in carved:
         if "parent" in entry:
             entry["context"] = list(by_id[entry["parent"]]["ranges"])
     ledger = [{**row, "start": unit.start, "end": unit.end} | ({"entry": child} if child else {})
-              for row in body["ledger"]
-              for unit, child in (pieces(row) if row["disposition"] == "entry" else [(Unit(row["segment"], row["start"], row["end"]), None)])]
+              for row in body["ledger"] for unit, child in (
+                  pieces(row) if row["disposition"] == "entry" else [(Unit(row["segment"], row["start"], row["end"]), None)])]
     rank = {passage.id: number for number, passage in enumerate(evidence.passages)}
-    entries.sort(key=lambda entry: (rank[entry["ranges"][0]["segment"]], entry["ranges"][0]["start"])
-                 if entry["ranges"] else (len(rank), 0))
-    return {**body, "entries": [entry for entry in entries if entry["ranges"]], "ledger": ledger}
+    carved.sort(key=lambda entry: (rank[entry["ranges"][0]["segment"]], entry["ranges"][0]["start"])
+                if entry["ranges"] else (len(rank), 0))
+    return {**body, "entries": [entry for entry in carved if entry["ranges"]], "ledger": ledger,
+            "calls": [*body["calls"], *calls], "issues": [*body["issues"], *issues],
+            "children": {"windows": len(windows), "failed": failed}}
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:
