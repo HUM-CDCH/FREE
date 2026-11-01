@@ -12,6 +12,7 @@ import type { PinnedExtractionSource, DurableReviewProgress } from './durableExt
 import { DurableResults } from './DurableResults'
 import { durableRailModel, statusLine } from './durableRailModel'
 import RailChat from './RailChat'
+import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
 import { useSchemaChat } from './useSchemaChat'
 import type { CurrentResultSchema } from './resultSchema'
 import { useDurableReading, type DurableReader } from './durableReader'
@@ -69,8 +70,10 @@ type RightRailProps = {
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void
   onReviewFinalized?:()=>void
-  /** Run extraction from the chat's step, where the workspace offers it; `available` as the tab strip's Run. */
+  /** Run extraction from the chat's step, where the workspace offers it. */
   run?: { start: () => void; available: boolean } | null
+  /** The latest Extraction's commands, which the chat's step offers while it can go on. */
+  control?: { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void; busy: boolean } | null
 }
 
 const VIEW_TITLES: Record<Exclude<RailView, 'chat'>, string> = {
@@ -128,6 +131,7 @@ function RightRail({
   onReviewProgress,
   onReviewFinalized,
   run = null,
+  control = null,
 }: RightRailProps) {
   const { parsedDocument } = inspection
   // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
@@ -317,6 +321,10 @@ function RightRail({
         onGenerate={onGenerateInstructions}
         recordScope={recordScope}
         run={run && { ...run, unavailableReason: runUnavailableReason }}
+        control={control && (() => {
+          const { blocked, description } = continuation(latestReading?.state)
+          return { ...control, continueBlocked: blocked, continueDescription: description, pauseDescription: PAUSE_DESCRIPTION }
+        })()}
         latest={latestAttempt ? {
           extractionId: latestAttempt.extractionId,
           schemaRevisionId: latestAttempt.schemaRevisionId,

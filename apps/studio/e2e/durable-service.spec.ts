@@ -486,7 +486,8 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
     await shot('05-paused')
     const paused=await values()
     await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
-    await expect(page.getByRole('button',{name:/❚❚ Pause extraction|Pausing…/})).toBeVisible({timeout:60_000})
+    // Running again: the chat's step offers Pause, or says it is pausing.
+    await expect(page.getByRole('region',{name:'Extraction',exact:true}).getByText(/❚❚ Pause extraction|Pausing…/).first()).toBeVisible({timeout:60_000})
 
     // 6. Completion.
     await expect.poll(async()=>{

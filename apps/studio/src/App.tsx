@@ -29,7 +29,6 @@ import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
 import { createDurableReader, useKeyedController, type ControlReceipt } from './durableReader'
-import { ExtractionControl } from './ExtractionControl'
 import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
@@ -984,27 +983,19 @@ export function DocumentWorkspace({
       : schemaSnap.save?.status === 'error'
         ? 'The schema is not saved. Retry the save first.'
         : schemaSnap.save?.status === 'conflict'
-          ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
+          ? 'The schema changed elsewhere. Reload it in the Schema view first.'
           : indexing
             ? 'The document is still being indexed'
             : !schemaReady
-              ? 'Generate a schema in the Schema tab first'
+              ? 'Create a schema in the chat first'
               : nextExtractionStrategy === null
                 ? 'Choose Article or Catalog in the schema header'
                 : extraction.monitorError
                   ? 'Reconnect to check the original Extraction before starting another.'
                   : !extraction.canRun
-                    ? 'The latest Extraction can still continue: pause, resume or stop it above.'
+                    ? 'The latest Extraction can still continue: pause, resume or stop it in the chat.'
                     : null
   // The latest Extraction, while it can still continue, takes the run button's place: Pause while it runs, Resume or
-  // Retry once it stops short, and Stop beside them. A completed or stopped one, or none, leaves Run.
-  const controlStatus = latestAttempt && latestAttempt.executionStatus !== 'COMPLETED' && latestAttempt.executionStatus !== 'STOPPED'
-    ? latestAttempt.executionStatus : null
-  const control = controlStatus === 'PAUSED' ? { label: '▶ Resume extraction', action: 'resume' as const }
-    : controlStatus === 'FAILED' ? { label: '↻ Retry extraction', action: 'retry' as const }
-      : controlStatus === 'PAUSING' ? { label: 'Pausing…', action: null }
-        : controlStatus === 'STOPPING' ? { label: 'Stopping…', action: null }
-          : { label: '❚❚ Pause extraction', action: 'pause' as const }
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -1033,42 +1024,6 @@ export function DocumentWorkspace({
             <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
           )}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
-          {/* While building a schema toward a pilot extraction, Run is the
-              wrong next action — the only step from here is approving the
-              schema, so it is left out entirely rather than shown disabled. */}
-          {!fromSchemaBuilder && (
-            <>
-              {/* Run is the screen's one positive; while the latest Extraction can still continue, Pause, Resume or Retry
-                  takes its place with Stop beside it. */}
-              {/* One fixed width for Run, Pause and Resume, so the strip never shifts; progress is the Results badge's, not the
-                  button's. */}
-              {controlStatus ? (
-                <>
-                  {controlStatus !== 'STOPPING' && (
-                    <Button variant="outline-danger" size="md" disabled={controlling} title="Stop the extraction; its saved values and decisions stay"
-                      onClick={() => void controlExtraction('stop')}>■ Stop</Button>
-                  )}
-                  <ExtractionControl reader={latestReader} control={control} busy={controlling} onCommand={action=>void controlExtraction(action)}/>
-                </>
-              ) : (
-                // Once this document has an Extraction, the work is reviewing it: a new run is the secondary action,
-                // named as one, so it never reads as the way to go on.
-                <Button
-                  variant={inspectedAttempt ? 'secondary' : 'positive'}
-                  size="md"
-                  className="min-w-43 justify-center tabular-nums"
-                  disabled={runExtractionUnavailable}
-                  title={runUnavailableReason ?? `${nextExtractionStrategy === 'CATALOG'
-                    ? 'Find the catalogue entries and extract one record per entry'
-                    : 'Extract one record from the whole document'}${inspectedAttempt
-                    ? '. A new Extraction: the current results and your review stay saved.' : ''}`}
-                  onClick={() => void runExtraction()}
-                >
-                  {inspectedAttempt ? '↻ Re-run extraction' : '▶ Run extraction'}
-                </Button>
-              )}
-            </>
-          )}
           {/* Picked the wrong document: back to the Schemas tab's picker, one click away rather than hidden in the
               tab bar's project link. */}
           {fromSchemaBuilder && onNavigate && (
@@ -1087,7 +1042,7 @@ export function DocumentWorkspace({
               disabled={confirmingSchema || schemaSnap.extractionSchemaId === null}
               title={
                 schemaSnap.extractionSchemaId === null
-                  ? 'Generate a schema in the Schema tab first'
+                  ? 'Create a schema in the chat first'
                   : 'Save this Schema Revision, then pick 2-3 documents for a pilot extraction'
               }
               onClick={() => void approveSchemaAndGoToNextStep()}
@@ -1252,8 +1207,9 @@ export function DocumentWorkspace({
               onReviewFinalized={onReviewFinalized}
               schemaName={schemaName}
               recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
-              // The chat's Run step is the tab strip's Run, where the strip offers one.
+              // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
               run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
+              control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
               boundaries={
                 !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
                   ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }

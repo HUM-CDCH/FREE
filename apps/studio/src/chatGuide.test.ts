@@ -13,6 +13,7 @@ const base: GuideInput = {
   recordScope: 'records',
   revision: { id: 'revision-2', number: 2, fieldCount: 6 },
   run: { unavailableReason: null, available: true },
+  control: { busy: false, continueBlocked: null, continueDescription: 'Continue with its saved inputs.', pauseDescription: 'Pause.' },
   latest: null,
   resultsShown: false,
   dismissed: new Set(),
@@ -50,22 +51,37 @@ describe('nextStep', () => {
   })
 
   it('offers the run, and says why it cannot start', () => {
-    expect(nextStep(base)).toMatchObject({ key: 'run:first', title: 'Run extraction', options: [{ action: 'run', disabled: false }, { action: 'dismiss' }] })
+    expect(nextStep(base)).toMatchObject({ key: 'run:first', title: 'Run extraction',
+      options: [{ action: 'run', label: '▶ Run extraction', disabled: false }, { action: 'dismiss' }] })
     const blocked = nextStep({ ...base, run: { unavailableReason: 'The document is still being indexed', available: false } })
     expect(blocked?.notice).toBe('The document is still being indexed')
     expect(blocked?.options[0]?.disabled).toBe(true)
     expect(nextStep({ ...base, run: null })).toBeNull()
   })
 
-  it('follows a running Extraction without controls of its own, and points to them once it stops short', () => {
-    expect(nextStep({ ...base, latest: latest('RUNNING') })).toMatchObject({ busy: true, notice: 'Reading records · 3 of 14', options: [] })
-    expect(nextStep({ ...base, latest: latest('PAUSED') })?.notice).toBe('Reading records · 3 of 14. Resume, retry or stop it above.')
+  it('follows a running Extraction with its own controls, the chat being their only place', () => {
+    expect(nextStep({ ...base, latest: latest('RUNNING') })).toMatchObject({ busy: true, notice: 'Reading records · 3 of 14',
+      options: [{ action: 'pause', label: '❚❚ Pause extraction', description: 'Pause.' }, { action: 'stop', label: '■ Stop' }] })
+    expect(actions({ latest: latest('PAUSED') })).toEqual(['resume', 'stop'])
+    expect(actions({ latest: latest('FAILED') })).toEqual(['retry', 'stop'])
+    expect(nextStep({ ...base, latest: latest('PAUSING') })).toMatchObject({ notice: 'Pausing…', options: [] })
+    expect(nextStep({ ...base, latest: latest('RUNNING'), control: null })?.key).toBe('run:extraction-1')
   })
 
-  it('opens Results after a finished run, unless Results is already in view or nothing is left to check', () => {
-    expect(actions({ latest: latest('COMPLETED') })).toEqual(['review', 'dismiss'])
-    expect(nextStep({ ...base, latest: latest('COMPLETED'), resultsShown: true })).toBeNull()
-    expect(nextStep({ ...base, latest: { ...latest('COMPLETED'), toCheck: 0 } })).toBeNull()
+  it('holds Resume and Retry while pending inputs wait, saying why, and every command while one is under way', () => {
+    const control = { ...base.control!, continueBlocked: 'Apply or discard the pending inputs before continuing.' }
+    const step = nextStep({ ...base, latest: latest('PAUSED'), control })
+    expect(step?.error).toBe('Apply or discard the pending inputs before continuing.')
+    expect(step?.options.map(({ action, disabled }) => [action, !!disabled])).toEqual([['resume', true], ['stop', false]])
+    expect(nextStep({ ...base, latest: latest('RUNNING'), control: { ...base.control!, busy: true } })?.options.every(({ disabled }) => disabled)).toBe(true)
+  })
+
+  it('keeps a finished run in view: Results while values wait, and a new run of the same revision', () => {
+    expect(nextStep({ ...base, latest: latest('COMPLETED') })).toMatchObject({ question: 'Review the 2 values to check?',
+      options: [{ action: 'review', tone: 'positive' }, { action: 'run', label: '↻ Re-run extraction', tone: 'secondary' }] })
+    expect(actions({ latest: latest('COMPLETED'), resultsShown: true })).toEqual(['run'])
+    expect(nextStep({ ...base, latest: { ...latest('COMPLETED'), toCheck: 0 } })).toMatchObject({ question: undefined,
+      options: [{ action: 'review', tone: 'secondary' }, { action: 'run' }] })
   })
 
   it('offers a run again once the schema changed since the last one', () => {
@@ -78,7 +94,10 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, view: 'empty', instructionCount: 1, dismissed: new Set(['generate:0']) })?.key).toBe('generate:1')
   })
 
-  it('offers nothing in a read-only view', () => {
-    expect(nextStep({ ...base, readOnly: true, recordScope: null })).toBeNull()
+  it('offers no schema step in a read-only view, leaving runs and the latest run\'s controls to the host', () => {
+    expect(nextStep({ ...base, readOnly: true, view: 'empty' })).toBeNull()
+    expect(nextStep({ ...base, readOnly: true, proposal: { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true } })?.key).toBe('run:first')
+    expect(nextStep({ ...base, readOnly: true, recordScope: null })?.key).toBe('run:first')
+    expect(actions({ readOnly: true, latest: latest('PAUSED') })).toEqual(['resume', 'stop'])
   })
 })

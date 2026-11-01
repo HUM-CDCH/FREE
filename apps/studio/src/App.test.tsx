@@ -402,7 +402,7 @@ describe('reopened Source Document workspace', () => {
     else expect(posts[0]).not.toHaveProperty('startPage')
   })
 
-  it.each(['schema', 'collapsed'] as const)('a run opens Results from %s after re-reading the saved method and hands the admitted Extraction to its controls', async (panel) => {
+  it.each(['chat', 'schema'] as const)('a run opens Results from the %s view after re-reading the saved method and hands the admitted Extraction to its controls', async (panel) => {
     const extractionResponse = Promise.withResolvers<Response>()
     const order: string[] = []
     saved.refresh.mockImplementation(async () => { order.push('refresh'); return saved.state.status === 'ready' ? saved.state : null })
@@ -423,8 +423,9 @@ describe('reopened Source Document workspace', () => {
     // While Run can start, Results' empty state points at it.
     openRailView('Results')
     expect(screen.getByText('The chat offers Run extraction as its next step.')).toBeVisible()
-    openRailView('Schema')
-    if (panel === 'collapsed') fireEvent.click(screen.getByRole('button', { name: 'Collapse panel' }))
+    // Run is the chat's step, in view under every rail view.
+    if (panel === 'chat') fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }))
+    else openRailView('Schema')
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     expect(shownRailView()).toBe('Results')
@@ -547,9 +548,12 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
     expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
-    // The latest can still continue: the run button stays its control, whatever is inspected.
+    // The latest can still continue: the chat's step stays its control, whatever is inspected.
     expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: { PAUSED: '▶ Resume extraction', FAILED: '↻ Retry extraction', PAUSING: 'Pausing…', STOPPING: 'Stopping…' }[status] })).toBeInTheDocument()
+    const step = screen.getByRole('region', { name: 'Extraction' })
+    if (status === 'PAUSED' || status === 'FAILED')
+      expect(within(step).getByRole('button', { name: status === 'PAUSED' ? '▶ Resume extraction' : '↻ Retry extraction' })).toBeInTheDocument()
+    else expect(within(step).getByRole('status')).toHaveTextContent(status === 'PAUSING' ? 'Pausing…' : 'Stopping…')
     expect(posts).toEqual([])
   })
 
@@ -565,7 +569,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
   })
 
-  it('pauses the latest Extraction from the run button and offers Resume once its calls are saved', async () => {
+  it('pauses the latest Extraction from the chat\'s step and offers Resume once its calls are saved', async () => {
     const latest = { ...reopened.persistedExtraction!, executionStatus: 'RUNNING' as const }
     let status: ExtractionAttempt['executionStatus'] = 'RUNNING'
     const commands: unknown[] = []
@@ -583,7 +587,7 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={latest} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '❚❚ Pause extraction' }))
-    expect(await screen.findByRole('button', { name: 'Pausing…' })).toBeDisabled()
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Extraction' })).getByRole('status')).toHaveTextContent('Pausing…'))
     expect(commands).toEqual([expect.objectContaining({ expectedVersion: 1, action: 'pause' })])
     status = 'PAUSED'
     expect(await screen.findByRole('button', { name: '▶ Resume extraction' }, { timeout: 4_000 })).toBeEnabled()
@@ -763,15 +767,14 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText('Saved advanced settings could not be read. Nothing was started.')).not.toBeInTheDocument()
   })
 
-  it('without a saved record scope the run is disabled and points at the schema header', async () => {
+  it('without a saved record scope the chat asks for it before any Run', async () => {
     await renderReopened({ persistedExtraction: null, extractionSchema: { ...reopened.extractionSchema!, recordScope: null } })
-    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
-    expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
-    expect(screen.queryByText(/Press Run extraction/)).not.toBeInTheDocument()
-    // Results' empty state says why, in the same words, instead of pointing at a disabled Run.
+    expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+    // Results' empty state says why, instead of pointing at the chat's Run.
     openRailView('Results')
     expect(screen.getByText('Choose Article or Catalog in the schema header')).toBeVisible()
-    expect(screen.queryByText('Press ▶ Run extraction above.')).not.toBeInTheDocument()
+    expect(screen.queryByText('The chat offers Run extraction as its next step.')).not.toBeInTheDocument()
   })
 
   it('the toolbar pager navigates on Enter and ignores an invalid page', async () => {
@@ -2435,17 +2438,18 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByRole('option', { name: 'Choose Article or Catalog' })).toBeDisabled()
       expect(screen.getByRole('option', { name: 'Article · one object for the document' })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: 'Catalog · a collection of records' })).toBeInTheDocument()
-      const run = screen.getByRole('button', { name: RUN_EXTRACTION })
-      expect(run).toBeDisabled()
-      expect(run).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
+      // No Run before the scope: the chat asks for it.
+      expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeInTheDocument()
       openRailView('Results')
-      // The Results tab offers no run of its own (decision 03).
+      // The Results view offers no run of its own (decision 03).
       expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
 
+      openRailView('Schema')
       fireEvent.change(selector, { target: { value: 'records' } })
       expect(selector).toHaveValue('records')
-      await waitFor(() => expect(run).toBeEnabled())
-      fireEvent.click(run)
+      await waitFor(() => expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
 
       await waitFor(() => expect(runs).toHaveLength(1))
       expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
@@ -2622,7 +2626,8 @@ describe('reopened Source Document workspace', () => {
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
       const selector = screen.getByLabelText('Record scope')
       expect(selector).toHaveValue('')
-      expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeDisabled()
+      // The chat asks for the scope before it offers Run.
+      expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
 
       fireEvent.change(selector, { target: { value: 'document' } })
       await waitFor(() => expect(written).toHaveLength(2))
@@ -3184,7 +3189,7 @@ describe('reopened Source Document workspace', () => {
     openRailView('Results')
     // The durable reader owns the running Extraction's status in Results.
     expect(await screen.findByText('Elmbrooke')).toBeVisible()
-    expect(screen.getByRole('button', { name: '❚❚ Pause extraction' })).toHaveTextContent(/^❚❚ Pause extraction$/)
+    expect(screen.getByRole('button', { name: '❚❚ Pause extraction' })).toHaveAccessibleName('❚❚ Pause extraction')
 
     mounted.rerender(
       <StrictMode>
@@ -3355,7 +3360,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     return mounted
   }
 
-  /** The Results tab's own run actions: none since decision 03 (the tab strip's Run is the only one). */
+  /** The Results view's own run actions: none since decision 03 (the chat's Run is the only one). */
   const resultsRunActions = () =>
     screen.queryAllByRole('button', { name: /^Run (Article |Catalog )?extraction/ })
 
@@ -3407,9 +3412,10 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     expect(run).toBeEnabled()
     expect(run).toHaveAttribute('title', expect.stringMatching(/^Extract one record from the whole document/))
     openRailView('Results')
-    // The tab strip's Run is the only run (decision 03).
+    // The chat's Run is the only run (decision 03).
     expect(resultsRunActions()).toEqual([])
-    fireEvent.click(run)
+    // Leaving the chat for Results mounts its step anew: the Run shown now.
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(runs).toHaveLength(1))
     expect(runs[0]).toMatchObject({ sourceRepresentationRevisionId: reopened.sourceRepresentationId })
   })
@@ -3445,7 +3451,8 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
     expect(resultsRunActions()).toEqual([])
 
-    fireEvent.click(run)
+    // Leaving the chat for Results mounts its step anew: the Run shown now.
+    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(runs).toHaveLength(1))
     expect(runs[0]).toMatchObject({
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,

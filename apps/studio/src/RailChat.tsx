@@ -22,6 +22,8 @@ export type RailChatProps = {
   recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
   /** Run extraction, where the workspace offers it. */
   run?: { start: () => void; available: boolean; unavailableReason: string | null } | null
+  /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
+  control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
   latest: GuideInput['latest']
   /** A read-only inspection: the chat offers no step. */
   readOnly?: boolean
@@ -38,7 +40,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -69,6 +71,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       fieldCount: ready ? countTemplateFields(nodesToTemplate(snap.draft!.schemaNodes)) : 0,
     },
     run: run && { unavailableReason: run.unavailableReason, available: run.available },
+    control: control && { busy: control.busy, continueBlocked: control.continueBlocked,
+      continueDescription: control.continueDescription, pauseDescription: control.pauseDescription },
     latest,
     resultsShown,
     dismissed,
@@ -87,6 +91,10 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       'scope:document': () => recordScope?.onChange('document'),
       run: () => run?.start(),
       review: () => onShowView('results'),
+      pause: () => control?.command('pause'),
+      resume: () => control?.command('resume'),
+      retry: () => control?.command('retry'),
+      stop: () => control?.command('stop'),
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
@@ -195,6 +203,7 @@ export function StepCardView({ card, scopeDisabled = false, onChoose }: { card: 
           <div className="flex flex-col gap-1">
             {options.map((option, index) => (
               <button key={option.action} type="button" disabled={option.disabled}
+                title={option.description} aria-description={option.description}
                 className={`flex min-h-7 cursor-pointer items-baseline gap-2 rounded-[3px] border px-2 py-1 text-left text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[option.tone]}`}
                 onClick={() => onChoose(option)}>
                 <span aria-hidden="true" className="w-3 shrink-0 font-mono opacity-70">{index + 1}</span>
