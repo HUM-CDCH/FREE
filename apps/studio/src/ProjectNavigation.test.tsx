@@ -1217,17 +1217,14 @@ describe('Project Context navigation', () => {
         .filter((button) => !button.closest('details'))
         .map((button) => button.textContent)
 
-    expect(within(page).getByRole('tab', { name: 'Sources' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    expect(within(page).getByRole('region', { name: 'Documents' })).toBeInTheDocument()
     expect(sourceNames()[0]).toContain('Historical.pdf')
     expect(within(page).queryByText('Sort')).not.toBeInTheDocument()
 
     const dropInput = within(page).getByLabelText('Drop PDFs here or browse')
     const dropTarget = dropInput.closest('label')!
     expect(dropTarget).toHaveClass('focus-within:ring-2')
-    fireEvent.dragEnter(within(page).getByRole('tabpanel', { name: 'Sources' }))
+    fireEvent.dragEnter(within(page).getByRole('region', { name: 'Documents' }))
     expect(dropTarget).not.toHaveClass('border-accent')
     fireEvent.dragEnter(dropTarget)
     expect(dropTarget).toHaveClass('border-accent')
@@ -1245,82 +1242,65 @@ describe('Project Context navigation', () => {
     expect(sourceNames()).toHaveLength(1)
     expect(sourceNames()[0]).toContain('Historical.pdf')
 
-    // Sources is first in tab order (docs -> schema -> extraction), so the
-    // next tab over is Schemas.
-    fireEvent.keyDown(within(page).getByRole('tab', { name: 'Sources' }), {
-      key: 'ArrowRight',
-    })
-    expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveFocus()
+    // The schema's tools open below the documents, which stay; the route keeps the open section.
+    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
+    expect(within(page).getByRole('button', { name: 'Schema' })).toHaveAttribute('aria-expanded', 'true')
     expect(
       await within(page).findByText('Build your schema from a document'),
     ).toBeInTheDocument()
-    expect(
-      within(page).getByRole('tabpanel', { name: 'Schemas' }),
-    ).toHaveAttribute('tabindex', '0')
-    expect(within(page).queryByLabelText('Filter sources')).not.toBeInTheDocument()
-    // Arrow keys move the route, not just the rendered panel.
+    expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
   })
 
-  it('deep-links, refreshes, and walks back through the Project resource tabs', async () => {
+  it('deep-links, refreshes, and walks back through the folded Project sections', async () => {
     history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
     renderRoutes()
 
-    // A deep link is the page's first render: the tab it names is the one that
-    // reads its resource.
+    // A deep link is the page's first render: the section it names is open and reads its resource.
     const page = await screen.findByRole('region', { name: 'Project' })
-    expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    const toggle = (name: string) => within(page).getByRole('button', { name })
+    expect(toggle('Schema')).toHaveAttribute('aria-expanded', 'true')
     expect(
       await within(page).findByText('Build your schema from a document'),
     ).toBeInTheDocument()
-    expect(
-      within(page).queryByLabelText('Filter sources'),
-    ).not.toBeInTheDocument()
-
-    fireEvent.click(within(page).getByRole('tab', { name: 'Sources' }))
-    // Sources is the page's entry, so it keeps the bare Project Context path.
-    expect(location.pathname).toBe(`/projects/${projectContextId}`)
-    expect(location.search).toBe('')
+    // The documents stay in view: the sections are the project's record, not places the work moves to.
     expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
 
-    fireEvent.click(within(page).getByRole('tab', { name: 'Extractions' }))
+    fireEvent.click(toggle('Schema'))
+    // The documents are the page's entry, so it keeps the bare Project Context path.
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    expect(location.search).toBe('')
+    expect(within(page).queryByText('Build your schema from a document')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle('Runs & exports'))
     expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
     expect(
       await within(page).findByText(/No Batch Extractions yet\./),
     ).toBeInTheDocument()
 
-    // Reselecting the open tab must not push an entry Back would have to undo.
-    const entries = history.length
-    fireEvent.click(within(page).getByRole('tab', { name: 'Extractions' }))
-    expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
-    expect(history.length).toBe(entries)
-
     back(`/projects/${projectContextId}`)
-    await within(page).findByRole('tab', { name: 'Sources', selected: true })
+    await waitFor(() => expect(toggle('Runs & exports')).toHaveAttribute('aria-expanded', 'false'))
 
     back(`/projects/${projectContextId}/schemas`)
-    await within(page).findByRole('tab', { name: 'Schemas', selected: true })
+    await waitFor(() => expect(toggle('Schema')).toHaveAttribute('aria-expanded', 'true'))
     expect(
       await within(page).findByText('Build your schema from a document'),
     ).toBeInTheDocument()
   })
 
-  it('opens the only Source Document in the schema builder from "Next: Create schema"', async () => {
-    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+  it('leads no step of its own: says where the project is, and Continue opens a document for the chat', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}`)
     renderRoutes()
 
     const page = await screen.findByRole('region', { name: 'Project' })
-    fireEvent.click(
-      await within(page).findByRole('button', { name: /^Next: Create schema/ }),
-    )
+    const status = await within(page).findByRole('region', { name: 'Project status' })
+    expect(within(page).queryByRole('group', { name: 'Project workflow' })).not.toBeInTheDocument()
+    expect(within(page).queryByRole('button', { name: /^Next:/ })).not.toBeInTheDocument()
+    fireEvent.click(within(status).getByRole('button', { name: 'Continue in chat' }))
     expect(location.pathname).toBe(documentPath())
-    expect(location.search).toContain('fromSchemaBuilder=1')
   })
 
-  it('brings the document picker into focus from "Next: Create schema", even on the Schemas tab', async () => {
+  it('keeps the spreadsheet route of the Schema section folded until asked for', async () => {
     renderRoutes(
       studioFetch(undefined, {
         ...detail,
@@ -1331,15 +1311,11 @@ describe('Project Context navigation', () => {
       }),
     )
     const page = await openProjectPage()
-    const next = await within(page).findByRole('button', {
-      name: /^Next: Create schema/,
-    })
-    fireEvent.click(next)
+    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
     expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
-    const picker = within(page).getByRole('region', { name: 'From a document' })
-    await waitFor(() => expect(picker).toHaveFocus())
+    // Starting a schema is the chat's: this section points there.
+    expect(within(page).getByRole('region', { name: 'From a document' })).toHaveTextContent('its chat suggests a schema')
 
-    // The spreadsheet route stays folded away until asked for.
     const spreadsheet = within(page).getByRole('button', {
       name: 'Or suggest a schema from a spreadsheet of examples',
     })
@@ -1352,11 +1328,6 @@ describe('Project Context navigation', () => {
     expect(
       within(page).getByText('How should I format my spreadsheet?'),
     ).toBeInTheDocument()
-
-    // Already on the tab, the button still visibly does something.
-    spreadsheet.focus()
-    fireEvent.click(next)
-    await waitFor(() => expect(picker).toHaveFocus())
   })
 
   it('imports an Excel codebook from the Schemas tab as a new Extraction Schema named after the workbook', async () => {
@@ -1408,15 +1379,14 @@ describe('Project Context navigation', () => {
     expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
   })
 
-  it('opens the Sources tab for a Source Document list path', async () => {
+  it('opens the documents, every section folded, for a Source Document list path', async () => {
     history.replaceState(null, '', `/projects/${projectContextId}/documents`)
     renderRoutes()
 
     const page = await screen.findByRole('region', { name: 'Project' })
-    expect(within(page).getByRole('tab', { name: 'Sources' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    expect(within(page).getByRole('region', { name: 'Documents' })).toBeInTheDocument()
+    expect(within(page).getByRole('button', { name: 'Schema' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(page).getByRole('button', { name: 'Runs & exports' })).toHaveAttribute('aria-expanded', 'false')
     // The alias is left as it was typed; nothing rewrites the researcher's URL.
     expect(location.pathname).toBe(`/projects/${projectContextId}/documents`)
   })
@@ -1503,7 +1473,7 @@ describe('Project Context navigation', () => {
     renderRoutes(studioFetch(undefined, detail, schemas))
 
     const page = await openProjectPage()
-    fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
+    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
 
     pending.resolve(
       failureResponse('persistence_unavailable', 'Schema storage is unavailable.', 503),
@@ -1573,7 +1543,7 @@ describe('Project Context navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open project' }))
     const page = await screen.findByRole('region', { name: 'Project' })
     await within(page).findByRole('heading', { name: project.name })
-    fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
+    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
     fireEvent.click(
       await within(page).findByRole('button', { name: 'Schema history' }),
     )

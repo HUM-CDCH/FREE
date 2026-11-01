@@ -184,7 +184,7 @@ const optionClass: Record<StepOption['tone'], string> = {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 /** A picking option's label with the documents it acts on. */
-const pickedLabel = (option: StepOption, count: number) => `${option.label} on ${plural(count, 'document')}`
+const pickedLabel = (option: StepOption, count: number) => option.label.replace('{n}', plural(count, 'document'))
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
 
 /** The next step: a permission card with numbered options. 1–9 choose while it has focus; Esc is "Not yet". A step that

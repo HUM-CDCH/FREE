@@ -1056,10 +1056,7 @@ export default function BatchExtractionsPanel({
   return (
     <div
       id="project-extractions-panel"
-      role="tabpanel"
-      aria-labelledby="project-extractions-tab"
       className="flex flex-col pt-1"
-      tabIndex={0}
     >
       {!isPilotPrepare && (
         <div
@@ -1130,7 +1127,7 @@ export default function BatchExtractionsPanel({
           </p>
           {runFailureCode === 'schema_not_stabilised' && (
             <p className="text-[11px] leading-snug text-ink-muted">
-              Approve the schema in the workflow bar above, then run again.
+              Approve the schema in the chat, then run again.
             </p>
           )}
         </div>

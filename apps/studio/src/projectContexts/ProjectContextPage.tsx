@@ -1,6 +1,6 @@
 import { ReprocessSourceModal } from './ReprocessSourceModal'
 import { sourceName } from '../sourceIngestionMachine'
-import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { NavigableRoute, ProjectResource } from '../projectNavigation'
 import type { SourceIngestionItem, SourceLayout } from '../sourceIngestionMachine'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
@@ -25,7 +25,7 @@ import {
   localSchemaPersistence,
 } from '../currentSchemaRevision'
 import { useSchemaEditorController } from '../useCurrentSchemaRevision'
-import { Button, DeleteDialog, ModalDialog, EmptyState, type WorkflowPhase } from '../ui'
+import { Button, DeleteDialog, ModalDialog, EmptyState } from '../ui'
 import BatchExtractionsPanel, {
   SuggestedSchemaEditor,
 } from './BatchExtractionsPanel'
@@ -39,9 +39,8 @@ import { useProjectContexts } from './useProjectContexts'
 // Hidden for now with its use on the Extractions tab below.
 // import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
-import ProjectWorkflowSteps from './ProjectWorkflowSteps'
-import ApproveSchemaDialog from './ApproveSchemaDialog'
-import type { GuidedAction } from './guidedWorkflow'
+import ProjectStatus from './ProjectStatus'
+import { useOpenDocumentTabs } from '../useOpenDocumentTabs'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
 import { EvaluationRoundsPanel } from './EvaluationRoundsPanel'
 
@@ -219,6 +218,30 @@ function DownloadIcon() {
         strokeLinejoin="round"
       />
     </svg>
+  )
+}
+
+/** A part of the project's record that folds away until opened; its state is the route's, so links can open it. */
+function ProjectSection({ title, description, open, onToggle, children }: {
+  title: string
+  description: string
+  open: boolean
+  onToggle: (open: boolean) => void
+  children: ReactNode
+}) {
+  const bodyId = useId(), descriptionId = useId()
+  return (
+    <section aria-label={title} className="mt-6 border-t border-line pt-3">
+      <h2 className="m-0">
+        <button type="button" aria-expanded={open} aria-controls={bodyId} aria-describedby={descriptionId} onClick={() => onToggle(!open)}
+          className="flex w-full min-w-0 cursor-pointer items-baseline gap-2 rounded-sm py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+          <span aria-hidden="true" className={`inline-block text-[10px] text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+          <span className="shrink-0 text-xs font-bold text-ink">{title}</span>
+        </button>
+        <span id={descriptionId} className="ml-4.5 block truncate text-[11px] font-normal text-ink-faint">{description}</span>
+      </h2>
+      {open && <div id={bodyId}>{children}</div>}
+    </section>
   )
 }
 
@@ -535,17 +558,6 @@ export default function ProjectContextPage({
   const [layout, setLayout] = useState<SourceLayout>('pages')
   const previousSchemaCount = useRef<number | null>(null)
   const generateSchemaSectionRef = useRef<HTMLElement>(null)
-  // Bumped on every request to start a schema, so the document picker is
-  // scrolled to and flashed even when the Schemas tab is already open —
-  // otherwise "Next: Create schema" looks like it did nothing there.
-  const [schemaPickerRequest, setSchemaPickerRequest] = useState(0)
-  const [schemaPickerHighlighted, setSchemaPickerHighlighted] = useState(false)
-  // The workflow bar's Next for a step whose work starts on the Extractions
-  // tab opens that work, not just the tab: already on it, a bare navigation
-  // looks like nothing.
-  const [extractionRequest, setExtractionRequest] = useState<'pilot' | 'batch' | 'review' | null>(null)
-  const [approvingSchema, setApprovingSchema] = useState(false)
-  const schemaPickerHighlightTimer = useRef<number | undefined>(undefined)
   // The spreadsheet route is the rarer way in, so it stays folded away
   // unless opened, or unless this project already has spreadsheet work.
   const [spreadsheetExpanded, setSpreadsheetExpanded] = useState<boolean | null>(null)
@@ -819,6 +831,11 @@ export default function ProjectContextPage({
 
   const allSourceDocuments =
     branch?.status === 'ready' ? branch.detail.sourceDocuments : []
+  // Continue opens the chat where the researcher left it: the project's open document, else its first.
+  const { activeSourceDocumentIdFor } = useOpenDocumentTabs()
+  const activeDocumentId = activeSourceDocumentIdFor(projectContextId)
+  const continueDocument = allSourceDocuments.find(({ sourceDocumentId }) => sourceDocumentId === activeDocumentId)
+    ?? allSourceDocuments[0] ?? null
 
   // A codebook import from the Schemas tab starts a new Extraction Schema of
   // its own: no document's schema editor is open to write into.
@@ -854,43 +871,6 @@ export default function ProjectContextPage({
       spreadsheetUploading ||
       spreadsheetSuggestion.context.draft != null)
 
-  // Where creating a schema actually starts: with one document there is
-  // nothing to choose, so open its schema builder directly; otherwise bring
-  // the Schemas tab's document picker into view.
-  function startSchemaCreation() {
-    const [onlyDocument] = allSourceDocuments
-    if (allSourceDocuments.length === 1 && onlyDocument) {
-      onNavigate({
-        kind: 'document',
-        projectContextId,
-        sourceDocumentId: onlyDocument.sourceDocumentId,
-        fromSchemaBuilder: true,
-      })
-      return
-    }
-    if (tab !== 'schemas')
-      onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })
-    setSchemaPickerRequest((request) => request + 1)
-    setSchemaPickerHighlighted(true)
-    window.clearTimeout(schemaPickerHighlightTimer.current)
-    schemaPickerHighlightTimer.current = window.setTimeout(
-      () => setSchemaPickerHighlighted(false),
-      1600,
-    )
-  }
-
-  useEffect(
-    () => () => window.clearTimeout(schemaPickerHighlightTimer.current),
-    [],
-  )
-
-  useEffect(() => {
-    if (schemaPickerRequest === 0 || tab !== 'schemas') return
-    const section = generateSchemaSectionRef.current
-    section?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
-    section?.focus({ preventScroll: true })
-  }, [schemaPickerRequest, tab])
-
   useEffect(() => {
     if (tab !== 'schemas') return
     const controller = new AbortController()
@@ -925,26 +905,6 @@ export default function ProjectContextPage({
     if (previous !== null && previous > 0 && count === 0)
       generateSchemaSectionRef.current?.focus()
   }, [schemaList])
-
-  /** Where each workflow step's work lives. */
-  const stepTab: Record<WorkflowPhase, ProjectResource['tab']> = {
-    upload: 'sources',
-    schema: 'schemas',
-    pilot: 'extractions',
-    approve: 'schemas',
-    batch: 'extractions',
-    review: 'extractions',
-  }
-  const openStep = (step: WorkflowPhase) =>
-    onNavigate({ kind: 'project', projectContextId, tab: stepTab[step] })
-  const startStep = (action: GuidedAction) => {
-    if (action === 'schema') return startSchemaCreation()
-    if (action === 'approve') return setApprovingSchema(true)
-    if (action === 'pilot' || action === 'batch' || action === 'review')
-      setExtractionRequest(action)
-    openStep(action)
-    if (action === 'upload') fileInput.current?.click()
-  }
 
   if (branch?.status === 'error')
     return (
@@ -1033,442 +993,26 @@ export default function ProjectContextPage({
         </header>
 
         {projectSummary && (
-          <ProjectWorkflowSteps
+          <ProjectStatus
             summary={projectSummary}
             sourcesInFlight={sourcesInFlight}
-            onOpenStep={openStep}
-            onNext={startStep}
-          />
-        )}
-        {approvingSchema && projectSummary?.currentSchemaRevisionId && (
-          <ApproveSchemaDialog
-            projectContextId={projectContextId}
-            schemaRevisionId={projectSummary.currentSchemaRevisionId}
-            reapproval={projectSummary.phase === 'batch' || projectSummary.phase === 'review'}
-            pendingExtractionCount={projectSummary.pendingExtractionSourceDocumentCount}
-            onApproved={() => {
-              setApprovingSchema(false)
-              refreshProjects()
-            }}
-            onDismiss={() => setApprovingSchema(false)}
+            onContinue={continueDocument ? () => onOpenSourceDocument(projectContextId, continueDocument.sourceDocumentId, continueDocument.name) : null}
           />
         )}
 
         <EvaluationRoundsPanel projectContextId={projectContextId} />
 
-        <div className="flex items-end border-b border-line">
-          <div
-            className="flex gap-5"
-            role="tablist"
-            aria-label="Project resources"
-          >
-            {(['sources', 'schemas', 'extractions'] as const).map((value) => (
-              <button
-                key={value}
-                id={`project-${value}-tab`}
-                className={`border-b-2 px-0.5 pb-2 text-xs font-semibold capitalize outline-none transition-colors ${
-                  tab === value
-                    ? 'border-accent text-ink'
-                    : 'border-transparent text-ink-muted hover:text-ink'
-                }`}
-                type="button"
-                role="tab"
-                aria-selected={tab === value}
-                aria-controls={`project-${value}-panel`}
-                tabIndex={tab === value ? 0 : -1}
-                // Reselecting the open tab would push a duplicate history
-                // entry, which makes Back look broken.
-                onClick={() => {
-                  if (value !== tab)
-                    onNavigate({ kind: 'project', projectContextId, tab: value })
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
-                    return
-                  event.preventDefault()
-                  const sibling =
-                    event.key === 'ArrowLeft'
-                      ? (event.currentTarget.previousElementSibling ??
-                        event.currentTarget.parentElement?.lastElementChild)
-                      : (event.currentTarget.nextElementSibling ??
-                        event.currentTarget.parentElement?.firstElementChild)
-                  if (sibling instanceof HTMLButtonElement) {
-                    sibling.click()
-                    sibling.focus()
-                  }
-                }}
-              >
-                {value === 'schemas'
-                  ? 'Schemas'
-                  : value === 'sources'
-                    ? 'Sources'
-                    : 'Extractions'}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div
         className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 sm:p-8 sm:pb-28"
       >
-        {tab === 'extractions' ? (
-          <>
-          {/* Hidden for now: "Corrections the model learns from". Restore with the import above.
-          <ProjectFeedback projectId={projectContextId}/> */}
-          <BatchExtractionsPanel
-            // A different Project Context is different research state, never a
-            // continuation of what this panel currently shows.
-            key={projectContextId}
-            projectContextId={projectContextId}
-            sourceDocuments={
-              branch?.status === 'ready' ? branch.detail.sourceDocuments : []
-            }
-            openBatchExtractionId={
-              resource.tab === 'extractions'
-                ? (resource.batchExtractionId ?? null)
-                : null
-            }
-            pilotSchemaRevisionId={
-              resource.tab === 'extractions'
-                ? (resource.pilotSchemaRevisionId ?? null)
-                : null
-            }
-            guidedRequest={extractionRequest}
-            onGuidedRequestHandled={() => setExtractionRequest(null)}
-            summary={projectSummary ?? null}
-            onNavigate={onNavigate}
-            onProgressChange={refreshProjects}
-          />
-          </>
-        ) : tab === 'schemas' ? (
-          <div
-            id="project-schemas-panel"
-            role="tabpanel"
-            aria-labelledby="project-schemas-tab"
-            className="py-4"
-            tabIndex={0}
-          >
-            <section
-              ref={generateSchemaSectionRef}
-              tabIndex={-1}
-              className={`-mx-3 -mt-3 mb-6 space-y-3 rounded-md border-b border-line px-3 pb-6 pt-3 outline-none transition-colors duration-500 ${
-                schemaPickerHighlighted ? 'bg-accent-ghost' : ''
-              }`}
-              aria-label="From a document"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-xs font-bold text-ink">
-                  Build your schema from a document
-                </h2>
-                {hasSchemaHistory && (
-                  <button
-                    ref={schemaHistoryTrigger}
-                    type="button"
-                    onClick={() => setShowSchemaHistory(true)}
-                    aria-label="Schema history"
-                    title="Schema history"
-                    className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-                  >
-                    <HistoryIcon />
-                  </button>
-                )}
-              </div>
-              <p className="text-[11px] text-ink-faint">
-                Select a document to continue with schema creation
-              </p>
-
-              {allSourceDocuments.length === 0 ? (
-                <p className="text-[11px] text-ink-faint">
-                  Upload a Source Document first, from the Sources tab.
-                </p>
-              ) : (
-                <div className="max-h-40 overflow-y-auto rounded-md border border-line bg-surface p-1">
-                  <ul className="space-y-1">
-                    {allSourceDocuments.map((document) => (
-                      <li key={document.sourceDocumentId}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onNavigate({
-                              kind: 'document',
-                              projectContextId,
-                              sourceDocumentId: document.sourceDocumentId,
-                              fromSchemaBuilder: true,
-                            })
-                          }
-                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-ink transition-colors hover:bg-surface-muted hover:text-ink"
-                        >
-                          <span className="min-w-0 truncate">
-                            {document.name}
-                          </span>
-                          <span aria-hidden="true">→</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
-
-            <section
-              className="mb-6 space-y-1 border-b border-line pb-6"
-              aria-label="From a codebook"
-            >
-              <h2 className="text-xs font-bold text-ink-muted">
-                <button
-                  type="button"
-                  onClick={() => setCodebookOpen(true)}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-                >
-                  <span aria-hidden="true" className="inline-block text-[10px]">
-                    ＋
-                  </span>
-                  Or import an Excel codebook…
-                </button>
-              </h2>
-              <p className="text-[11px] text-ink-faint">
-                Each codebook column becomes a schema field.
-              </p>
-              <SchemaImport
-                schema={codebookTarget}
-                disabled={false}
-                open={codebookOpen}
-                onClose={() => setCodebookOpen(false)}
-                onImported={(workbookName) => void nameImportedSchema(workbookName)}
-              />
-            </section>
-
-            <section
-              className="mb-6 space-y-3 border-b border-line pb-6"
-              aria-label="From a spreadsheet"
-            >
-              <h2 className="text-xs font-bold text-ink-muted">
-                <button
-                  type="button"
-                  aria-expanded={spreadsheetShown}
-                  aria-controls="project-spreadsheet-schema"
-                  onClick={() => setSpreadsheetExpanded(!spreadsheetShown)}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`inline-block text-[10px] transition-transform ${spreadsheetShown ? 'rotate-90' : ''}`}
-                  >
-                    ▶
-                  </span>
-                  Or suggest a schema from a spreadsheet of examples
-                </button>
-              </h2>
-              {spreadsheetShown && (
-                <div id="project-spreadsheet-schema" className="space-y-3">
-                  <button
-                    ref={formatExampleTrigger}
-                    type="button"
-                    onClick={() => setShowFormatExample(true)}
-                    className="text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-accent/40"
-                  >
-                    How should I format my spreadsheet?
-                  </button>
-                  {showFormatExample && (
-                    <SpreadsheetFormatExampleDialog
-                      onDismiss={() => setShowFormatExample(false)}
-                      returnFocusRef={formatExampleTrigger}
-                    />
-                  )}
-
-                  {spreadsheet.status === 'error' && (
-                    <p className="text-[11px] text-danger" role="alert">
-                      Could not load this project's spreadsheet. {spreadsheet.message}
-                    </p>
-                  )}
-                  {spreadsheet.status === 'ready' && spreadsheet.version && (
-                    <p className="text-[11px] text-ink-faint">
-                      Current spreadsheet:{' '}
-                      <span className="font-semibold text-ink">
-                        {spreadsheet.version.originalFilename}
-                      </span>{' '}
-                      (revision {spreadsheet.version.revisionNumber}, uploaded{' '}
-                      {new Date(spreadsheet.version.createdAt).toLocaleDateString(
-                        undefined,
-                        { dateStyle: 'medium' },
-                      )}
-                      )
-                    </p>
-                  )}
-
-                  <div className="flex flex-col gap-3">
-                    <label
-                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-4 text-center text-xs font-semibold outline-none transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
-                        spreadsheetDragging
-                          ? 'border-accent bg-accent-soft text-accent'
-                          : 'border-line-strong text-ink hover:border-accent'
-                      }`}
-                      onDragEnter={(event) => {
-                        event.preventDefault()
-                        setSpreadsheetDragging(true)
-                      }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDragLeave={(event) => {
-                        const next = event.relatedTarget
-                        if (
-                          !(next instanceof Node) ||
-                          !event.currentTarget.contains(next)
-                        )
-                          setSpreadsheetDragging(false)
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault()
-                        setSpreadsheetDragging(false)
-                        const file = event.dataTransfer.files[0]
-                        if (file) uploadSpreadsheetFile(file)
-                      }}
-                    >
-                      {spreadsheetUploading
-                        ? 'Uploading…'
-                        : spreadsheet.status === 'ready' && spreadsheet.version
-                          ? 'Drop to replace, or click to browse'
-                          : 'Drop a spreadsheet here, or click to browse'}
-                      <input
-                        className="sr-only"
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        disabled={spreadsheetUploading}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0]
-                          event.target.value = ''
-                          if (file) uploadSpreadsheetFile(file)
-                        }}
-                      />
-                    </label>
-
-                    <details className="text-[11px] text-ink-muted">
-                      <summary className="cursor-pointer select-none font-semibold">
-                        Options
-                      </summary>
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <label className="inline-flex items-center gap-1.5">
-                          Hierarchy separator
-                          <input
-                            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus-visible:border-accent"
-                            type="text"
-                            maxLength={1}
-                            placeholder="none"
-                            aria-label="Hierarchy separator (optional)"
-                            value={separator}
-                            onChange={(event) => setSeparator(event.target.value)}
-                          />
-                        </label>
-
-                      </div>
-                    </details>
-
-                    <Button
-                      size="sm"
-                      className="self-start"
-                      disabled={
-                        spreadsheet.status !== 'ready' ||
-                        !spreadsheet.version ||
-                        !(
-                          spreadsheetSuggestion.matches('idle') ||
-                          spreadsheetSuggestion.matches('failed')
-                        )
-                      }
-                      onClick={() =>
-                        createSchemaFromSpreadsheet(
-                          separator.trim() || undefined,
-                        )
-                      }
-                    >
-                      Generate schema suggestion
-                    </Button>
-                  </div>
-
-                  {spreadsheetError && (
-                    <p className="text-[11px] text-danger" role="alert">
-                      {spreadsheetError}
-                    </p>
-                  )}
-                  {spreadsheetSuggestion.matches('creating') && (
-                    <p className="text-xs text-ink-muted" aria-busy="true">
-                      Building…
-                    </p>
-                  )}
-                  {spreadsheetSuggestion.context.error && (
-                    <p className="text-[11px] text-danger" role="alert">
-                      {spreadsheetSuggestion.context.error}
-                    </p>
-                  )}
-                  {spreadsheetDraftConflict && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[11px] text-danger" role="alert">
-                        This draft changed elsewhere. Reload before continuing.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
-                        }
-                      >
-                        Reload
-                      </Button>
-                    </div>
-                  )}
-
-                  {spreadsheetSuggestion.context.draft && (
-                    <>
-                      <div
-                        className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
-                        aria-busy={spreadsheetSuggestion.matches('running')}
-                        inert={spreadsheetSuggestion.matches('running') ? true : undefined}
-                      >
-                        <SuggestedSchemaEditor
-                          key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
-                          proposal={spreadsheetSuggestion.context.draft}
-                          proposalVersion={{
-                            draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
-                            attempt: activeSpreadsheetSuggestion?.attempt ?? 1,
-                          }}
-                          sourceDocumentName="Uploaded spreadsheet"
-                          readOnly={spreadsheetSuggestionConfirmed}
-                          showRegenerate={false}
-                          onProposalEdit={updateSpreadsheetSuggestedDefinition}
-                          onPendingLocalEditChange={() => {}}
-                        />
-                      </div>
-                      {!spreadsheetSuggestionConfirmed && (
-                        <Button
-                          size="sm"
-                          variant="positive"
-                          disabled={savedMethod.state.status !== 'ready'}
-                          onClick={() =>
-                            savedMethod.state.status === 'ready' &&
-                            sendSpreadsheetSuggestion({
-                              type: 'run.requested',
-                              strategy: 'ARTICLE',
-                              method: savedMethodFor(
-                                savedMethod.state,
-                                'ARTICLE',
-                                null,
-                              ),
-                            })
-                          }
-                        >
-                          Confirm schema
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </section>
-          </div>
-        ) : (
+        {/* The project's record, not its workflow, which the chat leads: its documents first; the schema's tools
+            and every run with its spreadsheets fold away below until opened. */}
           <div
             id="project-sources-panel"
-            role="tabpanel"
-            aria-labelledby="project-sources-tab"
+            role="region"
+            aria-label="Documents"
           >
             <p className="sr-only" role="status" aria-atomic="true">
               {sourceStatus}
@@ -1806,7 +1350,331 @@ export default function ProjectContextPage({
                 </p>
               ))}
           </div>
-        )}
+        <ProjectSection
+          title="Schema"
+          description="History, and a schema imported from a codebook or suggested from a spreadsheet"
+          open={tab === 'schemas'}
+          onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'schemas' : 'sources' })}
+        >
+          <div
+            id="project-schemas-panel"
+            className="py-4"
+          >
+            <section
+              ref={generateSchemaSectionRef}
+              tabIndex={-1}
+              className="-mx-3 -mt-3 mb-6 space-y-1 rounded-md border-b border-line px-3 pb-6 pt-3 outline-none"
+              aria-label="From a document"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-xs font-bold text-ink">
+                  Build your schema from a document
+                </h2>
+                {hasSchemaHistory && (
+                  <button
+                    ref={schemaHistoryTrigger}
+                    type="button"
+                    onClick={() => setShowSchemaHistory(true)}
+                    aria-label="Schema history"
+                    title="Schema history"
+                    className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+                  >
+                    <HistoryIcon />
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-ink-faint">
+                Open any document above: its chat suggests a schema from it and leads on from there.
+              </p>
+            </section>
+
+            <section
+              className="mb-6 space-y-1 border-b border-line pb-6"
+              aria-label="From a codebook"
+            >
+              <h2 className="text-xs font-bold text-ink-muted">
+                <button
+                  type="button"
+                  onClick={() => setCodebookOpen(true)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+                >
+                  <span aria-hidden="true" className="inline-block text-[10px]">
+                    ＋
+                  </span>
+                  Or import an Excel codebook…
+                </button>
+              </h2>
+              <p className="text-[11px] text-ink-faint">
+                Each codebook column becomes a schema field.
+              </p>
+              <SchemaImport
+                schema={codebookTarget}
+                disabled={false}
+                open={codebookOpen}
+                onClose={() => setCodebookOpen(false)}
+                onImported={(workbookName) => void nameImportedSchema(workbookName)}
+              />
+            </section>
+
+            <section
+              className="mb-6 space-y-3 border-b border-line pb-6"
+              aria-label="From a spreadsheet"
+            >
+              <h2 className="text-xs font-bold text-ink-muted">
+                <button
+                  type="button"
+                  aria-expanded={spreadsheetShown}
+                  aria-controls="project-spreadsheet-schema"
+                  onClick={() => setSpreadsheetExpanded(!spreadsheetShown)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block text-[10px] transition-transform ${spreadsheetShown ? 'rotate-90' : ''}`}
+                  >
+                    ▶
+                  </span>
+                  Or suggest a schema from a spreadsheet of examples
+                </button>
+              </h2>
+              {spreadsheetShown && (
+                <div id="project-spreadsheet-schema" className="space-y-3">
+                  <button
+                    ref={formatExampleTrigger}
+                    type="button"
+                    onClick={() => setShowFormatExample(true)}
+                    className="text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-accent/40"
+                  >
+                    How should I format my spreadsheet?
+                  </button>
+                  {showFormatExample && (
+                    <SpreadsheetFormatExampleDialog
+                      onDismiss={() => setShowFormatExample(false)}
+                      returnFocusRef={formatExampleTrigger}
+                    />
+                  )}
+
+                  {spreadsheet.status === 'error' && (
+                    <p className="text-[11px] text-danger" role="alert">
+                      Could not load this project's spreadsheet. {spreadsheet.message}
+                    </p>
+                  )}
+                  {spreadsheet.status === 'ready' && spreadsheet.version && (
+                    <p className="text-[11px] text-ink-faint">
+                      Current spreadsheet:{' '}
+                      <span className="font-semibold text-ink">
+                        {spreadsheet.version.originalFilename}
+                      </span>{' '}
+                      (revision {spreadsheet.version.revisionNumber}, uploaded{' '}
+                      {new Date(spreadsheet.version.createdAt).toLocaleDateString(
+                        undefined,
+                        { dateStyle: 'medium' },
+                      )}
+                      )
+                    </p>
+                  )}
+
+                  <div className="flex flex-col gap-3">
+                    <label
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-4 text-center text-xs font-semibold outline-none transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
+                        spreadsheetDragging
+                          ? 'border-accent bg-accent-soft text-accent'
+                          : 'border-line-strong text-ink hover:border-accent'
+                      }`}
+                      onDragEnter={(event) => {
+                        event.preventDefault()
+                        setSpreadsheetDragging(true)
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDragLeave={(event) => {
+                        const next = event.relatedTarget
+                        if (
+                          !(next instanceof Node) ||
+                          !event.currentTarget.contains(next)
+                        )
+                          setSpreadsheetDragging(false)
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        setSpreadsheetDragging(false)
+                        const file = event.dataTransfer.files[0]
+                        if (file) uploadSpreadsheetFile(file)
+                      }}
+                    >
+                      {spreadsheetUploading
+                        ? 'Uploading…'
+                        : spreadsheet.status === 'ready' && spreadsheet.version
+                          ? 'Drop to replace, or click to browse'
+                          : 'Drop a spreadsheet here, or click to browse'}
+                      <input
+                        className="sr-only"
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        disabled={spreadsheetUploading}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          event.target.value = ''
+                          if (file) uploadSpreadsheetFile(file)
+                        }}
+                      />
+                    </label>
+
+                    <details className="text-[11px] text-ink-muted">
+                      <summary className="cursor-pointer select-none font-semibold">
+                        Options
+                      </summary>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <label className="inline-flex items-center gap-1.5">
+                          Hierarchy separator
+                          <input
+                            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus-visible:border-accent"
+                            type="text"
+                            maxLength={1}
+                            placeholder="none"
+                            aria-label="Hierarchy separator (optional)"
+                            value={separator}
+                            onChange={(event) => setSeparator(event.target.value)}
+                          />
+                        </label>
+
+                      </div>
+                    </details>
+
+                    <Button
+                      size="sm"
+                      className="self-start"
+                      disabled={
+                        spreadsheet.status !== 'ready' ||
+                        !spreadsheet.version ||
+                        !(
+                          spreadsheetSuggestion.matches('idle') ||
+                          spreadsheetSuggestion.matches('failed')
+                        )
+                      }
+                      onClick={() =>
+                        createSchemaFromSpreadsheet(
+                          separator.trim() || undefined,
+                        )
+                      }
+                    >
+                      Generate schema suggestion
+                    </Button>
+                  </div>
+
+                  {spreadsheetError && (
+                    <p className="text-[11px] text-danger" role="alert">
+                      {spreadsheetError}
+                    </p>
+                  )}
+                  {spreadsheetSuggestion.matches('creating') && (
+                    <p className="text-xs text-ink-muted" aria-busy="true">
+                      Building…
+                    </p>
+                  )}
+                  {spreadsheetSuggestion.context.error && (
+                    <p className="text-[11px] text-danger" role="alert">
+                      {spreadsheetSuggestion.context.error}
+                    </p>
+                  )}
+                  {spreadsheetDraftConflict && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[11px] text-danger" role="alert">
+                        This draft changed elsewhere. Reload before continuing.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
+                        }
+                      >
+                        Reload
+                      </Button>
+                    </div>
+                  )}
+
+                  {spreadsheetSuggestion.context.draft && (
+                    <>
+                      <div
+                        className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
+                        aria-busy={spreadsheetSuggestion.matches('running')}
+                        inert={spreadsheetSuggestion.matches('running') ? true : undefined}
+                      >
+                        <SuggestedSchemaEditor
+                          key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
+                          proposal={spreadsheetSuggestion.context.draft}
+                          proposalVersion={{
+                            draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
+                            attempt: activeSpreadsheetSuggestion?.attempt ?? 1,
+                          }}
+                          sourceDocumentName="Uploaded spreadsheet"
+                          readOnly={spreadsheetSuggestionConfirmed}
+                          showRegenerate={false}
+                          onProposalEdit={updateSpreadsheetSuggestedDefinition}
+                          onPendingLocalEditChange={() => {}}
+                        />
+                      </div>
+                      {!spreadsheetSuggestionConfirmed && (
+                        <Button
+                          size="sm"
+                          variant="positive"
+                          disabled={savedMethod.state.status !== 'ready'}
+                          onClick={() =>
+                            savedMethod.state.status === 'ready' &&
+                            sendSpreadsheetSuggestion({
+                              type: 'run.requested',
+                              strategy: 'ARTICLE',
+                              method: savedMethodFor(
+                                savedMethod.state,
+                                'ARTICLE',
+                                null,
+                              ),
+                            })
+                          }
+                        >
+                          Confirm schema
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        </ProjectSection>
+        <ProjectSection
+          title="Runs & exports"
+          description="Every pilot round and Batch Extraction, their documents and spreadsheets"
+          open={tab === 'extractions'}
+          onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'extractions' : 'sources' })}
+        >
+          <>
+          {/* Hidden for now: "Corrections the model learns from". Restore with the import above.
+          <ProjectFeedback projectId={projectContextId}/> */}
+          <BatchExtractionsPanel
+            // A different Project Context is different research state, never a
+            // continuation of what this panel currently shows.
+            key={projectContextId}
+            projectContextId={projectContextId}
+            sourceDocuments={
+              branch?.status === 'ready' ? branch.detail.sourceDocuments : []
+            }
+            openBatchExtractionId={
+              resource.tab === 'extractions'
+                ? (resource.batchExtractionId ?? null)
+                : null
+            }
+            pilotSchemaRevisionId={
+              resource.tab === 'extractions'
+                ? (resource.pilotSchemaRevisionId ?? null)
+                : null
+            }
+            summary={projectSummary ?? null}
+            onNavigate={onNavigate}
+            onProgressChange={refreshProjects}
+          />
+          </>
+        </ProjectSection>
       </div>
 
       {deleting && project && (

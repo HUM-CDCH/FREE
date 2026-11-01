@@ -36,7 +36,8 @@ export type StepOption = {
   /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. */
   tone: 'positive' | 'secondary' | 'danger' | 'dismiss'
   disabled?: boolean
-  /** Acts on the documents ticked in the step's picker, whose count it says; refused with none or past the limit. */
+  /** Acts on the documents ticked in the step's picker: its label says their count where it reads `{n}`; refused with
+   *  none ticked or past the limit. */
   picks?: boolean
   /** The document `open-document` opens, on its Extraction in its Batch Extraction. */
   target?: { sourceDocumentId: string; extractionId: string; batchExtractionId: string }
@@ -193,7 +194,7 @@ function projectStep(input: GuideInput): StepCard | null {
       error: project.error ?? undefined,
       picker: { documents, initial, limit: PILOT_BATCH_SELECTION_LIMIT },
       options: [
-        { action: 'pilot', label: 'Run pilot', tone: 'positive', picks: true, disabled: project.busy },
+        { action: 'pilot', label: 'Run pilot on {n}', tone: 'positive', picks: true, disabled: project.busy },
         ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without a pilot round', tone: 'secondary',
           disabled: !input.run.available, description: runDescription(input, input.latest !== null) } as const] : []),
         notYet,
@@ -223,7 +224,7 @@ function projectStep(input: GuideInput): StepCard | null {
       question: `Extract ${left.length === documents.length ? 'every document' : `the ${plural(left.length, 'document')} left`} with the approved schema?`,
       error: project.error ?? undefined,
       picker: { documents, initial: left.slice(0, BATCH_EXTRACTION_SELECTION_LIMIT), limit: BATCH_EXTRACTION_SELECTION_LIMIT },
-      options: [{ action: 'batch', label: 'Extract', tone: 'positive', picks: true, disabled: project.busy }, notYet],
+      options: [{ action: 'batch', label: 'Extract {n}', tone: 'positive', picks: true, disabled: project.busy }, notYet],
     }
   }
   return null
@@ -242,7 +243,8 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
       .find((batch) => batch.members.some(waitingReview))
   if (!round) return null
-  const title = round.members.length <= PILOT_BATCH_SELECTION_LIMIT ? 'Pilot review' : 'Review results'
+  // Before the schema's approval every review is its pilot's.
+  const title = project.summary.schemaStabilised ? 'Review results' : 'Pilot review'
   const { reviewed, reviewable } = batchExtractionProgress(round)
   const detail: [string, string][] = [['Progress', `${reviewed} of ${plural(reviewable, 'document')} reviewed`]]
   const index = round.members.findIndex(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)

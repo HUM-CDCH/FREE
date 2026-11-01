@@ -356,18 +356,18 @@ async function stubStudio(page: Page, nested = false): Promise<void> {
   )
 }
 
-const panel = (page: Page) => page.getByRole('tabpanel', { name: 'Extractions' })
+const panel = (page: Page) => page.getByRole('region', { name: 'Runs & exports' })
 
 /**
- * Opens the Extractions tab with the Project Context's Source Documents already
- * read, which is what the panel offers a new Batch Extraction over.
+ * Opens the Runs & exports section with the Project Context's Source Documents
+ * already read, which is what the panel offers a new Batch Extraction over.
  */
 async function openExtractions(page: Page): Promise<void> {
   await gotoAuthenticated(page, `/projects/${id.project}`)
   const project = page.getByRole('region', { name: 'Project' })
   for (const name of Object.values(documentName))
     await expect(project.getByText(name, { exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: 'Extractions' }).click()
+  await project.getByRole('button', { name: 'Runs & exports', exact: true }).click()
 }
 
 /** The prepare screen, over every Source Document in the Project Context. */
