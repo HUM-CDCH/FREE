@@ -27,17 +27,17 @@ function renderChat(props: Partial<Omit<RailChatProps, 'chat'>> = {}) {
 }
 
 describe('RailChat', () => {
-  it('asks for Generate schema before the first schema and generates with the kept instructions', () => {
+  it('asks for Generate template before the first template and generates with the kept instructions', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
     // No source to ask about: a message is kept as an instruction directly.
     const input = screen.getByPlaceholderText(/Add a generation instruction/)
     fireEvent.change(input, { target: { value: 'Focus on senders' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    const step = screen.getByRole('region', { name: 'Generate schema' })
-    fireEvent.click(within(step).getByRole('button', { name: 'Generate schema (1 message)' }))
+    const step = screen.getByRole('region', { name: 'Generate template' })
+    fireEvent.click(within(step).getByRole('button', { name: 'Generate template (1 message)' }))
     expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
-    expect(screen.getByText('Generate schema (1 message)', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Generate template (1 message)', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('saves the Record Scope from its step and folds the answer into the conversation', () => {
@@ -69,7 +69,7 @@ describe('RailChat', () => {
     const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
-    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    const input = screen.getByPlaceholderText('Describe a change to the template…')
     fireEvent.change(input, { target: { value: 'Add a recipient' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(onShowView).toHaveBeenCalledExactlyOnceWith('chat')

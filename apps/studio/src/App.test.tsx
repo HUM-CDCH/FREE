@@ -13,9 +13,9 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 // The run action is "▶ Run extraction" until the document has an Extraction, then "↻ Re-run extraction".
 const RUN_EXTRACTION = /^(▶ Run|↻ Re-run) extraction$/
 /** The rail, whose views open from the chat's context lines and lead back to the chat. */
-const railScope = () => within(screen.getByRole('complementary', { name: 'Chat, schema and results' }))
+const railScope = () => within(screen.getByRole('complementary', { name: 'Chat, template and results' }))
 /** Opens a rail view as the researcher does: back to the chat, then its context line (History: its button). */
-function openRailView(view: 'Schema' | 'Results' | 'History') {
+function openRailView(view: 'Template' | 'Results' | 'History') {
   const rail = railScope()
   const back = rail.queryByRole('button', { name: 'Back to chat' })
   if (back) fireEvent.click(back)
@@ -396,11 +396,11 @@ describe('reopened Source Document workspace', () => {
       return { opened, onNavigate, refresh }
     }
 
-    it('pilots the schema on the ticked documents from the chat, then opens the first to review', async () => {
+    it('pilots the template on the ticked documents from the chat, then opens the first to review', async () => {
       const { opened, onNavigate, refresh } = await renderInProject(summary(), [], { fromSchemaBuilder: true })
       // Built toward a pilot: no run of this document alone.
       expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
-      const step = await screen.findByRole('region', { name: 'Pilot the schema' })
+      const step = await screen.findByRole('region', { name: 'Pilot the template' })
       expect(within(step).getAllByRole('checkbox', { checked: true }).map((box) => box.closest('label')!.textContent)).toEqual(['Beretning.pdf', 'Letter 1.pdf', 'Letter 2.pdf'])
       fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
       fireEvent.click(within(step).getByRole('button', { name: 'Run pilot on 2 documents' }))
@@ -427,8 +427,8 @@ describe('reopened Source Document workspace', () => {
       expect(onNavigate).not.toHaveBeenCalled()
       cleanup()
       await renderInProject(summary({ phase: 'approve', currentSchemaRevisionReviewed: true }), [batch([member(here, true), member(others[0]!, true)])])
-      fireEvent.click(within(await screen.findByRole('region', { name: 'Approve schema' })).getByRole('button', { name: 'Approve schema' }))
-      expect(await screen.findByText('Approve the schema for Batch Extraction?')).toBeInTheDocument()
+      fireEvent.click(within(await screen.findByRole('region', { name: 'Approve template' })).getByRole('button', { name: 'Approve template' }))
+      expect(await screen.findByText('Approve the template for Batch Extraction?')).toBeInTheDocument()
     })
   })
 
@@ -488,7 +488,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByText('The chat offers Run extraction as its next step.')).toBeVisible()
     // Run is the chat's step, in view under every rail view.
     if (panel === 'chat') fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }))
-    else openRailView('Schema')
+    else openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     expect(shownRailView()).toBe('Results')
@@ -836,7 +836,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
     // Results' empty state says why, instead of pointing at the chat's Run.
     openRailView('Results')
-    expect(screen.getByText('Choose Article or Catalog in the schema header')).toBeVisible()
+    expect(screen.getByText('Choose Article or Catalog in the template header')).toBeVisible()
     expect(screen.queryByText('The chat offers Run extraction as its next step.')).not.toBeInTheDocument()
   })
 
@@ -968,7 +968,7 @@ describe('reopened Source Document workspace', () => {
   it('keeps the collapsed right rail narrow at mobile widths', async () => {
     await renderReopened()
     const rail = screen.getByRole('complementary', {
-      name: 'Chat, schema and results',
+      name: 'Chat, template and results',
     })
     const mobileDrawerWidth = 'max-[859px]:!w-[min(90vw,100%,32rem)]'
 
@@ -1121,7 +1121,7 @@ describe('reopened Source Document workspace', () => {
     expect(resetZoom).toHaveTextContent('100%')
   })
 
-  it('renames the reopened schema from the schema/chat panel', async () => {
+  it('renames the reopened template from the schema/chat panel', async () => {
     const fetch = vi.fn(
       (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input)
@@ -1149,16 +1149,16 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Rename schema Places' }))
-    fireEvent.change(screen.getByLabelText('Schema name for Places'), {
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Rename template Places' }))
+    fireEvent.change(screen.getByLabelText('Template name for Places'), {
       target: { value: ' Historic places ' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save template name' }))
 
     expect(
       await screen.findByRole('button', {
-        name: 'Rename schema Historic places',
+        name: 'Rename template Historic places',
       }),
     ).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith(
@@ -1359,7 +1359,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByRole('dialog', { name: 'Values in this passage' })).not.toBeInTheDocument()
   })
 
-  it('persists a generated first schema and enables its history', async () => {
+  it('persists a generated first template and enables its history', async () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000011'
     let schemaNodes: unknown[] = []
@@ -1401,7 +1401,7 @@ describe('reopened Source Document workspace', () => {
               createdAt: '2026-08-09T10:00:00.000Z',
               recordScope: null,
               stabilisedAt: null,
-              summary: 'Initial schema',
+              summary: 'Initial template',
             }],
           })
         if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
@@ -1419,16 +1419,16 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Template actions' }))
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
     expect(schemaNodes).toHaveLength(1)
     // A first schema is named after its Source Document.
-    expect(await screen.findByRole('button', { name: 'Rename schema Beretning' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Rename template Beretning' })).toBeInTheDocument()
     // Fenced behind the name the server created the schema with (a later rename by anyone wins over it).
-    expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Schema' }])
+    expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Template' }])
   })
 
   // The first generation names the schema after its Source Document; a rename through the pencil meanwhile waits for
@@ -1436,7 +1436,7 @@ describe('reopened Source Document workspace', () => {
   it.each([
     ['succeeds', 'succeeds', 'Elmbrooke graves'],
     ['fails', 'succeeds', 'Elmbrooke graves'],
-    ['fails', 'is refused', 'Extraction Schema'],
+    ['fails', 'is refused', 'Extraction Template'],
   ] as const)('the automatic first name %s late; a manual rename that %s meanwhile leaves "%s"', async (automatic, manual, expected) => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000040'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000041'
@@ -1477,13 +1477,13 @@ describe('reopened Source Document workspace', () => {
     )
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(releaseAutomatic).not.toBeNull())
-    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Elmbrooke graves' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    fireEvent.change(screen.getByLabelText('Template name for Beretning'), { target: { value: 'Elmbrooke graves' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save template name' }))
     // The manual rename waits for the automatic one: the server applies them in the order they were asked for.
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(patches).toEqual(['Beretning'])
@@ -1492,7 +1492,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(patches).toEqual(['Beretning', 'Elmbrooke graves']))
     if (manual === 'is refused') {
       expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel schema rename' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel template rename' }))
     }
     expect(await screen.findByRole('heading', { name: expected })).toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 10))
@@ -1539,24 +1539,24 @@ describe('reopened Source Document workspace', () => {
     )
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(patches).toEqual(['Beretning']))
-    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Elmbrooke graves' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    fireEvent.change(screen.getByLabelText('Template name for Beretning'), { target: { value: 'Elmbrooke graves' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save template name' }))
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(patches).toEqual(['Beretning'])
     if (editor === 'closed with Escape') {
-      fireEvent.keyDown(screen.getByLabelText('Schema name for Beretning'), { key: 'Escape' })
-      expect(screen.queryByLabelText('Schema name for Beretning')).not.toBeInTheDocument()
+      fireEvent.keyDown(screen.getByLabelText('Template name for Beretning'), { key: 'Escape' })
+      expect(screen.queryByLabelText('Template name for Beretning')).not.toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
     }
 
     await waitFor(() => expect(patches).toEqual(['Beretning', 'Elmbrooke graves']), { timeout: 3_000 })
     expect(await screen.findByRole('heading', { name: 'Elmbrooke graves' })).toBeInTheDocument()
-    expect(screen.queryByLabelText(/^Schema name for/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Template name for/)).not.toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(screen.getByRole('heading', { name: 'Elmbrooke graves' })).toBeInTheDocument()
   })
@@ -1567,7 +1567,7 @@ describe('reopened Source Document workspace', () => {
   it('a first name abandoned after its time limit cannot overwrite the manual name the server acknowledged meanwhile', async () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000060'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000061'
-    let serverName = 'Extraction Schema'
+    let serverName = 'Extraction Template'
     const bodies: Array<{ name: string; expectedName?: string }> = []
     let releaseWrite: (() => void) | null = null
     let heldWrite: Promise<void> | null = null
@@ -1612,13 +1612,13 @@ describe('reopened Source Document workspace', () => {
     )
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning']))
-    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Custom' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    fireEvent.change(screen.getByLabelText('Template name for Beretning'), { target: { value: 'Custom' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save template name' }))
     // After the time limit the manual rename goes out and the server applies it at once.
     await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning', 'Custom']), { timeout: 3_000 })
     expect(await screen.findByRole('heading', { name: 'Custom' })).toBeInTheDocument()
@@ -1629,14 +1629,14 @@ describe('reopened Source Document workspace', () => {
     await heldWrite
     expect(serverName).toBe('Custom')
     expect(bodies).toEqual([
-      { projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Schema' },
+      { projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Template' },
       { projectContextId: reopened.projectContextId, name: 'Custom' },
     ])
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(screen.getByRole('heading', { name: 'Custom' })).toBeInTheDocument()
   })
 
-  it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
+  it('saves a template generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
     const excerpted = {
       complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }],
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
@@ -1679,8 +1679,8 @@ describe('reopened Source Document workspace', () => {
     )
     const generated = render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
 
     expect(await screen.findByText(notice)).toBeInTheDocument()
     expect(written.map((body) => body.sourceCoverage)).toEqual([excerpted])
@@ -1694,7 +1694,7 @@ describe('reopened Source Document workspace', () => {
         sourceRepresentationId={sourceRepresentationId}
         extractionSchema={{
           extractionSchemaId: '51000000-0000-4000-8005-000000000031',
-          name: 'Extraction Schema',
+          name: 'Extraction Template',
           schemaRevisionId: '51000000-0000-4000-8005-000000000030',
           revisionNumber: 1,
           recordDescription: saved.recordDescription,
@@ -1707,7 +1707,7 @@ describe('reopened Source Document workspace', () => {
     )
     const view = render(workspace(reopened.sourceRepresentationId))
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    openRailView('Schema')
+    openRailView('Template')
     expect(await screen.findByText(notice)).toBeInTheDocument()
 
     // Another Source Document of the project shares the schema, not the declaration.
@@ -1750,7 +1750,7 @@ describe('reopened Source Document workspace', () => {
                 createdAt: '2026-08-09T10:01:00.000Z',
                 recordScope: 'document',
                 stabilisedAt: null,
-                summary: 'Current schema',
+                summary: 'Current template',
               },
               {
                 schemaRevisionId: historicalRevisionId,
@@ -1760,7 +1760,7 @@ describe('reopened Source Document workspace', () => {
                 createdAt: '2026-08-09T10:00:00.000Z',
                 recordScope: 'document',
                 stabilisedAt: null,
-                summary: 'Initial schema',
+                summary: 'Initial template',
               },
             ],
           })
@@ -1814,19 +1814,19 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    openRailView('Schema')
-    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    openRailView('Template')
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'unsaved field' } })
     fireEvent.keyDown(screen.getByPlaceholderText('field_name'), { key: 'Escape' })
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'History' }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Template history' })).getByRole('button', { name: /Revision 1/ }))
 
     expect(await screen.findByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()
@@ -1834,7 +1834,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Create Current Schema Revision' }),
+      screen.getByRole('button', { name: 'Create Current Template Revision' }),
     )
 
     await waitFor(() => expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1))
@@ -1860,7 +1860,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByPlaceholderText('field_name')).not.toBeInTheDocument()
   })
 
-  it('flushes edits before clearing, then regenerates onto the existing schema', async () => {
+  it('flushes edits before clearing, then regenerates onto the existing template', async () => {
     const savedRevisionId = '51000000-0000-4000-8005-000000000012'
     const regeneratedRevisionId = '51000000-0000-4000-8005-000000000013'
     const schemaPosts: Array<{
@@ -1913,15 +1913,15 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
-    openRailView('Schema')
+    openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'locality' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear schema' }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current schema' })).getByRole('button', { name: 'Clear schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear template' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current template' })).getByRole('button', { name: 'Clear template' }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Generate schema' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate template' }))
 
     await waitFor(() => expect(schemaPosts).toHaveLength(2), { timeout: 2_000 })
     expect(schemaPosts[0]).toMatchObject({
@@ -1934,11 +1934,11 @@ describe('reopened Source Document workspace', () => {
     })
   })
 
-  it('hydrates the Extraction Schema and Extraction Result', async () => {
+  it('hydrates the Extraction Template and Extraction Result', async () => {
     await renderReopened()
 
     // The chat's schema line counts the fields derived from the reopened template.
-    expect(screen.getByRole('button', { name: /^Open schema: 1 field\b/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Open template: 1 field\b/ })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: RUN_EXTRACTION }),
     ).toBeInTheDocument()
@@ -1992,9 +1992,9 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    openRailView('Schema')
+    openRailView('Template')
     const input = screen.getByPlaceholderText(
-      'Describe a change to the schema…',
+      'Describe a change to the template…',
     )
     fireEvent.change(input, { target: { value: 'Rename place' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -2006,7 +2006,7 @@ describe('reopened Source Document workspace', () => {
   })
 
   // The tab strip's Run is the only run (decision 03); the Results tab no longer offers a second surface to test.
-  it('waits for a dirty schema save before starting an Article rerun from the tab strip', async () => {
+  it('waits for a dirty template save before starting an Article rerun from the tab strip', async () => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
     let resolveExtraction!: (response: Response) => void
     const extractionResponse = new Promise<Response>((resolve) => {
@@ -2056,7 +2056,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    openRailView('Schema')
+    openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2118,7 +2118,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
   })
 
-  it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the schema\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
+  it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the template\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
     const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string; schemaRevisionId?: string }> = []
     const writes: RevisionWrite[] = []
     vi.stubGlobal(
@@ -2318,7 +2318,7 @@ describe('reopened Source Document workspace', () => {
       return run
     }
 
-    it('titles and posts the schema\'s Catalog after a Catalog run that succeeds', async () => {
+    it('titles and posts the template\'s Catalog after a Catalog run that succeeds', async () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
@@ -2333,7 +2333,7 @@ describe('reopened Source Document workspace', () => {
     })
 
 
-    it('titles and posts the schema\'s Article after reopening a completed Catalog attempt', async () => {
+    it('titles and posts the template\'s Article after reopening a completed Catalog attempt', async () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace({
         ...catalogAttempts.SUCCEEDED,
@@ -2446,7 +2446,7 @@ describe('reopened Source Document workspace', () => {
     })
   })
 
-  describe('the strategy is the schema\'s saved record scope', () => {
+  describe('the strategy is the template\'s saved record scope', () => {
     /** A workspace whose fetches answer revision writes (kept) and runs (kept, each refused or queued as given). */
     function stubWorkspace(run: (body: Record<string, unknown>) => Response = (body) => Response.json({
       extractionId: body.id,
@@ -2488,7 +2488,7 @@ describe('reopened Source Document workspace', () => {
       render(<DocumentWorkspace {...reopened} extractionSchema={extractionSchema} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
       // The schema header holds the scope: its view, opened from the chat.
-      openRailView('Schema')
+      openRailView('Template')
     }
 
     it('shows the revision\'s scope, and a legacy revision with none waits for a choice that is saved before Run', async () => {
@@ -2508,7 +2508,7 @@ describe('reopened Source Document workspace', () => {
       // The Results view offers no run of its own (decision 03).
       expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
 
-      openRailView('Schema')
+      openRailView('Template')
       fireEvent.change(selector, { target: { value: 'records' } })
       expect(selector).toHaveValue('records')
       await waitFor(() => expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled())
@@ -2520,12 +2520,12 @@ describe('reopened Source Document workspace', () => {
       expect(selector).toHaveValue('records')
     })
 
-    it('keeps the scope through a schema edit: the append names none and the server keeps the head\'s', async () => {
+    it('keeps the scope through a template edit: the append names none and the server keeps the head\'s', async () => {
       const { writes, runs } = stubWorkspace(undefined, 'records')
       await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
-      openRailView('Schema')
+      openRailView('Template')
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2540,7 +2540,7 @@ describe('reopened Source Document workspace', () => {
 
     /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
     function renamePlaceField() {
-      openRailView('Schema')
+      openRailView('Template')
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -2588,7 +2588,7 @@ describe('reopened Source Document workspace', () => {
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       // One alert and one Retry, the toolbar's (reachable with the Schema view hidden); the Schema panel's footer says it
       // as status text.
-      const schemaPanel = screen.getByRole('region', { name: 'Schema' })
+      const schemaPanel = screen.getByRole('region', { name: 'Template' })
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
       expect(schemaPanel).not.toContainElement(alert)
@@ -2598,7 +2598,7 @@ describe('reopened Source Document workspace', () => {
           .some((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
       ).toBe(true)
       expect(run).toBeDisabled()
-      expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
+      expect(run).toHaveAttribute('title', 'The template is not saved. Retry the save first.')
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
@@ -2627,8 +2627,8 @@ describe('reopened Source Document workspace', () => {
     })
 
     it.each([
-      ['record_scope_mismatch', 'The schema is saved as a Catalog; refresh to run it.'],
-      ['record_scope_required', 'Choose Article or Catalog for this schema before it can run.'],
+      ['record_scope_mismatch', 'The template is saved as a Catalog; refresh to run it.'],
+      ['record_scope_required', 'Choose Article or Catalog for this template before it can run.'],
     ])('shows a %s refusal with the server\'s message as a notice, and starts nothing', async (code, message) => {
       const { runs } = stubWorkspace(() => Response.json({ error: { code, message } }, { status: 409 }))
       await renderWith(reopened.extractionSchema)
@@ -2643,7 +2643,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
     })
 
-    it('a schema a suggestion initializes without a scope waits for the header\'s choice, saved before Run', async () => {
+    it('a template a suggestion initializes without a scope waits for the header\'s choice, saved before Run', async () => {
       const written: Array<Record<string, unknown>> = []
       vi.stubGlobal(
         'fetch',
@@ -2682,8 +2682,8 @@ describe('reopened Source Document workspace', () => {
       // The scope is chosen in the schema header, which exists once there is a schema.
       expect(screen.queryByLabelText('Record scope')).not.toBeInTheDocument()
 
-      openRailView('Schema')
-      fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+      openRailView('Template')
+      fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
       await waitFor(() => expect(written).toHaveLength(1))
       expect(written[0]).not.toHaveProperty('recordScope')
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
@@ -2742,7 +2742,7 @@ describe('reopened Source Document workspace', () => {
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
-      openRailView('Schema')
+      openRailView('Template')
       fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -3123,7 +3123,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    openRailView('Schema')
+    openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), {
       target: { value: 'location' },
@@ -3428,9 +3428,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     screen.queryAllByRole('button', { name: /^Run (Article |Catalog )?extraction/ })
 
   it.each([
-    ['a finalized result on a previous Schema Revision',
+    ['a finalized result on a previous Template Revision',
       attemptOn(earlierRepresentationId, { finalizedReview: { snapshotVersion: 1, feedbackVersion: 1, createdAt: '2026-08-01T00:00:00.000Z' } }), 'Completed'],
-    ['a result on the Current Schema Revision', attemptOn(earlierRepresentationId, { schemaRevisionId: currentSchema.schemaRevisionId }), 'Completed'],
+    ['a result on the Current Template Revision', attemptOn(earlierRepresentationId, { schemaRevisionId: currentSchema.schemaRevisionId }), 'Completed'],
     ['a stopped Extraction', attemptOn(earlierRepresentationId, { executionStatus: 'STOPPED' }), 'Stopped'],
   ] as const)('offers no new run from %s', async (_label, attempt, shown) => {
     stubWorkspace({}, attempt.executionStatus)

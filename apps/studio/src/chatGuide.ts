@@ -188,9 +188,9 @@ function projectStep(input: GuideInput): StepCard | null {
       .filter((id) => documents.some((document) => document.id === id)).slice(0, 3)
     return {
       key: `pilot:${input.revision.id}`,
-      title: next.label === 'Pilot the revised schema' ? next.label : 'Pilot the schema',
-      question: `Try the schema on a few documents before extracting all ${plural(documents.length, 'document')}?`,
-      detail: [['Schema', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`]],
+      title: next.label === 'Pilot the revised template' ? next.label : 'Pilot the template',
+      question: `Try the template on a few documents before extracting all ${plural(documents.length, 'document')}?`,
+      detail: [['Template', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`]],
       error: project.error ?? undefined,
       picker: { documents, initial, limit: PILOT_BATCH_SELECTION_LIMIT },
       options: [
@@ -207,9 +207,9 @@ function projectStep(input: GuideInput): StepCard | null {
     return {
       key: `approve:${revisionId}`,
       title: next.label,
-      question: next.label === 'Re-approve schema'
-        ? 'The schema changed since its approval. Approve the current revision for the whole project?'
-        : 'Every pilot document is reviewed. Approve the schema for the whole project?',
+      question: next.label === 'Re-approve template'
+        ? 'The template changed since its approval. Approve the current revision for the whole project?'
+        : 'Every pilot document is reviewed. Approve the template for the whole project?',
       options: [{ action: 'approve', label: next.label, tone: 'positive', disabled: project.busy || !revisionId }, notYet],
     }
   if (next.step === 'batch') {
@@ -221,7 +221,7 @@ function projectStep(input: GuideInput): StepCard | null {
     return {
       key: `batch:${revisionId}:${left.length}`,
       title: 'Batch extraction',
-      question: `Extract ${left.length === documents.length ? 'every document' : `the ${plural(left.length, 'document')} left`} with the approved schema?`,
+      question: `Extract ${left.length === documents.length ? 'every document' : `the ${plural(left.length, 'document')} left`} with the approved template?`,
       error: project.error ?? undefined,
       picker: { documents, initial: left.slice(0, BATCH_EXTRACTION_SELECTION_LIMIT), limit: BATCH_EXTRACTION_SELECTION_LIMIT },
       options: [{ action: 'batch', label: 'Extract {n}', tone: 'positive', picks: true, disabled: project.busy }, notYet],
@@ -274,7 +274,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
 /** Generating, generating again, a proposal, or the Record Scope: the schema's own next step, if it has one. */
 function schemaStep(input: GuideInput): StepCard | null {
   if (input.view === 'generating')
-    return { key: 'generating', title: 'Schema Suggestion', notice: 'Producing schema from the document…', busy: true,
+    return { key: 'generating', title: 'Template Suggestion', notice: 'Producing template from the document…', busy: true,
       options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
   if (input.view === 'empty' || input.view === 'failed') {
     if (!input.canGenerate) return null
@@ -282,12 +282,12 @@ function schemaStep(input: GuideInput): StepCard | null {
     return {
       // A new instruction asks again after "Not yet".
       key: `generate:${input.instructionCount}`,
-      title: 'Generate schema',
-      question: input.view === 'failed' ? 'Try generating the schema again?' : `Suggest a schema from ${input.sourceDocumentName}?`,
+      title: 'Generate template',
+      question: input.view === 'failed' ? 'Try generating the template again?' : `Suggest a template from ${input.sourceDocumentName}?`,
       detail: [['Instructions', input.instructionCount > 0 ? `${plural(input.instructionCount, 'message')} kept` : 'none yet']],
       error: input.view === 'failed' ? input.generationError ?? undefined : undefined,
       options: [
-        { action: 'generate', label: `Generate schema${messages}`, tone: 'positive', disabled: input.asking },
+        { action: 'generate', label: `Generate template${messages}`, tone: 'positive', disabled: input.asking },
         notYet,
       ],
     }
@@ -297,13 +297,13 @@ function schemaStep(input: GuideInput): StepCard | null {
     const counts = [added && `+${added} added`, removed && `−${removed} removed`, modified && `~${modified} changed`].filter(Boolean).join(' · ')
     return {
       key: 'proposal',
-      title: 'Proposed schema change',
-      question: 'Apply these changes to the schema?',
+      title: 'Proposed template change',
+      question: 'Apply these changes to the template?',
       detail: [['Changes', counts || 'none']],
       notice: unresolved.length > 0 ? unresolved.join(' ') : undefined,
       options: [
         { action: 'apply', label: 'Apply changes', tone: 'positive', disabled: !canApply },
-        { action: 'review-schema', label: 'Review in Schema tab', hint: 'Accept or reject each change', tone: 'secondary' },
+        { action: 'review-schema', label: 'Review in the Template view', hint: 'Accept or reject each change', tone: 'secondary' },
         { action: 'discard', label: 'Discard', tone: 'danger' },
       ],
     }
@@ -349,9 +349,9 @@ function runStep(input: GuideInput): StepCard | null {
     // "Not yet" holds until another Extraction starts.
     key: `run:${latest?.extractionId ?? 'first'}`,
     title: rerun ? 'Run extraction again' : 'Run extraction',
-    question: rerun ? 'The schema changed since the last run. Run the extraction again?' : `Run the extraction on ${input.sourceDocumentName}?`,
+    question: rerun ? 'The template changed since the last run. Run the extraction again?' : `Run the extraction on ${input.sourceDocumentName}?`,
     detail: [
-      ['Schema', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`],
+      ['Template', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`],
       ['Strategy', input.recordScope === 'records' ? 'Catalog' : 'Article'],
     ],
     notice: input.run.unavailableReason ?? undefined,

@@ -7,8 +7,8 @@ describe('defaultSchemaName', () => {
     expect(defaultSchemaName('archive.tar.gz')).toBe('archive.tar')
     expect(defaultSchemaName('No extension')).toBe('No extension')
   })
-  it('falls back to "Untitled schema" when the name would be empty or invalid', () => {
-    expect(defaultSchemaName('.pdf')).toBe('Untitled schema')
-    expect(defaultSchemaName('   ')).toBe('Untitled schema')
+  it('falls back to "Untitled template" when the name would be empty or invalid', () => {
+    expect(defaultSchemaName('.pdf')).toBe('Untitled template')
+    expect(defaultSchemaName('   ')).toBe('Untitled template')
   })
 })

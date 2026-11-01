@@ -18,7 +18,7 @@ it('keeps unrelated records and corrections distinct when their display position
   expect(model.counts.toCheck).toBe(2)
 })
 
-it('shows each record and the document fields in schema order, not saved id order',()=> {
+it('shows each record and the document fields in template order, not saved id order',()=> {
   const field=(id:string,name:string,recordId='record',extra:Partial<RetainedValue>={})=>value({id,recordId,fieldId:name,path:['records',0,name],node:{id:name,name,type:'string'},...extra})
   const values=[field('a','year'),field('b','removed'),field('c','site'),field('d','finds'),
     field('e','reporter','document',{node:{id:'reporter',name:'reporter',type:'string',valueSource:'document'}}),

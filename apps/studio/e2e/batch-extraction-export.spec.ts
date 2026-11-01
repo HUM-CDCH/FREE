@@ -516,14 +516,14 @@ for (const key of ['Enter', 'Space'] as const) {
     })
     await expect(
       panel(page).getByRole('button', {
-        name: /Places · Schema Revision 4/,
+        name: /Places · Template Revision 4/,
       }),
     ).toBeVisible()
     expect(runRequests).toHaveLength(1)
   })
 }
 
-test('two tabs expose and recover a durable Batch Schema Suggestion draft conflict @deterministic', async ({
+test('two tabs expose and recover a durable Batch Template Suggestion draft conflict @deterministic', async ({
   page,
   context,
 }) => {
@@ -535,7 +535,7 @@ test('two tabs expose and recover a durable Batch Schema Suggestion draft confli
     await openExtractions(candidate)
     await prepareBatch(candidate)
     await candidate
-      .getByRole('combobox', { name: 'Extraction Schema', exact: true })
+      .getByRole('combobox', { name: 'Extraction Template', exact: true })
       .selectOption('__suggest_common_fields__')
     await expect(candidate.getByText('place', { exact: true })).toBeVisible()
   }

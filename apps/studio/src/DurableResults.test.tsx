@@ -17,7 +17,7 @@ import { ApiRequestError } from './api'
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),readDurableHistorySummary:vi.fn(),readValues:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks()})
 
-it('names the producing schema and the current revision without changing saved values',async()=>{
+it('names the producing template and the current revision without changing saved values',async()=>{
   const old={schemaRevisionId:'schema-old',extractionSchemaId:'schema-family',name:'Research',revisionNumber:9,recordScope:'records' as const}
   const current={schemaRevisionId:'schema-current',revisionNumber:14,recordScope:'document' as const}
   const value={id:'old-value',recordId:'reference',fieldId:'reference_number',path:['records',0,'reference_number'],selectionId:'original',schemaRevisionId:old.schemaRevisionId,
@@ -27,10 +27,10 @@ it('names the producing schema and the current revision without changing saved v
     selection:{id:'original',ordinal:1,schemaRevisionId:old.schemaRevisionId},schemaRevisions:[old],pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
   const onSchema=vi.fn()
   render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={current} onSchema={onSchema} onEvidence={()=>{}}/>)
-  expect(await screen.findByText(/These results use schema revision 9 \(Catalog\)/)).toBeVisible()
-  expect(screen.getByText(/The current schema is revision 14 \(Article\)/)).toBeVisible()
+  expect(await screen.findByText(/These results use template revision 9 \(Catalog\)/)).toBeVisible()
+  expect(screen.getByText(/The current template is revision 14 \(Article\)/)).toBeVisible()
   expect(screen.getByText('Reference 17')).toBeVisible()
-  fireEvent.click(screen.getByRole('button',{name:'Open Schema'}))
+  fireEvent.click(screen.getByRole('button',{name:'Open Template'}))
   expect(onSchema).toHaveBeenCalledOnce()
   expect(durableRequest).not.toHaveBeenCalled()
 })
@@ -269,15 +269,15 @@ it('shows requested and effective methods with their producing selections, and n
   vi.mocked(durableRequest).mockResolvedValue([])
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
   openDetails(await screen.findByText('This extraction'))
-  expect(await screen.findByText(/model served-second · schema changed/)).toBeVisible()
-  expect(screen.getByText(/model not recorded yet · schema changed/)).toBeVisible()
+  expect(await screen.findByText(/model served-second · template changed/)).toBeVisible()
+  expect(screen.getByText(/model not recorded yet · template changed/)).toBeVisible()
   expect(screen.getByRole('region',{name:'Inputs'})).not.toHaveTextContent(/schema-|resolved-/)
   // The full history, with every call's request, is read only for audit.
   expect(readDurableHistory).not.toHaveBeenCalled()
   openDetails(screen.getByText('Technical details (for audit)'))
-  await screen.findByText('Input selection 1 · schema schema-f')
+  await screen.findByText('Input selection 1 · template schema-f')
   for (const ordinal of [1,2,3]) {
-    const selection=screen.getByText(new RegExp(`^Input selection ${ordinal} · schema `)).closest('details')!
+    const selection=screen.getByText(new RegExp(`^Input selection ${ordinal} · template `)).closest('details')!
     selection.open=true;fireEvent(selection,new Event('toggle'))
   }
   const first=within(screen.getByRole('region',{name:'Method used for input selection 1'}))
@@ -693,7 +693,7 @@ it.skip('warns in Results when pending inputs leave a saved correction unfit, an
   vi.mocked(durableRequest).mockImplementation(async url=>url.includes('feedback')?[row]:page)
   const onShowHistory=vi.fn(),slot=historySlot()
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={slot} onShowHistory={onShowHistory}/>)
-  expect(await screen.findByText(/1 saved correction doesn’t fit the pending schema/)).toBeVisible()
+  expect(await screen.findByText(/1 saved correction doesn’t fit the pending template/)).toBeVisible()
   expect(within(slot).getByText('title:')).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:'See corrections'}))
   expect(onShowHistory).toHaveBeenCalledOnce()
@@ -712,7 +712,7 @@ it('acknowledges editing once per inputs edit session and saves the draft under 
   fireEvent.click(await screen.findByRole('button',{name:'More result actions'}))
   vi.mocked(readDurable).mockResolvedValue({state:{...state,controlVersion:5,pendingSelection:selection},page} as never)
   fireEvent.click(screen.getByRole('menuitem',{name:'Change inputs'}))
-  const schema=await screen.findByRole('combobox',{name:/Schema to use next/})
+  const schema=await screen.findByRole('combobox',{name:/Template to use next/})
   for(const value of ['newer','schema','newer'])fireEvent.change(schema,{target:{value}})
   fireEvent.click(screen.getByRole('button',{name:'More result actions'}))
   expect(screen.queryByRole('menuitem',{name:'Change inputs'})).toBeNull()

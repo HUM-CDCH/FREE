@@ -50,7 +50,7 @@ for(const strategy of ['ARTICLE','CATALOG'] as const)test(`early ${strategy} pre
   } finally {await fixture.close()}
 })
 
-test('results identify an older schema and a new Article admission survives reload',async({page},testInfo)=>{
+test('results identify an older template and a new Article admission survives reload',async({page},testInfo)=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
     const catalog=[{id:'reference',name:'reference_number',type:'string' as const}]
@@ -61,20 +61,20 @@ test('results identify an older schema and a new Article admission survives relo
       VALUES ($1,$2,3,'RESEARCHER_EDIT',$3,'document')`,[revision,fixture.extractionSchemaId,{recordDescription:'One article.',schemaNodes:article}])
     await page.goto(`${fixture.url}?extractionId=${old.id}`)
     await openRailView(page,'Results')
-    await expect(page.getByText('These results use schema revision 2 (Catalog).')).toBeVisible()
-    await expect(page.getByText('The current schema is revision 3 (Article).')).toBeVisible()
+    await expect(page.getByText('These results use template revision 2 (Catalog).')).toBeVisible()
+    await expect(page.getByText('The current template is revision 3 (Article).')).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toBeVisible()
     await page.screenshot({path:testInfo.outputPath('schema-mismatch-desktop.png')})
     await page.setViewportSize({width:390,height:844})
-    const schemaNotice=page.getByLabel('Results schema')
+    const schemaNotice=page.getByLabel('Results template')
     await expect(schemaNotice).toBeVisible()
     const bounds=await schemaNotice.boundingBox()
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(391)
     await page.screenshot({path:testInfo.outputPath('schema-mismatch-narrow.png')})
     await page.setViewportSize({width:1440,height:900})
-    await page.getByRole('button',{name:'Open Schema',exact:true}).click()
-    await expect(page.getByRole('heading',{level:2,name:'Schema',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Open Template',exact:true}).click()
+    await expect(page.getByRole('heading',{level:2,name:'Template',exact:true})).toBeVisible()
     // Admission is stood in; saved state, values, schema labels and routed reopening use the real owned API.
     let admitted=''
     await page.route('**/api/extractions',async route=>{
@@ -93,12 +93,12 @@ test('results identify an older schema and a new Article admission survives relo
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`extractionId=${admitted}`))
-    await expect(page.getByRole('button',{name:'Schema rev 3',exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:'Template rev 3',exact:true})).toBeVisible()
     await page.reload()
     await openRailView(page,'Results')
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
-    await expect(page.getByRole('button',{name:'Schema rev 3',exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:'Template rev 3',exact:true})).toBeVisible()
     await page.screenshot({path:testInfo.outputPath('new-article-after-reload.png')})
   } finally {await fixture.close()}
 })
@@ -206,7 +206,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     expect((await readFile((await saved.path())!,'utf8')).split('\r\n')).toEqual(['title,year','Corrected without Evidence,2026'])
     await page.screenshot({path:'test-results/durable-review-desktop.png',fullPage:true})
     await page.setViewportSize({width:375,height:812})
-    const rail=await page.getByRole('complementary',{name:'Chat, schema and results'}).boundingBox()
+    const rail=await page.getByRole('complementary',{name:'Chat, template and results'}).boundingBox()
     const workspace=await page.getByRole('region',{name:'Source Document',exact:true}).boundingBox()
     expect(rail!.x).toBeGreaterThanOrEqual(workspace!.x)
     expect(rail!.width).toBeLessThanOrEqual(workspace!.width)
@@ -449,7 +449,7 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toHaveCount(0)
     expect(await guidance()).toMatchObject({revision:3,included:true,targetCompatibility:'incompatible'})
     await openRailView(page,'History')
-    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText(/Changed inputs \(version 2\).*schema changed/)
+    await expect(page.getByRole('region',{name:'Inputs',exact:true})).toContainText(/Changed inputs \(version 2\).*template changed/)
     await openRailView(page,'Results')
     const stillSaved=(await (await page.request.get(valueUrl)).json()).values[0]
     expect(stillSaved.modelValue).toBe('Saved title 505')
@@ -542,7 +542,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await members.getByRole('button',{name:/empty.pdf/}).click()
     await expect(page).toHaveURL(new RegExp(`documents/${emptySource.sourceDocumentId}.*extractionId=${empty.id}`))
     await openRailView(page,'Results')
-    const rail=page.getByRole('complementary',{name:'Chat, schema and results'})
+    const rail=page.getByRole('complementary',{name:'Chat, template and results'})
     await expect(rail.getByText('Failed',{exact:true})).toBeVisible()
     await expect(rail.getByRole('button',{name:'Review one by one',exact:true})).toBeDisabled()
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable/values`)).json()).values).toEqual([])
@@ -563,7 +563,7 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       if(!opened){await page.goto(route);opened=true}
       else await page.evaluate(route=>{window.history.pushState(null,'',route);window.dispatchEvent(new PopStateEvent('popstate'))},route)
       await openRailView(page,'Results')
-      const rail=page.getByRole('complementary',{name:'Chat, schema and results'})
+      const rail=page.getByRole('complementary',{name:'Chat, template and results'})
       // A running Article reads the document; every other lifecycle is named as it is.
       await expect(rail.getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
       await expect(rail.getByText(`Retained ${status}`,{exact:false})).toBeVisible()
@@ -606,7 +606,7 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       await rail.getByRole('textbox',{name:'Reviewed value'}).fill('Running corrected title')
       await rail.getByRole('button',{name:/^Save.*next$/i}).click()
       await expect.poll(async()=> (await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction?.decision.value).toBe('Running corrected title')
-      await openRailView(page,'Schema')
+      await openRailView(page,'Template')
       await page.keyboard.press('a');await page.keyboard.press('r')
       const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
       expect(head.status).toBe('RUNNING');expect(head.controlVersion).toBe(0)
@@ -706,7 +706,7 @@ test('retained Catalog review fits actual 344px and 264px rails and a narrow vie
       'FAILED',{records:[['A retained record with a deliberately long source title',false],['Another retained record',true]]})
     await page.setViewportSize({width:1280,height:720})
     await fixture.open();await openRailView(page,'Results')
-    const rail=page.getByRole('complementary',{name:'Chat, schema and results'})
+    const rail=page.getByRole('complementary',{name:'Chat, template and results'})
     const panel=page.getByRole('region',{name:'Results',exact:true})
     const assertGeometry=async()=>{
       expect(await panel.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true)

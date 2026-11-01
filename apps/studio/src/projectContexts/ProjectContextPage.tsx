@@ -455,7 +455,7 @@ function SchemaFieldsPreviewDialog({
             message:
               error instanceof Error
                 ? error.message
-                : 'Could not load this Schema Revision.',
+                : 'Could not load this Template Revision.',
           })
       },
     )
@@ -859,7 +859,7 @@ export default function ProjectContextPage({
         extractionSchemaId,
         defaultSchemaName(workbookName),
         undefined,
-        'Extraction Schema',
+        'Extraction Template',
       ).catch(() => null)
     setSchemaRetry((attempt) => attempt + 1)
     refreshProjects()
@@ -1351,8 +1351,8 @@ export default function ProjectContextPage({
               ))}
           </div>
         <ProjectSection
-          title="Schema"
-          description="History, and a schema imported from a codebook or suggested from a spreadsheet"
+          title="Template"
+          description="History, and a template imported from a codebook or suggested from a spreadsheet"
           open={tab === 'schemas'}
           onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'schemas' : 'sources' })}
         >
@@ -1368,15 +1368,15 @@ export default function ProjectContextPage({
             >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-xs font-bold text-ink">
-                  Build your schema from a document
+                  Build your template from a document
                 </h2>
                 {hasSchemaHistory && (
                   <button
                     ref={schemaHistoryTrigger}
                     type="button"
                     onClick={() => setShowSchemaHistory(true)}
-                    aria-label="Schema history"
-                    title="Schema history"
+                    aria-label="Template history"
+                    title="Template history"
                     className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
                   >
                     <HistoryIcon />
@@ -1384,7 +1384,7 @@ export default function ProjectContextPage({
                 )}
               </div>
               <p className="text-[11px] text-ink-faint">
-                Open any document above: its chat suggests a schema from it and leads on from there.
+                Open any document above: its chat suggests a template from it and leads on from there.
               </p>
             </section>
 
@@ -1405,7 +1405,7 @@ export default function ProjectContextPage({
                 </button>
               </h2>
               <p className="text-[11px] text-ink-faint">
-                Each codebook column becomes a schema field.
+                Each codebook column becomes a template field.
               </p>
               <SchemaImport
                 schema={codebookTarget}
@@ -1434,7 +1434,7 @@ export default function ProjectContextPage({
                   >
                     ▶
                   </span>
-                  Or suggest a schema from a spreadsheet of examples
+                  Or suggest a template from a spreadsheet of examples
                 </button>
               </h2>
               {spreadsheetShown && (
@@ -1557,7 +1557,7 @@ export default function ProjectContextPage({
                         )
                       }
                     >
-                      Generate schema suggestion
+                      Generate template suggestion
                     </Button>
                   </div>
 
@@ -1632,7 +1632,7 @@ export default function ProjectContextPage({
                             })
                           }
                         >
-                          Confirm schema
+                          Confirm template
                         </Button>
                       )}
                     </>
@@ -1683,7 +1683,7 @@ export default function ProjectContextPage({
           description={
             <>
               Deleting “{project.name}” permanently removes its Source
-              Documents, Annotations, Extraction Schema, Extractions, and Review
+              Documents, Annotations, Extraction Template, Extractions, and Review
               Decisions. This cannot be undone.
             </>
           }
@@ -1733,7 +1733,7 @@ export default function ProjectContextPage({
       )}
       {deletingSchema && (
         <DeleteDialog
-          title="Delete schema"
+          title="Delete template"
           description={
             deletingSchema.blocked ? (
               <>
@@ -1783,7 +1783,7 @@ export default function ProjectContextPage({
                 message:
                   error instanceof Error
                     ? error.message
-                    : 'Extraction Schema could not be deleted.',
+                    : 'Extraction Template could not be deleted.',
               }
             }
           }}
@@ -1811,7 +1811,7 @@ export default function ProjectContextPage({
         >
           <div className="flex shrink-0 items-center justify-between gap-2">
             <h2 id={schemaHistoryTitleId} className="text-sm font-bold text-ink">
-              Schema history
+              Template history
             </h2>
             <Button
               ref={schemaHistoryCloseRef}
@@ -1825,7 +1825,7 @@ export default function ProjectContextPage({
               {schemaList?.status === 'ready' ? (
                 schemaList.schemas.length === 0 ? (
                   <p className="text-[11px] text-ink-faint">
-                    No schemas yet.
+                    No templates yet.
                   </p>
                 ) : (
                   <ul className="divide-y divide-line">
@@ -1866,17 +1866,17 @@ export default function ProjectContextPage({
                               } catch (error) {
                                 return error instanceof Error
                                   ? error.message
-                                  : 'Schema could not be renamed.'
+                                  : 'Template could not be renamed.'
                               }
                             }}
                           />
                           <dl className="mt-1 flex gap-3 text-[11px] text-ink-faint">
                             <div>
-                              <dt className="sr-only">Current Schema Revision</dt>
+                              <dt className="sr-only">Current Template Revision</dt>
                               <dd>
                                 {schema.currentRevision
-                                  ? `Current Schema Revision ${schema.currentRevision.revisionNumber}`
-                                  : 'No Current Schema Revision'}
+                                  ? `Current Template Revision ${schema.currentRevision.revisionNumber}`
+                                  : 'No Current Template Revision'}
                               </dd>
                             </div>
                             <div>
@@ -2003,7 +2003,7 @@ export default function ProjectContextPage({
               ) : schemaList?.status === 'error' ? (
                 <div className="flex flex-col items-center gap-3 py-6 text-center">
                   <p className="text-xs text-danger" role="alert">
-                    Could not load schemas. {schemaList.message}
+                    Could not load templates. {schemaList.message}
                   </p>
                   <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
                     Retry
@@ -2014,7 +2014,7 @@ export default function ProjectContextPage({
                   className="py-6 text-center text-xs text-ink-muted"
                   aria-busy="true"
                 >
-                  Loading schemas…
+                  Loading templates…
                 </p>
               )}
           </div>

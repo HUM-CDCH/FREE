@@ -14,7 +14,7 @@ export function continuation(state: DurableReading['state'] | undefined): { bloc
   return {
     blocked: null,
     description: active
-      ? `Continue this extraction with ${resultSchemaLabel(active)}. Changes to the current schema do not change its saved inputs.`
+      ? `Continue this extraction with ${resultSchemaLabel(active)}. Changes to the current template do not change its saved inputs.`
       : 'Continue this extraction with its saved inputs.',
   }
 }

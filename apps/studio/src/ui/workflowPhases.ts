@@ -24,7 +24,7 @@ export const phaseOrder: readonly WorkflowPhase[] = [
 
 export const phaseLabels: Record<WorkflowPhase, string> = {
   upload: 'Upload',
-  schema: 'Create schema',
+  schema: 'Create template',
   pilot: 'Pilot',
   approve: 'Approve',
   batch: 'Batch extract',

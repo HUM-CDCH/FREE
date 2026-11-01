@@ -11,7 +11,7 @@ import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { SchemaInstructionsChat } from './SchemaInstructions'
 import type { SchemaChat } from './useSchemaChat'
 
-const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a schema when you're ready."
+const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
 
 export type RailChatProps = {
   chat: SchemaChat
@@ -147,12 +147,12 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   ) : (
     <>
       <textarea className={composerClass} rows={3}
-        placeholder={editable ? 'Describe a change to the schema…' : 'The chat continues once the schema is ready.'} value={chat.input} disabled={!editable || blocked}
+        placeholder={editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'} value={chat.input} disabled={!editable || blocked}
         onChange={(event) => chat.setInput(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
         <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
-          onClick={chat.cancel} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
+          onClick={chat.cancel} title="Stop template edit request" aria-label="Stop template edit request">■</button>
       ) : (
         <button type="button" className={sendClass}
           aria-label="Send" disabled={!editable || !chat.input.trim() || blocked} onClick={send}>↑</button>

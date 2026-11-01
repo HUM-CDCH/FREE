@@ -158,11 +158,12 @@ Code reads its token from the environment at every start. Both support schema he
 2. **Create a project** and upload PDFs (up to 100 MiB each). FREE parses them
    in the background.
 3. **Open a document and follow the project chat** beside it: it always shows
-   the next step. It suggests a schema (refine it in the chat, or edit it by
-   hand from the chat's *Schema* line) and asks for *Article* (one record per
+   the next step. It suggests a template of the fields to extract (refine it in
+   the chat, or edit it by hand from the chat's *Template* line) and asks for
+   *Article* (one record per
    document) or *Catalog* (many records per document).
 4. **Pilot, approve, extract**: the chat runs a pilot on documents you tick,
-   leads you through reviewing them, asks you to approve the schema, then
+   leads you through reviewing them, asks you to approve the template, then
    extracts the rest. Pause, resume, stop or retry a run from the chat too.
 5. **Review**: each value shows its evidence in the source, or is flagged as
    ungrounded. Approve, reject or correct values, then finalize.

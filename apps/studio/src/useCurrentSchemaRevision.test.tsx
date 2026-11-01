@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.mocked(revisions.listSchemaRevisions).mockClear()
 })
 
-describe('durable schema authentication recovery', () => {
+describe('durable template authentication recovery', () => {
   it('restores an unsaved draft against the same acknowledged revision', () => {
     const initial = revision(1)
     const first = renderHook(() => useDurableCurrentSchemaRevision(scope(initial)))
@@ -87,8 +87,8 @@ describe('durable schema authentication recovery', () => {
     expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
   })
 
-  it('restores a draft captured after a new schema receives its UUID', async () => {
-    const acknowledged = revision(1, 'Initial schema.')
+  it('restores a draft captured after a new template receives its UUID', async () => {
+    const acknowledged = revision(1, 'Initial template.')
     vi.mocked(revisions.initializeSchemaRevision).mockResolvedValue(
       acknowledged as never,
     )
@@ -97,7 +97,7 @@ describe('durable schema authentication recovery', () => {
     )
     await act(() =>
       first.result.current.generate(async () => ({
-        _description: 'Initial schema.',
+        _description: 'Initial template.',
         title: 'string',
       })),
     )
@@ -173,7 +173,7 @@ describe('durable schema authentication recovery', () => {
   })
 })
 
-describe('durable schema record scope across reloads and navigation', () => {
+describe('durable template record scope across reloads and navigation', () => {
   const DRAFT = {
     recordDescription: 'Unsaved researcher draft.',
     schemaNodes: [{ id: 'year', name: 'year', type: 'integer' as const }],
@@ -263,7 +263,7 @@ describe('durable schema record scope across reloads and navigation', () => {
   })
 })
 
-describe('durable schema source declaration', () => {
+describe('durable template source declaration', () => {
   const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
   const saved = (revisionNumber: number, recordDescription: string) => ({
     ...revision(revisionNumber, recordDescription),
@@ -279,7 +279,7 @@ describe('durable schema source declaration', () => {
     expect(result.current.snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 
-  it('saves a generation with its declaration, onto an existing schema or as its first revision', async () => {
+  it('saves a generation with its declaration, onto an existing template or as its first revision', async () => {
     vi.mocked(revisions.appendSchemaRevision).mockImplementation(async (_project, _schema, expected, definition) =>
       saved(expected + 1, definition.recordDescription))
     vi.mocked(revisions.initializeSchemaRevision).mockImplementation(async (_project, definition) =>

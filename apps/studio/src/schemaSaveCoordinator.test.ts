@@ -19,7 +19,7 @@ const revision = (number: number, name: string): SchemaRevision => ({
   ...definition(name),
 })
 
-describe('schema save coordinator', () => {
+describe('template save coordinator', () => {
   it('debounces edits and acknowledges the returned durable revision', async () => {
     vi.useFakeTimers()
     const save = vi.fn(async (_expected: number, draft: SchemaDefinition) =>

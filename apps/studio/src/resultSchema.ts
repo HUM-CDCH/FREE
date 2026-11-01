@@ -6,7 +6,7 @@ export type CurrentResultSchema = {
 }
 export const recordScopeLabel = (scope?: RecordScope | null) => scope==='document'?'Article':scope==='records'?'Catalog':null
 export const resultSchemaLabel = (schema: Pick<ResultSchemaRevision,'revisionNumber'|'recordScope'>) =>
-  `schema revision ${schema.revisionNumber}${schema.recordScope ? ` (${recordScopeLabel(schema.recordScope)})` : ''}`
+  `template revision ${schema.revisionNumber}${schema.recordScope ? ` (${recordScopeLabel(schema.recordScope)})` : ''}`
 
 export type ShownSchema={page:DurablePage;state:DurableRead;current:CurrentResultSchema|null;controlled:boolean;readOnly:boolean}
 

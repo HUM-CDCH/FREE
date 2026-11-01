@@ -10,7 +10,7 @@ const group = (id: string, children: SchemaNode[]): SchemaNode => ({
   children,
 })
 
-describe('schema editor drag geometry', () => {
+describe('template editor drag geometry', () => {
   it('classifies horizontal intent without treating diagonal movement as indenting', () => {
     expect(schemaDragMode(49, 0)).toBe('indent')
     expect(schemaDragMode(-49, 0)).toBe('outdent')

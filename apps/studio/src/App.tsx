@@ -288,7 +288,7 @@ export function DocumentWorkspace({
       (error: unknown) => {
         if (expectedName !== undefined) durableSchemaNameRef.current = expectedName
         if (latest()) setSchemaName(durableSchemaNameRef.current)
-        return error instanceof Error ? error.message : 'Schema could not be renamed.'
+        return error instanceof Error ? error.message : 'Template could not be renamed.'
       },
     )
   }
@@ -549,7 +549,7 @@ export function DocumentWorkspace({
       showToast(
         error instanceof Error
           ? error.message
-          : 'Could not save the Current Schema Revision.',
+          : 'Could not save the Current Template Revision.',
       )
       throw error
     }
@@ -589,7 +589,7 @@ export function DocumentWorkspace({
       if (extractionSchemaId) {
         const name = defaultSchemaName(filename)
         setSchemaName(name)
-        void renameSchema(extractionSchemaId, name, 'Extraction Schema', automaticRenameTimeoutMs)
+        void renameSchema(extractionSchemaId, name, 'Extraction Template', automaticRenameTimeoutMs)
       }
     }
   }
@@ -857,9 +857,9 @@ export function DocumentWorkspace({
     try {
       const revision = await schema.flush()
       if (!stillHere()) return
-      if (!revision) throw new Error('Save the Current Schema Revision before extraction.')
+      if (!revision) throw new Error('Save the Current Template Revision before extraction.')
       // The saved revision's own scope decides what a run is; admission refuses any other.
-      if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the schema header before extraction.')
+      if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the template header before extraction.')
       const strategy = strategyOf(revision.recordScope)
       const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
       for (let round = 0; round < 2; round += 1) {
@@ -907,7 +907,7 @@ export function DocumentWorkspace({
         if (round === 1) showToast('Your saved settings changed. Run again.', { durationMs: 6000 })
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Save the Current Schema Revision before extraction.')
+      showToast(error instanceof Error ? error.message : 'Save the Current Template Revision before extraction.')
     } finally {
       setSavingForRun(false)
     }
@@ -963,7 +963,7 @@ export function DocumentWorkspace({
     setProjectError(null)
     try {
       const revision = await schema.flush()
-      if (!revision) throw new Error('Save the Current Schema Revision first.')
+      if (!revision) throw new Error('Save the Current Template Revision first.')
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog first.')
       const strategy = strategyOf(revision.recordScope)
       let opened: Awaited<ReturnType<typeof openBatchExtraction>> | null = null
@@ -1010,15 +1010,15 @@ export function DocumentWorkspace({
     : !sourceRepresentationCurrent
       ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
       : schemaSnap.save?.status === 'error'
-        ? 'The schema is not saved. Retry the save first.'
+        ? 'The template is not saved. Retry the save first.'
         : schemaSnap.save?.status === 'conflict'
-          ? 'The schema changed elsewhere. Reload it in the Schema view first.'
+          ? 'The template changed elsewhere. Reload it in the Template view first.'
           : indexing
             ? 'The document is still being indexed'
             : !schemaReady
-              ? 'Create a schema in the chat first'
+              ? 'Create a template in the chat first'
               : nextExtractionStrategy === null
-                ? 'Choose Article or Catalog in the schema header'
+                ? 'Choose Article or Catalog in the template header'
                 : extraction.monitorError
                   ? 'Reconnect to check the original Extraction before starting another.'
                   : !extraction.canRun
@@ -1041,7 +1041,7 @@ export function DocumentWorkspace({
           ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
           : ''
       }`}
-      aria-label="Chat, schema and results"
+      aria-label="Chat, template and results"
     >
       <RightRail
         open={effectiveRailOpen}
@@ -1116,7 +1116,7 @@ export function DocumentWorkspace({
           // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
           const extractionSchemaId = schema.snapshot().extractionSchemaId
           if (!projectContextId || !extractionSchemaId)
-            return 'No durable schema is open.'
+            return 'No durable template is open.'
           return renameSchema(extractionSchemaId, name)
         }}
         onSelectEvidence={selectEvidenceAnchor}

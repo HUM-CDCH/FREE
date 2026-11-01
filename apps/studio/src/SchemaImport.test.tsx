@@ -45,7 +45,7 @@ it('preview and cancel save nothing; explicit confirmation keeps renamed IDs and
   fireEvent.change(screen.getByLabelText('Column 1 name'), { target: { value: 'identifier' } })
   expect(within(screen.getByRole('list', { name: 'Fields to import' })).getByRole('listitem')).toHaveTextContent('identifier — string')
   expect(screen.getByRole('dialog').querySelector('pre')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
   await waitFor(() => expect(initialize).toHaveBeenCalledOnce())
   expect(initialize.mock.calls[0]![0]).toEqual({ recordDescription: 'One codebook record.',
     schemaNodes: [{ id: column.id, name: 'identifier', type: 'string' }] })
@@ -168,7 +168,7 @@ it('stays open while a confirmed import is being saved, its preview settings and
   render(<SchemaImport schema={schema} disabled={false} open onClose={onClose} />)
   await upload()
   fireEvent.change(screen.getByLabelText('Imported record description'), { target: { value: 'One codebook record.' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
   await waitFor(() => expect(initialize).toHaveBeenCalledOnce())
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
   // The preview shown is the definition being saved: nothing may change it or start another while it saves.

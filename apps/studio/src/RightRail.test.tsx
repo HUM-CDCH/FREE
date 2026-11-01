@@ -122,7 +122,7 @@ function renderRail({
 const results = () => vi.mocked(DurableResults).mock.lastCall![0]
 
 describe('RightRail Results', () => {
-  it('passes the acknowledged schema summary and labels retained results during a new admission',()=>{
+  it('passes the acknowledged template summary and labels retained results during a new admission',()=>{
     const currentSchemaRevision={schemaRevisionId:'revision-14',revisionNumber:14,recordScope:'document' as const}
     renderRail({view:'results',currentSchemaRevision,inspection:{...defaultInspection,attempt},
       extraction:{...defaultController,attempt,admitting:true}})
@@ -201,17 +201,17 @@ describe('RightRail Results', () => {
     expect(refresh).toHaveBeenCalledOnce()
   })
 
-  it('names the schema and the shown Extraction\'s lifecycle under the chat, each opening its view and leading back', () => {
+  it('names the template and the shown Extraction\'s lifecycle under the chat, each opening its view and leading back', () => {
     const onViewChange = vi.fn()
     renderRail({ extraction: { ...defaultController, attempt }, onViewChange })
-    const context = screen.getByRole('navigation', { name: 'Schema and results' })
+    const context = screen.getByRole('navigation', { name: 'Template and results' })
     fireEvent.click(within(context).getByRole('button', { name: 'Open results: test.pdf · paused' }))
     expect(onViewChange).toHaveBeenLastCalledWith('results')
-    fireEvent.click(within(context).getByRole('button', { name: 'Open schema: 2 fields' }))
+    fireEvent.click(within(context).getByRole('button', { name: 'Open template: 2 fields' }))
     expect(onViewChange).toHaveBeenLastCalledWith('schema')
     cleanup()
     renderRail({ view: 'schema', onViewChange })
-    expect(screen.queryByRole('navigation', { name: 'Schema and results' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Template and results' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }))
     expect(onViewChange).toHaveBeenLastCalledWith('chat')
   })
@@ -222,7 +222,7 @@ describe('RightRail developer UI visibility', () => {
     renderRail({ open: true })
 
     expect(screen.queryByRole('button', { name: 'Evidence' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Open schema/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Open template/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Open results/ })).toBeInTheDocument()
   })
 
@@ -254,7 +254,7 @@ describe('RightRail developer UI visibility', () => {
 describe('RightRail collapsed', () => {
   it('keeps every body mounted, hidden beside the strip, and the same nodes once expanded', () => {
     const view = renderRail({ view: 'results', extraction: { ...defaultController, attempt } })
-    const body = screen.getByText('Durable results'), chat = screen.getByPlaceholderText('Describe a change to the schema…')
+    const body = screen.getByText('Durable results'), chat = screen.getByPlaceholderText('Describe a change to the template…')
     const slot = results().historySlot
     view.setOpen(false)
     expect(screen.getByText('Project chat · Results')).toBeVisible()
@@ -268,7 +268,7 @@ describe('RightRail collapsed', () => {
     // Nothing was mounted again: one-by-one, drafts, an input edit, an export and a chat request go on.
     expect(screen.getByText('Durable results')).toBe(body)
     expect(screen.getByText('Durable results')).toBeVisible()
-    expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBe(chat)
+    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBe(chat)
     expect(screen.queryByText('Project chat · Results')).not.toBeInTheDocument()
     expect(results().railOpen).toBe(true)
     expect(results().historySlot).toBe(slot)
@@ -314,18 +314,18 @@ describe('RightRail collapsed', () => {
     expect(screen.getByTitle('Collapse panel')).toHaveFocus()
   })
 
-  it('keeps the schema chat\'s composer under every view, not only the chat', () => {
+  it('keeps the template chat\'s composer under every view, not only the chat', () => {
     renderRail({ view: 'results', extraction: { ...defaultController, attempt } })
     expect(document.getElementById('rail-panel-schema')).not.toBeVisible()
-    expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeVisible()
+    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBeVisible()
   })
 
-  it('keeps a schema chat request running through a collapse', async () => {
+  it('keeps a template chat request running through a collapse', async () => {
     const schema = testSchema()
     vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema', schemaRevisionId: 'revision' })
     vi.mocked(requestSchemaEdit).mockReturnValue(new Promise(() => {}))
     const view = renderRail({ schema })
-    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    const input = screen.getByPlaceholderText('Describe a change to the template…')
     fireEvent.change(input, { target: { value: 'Check fields' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())

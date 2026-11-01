@@ -73,7 +73,7 @@ vi.mock('./App', async () => {
             place, commented out, rather than deleted.
             {annotationSet?.annotations[0]?.text ?? 'no annotation'} ·{' '} */}
         Opened {filename} · {pdfUrl} · {String(markdownUrl)} ·{' '}
-        {JSON.stringify(extractionSchema?.schemaNodes ?? 'no schema')} ·{' '}
+        {JSON.stringify(extractionSchema?.schemaNodes ?? 'no template')} ·{' '}
         {persistedExtraction?.executionStatus ?? 'no extraction'}
       </p>
       <p data-testid="workspace-resources">
@@ -503,7 +503,7 @@ describe('Studio home', () => {
       }),
     ).toBeVisible()
     // The six workflow steps, named as the workflow bar names them.
-    for (const phase of ['Upload', 'Create schema', 'Pilot', 'Approve', 'Batch extract', 'Review'])
+    for (const phase of ['Upload', 'Create template', 'Pilot', 'Approve', 'Batch extract', 'Review'])
       expect(home().getByText(phase)).toBeInTheDocument()
     expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
 
@@ -618,7 +618,7 @@ describe('Studio home', () => {
     const chatting = within(
       await home().findByRole('button', { name: 'Chatting' }),
     )
-    expect(chatting.getByText('Create schema')).toBeInTheDocument()
+    expect(chatting.getByText('Create template')).toBeInTheDocument()
 
     const running = within(home().getByRole('button', { name: 'Running' }))
     expect(running.getByText('Extraction running')).toBeInTheDocument()
@@ -677,7 +677,7 @@ describe('Studio home', () => {
     expect(entries.map((entry) => entry.textContent)).toEqual([
       `Batch Extraction opened${project.name} · 12 Aug 2026`,
       `Review Decisions stored${project.name} · 11 Aug 2026`,
-      `Schema Revision appended${project.name} · 10 Aug 2026`,
+      `Template Revision appended${project.name} · 10 Aug 2026`,
       `Extraction appended${project.name} · 9 Aug 2026`,
     ])
   })
@@ -1243,10 +1243,10 @@ describe('Project Context navigation', () => {
     expect(sourceNames()[0]).toContain('Historical.pdf')
 
     // The schema's tools open below the documents, which stay; the route keeps the open section.
-    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
-    expect(within(page).getByRole('button', { name: 'Schema' })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
+    expect(within(page).getByRole('button', { name: 'Template' })).toHaveAttribute('aria-expanded', 'true')
     expect(
-      await within(page).findByText('Build your schema from a document'),
+      await within(page).findByText('Build your template from a document'),
     ).toBeInTheDocument()
     expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
@@ -1259,18 +1259,18 @@ describe('Project Context navigation', () => {
     // A deep link is the page's first render: the section it names is open and reads its resource.
     const page = await screen.findByRole('region', { name: 'Project' })
     const toggle = (name: string) => within(page).getByRole('button', { name })
-    expect(toggle('Schema')).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle('Template')).toHaveAttribute('aria-expanded', 'true')
     expect(
-      await within(page).findByText('Build your schema from a document'),
+      await within(page).findByText('Build your template from a document'),
     ).toBeInTheDocument()
     // The documents stay in view: the sections are the project's record, not places the work moves to.
     expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
 
-    fireEvent.click(toggle('Schema'))
+    fireEvent.click(toggle('Template'))
     // The documents are the page's entry, so it keeps the bare Project Context path.
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
     expect(location.search).toBe('')
-    expect(within(page).queryByText('Build your schema from a document')).not.toBeInTheDocument()
+    expect(within(page).queryByText('Build your template from a document')).not.toBeInTheDocument()
 
     fireEvent.click(toggle('Runs & exports'))
     expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
@@ -1282,9 +1282,9 @@ describe('Project Context navigation', () => {
     await waitFor(() => expect(toggle('Runs & exports')).toHaveAttribute('aria-expanded', 'false'))
 
     back(`/projects/${projectContextId}/schemas`)
-    await waitFor(() => expect(toggle('Schema')).toHaveAttribute('aria-expanded', 'true'))
+    await waitFor(() => expect(toggle('Template')).toHaveAttribute('aria-expanded', 'true'))
     expect(
-      await within(page).findByText('Build your schema from a document'),
+      await within(page).findByText('Build your template from a document'),
     ).toBeInTheDocument()
   })
 
@@ -1300,7 +1300,7 @@ describe('Project Context navigation', () => {
     expect(location.pathname).toBe(documentPath())
   })
 
-  it('keeps the spreadsheet route of the Schema section folded until asked for', async () => {
+  it('keeps the spreadsheet route of the Template section folded until asked for', async () => {
     renderRoutes(
       studioFetch(undefined, {
         ...detail,
@@ -1311,13 +1311,13 @@ describe('Project Context navigation', () => {
       }),
     )
     const page = await openProjectPage()
-    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
+    fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
     expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
     // Starting a schema is the chat's: this section points there.
-    expect(within(page).getByRole('region', { name: 'From a document' })).toHaveTextContent('its chat suggests a schema')
+    expect(within(page).getByRole('region', { name: 'From a document' })).toHaveTextContent('its chat suggests a template')
 
     const spreadsheet = within(page).getByRole('button', {
-      name: 'Or suggest a schema from a spreadsheet of examples',
+      name: 'Or suggest a template from a spreadsheet of examples',
     })
     expect(spreadsheet).toHaveAttribute('aria-expanded', 'false')
     expect(
@@ -1330,7 +1330,7 @@ describe('Project Context navigation', () => {
     ).toBeInTheDocument()
   })
 
-  it('imports an Excel codebook from the Schemas tab as a new Extraction Schema named after the workbook', async () => {
+  it('imports an Excel codebook from the Templates tab as a new Extraction Template named after the workbook', async () => {
     const extractionSchemaId = '51000000-0000-4000-8003-000000000009'
     const column = { id: 'site-column', column: 1, name: 'site', type: 'string', include: true,
       examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
@@ -1367,14 +1367,14 @@ describe('Project Context navigation', () => {
     fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
     fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
     fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
 
     await waitFor(() => expect(writes).toHaveLength(2))
     expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
     expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
     expect(writes[1]).toMatchObject({
       url: `/api/extraction-schemas/${extractionSchemaId}`,
-      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Schema' },
+      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Template' },
     })
     expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
   })
@@ -1385,7 +1385,7 @@ describe('Project Context navigation', () => {
 
     const page = await screen.findByRole('region', { name: 'Project' })
     expect(within(page).getByRole('region', { name: 'Documents' })).toBeInTheDocument()
-    expect(within(page).getByRole('button', { name: 'Schema' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(page).getByRole('button', { name: 'Template' })).toHaveAttribute('aria-expanded', 'false')
     expect(within(page).getByRole('button', { name: 'Runs & exports' })).toHaveAttribute('aria-expanded', 'false')
     // The alias is left as it was typed; nothing rewrites the researcher's URL.
     expect(location.pathname).toBe(`/projects/${projectContextId}/documents`)
@@ -1431,7 +1431,7 @@ describe('Project Context navigation', () => {
     renderRoutes(batchFetch)
 
     const page = await screen.findByRole('region', { name: 'Project' })
-    fireEvent.click(await within(page).findByText('Places · Schema Revision 1'))
+    fireEvent.click(await within(page).findByText('Places · Template Revision 1'))
 
     expect(location.pathname).toBe(
       `/projects/${projectContextId}/extractions/${batchExtractionId}`,
@@ -1441,14 +1441,14 @@ describe('Project Context navigation', () => {
     // Back leaves the batch for the history that listed it.
     back(`/projects/${projectContextId}/extractions`)
     expect(
-      await within(page).findByText('Places · Schema Revision 1'),
+      await within(page).findByText('Places · Template Revision 1'),
     ).toBeInTheDocument()
     expect(
       within(page).queryByRole('list', { name: 'Batch Extraction members' }),
     ).not.toBeInTheDocument()
   })
 
-  it('loads project schemas and retries an error', async () => {
+  it('loads project templates and retries an error', async () => {
     const pending = Promise.withResolvers<Response>()
     const schemas = vi
       .fn<() => Response | Promise<Response>>()
@@ -1473,21 +1473,21 @@ describe('Project Context navigation', () => {
     renderRoutes(studioFetch(undefined, detail, schemas))
 
     const page = await openProjectPage()
-    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
+    fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
 
     pending.resolve(
-      failureResponse('persistence_unavailable', 'Schema storage is unavailable.', 503),
+      failureResponse('persistence_unavailable', 'Template storage is unavailable.', 503),
     )
     fireEvent.click(
-      await within(page).findByRole('button', { name: 'Schema history' }),
+      await within(page).findByRole('button', { name: 'Template history' }),
     )
     expect(await within(page).findByRole('alert')).toHaveTextContent(
-      'Could not load schemas. persistence_unavailable: Schema storage is unavailable.',
+      'Could not load templates. persistence_unavailable: Template storage is unavailable.',
     )
 
     fireEvent.click(within(page).getByRole('button', { name: 'Retry' }))
     expect(await within(page).findByText('Places')).toBeInTheDocument()
-    expect(within(page).getByText('Current Schema Revision 2')).toBeInTheDocument()
+    expect(within(page).getByText('Current Template Revision 2')).toBeInTheDocument()
     expect(within(page).getByText(/^Updated /)).toHaveAttribute(
       'datetime',
       '2026-08-03T12:00:00.000Z',
@@ -1495,7 +1495,7 @@ describe('Project Context navigation', () => {
     expect(schemas).toHaveBeenCalledTimes(2)
   })
 
-  it('renames a schema inline after the server acknowledges it', async () => {
+  it('renames a template inline after the server acknowledges it', async () => {
     const fetcher = studioFetch(
       undefined,
       detail,
@@ -1543,18 +1543,18 @@ describe('Project Context navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open project' }))
     const page = await screen.findByRole('region', { name: 'Project' })
     await within(page).findByRole('heading', { name: project.name })
-    fireEvent.click(within(page).getByRole('button', { name: 'Schema' }))
+    fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
     fireEvent.click(
-      await within(page).findByRole('button', { name: 'Schema history' }),
+      await within(page).findByRole('button', { name: 'Template history' }),
     )
     await within(page).findByText('Places')
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Rename schema Places' }),
+      within(page).getByRole('button', { name: 'Rename template Places' }),
     )
-    const input = within(page).getByLabelText('Schema name for Places')
+    const input = within(page).getByLabelText('Template name for Places')
     fireEvent.change(input, { target: { value: '  Historic places  ' } })
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Save schema name' }),
+      within(page).getByRole('button', { name: 'Save template name' }),
     )
 
     expect(await within(page).findByText('Historic places')).toBeInTheDocument()

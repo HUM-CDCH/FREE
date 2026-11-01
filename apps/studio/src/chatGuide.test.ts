@@ -25,9 +25,9 @@ const latest = (status: NonNullable<GuideInput['latest']>['status'], schemaRevis
 const actions = (input: Partial<GuideInput>) => nextStep({ ...base, ...input })?.options.map(({ action }) => action)
 
 describe('nextStep', () => {
-  it('offers Generate schema before the first schema, counting the kept instructions', () => {
+  it('offers Generate template before the first template, counting the kept instructions', () => {
     const step = nextStep({ ...base, view: 'empty', instructionCount: 2 })
-    expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate schema (2 messages)', tone: 'positive' })
+    expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate template (2 messages)', tone: 'positive' })
     expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'dismiss'])
   })
 
@@ -86,7 +86,7 @@ describe('nextStep', () => {
       options: [{ action: 'review', tone: 'secondary' }, { action: 'run' }] })
   })
 
-  it('offers a run again once the schema changed since the last one', () => {
+  it('offers a run again once the template changed since the last one', () => {
     expect(nextStep({ ...base, latest: latest('COMPLETED', 'revision-1') })).toMatchObject({ key: 'run:extraction-1', title: 'Run extraction again' })
     expect(nextStep({ ...base, latest: latest('STOPPED') })?.title).toBe('Run extraction again')
   })
@@ -96,7 +96,7 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, view: 'empty', instructionCount: 1, dismissed: new Set(['generate:0']) })?.key).toBe('generate:1')
   })
 
-  it('offers no schema step in a read-only view, leaving runs and the latest run\'s controls to the host', () => {
+  it('offers no template step in a read-only view, leaving runs and the latest run\'s controls to the host', () => {
     expect(nextStep({ ...base, readOnly: true, view: 'empty' })).toBeNull()
     expect(nextStep({ ...base, readOnly: true, proposal: { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true } })?.key).toBe('run:first')
     expect(nextStep({ ...base, readOnly: true, recordScope: null })?.key).toBe('run:first')
@@ -121,8 +121,8 @@ describe('nextStep in a project', () => {
     summary: summary(), documents, currentDocumentId: 'b', batches: [], roundId: null, busy: false, error: null, ...overrides })
   const step = (overrides: Partial<ProjectGuideInput> = {}, input: Partial<GuideInput> = {}) => nextStep({ ...base, project: project(overrides), ...input })
 
-  it('pilots a ready schema on this document and the next ones, with a run of this document alone beside it', () => {
-    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the schema',
+  it('pilots a ready template on this document and the next ones, with a run of this document alone beside it', () => {
+    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the template',
       picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [{ action: 'pilot', picks: true }, { action: 'run', label: 'Only this document' }, { action: 'dismiss' }] })
     // A schema saved here leads to the pilot before the summary is read again.
     expect(step({ summary: summary({ phase: 'schema' }) })?.key).toBe('pilot:revision-2')
@@ -146,10 +146,10 @@ describe('nextStep in a project', () => {
   it('follows a running batch, then asks for the approval, then extracts the documents left', () => {
     expect(step({ summary: summary({ runningBatch: { completedMemberCount: 1, memberCount: 3 } }) })).toMatchObject({ busy: true, notice: 'Extraction running · 1/3' })
     expect(step({ summary: summary({ phase: 'approve', currentSchemaRevisionReviewed: true }) })).toMatchObject({
-      key: 'approve:revision-2', options: [{ action: 'approve', label: 'Approve schema' }, { action: 'dismiss' }] })
+      key: 'approve:revision-2', options: [{ action: 'approve', label: 'Approve template' }, { action: 'dismiss' }] })
     const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true })
     expect(step({ summary: approved, batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
-      question: 'Extract the 2 documents left with the approved schema?', picker: { initial: ['c', 'd'], limit: 50 }, options: [{ action: 'batch', picks: true }, { action: 'dismiss' }] })
+      question: 'Extract the 2 documents left with the approved template?', picker: { initial: ['c', 'd'], limit: 50 }, options: [{ action: 'batch', picks: true }, { action: 'dismiss' }] })
     expect(step({ summary: approved, batches: null })).toMatchObject({ busy: true })
   })
 

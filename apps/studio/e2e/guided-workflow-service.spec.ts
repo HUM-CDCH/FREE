@@ -33,7 +33,7 @@ const catalogue = (index: number) => ({
 
 /** The chat's step titled `title`, in the project chat beside the open document. */
 const step = (page: Page, title: string) =>
-  page.getByRole('complementary', { name: 'Chat, schema and results' }).getByRole('region', { name: title, exact: true })
+  page.getByRole('complementary', { name: 'Chat, template and results' }).getByRole('region', { name: title, exact: true })
 
 /** Approves every saved value of one completed Extraction and saves the review. */
 async function reviewExtraction(page: Page, extractionId: string) {
@@ -93,7 +93,7 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     await page.reload()
     await status.getByRole('button', { name: 'Continue in chat' }).click()
     await expect(page).toHaveURL(new RegExp(`/projects/${project}/documents/`))
-    const pilot = step(page, 'Pilot the schema')
+    const pilot = step(page, 'Pilot the template')
     await expect(pilot.getByRole('checkbox', { checked: true })).toHaveCount(3)
     await pilot.getByRole('button', { name: 'Run pilot on 3 documents' }).click()
     await expect(page).toHaveURL(/\/documents\/.*fromBatchExtractionId=/)
@@ -101,10 +101,10 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     // Review the pilot through the API; the chat then asks for the approval, which only it offers.
     for (const extractionId of await newestBatchMembers(page, project)) await reviewExtraction(page, extractionId)
     await page.reload()
-    const approval = step(page, 'Approve schema')
+    const approval = step(page, 'Approve template')
     await expect(approval).toBeVisible({ timeout: 60_000 })
-    await approval.getByRole('button', { name: 'Approve schema' }).click()
-    const approve = page.getByRole('dialog', { name: 'Approve the schema for Batch Extraction?' })
+    await approval.getByRole('button', { name: 'Approve template' }).click()
+    const approve = page.getByRole('dialog', { name: 'Approve the template for Batch Extraction?' })
     await approve.getByRole('button', { name: 'Approve', exact: true }).click()
     await expect(approve).toBeHidden()
 
@@ -125,11 +125,11 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     })
     expect(revised.status(), await revised.text()).toBe(201)
     await page.reload()
-    await expect(status).toContainText('Next in the chat: Re-approve schema')
+    await expect(status).toContainText('Next in the chat: Re-approve template')
     await status.getByRole('button', { name: 'Continue in chat' }).click()
-    const reapproval = step(page, 'Re-approve schema')
-    await reapproval.getByRole('button', { name: 'Re-approve schema' }).click()
-    const reapprove = page.getByRole('dialog', { name: 'Re-approve the revised schema?' })
+    const reapproval = step(page, 'Re-approve template')
+    await reapproval.getByRole('button', { name: 'Re-approve template' }).click()
+    const reapprove = page.getByRole('dialog', { name: 'Re-approve the revised template?' })
     await reapprove.getByRole('button', { name: 'Re-approve', exact: true }).click()
     await expect(reapprove).toBeHidden()
     await expect(step(page, 'Batch extraction')).toBeVisible()

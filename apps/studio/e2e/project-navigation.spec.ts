@@ -954,12 +954,12 @@ test.describe('rail navigation', () => {
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}`)
     const status = projectPage(page).getByRole('region', { name: 'Project status' })
     // Only the old revision was piloted: the chat's next step pilots the current one; nothing here leads or approves.
-    await expect(status).toContainText('Next in the chat: Pilot the revised schema')
+    await expect(status).toContainText('Next in the chat: Pilot the revised template')
     await expect(projectPage(page).getByRole('button', { name: /Approve|^Next:/ })).toHaveCount(0)
 
     currentPilotReviewed = true
     await page.reload()
-    await expect(status).toContainText('Next in the chat: Approve schema')
+    await expect(status).toContainText('Next in the chat: Approve template')
     await expect(projectPage(page).getByRole('button', { name: /Approve/ })).toHaveCount(0)
 
     running = true
@@ -1003,7 +1003,7 @@ test.describe('rail navigation', () => {
       route.fulfill({ json: { batchSchemaSuggestions: [] } }),
     )
     await page.route('**/api/schema-revisions/**', (route) =>
-      route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'No Schema Revision.' } } }),
+      route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'No Template Revision.' } } }),
     )
     await page.route('**/api/batch-extractions**', (route) =>
       route.fulfill({ json: { batchExtractions: [batchExtraction] } }),
@@ -1013,20 +1013,20 @@ test.describe('rail navigation', () => {
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}/schemas`)
     const section = (name: string) =>
       projectPage(page).getByRole('button', { name, exact: true })
-    await expect(section('Schema')).toHaveAttribute('aria-expanded', 'true')
-    await expect(projectPage(page).getByRole('heading', { name: 'Build your schema from a document' })).toBeVisible()
+    await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
+    await expect(projectPage(page).getByRole('heading', { name: 'Build your template from a document' })).toBeVisible()
     await page.reload()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
-    await expect(section('Schema')).toHaveAttribute('aria-expanded', 'true')
+    await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
 
     // The documents are the page's entry, so folding a section keeps the bare Project Context path.
-    await section('Schema').click()
+    await section('Template').click()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
     await section('Runs & exports').click()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions`)
 
     // The opened Batch Extraction is routed too, so it is linkable on its own.
-    await projectPage(page).getByText('Places · Schema Revision 1').click()
+    await projectPage(page).getByText('Places · Template Revision 1').click()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions/${BATCH}`)
     const members = projectPage(page).getByRole('list', {
       name: 'Batch Extraction members',
@@ -1044,7 +1044,7 @@ test.describe('rail navigation', () => {
     await expect(section('Runs & exports')).toHaveAttribute('aria-expanded', 'false')
     await page.goBack()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
-    await expect(section('Schema')).toHaveAttribute('aria-expanded', 'true')
+    await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
 
     // Sources' path is the bare one, so no other segment is routable.
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}/sources`)

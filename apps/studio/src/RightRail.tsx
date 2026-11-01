@@ -81,7 +81,7 @@ type RightRailProps = {
 }
 
 const VIEW_TITLES: Record<Exclude<RailView, 'chat'>, string> = {
-  evidence: 'Evidence', schema: 'Schema', results: 'Results', history: 'History',
+  evidence: 'Evidence', schema: 'Template', results: 'Results', history: 'History',
 }
 
 const iconButtonClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink'
@@ -248,8 +248,8 @@ function RightRail({
         </button>
       </div>
       {activeView === 'chat' && (
-        <nav aria-label="Schema and results" className="flex shrink-0 flex-col border-b border-line px-1.5 py-1">
-          <ContextLine label="Schema" detail={schemaDetail} onOpen={() => onViewChange('schema')} />
+        <nav aria-label="Template and results" className="flex shrink-0 flex-col border-b border-line px-1.5 py-1">
+          <ContextLine label="Template" detail={schemaDetail} onOpen={() => onViewChange('schema')} />
           <ContextLine label="Results" detail={resultsDetail} onOpen={() => onViewChange('results')} />
         </nav>
       )}
@@ -271,7 +271,7 @@ function RightRail({
           <EvidenceTab document={parsedDocument} onSelectAnchor={onSelectEvidence} />
         </div>
       )}
-      <div id="rail-panel-schema" role="region" aria-label="Schema" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'schema'}>
+      <div id="rail-panel-schema" role="region" aria-label="Template" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'schema'}>
         <SchemaPanel
           schema={schema}
           onGenerateInstructions={onGenerateInstructions}
@@ -315,7 +315,7 @@ function RightRail({
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
           <p className="m-0 text-content font-semibold text-ink">No results yet</p>
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
-            {schemaReady ? 'Run extraction to apply the schema across the source document.' : 'Create a schema in the chat first, then run extraction.'}
+            {schemaReady ? 'Run extraction to apply the template across the source document.' : 'Create a template in the chat first, then run extraction.'}
           </p>
           {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'The chat offers Run extraction as its next step.'}</p>}
         </div>}

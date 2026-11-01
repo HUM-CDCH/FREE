@@ -115,7 +115,7 @@ function batchStatus(batch: BatchExtraction): {
 }
 
 function batchSchemaLine(batch: BatchExtraction): string {
-  return `${batch.extractionSchemaName} · Schema Revision ${batch.schemaRevisionNumber}`
+  return `${batch.extractionSchemaName} · Template Revision ${batch.schemaRevisionNumber}`
 }
 
 /** The batch's one spreadsheet: every member's saved values, one row per record, through the shared export options. */
@@ -176,8 +176,8 @@ export function BatchExtractionHistory({
   if (batches.length === 0)
     return (
       <p className="py-6 text-center text-xs text-ink-muted">
-        No Batch Extractions yet. Start with "Pilot Extraction" above — it
-        picks a small first selection so you can catch a schema issue before
+        No Batch Extractions yet. Once the template is ready, the chat pilots it
+        on a few documents first, so you can catch a template issue before
         committing to the whole collection.
       </p>
     )
@@ -327,7 +327,7 @@ export function BatchExtractionMembers({
             {pinnedSchemaFailure}
           </p>
           <Button size="sm" variant="secondary" onClick={onRetrySchema}>
-            Retry Schema Revision
+            Retry Template Revision
           </Button>
         </div>
       )}

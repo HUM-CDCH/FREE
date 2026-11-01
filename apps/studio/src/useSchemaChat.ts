@@ -140,13 +140,13 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     try {
       const modelContext = await schema.requestModelEdit()
       if (schema.snapshot().draftVersion !== versionBeforeFlush) {
-        appendMessage('Schema changed while the request was running. Send the request again.')
+        appendMessage('Template changed while the request was running. Send the request again.')
         return
       }
       const original = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
       const originalDraftVersion = schema.snapshot().draftVersion
       if (!modelContext) {
-        appendMessage('Save this Extraction Schema before requesting a model edit.')
+        appendMessage('Save this Extraction Template before requesting a model edit.')
         return
       }
       const originalSchemaRevisionId = modelContext.schemaRevisionId
@@ -166,7 +166,7 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         currentAfterResponse.extractableSchemaRevisionId !==
           originalSchemaRevisionId
       ) {
-        appendMessage('Schema changed while the request was running. Send the request again.')
+        appendMessage('Template changed while the request was running. Send the request again.')
         return
       }
       if (response.status === 'answered') {
