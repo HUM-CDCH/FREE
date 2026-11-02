@@ -363,7 +363,8 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
   return {
     key: `review-next:${next.extractionId}`,
     title,
-    question: here ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
+    // Not waiting is not reviewed: this document's member may have no values to review, or a newer run of its own.
+    question: here?.currentReview ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
     detail,
     options: [{ action: 'open-document', label: `Next document · ${name}`, tone: 'positive',
       target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: round.batchExtractionId } },

@@ -277,6 +277,9 @@ describe('nextStep in a project', () => {
       extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
     expect(step({ summary: reviewing, batches: [batch([member('a'), member('b', true), member('c')])], latest: [a2], currentDocumentId: 'a' }))
       .toMatchObject({ key: 'review-next:extraction-c', title: 'Review results' })
+    // Its newer run is not reviewed: no claim that this document is.
+    expect(step({ summary: reviewing, batches: [batch([member('a'), member('b', true), member('c')])], latest: [{ ...a2, reviewed: false }],
+      currentDocumentId: 'a' })?.question).toBe('Open c.pdf to review its values?')
     // A member run after its document's latest (saved values, no completed attempt) still waits.
     const failed = { ...member('a'), executionStatus: 'FAILED' as const, completed: false }
     expect(step({ summary: reviewing, batches: [batch([failed, member('b', true), member('c')])], latest: [{ ...a2, createdAt: '2026-10-31T00:00:00.000Z' }],
