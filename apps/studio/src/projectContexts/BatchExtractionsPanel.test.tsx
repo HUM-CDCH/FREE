@@ -43,7 +43,7 @@ vi.mock('../savedMethod', async (importOriginal) => ({
   useSavedMethod: () => saved,
 }))
 // The account keeps every service default, which an Article run records explicitly.
-const DEFAULTS_HEADLINE = 'Service defaults · Bounded source units (12,288 tokens) · Plain text · Source-label verification'
+const DEFAULTS_HEADLINE = 'Service defaults · Full source · Plain text · Source-label verification'
 const SERVICE_DEFAULTS = { models: null, settings: { article: REFERENCE_ARTICLE } }
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'

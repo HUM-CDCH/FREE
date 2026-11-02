@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, UNRECORDED_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
+import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
 import { methodLines } from '../methodSummary'
 import {
   ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, orderedCatalog,
@@ -85,16 +85,16 @@ describe('resetting additional saved settings', () => {
 
 describe('choices', () => {
   it('a new incompatible choice is disabled with the design reason; the selected one never is', () => {
-    expect(unavailableReason(UNRECORDED_ARTICLE, 'overlap_passages', 1)).toBe(METHOD_MESSAGES.bounded)
-    expect(unavailableReason(UNRECORDED_ARTICLE, 'selection', 'supported')).toBe(METHOD_MESSAGES.bounded)
-    expect(unavailableReason(UNRECORDED_ARTICLE, 'grouping', 'structural')).toBe(METHOD_MESSAGES.bounded)
-    expect(unavailableReason({ ...UNRECORDED_ARTICLE, grounding: 'off' }, 'grounding_overflow', 'windows')).toBe(METHOD_MESSAGES.overflow)
+    expect(unavailableReason(REFERENCE_ARTICLE, 'overlap_passages', 1)).toBe(METHOD_MESSAGES.bounded)
+    expect(unavailableReason(REFERENCE_ARTICLE, 'selection', 'supported')).toBe(METHOD_MESSAGES.bounded)
+    expect(unavailableReason(REFERENCE_ARTICLE, 'grouping', 'structural')).toBe(METHOD_MESSAGES.bounded)
+    expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off', grounding_overflow: undefined }, 'grounding_overflow', 'windows')).toBe(METHOD_MESSAGES.overflow)
     expect(unavailableReason(REFERENCE_ARTICLE, 'evidence_policy', 'schema')).toBe(METHOD_MESSAGES.schemaPolicy)
     expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off' }, 'grounding_schedule', 'unresolved')).toBe(METHOD_MESSAGES.schedule)
     expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'spans' }, 'grounding_routing', 'origin_lexical')).toBe(METHOD_MESSAGES.routing)
     // A parent change that breaks a child stays available: the child is kept and shown invalid instead.
     expect(unavailableReason({ ...REFERENCE_ARTICLE, context: 'bounded', overlap_passages: 1 }, 'context', 'full')).toBeNull()
-    expect(unavailableReason({ ...UNRECORDED_ARTICLE, overlap_passages: 1 }, 'overlap_passages', 1)).toBeNull()
+    expect(unavailableReason({ ...REFERENCE_ARTICLE, overlap_passages: 1 }, 'overlap_passages', 1)).toBeNull()
     expect(ARTICLE_CHOICES.grounding.map((choice) => choice.label)).toEqual(['Source labels', 'Generated quotes', 'Source spans', 'Off'])
   })
 
@@ -108,12 +108,12 @@ describe('choices', () => {
 
 describe('summaries', () => {
   it('service defaults and the explicit reference read as the documented reference', () => {
-    expect(effectiveSummary(undefined)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-label verification')
-    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-label verification')
+    expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification')
+    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
   })
 
   it('inactive values never reach a summary', () => {
-    const full = { ...UNRECORDED_ARTICLE, context_tokens: 16384 }
+    const full = { ...REFERENCE_ARTICLE, context_tokens: 16384 }
     expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification')
     const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
     expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
@@ -122,7 +122,7 @@ describe('summaries', () => {
   it('a section is Changed only when one of its values differs from the saved settings', () => {
     expect(changedSections(REFERENCE_ARTICLE, undefined)).toEqual(new Set())
     expect(changedSections({ ...REFERENCE_ARTICLE, grounding: 'spans' }, REFERENCE_ARTICLE)).toEqual(new Set(['evidence']))
-    expect(changedSections({ ...UNRECORDED_ARTICLE, context_tokens: 16384 }, UNRECORDED_ARTICLE)).toEqual(new Set())
+    expect(changedSections({ ...REFERENCE_ARTICLE, context_tokens: 16384 }, REFERENCE_ARTICLE)).toEqual(new Set())
   })
 })
 
@@ -132,7 +132,7 @@ describe('starting points', () => {
     const explore = withStartingPoint(declared, STARTING_POINTS[1]!)
     expect(explore).toEqual({
       context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: ['species'],
-      prompt: 'schema', grounding: 'spans', grounding_schedule: undefined, evidence_policy: 'schema', grounding_overflow: 'windows',
+      prompt: 'schema', grounding: 'spans', grounding_schedule: undefined, evidence_policy: 'schema',
     })
     expect(STARTING_POINTS[1]!.description).not.toContain('until first support')
     expect(withStartingPoint(explore, STARTING_POINTS[0]!)).toEqual({ ...REFERENCE_ARTICLE, identity_fields: ['species'] })
@@ -142,8 +142,11 @@ describe('starting points', () => {
   it('the delta lists every changed setting, from service defaults too', () => {
     expect(settingsDelta(undefined, withStartingPoint(undefined, STARTING_POINTS[1]!))).toEqual([
       { label: 'Article settings', from: 'Service defaults', to: 'Customized' },
+      { label: 'Scope', from: 'Full source', to: 'Bounded source units' },
+      { label: 'Context ceiling', from: 'Used with bounded source units', to: '12,288 tokens' },
       { label: 'Instructions', from: 'Reference', to: 'Schema-driven' },
       { label: 'Verification', from: 'Source labels', to: 'Source spans' },
+      { label: 'Large checks', from: 'Check in windows', to: 'Leave unchecked' },
       { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow schema policies' },
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])

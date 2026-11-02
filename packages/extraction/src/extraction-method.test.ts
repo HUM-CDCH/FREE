@@ -179,7 +179,7 @@ test('service defaults are recorded and sent explicitly; a recorded null still s
   assert.deepEqual(defaults, activeMethod(null, { article: REFERENCE_ARTICLE }, 'ARTICLE', null))
   assert.deepEqual(defaults, { models: null, settings: { article: REFERENCE_ARTICLE } })
   assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, defaults.settings)).article, {
-    context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+    context: 'full', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
     prompt: 'reference', grounding: 'semantic', grounding_overflow: 'windows',
   })
   // An Extraction admitted before recorded `article: null`: Resume and Retry send no Article (the whole source).
@@ -187,7 +187,7 @@ test('service defaults are recorded and sent explicitly; a recorded null still s
   assert.deepEqual(recorded, { models: null, settings: { article: null } })
   assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, recorded!.settings)), { strategy: 'article' })
   const { grounding_overflow: _windows, ...unwindowed } = REFERENCE_ARTICLE
-  assert.deepEqual(UNRECORDED_ARTICLE, { ...unwindowed, context: 'full' })
+  assert.deepEqual(UNRECORDED_ARTICLE, unwindowed)
 })
 
 test('an account document yields the active descriptor; only the chosen strategy counts', () => {

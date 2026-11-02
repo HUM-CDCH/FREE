@@ -146,20 +146,20 @@ export type StartingPoint = Readonly<{ name: string; description: string; assign
 export const STARTING_POINTS: readonly StartingPoint[] = [
   {
     name: 'Reference controls',
-    description: 'The service defaults, explicit: bounded 12,288-token source units, reference identity and prompt, plain input, source-label verification, large checks in windows and no other optional factor.',
+    description: 'The service defaults, explicit: full source, reference identity and prompt, plain input, source-label verification, large checks in windows and no other optional factor.',
     assign: {
-      context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
+      context: 'full', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
       prompt: 'reference', rendering: undefined, grounding: 'semantic', evidence_policy: undefined, grounding_schedule: undefined,
       grounding_routing: undefined, grounding_overflow: 'windows',
     },
   },
   {
     name: 'Explore spans and schema policies',
-    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, schema prompt, plain input, source spans, large checks in windows and schema policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
+    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, schema prompt, plain input, source spans and schema policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
     assign: {
       context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
       prompt: 'schema', rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_schedule: undefined,
-      grounding_routing: undefined, grounding_overflow: 'windows',
+      grounding_routing: undefined, grounding_overflow: undefined,
     },
   },
 ]

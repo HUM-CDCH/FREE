@@ -74,10 +74,9 @@ export const ARTICLE_KEYS = [
 ] as const satisfies readonly (keyof ArticleSettings)[]
 
 /** The service default: what every new Article Extraction records and sends, explicitly, and what Customize starts
- *  from: bounded 12,288-token source units, and a claim too large to check in its unit checked in windows of it. The
- *  schema's own defaults are `UNRECORDED_ARTICLE`'s. */
-export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(
-  articleSettingsSchema.parse({ context: 'bounded', grounding_overflow: 'windows' }))
+ *  from: the whole source, and a claim too large to check in it checked in windows of it. The schema's own defaults
+ *  are `UNRECORDED_ARTICLE`'s. */
+export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
 /** What an Extraction recorded without Article settings (`article: null`) runs: the schema's defaults, the whole source
  *  without windows, as the service runs an omitted `options.article`. */
 export const UNRECORDED_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({}))

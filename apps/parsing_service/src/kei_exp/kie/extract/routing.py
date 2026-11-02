@@ -116,9 +116,7 @@ def rank_units(contexts: Sequence[Context], value_contexts: Sequence[Context], o
             "lexical_scores": [round(score, 8) for score in scores]}
 
 
-# `grounding_overflow="windows"`: the windows below, and bounded ceilings that leave out a counter's fixed framing
-# (`method.LimitedCounter`), so a Codex CLI deployment can read in bounded contexts.
-OVERFLOW_VERSION = 1
+OVERFLOW_VERSION = 1  # `grounding_overflow="windows"`: the windows below
 # Halvings of one refused unit at most: windows down to an eighth of it, so at most eight more calls per claim and unit
 # (a refused window sends none).
 WINDOW_DEPTH = 3

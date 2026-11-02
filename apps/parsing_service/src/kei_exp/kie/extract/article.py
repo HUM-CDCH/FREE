@@ -127,9 +127,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                              f"than its {served}-token context leaves beside a {REPLY_TOKENS}-token reply; it is read "
                              f"in bounded parts of {method.context_tokens} tokens")
     if method.context == "bounded":
-        framing = method.grounding_overflow is not None  # recorded by OVERFLOW_VERSION: legacy settings count it
-        counter = {role: LimitedCounter(each, method.context_tokens, exclude_framing=framing)
-                   for role, each in counter.items()}
+        counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
         contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"])
     from kei_exp.kie.extract.retained import plan_records
     # Retry keeps its generation: a pre-fallback attempt may already have saved the one-part plan before failing
@@ -282,10 +280,8 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
             source = structured_source(group) if structured else text_of(group)
             system, user, reply_schema = record_request(source, schema, None, None, document=True)
             counted = counters["fields"].request_tokens(system, user, reply_schema)
-            # A context's root restates what the context gives: its reply keeps as many tokens as its request counts,
-            # less a fixed framing the ceiling leaves out (`LimitedCounter`).
-            source_counted = counted - getattr(counters["fields"], "excluded_tokens", 0)
-            return counted + max(REPLY_TOKENS, source_counted) <= counters["fields"].context_tokens
+            # A context's root restates what the context gives: its reply keeps as many tokens as its request counts.
+            return counted + max(REPLY_TOKENS, counted) <= counters["fields"].context_tokens
         groups = partition(passages, fits, overlap=method.overlap_passages,
                            structural=method.grouping == "structural") or [Context(())]
     if method.selection is not None and item["passages"]:
