@@ -1,0 +1,9 @@
+{
+  "from": "sha256:409835e73853e5a1eb7f228fd36718c13e8fc7f150ac7311943dfa667da26e98",
+  "to": "sha256:409835e73853e5a1eb7f228fd36718c13e8fc7f150ac7311943dfa667da26e98",
+  "providedInvariants": [
+    "extraction-runtime.claude-code-extraction"
+  ],
+  "createdAt": "2026-11-01T17:02:00.753Z",
+  "migrationHash": "sha256:5e8d2e532d132ce0a4ae1153379836b11d0ffe0453f00b1f2455125f33059320"
+}

@@ -51,7 +51,7 @@ export const CONTROL_HINTS: Readonly<Record<Exclude<ArticleKey, AdditionalArticl
   overlap_passages: 'Whole earlier passages repeated as context. They never own records; not pages or sentences.',
   rendering: 'Structured input labels blocks and table cells. It keeps the source characters and cannot recover missing OCR text or cells.',
   grounding: 'How each populated record value is checked against the source.',
-  evidence_policy: 'All populated record fields, or only those your schema policies mark quoted.',
+  evidence_policy: 'All populated record fields, or only those your template policies mark quoted.',
 }
 
 type Choice<V> = Readonly<{ value: V; label: string }>
@@ -67,7 +67,7 @@ export const ARTICLE_CHOICES = {
     { value: 'semantic', label: 'Source labels' }, { value: 'quoted', label: 'Generated quotes' },
     { value: 'spans', label: 'Source spans' }, { value: 'off', label: 'Off' },
   ],
-  evidence_policy: [{ value: undefined, label: 'All populated record fields' }, { value: 'schema', label: 'Follow schema policies' }],
+  evidence_policy: [{ value: undefined, label: 'All populated record fields' }, { value: 'schema', label: 'Follow template policies' }],
   grounding_schedule: [{ value: undefined, label: 'Across all source units' }, { value: 'unresolved', label: 'Until first support' }],
   grounding_routing: [{ value: undefined, label: 'Source order' }, { value: 'origin_lexical', label: 'Origin and lexical relevance' }],
 } as const satisfies { [K in Exclude<ArticleKey, 'context_tokens' | 'identity_fields'>]: readonly Choice<ArticleSettings[K] | undefined>[] }
@@ -151,8 +151,8 @@ export const STARTING_POINTS: readonly StartingPoint[] = [
     },
   },
   {
-    name: 'Explore spans and schema policies',
-    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, schema prompt, plain input, source spans and schema policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
+    name: 'Explore spans and template policies',
+    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, template prompt, plain input, source spans and template policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
     assign: {
       context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
       prompt: 'schema', rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_schedule: undefined,

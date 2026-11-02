@@ -34,7 +34,7 @@ export const EVIDENCE_SOURCES: readonly Readonly<{
 }>[] = [
   { id: 'r1r3r4', title: 'Completed R1/R3/R4 development cells', date: '2026-09-28',
     corpus: 'Six annotated development documents per accuracy comparison (cost pairs as stated); R1 79/79, R3 12/12 and R4 4/12 cells',
-    revision: 'Frozen historical runtimes, schemas and canonical parses (R1 and R3 protocol v11; R4 protocol v12)',
+    revision: 'Frozen historical runtimes, templates and canonical parses (R1 and R3 protocol v11; R4 protocol v12)',
     evidence: 'Exact replay of completed fresh-generation cells',
     limits: 'Each comparison changes one choice from its control arm; one repetition per arm; bracketed ranges are descriptive document-bootstrap intervals; development corpus, not a prediction for today’s runtime; semantic adjudication outstanding' },
   { id: 'r1catalog', title: 'Completed R1 Catalog cells', date: '2026-09-28',
@@ -211,10 +211,10 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       ],
       notes: ['15.6 belongs to PSC: linking it to the ASC claim would be wrong-subject evidence.'],
     },
-    combinations: 'Schema policies need generated quotes or source spans. Continue verification and unit order are retired: every method is routed and stops at first support.',
+    combinations: 'Template policies need generated quotes or source spans. Continue verification and unit order are retired: every method is routed and stops at first support.',
     takeaway: 'Exact source location alone is not proof that the entire claim is supported. Wrong-subject 15.6 must not become support.',
     evidence: [
-      { source: 'pilot', finding: 'Source spans with schema policies and until first support used 10 versus 40 calls and 89,770 versus 222,156 input tokens compared with generated quotes, on one selected document.' },
+      { source: 'pilot', finding: 'Source spans with template policies and until first support used 10 versus 40 calls and 89,770 versus 222,156 input tokens compared with generated quotes, on one selected document.' },
       { source: 'pilot', finding: 'That arm linked 35 versus 30 of 78 claim paths; two quoted-arm links were lost, and link counts do not establish semantic accuracy.' },
       { source: 'audit', finding: 'Identical requests returned different decisions in 4 of 20 groups; two model reviews agreed on record attribution for only 43 of 69 claim–evidence pairs.' },
       { source: 'harvey', finding: 'Compact span labels admitted all 16 selected decisions that the original labels refused, but used 8 versus 4 calls and 80,806 versus 34,910 input tokens compared with generated quotes; both methods linked a compound claim the source only partly supports.' },
@@ -226,24 +226,24 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'policy', title: 'Fields to verify',
-    purpose: 'Choose whether verification follows the pinned schema’s evidence policies.',
+    purpose: 'Choose whether verification follows the pinned template’s evidence policies.',
     stage: 'Which record values verification considers.',
     example: {
       caption: 'Parent notes is derived; its child temperature is quoted; its child method inherits derived.',
       options: [
         { label: 'All populated record fields', blocks: [unit('notes › temperature', 'checked'), unit('notes › method', 'checked')],
           outcome: 'Every populated record value is checked.' },
-        { label: 'Follow schema policies', blocks: [unit('notes › temperature', 'checked', 'quoted: eligible'), unit('notes › method', 'kept, not checked', 'derived (inherited): skipped', true)],
+        { label: 'Follow template policies', blocks: [unit('notes › temperature', 'checked', 'quoted: eligible'), unit('notes › method', 'kept, not checked', 'derived (inherited): skipped', true)],
           outcome: 'Only quoted values are checked; skipped values stay visibly ungrounded with their policy. Results count all and eligible values separately.' },
       ],
     },
-    combinations: 'Needs generated quotes or source spans. Policies belong to the Extraction Schema; this choice never edits them.',
+    combinations: 'Needs generated quotes or source spans. Policies belong to the Extraction Template; this choice never edits them.',
     takeaway: '“Quoted” means source support required, including with span grounding; derived does not compute/validate a value; skipped leaves remain ungrounded.',
     evidence: [
-      { source: 'pilot', finding: 'With source spans on one selected document, schema policies used 10 versus 16 calls and 84 versus 156 claim–source decisions and kept all 35 linked paths; one selected proof changed.' },
+      { source: 'pilot', finding: 'With source spans on one selected document, template policies used 10 versus 16 calls and 84 versus 156 claim–source decisions and kept all 35 linked paths; one selected proof changed.' },
       { source: 'pilot', finding: '36 status leaves were derived, leaving 42 of 78 claims eligible; skipped fields are not verified or presumed correct.' },
     ],
-    gaps: [{ kind: 'Combination not studied', text: 'Schema policies with generated quotes.' }],
+    gaps: [{ kind: 'Combination not studied', text: 'Template policies with generated quotes.' }],
     technical: 'evidence_policy=schema. Results list each skipped path with its policy; no eligible value reads as not applicable.',
   },
   {
@@ -261,7 +261,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
     takeaway: 'First support does not settle contradictions: a value supported in one unit may be contradicted in a unit that was never checked.',
     evidence: [
       { source: 'pilot', finding: 'With source spans on one selected document, until first support used 14 versus 16 calls and 122 versus 156 claim–source decisions; its one fewer link also differed between byte-identical requests.' },
-      { source: 'pilot', finding: 'Together with schema policies it reduced decisions from 84 to 49 at the same 10 calls and kept the same 35 linked paths, with two proofs changed; the interaction was not additive (+2 calls and +8,772 input tokens, one document, no interval).' },
+      { source: 'pilot', finding: 'Together with template policies it reduced decisions from 84 to 49 at the same 10 calls and kept the same 35 linked paths, with two proofs changed; the interaction was not additive (+2 calls and +8,772 input tokens, one document, no interval).' },
       { source: 'pilot', finding: 'Origin and lexical order used one extra call and 4,871 extra input tokens and kept two fewer links than the unrouted combined run.' },
       { source: 'audit', finding: 'One of those losses was an identical-request difference; a five-repeat check reproduced the other for the routed request form (6/6 NONE versus 7/7 linked, originals included).' },
     ],
@@ -299,6 +299,6 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
 
 /** How this works: the text equivalent of the one flow diagram (design §5). */
 export const FLOW_TEXT =
-  'Canonical Source Context feeds Context and grouping. Context and grouping feeds Inventory and identity, Record values and Evidence verification. Inventory and identity feeds Record values. Record values feeds Evidence verification. Schema policies feed Evidence verification. Evidence verification feeds Extraction Result and review.'
+  'Canonical Source Context feeds Context and grouping. Context and grouping feeds Inventory and identity, Record values and Evidence verification. Inventory and identity feeds Record values. Record values feeds Evidence verification. Template policies feed Evidence verification. Evidence verification feeds Extraction Result and review.'
 export const FLOW_NOTE =
   'Rendering affects model input; verification is routed to the unit each value was read from and stops at first support. Saved selection, scheduling and routing values are retained under Additional saved settings. The diagram is conceptual: filename and document fields and recipe Catalog have their own paths and are not Article stages.'

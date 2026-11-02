@@ -36,7 +36,7 @@ test('bundled parsed document renders its page-scoped PDF @deterministic', async
   await expect(page.locator('.pdfViewer .page')).toHaveCount(6)
 })
 
-test('schema instruction editor retains clipboard ownership in a reopened Source Document @deterministic', async ({
+test('template instruction editor retains clipboard ownership in a reopened Source Document @deterministic', async ({
   page,
 }) => {
   const store = projectContextFixture()
@@ -152,7 +152,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
   await expect(page.getByText('Extract the grave name', { exact: true })).toBeVisible()
   await activateWithKeyboard(
     page,
-    page.getByRole('button', { name: 'Generate schema' }),
+    page.getByRole('button', { name: 'Generate template' }),
   )
   await expect(page.getByText('graves', { exact: true })).toBeVisible()
 

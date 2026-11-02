@@ -3,10 +3,10 @@ import type { SchemaInstructions } from './useSchemaInstructions'
 type MessageClass = (role: 'user' | 'assistant') => string
 
 const ACKNOWLEDGEMENTS: React.ReactNode[] = [
-  <>Got it — recorded for schema generation.</>,
-  <>Noted. That's added to the instructions guiding schema generation.</>,
-  <>Recorded — this'll factor into the generated schema.</>,
-  <>Good, saved. Keep adding instructions, or generate the schema whenever you're ready.</>,
+  <>Got it — recorded for template generation.</>,
+  <>Noted. That's added to the instructions guiding template generation.</>,
+  <>Recorded — this'll factor into the generated template.</>,
+  <>Good, saved. Keep adding instructions, or generate the template whenever you're ready.</>,
 ]
 
 function acknowledgement(index: number): React.ReactNode {

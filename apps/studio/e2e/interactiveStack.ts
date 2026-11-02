@@ -112,7 +112,7 @@ export async function prepareInteractiveDocument(
     parserVersion: '1',
   })
   if (extractionSchemaId) {
-    await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Interactive schema' })
+    await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Interactive template' })
     await db.orm.public.SchemaRevision.create({
       id: randomUUID(),
       extractionSchemaId,

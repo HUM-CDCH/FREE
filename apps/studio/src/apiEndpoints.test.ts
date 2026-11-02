@@ -105,7 +105,7 @@ describe('Studio API endpoints', () => {
     await expect(response.json()).resolves.toEqual({ status: 'ok' })
   })
 
-  it('starts a durable Schema Suggestion over the owner-scoped source and answers its result', async () => {
+  it('starts a durable Template Suggestion over the owner-scoped source and answers its result', async () => {
     const store = contextStore()
     const client = operations()
     const response = await createPostGenerateSchema(store, () => client)(formRequest('generate_schema', generateForm()))
@@ -159,7 +159,7 @@ describe('Studio API endpoints', () => {
     )
   })
 
-  it('rejects browser-authored source and schema context', async () => {
+  it('rejects browser-authored source and template context', async () => {
     const generation = generateForm()
     generation.append('document_markdown', '# Browser report')
     const generationStore = contextStore()

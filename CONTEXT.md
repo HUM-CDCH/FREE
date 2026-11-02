@@ -74,7 +74,8 @@ _Avoid_: property, column, metadata
 
 **Extraction Schema**:
 A researcher-approved structure that belongs to exactly one Project Context: a record description and the Fields FREE should extract. Every Extraction applies one of its Schema Revisions, which keeps extraction precise and repeatable.
-_Avoid_: template, extraction target, target list
+Studio's interface calls it a *template* (and a Schema Revision a template revision, Schema Suggestion a template suggestion) so the word explains itself to researchers, as the Model Configuration page calls the Interaction Route the *Assistant model*; code, contracts, the API and these documents keep the Extraction Schema terms. Exports keep their column names.
+_Avoid_ (in code and documents): template, which there names NuExtract's own template; extraction target, target list
 
 **Schema Revision**:
 An immutable, ordered version of an Extraction Schema.

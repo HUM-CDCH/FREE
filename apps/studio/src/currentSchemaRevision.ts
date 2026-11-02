@@ -160,7 +160,7 @@ export function durableSchemaPersistence(options: {
   // One append binding per coordinator; the Extraction Schema id arrives with
   // the first revision when the scope starts without one.
   const appendCurrent = async (expected: number, definition: SchemaDefinition, recordScope?: RecordScope) => {
-    if (extractionSchemaId === null) throw new Error('No durable schema is open.')
+    if (extractionSchemaId === null) throw new Error('No durable template is open.')
     const carried = replacement
     const saved = await options.append(extractionSchemaId, expected, definition, carried?.sourceCoverage, recordScope)
     if (replacement === carried) replacement = null
@@ -181,9 +181,9 @@ export function durableSchemaPersistence(options: {
       return options.projectContextId
     },
     async initialize(definition, signal, sourceCoverage, recordScope) {
-      if (coordinator) throw new Error('A durable schema is already open.')
+      if (coordinator) throw new Error('A durable template is already open.')
       if (uncertainInitialization) {
-        if (!options.reconcileInitialization) throw new Error('Reload the project to reconcile the uncertain schema save.')
+        if (!options.reconcileInitialization) throw new Error('Reload the project to reconcile the uncertain template save.')
         const current = await options.reconcileInitialization()
         if (current) {
           if (!sameSchemaDefinition(current, definition)) throw new SchemaRevisionConflictError(current)
@@ -220,7 +220,7 @@ export function durableSchemaPersistence(options: {
     },
     getRevision(schemaRevisionId, signal) {
       if (extractionSchemaId === null)
-        return Promise.reject(new Error('No durable schema is open.'))
+        return Promise.reject(new Error('No durable template is open.'))
       return options.getRevision(extractionSchemaId, schemaRevisionId, signal)
     },
     onChange(listener) {
@@ -505,7 +505,7 @@ export function createSchemaEditorController(
       // chain. The save acknowledgement is the only event allowed to replace it.
       persistence.edit(definition, sourceCoverage)
       const revision = await flushPersistence()
-      if (!revision) throw new Error('A durable Extraction Schema is required.')
+      if (!revision) throw new Error('A durable Extraction Template is required.')
       if (draft === null || !sameSchemaDefinition(draft, revision)) {
         draft = normalizeSchemaDefinition(revision)
         draftVersion += 1
@@ -514,7 +514,7 @@ export function createSchemaEditorController(
       replacementVersion += 1
       return true
     }
-    if (!persistence.initialize) throw new Error('Schema generation is unavailable for this draft.')
+    if (!persistence.initialize) throw new Error('Template generation is unavailable for this draft.')
     const revision = await persistence.initialize(definition, signal, sourceCoverage, pendingRecordScope ?? undefined)
     if (signal?.aborted || disposed) return false
     replacementVersion += 1
@@ -567,7 +567,7 @@ export function createSchemaEditorController(
         if (draft !== failedOn) generatedCoverage = null
         generating = false
         generationError =
-          error instanceof Error ? error.message : 'Schema generation failed.'
+          error instanceof Error ? error.message : 'Template generation failed.'
         publish()
       } finally {
         settle()
@@ -739,7 +739,7 @@ export function createSchemaEditorController(
         persistence.edit(normalizeSchemaDefinition(loaded), null)
         const created = await flushPersistence()
         if (!created)
-          throw new Error('A durable Extraction Schema is required.')
+          throw new Error('A durable Extraction Template is required.')
         if (draft === null || !sameSchemaDefinition(draft, created)) {
           draft = normalizeSchemaDefinition(created)
           draftVersion += 1
@@ -748,7 +748,7 @@ export function createSchemaEditorController(
         extractableSchemaRevisionId = created.schemaRevisionId
         historicalPreview = null
         options.onCommitMessage?.(
-          `Created from Schema Revision ${loaded.revisionNumber}`,
+          `Created from Template Revision ${loaded.revisionNumber}`,
         )
         publish()
         return created

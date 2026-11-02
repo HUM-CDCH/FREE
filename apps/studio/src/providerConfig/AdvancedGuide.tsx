@@ -272,7 +272,7 @@ function FlowDiagram() {
         <polygon points={left(NODE.x + NODE.width, middle(verification))} />
       </g>
       {ROWS.map((label, index) => box(NODE.x, rowY(index), NODE.width, label))}
-      {box(POLICIES.x, rowY(verification), POLICIES.width, 'Schema policies')}
+      {box(POLICIES.x, rowY(verification), POLICIES.width, 'Template policies')}
     </svg>
   )
 }

@@ -8,6 +8,7 @@ import type {SchemaNode} from 'extraction/schema'
 import {E2E_ORIGIN,loginResearcher} from './auth.js'
 import {cataloguePdf,numberedCataloguePdf,startRealService,textPdf} from './realService.js'
 import {admit,settle} from './sourceIngestion.js'
+import { openRailView } from './rail.js'
 
 const siteNodes:SchemaNode[]=[{id:'site',name:'site',type:'verbatim-string'},{id:'finds',name:'finds',type:'verbatim-string'},{id:'year',name:'year',type:'integer'}]
 const methods=['article','generic','recipe','unified'] as const
@@ -68,8 +69,8 @@ for(const method of methods) {
       const state=async()=>await (await page.request.get(`/api/extractions/${id}/durable`)).json()
       expect((await state()).counts.inFlight).toBeGreaterThan(0)
       await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
-      await page.locator('#rail-tab-results').click()
-      const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+      await openRailView(page,'Results')
+      const rail=page.getByRole('complementary',{name:'Chat, template and results'})
       await page.getByRole('button',{name:'❚❚ Pause extraction',exact:true}).click()
       await expect(rail.getByText('Pausing',{exact:true})).toBeVisible()
       expect((await state()).counts.inFlight).toBeGreaterThan(0)
@@ -99,7 +100,7 @@ for(const method of methods) {
       const value=saved.values.find((each:{processing:string;node:{type:string}})=>each.processing==='saved'&&['string','verbatim-string'].includes(each.node.type))??saved.values.find((each:{processing:string})=>each.processing==='saved')
       expect(value).toBeDefined()
       await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}&value=${encodeURIComponent(value.id)}`)
-      await page.locator('#rail-tab-results').click()
+      await openRailView(page,'Results')
       const review=page.getByRole('region',{name:`Review ${value.node.name}`,exact:true})
       await review.getByRole('button',{name:'Edit',exact:true}).click()
       const corrected=['string','verbatim-string'].includes(value.node.type)?'Manually retained native correction':value.modelValue
@@ -107,12 +108,12 @@ for(const method of methods) {
       await review.getByRole('button',{name:'Save edit',exact:true}).click()
       const valueUrl=`/api/extractions/${id}/durable/values/${encodeURIComponent(value.id)}`
       await expect.poll(async()=>(await (await page.request.get(valueUrl)).json()).values[0].correction?.decision.value).toEqual(corrected)
-      await page.reload();await page.locator('#rail-tab-results').click()
+      await page.reload();await openRailView(page,'Results')
       await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeVisible()
       await page.getByRole('button',{name:'More result actions'}).click()
       await page.getByRole('menuitem',{name:'Export…'}).click()
       const downloading=page.waitForEvent('download')
-      await page.getByRole('button',{name:'CSV',exact:true}).click()
+      await page.getByRole('button',{name:'CSV file',exact:true}).click()
       const csv=await readFile((await (await downloading).path())!,'utf8')
       expect(hasColumn(csv.split('\r\n')[0]!,value.node.name),csv).toBe(true)
       if(typeof corrected==='string')expect(csv).toContain(corrected)
@@ -143,8 +144,8 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     await expect.poll(async()=>service.extractionHeld()&&(await shown()).size>0,{timeout:120_000}).toBe(true)
     expect((await state()).recordsFinal).toBe(false)
     await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
-    await page.locator('#rail-tab-results').click()
-    const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+    await openRailView(page,'Results')
+    const rail=page.getByRole('complementary',{name:'Chat, template and results'})
     await page.getByRole('button',{name:'❚❚ Pause extraction',exact:true}).click()
     await expect(rail.getByText('Pausing',{exact:true})).toBeVisible()
     service.releaseExtraction()
@@ -199,7 +200,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(value).toBeDefined()
     const corrected=[{site:'Researcher guidance sentinel',finds:'pottery',year:1901}]
     await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&value=${encodeURIComponent(value.id)}`)
-    await page.locator('#rail-tab-results').click()
+    await openRailView(page,'Results')
     const review=page.getByRole('region',{name:'Review sites',exact:true})
     await review.getByRole('button',{name:'Edit',exact:true}).click()
     await review.getByRole('textbox',{name:'Reviewed value'}).fill(JSON.stringify(corrected))
@@ -271,11 +272,11 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const retainedA=(await (await page.request.get(valueUrl)).json()).values[0]
     expect(retainedA.correction.decision.value).toEqual(corrected)
     expect(retainedA.correction.included).toBe(false)
-    await page.locator('#rail-tab-results').click()
+    await openRailView(page,'Results')
     await page.getByRole('button',{name:'More result actions'}).click()
     await page.getByRole('menuitem',{name:'Export…'}).click()
     const download=page.waitForEvent('download')
-    await page.getByRole('button',{name:'CSV',exact:true}).click()
+    await page.getByRole('button',{name:'CSV file',exact:true}).click()
     const rows=(await readFile((await (await download).path())!,'utf8')).split('\r\n')
     expect(hasColumn(rows[0]!,value.node.name),rows[0]).toBe(true)
     // The producing request stays in History, read through its own API; the research table never carries it.
@@ -295,7 +296,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
         await client.query('UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])',[batchId,[extractionA,extractionB]])
       })
       await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
-      await page.locator('#rail-tab-results').click()
+      await openRailView(page,'Results')
       await expect(page.getByRole('region',{name:'Pilot review'})).toContainText('0 of 2 documents reviewed')
       await page.getByRole('button',{name:'Save review',exact:true}).click()
       await expect(page.getByRole('region',{name:'Pilot review'})).toContainText('1 of 2 documents reviewed')
@@ -333,7 +334,7 @@ test('deleting a project fences its held native worker and retains another proje
     await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
     expect(await service.keiWorkflows(`kei-durable:${id}:`)).toHaveLength(1)
     await page.goto(`/projects/${projects[0]}/documents/${sources[0]}?extractionId=${id}`)
-    await page.locator('#rail-tab-results').click()
+    await openRailView(page,'Results')
     expect((await page.request.delete(`/api/project-contexts/${projects[0]}`,{headers:{Origin:E2E_ORIGIN}})).status()).toBe(204)
     expect((await page.request.get(`/api/extractions/${id}/durable`)).status()).toBe(404)
     const tombstone=async()=>withPoolClientTransaction(async(_tx,client)=>(await client.query('SELECT deleted,intent FROM extraction_runtime.head WHERE id=$1',[id])).rows[0])
@@ -390,12 +391,12 @@ for(const method of ['article','unified'] as const) {
       const saved=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
       expect(saved.values.some((value:{processing:string})=>value.processing==='saved')).toBe(true)
       await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
-      await page.locator('#rail-tab-results').click()
+      await openRailView(page,'Results')
       await expect(page.getByText('Completed',{exact:true}).first()).toBeVisible()
       await page.getByRole('button',{name:'More result actions'}).click()
       await page.getByRole('menuitem',{name:'Export…'}).click()
       const download=page.waitForEvent('download')
-      await page.getByRole('button',{name:'CSV',exact:true}).click()
+      await page.getByRole('button',{name:'CSV file',exact:true}).click()
       const rows=(await readFile((await (await download).path())!,'utf8')).split('\r\n')
       expect(rows.length).toBeGreaterThan(1)
       expect(saved.values.filter((value:{processing:string;node:{name:string}})=>value.processing==='saved'&&!hasColumn(rows[0]!,value.node.name)).map((value:{node:{name:string}})=>value.node.name),rows[0]).toEqual([])
@@ -430,8 +431,8 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
     // The reasoning server also reads the fields: its values carry verification links, so Evidence is highlighted.
     const id=await seedNative(page,project,sourceId,'unified',{models:{fields:'instruct',reasoning:'instruct'},defaults})
     await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
-    await page.locator('#rail-tab-results').click()
-    const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+    await openRailView(page,'Results')
+    const rail=page.getByRole('complementary',{name:'Chat, template and results'})
     const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()
     const values=async()=>(await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()
     await service.reconcileDurable()
@@ -485,7 +486,8 @@ for(const defaults of [2,3] as const) test(`native unified live results (default
     await shot('05-paused')
     const paused=await values()
     await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
-    await expect(page.getByRole('button',{name:/❚❚ Pause extraction|Pausing…/})).toBeVisible({timeout:60_000})
+    // Running again: the chat's step offers Pause, or says it is pausing.
+    await expect(page.getByRole('region',{name:'Extraction',exact:true}).getByText(/❚❚ Pause extraction|Pausing…/).first()).toBeVisible({timeout:60_000})
 
     // 6. Completion.
     await expect.poll(async()=>{
@@ -561,7 +563,7 @@ test('a real bounded Article retains two title readings through worker publicati
     const saved=await (await page.request.get(`${root}/values`)).json()
     expect(saved.values[0].disagreement[0].alternatives.map((a:{value:string})=>a.value).sort()).toEqual(['A History of Clocks','Ecology of Rivers'])
     await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
-    await page.locator('#rail-tab-results').click()
+    await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title/}).click()
     await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
     await expect(page.getByRole('button',{name:'Use Ecology of Rivers'})).toBeVisible()
@@ -590,7 +592,7 @@ test('a real bounded Article retains two title readings through worker publicati
     expect(alternatives.getCell('F3').value).toBe('Not checked')
     await page.getByRole('button',{name:'Use Ecology of Rivers'}).click()
     await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(0)
-    await page.reload();await page.locator('#rail-tab-results').click();await page.getByRole('button',{name:'All',exact:true}).click()
+    await page.reload();await openRailView(page,'Results');await page.getByRole('button',{name:'All',exact:true}).click()
     await expect(page.getByRole('button',{name:/Approved title Ecology of Rivers/})).toBeVisible()
     await page.getByRole('button',{name:'Save review',exact:true}).click()
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()

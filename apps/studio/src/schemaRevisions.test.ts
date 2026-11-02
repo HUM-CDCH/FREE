@@ -31,8 +31,8 @@ const definition = {
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('schema revision client', () => {
-  it('lists project schemas through the bounded same-origin DTO', async () => {
+describe('template revision client', () => {
+  it('lists project templates through the bounded same-origin DTO', async () => {
     const fetch = vi.fn().mockResolvedValue(
       Response.json({
         extractionSchemas: [
@@ -59,7 +59,7 @@ describe('schema revision client', () => {
     )
   })
 
-  it('renames a schema through its project-owned endpoint', async () => {
+  it('renames a template through its project-owned endpoint', async () => {
     const fetch = vi.fn().mockResolvedValue(
       Response.json({
         extractionSchema: {
@@ -92,16 +92,16 @@ describe('schema revision client', () => {
     }))
     vi.stubGlobal('fetch', fetch)
 
-    await renameExtractionSchema(PROJECT, SCHEMA, 'Historic places', undefined, 'Extraction Schema')
+    await renameExtractionSchema(PROJECT, SCHEMA, 'Historic places', undefined, 'Extraction Template')
     expect(JSON.parse(String((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({
-      projectContextId: PROJECT, name: 'Historic places', expectedName: 'Extraction Schema',
+      projectContextId: PROJECT, name: 'Historic places', expectedName: 'Extraction Template',
     })
   })
 
   it('initializes, lists, gets, and appends through validated same-origin DTOs', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(Response.json({ revision }, { status: 201 }))
-      .mockResolvedValueOnce(Response.json({ revisions: [{ ...revision, recordDescription: undefined, schemaNodes: undefined, summary: 'Initial schema' }] }))
+      .mockResolvedValueOnce(Response.json({ revisions: [{ ...revision, recordDescription: undefined, schemaNodes: undefined, summary: 'Initial template' }] }))
       .mockResolvedValueOnce(Response.json({ revision }))
       .mockResolvedValueOnce(Response.json({ revision }, { status: 201 }))
     vi.stubGlobal('fetch', fetch)

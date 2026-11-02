@@ -107,6 +107,10 @@ class CapturedChat:
             from kei_exp.kie.extract.codex import CodexChat
             return CodexChat(model=self.model, timeout=self.provider["timeout"]).complete_request(
                 self.payload, on_text=self.on_text)
+        if self.provider.get("adapter") == "claude-code":
+            from kei_exp.kie.extract.claude_code import ClaudeCodeChat
+            return ClaudeCodeChat(model=self.model, timeout=self.provider["timeout"]).complete_request(
+                self.payload, on_text=self.on_text)
         started=time.monotonic()
         guard = (_ItemRepetitionGuard(logical_request["user"], started)
                  if self.provider.get("adapter") == "nuextract" and self.stage == "entry" else None)

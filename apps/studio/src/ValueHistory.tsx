@@ -84,7 +84,7 @@ export default function ValueHistory({ projectContextId, sourceDocumentId, extra
                   <span className="block break-words text-ink">{reading.decision?.action === 'REJECTED' ? <s>{text}</s> : text}</span>
                   {edited && <span className="block text-compact text-ink-muted">Extracted: <s>{reviewedValueSummary(reading.node, reading.modelValue)}</s></span>}
                   <span className="block text-compact text-ink-muted">
-                    {[at(reading.createdAt), decisionWord(reading), `schema rev ${reading.schemaRevision.revisionNumber}`,
+                    {[at(reading.createdAt), decisionWord(reading), `template rev ${reading.schemaRevision.revisionNumber}`,
                       reading.node.name !== name && `named ${reading.node.name}`].filter(Boolean).join(' · ')}
                   </span>
                 </span>

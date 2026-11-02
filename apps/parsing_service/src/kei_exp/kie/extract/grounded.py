@@ -154,7 +154,7 @@ class _Run:
         final = attempts[-1]
         if not final.ok:
             self.issue("call_failed", final.error or f"{stage} call failed", record)
-        # An upper-bound counter (Codex) reserves at least the served count; an exact one must equal it.
+        # An upper-bound counter (Codex, Claude Code) reserves at least the served count; an exact one must equal it.
         if final.input_tokens is not None and (final.input_tokens > counted if getattr(
                 self.counters[ROLE[stage]], "upper_bound", False) else final.input_tokens != counted):
             self.issue("budget_count_mismatch", f"the server counted {final.input_tokens} input tokens where the "

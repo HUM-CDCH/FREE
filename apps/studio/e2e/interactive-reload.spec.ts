@@ -28,18 +28,18 @@ test.afterEach(async () => {
 
 /** Regenerates the open schema with one instruction, through the schema actions menu's Regenerate dialog. */
 async function regenerate(page: Page, instruction: string) {
-  await page.getByRole('button', { name: 'Schema actions' }).click()
+  await page.getByRole('button', { name: 'Template actions' }).click()
   await page.getByRole('menuitem', { name: 'Regenerate from the document…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Regenerate from the document' })
   const input = dialog.getByPlaceholder(/Add a generation instruction/)
   await input.fill(instruction)
   await input.press('Enter')
-  await dialog.getByRole('button', { name: /Regenerate schema/ }).click()
+  await dialog.getByRole('button', { name: /Regenerate template/ }).click()
 }
 
 /** Asks the edit chat for one change. */
 async function requestEdit(page: Page, instruction: string) {
-  const input = page.getByPlaceholder('Describe a change to the schema…')
+  const input = page.getByPlaceholder('Describe a change to the template…')
   await input.fill(instruction)
   await input.press('Enter')
 }
@@ -53,7 +53,7 @@ async function describeRecord(page: Page, text: string) {
 
 const revisionCount = () => stack!.schemaRevisions().then((revisions) => revisions.length)
 
-test('a scalar note edited through schema chat is reviewed, saved and retained after reload @deterministic', async ({ page }) => {
+test('a scalar note edited through template chat is reviewed, saved and retained after reload @deterministic', async ({ page }) => {
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
@@ -168,7 +168,7 @@ test('a surviving tab keeps saving through its acknowledged head, including edit
 
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
-  await expect(page.getByText('The Current Schema Revision changed elsewhere.')).toHaveCount(0)
+  await expect(page.getByText('The Current Template Revision changed elsewhere.')).toHaveCount(0)
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 

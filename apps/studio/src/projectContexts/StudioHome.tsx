@@ -12,12 +12,12 @@ const phases = [
   { number: '01', name: 'Upload', copy: 'Add your Source Documents.' },
   {
     number: '02',
-    name: 'Create schema',
-    copy: 'Describe what you want to extract; a schema is drafted.',
+    name: 'Create template',
+    copy: 'Describe what you want to extract; a template is drafted.',
   },
-  { number: '03', name: 'Pilot', copy: 'Try the schema on a few documents and review the results.' },
-  { number: '04', name: 'Approve', copy: 'Approve the schema for the whole collection.' },
-  { number: '05', name: 'Batch extract', copy: 'Run the approved schema over every document.' },
+  { number: '03', name: 'Pilot', copy: 'Try the template on a few documents and review the results.' },
+  { number: '04', name: 'Approve', copy: 'Approve the template for the whole collection.' },
+  { number: '05', name: 'Batch extract', copy: 'Run the approved template over every document.' },
   { number: '06', name: 'Review', copy: 'Review each value against its Evidence.' },
 ]
 
@@ -45,7 +45,7 @@ function metaLine(project: ProjectContext): string {
 const eventLabels: Record<ProjectContextActivityEvent['kind'], string> = {
   extraction_appended: 'Extraction appended',
   review_decisions_stored: 'Review Decisions stored',
-  schema_revision_appended: 'Schema Revision appended',
+  schema_revision_appended: 'Template Revision appended',
   batch_extraction_opened: 'Batch Extraction opened',
 }
 
@@ -103,7 +103,7 @@ function FirstRun({ onCreate }: { onCreate: () => void }) {
           From source to structured data, with the evidence to prove it
         </h1>
         <p className="text-sm leading-relaxed text-ink-muted">
-          Describe what you need in a conversation, approve the schema it
+          Describe what you need in a conversation, approve the template it
           drafts, and review every extracted value against its source.
         </p>
       </div>

@@ -321,7 +321,9 @@ user action carries a client-minted ID (*Client IDs*).
   `schema-chat-answers`, the message may ask a question instead (ADR 0023): the
   output is its answer, and a long source's question, first answered from
   excerpts, is answered again in `answerWindow:<n>` steps and combined in a
-  `combineAnswers` step.
+  `combineAnswers` step. The message may also ask for the extraction to run
+  (ADR 0027): the output is `requested` with the action `extract`, nothing is
+  proposed, and the page offers what may run. The step sequence is unchanged.
 - **Chat messages before the first schema (`answerSchemaChat`).**
   `schema_chat` takes an `operation_id`. One `answerIfQuestion` step answers a
   question or replies `instruction`; a long source's question is answered

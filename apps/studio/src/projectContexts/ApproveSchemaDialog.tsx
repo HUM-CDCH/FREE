@@ -36,7 +36,7 @@ export default function ApproveSchemaDialog({
       await stabiliseSchemaRevision({ projectContextId, schemaRevisionId })
       onApproved()
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : 'The schema could not be approved.')
+      setFailure(error instanceof Error ? error.message : 'The template could not be approved.')
       setApproving(false)
     }
   }
@@ -51,12 +51,12 @@ export default function ApproveSchemaDialog({
       onDismiss={onDismiss}
     >
       <h2 id={titleId} className="text-sm font-bold text-ink">
-        {reapproval ? 'Re-approve the revised schema?' : 'Approve the schema for Batch Extraction?'}
+        {reapproval ? 'Re-approve the revised template?' : 'Approve the template for Batch Extraction?'}
       </h2>
       <p className="mt-2 text-xs leading-relaxed text-ink-muted">
         {reapproval
-          ? 'Batch Extraction will use the revised schema. Results extracted with the earlier revision are kept, and their documents are extracted again with this one.'
-          : 'Batch Extraction will run this schema over the whole collection.'}
+          ? 'Batch Extraction will use the revised template. Results extracted with the earlier revision are kept, and their documents are extracted again with this one.'
+          : 'Batch Extraction will run this template over the whole collection.'}
       </p>
       {pendingExtractionCount > 0 && (
         <p className="mt-2 text-xs leading-relaxed text-ink-muted">

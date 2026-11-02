@@ -356,18 +356,18 @@ async function stubStudio(page: Page, nested = false): Promise<void> {
   )
 }
 
-const panel = (page: Page) => page.getByRole('tabpanel', { name: 'Extractions' })
+const panel = (page: Page) => page.getByRole('region', { name: 'Runs & exports' })
 
 /**
- * Opens the Extractions tab with the Project Context's Source Documents already
- * read, which is what the panel offers a new Batch Extraction over.
+ * Opens the Runs & exports section with the Project Context's Source Documents
+ * already read, which is what the panel offers a new Batch Extraction over.
  */
 async function openExtractions(page: Page): Promise<void> {
   await gotoAuthenticated(page, `/projects/${id.project}`)
   const project = page.getByRole('region', { name: 'Project' })
   for (const name of Object.values(documentName))
     await expect(project.getByText(name, { exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: 'Extractions' }).click()
+  await project.getByRole('button', { name: 'Runs & exports', exact: true }).click()
 }
 
 /** The prepare screen, over every Source Document in the Project Context. */
@@ -516,14 +516,14 @@ for (const key of ['Enter', 'Space'] as const) {
     })
     await expect(
       panel(page).getByRole('button', {
-        name: /Places · Schema Revision 4/,
+        name: /Places · Template Revision 4/,
       }),
     ).toBeVisible()
     expect(runRequests).toHaveLength(1)
   })
 }
 
-test('two tabs expose and recover a durable Batch Schema Suggestion draft conflict @deterministic', async ({
+test('two tabs expose and recover a durable Batch Template Suggestion draft conflict @deterministic', async ({
   page,
   context,
 }) => {
@@ -535,7 +535,7 @@ test('two tabs expose and recover a durable Batch Schema Suggestion draft confli
     await openExtractions(candidate)
     await prepareBatch(candidate)
     await candidate
-      .getByRole('combobox', { name: 'Extraction Schema', exact: true })
+      .getByRole('combobox', { name: 'Extraction Template', exact: true })
       .selectOption('__suggest_common_fields__')
     await expect(candidate.getByText('place', { exact: true })).toBeVisible()
   }

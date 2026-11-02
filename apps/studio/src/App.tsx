@@ -12,7 +12,7 @@ import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import DocumentHistory from './DocumentHistory'
 import ValueHistory from './ValueHistory'
-import type { RailTab } from './RightRail'
+import type { RailView } from './RightRail'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { deleteModelOperation, requestSchema } from './api'
@@ -29,7 +29,6 @@ import DocumentMarkdown from './DocumentMarkdown'
 import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
 import { createDurableReader, useKeyedController, type ControlReceipt } from './durableReader'
-import { ExtractionControl } from './ExtractionControl'
 import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
@@ -39,7 +38,13 @@ import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
-import type { DocumentSnapshot } from './projectContexts/transport'
+import type { DocumentSnapshot, ProjectContextActivitySummary } from './projectContexts/transport'
+import { BatchRequestError, openBatchExtraction } from './projectContexts/batchExtractions'
+import ApproveSchemaDialog from './projectContexts/ApproveSchemaDialog'
+import { exportableResults, type ProjectDocument } from './chatGuide'
+import ExtractionResultExportControl from './ExtractionResultExportControl'
+import type { ExportChoices, ExportFormat } from 'extraction-result-export'
+import { useProjectBatches } from './useProjectBatches'
 import { renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
 import { strategyOf } from 'extraction/schema'
@@ -162,24 +167,32 @@ export type DocumentWorkspaceProps = {
   tabBarSlot?: HTMLElement | null
   /** The active document tab's ring slot. */
   tabRingSlot?: HTMLElement | null
+  /** AppFrame's project chat column, beside the whole document area and its tabs, which the rail is portalled into so
+      it reads as the project's, not this document's. Undefined (a bare workspace) keeps the rail inline; null waits. */
+  chatColumn?: HTMLElement | null
+  /** The open project's name, which the chat is titled with. */
+  projectName?: string | null
   /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
       ahead (default 20 s; tests shorten it). */
   automaticRenameTimeoutMs?: number
   /** Set when the Project Context page's "Build your schema from a document"
-   *  picker opened this document — offers a "Next step" control that saves
-   *  the schema and returns to the project's Schemas tab. */
+   *  picker opened this document: the schema is built toward a pilot round, so the chat offers no run of this
+   *  document alone. */
   fromSchemaBuilder?: boolean
   onNavigate?: (route: NavigableRoute) => void
-  /** Fired once the "Save schema and pilot it" flush durably
-   *  commits a Schema Revision — the caller's cue to refresh whatever
-   *  persisted project summary (phase, etc.) it's holding, since this
-   *  component has no reason to know about that store itself. */
-  onSchemaApproved?: () => void
-  /** Fired once a review is finalized (accepted) on this Extraction — like
-   *  `onSchemaApproved`, this can move the project's workflow phase
-   *  (extract -> validate), so the caller's persisted summary needs the
-   *  same refresh cue. */
+  /** Fired once a review is finalized (accepted) on this Extraction: this
+   *  can move the project's workflow phase (extract -> validate), so the
+   *  caller's persisted summary needs a refresh. */
   onReviewFinalized?: () => void
+  /** The project around this document, where the caller knows it: its persisted summary and Source Documents, and a
+   *  fresh read of the summary. The chat leads the project's workflow from them (pilot, approval, batch, review). */
+  project?: {
+    summary: ProjectContextActivitySummary
+    documents: readonly ProjectDocument[]
+    /** The Batch Extraction this document was opened from to review, if any. */
+    roundId: string | null
+    refresh: () => void
+  } | null
 }
 
 /** An admission refusal useExtraction reported through `onMethodChanged`: nothing was started. */
@@ -208,10 +221,12 @@ export function DocumentWorkspace({
   onSourceSuperseded,
   tabBarSlot = null,
   tabRingSlot = null,
+  chatColumn,
+  projectName = null,
   automaticRenameTimeoutMs = 20_000,
   fromSchemaBuilder = false,
   onNavigate,
-  onSchemaApproved,
+  project = null,
   onReviewFinalized,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -236,7 +251,6 @@ export function DocumentWorkspace({
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   // The "Save schema and pilot it" flush is in flight.
-  const [confirmingSchema, setConfirmingSchema] = useState(false)
   // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
   // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
   // first-generation name can then never replace a rename the researcher made meanwhile: on screen by this order, on the
@@ -276,7 +290,7 @@ export function DocumentWorkspace({
       (error: unknown) => {
         if (expectedName !== undefined) durableSchemaNameRef.current = expectedName
         if (latest()) setSchemaName(durableSchemaNameRef.current)
-        return error instanceof Error ? error.message : 'Schema could not be renamed.'
+        return error instanceof Error ? error.message : 'Template could not be renamed.'
       },
     )
   }
@@ -295,7 +309,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
-  const [railTab, setRailTab] = useState<RailTab>(() => routedValue ? 'results' : 'schema')
+  const [railView, setRailView] = useState<RailView>(() => routedValue ? 'results' : 'chat')
   // The History tab follows one value when set, until "Whole document"; it belongs to the document it was opened on.
   const [valueScope, setValueScope] = useState<{ sourceDocumentId: string; extractionId: string; valueId: string; name: string } | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
@@ -537,7 +551,7 @@ export function DocumentWorkspace({
       showToast(
         error instanceof Error
           ? error.message
-          : 'Could not save the Current Schema Revision.',
+          : 'Could not save the Current Template Revision.',
       )
       throw error
     }
@@ -577,7 +591,7 @@ export function DocumentWorkspace({
       if (extractionSchemaId) {
         const name = defaultSchemaName(filename)
         setSchemaName(name)
-        void renameSchema(extractionSchemaId, name, 'Extraction Schema', automaticRenameTimeoutMs)
+        void renameSchema(extractionSchemaId, name, 'Extraction Template', automaticRenameTimeoutMs)
       }
     }
   }
@@ -669,7 +683,7 @@ export function DocumentWorkspace({
     showToast(
       reviewingLatest ? 'Extraction complete — saved values are ready to review.'
         : isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
-      reviewNow && !reviewingLatest ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setSelectedInspectionId(null); setRailOpen(true); setRailTab('results') } } } : undefined,
+      reviewNow && !reviewingLatest ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setSelectedInspectionId(null); setRailOpen(true); setRailView('results') } } } : undefined,
     )
   }
   // The newest Extraction on the shown Source Representation keeps the run controls.
@@ -760,8 +774,8 @@ export function DocumentWorkspace({
     if (state) acceptDurableStatus(latestReader.extractionId, state.status)
   }), [latestReader, acceptDurableStatus])
   useEffect(() => {
-    railOnResultsRef.current = railOpen && railTab === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
-  }, [railOpen, railTab, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
+    railOnResultsRef.current = railOpen && railView === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
+  }, [railOpen, railView, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
   // A routed cut (a finalized review) applies to the routed Extraction only. Ordinary inspection opens the live cut.
   const inspectionCut: SavedReviewCut | null = inspectedAttempt?.extractionId === persistedExtraction?.extractionId ? persistedReviewCut : null
   // The document's latest is another Extraction: the latest here, or the newest on a later Source Representation.
@@ -806,7 +820,7 @@ export function DocumentWorkspace({
         : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
       if (!key) return
       setRailOpen(true)
-      setRailTab('results')
+      setRailView('results')
       selection.select(key, false, publishedMarks.extractionId, keys)
     },
   } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
@@ -816,7 +830,7 @@ export function DocumentWorkspace({
     parsedDocument:inspectionDocument,
     attempt: inspectedAttempt,
     marks,
-    active: effectiveRailOpen && railTab === 'results',
+    active: effectiveRailOpen && railView === 'results',
     railOpen: effectiveRailOpen,
     dimLink: marks ? publishedDim : null,
   })
@@ -839,15 +853,15 @@ export function DocumentWorkspace({
     admissionOrigin.current=routeExtractionId
     setSavingForRun(true)
     setRailOpen(true)
-    setRailTab('results')
+    setRailView('results')
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
       const revision = await schema.flush()
       if (!stillHere()) return
-      if (!revision) throw new Error('Save the Current Schema Revision before extraction.')
+      if (!revision) throw new Error('Save the Current Template Revision before extraction.')
       // The saved revision's own scope decides what a run is; admission refuses any other.
-      if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the schema header before extraction.')
+      if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the template header before extraction.')
       const strategy = strategyOf(revision.recordScope)
       const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
       for (let round = 0; round < 2; round += 1) {
@@ -895,7 +909,7 @@ export function DocumentWorkspace({
         if (round === 1) showToast('Your saved settings changed. Run again.', { durationMs: 6000 })
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Save the Current Schema Revision before extraction.')
+      showToast(error instanceof Error ? error.message : 'Save the Current Template Revision before extraction.')
     } finally {
       setSavingForRun(false)
     }
@@ -933,34 +947,76 @@ export function DocumentWorkspace({
   // pilot Batch Extraction. Stabilising the Revision itself is a later step:
   // the server refuses to stabilise a Schema Revision until a pilot Extraction
   // has been run and reviewed against it.
-  async function approveSchemaAndGoToNextStep() {
-    if (!onNavigate) return
-    setConfirmingSchema(true)
+  // The project's workflow, led by the chat: a pilot or batch start, the approval, and the next document to review.
+  const projectBatches = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
+  const [projectBusy, setProjectBusy] = useState(false)
+  const [projectError, setProjectError] = useState<string | null>(null)
+  const [approvingSchema, setApprovingSchema] = useState(false)
+  // The documents the chat's export step ticked, while the export's options and format are chosen.
+  const [exporting, setExporting] = useState<readonly string[] | null>(null)
+  // A revision saved here can move the project's phase (schema -> pilot): read its summary again.
+  const refreshProject = project?.refresh
+  const savedRevisionId = schemaSnap.extractableSchemaRevisionId
+  useEffect(() => { if (savedRevisionId) refreshProject?.() }, [savedRevisionId, refreshProject])
+
+  /** Downloads the ticked documents' results as one table: each its newest reviewed result on the Current Template
+   *  Revision (else its newest completed one), at its own versions, named by its document and Batch Extraction. */
+  async function exportProjectResults(sourceDocumentIds: readonly string[], format: ExportFormat, choices: ExportChoices) {
+    if (!project || !sourceDocumentId) return
+    const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
+      batches: projectBatches, roundId: project.roundId, busy: false, error: null })
+    const members = sourceDocumentIds.flatMap((id) => {
+      const result = results.get(id)
+      return result ? [{ extractionId: result.member.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId,
+        sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
+        sourceRevisionId: result.member.sourceRepresentationRevisionId, status: result.member.executionStatus }] : []
+    })
+    setProjectBusy(true)
+    setProjectError(null)
     try {
-      const acknowledged = await schema.flush()
-      const revisionId =
-        acknowledged?.schemaRevisionId ??
-        schemaSnap.extractableSchemaRevisionId ??
-        undefined
-      // The persisted Schema Revision just moved this project's workflow phase
-      // (schema -> pilot) — the rail's project list only ever read that
-      // summary once, so without this it would keep showing the pre-approval
-      // phase until an unrelated write happened to refetch it.
-      onSchemaApproved?.()
-      onNavigate({
-        kind: 'project',
-        projectContextId,
-        tab: 'extractions',
-        ...(revisionId ? { pilotSchemaRevisionId: revisionId } : {}),
-      })
+      const { downloadDurableBatch } = await import('./durableExport')
+      await downloadDurableBatch({ batchExtractionId: '', name: schemaName ?? 'Extraction results' }, members, format, choices)
     } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : 'Could not save the Extraction Schema.',
-      )
+      setProjectError(error instanceof Error ? error.message : 'Unable to export saved values.')
     } finally {
-      setConfirmingSchema(false)
+      setProjectBusy(false)
+    }
+  }
+
+  /** Saves the schema, re-reads the saved method and opens a Batch Extraction over the ticked documents, as a run
+   *  does (ADR 0015): a `method_changed` refusal re-reads once. A pilot then opens its first document to review. */
+  async function startProjectBatch(kind: 'pilot' | 'batch', sourceDocumentIds: readonly string[]) {
+    if (projectBusy || !project) return
+    setProjectBusy(true)
+    setProjectError(null)
+    try {
+      const revision = await schema.flush()
+      if (!revision) throw new Error('Save the Current Template Revision first.')
+      if (revision.recordScope === null) throw new Error('Choose Article or Catalog first.')
+      const strategy = strategyOf(revision.recordScope)
+      let opened: Awaited<ReturnType<typeof openBatchExtraction>> | null = null
+      for (let round = 0; round < 2 && !opened; round += 1) {
+        const savedState = (await saved.refresh()) ?? (await saved.refresh())
+        if (!savedState) throw new Error('Saved advanced settings could not be read. Nothing was started.')
+        try {
+          opened = await openBatchExtraction({ projectContextId, schemaRevisionId: revision.schemaRevisionId, strategy,
+            sourceDocumentIds, method: savedMethodFor(savedState, strategy, null) })
+        } catch (error) {
+          if (round === 0 && error instanceof BatchRequestError && error.code === METHOD_CHANGED) continue
+          throw error
+        }
+      }
+      if (!opened) throw new Error('Your saved settings changed. Start again.')
+      project.refresh()
+      const { batchExtraction } = opened
+      const first = batchExtraction.members.find((member) => member.sourceDocumentId === sourceDocumentId) ?? batchExtraction.members[0]
+      if (kind === 'pilot' && first)
+        onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: first.sourceDocumentId, extractionId: first.extractionId,
+          fromBatchExtractionId: batchExtraction.batchExtractionId })
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'The extraction could not be started.')
+    } finally {
+      setProjectBusy(false)
     }
   }
 
@@ -982,29 +1038,122 @@ export function DocumentWorkspace({
     : !sourceRepresentationCurrent
       ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
       : schemaSnap.save?.status === 'error'
-        ? 'The schema is not saved. Retry the save first.'
+        ? 'The template is not saved. Retry the save first.'
         : schemaSnap.save?.status === 'conflict'
-          ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
+          ? 'The template changed elsewhere. Reload it in the Template view first.'
           : indexing
             ? 'The document is still being indexed'
             : !schemaReady
-              ? 'Generate a schema in the Schema tab first'
+              ? 'Create a template in the chat first'
               : nextExtractionStrategy === null
-                ? 'Choose Article or Catalog in the schema header'
+                ? 'Choose Article or Catalog in the template header'
                 : extraction.monitorError
                   ? 'Reconnect to check the original Extraction before starting another.'
                   : !extraction.canRun
-                    ? 'The latest Extraction can still continue: pause, resume or stop it above.'
+                    ? 'The latest Extraction can still continue: pause, resume or stop it in the chat.'
                     : null
   // The latest Extraction, while it can still continue, takes the run button's place: Pause while it runs, Resume or
-  // Retry once it stops short, and Stop beside them. A completed or stopped one, or none, leaves Run.
-  const controlStatus = latestAttempt && latestAttempt.executionStatus !== 'COMPLETED' && latestAttempt.executionStatus !== 'STOPPED'
-    ? latestAttempt.executionStatus : null
-  const control = controlStatus === 'PAUSED' ? { label: '▶ Resume extraction', action: 'resume' as const }
-    : controlStatus === 'FAILED' ? { label: '↻ Retry extraction', action: 'retry' as const }
-      : controlStatus === 'PAUSING' ? { label: 'Pausing…', action: null }
-        : controlStatus === 'STOPPING' ? { label: 'Stopping…', action: null }
-          : { label: '❚❚ Pause extraction', action: 'pause' as const }
+  const railColumn = (
+    <>
+    {effectiveRailOpen && (
+      <div
+        className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
+        title="Drag to resize"
+        onMouseDown={startResize}
+      />
+    )}
+    <aside
+      style={{ width: effectiveRailWidth }}
+      className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+        effectiveRailOpen
+          ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
+          : ''
+      }`}
+      aria-label="Chat, template and results"
+    >
+      <RightRail
+        open={effectiveRailOpen}
+        onToggle={() => setRailOpen((open) => !open)}
+        view={railView}
+        onViewChange={setRailView}
+        schema={schema}
+        onGenerateInstructions={handleGenerate}
+        onClearDraft={resetSchema}
+        extraction={extraction}
+        inspection={{
+          attempt: inspectedAttempt,
+          cut: inspectionCut,
+          readOnly: inspectionReadOnly,
+          parsedDocument:inspectionDocument,
+          reader: inspectedId ? inspectedReader : latestReader,
+        }}
+        latestReader={latestReader}
+        onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
+        onValueHistory={sourceDocumentId ? (extractionId, valueId, name) => {
+          setValueScope({ sourceDocumentId, extractionId, valueId, name })
+          setRailView('history')
+        } : undefined}
+        documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
+          ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+            extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible} refreshKey={historyRefreshKey}
+            shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => {
+              setValueScope(null)
+              // Its control leaves with it: focus stays in the History panel.
+              requestAnimationFrame(() => document.getElementById('rail-panel-history')?.focus())
+            }} />
+          : <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
+          visible={visible} refreshKey={historyRefreshKey}
+          shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
+          currentSchemaRevision={currentSchemaRevision} onOpen={openFromHistory} /> : undefined}
+        currentSchemaRevision={currentSchemaRevision}
+        runUnavailableReason={runUnavailableReason}
+        sourceDocumentName={filename}
+        projectName={projectName}
+        sourceRepresentationId={sourceRepresentationId}
+        onPinnedDocument={onPinnedDocument}
+        onReviewProgress={setDurableReviewProgress}
+        onReviewFinalized={onReviewFinalized}
+        schemaName={schemaName}
+        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
+        // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
+        run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
+        control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
+        project={project && sourceDocumentId ? {
+          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, roundId: project.roundId,
+            busy: projectBusy || approvingSchema, error: projectError },
+          start: (kind, ids) => void startProjectBatch(kind, ids),
+          approve: () => setApprovingSchema(true),
+          open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
+            extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId }),
+          export: (ids) => setExporting(ids),
+        } : null}
+        boundaries={
+          !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
+            ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
+            : null
+        }
+        resultsHeaderExtras={
+          <>
+            {reviewedOnAnotherSource && latestReviewedExtraction && (
+              <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
+                ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
+                : undefined)}>Open latest reviewed</Button>
+            )}
+          </>
+        }
+        onRenameSchema={async (name) => {
+          // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
+          const extractionSchemaId = schema.snapshot().extractionSchemaId
+          if (!projectContextId || !extractionSchemaId)
+            return 'No durable template is open.'
+          return renameSchema(extractionSchemaId, name)
+        }}
+        onSelectEvidence={selectEvidenceAnchor}
+        selection={selection}
+      />
+    </aside>
+    </>
+  )
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -1016,6 +1165,29 @@ export function DocumentWorkspace({
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
       {/* The open document's tab carries the review's progress as a ring, and says it. */}
+      <ExtractionResultExportControl
+        open={exporting !== null}
+        schemaNodes={schemaSnap.draft?.schemaNodes ?? []}
+        onDismiss={() => setExporting(null)}
+        onExport={(format, choices) => {
+          const ids = exporting ?? []
+          setExporting(null)
+          void exportProjectResults(ids, format, choices)
+        }}
+      />
+      {approvingSchema && project?.summary.currentSchemaRevisionId && (
+        <ApproveSchemaDialog
+          projectContextId={projectContextId}
+          schemaRevisionId={project.summary.currentSchemaRevisionId}
+          reapproval={project.summary.phase === 'batch' || project.summary.phase === 'review'}
+          pendingExtractionCount={project.summary.pendingExtractionSourceDocumentCount}
+          onApproved={() => {
+            setApprovingSchema(false)
+            project.refresh()
+          }}
+          onDismiss={() => setApprovingSchema(false)}
+        />
+      )}
       {tabRingSlot && inspectedAttempt && createPortal((() => {
         const progress=durableReviewProgress?.extractionId===inspectedAttempt.extractionId?durableReviewProgress:null
         const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
@@ -1033,68 +1205,6 @@ export function DocumentWorkspace({
             <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
           )}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
-          {/* While building a schema toward a pilot extraction, Run is the
-              wrong next action — the only step from here is approving the
-              schema, so it is left out entirely rather than shown disabled. */}
-          {!fromSchemaBuilder && (
-            <>
-              {/* Run is the screen's one positive; while the latest Extraction can still continue, Pause, Resume or Retry
-                  takes its place with Stop beside it. */}
-              {/* One fixed width for Run, Pause and Resume, so the strip never shifts; progress is the Results badge's, not the
-                  button's. */}
-              {controlStatus ? (
-                <>
-                  {controlStatus !== 'STOPPING' && (
-                    <Button variant="outline-danger" size="md" disabled={controlling} title="Stop the extraction; its saved values and decisions stay"
-                      onClick={() => void controlExtraction('stop')}>■ Stop</Button>
-                  )}
-                  <ExtractionControl reader={latestReader} control={control} busy={controlling} onCommand={action=>void controlExtraction(action)}/>
-                </>
-              ) : (
-                // Once this document has an Extraction, the work is reviewing it: a new run is the secondary action,
-                // named as one, so it never reads as the way to go on.
-                <Button
-                  variant={inspectedAttempt ? 'secondary' : 'positive'}
-                  size="md"
-                  className="min-w-43 justify-center tabular-nums"
-                  disabled={runExtractionUnavailable}
-                  title={runUnavailableReason ?? `${nextExtractionStrategy === 'CATALOG'
-                    ? 'Find the catalogue entries and extract one record per entry'
-                    : 'Extract one record from the whole document'}${inspectedAttempt
-                    ? '. A new Extraction: the current results and your review stay saved.' : ''}`}
-                  onClick={() => void runExtraction()}
-                >
-                  {inspectedAttempt ? '↻ Re-run extraction' : '▶ Run extraction'}
-                </Button>
-              )}
-            </>
-          )}
-          {/* Picked the wrong document: back to the Schemas tab's picker, one click away rather than hidden in the
-              tab bar's project link. */}
-          {fromSchemaBuilder && onNavigate && (
-            <Button
-              size="md"
-              disabled={confirmingSchema}
-              onClick={() => onNavigate({ kind: 'project', projectContextId, tab: 'schemas' })}
-            >
-              <span aria-hidden="true">←</span> Choose another document
-            </Button>
-          )}
-          {fromSchemaBuilder && (
-            <Button
-              variant="positive"
-              size="md"
-              disabled={confirmingSchema || schemaSnap.extractionSchemaId === null}
-              title={
-                schemaSnap.extractionSchemaId === null
-                  ? 'Generate a schema in the Schema tab first'
-                  : 'Save this Schema Revision, then pick 2-3 documents for a pilot extraction'
-              }
-              onClick={() => void approveSchemaAndGoToNextStep()}
-            >
-              {confirmingSchema ? 'Saving…' : 'Save schema and pilot it'}
-            </Button>
-          )}
         </>,
         tabBarSlot,
       )}
@@ -1193,92 +1303,8 @@ export function DocumentWorkspace({
               />
             )}
           </section>
-          {effectiveRailOpen && (
-            <div
-              className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
-              title="Drag to resize"
-              onMouseDown={startResize}
-            />
-          )}
-          <aside
-            style={{ width: effectiveRailWidth }}
-            className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
-              effectiveRailOpen
-                ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
-                : ''
-            }`}
-            aria-label="Evidence, schema and results"
-          >
-            <RightRail
-              open={effectiveRailOpen}
-              onToggle={() => setRailOpen((open) => !open)}
-              tab={railTab}
-              onTabChange={setRailTab}
-              schema={schema}
-              onGenerateInstructions={handleGenerate}
-              onClearDraft={resetSchema}
-              extraction={extraction}
-              inspection={{
-                attempt: inspectedAttempt,
-                cut: inspectionCut,
-                readOnly: inspectionReadOnly,
-                parsedDocument:inspectionDocument,
-                reader: inspectedId ? inspectedReader : latestReader,
-              }}
-              latestReader={latestReader}
-              onOpenLatest={newerExtraction ? () => onOpenExtraction(newerExtraction.extractionId) : null}
-              onValueHistory={sourceDocumentId ? (extractionId, valueId, name) => {
-                setValueScope({ sourceDocumentId, extractionId, valueId, name })
-                setRailTab('history')
-              } : undefined}
-              documentHistory={sourceDocumentId ? (visible) => valueScope?.sourceDocumentId === sourceDocumentId
-                ? <ValueHistory key={`${valueScope.extractionId}:${valueScope.valueId}`} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
-                  extractionId={valueScope.extractionId} valueId={valueScope.valueId} name={valueScope.name} visible={visible} refreshKey={historyRefreshKey}
-                  shownExtractionId={inspectedAttempt?.extractionId ?? null} onOpen={openFromHistory} onBack={() => {
-                    setValueScope(null)
-                    // Its control leaves with it: focus stays in the History panel.
-                    requestAnimationFrame(() => document.getElementById('rail-panel-history')?.focus())
-                  }} />
-                : <DocumentHistory key={sourceDocumentId} projectContextId={projectContextId} sourceDocumentId={sourceDocumentId}
-                visible={visible} refreshKey={historyRefreshKey}
-                shown={inspectedAttempt ? { extractionId: inspectedAttempt.extractionId, cut: inspectionCut } : null}
-                currentSchemaRevision={currentSchemaRevision} onOpen={openFromHistory} /> : undefined}
-              currentSchemaRevision={currentSchemaRevision}
-              runUnavailableReason={runUnavailableReason}
-              sourceDocumentName={filename}
-              sourceRepresentationId={sourceRepresentationId}
-              onPinnedDocument={onPinnedDocument}
-              onReviewProgress={setDurableReviewProgress}
-              onReviewFinalized={onReviewFinalized}
-              schemaName={schemaName}
-              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
-              // The chat's Run step is the tab strip's Run, where the strip offers one.
-              run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
-              boundaries={
-                !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
-                  ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
-                  : null
-              }
-              resultsHeaderExtras={
-                <>
-                  {reviewedOnAnotherSource && latestReviewedExtraction && (
-                    <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
-                      ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
-                      : undefined)}>Open latest reviewed</Button>
-                  )}
-                </>
-              }
-              onRenameSchema={async (name) => {
-                // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
-                const extractionSchemaId = schema.snapshot().extractionSchemaId
-                if (!projectContextId || !extractionSchemaId)
-                  return 'No durable schema is open.'
-                return renameSchema(extractionSchemaId, name)
-              }}
-              onSelectEvidence={selectEvidenceAnchor}
-              selection={selection}
-            />
-          </aside>
+          {/* The project's chat: AppFrame's own column beside the whole document area, else (a bare workspace) here. */}
+          {chatColumn === undefined ? railColumn : chatColumn && createPortal(railColumn, chatColumn)}
         </div>
       </div>
     </div>

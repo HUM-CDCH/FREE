@@ -382,6 +382,29 @@ increase counted Catalog input budgets beyond the framing allowance, or keep the
 The policy is pinned with every capture, so later changes require a new policy version. Discovery text may be
 shown while generated, but only a validated completed reply becomes a checkpoint.
 
+## Claude Code extraction
+
+`KEI_EXTRACT_PROVIDER=claude-code` selects the deployment-owned Claude Code login for both extraction roles
+([ADR 0025](../../docs/adr/0025-deployment-owned-claude-code-extraction.md)); `KEI_EXTRACT_MODEL` must name a
+full model ID, such as the one `claude -p --output-format json` reports in `modelUsage`. The root launcher's
+`compose.claude.yaml` maps `KEI_CLAUDE_MODEL` to it and passes `CLAUDE_CODE_OAUTH_TOKEN`. Use `FREE_GPU=off`.
+The image contains the standalone `claude` executable at Studio's pinned version; `KEI_CLAUDE_BINARY` can select
+another executable for diagnostics. The CLI has no model catalog, so the selectors offer the deployment model only,
+reachable while `claude auth status` sees a credential.
+
+Each captured call runs one `claude -p` process in an empty directory that is also its home and configuration
+directory, with its exact saved instructions, source (on standard input) and JSON schema. It inherits only the
+token, locale, proxy and certificate variables. Built-in tools, MCP servers, setting sources, skills and
+non-essential traffic are disabled; the structured-output tool is the only one accepted. Any other tool, server
+tool, compaction, or a usage report naming another model fails the call.
+
+Policy `claude:utf8-budget-v1` reserves the UTF-8 bytes of the request plus 4,096 tokens for framing, within a
+65,536-token planning ceiling, labelled `input_counting: upper_bound`. Reported input usage is the sum of
+uncached, cache-read and cache-creation tokens. It must fit the reservation, the reported context window must cover
+the ceiling, and output usage must fit the reply reserve. The CLI receives the reserve as
+`CLAUDE_CODE_MAX_OUTPUT_TOKENS` but continues a cut-off reply before failing, so the output check after inference
+is what holds. Discovery streams the structured reply's partial JSON while it is generated.
+
 ## Verification
 
 From the FREE root, install once with `pnpm --filter parsing-service install:python`.
