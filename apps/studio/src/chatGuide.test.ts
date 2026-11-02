@@ -307,6 +307,9 @@ describe('nextStep in a project', () => {
     expect(step({ summary: reviewing, batches: [round], latest: unreviewed })).toMatchObject({ key: 'review-next:extraction-a2', options: [
       { action: 'open-document', target: { sourceDocumentId: 'a', extractionId: 'extraction-a2', batchExtractionId: null } }, { action: 'dismiss' }] })
     expect(step({ summary: reviewing, batches: [round], latest: unreviewed, currentDocumentId: 'a' })?.key).toBe('review:extraction-a2')
+    // Its own card keeps the run step's re-run: a run that saved no values can never be reviewed.
+    expect(step({ summary: reviewing, batches: [round], latest: unreviewed, currentDocumentId: 'a' }, { resultsShown: true })?.options)
+      .toEqual([expect.objectContaining({ action: 'run', label: '↻ Re-run extraction', tone: 'secondary' })])
     expect(step({ summary: reviewing, batches: [batch([member('b', true)])], latest: unreviewed })?.key).toBe('review-next:extraction-a2')
   })
 

@@ -360,7 +360,10 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
       question: input.resultsShown ? undefined : 'Check each value against its source in Results, then save the review.',
       notice: input.resultsShown ? 'Check each value against its highlighted source, then save the review.' : undefined,
       detail,
-      options: [...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const], ...also ? [also] : []],
+      options: [...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const],
+        // A run alone keeps its re-run: one that saved no values can never be reviewed.
+        ...here.batchExtractionId === null && input.run ? [{ action: 'run', label: RERUN_LABEL, tone: 'secondary', disabled: !input.run.available,
+          description: runDescription(input, true) } as const] : [], ...also ? [also] : []],
     }
   // The next one after this document, round the queue.
   const index = here ? queue.indexOf(here) : -1
