@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { STUDIO_BOOT_HEADER } from '../shared/studioBoot.js'
 import { plantedKey } from '../test/support/plantedKey.js'
 import { E2E_ORIGIN, e2eStudioPath } from './auth.js'
+import { openRailView } from './rail.js'
 import { prepareInteractiveDocument, type InteractiveDocument } from './interactiveStack.js'
 import { killStudio } from './studioRestart.js'
 
@@ -26,6 +27,8 @@ test.afterEach(async () => {
 })
 
 async function regenerate(page: Page, instruction: string) {
+  // The menu is the Template view's; a message sent from it has returned the rail to the chat.
+  await openRailView(page, 'Template')
   await page.getByRole('button', { name: 'Template actions' }).click()
   await page.getByRole('menuitem', { name: 'Regenerate from the document…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Regenerate from the document' })
@@ -58,6 +61,7 @@ test('a Studio restart with the page open resends the keys, and the recovered ge
   stack = await prepareInteractiveDocument(page, { hasKey: true, key })
   const requests = recordApiRequests(page)
   await stack.open()
+  await openRailView(page, 'Template')
   // Two held replies: the call the dead Studio made, and the recovered step's call on the new one.
   stack.model.reply({ text: TEMPLATE, hold: true }, { text: TEMPLATE, hold: true })
 
@@ -81,6 +85,8 @@ test('a Studio restart with the page open resends the keys, and the recovered ge
   expect(recovered.authorization === `Bearer ${key}`, 'the recovered call carried the resent key').toBe(true)
   stack.model.release()
 
+  // The restarted dev server reloads the page, which lands on the chat; the template's fields are in its view.
+  await openRailView(page, 'Template')
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 60_000 })
   await expect.poll(revisionCount, { timeout: 30_000 }).toBe(2)
   await expect(page.getByRole('alert')).toHaveCount(0)
@@ -90,6 +96,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   const key = plantedKey()
   stack = await prepareInteractiveDocument(page, { hasKey: true, key })
   await stack.open()
+  await openRailView(page, 'Template')
   stack.model.reply({ text: RENAME_TITLE, hold: true }, { text: RENAME_TITLE, hold: true })
 
   await requestEdit(page, 'Rename title to heading')
@@ -99,6 +106,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   // The reloaded page polls the running proposal; every poll answers with the Studio process's boot ID.
   const firstListing = page.waitForResponse((response) => pathOf(response.url()) === '/api/model-operations')
   await page.reload()
+  await openRailView(page, 'Template')
   const firstBoot = (await firstListing).headers()[STUDIO_BOOT_HEADER.toLowerCase()]
   expect(firstBoot).toBeTruthy()
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toBeVisible({ timeout: 20_000 })
@@ -125,6 +133,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   stack.model.release()
 
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 60_000 })
+  await openRailView(page, 'Template')
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible()
 })
 
@@ -152,6 +161,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   const refusal = { status: 401, body: '{"error":"{{authorization}}"}', headers: echo }
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
+  await openRailView(page, 'Template')
 
   // The key is typed into the Model Configuration page for the scripted connection: the page probes with it (the
   // provider refuses the first probe, echoing the key back) and hands it to Studio; the configuration itself records

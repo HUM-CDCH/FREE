@@ -8,6 +8,7 @@ import { db } from '../../../packages/db/src/prisma/db.js'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import { startScriptedModelServer } from '../test/support/scriptedModelServer.js'
 import { e2eStudioPath, loginResearcher } from './auth.js'
+import { workspaceRail } from './rail.js'
 
 const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest('hex')
 
@@ -136,7 +137,11 @@ export async function prepareInteractiveDocument(
       await target.goto(url)
       await expect(target).toHaveURL(url)
       await expect(target.getByText('/ 6', { exact: true })).toBeVisible({ timeout: 20_000 })
-      if (extractionSchemaId) await expect(target.getByText('title', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
+      // The rail lands on the chat (ADR 0026), whose Template line counts the current template's fields once it loads
+      // (a spec may have saved a later revision than the seeded one).
+      if (extractionSchemaId) await expect(workspaceRail(target).getByRole('button', {
+        name: /^Open template: [1-9]\d* fields? · (Article|Catalog)$/,
+      })).toBeVisible({ timeout: 20_000 })
     },
     async schemaRevisions() {
       const schemaId = extractionSchemaId

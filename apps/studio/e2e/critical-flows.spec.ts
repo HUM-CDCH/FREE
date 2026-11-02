@@ -7,6 +7,7 @@ import { projectContextFixture } from '../api/project_contexts.fixture.js'
 import { gotoAuthenticated } from './auth.js'
 import { activateWithKeyboard } from './accessibility.js'
 import { openBundledDocument, routeBundledDocument } from './bundledDocument.js'
+import { openRailView } from './rail.js'
 
 const sourcePdf = fileURLToPath(
   new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url),
@@ -154,6 +155,8 @@ test('template instruction editor retains clipboard ownership in a reopened Sour
     page,
     page.getByRole('button', { name: 'Generate template' }),
   )
+  // The generated template's fields show in its view, opened from the chat (ADR 0026).
+  await openRailView(page, 'Template')
   await expect(page.getByText('graves', { exact: true })).toBeVisible()
 
   await expect(page.locator('.highlightEditor')).toHaveCount(0)

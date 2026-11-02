@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { e2eStudioPath, loginResearcher } from './auth.js'
 import { prepareInteractiveDocument, type InteractiveDocument } from './interactiveStack.js'
+import { openRailView } from './rail.js'
 import { schemaRevisionResponseSchema } from '../shared/schemaRevision.contract.js'
 
 // One DBOS-backed Studio, one scripted model per test: the specs share the worker's database and run one at a time.
@@ -57,6 +58,7 @@ test('a scalar note edited through template chat is reviewed, saved and retained
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
+  await openRailView(page, 'Template')
   const title = page.getByRole('listitem', { name: 'title', exact: true })
   const oldNote = 'Copy the short title.'
   const newNote = 'Copy the complete heading exactly as written.'
@@ -77,6 +79,8 @@ test('a scalar note edited through template chat is reviewed, saved and retained
   await requestEdit(page, 'Change the title note to: ' + newNote)
   const apply = page.getByRole('button', { name: 'Apply changes' })
   await expect(apply).toBeEnabled({ timeout: 20_000 })
+  // The proposal is answered in the chat; its step opens the per-change review in the Template view (ADR 0026).
+  await page.getByRole('button', { name: /^Review in the Template view/ }).click()
   await expect(title.getByLabel('Previous note')).toHaveText(oldNote)
   await expect(title.getByLabel('Proposed note')).toHaveText(newNote)
   expect(await revisionCount()).toBe(2)
@@ -96,6 +100,7 @@ test('a scalar note edited through template chat is reviewed, saved and retained
   })
 
   await page.reload()
+  await openRailView(page, 'Template')
   await expect(title.getByText(newNote, { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(title.getByText(oldNote, { exact: true })).toHaveCount(0)
   await expect(apply).toHaveCount(0)
@@ -107,12 +112,14 @@ test('a reload mid-suggestSchema finds the running generation and saves it onto 
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
+  await openRailView(page, 'Template')
   expect(await revisionCount()).toBe(1)
   stack.model.reply({ text: TEMPLATE, hold: true })
 
   await regenerate(page, 'Catalog entries')
   await stack.model.waitForCall(1, 30_000)
   await page.reload()
+  await openRailView(page, 'Template')
 
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toBeVisible({ timeout: 20_000 })
   stack.model.release()
@@ -127,10 +134,12 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
+  await openRailView(page, 'Template')
   stack.model.reply({ text: TEMPLATE, hold: true })
   await regenerate(page, 'Catalog entries')
   await stack.model.waitForCall(1, 30_000)
   await page.reload()
+  await openRailView(page, 'Template')
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toBeVisible({ timeout: 20_000 })
 
   // Newer work from another tab of the same account: a second revision lands while the generation runs.
@@ -138,6 +147,7 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   const other = await otherContext.newPage()
   await loginResearcher(other, stack.objectId)
   await stack.open(other)
+  await openRailView(other, 'Template')
   await describeRecord(other, 'One edited record.')
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
   await otherContext.close()
@@ -157,6 +167,7 @@ test('a surviving tab keeps saving through its acknowledged head, including edit
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
+  await openRailView(page, 'Template')
   stack.model.reply({ text: TEMPLATE, hold: true })
   await regenerate(page, 'Catalog entries')
   await stack.model.waitForCall(1, 30_000)
@@ -176,11 +187,13 @@ test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists ac
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
+  await openRailView(page, 'Template')
   stack.model.reply({ text: RENAME_TITLE, hold: true })
 
   await requestEdit(page, 'Rename title to heading')
   await stack.model.waitForCall(1, 30_000)
   await page.reload()
+  await openRailView(page, 'Template')
 
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toBeVisible({ timeout: 20_000 })
   stack.model.release()
@@ -192,6 +205,7 @@ test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists ac
 
   await page.reload()
   await stack.open()
+  await openRailView(page, 'Template')
   await page.waitForTimeout(3_000)
   await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toHaveCount(0)
