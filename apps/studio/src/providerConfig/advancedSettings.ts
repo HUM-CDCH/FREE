@@ -123,7 +123,8 @@ const label = <K extends keyof typeof ARTICLE_CHOICES>(key: K, value: unknown) =
 export function effectiveSummary(article: ArticleSettings | undefined): string {
   const shown = article ?? REFERENCE_ARTICLE
   const scope = shown.context === 'bounded' ? `Bounded source units (${numberText(shown.context_tokens)} tokens)` : 'Full source'
-  return [scope, label('rendering', shown.rendering), VERIFICATION[shown.grounding]].join(' · ')
+  return [scope, label('rendering', shown.rendering), VERIFICATION[shown.grounding],
+    ...(shown.grounding_overflow ? ['Large checks in windows'] : [])].join(' · ')
 }
 
 /** A setting's value as a researcher reads it; the unused ceiling says so. */

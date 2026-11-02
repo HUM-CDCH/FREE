@@ -209,7 +209,9 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
 
   /** `undefined` switches an optional factor off (omitted, never null). A parent change keeps its children as they are. */
   function setArticle<K extends ArticleKey>(key: K, value: ArticleSettings[K] | undefined): void {
-    setSettings((settings) => settings.article ? { ...settings, article: orderedArticle({ ...settings.article, [key]: value }) } : settings)
+    // Large checks, on by default, mean nothing without verification: turning it off clears them in the same change.
+    const cleared = key === 'grounding' && value === 'off' ? { grounding_overflow: undefined } : {}
+    setSettings((settings) => settings.article ? { ...settings, article: orderedArticle({ ...settings.article, [key]: value, ...cleared }) } : settings)
   }
 
   /** A starting point, and its Undo: the whole Article override, or none, with the Article number text that goes with

@@ -32,9 +32,9 @@ function* inventoryInputs(inventory: Inventory): Generator<Record<string, unknow
   yield* walk(0, {})
 }
 
-test('the nineteen contract cases get the service verdicts and, when accepted, its exact dump', () => {
+test('the shared contract cases get the service verdicts and, when accepted, its exact dump', () => {
   const { cases } = fixture('article-options') as { cases: Array<{ id: string; input: unknown; accepted: boolean; canonical?: unknown }> }
-  assert.equal(cases.length, 19)
+  assert.equal(cases.length, 20)
   for (const item of cases) {
     const result = validateArticleOptions(item.input)
     assert.equal(result.ok, item.accepted, item.id)

@@ -140,7 +140,7 @@ def test_contract_cases_and_their_dumps_match_the_shared_fixture():
         assert article_options.accepted(case["input"]) is case["accepted"], case["id"]
         if case["accepted"]:
             assert ArticleOptions.model_validate(case["input"]).model_dump(mode="json") == case["canonical"], case["id"]
-    assert len(shared["cases"]) == 19
+    assert len(shared["cases"]) == 20
 
 
 def test_categorical_inventory_verdicts_match_the_shared_fixture():

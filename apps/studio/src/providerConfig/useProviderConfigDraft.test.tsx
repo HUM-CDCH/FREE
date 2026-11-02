@@ -111,6 +111,14 @@ describe('the Advanced draft', () => {
     expect(result.current.settingsIssues).toEqual([])
   })
 
+  it('verification turned off from the defaults is valid at once: their large checks need it and go with it', () => {
+    const { result } = draftHook()
+    act(() => result.current.customize('article'))
+    act(() => result.current.setArticle('grounding', 'off'))
+    expect(result.current.draft?.extractionSettings.article).toEqual({ ...UNRECORDED_ARTICLE, grounding: 'off' })
+    expect(result.current.settingsIssues).toEqual([])
+  })
+
   it('a Catalog shape issue does not hide an Article cross-field issue', () => {
     const { result } = draftHook()
     act(() => result.current.customize('article'))

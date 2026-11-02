@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
+import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, UNRECORDED_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
 import { methodLines } from '../methodSummary'
 import {
   ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, orderedCatalog,
@@ -108,13 +108,14 @@ describe('choices', () => {
 
 describe('summaries', () => {
   it('service defaults and the explicit reference read as the documented reference', () => {
-    expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification')
-    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
+    expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
+    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
+    expect(effectiveSummary(UNRECORDED_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
   })
 
   it('inactive values never reach a summary', () => {
     const full = { ...REFERENCE_ARTICLE, context_tokens: 16384 }
-    expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification')
+    expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
     const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
     expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
   })

@@ -9,7 +9,7 @@ describe('method summaries', () => {
     expect(settingsHeadline({ article: null })).toBe('Full source · Plain text · Source-label verification (service defaults when admitted)')
     expect(settingsHeadline({ generic: null })).toBe('Service defaults')
     expect(settingsHeadline({ article: { ...REFERENCE_ARTICLE, context: 'bounded', grounding: 'spans' } }))
-      .toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
+      .toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification · Large checks in windows')
     expect(settingsHeadline({ recipe: REFERENCE_CATALOG.recipe! })).toBe('Input budget 4,096 tokens · Output reserve 1,024 tokens · All factors on')
     expect(settingsHeadline({ recipe: { factors: { glossary: true, headings: true, overlap: true, verification: false } } }))
       .toBe('Input budget service default · Output reserve service default · Off: verification')

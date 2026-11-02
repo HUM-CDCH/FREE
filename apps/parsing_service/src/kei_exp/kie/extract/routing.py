@@ -117,8 +117,9 @@ def rank_units(contexts: Sequence[Context], value_contexts: Sequence[Context], o
 
 
 OVERFLOW_VERSION = 1  # `grounding_overflow="windows"`: the windows below
-# Halvings of one refused unit at most: windows down to an eighth of it, so at most 14 window checks per unit (2 + 4 + 8,
-# shared by the claims it refused), each one verifier pass as for a unit; a refused window sends no call.
+# Halvings of one refused unit at most: windows down to an eighth of it, so at most 14 window passes per unit for each
+# group of claims it refused in the same round (2 + 4 + 8, shared by that group), each one verifier pass as for a unit;
+# a refused window sends no call.
 WINDOW_DEPTH = 3
 
 
@@ -135,8 +136,8 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
     routes each claim by this round's outcomes, so it starts once every unit has replied.
     With `windows` (`grounding_overflow="windows"`), a claim refused because its check of a unit exceeds the budget is
     checked next in that unit's two halves of passages, each a window, halved again when refused (`WINDOW_DEPTH`
-    times at most): the claims one unit refused share its windows. A window refused at the limit, or holding one
-    passage, keeps the refusal. Windows are local to this routing and routes name only `contexts`, the published
+    times at most): the claims one unit refused in the same round share its windows. A window refused at the limit, or
+    holding one passage, keeps the refusal. Windows are local to this routing and routes name only `contexts`, the published
     listing: a unit checked through its windows is attempted, or refused when one of its windows was.
     """
     by_path = {tuple(item["path"]): item for item in origins}

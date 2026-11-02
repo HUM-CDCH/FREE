@@ -73,8 +73,6 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   await assert.rejects(persistence.scheduleExtraction({...single,method:changedMethod}),{code:'extraction_id_conflict'})
   await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),method:changedMethod}),{code:'method_changed'})
   await assert.rejects(persistence.scheduleBatch({...batch,method:changedMethod}),{code:'method_changed'})
-  // A summary shown before the service defaults were recorded (a stale page's `article: null`) is refused the same way.
-  await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),method:{models:null,settings:{article:null}}}),{code:'method_changed'})
   assert.deepEqual(await counts(),beforeRefusals)
 
   const otherProject=randomUUID(),otherSchema=randomUUID(),otherRevision=randomUUID()
@@ -209,6 +207,11 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.equal(changedBatch?.disposition,'created')
   assert.notEqual(changedBatch?.batch.batchExtractionId,nativeBatch?.batch.batchExtractionId)
   assert.equal(changedBatch?.batch.members.length,documents.length)
+  // A page loaded before Studio recorded Article's service defaults submits `article: null`: stale once the account
+  // has saved Article settings (admitted while it has none, at the end).
+  const stale={models:null,settings:{article:null}}
+  await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),
+    sourceRepresentationRevisionId:documents[1].revisionId,method:stale}),{code:'method_changed'})
 
   // ADR 0020: a single run waits while the newest Extraction on its revision, a batch member included, is neither
   // Completed nor Stopped, and the refusal names it. An admitted identity still replays.
@@ -241,5 +244,15 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.equal(created.length,1)
   assert.deepEqual(refused.map(error=>[error.code,error.extractionId]),[['extraction_in_progress',created[0]]])
   await settle(created[0]!,'RUN','COMPLETED')
-  assert.equal((await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()}))?.disposition,'created')
+  const last=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()})
+  assert.equal(last?.disposition,'created')
+
+  // Without saved Article settings, that stale `article: null` is admitted as recorded: the method its page showed.
+  await settle(last!.extraction.extractionId,'RUN','COMPLETED')
+  await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1',
+    [owner,{...savedConfiguration,extractionSettings:{}}])
+  const admittedStale=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID(),method:stale})
+  assert.equal(admittedStale?.disposition,'created')
+  assert.deepEqual((await admin.query('SELECT "requestedSettings" FROM public.extraction WHERE id=$1',
+    [admittedStale!.extraction.extractionId])).rows[0].requestedSettings,{article:null})
 })
