@@ -141,6 +141,12 @@ describe('nextStep in a project', () => {
     // Reviewed here, the round's next document after this one, round the round.
     expect(step({ ...pilot, batches: [batch([member('a'), member('b', true), member('c')])] })).toMatchObject({
       key: 'review-next:extraction-c', question: 'This document is reviewed. Open c.pdf next?' })
+    // The phase turns to the approval at the first review: the round's other documents are still reviewed first.
+    const approve = summary({ phase: 'approve', currentSchemaRevisionReviewed: true })
+    expect(step({ summary: approve, batches: [batch([member('a'), member('b', true)])] })).toMatchObject({
+      key: 'review-next:extraction-a', title: 'Pilot review', detail: [['Progress', '1 of 2 documents reviewed']],
+      options: [{ action: 'open-document', label: 'Next document · a.pdf' }, { action: 'dismiss' }] })
+    expect(step({ summary: approve, batches: [batch([member('a', true), member('b', true)])] })?.key).toBe('approve:revision-2')
   })
 
   it('follows a running batch, then asks for the approval, then extracts the documents left', () => {

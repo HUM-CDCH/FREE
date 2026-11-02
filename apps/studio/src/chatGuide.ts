@@ -246,7 +246,8 @@ function projectStep(input: GuideInput): StepCard | null {
   if (next.step === 'pilot' || next.step === 'review')
     return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId)
   if (next.step === 'approve')
-    return {
+    // The server's phase turns to the approval at the pilot's first review: the round's other documents come first.
+    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId) ?? {
       key: `approve:${revisionId}`,
       title: next.label,
       question: next.label === 'Re-approve template'
