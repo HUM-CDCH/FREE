@@ -235,20 +235,24 @@ def test_an_empty_native_table_is_replaced_by_ocr_without_losing_its_caption(ill
 PICTURE = {"html": "", "bbox": [0, 0, 10, 10], "label": "Picture", "confidence": 1.0, "error": False, "skipped": True}
 
 
-@pytest.mark.parametrize("model, answer", [
-    ("surya", [block("Raster table words", (0, 0, 10, 10))]), ("surya", [PICTURE]),
-    ("surya", [{**PICTURE, "html": "<img/>", "label": "Table", "skipped": False}]), ("surya", []),
-    ("infinity_parser", "<!-- image -->"), ("nanonets_ocr2", "<img>A table of fees with two columns</img>"),
-    ("granite_vision", "![A table of fees](table.png)"), ("granite_docling", "| | |\n|----|----|\n| | |"),
-    ("granite_vision", "![A [table] of fees](table.png)"),
-    ("nanonets_ocr2", "<img>A table <img>of fees</img> in two columns</img>"),
-    ("nanonets_ocr2", "<img>A table <img/>of fees</img>"), ("granite_vision", "| Fee |\n|----|\n![10 EUR](fee.png)"),
-], ids=["printed as images", "read as a picture", "read as a bare image", "a blank grid", "a Markdown VLM's picture",
-        "a VLM's picture description", "a Markdown image", "a VLM's empty grid",
-        "a Markdown image with brackets in its alt", "a VLM's nested picture description",
-        "a picture description around a bare image", "a grid holding a picture"])
+def table_html(*cells):
+    return {**block("", (0, 0, 10, 10), "Table"),
+            "html": "<table><tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr></table>"}
+
+
+@pytest.mark.parametrize("model, answer, table", [
+    ("surya", [table_html("Fee", "10 EUR")], ("Table", "Fee\t10 EUR")),
+    ("surya", [{**table_html(), "html": "<table>\n<tr>\n<td><b>Reference</b></td>\n<td>12-345</td>\n</tr>\n<tr>\n"
+                                        "<td><b>Date</b></td>\n<td>2020</td>\n</tr>\n</table>"}],
+     ("Table", "\n\nReference\t\n12-345\t\n\n\n\nDate\t\n2020")),
+    ("granite_vision", "| Fee | 10 EUR |\n|----|----|", ("text", "| Fee | 10 EUR |\n|----|----|")),
+    ("surya", [PICTURE], None), ("surya", [block("Annual fees", (0, 0, 10, 10)), PICTURE], None),
+    ("surya", [block("Raster table words", (0, 0, 10, 10))], None), ("granite_vision", "| | |\n|----|----|\n| | |", None),
+    ("granite_vision", "| Fee |\n|----|\n![10 EUR](fee.png)", None),
+], ids=["a table", "a key-value table", "a pipe table", "read as a picture", "a title above a picture", "read as prose",
+        "an empty grid", "a grid holding a picture"])
 def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_ocr_after_it_or_refuses_its_page(
-        illustrated_pdf, tmp_path, monkeypatch, model, answer):
+        illustrated_pdf, tmp_path, monkeypatch, model, answer, table):
     """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
     plans OCR for the page's real artwork only, and Docling reads a document index with no readable cell. Its boxes
     are read just after its block, before the artwork printed below it. OCR finding no text there refuses the page:
@@ -284,9 +288,9 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
                                   for n, (_, region, image) in enumerate(crops, 1)])
 
     monkeypatch.setattr(ocr.TRANSCRIBERS["surya" if model == "surya" else "vlm"], "transcribe", recognize)
-    if answer != [block("Raster table words", (0, 0, 10, 10))]:
+    if table is None:
         with pytest.raises(ocr.IncompleteConversionError,
-                           match="page 1: OCR of crop 2, a table with no readable cells, returned no text"):
+                           match="page 1: OCR of crop 2, a table with no readable cells, returned no table text"):
             ocr.run(execution, lambda _: None)
         assert read_manifest(execution.result_dir).status == "incomplete"
         return
@@ -294,10 +298,9 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
     manifest = read_manifest(execution.result_dir)
     page = read_page(execution.result_dir, 1, manifest)
     assert manifest.status == "success" and page.complete
-    assert [(s.label, s.text, s.status) for s in page.segments] == [
-        ("Text", "Native prose", "ok"), ("SectionHeader", "Administrative details", "ok"),
-        ("TableOfContents", "", "ok"), ("Text", "Raster table words", "ok"),
-        ("Text", "Artwork words", "ok"), ("Text", "Native below", "ok"), ("PageFooter", "3", "ok")]
+    assert [(s.label, s.text) for s in page.segments] == [
+        ("Text", "Native prose"), ("SectionHeader", "Administrative details"), ("TableOfContents", ""), table,
+        ("Text", "Artwork words"), ("Text", "Native below"), ("PageFooter", "3")]
     assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [
         ("figure", (72, 130, 372, 280)), ("figure", (72, 292, 372, 442))]
 
@@ -350,7 +353,7 @@ def test_a_native_table_with_no_readable_cells_is_read_by_ocr_only_in_a_hybrid_r
             document=document, pages=[SimpleNamespace(page_no=n) for n in range(page_range[0], page_range[1] + 1)],
             errors=[], status=ConversionStatus.SUCCESS)))
     monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", lambda request, crops, emit: Transcription({}, [
-        record(n, [block("Fee 10 EUR", (0, 0, 10, 10))], image=image) for n, (_, _, image) in enumerate(crops, 1)]))
+        record(n, [table_html("Fee", "10 EUR")], image=image) for n, (_, _, image) in enumerate(crops, 1)]))
     execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", pages=pages, result_dir=tmp_path / "result"))
     if pages == (2, 2):
         assert execution.transcriber == "native" and execution.model is None
@@ -363,7 +366,7 @@ def test_a_native_table_with_no_readable_cells_is_read_by_ocr_only_in_a_hybrid_r
     page = read_page(execution.result_dir, 2, manifest)
     assert manifest.status == "success" and page.complete
     assert [(s.label, s.text, s.status) for s in page.segments] == [
-        ("Text", "Page 2 prose", "ok"), ("Table", "", "ok"), ("Text", "Fee 10 EUR", "ok")]
+        ("Text", "Page 2 prose", "ok"), ("Table", "", "ok"), ("Table", "Fee\t10 EUR", "ok")]
 
 
 def test_vlm_crop_keeps_its_markdown_and_coarse_evidence(illustrated_pdf, tmp_path, monkeypatch):

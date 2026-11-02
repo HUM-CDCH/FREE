@@ -134,17 +134,14 @@ def test_a_table_with_no_readable_cells_is_read_after_its_block_unless_its_capti
     assert regions == [OcrRegion(1, (10, 40, 290, 90))] and kept.pages[0].incomplete is None  # 4%, and another page
 
 
+FEES = {**block("", (0, 0, 10, 10), "Table"), "html": "<table><tr><td>Fee</td><td>10 EUR</td></tr></table>"}
+
+
 @pytest.mark.parametrize("model, caption, grid", [
-    ("surya", [block("Fees", (0, 0, 10, 10))], [block("Fee 10 EUR", (0, 0, 10, 10), "Table")]),
-    ("granite_docling", "Fees", "| | |\n|----|----|\n| | |"),
-    ("granite_vision", "Fees", "![A table of fees](table.png)"),
-    ("nanonets_ocr2", "Fees", "<img>A table of fees with two columns</img>"),
-    ("surya", [block("Fees", (0, 0, 10, 10))], [{**block("", (0, 0, 10, 10), "Table"),
-                                                  "html": "<table><tr><td></td><td></td></tr></table>"}]),
-    ("surya", [block("Fees", (0, 0, 10, 10))], [{**block("", (0, 0, 10, 10), "Table"),
-                                                  "html": "<table><tr><td>—</td><td>-</td></tr></table>"}]),
-], ids=["the table reads", "a VLM's empty grid", "a Markdown image", "a VLM's picture description",
-        "Surya's empty table", "Surya's grid of dashes"])
+    ("surya", [block("Fees", (0, 0, 10, 10))], [FEES]),
+    ("granite_vision", "Fees", "| | |\n|----|----|\n| | |"),
+    ("surya", [block("Fees", (0, 0, 10, 10))], [{**FEES, "html": "<table><tr><td>—</td><td>-</td></tr></table>"}]),
+], ids=["the table reads", "a VLM's empty grid", "Surya's grid of dashes"])
 def test_a_table_with_no_readable_cells_and_an_undecodable_caption_is_still_read_as_a_table(
         tmp_path, monkeypatch, model, caption, grid):
     """Its caption's glyph repair leaves the table's own crop a table's: reading no letter or digit refuses its page."""
@@ -162,14 +159,14 @@ def test_a_table_with_no_readable_cells_and_an_undecodable_caption_is_still_read
                                   for n, (_, region, image) in enumerate(crops, 1)])
 
     monkeypatch.setattr(ocr.TRANSCRIBERS["surya" if model == "surya" else "vlm"], "transcribe", recognize)
-    if grid != [block("Fee 10 EUR", (0, 0, 10, 10), "Table")]:
+    if grid != [FEES]:
         with pytest.raises(IncompleteConversionError,
-                           match="page 1: OCR of crop 2, a table with no readable cells, returned no text"):
+                           match="page 1: OCR of crop 2, a table with no readable cells, returned no table text"):
             ocr.run(execution, lambda _: None)
         return
     ocr.run(execution, lambda _: None)
     page = read_page(execution.result_dir, 1, read_manifest(execution.result_dir))
-    assert [segment.text for segment in page.segments] == ["Native above", "Fees", "Fee 10 EUR"]
+    assert [segment.text for segment in page.segments] == ["Native above", "Fees", "Fee\t10 EUR"]
     assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [
         ("text", (40, 90, 200, 110)), ("figure", (40, 120, 260, 180))]
 

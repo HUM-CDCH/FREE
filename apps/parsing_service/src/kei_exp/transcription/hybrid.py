@@ -55,8 +55,8 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
         reasons += [f"page {page.source_page}: OCR of native text crop {s.ordinal} returned no text"
                     for s in supplements if s.crop[1].kind == "text" and not _has_text(s.record)]
         reasons += [
-            f"page {page.source_page}: OCR of crop {s.ordinal}, a table with no readable cells, returned no text"
-            for s in supplements if s.ordinal in tables and not _has_text(s.record, table=True)]
+            f"page {page.source_page}: OCR of crop {s.ordinal}, a table with no readable cells, returned no table text"
+            for s in supplements if s.ordinal in tables and not _reads_table(s.record)]
         merged.append(replace(page, ocr=supplements, markdown=markdown, text=text,
                               incomplete="; ".join(reasons) or None,
                               input_tokens=_sum(s.record.input_tokens for s in supplements),
@@ -66,19 +66,26 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
     return Transcription({**native.header, "ocr": recognized.header}, merged, unattributed or None, recognized.advice)
 
 
-def _has_text(record: PageRecord, table: bool = False) -> bool:
-    # Not the Markdown: Docling exports Surya's bare `<img/>` (a table it read as a picture) as `<!-- image -->`. A
-    # Markdown VLM's text is its Markdown, so such markup is read off it too.
+def _has_text(record: PageRecord) -> bool:
+    # Not the Markdown: Docling exports Surya's bare `<img/>` (a table it read as a picture) as `<!-- image -->`.
+    blocks = record.payload.get("blocks") or []
+    return any(part.strip() for part in [record.text,
+                                         *(html_to_text(b["html"]) for b in blocks if not b.get("skipped"))])
+
+
+def _reads_table(record: PageRecord) -> bool:
+    # A letter or digit inside a table cell (`<td>`, `<th>` or a `| … |` row's), and no picture anywhere in the read:
+    # no block skipped as one, no `<img`, `![` or `<!-- image -->`. Grid rules, prose and captions are no table read.
     blocks = record.payload.get("blocks") or []
     parts = [record.text, *(b["html"] for b in blocks if not b.get("skipped"))]
-    if table:
-        # A read holding any picture markup (`<img…`, a VLM's `<img>description</img>`, Markdown `![…](…)`) is no
-        # read of the table: what the picture stands for is missing, and a description's letters are not the table's.
-        # Otherwise it needs a letter or digit outside its grid rules: an empty `| | |` grid is no table text.
-        if any(re.search(r"<img\b|!\[", part, flags=re.IGNORECASE) for part in parts):
-            return False
-        return any(character.isalnum() for part in parts for character in html_to_text(part))
-    return any(html_to_text(part).strip() for part in parts)
+    if any(b.get("skipped") for b in blocks) or any(
+            re.search(r"<img\b|!\[|<!--\s*image\s*-->", part, flags=re.IGNORECASE) for part in parts):
+        return False
+    html_cells = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", flags=re.IGNORECASE | re.DOTALL)
+    cells = [cell for part in parts for cell in html_cells.findall(part)]
+    cells += [cell for part in parts for row in part.splitlines() if row.lstrip().startswith("|")
+              for cell in row.split("|")]
+    return any(character.isalnum() for cell in cells for character in html_to_text(cell))
 
 
 def _sum(values) -> int | None:

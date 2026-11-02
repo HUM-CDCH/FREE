@@ -166,11 +166,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   outlines, or a blank grid) keeps its block for its caption, and a hybrid run
   OCRs its box as a `figure` crop read just after it. A caption that needs glyph
   repair is OCR'd as text in the block's place instead, the table crop still
-  following it. That crop reading any picture markup (`<img…`, a model's
-  picture description, Markdown `![…](…)`) or no letter or digit (an empty
-  grid's rules are no text), a box of the table overlapping OCR'd artwork by
-  more than 5% of the box's area, or the table in a native run, which has no
-  OCR, makes its page and the conversion
+  following it. The crop counts as read only with a letter or digit inside a
+  table cell and no picture in its read. That crop unread, a box of the table
+  overlapping OCR'd artwork by more than 5% of the box's area, or the table in
+  a native run, which has no OCR, makes its page and the conversion
   incomplete, as does an incomplete OCR crop. Surya artwork that
   repeats identical empty,
   full-frame figures is interrupted and gets one recovery batch: only looping
