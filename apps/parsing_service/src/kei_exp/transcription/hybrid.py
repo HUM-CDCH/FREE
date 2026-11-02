@@ -4,6 +4,7 @@ The OCR stage (`kei_exp.kie.stages.ocr`) owns the route, the crops, their readin
 it runs the native transcriber and the selected model's transcriber as they are. This module only joins their
 records: one whole-page record per native page, its crops' outcomes attached unchanged as supplements.
 """
+import re
 from dataclasses import replace
 from html import escape
 
@@ -53,8 +54,9 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
         # cells in: an empty read cannot tell a blank grid from a table OCR missed.
         reasons += [f"page {page.source_page}: OCR of native text crop {s.ordinal} returned no text"
                     for s in supplements if s.crop[1].kind == "text" and not _has_text(s.record)]
-        reasons += [f"page {page.source_page}: OCR of crop {s.ordinal}, a table with no readable cells, returned no text"
-                    for s in supplements if s.ordinal in tables and not _has_text(s.record)]
+        reasons += [
+            f"page {page.source_page}: OCR of crop {s.ordinal}, a table with no readable cells, returned no text"
+            for s in supplements if s.ordinal in tables and not _has_text(s.record, table=True)]
         merged.append(replace(page, ocr=supplements, markdown=markdown, text=text,
                               incomplete="; ".join(reasons) or None,
                               input_tokens=_sum(s.record.input_tokens for s in supplements),
@@ -64,12 +66,17 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
     return Transcription({**native.header, "ocr": recognized.header}, merged, unattributed or None, recognized.advice)
 
 
-def _has_text(record: PageRecord) -> bool:
+def _has_text(record: PageRecord, table: bool = False) -> bool:
     # Not the Markdown: Docling exports Surya's bare `<img/>` (a table it read as a picture) as `<!-- image -->`. A
     # Markdown VLM's text is its Markdown, so such markup is read off it too.
     blocks = record.payload.get("blocks") or []
-    return any(part.strip() for part in [html_to_text(record.text),
-                                         *(html_to_text(b["html"]) for b in blocks if not b.get("skipped"))])
+    parts = [record.text, *(b["html"] for b in blocks if not b.get("skipped"))]
+    if table:
+        # A table's read needs a letter or digit outside a VLM's picture description (`<img>…</img>`, `![…](…)`)
+        # and its grid rules: a picture or an empty `| | |` grid is no table text.
+        pictures = re.compile(r"<img\b[^>]*(?<!/)>[^<]*</img>|!\[[^\]]*\]\([^)]*\)", flags=re.IGNORECASE)
+        return any(character.isalnum() for part in parts for character in html_to_text(pictures.sub("", part)))
+    return any(html_to_text(part).strip() for part in parts)
 
 
 def _sum(values) -> int | None:

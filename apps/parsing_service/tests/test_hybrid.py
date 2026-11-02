@@ -238,8 +238,10 @@ PICTURE = {"html": "", "bbox": [0, 0, 10, 10], "label": "Picture", "confidence":
 @pytest.mark.parametrize("model, answer", [
     ("surya", [block("Raster table words", (0, 0, 10, 10))]), ("surya", [PICTURE]),
     ("surya", [{**PICTURE, "html": "<img/>", "label": "Table", "skipped": False}]), ("surya", []),
-    ("infinity_parser", "<!-- image -->"),
-], ids=["printed as images", "read as a picture", "read as a bare image", "a blank grid", "a Markdown VLM's picture"])
+    ("infinity_parser", "<!-- image -->"), ("nanonets_ocr2", "<img>A table of fees with two columns</img>"),
+    ("granite_vision", "![A table of fees](table.png)"), ("granite_docling", "| | |\n|----|----|\n| | |"),
+], ids=["printed as images", "read as a picture", "read as a bare image", "a blank grid", "a Markdown VLM's picture",
+        "a VLM's picture description", "a Markdown image", "a VLM's empty grid"])
 def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_ocr_after_it_or_refuses_its_page(
         illustrated_pdf, tmp_path, monkeypatch, model, answer):
     """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
