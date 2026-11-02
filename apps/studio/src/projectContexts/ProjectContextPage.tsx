@@ -245,33 +245,6 @@ function ProjectSection({ title, description, open, onToggle, children }: {
   )
 }
 
-function HistoryIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="15"
-      height="15"
-      viewBox="0 0 20 20"
-      fill="none"
-    >
-      <path
-        d="M10 5.5v5l3.5 2M17 10a7 7 0 1 1-2.05-4.95"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M17 3v3.5h-3.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
 const FORMAT_EXAMPLE_COLUMNS = [
   'filename',
   'patient.name',
@@ -604,16 +577,6 @@ export default function ProjectContextPage({
     settledSchemaList?.requestKey === schemaRequestKey
       ? settledSchemaList
       : null
-  // The history icon is only worth showing once there's something to look
-  // at — an empty or still-loading list would just open to "No schemas
-  // yet." with nothing else to do there.
-  const hasSchemaHistory =
-    (schemaList?.status === 'ready' && schemaList.schemas.length > 0) ||
-    schemaList?.status === 'error'
-  const [showSchemaHistory, setShowSchemaHistory] = useState(false)
-  const schemaHistoryTrigger = useRef<HTMLButtonElement>(null)
-  const schemaHistoryCloseRef = useRef<HTMLButtonElement>(null)
-  const schemaHistoryTitleId = useId()
   const renameTrigger = useRef<HTMLButtonElement>(null)
   const deleteTrigger = useRef<HTMLButtonElement>(null)
   const deleteSourceReturnFocus = useRef<HTMLElement>(null)
@@ -1352,7 +1315,7 @@ export default function ProjectContextPage({
           </div>
         <ProjectSection
           title="Template"
-          description="History, and a template imported from a codebook or suggested from a spreadsheet"
+          description="Your templates, and new ones from a codebook or a spreadsheet"
           open={tab === 'schemas'}
           onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'schemas' : 'sources' })}
         >
@@ -1360,32 +1323,209 @@ export default function ProjectContextPage({
             id="project-schemas-panel"
             className="py-4"
           >
+            {/* Every template this project has used, in view: the chat makes and changes them, here they are kept. */}
             <section
               ref={generateSchemaSectionRef}
               tabIndex={-1}
               className="-mx-3 -mt-3 mb-6 space-y-1 rounded-md border-b border-line px-3 pb-6 pt-3 outline-none"
-              aria-label="From a document"
+              aria-label="Your templates"
             >
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-xs font-bold text-ink">
-                  Build your template from a document
-                </h2>
-                {hasSchemaHistory && (
-                  <button
-                    ref={schemaHistoryTrigger}
-                    type="button"
-                    onClick={() => setShowSchemaHistory(true)}
-                    aria-label="Template history"
-                    title="Template history"
-                    className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-                  >
-                    <HistoryIcon />
-                  </button>
-                )}
-              </div>
-              <p className="text-[11px] text-ink-faint">
-                Open any document above: its chat suggests a template from it and leads on from there.
-              </p>
+              <h2 className="text-xs font-bold text-ink">Your templates</h2>
+              {schemaList?.status === 'ready' ? (
+                schemaList.schemas.length === 0 ? (
+                  <p className="text-[11px] text-ink-faint">
+                    No templates yet. Open any document above: its chat suggests one from it.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-line">
+                    {schemaList.schemas.map((schema) => {
+                      const updatedAt =
+                        schema.currentRevision?.createdAt ?? schema.createdAt
+                      const expanded = expandedSchemaHistory.has(
+                        schema.extractionSchemaId,
+                      )
+                      const history = schemaHistory[schema.extractionSchemaId]
+                      return (
+                        <li className="px-1 py-3" key={schema.extractionSchemaId}>
+                          <SchemaNameEditor
+                            name={schema.name}
+                            className="text-xs font-semibold text-ink"
+                            onSubmit={async (name) => {
+                              try {
+                                const renamed = await renameExtractionSchema(
+                                  projectContextId,
+                                  schema.extractionSchemaId,
+                                  name,
+                                )
+                                setSettledSchemaList((current) =>
+                                  current?.status === 'ready' &&
+                                  current.requestKey === schemaRequestKey
+                                    ? {
+                                        ...current,
+                                        schemas: current.schemas.map((item) =>
+                                          item.extractionSchemaId ===
+                                          renamed.extractionSchemaId
+                                            ? { ...item, name: renamed.name }
+                                            : item,
+                                        ),
+                                      }
+                                    : current,
+                                )
+                                return null
+                              } catch (error) {
+                                return error instanceof Error
+                                  ? error.message
+                                  : 'Template could not be renamed.'
+                              }
+                            }}
+                          />
+                          <dl className="mt-1 flex gap-3 text-[11px] text-ink-faint">
+                            <div>
+                              <dt className="sr-only">Current version</dt>
+                              <dd>
+                                {schema.currentRevision
+                                  ? `Current version ${schema.currentRevision.revisionNumber}`
+                                  : 'No current version'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="sr-only">Updated</dt>
+                              <dd>
+                                <time dateTime={updatedAt}>
+                                  Updated{' '}
+                                  {new Date(updatedAt).toLocaleDateString(
+                                    undefined,
+                                    {
+                                      dateStyle: 'medium',
+                                    },
+                                  )}
+                                </time>
+                              </dd>
+                            </div>
+                          </dl>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                toggleSchemaHistory(schema.extractionSchemaId)
+                              }
+                              aria-expanded={expanded}
+                              className="text-[11px] font-semibold text-accent"
+                            >
+                              {expanded
+                                ? 'Hide version history'
+                                : 'Show version history'}
+                            </button>
+                            {schema.currentRevision && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  schemaActionReturnFocus.current =
+                                    event.currentTarget
+                                  setPreviewingSchema({
+                                    extractionSchemaId:
+                                      schema.extractionSchemaId,
+                                    schemaRevisionId:
+                                      schema.currentRevision!.schemaRevisionId,
+                                    name: schema.name,
+                                  })
+                                }}
+                                className="text-[11px] font-semibold text-accent"
+                              >
+                                View fields
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                schemaActionReturnFocus.current =
+                                  event.currentTarget
+                                setDeletingSchema({
+                                  extractionSchemaId:
+                                    schema.extractionSchemaId,
+                                  name: schema.name,
+                                  blocked: false,
+                                })
+                              }}
+                              className="text-[11px] font-semibold text-danger"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          {expanded && (
+                            <div className="mt-2 rounded-md border border-line bg-ink/[0.02] p-2">
+                              {!history || history.status === 'loading' ? (
+                                <p
+                                  className="text-[11px] text-ink-muted"
+                                  aria-busy="true"
+                                >
+                                  Loading versions…
+                                </p>
+                              ) : history.status === 'error' ? (
+                                <p
+                                  className="text-[11px] text-danger"
+                                  role="alert"
+                                >
+                                  {history.message}
+                                </p>
+                              ) : (
+                                <ul className="space-y-1.5">
+                                  {history.revisions.map((revision) => (
+                                    <li
+                                      key={revision.schemaRevisionId}
+                                      className="flex items-center justify-between gap-2 text-[11px]"
+                                    >
+                                      <span>
+                                        <span className="font-semibold text-ink">
+                                          v{revision.revisionNumber}
+                                        </span>{' '}
+                                        <span className="text-ink-muted">
+                                          {new Date(
+                                            revision.createdAt,
+                                          ).toLocaleDateString(undefined, {
+                                            dateStyle: 'medium',
+                                          })}
+                                        </span>
+                                      </span>
+                                      <span
+                                        className={`rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold ${
+                                          revision.stabilisedAt
+                                            ? 'bg-green/10 text-green'
+                                            : 'bg-accent-soft text-accent'
+                                        }`}
+                                      >
+                                        {revision.stabilisedAt
+                                          ? 'Approved'
+                                          : 'Not approved yet'}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              ) : schemaList?.status === 'error' ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <p className="text-xs text-danger" role="alert">
+                    Could not load templates. {schemaList.message}
+                  </p>
+                  <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <p
+                  className="py-6 text-center text-xs text-ink-muted"
+                  aria-busy="true"
+                >
+                  Loading templates…
+                </p>
+              )}
             </section>
 
             <section
@@ -1800,225 +1940,6 @@ export default function ProjectContextPage({
           onDismiss={() => setPreviewingSchema(null)}
           returnFocusRef={schemaActionReturnFocus}
         />
-      )}
-      {showSchemaHistory && (
-        <ModalDialog
-          className="m-auto flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-          labelledBy={schemaHistoryTitleId}
-          initialFocusRef={schemaHistoryCloseRef}
-          returnFocusRef={schemaHistoryTrigger}
-          onDismiss={() => setShowSchemaHistory(false)}
-        >
-          <div className="flex shrink-0 items-center justify-between gap-2">
-            <h2 id={schemaHistoryTitleId} className="text-sm font-bold text-ink">
-              Template history
-            </h2>
-            <Button
-              ref={schemaHistoryCloseRef}
-              size="sm"
-              onClick={() => setShowSchemaHistory(false)}
-            >
-              Close
-            </Button>
-          </div>
-          <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
-              {schemaList?.status === 'ready' ? (
-                schemaList.schemas.length === 0 ? (
-                  <p className="text-[11px] text-ink-faint">
-                    No templates yet.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-line">
-                    {schemaList.schemas.map((schema) => {
-                      const updatedAt =
-                        schema.currentRevision?.createdAt ?? schema.createdAt
-                      const expanded = expandedSchemaHistory.has(
-                        schema.extractionSchemaId,
-                      )
-                      const history = schemaHistory[schema.extractionSchemaId]
-                      return (
-                        <li className="px-1 py-3" key={schema.extractionSchemaId}>
-                          <SchemaNameEditor
-                            name={schema.name}
-                            className="text-xs font-semibold text-ink"
-                            onSubmit={async (name) => {
-                              try {
-                                const renamed = await renameExtractionSchema(
-                                  projectContextId,
-                                  schema.extractionSchemaId,
-                                  name,
-                                )
-                                setSettledSchemaList((current) =>
-                                  current?.status === 'ready' &&
-                                  current.requestKey === schemaRequestKey
-                                    ? {
-                                        ...current,
-                                        schemas: current.schemas.map((item) =>
-                                          item.extractionSchemaId ===
-                                          renamed.extractionSchemaId
-                                            ? { ...item, name: renamed.name }
-                                            : item,
-                                        ),
-                                      }
-                                    : current,
-                                )
-                                return null
-                              } catch (error) {
-                                return error instanceof Error
-                                  ? error.message
-                                  : 'Template could not be renamed.'
-                              }
-                            }}
-                          />
-                          <dl className="mt-1 flex gap-3 text-[11px] text-ink-faint">
-                            <div>
-                              <dt className="sr-only">Current Template Revision</dt>
-                              <dd>
-                                {schema.currentRevision
-                                  ? `Current Template Revision ${schema.currentRevision.revisionNumber}`
-                                  : 'No Current Template Revision'}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="sr-only">Updated</dt>
-                              <dd>
-                                <time dateTime={updatedAt}>
-                                  Updated{' '}
-                                  {new Date(updatedAt).toLocaleDateString(
-                                    undefined,
-                                    {
-                                      dateStyle: 'medium',
-                                    },
-                                  )}
-                                </time>
-                              </dd>
-                            </div>
-                          </dl>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                toggleSchemaHistory(schema.extractionSchemaId)
-                              }
-                              aria-expanded={expanded}
-                              className="text-[11px] font-semibold text-accent"
-                            >
-                              {expanded
-                                ? 'Hide version history'
-                                : 'Show version history'}
-                            </button>
-                            {schema.currentRevision && (
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  schemaActionReturnFocus.current =
-                                    event.currentTarget
-                                  setPreviewingSchema({
-                                    extractionSchemaId:
-                                      schema.extractionSchemaId,
-                                    schemaRevisionId:
-                                      schema.currentRevision!.schemaRevisionId,
-                                    name: schema.name,
-                                  })
-                                }}
-                                className="text-[11px] font-semibold text-accent"
-                              >
-                                View fields
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                schemaActionReturnFocus.current =
-                                  event.currentTarget
-                                setDeletingSchema({
-                                  extractionSchemaId:
-                                    schema.extractionSchemaId,
-                                  name: schema.name,
-                                  blocked: false,
-                                })
-                              }}
-                              className="text-[11px] font-semibold text-danger"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                          {expanded && (
-                            <div className="mt-2 rounded-md border border-line bg-ink/[0.02] p-2">
-                              {!history || history.status === 'loading' ? (
-                                <p
-                                  className="text-[11px] text-ink-muted"
-                                  aria-busy="true"
-                                >
-                                  Loading versions…
-                                </p>
-                              ) : history.status === 'error' ? (
-                                <p
-                                  className="text-[11px] text-danger"
-                                  role="alert"
-                                >
-                                  {history.message}
-                                </p>
-                              ) : (
-                                <ul className="space-y-1.5">
-                                  {history.revisions.map((revision) => (
-                                    <li
-                                      key={revision.schemaRevisionId}
-                                      className="flex items-center justify-between gap-2 text-[11px]"
-                                    >
-                                      <span>
-                                        <span className="font-semibold text-ink">
-                                          v{revision.revisionNumber}
-                                        </span>{' '}
-                                        <span className="text-ink-muted">
-                                          {new Date(
-                                            revision.createdAt,
-                                          ).toLocaleDateString(undefined, {
-                                            dateStyle: 'medium',
-                                          })}
-                                        </span>
-                                      </span>
-                                      <span
-                                        className={`rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold ${
-                                          revision.stabilisedAt
-                                            ? 'bg-green/10 text-green'
-                                            : 'bg-accent-soft text-accent'
-                                        }`}
-                                      >
-                                        {revision.stabilisedAt
-                                          ? 'Stabilised'
-                                          : 'Piloting'}
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )
-              ) : schemaList?.status === 'error' ? (
-                <div className="flex flex-col items-center gap-3 py-6 text-center">
-                  <p className="text-xs text-danger" role="alert">
-                    Could not load templates. {schemaList.message}
-                  </p>
-                  <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
-                    Retry
-                  </Button>
-                </div>
-              ) : (
-                <p
-                  className="py-6 text-center text-xs text-ink-muted"
-                  aria-busy="true"
-                >
-                  Loading templates…
-                </p>
-              )}
-          </div>
-        </ModalDialog>
       )}
     </div>
   )

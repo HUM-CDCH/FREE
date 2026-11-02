@@ -1246,7 +1246,7 @@ describe('Project Context navigation', () => {
     fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
     expect(within(page).getByRole('button', { name: 'Template' })).toHaveAttribute('aria-expanded', 'true')
     expect(
-      await within(page).findByText('Build your template from a document'),
+      await within(page).findByRole('heading', { name: 'Your templates' }),
     ).toBeInTheDocument()
     expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
@@ -1261,7 +1261,7 @@ describe('Project Context navigation', () => {
     const toggle = (name: string) => within(page).getByRole('button', { name })
     expect(toggle('Template')).toHaveAttribute('aria-expanded', 'true')
     expect(
-      await within(page).findByText('Build your template from a document'),
+      await within(page).findByRole('heading', { name: 'Your templates' }),
     ).toBeInTheDocument()
     // The documents stay in view: the sections are the project's record, not places the work moves to.
     expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
@@ -1270,7 +1270,7 @@ describe('Project Context navigation', () => {
     // The documents are the page's entry, so it keeps the bare Project Context path.
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
     expect(location.search).toBe('')
-    expect(within(page).queryByText('Build your template from a document')).not.toBeInTheDocument()
+    expect(within(page).queryByRole('heading', { name: 'Your templates' })).not.toBeInTheDocument()
 
     fireEvent.click(toggle('Runs & exports'))
     expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
@@ -1284,7 +1284,7 @@ describe('Project Context navigation', () => {
     back(`/projects/${projectContextId}/schemas`)
     await waitFor(() => expect(toggle('Template')).toHaveAttribute('aria-expanded', 'true'))
     expect(
-      await within(page).findByText('Build your template from a document'),
+      await within(page).findByRole('heading', { name: 'Your templates' }),
     ).toBeInTheDocument()
   })
 
@@ -1313,8 +1313,8 @@ describe('Project Context navigation', () => {
     const page = await openProjectPage()
     fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
     expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
-    // Starting a schema is the chat's: this section points there.
-    expect(within(page).getByRole('region', { name: 'From a document' })).toHaveTextContent('its chat suggests a template')
+    // Every template used shows here; with none yet, the section points to the chat that makes one.
+    expect(within(page).getByRole('region', { name: 'Your templates' })).toBeInTheDocument()
 
     const spreadsheet = within(page).getByRole('button', {
       name: 'Or suggest a template from a spreadsheet of examples',
@@ -1478,16 +1478,14 @@ describe('Project Context navigation', () => {
     pending.resolve(
       failureResponse('persistence_unavailable', 'Template storage is unavailable.', 503),
     )
-    fireEvent.click(
-      await within(page).findByRole('button', { name: 'Template history' }),
-    )
+    // The templates show in the section itself, not behind a history button.
     expect(await within(page).findByRole('alert')).toHaveTextContent(
       'Could not load templates. persistence_unavailable: Template storage is unavailable.',
     )
 
     fireEvent.click(within(page).getByRole('button', { name: 'Retry' }))
     expect(await within(page).findByText('Places')).toBeInTheDocument()
-    expect(within(page).getByText('Current Template Revision 2')).toBeInTheDocument()
+    expect(within(page).getByText('Current version 2')).toBeInTheDocument()
     expect(within(page).getByText(/^Updated /)).toHaveAttribute(
       'datetime',
       '2026-08-03T12:00:00.000Z',
@@ -1544,9 +1542,6 @@ describe('Project Context navigation', () => {
     const page = await screen.findByRole('region', { name: 'Project' })
     await within(page).findByRole('heading', { name: project.name })
     fireEvent.click(within(page).getByRole('button', { name: 'Template' }))
-    fireEvent.click(
-      await within(page).findByRole('button', { name: 'Template history' }),
-    )
     await within(page).findByText('Places')
     fireEvent.click(
       within(page).getByRole('button', { name: 'Rename template Places' }),

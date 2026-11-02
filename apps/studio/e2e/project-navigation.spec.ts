@@ -1014,7 +1014,7 @@ test.describe('rail navigation', () => {
     const section = (name: string) =>
       projectPage(page).getByRole('button', { name, exact: true })
     await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
-    await expect(projectPage(page).getByRole('heading', { name: 'Build your template from a document' })).toBeVisible()
+    await expect(projectPage(page).getByRole('heading', { name: 'Your templates' })).toBeVisible()
     await page.reload()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
     await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
