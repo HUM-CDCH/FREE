@@ -441,9 +441,10 @@ export default function AppFrame({
       <title>
         {workspace ? `FREE Studio — ${workspace.filename}` : 'FREE Studio'}
       </title>
+      {/* Above the document's chat rail (z-30) and its toast (z-40), which overlay the page under 860px too. */}
       {narrowViewport && effectiveNavOpen && (
         <button
-          className="fixed inset-0 z-30 cursor-default bg-ink/45 backdrop-blur-[1px]"
+          className="fixed inset-0 z-45 cursor-default bg-ink/45 backdrop-blur-[1px]"
           type="button"
           aria-label="Close project navigation"
           onClick={closeNarrowNav}
@@ -454,7 +455,7 @@ export default function AppFrame({
         style={{ width: effectiveNavWidth }}
         className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200 motion-reduce:transition-none ${
           narrowViewport
-            ? 'fixed inset-y-0 left-0 z-40 shadow-xl'
+            ? 'fixed inset-y-0 left-0 z-46 shadow-xl'
             : 'relative'
         }`}
       >

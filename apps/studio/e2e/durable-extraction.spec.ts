@@ -77,6 +77,12 @@ test('results identify an older template and a new Article admission survives re
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(391)
     await page.screenshot({path:testInfo.outputPath('schema-mismatch-narrow.png')})
+    // The project navigation opened over it dims the rail too: a click there closes the navigation, not a rail control.
+    await page.getByRole('button',{name:'Open project navigation'}).click()
+    const outside={x:railBox.x+railBox.width-8,y:railBox.y+railBox.height/2}
+    expect(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('[aria-label="Chat, template and results"]'),outside)).toBe(false)
+    await page.mouse.click(outside.x,outside.y)
+    await expect(page.getByRole('button',{name:'Open project navigation'})).toBeVisible()
     await page.setViewportSize({width:1440,height:900})
     await page.getByRole('button',{name:'Open Template',exact:true}).click()
     await expect(page.getByRole('heading',{level:2,name:'Template',exact:true})).toBeVisible()
