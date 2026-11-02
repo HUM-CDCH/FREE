@@ -72,17 +72,11 @@ def _has_text(record: PageRecord, table: bool = False) -> bool:
     blocks = record.payload.get("blocks") or []
     parts = [record.text, *(b["html"] for b in blocks if not b.get("skipped"))]
     if table:
-        # A table's read needs a letter or digit outside a VLM's picture description (`<img>…</img>`, `![…](…)`)
-        # and its grid rules: a picture or an empty `| | |` grid is no table text. Pictures nest (`<img>` in a
-        # description, `[…]` in an alt, `(…)` in a path), so the innermost goes first, and a `[…]` or `(…)` that is no
-        # picture's own loses its brackets, until nothing changes.
-        pictures = re.compile(r"<img\b[^>]*(?<!/)>(?:(?!<img\b|</img>).)*</img>|!\[[^\[\]]*\]\([^()]*\)",
-                              flags=re.IGNORECASE | re.DOTALL)
-        brackets = re.compile(r"(?<!!)\[([^\[\]()]*)\]|(?<!\])\(([^\[\]()]*)\)")
-        for index, part in enumerate(parts):
-            while (stripped := brackets.sub(r"\1\2", pictures.sub("", part))) != part:
-                part = stripped
-            parts[index] = part
+        # A read holding any picture markup (`<img…`, a VLM's `<img>description</img>`, Markdown `![…](…)`) is no
+        # read of the table: what the picture stands for is missing, and a description's letters are not the table's.
+        # Otherwise it needs a letter or digit outside its grid rules: an empty `| | |` grid is no table text.
+        if any(re.search(r"<img\b|!\[", part, flags=re.IGNORECASE) for part in parts):
+            return False
         return any(character.isalnum() for part in parts for character in html_to_text(part))
     return any(html_to_text(part).strip() for part in parts)
 

@@ -242,9 +242,11 @@ PICTURE = {"html": "", "bbox": [0, 0, 10, 10], "label": "Picture", "confidence":
     ("granite_vision", "![A table of fees](table.png)"), ("granite_docling", "| | |\n|----|----|\n| | |"),
     ("granite_vision", "![A [table] of fees](table.png)"),
     ("nanonets_ocr2", "<img>A table <img>of fees</img> in two columns</img>"),
+    ("nanonets_ocr2", "<img>A table <img/>of fees</img>"), ("granite_vision", "| Fee |\n|----|\n![10 EUR](fee.png)"),
 ], ids=["printed as images", "read as a picture", "read as a bare image", "a blank grid", "a Markdown VLM's picture",
-        "a VLM's picture description", "a Markdown image", "a VLM's empty grid", "a Markdown image with brackets in its alt",
-        "a VLM's nested picture description"])
+        "a VLM's picture description", "a Markdown image", "a VLM's empty grid",
+        "a Markdown image with brackets in its alt", "a VLM's nested picture description",
+        "a picture description around a bare image", "a grid holding a picture"])
 def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_ocr_after_it_or_refuses_its_page(
         illustrated_pdf, tmp_path, monkeypatch, model, answer):
     """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
