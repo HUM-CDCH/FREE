@@ -225,6 +225,10 @@ function projectStep(input: GuideInput): StepCard | null {
   if (!next) return exportStep(project)
   const revisionId = summary.currentSchemaRevisionId
   if (next.step === 'pilot' && next.action === 'pilot') {
+    // A round of this revision with values to review leads before another pilot: a revision piloted after the server's
+    // phase reached the approval has no phase of its own to say so.
+    const review = reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId)
+    if (review) return review
     if (!schemaReady) return null
     const initial = [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)]
       .filter((id) => documents.some((document) => document.id === id)).slice(0, 3)
@@ -244,9 +248,8 @@ function projectStep(input: GuideInput): StepCard | null {
     }
   }
   if (next.step === 'pilot' || next.step === 'review')
-    // A pilot round this document was opened from keeps its review after the template changed, as the project page says.
-    return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId
-      || batch.batchExtractionId === project.roundId)
+    // Every round's review counts, of an older template too, as the project page's count of results to review does.
+    return reviewStep(input, project, () => true)
   if (next.step === 'approve') {
     const approve = { action: 'approve', label: next.label, disabled: project.busy || !revisionId } as const
     // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval

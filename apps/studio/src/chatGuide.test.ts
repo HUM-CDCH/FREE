@@ -144,12 +144,27 @@ describe('nextStep in a project', () => {
       key: 'review-next:extraction-c', question: 'This document is reviewed. Open c.pdf next?' })
   })
 
-  it('keeps leading the pilot round this document was opened from after the template changed', () => {
+  it('keeps leading a pilot round\'s review after the template changed, however this document was opened', () => {
     const revised = summary({ currentSchemaRevisionId: 'revision-3', extractedSourceDocumentCount: 3 })
     const round = batch([member('a'), member('b'), member('c')])
+    const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
     expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Review 3 pilot results' })
-    expect(step({ summary: revised, batches: [round], roundId: round.batchExtractionId, currentDocumentId: 'a' }, {
-      revision: { id: 'revision-3', number: 3, fieldCount: 6 } })).toMatchObject({ key: 'review:extraction-a', title: 'Pilot review' })
+    expect(step({ summary: revised, batches: [round], roundId: round.batchExtractionId, currentDocumentId: 'a' }, revision3))
+      .toMatchObject({ key: 'review:extraction-a', title: 'Pilot review' })
+    // "Continue in chat" and a tab switch open the document without its round: the page still says to review.
+    expect(step({ summary: revised, batches: [round], currentDocumentId: 'a' }, revision3)?.key).toBe('review:extraction-a')
+    expect(step({ summary: revised, batches: [round], currentDocumentId: 'd' }, revision3)?.key).toBe('review-next:extraction-a')
+  })
+
+  it('leads the revised template\'s pilot to its review, not to another pilot, before the approval', () => {
+    // The server's phase reached the approval with revision 2's pilot; revision 3's own pilot has run since.
+    const revised = summary({ phase: 'approve', currentSchemaRevisionId: 'revision-3', currentSchemaRevisionReviewed: false })
+    const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
+    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Pilot the revised template' })
+    const older = batch([member('a', true), member('b')]), current = batch([member('a'), member('b'), member('c')], 'revision-3')
+    expect(step({ summary: revised, batches: [older, current] }, revision3)).toMatchObject({ key: 'review:extraction-b', title: 'Pilot review' })
+    // Only revision 2's round waits: the revised template is still to pilot.
+    expect(step({ summary: revised, batches: [older] }, revision3)?.key).toBe('pilot:revision-3')
   })
 
   describe('in the approve phase, which the server reaches at the pilot\'s first review', () => {
