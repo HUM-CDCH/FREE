@@ -162,8 +162,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   [ingest-cuts.md](docs/ingest-cuts.md) describes. Large textless images on digital
   PDFs use artwork OCR; requests for book splitting retain
   the conservative large-image scan route. A native table with no
-  readable cells outside an OCR crop, or an incomplete OCR crop, makes its page
-  and the conversion incomplete. Surya artwork that repeats identical empty,
+  readable cells outside an OCR crop (its text printed as small images or
+  outlines, or a blank grid) keeps its block for its caption; a hybrid run
+  OCRs its box as a `figure` crop read just after it, which may hold no text,
+  and a native run publishes it as an `error` segment, withheld from
+  extraction. An incomplete OCR crop makes its page and the conversion
+  incomplete. Surya artwork that repeats identical empty,
   full-frame figures is interrupted and gets one recovery batch: only looping
   crops gain 24 pt of real page context. Other crop pixels stay unchanged.
   Context outside the original artwork is excluded; a text block crossing that

@@ -103,6 +103,22 @@ def test_a_table_read_by_ocr_reads_its_caption_too():
     assert regions == [OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))] and anchors == [0, 0]
 
 
+
+def test_a_table_with_no_readable_cells_is_read_after_its_block_unless_its_caption_needs_ocr_too():
+    """Docling's empty table keeps its block for its caption and is read just after it; with an undecodable glyph
+    in that caption the whole block is read in its place, caption first, as any such block."""
+    table = {**block("Table 1 (cm \x00 1)", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]],
+             "error": True}
+    native = Transcription({}, [record(1, [table], source_page=1)])
+    kept, regions, places, kinds = unreadable_blocks(native, False)
+    assert kept.pages[0].payload["blocks"] == [{**table, "error": False}]
+    assert (regions, places, kinds) == ([OcrRegion(1, (10, 40, 290, 90))], [0.25], ["figure"])
+    kept, regions, places, kinds = unreadable_blocks(native, True)
+    assert kept.pages[0].payload["blocks"] == []
+    assert (regions, places, kinds) == ([OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))], [0, 0],
+                                        ["text", "text"])
+
+
 # Long enough that an undeclared encoding was guessed wrong, as on a real page.
 TEXT = "1651 cm⁻¹ and 1649 cm⁻¹, respectively, indicating the presence of amide I groups of proteins."
 

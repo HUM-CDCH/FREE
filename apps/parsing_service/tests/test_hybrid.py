@@ -237,7 +237,8 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
         illustrated_pdf, tmp_path, monkeypatch, table_text):
     """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
     plans OCR for the page's real artwork only, and Docling reads a document index with no readable cell. Its boxes
-    are read just after its block, and OCR finding nothing there (a blank grid) is no failure either."""
+    are read just after its block, before the artwork printed below it, and OCR finding nothing there (a blank grid)
+    is no failure either."""
     document = DoclingDocument(name="raster-index")
     document.add_page(page_no=1, size=Size(width=595, height=842))
 
@@ -249,9 +250,10 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
                        start_col_offset_idx=column, end_col_offset_idx=column + 1)
              for row in (0, 1) for column in (0, 1)]
     document.add_text(label=DocItemLabel.TEXT, text="Native prose", prov=at((72, 60, 350, 80)))
-    document.add_heading(text="Administrative details", level=1, prov=at((72, 460, 350, 480)))
-    document.add_table(data=TableData(num_rows=2, num_cols=2, table_cells=empty), prov=at((72, 500, 372, 700)),
+    document.add_heading(text="Administrative details", level=1, prov=at((72, 100, 350, 120)))
+    document.add_table(data=TableData(num_rows=2, num_cols=2, table_cells=empty), prov=at((72, 130, 372, 280)),
                        label=DocItemLabel.DOCUMENT_INDEX)
+    document.add_text(label=DocItemLabel.TEXT, text="Native below", prov=at((72, 460, 350, 480)))
     document.add_text(label=DocItemLabel.PAGE_FOOTER, text="3", prov=at((290, 800, 300, 810)),
                       content_layer=ContentLayer.FURNITURE)
     result = SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
@@ -262,7 +264,7 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
     assert [region.bbox for region in execution.ocr_regions] == [(72, 292, 372, 442)]  # the artwork, not the table
 
     def recognize(request, crops, emit):
-        texts = {(72, 292, 372, 442): "Artwork words", (72, 500, 372, 700): table_text}
+        texts = {(72, 292, 372, 442): "Artwork words", (72, 130, 372, 280): table_text}
         return Transcription({}, [record(n, [block(text, (0, 0, image.width, image.height))] if text else [],
                                          image=image)
                                   for n, (_, region, image) in enumerate(crops, 1)
@@ -274,11 +276,11 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
     page = read_page(execution.result_dir, 1, manifest)
     assert manifest.status == "success" and page.complete
     assert [(s.label, s.text, s.status) for s in page.segments] == [
-        ("Text", "Native prose", "ok"), ("Text", "Artwork words", "ok"),
-        ("SectionHeader", "Administrative details", "ok"), ("TableOfContents", "", "ok"),
-        *([("Text", table_text, "ok")] if table_text else []), ("PageFooter", "3", "ok")]
+        ("Text", "Native prose", "ok"), ("SectionHeader", "Administrative details", "ok"),
+        ("TableOfContents", "", "ok"), *([("Text", table_text, "ok")] if table_text else []),
+        ("Text", "Artwork words", "ok"), ("Text", "Native below", "ok"), ("PageFooter", "3", "ok")]
     assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [
-        ("figure", (72, 292, 372, 442)), ("figure", (72, 500, 372, 700))]
+        ("figure", (72, 130, 372, 280)), ("figure", (72, 292, 372, 442))]
 
 
 def test_vlm_crop_keeps_its_markdown_and_coarse_evidence(illustrated_pdf, tmp_path, monkeypatch):

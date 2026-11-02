@@ -270,28 +270,29 @@ def unreadable_blocks(native: Transcription, glyphs: bool) -> tuple[Transcriptio
     """What native text could not read, planned for OCR: native's records as they stay, and one region per box with
     its place among its page's native blocks and its crop kind.
 
-    A table Docling found no readable cells in (`native.blocks_of` marks it an error) keeps its block, for its
-    caption, no longer an error; its boxes are read as artwork just after it, which may hold no text (a blank grid).
     With `glyphs`, a body block whose text keeps an undecodable glyph leaves native text and is read as text in its
-    place, one region per box (its caption's first, for a table). Running heads and feet stay native."""
+    place, one region per box (its caption's first, for a table). A table Docling found no readable cells in
+    (`native.blocks_of` marks it an error) keeps its block, for its caption, no longer an error; its boxes are read
+    just after it as artwork, which may hold no text (a blank grid) but is not the screened artwork whose empty-figure
+    loops Surya retries with page context. Running heads and feet stay native."""
     records, regions, places, kinds = [], [], [], []
     for record in native.pages:
         blocks = record.payload.get("blocks", [])
         kept = []
         for index, block in enumerate(blocks):
-            if block.get("error"):
-                kept.append({**block, "error": False})
-                for box in block.get("boxes", [block["bbox"]]):
-                    regions.append(OcrRegion(record.source_page, tuple(box)))
-                    places.append(index + 0.5)
-                    kinds.append("figure")
-            elif block["label"] in hybrid.FURNITURE or not (glyphs and undecodable(block["html"])):
-                kept.append(block)
-            else:
+            if glyphs and block["label"] not in hybrid.FURNITURE and undecodable(block["html"]):
                 for box in [*block.get("caption_boxes", []), *block.get("boxes", [block["bbox"]])]:  # as its HTML reads
                     regions.append(OcrRegion(record.source_page, tuple(box)))
                     places.append(index)
                     kinds.append("text")
+            elif block.get("error"):
+                kept.append({**block, "error": False})
+                for box in block.get("boxes", [block["bbox"]]):
+                    regions.append(OcrRegion(record.source_page, tuple(box)))
+                    places.append(index + 0.25)  # before artwork anchored at the next block, placed at index + 0.5
+                    kinds.append("figure")
+            else:
+                kept.append(block)
         # An empty list, not a missing one: without blocks a page file publishes the record as one coarse segment.
         records.append(record if kept == blocks else replace(record, payload={**record.payload, "blocks": kept}))
     return replace(native, pages=records), regions, places, kinds
@@ -348,7 +349,7 @@ def supplement(execution: Execution, inputs: Inventory, emit: Emit, debug: Debug
                 plan, = artwork_crops(pages, [(region.page, region.bbox, orders[ordinal - 1], "figure")],
                                       execution.crop_dpi, context_pt=ARTWORK_CONTEXT)
                 return plan
-            # An artwork input's batch is budgeted for the larger crop a recovery may plan for it; one whose context
+            # A screened artwork input's batch is budgeted for the larger crop a recovery may plan for it; one whose context
             # would pass the render budget is refused only if a recovery needs it (`artwork_crops`).
             costs = crop_costs(plans)
             for index, region in enumerate(execution.ocr_regions):
