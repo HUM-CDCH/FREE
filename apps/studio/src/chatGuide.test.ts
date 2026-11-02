@@ -115,11 +115,11 @@ describe('nextStep in a project', () => {
   const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
     sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true,
     currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: 'revision-2' } : null })
-  const batch = (members: ReturnType<typeof member>[], schemaRevisionId = 'revision-2'): BatchExtraction => ({
+  const batch = (members: BatchExtraction['members'], schemaRevisionId = 'revision-2'): BatchExtraction => ({
     batchExtractionId: `batch-${schemaRevisionId}`, projectContextId: 'project', schemaRevisionId, extractionSchemaId: 'schema',
     extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', members })
   const project = (overrides: Partial<ProjectGuideInput> = {}): ProjectGuideInput => ({
-    summary: summary(), documents, currentDocumentId: 'b', batches: [], roundId: null, busy: false, error: null, ...overrides })
+    summary: summary(), documents, currentDocumentId: 'b', batches: [], latest: null, roundId: null, busy: false, error: null, ...overrides })
   const step = (overrides: Partial<ProjectGuideInput> = {}, input: Partial<GuideInput> = {}) => nextStep({ ...base, project: project(overrides), ...input })
 
   it('pilots a ready template on this document and the next ones, with a run of this document alone beside it', () => {
@@ -253,8 +253,38 @@ describe('nextStep in a project', () => {
       options: [{ action: 'export', label: 'Export {n}…', picks: true }, { action: 'dismiss' }] })
     // b's newer result is not reviewed: its reviewed pilot result is exported.
     const results = exportableResults(project({ summary: done, batches: [pilot, later] }))
-    expect([...results].map(([id, { member: { extractionId }, batchExtractionId }]) => [id, extractionId, batchExtractionId])).toEqual([
+    expect([...results].map(([id, { extractionId, batchExtractionId }]) => [id, extractionId, batchExtractionId])).toEqual([
       ['c', 'extraction-c', 'later'], ['a', 'extraction-a', 'pilot'], ['b', 'extraction-b', 'pilot']])
+  })
+
+  // a was run again alone (extraction-a2), after the pilot round.
+  const a2 = { sourceDocumentId: 'a', extractionId: 'extraction-a2', schemaRevisionId: 'revision-2', sourceRepresentationRevisionId: 'source-a',
+    batchExtractionId: null, createdAt: '2026-11-02T00:00:00.000Z', completed: true, reviewed: true }
+
+  it('exports each document\'s latest Extraction as the project page counts it, one of the document alone too, once reviewed', () => {
+    const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+      extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
+    const exported = (latest: (typeof a2)[]) => [...exportableResults(project({ summary: done, batches: [batch([member('a', true), member('b', true)])], latest }))]
+      .map(([id, { extractionId, batchExtractionId }]) => [id, extractionId, batchExtractionId])
+    expect(exported([a2])).toEqual([['a', 'extraction-a2', null], ['b', 'extraction-b', 'batch-revision-2']])
+    // Not reviewed, or of another revision: the document's reviewed result in the round is exported.
+    expect(exported([{ ...a2, reviewed: false }])[0]).toEqual(['a', 'extraction-a', 'batch-revision-2'])
+    expect(exported([{ ...a2, schemaRevisionId: 'revision-1' }])[0]).toEqual(['a', 'extraction-a', 'batch-revision-2'])
+  })
+
+  it('leaves a member to review no longer once its document has a newer latest Extraction, as the project page counts it', () => {
+    const reviewing = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+      extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
+    expect(step({ summary: reviewing, batches: [batch([member('a'), member('b', true), member('c')])], latest: [a2], currentDocumentId: 'a' }))
+      .toMatchObject({ key: 'review-next:extraction-c', title: 'Review results' })
+    // A member run after its document's latest (saved values, no completed attempt) still waits.
+    const failed = { ...member('a'), executionStatus: 'FAILED' as const, completed: false }
+    expect(step({ summary: reviewing, batches: [batch([failed, member('b', true), member('c')])], latest: [{ ...a2, createdAt: '2026-10-31T00:00:00.000Z' }],
+      currentDocumentId: 'a' })?.key).toBe('review:extraction-a')
+    // Before the approval, a pilot whose only waiting member was re-run alone claims no fully reviewed pilot.
+    const approve = summary({ phase: 'approve', currentSchemaRevisionReviewed: true, extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 1 })
+    expect(step({ summary: approve, batches: [batch([member('a'), member('b', true)])], latest: [{ ...a2, reviewed: false }] })).toMatchObject({
+      key: 'approve:revision-2', question: 'Approve the template for the whole project?' })
   })
 
   it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {

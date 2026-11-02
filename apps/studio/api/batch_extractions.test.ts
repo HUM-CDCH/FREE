@@ -199,6 +199,21 @@ describe('/api/batch-extractions transport', () => {
     expect(results.status).toBe(404)
   })
 
+  it("adds each document's latest Extraction only for a client that asks for it, which an older one's schema refuses", async () => {
+    const latest = { sourceDocumentId: DOCUMENT, extractionId: '51000000-0000-4000-8002-000000000002', schemaRevisionId: REVISION,
+      sourceRepresentationRevisionId: '51000000-0000-4000-8003-000000000001', batchExtractionId: null,
+      createdAt: new Date('2026-11-02T00:00:00.000Z'), completed: true, reviewed: true }
+    const store = { researcherAccountId: ACCOUNT, listLatestExtractions: vi.fn(async () => [latest]) }
+    runtime.createResearcherExtractions.mockReturnValue(extractionModule())
+    const handle = createResearcherApiHandlers(store as unknown as ResearcherProjectStore).POST
+    const url = `http://test/api/batch-extractions?projectContextId=${PROJECT}`
+    expect(await (await handle(new Request(url))).json()).not.toHaveProperty('latestExtractions')
+    expect(store.listLatestExtractions).not.toHaveBeenCalled()
+    expect((await (await handle(new Request(`${url}&latest=1`))).json()).latestExtractions).toEqual([
+      { ...latest, createdAt: '2026-11-02T00:00:00.000Z' }])
+    expect(store.listLatestExtractions).toHaveBeenCalledWith(PROJECT)
+  })
+
   it('answers a batch with its derived member status and no job-era fields', async () => {
     const read = batchExtractionResponseSchema.parse(await (await handlerFor(extractionModule({
       readBatch: vi.fn(async () => ({

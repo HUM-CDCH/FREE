@@ -320,6 +320,19 @@ export type SourceDocumentSummary = {
   createdAt: Date
 }
 
+export type LatestExtraction = {
+  sourceDocumentId: string
+  extractionId: string
+  schemaRevisionId: string
+  sourceRepresentationRevisionId: string
+  /** Null for an Extraction of this document alone. */
+  batchExtractionId: string | null
+  createdAt: Date
+  completed: boolean
+  /** Any of its cuts was finalized, as the project's summary counts a review. */
+  reviewed: boolean
+}
+
 export type IngestSourceDocumentInput = {
   contentSha256: string
   mediaType: string
@@ -866,6 +879,8 @@ export type ResearcherProjectStore = {
     projectContext: ProjectContextSummary
     sourceDocuments: SourceDocumentSummary[]
   } | null>
+  /** Each Source Document's latest Extraction as listProjectContexts counts it: its newest completed or reviewed one. */
+  listLatestExtractions(projectContextId: string): Promise<LatestExtraction[] | null>
   /** Reads no Extraction state; callers may supply Extraction-owned pins. */
   getDocumentReopenSnapshot(
     projectContextId: string,
@@ -1794,6 +1809,20 @@ export function createResearcherProjectStore(
           }),
         ),
       }
+    },
+    async listLatestExtractions(projectContextId) {
+      if (!(await database.orm.public.ProjectContext.select('id').first({ id: projectContextId, researcherAccountId }))) return null
+      const documents = await database.orm.public.SourceDocument.where({ projectContextId }).select('id').all()
+      const latest = new Map<string, LatestExtraction>()
+      for (const extraction of await durableExtractionFacts(database, { documentIds: documents.map(({ id }) => id) })) {
+        const known = latest.get(extraction.sourceDocumentId)
+        if ((extraction.completed || extraction.reviewedAt !== null) && (!known || extraction.createdAt >= known.createdAt))
+          latest.set(extraction.sourceDocumentId, { sourceDocumentId: extraction.sourceDocumentId, extractionId: extraction.id,
+            schemaRevisionId: extraction.schemaRevisionId, sourceRepresentationRevisionId: extraction.sourceRepresentationRevisionId,
+            batchExtractionId: extraction.batchExtractionId, createdAt: extraction.createdAt, completed: extraction.completed,
+            reviewed: extraction.reviewedAt !== null })
+      }
+      return [...latest.values()]
     },
     async getDocumentReopenSnapshot(
       projectContextId,

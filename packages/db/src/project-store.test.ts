@@ -869,6 +869,11 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSummary?.lastActivityAt,
       new Date('2026-08-04T10:00:00Z'),
     )
+    // Each document's latest Extraction is the one the summary counts, and only the owner reads it.
+    const latest = async () => (await store.listLatestExtractions(PROJECT))
+      ?.map(({ sourceDocumentId, extractionId, completed, reviewed }) => [sourceDocumentId, extractionId, completed, reviewed])
+    assert.deepEqual(await latest(), [[DOCUMENT, '51000000-0000-4000-8006-000000000001', true, true]])
+    assert.equal(await createResearcherProjectStore(RESEARCHER_B, database as never).listLatestExtractions(PROJECT), null)
 
     // A newer unpublished-for-review Extraction supersedes the reviewed one:
     // the Source Document no longer reads as reviewed, but the pilot stays done.
@@ -890,6 +895,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )?.summary
     assert.equal(rerunSummary?.phase, 'approve')
     assert.equal(rerunSummary?.reviewedSourceDocumentCount, 0)
+    assert.deepEqual(await latest(), [[DOCUMENT, '51000000-0000-4000-8006-000000000003', true, false]])
 
     // A newer current representation than the latest Extraction's pin is
     // exactly what makes the Source Document stale.

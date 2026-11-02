@@ -322,6 +322,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
       completeEvaluationRound: vi.fn(async () => null),
       listEvaluationRounds: vi.fn(async () => null),
       getEvaluationRound: vi.fn(async () => null),
+      listLatestExtractions: vi.fn(async () => null),
       createProjectContext: vi.fn(async (name) => {
         const projectContextId =
           accountId === ids.accountA

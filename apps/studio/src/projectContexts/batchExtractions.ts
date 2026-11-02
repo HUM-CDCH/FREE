@@ -83,10 +83,15 @@ export async function listBatchExtractions(
   projectContextId: string,
   signal?: AbortSignal,
 ): Promise<BatchExtraction[]> {
-  const query = new URLSearchParams({ projectContextId, limit: '50' })
+  return (await listProjectExtractions(projectContextId, signal, false)).batchExtractions
+}
+
+/** The project's Batch Extractions and, asked for with `latest`, each document's latest Extraction. */
+export async function listProjectExtractions(projectContextId: string, signal?: AbortSignal, latest = true) {
+  const query = new URLSearchParams({ projectContextId, limit: '50', ...latest && { latest: '1' } })
   return batchExtractionListResponseSchema.parse(
     await read(`/api/batch-extractions?${query}`, { signal }),
-  ).batchExtractions
+  )
 }
 
 /**

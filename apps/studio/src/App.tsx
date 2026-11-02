@@ -948,7 +948,7 @@ export function DocumentWorkspace({
   // the server refuses to stabilise a Schema Revision until a pilot Extraction
   // has been run and reviewed against it.
   // The project's workflow, led by the chat: a pilot or batch start, the approval, and the next document to review.
-  const projectBatches = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
+  const { batches: projectBatches, latest: projectLatest } = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
   const [projectBusy, setProjectBusy] = useState(false)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [approvingSchema, setApprovingSchema] = useState(false)
@@ -964,12 +964,12 @@ export function DocumentWorkspace({
   async function exportProjectResults(sourceDocumentIds: readonly string[], format: ExportFormat, choices: ExportChoices) {
     if (!project || !sourceDocumentId) return
     const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
-      batches: projectBatches, roundId: project.roundId, busy: false, error: null })
+      batches: projectBatches, latest: projectLatest, roundId: project.roundId, busy: false, error: null })
     const members = sourceDocumentIds.flatMap((id) => {
       const result = results.get(id)
-      return result ? [{ extractionId: result.member.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId,
+      return result ? [{ extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
         sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
-        sourceRevisionId: result.member.sourceRepresentationRevisionId, status: result.member.executionStatus }] : []
+        sourceRevisionId: result.sourceRepresentationRevisionId }] : []
     })
     setProjectBusy(true)
     setProjectError(null)
@@ -1121,7 +1121,8 @@ export function DocumentWorkspace({
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
         project={project && sourceDocumentId ? {
-          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, roundId: project.roundId,
+          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, latest: projectLatest,
+            roundId: project.roundId,
             busy: projectBusy || approvingSchema, error: projectError },
           start: (kind, ids) => void startProjectBatch(kind, ids),
           approve: () => setApprovingSchema(true),
