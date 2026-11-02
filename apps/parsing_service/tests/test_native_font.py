@@ -85,21 +85,21 @@ def test_only_body_blocks_keeping_a_control_code_leave_native_text_one_region_pe
                                            block("After", (10, 90, 290, 100))], source_page=1),
                                 record(2, [block("only \x0e C", (10, 20, 290, 40))], source_page=2),
                                 record(3, [block("Clean", (10, 20, 290, 40))], source_page=3)])
-    kept, regions, anchors, kinds = unreadable_blocks(native, True)
+    kept, regions, anchors, kinds = unreadable_blocks(native, True, [])
     assert [[b["html"] for b in r.payload.get("blocks", [])] for r in kept.pages] == [
         ["<p>Journal \x00 head</p>", "<p>Before</p>", "<p>After</p>"], [], ["<p>Clean</p>"]]
     assert kept.pages[1].payload["blocks"] == [] and kept.pages[2] is native.pages[2]
     assert regions == [OcrRegion(1, (10, 20, 140, 60)), OcrRegion(1, (160, 20, 290, 40)), OcrRegion(2, (10, 20, 290, 40))]
     assert anchors == [2, 2, 0] and kinds == ["text"] * 3
     # Without the screen's glyph flag a control code in Docling's text is left as it was read.
-    unflagged, *planned = unreadable_blocks(native, False)
+    unflagged, *planned = unreadable_blocks(native, False, [])
     assert unflagged.pages == native.pages and planned == [[], [], []]
 
 
 def test_a_table_read_by_ocr_reads_its_caption_too():
     """A table's HTML carries its caption, printed outside the table's box."""
     table = {**block("Location (cm \x00 1) 1696", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]]}
-    _, regions, anchors, _ = unreadable_blocks(Transcription({}, [record(1, [table], source_page=1)]), True)
+    _, regions, anchors, _ = unreadable_blocks(Transcription({}, [record(1, [table], source_page=1)]), True, [])
     assert regions == [OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))] and anchors == [0, 0]
 
 
@@ -110,13 +110,19 @@ def test_a_table_with_no_readable_cells_is_read_after_its_block_unless_its_capti
     table = {**block("Table 1 (cm \x00 1)", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]],
              "error": True}
     native = Transcription({}, [record(1, [table], source_page=1)])
-    kept, regions, places, kinds = unreadable_blocks(native, False)
+    kept, regions, places, kinds = unreadable_blocks(native, False, [])
     assert kept.pages[0].payload["blocks"] == [{**table, "error": False}]
     assert (regions, places, kinds) == ([OcrRegion(1, (10, 40, 290, 90))], [0.25], ["figure"])
-    kept, regions, places, kinds = unreadable_blocks(native, True)
+    kept, regions, places, kinds = unreadable_blocks(native, True, [])
     assert kept.pages[0].payload["blocks"] == []
     assert (regions, places, kinds) == ([OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))], [0, 0],
                                         ["text", "text"])
+    # Its own crop would read the pixels of artwork over more than 5% of it a second time: its page is refused.
+    kept, regions, *_ = unreadable_blocks(native, False, [OcrRegion(1, (10, 60, 290, 200))])
+    assert kept.pages[0].payload["blocks"] == [table] and regions == []
+    assert kept.pages[0].incomplete == "page 1: table with no readable cells at [10, 40, 290, 90] overlaps OCR'd artwork"
+    kept, regions, *_ = unreadable_blocks(native, False, [OcrRegion(1, (10, 88, 290, 200)), OcrRegion(2, (10, 40, 290, 90))])
+    assert regions == [OcrRegion(1, (10, 40, 290, 90))] and kept.pages[0].incomplete is None  # 4%, and another page
 
 
 # Long enough that an undeclared encoding was guessed wrong, as on a real page.

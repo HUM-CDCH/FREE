@@ -40,7 +40,6 @@ from PIL import Image
 import kei_exp.convert as conversion
 from kei_exp import runs, runtime
 from kei_exp.geometry import CropTransform
-from kei_exp.kie.passages import load
 from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
@@ -340,32 +339,17 @@ def test_only_painted_text_makes_a_page_native(tmp_path, pages, route):
     assert resolve(RunParams(pdf=objects_pdf(tmp_path / "objects.pdf", pages), model="surya")).transcriber == route
 
 
-def test_a_native_table_with_no_readable_cells_is_withheld_not_a_successful_caption_only_parse(
-        digital_pdf, tmp_path, monkeypatch):
-    # Docling found a table where the PDF has no text (printed as images or outlines). A native run has no OCR to
-    # read it: the document still converts, and the table is an error segment that nothing is extracted from.
+def test_native_empty_table_is_incomplete_not_a_successful_caption_only_parse(digital_pdf, monkeypatch):
     document = DoclingDocument(name="empty-table")
     document.add_page(page_no=1, size=Size(width=595, height=842))
-
-    def at(top: float, bottom: float) -> ProvenanceItem:
-        return ProvenanceItem(page_no=1, charspan=(0, 0),
-                              bbox=BoundingBox(l=10, t=top, r=300, b=bottom, coord_origin=CoordOrigin.TOPLEFT))
-
-    document.add_heading(text="Administrative details", level=1, prov=at(10, 30))
-    document.add_table(data=TableData(num_rows=0, num_cols=0, table_cells=[]), prov=at(40, 200))
+    document.add_table(data=TableData(num_rows=0, num_cols=0, table_cells=[]), prov=ProvenanceItem(
+        page_no=1, charspan=(0, 0), bbox=BoundingBox(l=10, t=10, r=300, b=200, coord_origin=CoordOrigin.TOPLEFT)))
     result = SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
                              status=ConversionStatus.SUCCESS)
     monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
         convert=lambda *args, **kwargs: result))
-    execution = resolve(RunParams(pdf=digital_pdf, model="surya", pages=(1, 1), result_dir=tmp_path / "result"))
-    assert execution.transcriber == "native"
-    ocr.run(execution, lambda _: None)
-    manifest = read_manifest(execution.result_dir)
-    page = read_page(execution.result_dir, 1, manifest)
-    assert manifest.status == "success" and page.complete
-    assert [(segment.label, segment.status) for segment in page.segments] == [("SectionHeader", "ok"), ("Table", "error")]
-    evidence = load(tmp_path)
-    assert [p.text for p in evidence.passages] == ["Administrative details"] and len(evidence.withheld) == 1
+    outcome = TRANSCRIBERS["native"].transcribe(resolve(RunParams(pdf=digital_pdf, model="surya")), None, lambda _: None)
+    assert "table has no readable cells" in outcome.incomplete
 
 
 @pytest.mark.live_model

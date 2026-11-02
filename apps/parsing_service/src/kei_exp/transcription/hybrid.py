@@ -21,12 +21,12 @@ HEADINGS = {"Title": "h1", "SectionHeader": "h2"}
 
 
 def supplement(native: Transcription, recognized: Transcription, crops: list[CropPlan],
-               anchors: list[int]) -> Transcription:
+               anchors: list[int], tables: frozenset[int]) -> Transcription:
     """Native's records with each crop's record attached to its page, read at its anchor (`regions.anchor`).
 
     crops[n - 1] and anchors[n - 1] are the crop recognized's record n read, as it was read: the crops' images are
-    already released. OCR text never makes a page with
-    missing native evidence complete. ConversionError: native omitted a page that has a crop.
+    already released; `tables` are the n whose crop is a native table with no readable cells. OCR text never makes
+    a page with missing native evidence complete. ConversionError: native omitted a page that has a crop.
     """
     assert sorted(record.page for record in recognized.pages) == list(range(1, len(crops) + 1)), \
         "OCR records are not the region inputs"
@@ -49,9 +49,12 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
             reasons.append(f"page {page.source_page}: native evidence has no located blocks")
         if unreadable:
             reasons.append(f"page {page.source_page}: hybrid HTML export failed: {unreadable}")
-        # Artwork may hold no text; a native block read by OCR always did.
+        # Artwork may hold no text; a native block read by OCR always did. So must a table Docling found no readable
+        # cells in: an empty read cannot tell a blank grid from a table OCR missed.
         reasons += [f"page {page.source_page}: OCR of native text crop {s.ordinal} returned no text"
                     for s in supplements if s.crop[1].kind == "text" and not _has_text(s.record)]
+        reasons += [f"page {page.source_page}: OCR of crop {s.ordinal}, a table with no readable cells, returned no text"
+                    for s in supplements if s.ordinal in tables and not _has_text(s.record)]
         merged.append(replace(page, ocr=supplements, markdown=markdown, text=text,
                               incomplete="; ".join(reasons) or None,
                               input_tokens=_sum(s.record.input_tokens for s in supplements),
