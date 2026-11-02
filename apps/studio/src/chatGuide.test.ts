@@ -311,6 +311,10 @@ describe('nextStep in a project', () => {
     expect(step({ summary: reviewing, batches: [round], latest: unreviewed, currentDocumentId: 'a' }, { resultsShown: true })?.options)
       .toEqual([expect.objectContaining({ action: 'run', label: '↻ Re-run extraction', tone: 'secondary' })])
     expect(step({ summary: reviewing, batches: [batch([member('b', true)])], latest: unreviewed })?.key).toBe('review-next:extraction-a2')
+    // Of an older template, even in the pilot phase where every round counts, it leaves this document to its run again.
+    const older = read([{ ...a2, review: null, schemaRevisionId: 'revision-1' }])
+    expect(step({ summary: summary({ extractedSourceDocumentCount: 1 }), latest: older, currentDocumentId: 'a' },
+      { latest: { ...latest('COMPLETED', 'revision-1'), extractionId: 'extraction-a2' } })?.key).toBe('run:extraction-a2')
   })
 
   it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {

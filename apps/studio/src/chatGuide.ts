@@ -344,8 +344,10 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
       .find((batch) => batch.members.some(waiting))
   const queue = [...(round?.members ?? []).map((member) => ({ ...member, batchExtractionId: round!.batchExtractionId as string | null, waits: waiting(member) })),
-    ...(project.latest?.extractions ?? []).filter((run) => run.batchExtractionId === null && run.completed && !run.review && counts(run)
-      && shown(run.sourceDocumentId, run.extractionId)).map((run) => ({ ...run, currentReview: null, waits: true }))]
+    // A run alone of an older template is its document's to run again, not to review.
+    ...(project.latest?.extractions ?? []).filter((run) => run.batchExtractionId === null && run.completed && !run.review
+      && run.schemaRevisionId === project.summary.currentSchemaRevisionId && counts(run) && shown(run.sourceDocumentId, run.extractionId))
+      .map((run) => ({ ...run, currentReview: null, waits: true }))]
   if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
   const title = project.summary.schemaStabilised ? 'Review results' : 'Pilot review'
