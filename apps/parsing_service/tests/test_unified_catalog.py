@@ -992,13 +992,13 @@ def test_an_inventoried_entity_is_named_by_its_line_and_one_that_cannot_be_told_
     lines = ["Finds.", "North: a pin, bronze.", "South: a pin, iron.", "North: a pin, bronze."]
     source = evidence("\n".join(lines))
     listed = {"entities": [["L2", "a pin", None, [["L2", "L3"]]], ["L3", "a pin", None, [["L2", "L3"]]],
-                           ["L4", "a pin", None, []], ["L1", "Finds", None, [["L3", "L2"]]]]}
+                           ["L4", "A PIN", None, []], ["L1", "Finds", None, [["L3", "L2"]]]]}
     result, chat = extract(source, Model(source, discovery=nothing, inventory=lambda user: listed), defaults=9)
     reads = [call["system"] for call in chat.calls if call["system"].startswith("You extract structured data")]
     assert ['"a pin" in the source line "North: a pin, bronze."' in reads[0],
             '"a pin" in the source line "South: a pin, iron."' in reads[1]] == [True, True] and len(reads) == 2
     assert [issue["detail"] for issue in result["issues"] if issue["code"] == "entity_dropped"] == [
-        "excerpt 'a pin' cannot be told from an earlier entity's: their lines read alike",
+        "excerpt 'A PIN' cannot be told from an earlier entity's: their lines read alike",
         "entity 'Finds' cites a passage range that is not one"]
 
 

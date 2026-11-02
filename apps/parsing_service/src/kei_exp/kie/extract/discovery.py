@@ -688,7 +688,7 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
 
 def inventory(body: dict, evidence: Evidence, description: str, fields: str,
               fits_budget: Callable[[str, str, dict], bool], ask: Callable[..., dict | None], *,
-              progress: Callable[[list[dict], list[dict]], None] | None = None, retained: bool = False) -> dict:
+              progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
     """Defaults 9: a completed discovery body that holds no entry at all (a report in prose) with the entities its
     source describes, read top to bottom: (1) only a body that is complete, without entries and without a failed
     window qualifies; (2) one counted call over every admitted source line lists each entity as an identifying excerpt
@@ -697,15 +697,11 @@ def inventory(body: dict, evidence: Evidence, description: str, fields: str,
     range that is not one, is dropped with an issue; (4) each kept entity becomes an entry owning only its excerpt,
     with its `passages` (its line and ranges, shared with other entities) and its `target` (the excerpt and its line)
     for the reader, and the ledger rows are cut around the excerpts. A failed, cut-off or oversized
-    request is an issue and a failed window, never "no records". A source with `retained` records of an earlier
-    selection is not inventoried: an issue says so."""
+    request is an issue and a failed window, never "no records"."""
     # (1) Only a source discovery found no record in qualifies.
     if body["entries"] or not body.get("complete", True) or any(not window["ok"] for window in body["windows"]) \
             or body.get("children", {}).get("failed"):
         return body
-    if retained:  # shortcut: retained records' excerpts are masked, not their passages; skip until saved plans are reused
-        return {**body, "issues": [*body["issues"], Issue("inventory_skipped", "the source has retained records, "
-                                                                               "which an inventory would list again")]}
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     units = units_of(evidence.passages)
@@ -756,7 +752,7 @@ def inventory(body: dict, evidence: Evidence, description: str, fields: str,
                and anchor.start < other["ranges"][0]["end"] for other in entries):
             issues.append(Issue("entity_dropped", f"excerpt {row[1]!r} overlaps an earlier entity's"))
             continue
-        target = {"excerpt": row[1], "line": text}
+        target = {"excerpt": text[hits[0][0]:hits[0][1]], "line": text}  # as printed, whatever case the reply used
         if any(other["target"] == target for other in entries):
             issues.append(Issue("entity_dropped", f"excerpt {row[1]!r} cannot be told from an earlier entity's: "
                                                   "their lines read alike"))

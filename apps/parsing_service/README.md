@@ -299,10 +299,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   or citing a passage range that is not one, is dropped (`entity_dropped`). Known limits:
   one inventory reply per source (a cut-off or invalid one leaves processing incomplete,
   `inventory_failed`, never paged or retried); a source with even one discovered record
-  is never inventoried; a source with retained records of an earlier selection is not
-  inventoried at all (`inventory_skipped`: masking hides their excerpts, not their
-  passages, so they would be listed again); GLiFormer fields do not read inventoried
-  entities (`entry_unread`).
+  is never inventoried; defaults 9 refuses a source with retained records of an earlier
+  selection (masking hides their excerpts, not their passages, so they would be listed
+  again); GLiFormer fields do not read inventoried entities (`entry_unread`).
   Studio still admits defaults 6 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces

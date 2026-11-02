@@ -350,6 +350,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     # Durable planning never waits on a model: an `ask` replays a saved reply or captures the call and raises
     # `NeedsCall`, so it reads in turn, without threads; the calls run in their own workflows (durable_extract).
     durable = getattr(chat, "runtime", None) is not None
+    # shortcut: masking retained records hides an inventoried entity's excerpt, not its passages, so a later selection
+    # could list it again; defaults 9 refuses such a source until a saved record plan is reused.
+    if effective.get("inventory") and durable and ((getattr(chat.runtime, "historical", None) or {}).get(
+            "snapshot") or {}).get("coverage", {}).get("completedScopes"):
+        raise ValueError("defaults 9 cannot yet add to a source that has retained records; use defaults 8")
     stopped: list[Boundary] = []
 
     def ask(*args) -> dict | None:
@@ -382,9 +387,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                     body = discovery.inventory(
                         body, evidence, schema.record_description,
                         ", ".join(node.name for node in schema.record_nodes) + "\n" + _notes(schema.record_nodes),
-                        partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat),
-                        retained=durable and bool(((getattr(chat.runtime, "historical", None) or {}).get("snapshot")
-                                                   or {}).get("coverage", {}).get("completedScopes")))
+                        partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat))
             except NeedsCall:
                 if stopped:  # a pause or stop, not a call still to make
                     raise stopped[0] from None
