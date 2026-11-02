@@ -7,6 +7,7 @@ meanwhile; a round whose grouping follows the earlier replies (the fallback batc
 for every one of them, so the captured calls are the direct run's, whatever order the replies arrive in.
 """
 import inspect
+import re
 import threading
 from contextlib import nullcontext
 from copy import deepcopy
@@ -21,6 +22,7 @@ from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall
 from kei_exp.kie.extract.grounding import spans
 from kei_exp.kie.extract.llm import Reply
+from kei_exp.kie.extract.method import LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.routing import value_origins, verify_routed
 from kei_exp.kie.extract.schema import Schema
@@ -265,6 +267,38 @@ def test_routed_units_of_a_round_are_captured_together_and_the_next_round_waits_
     assert dumped(result) == dumped(direct) and all(route["supported"] for route in result[3])
     assert len(lease.units) == len(direct_chat.calls) >= 3
     assert pending == [1] * (len(direct_chat.calls) - 1)  # the site's unit, then one more unit of the year per round
+
+
+def test_windows_of_a_refused_unit_replay_as_the_direct_run():
+    """With `windows`, a claim refused over its whole unit is checked in halves of it; durable rounds capture and replay
+    exactly the direct run's calls, the second half only once the first half's reply left the claim unsupported."""
+    source = passages(["Hill background " + "filler " * 300, "filler " * 300, "Other: year 1827 " + "filler " * 300])
+    contexts = [Context(tuple(source))]
+    fields = {"site": "Hill", "year": 1827}
+    origins = value_origins([fields], fields, {"site": "Hill"}, [source[0].id])
+
+    def reason(_system, user, reply):
+        evidence, names = user.split("### Evidence")[1], dict(re.findall(r"^(C\d+) \((\w+)\)", user, re.MULTILINE))
+        return {claim: {"label": "E1" if str(fields[names[claim]]) in evidence else "NONE", "attribution": True}
+                for claim in reply["properties"]}
+    def routed(chat, counter):
+        return verify_routed(contexts, fields, SCHEMA, chat, origins=origins, value_contexts=[contexts[0]], record=3,
+                             counter=LimitedCounter(counter, 2048 + 700), verifier=spans, record_context="Hill",
+                             windows=True)
+    lease = MemoryLease(SCHEMA.model_dump(by_alias=True, exclude_none=True))
+    chat = CountingChat(reason)
+    pending, result = finished(lease, chat, planned(lease, chat, routed))
+    direct_chat = CountingChat(reason)
+    direct = routed(direct_chat, Counter())
+    # The planner records its own served counter's size; the direct run, the limited one.
+    def served(result):
+        return [{**call, "context_tokens": None} for call in dumped(result)[1]]
+    assert (result[0], result[2], result[3]) == (direct[0], direct[2], direct[3]) and served(result) == served(direct)
+    assert not result[2] and all(route["supported"] for route in result[3])
+    # The site is found in the first half; the year, refused in the second half too, in the last quarter. Routes name
+    # only the published context, checked through its windows.
+    assert [(route["attempted"], route["refused"], route["remaining"]) for route in result[3]] == [([0], [], [])] * 2
+    assert pending == [1, 1, 1] and len(lease.units) == len(direct_chat.calls) == 3
 
 
 def scheduled(monkeypatch, lease, chat, ground, *, chunks, delay):

@@ -23,6 +23,7 @@ class ArticleOptions(BaseModel):
     selection: Literal["supported"] | None = None
     rendering: Literal["structured"] | None = None
     grouping: Literal["structural"] | None = None
+    grounding_overflow: Literal["windows"] | None = None
 
     @model_serializer(mode="wrap")
     def serialized(self, handler):
@@ -39,6 +40,8 @@ class ArticleOptions(BaseModel):
             result.pop("rendering")
         if self.grouping is None:
             result.pop("grouping")
+        if self.grounding_overflow is None:
+            result.pop("grounding_overflow")
         return result
 
     @model_validator(mode="after")
@@ -50,6 +53,8 @@ class ArticleOptions(BaseModel):
             raise ValueError("schema evidence policy requires quoted or span grounding")
         if self.grounding_schedule is not None and self.grounding == "off":
             raise ValueError("grounding scheduling requires verification")
+        if self.grounding_overflow is not None and self.grounding == "off":
+            raise ValueError("grounding overflow windows require verification")
         if self.identity == "conservative" and not self.identity_fields:
             raise ValueError("conservative reconciliation requires explicit identity_fields")
         if len(set(self.identity_fields)) != len(self.identity_fields):
@@ -63,7 +68,9 @@ class ArticleOptions(BaseModel):
         return self
 
 
-REFERENCE = ArticleOptions()  # the production reference: what an omitted `article` option runs
+# What an omitted `article` option runs: the complete-source method of every Extraction admitted without recorded
+# settings, which Resume and Retry replay. Studio records its current default explicitly on each new Extraction.
+REFERENCE = ArticleOptions()
 
 
 class CatalogFactors(BaseModel):
@@ -75,11 +82,13 @@ class CatalogFactors(BaseModel):
 
 
 class LimitedCounter:
-    """Count the exact serving template while enforcing a fixed experimental context ceiling."""
+    """Count the exact serving template while enforcing a fixed experimental context ceiling. A counter's fixed framing
+    (`framing_tokens`: the Codex CLI's own instructions, counted in every request) is not part of the ceiling."""
     def __init__(self, counter, limit: int):
         self.counter = counter
         self.upper_bound = getattr(counter, "upper_bound", False)
-        self.context_tokens = min(counter.context_tokens, limit)
+        self.framing_tokens = getattr(counter, "framing_tokens", 0)
+        self.context_tokens = min(counter.context_tokens, limit + self.framing_tokens)
 
     def request_tokens(self, system: str, user: str, schema=None) -> int:
         return self.counter.request_tokens(system, user, schema)

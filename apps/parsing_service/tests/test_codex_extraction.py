@@ -182,6 +182,17 @@ def test_limited_codex_counters_retain_the_explicit_usage_policy():
     assert counter.upper_bound
 
 
+def test_a_bounded_ceiling_leaves_out_the_codex_framing_and_keeps_served_counters_exact():
+    """Studio's default 12,288-token units would otherwise hold only the CLI's own framing: every request refused."""
+    from types import SimpleNamespace
+    from kei_exp.kie.extract.codex import FRAMING_TOKENS
+    from kei_exp.kie.extract.method import LimitedCounter
+    codex = CodexChat(model='test-model').counter()
+    assert LimitedCounter(LimitedCounter(codex, 12288), 12288).context_tokens == 12288 + FRAMING_TOKENS
+    assert LimitedCounter(codex, CONTEXT_TOKENS).context_tokens == CONTEXT_TOKENS  # never above the served context
+    assert LimitedCounter(SimpleNamespace(context_tokens=32768), 12288).context_tokens == 12288
+
+
 def test_codex_catalog_populates_both_extraction_roles(monkeypatch):
     from kei_exp import api
     from kei_exp.kie.extract import codex, models

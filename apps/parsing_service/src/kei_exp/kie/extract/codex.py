@@ -168,6 +168,7 @@ def available_models() -> list[str]:
 class CodexCounter:
     model: str
     context_tokens: int = CONTEXT_TOKENS
+    framing_tokens = FRAMING_TOKENS  # not a field: a bounded ceiling excludes it (`method.LimitedCounter`)
     source: str = POLICY
     upper_bound: bool = True
 

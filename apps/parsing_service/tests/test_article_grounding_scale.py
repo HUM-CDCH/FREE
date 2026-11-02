@@ -5,6 +5,7 @@ the objects that enclose it (the root's, then each enclosing item's) instead of 
 context its value was read from first, and fits the served context with its reply. Every eligible claim ends supported,
 unsupported (checked, no support) or not completed (with its reasons); excluded fields are counted apart.
 """
+import hashlib
 import json
 import re
 
@@ -284,3 +285,80 @@ def test_a_claim_without_an_origin_is_checked_first_where_its_items_values_are_p
     verify_routed(contexts, fields, SCHEMA, None, origins=origins, value_contexts=contexts, record=0,
                   verifier=verifier)
     assert tried[0] == ("p1_s1", "amount")
+
+
+# A source whose whole-document read fits but whose claim checks over the whole source do not: one served counter
+# per role, the reasoning one at `reasoning` tokens (6600: each check over the whole source is refused; 9000: fits).
+OVERFLOWING = ["Viega price list."] + ["filler " * 1500] * 4 + ["All prices in USD."]
+
+
+def article_requests(article_options: dict | None, reasoning: int) -> tuple[list[str], dict]:
+    """Every request an Article run sends, in order, as canonical JSON, and its artifact."""
+    sent = []
+
+    def script(system, user, schema):
+        sent.append(json.dumps([system, user, schema], ensure_ascii=False, sort_keys=True))
+        if "items" in schema["properties"]:
+            return {"publisher": "Viega", "currency": "USD", "items": []}
+        return keeps_every_reading(schema) if resolving(user) else labelling([])(system, user, schema)
+    options = {"strategy": "article", **({"article": article_options} if article_options is not None else {})}
+    request = run.ExtractRequest.model_validate({"schema": {**SCHEMA.model_dump(by_alias=True, exclude_none=True),
+        "recordScope": "document"}, "options": options})
+    result = run.dispatch(None, evidence(passages(OVERFLOWING)), request, CountingChat(script),
+        counter={"fields": WordCounter(), "reasoning": LimitedCounter(WordCounter(), reasoning)})
+    return sent, result
+
+
+def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
+    sent, result = article_requests({"context": "full", "grounding_overflow": "windows"}, 6600)
+    linked = {tuple(link["path"]): link["segment"] for link in result["evidence"]}
+    assert linked == {("records", 0, "publisher"): "p1_s0", ("records", 0, "currency"): "p1_s5"}
+    assert not result["issues"] and result["grounding"]["supported"] == 2
+    assert result["grounding_overflow_version"] == 1 and len(result["contexts"]) == 1  # the listing stays whole
+    checks = [json.loads(each)[1] for each in sent[1:]]
+    # Both claims share the first half; the currency, unsupported there, goes on to the second half alone.
+    assert [re.findall(r"^C\d+ \((\w+)", user, re.MULTILINE) for user in checks] == [
+        ["publisher", "currency"], ["currency"]]
+    shown = [user.split("### Evidence")[1] for user in checks]
+    assert "Viega" in shown[0] and "USD" not in shown[0] and "USD" in shown[1]
+    assert all(len(user.split()) + 2048 <= 6600 for user in checks)
+
+
+def test_settings_without_overflow_windows_send_the_requests_9ef058d2_sent():
+    """Requests captured from 9ef058d2 (before `grounding_overflow`): an omitted article (Studio's legacy `article:
+    null`), explicit full and explicit bounded settings without the factor, refused and fitting alike."""
+    refused, fits = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
+                     "5e6e2bd270c9b7ab59d00f27fe63d851367c15ce615e92c08c9cd5cd6e6b41d3")
+    captured = {
+        (None, 6600): refused, ("full", 6600): refused,
+        ("bounded", 6600): "fd01a94ec4eb28bba52bc9b0b8a641f001de4653828f77fb002c5c7c6a23729e",
+        (None, 9000): fits, ("full", 9000): fits,
+        ("bounded", 9000): "a2e86e466876c6efb7b732cbc60f8d95389dc53040675fa00217aa8742439c4d",
+    }
+    for (context, reasoning), digest in captured.items():
+        settings = None if context is None else {"context": context, **({"context_tokens": 8192} if context ==
+                                                                       "bounded" else {})}
+        sent, result = article_requests(settings, reasoning)
+        assert hashlib.sha256("\n".join(sent).encode()).hexdigest() == digest, (context, reasoning)
+        assert "grounding_overflow_version" not in result
+    sent, result = article_requests(None, 6600)
+    assert [issue["code"] for issue in result["issues"]] == ["grounding_exceeds_budget"] * 2
+
+
+def test_a_claim_too_large_for_any_window_keeps_its_refusal_without_a_call():
+    fields = {"publisher": "Viega", "currency": "USD", "items": [item(0) | {"description": "x " * 9000}]}
+    from kei_exp.kie.extract.contexts import Context
+    from kei_exp.kie.extract.routing import WINDOW_DEPTH, verify_routed
+    source = passages(["Viega price list."] + ["filler"] * 30 + ["All prices in USD."])
+    origins = [{"path": list(path), "kind": "value", "sources": []} for path, _ in leaves(fields)]
+    users = []
+    links, calls, issues, routes = verify_routed([Context(tuple(source))], fields, SCHEMA,
+        CountingChat(labelling(users)), origins=origins, value_contexts=[], record=0, verifier=grounding.semantic,
+        windows=True, counter=LimitedCounter(WordCounter(), 8192), budget=24_000, record_context="the document\n{}",
+        projected=True)
+    oversized = {("records", 0, "items", 0, name) for name in ("sku", "description", "unit", "amount")}
+    for route in routes:  # the source is refused for each item claim, in each of its eighths; the root's claims fit
+        assert (route["attempted"], route["refused"]) == (([], [0]) if tuple(route["path"]) in oversized else ([0], []))
+    assert all(sum(issue.path == path for issue in issues) == 2 ** WINDOW_DEPTH for path in oversized)
+    assert {issue.path for issue in issues} == oversized
+    assert all("x x" not in user for user in users) and len(users) == len(calls) and len(links) == 2

@@ -146,8 +146,9 @@ def test_contract_cases_and_their_dumps_match_the_shared_fixture():
 def test_categorical_inventory_verdicts_match_the_shared_fixture():
     inventory = fixture("article-options")["inventory"]
     assert article_options.verdicts(inventory) == inventory["verdicts"]
-    # The specification's receipt (contract-check.json) pins these counts at one ceiling and key set.
-    assert (inventory["accepted"], inventory["rejected"]) == (1560, 4584)
+    # The specification's receipt (contract-check.json) pins 1560/4584 at one ceiling and key set; `grounding_overflow`
+    # doubles the inventory and is refused with grounding off.
+    assert (inventory["accepted"], inventory["rejected"]) == (3016, 9272)
 
 
 def test_identity_fields_are_checked_against_the_schema_as_the_shared_fixture_says():

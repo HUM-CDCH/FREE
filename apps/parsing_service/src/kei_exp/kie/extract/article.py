@@ -29,7 +29,7 @@ from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import RENDERING_VERSION, structured_source
 from kei_exp.kie.extract.resolution import resolve
-from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, value_origins
+from kei_exp.kie.extract.routing import OVERFLOW_VERSION, VERSION as GROUNDING_ROUTING_VERSION, value_origins
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, conform, json_schema, typed
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
@@ -210,6 +210,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             result["rendering_version"] = RENDERING_VERSION
         if method.grouping is not None:
             result["grouping_version"] = GROUPING_VERSION
+        if method.grounding_overflow is not None:
+            result["grounding_overflow_version"] = OVERFLOW_VERSION
         if method.selection is not None:
             result["selection_version"] = SELECTION_VERSION
             result["selections"] = extracted.selections

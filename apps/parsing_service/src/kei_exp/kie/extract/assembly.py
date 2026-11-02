@@ -25,7 +25,7 @@ from kei_exp.kie.extract.calls import Call
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, sharing
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, verify_routed
+from kei_exp.kie.extract.routing import OVERFLOW_VERSION, VERSION as GROUNDING_ROUTING_VERSION, verify_routed
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema, evidence_policy
@@ -96,6 +96,8 @@ def fingerprint(result: dict, request, model: dict) -> str:
            if request.options.article is not None and request.options.article.grounding == "spans" else {}),
         **({"grounding_routing_version": GROUNDING_ROUTING_VERSION}
            if request.options.article is not None and request.options.article.grounding_routing is not None else {}),
+        **({"grounding_overflow_version": OVERFLOW_VERSION}
+           if request.options.article is not None and request.options.article.grounding_overflow is not None else {}),
     })).hexdigest()
 
 
@@ -178,7 +180,8 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
         if identities is not None:
             links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
                 origins=origins[number], value_contexts=value_contexts[number],
-                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, **verification)
+                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True,
+                windows=method is not None and method.grounding_overflow == "windows", **verification)
             result.links += links
             result.calls += calls
             result.issues += issues
