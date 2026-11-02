@@ -245,16 +245,20 @@ function projectStep(input: GuideInput): StepCard | null {
   }
   if (next.step === 'pilot' || next.step === 'review')
     return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId)
-  if (next.step === 'approve')
-    // The server's phase turns to the approval at the pilot's first review: the round's other documents come first.
-    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId) ?? {
+  if (next.step === 'approve') {
+    const approve = { action: 'approve', label: next.label, disabled: project.busy || !revisionId } as const
+    // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval
+    // beside it, since a member re-run since can never be reviewed.
+    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' }) ?? {
       key: `approve:${revisionId}`,
       title: next.label,
       question: next.label === 'Re-approve template'
         ? 'The template changed since its approval. Approve the current revision for the whole project?'
-        : 'Every pilot document is reviewed. Approve the template for the whole project?',
-      options: [{ action: 'approve', label: next.label, tone: 'positive', disabled: project.busy || !revisionId }, notYet],
+        // Unread rounds may still wait for review.
+        : `${batches === null ? '' : 'Every pilot document is reviewed. '}Approve the template for the whole project?`,
+      options: [{ ...approve, tone: 'positive' }, notYet],
     }
+  }
   if (next.step === 'batch') {
     if (batches === null) return { key: 'batch-reading', title: 'Batch extraction', notice: 'Reading the project’s extractions…', busy: true, options: [] }
     // Every document without a result on the approved revision yet.
@@ -307,13 +311,15 @@ function exportStep(project: ProjectGuideInput): StepCard | null {
 const waitingReview = (member: BatchExtractionMember) => member.reviewable && !member.currentReview
 
 /**
- * The review of a round (a Batch Extraction): the one this document was opened from while it has values waiting,
- * else the newest that has. This document's review if it waits, else the round's next document after this one.
+ * The review of a round (a Batch Extraction) that counts: the one this document was opened from while it has values
+ * waiting, else the newest that has. This document's review if it waits, else the round's next document after this
+ * one. `also` stands beside the review: the approval, in the approve phase.
  */
-function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batch: BatchExtraction) => boolean): StepCard | null {
+function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batch: BatchExtraction) => boolean,
+  also?: StepOption): StepCard | null {
   if (project.batches === null) return null
   const opened = project.batches.find((batch) => batch.batchExtractionId === project.roundId)
-  const round = opened?.members.some(waitingReview) ? opened
+  const round = opened && counts(opened) && opened.members.some(waitingReview) ? opened
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
       .find((batch) => batch.members.some(waitingReview))
   if (!round) return null
@@ -330,7 +336,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
       question: input.resultsShown ? undefined : 'Check each value against its source in Results, then save the review.',
       notice: input.resultsShown ? 'Check each value against its highlighted source, then save the review.' : undefined,
       detail,
-      options: input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' }],
+      options: [...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const], ...also ? [also] : []],
     }
   // The next one after this document, round the round.
   const next = [...round.members.slice(index + 1), ...round.members.slice(0, index + 1)].find(waitingReview)!
@@ -341,7 +347,8 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
     question: here ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
     detail,
     options: [{ action: 'open-document', label: `Next document · ${name}`, tone: 'positive',
-      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: round.batchExtractionId } }, notYet],
+      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: round.batchExtractionId } },
+      ...also ? [also] : [], notYet],
   }
 }
 

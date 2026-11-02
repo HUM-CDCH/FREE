@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { exportableResults, extractStep, nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
+import { guidedWorkflow } from './projectContexts/guidedWorkflow'
 
 const base: GuideInput = {
   view: 'editing',
@@ -141,12 +142,52 @@ describe('nextStep in a project', () => {
     // Reviewed here, the round's next document after this one, round the round.
     expect(step({ ...pilot, batches: [batch([member('a'), member('b', true), member('c')])] })).toMatchObject({
       key: 'review-next:extraction-c', question: 'This document is reviewed. Open c.pdf next?' })
-    // The phase turns to the approval at the first review: the round's other documents are still reviewed first.
-    const approve = summary({ phase: 'approve', currentSchemaRevisionReviewed: true })
-    expect(step({ summary: approve, batches: [batch([member('a'), member('b', true)])] })).toMatchObject({
-      key: 'review-next:extraction-a', title: 'Pilot review', detail: [['Progress', '1 of 2 documents reviewed']],
-      options: [{ action: 'open-document', label: 'Next document · a.pdf' }, { action: 'dismiss' }] })
-    expect(step({ summary: approve, batches: [batch([member('a', true), member('b', true)])] })?.key).toBe('approve:revision-2')
+  })
+
+  describe('in the approve phase, which the server reaches at the pilot\'s first review', () => {
+    const approve = (overrides: Partial<ProjectContextActivitySummary> = {}) =>
+      summary({ phase: 'approve', currentSchemaRevisionReviewed: true, ...overrides })
+    const options = (card: ReturnType<typeof step>) => card?.options.map(({ action, tone }) => `${action}:${tone}`)
+
+    it('leads the rest of the round with the approval beside it, as the project page says, then the approval alone', () => {
+      const half = { summary: approve(), batches: [batch([member('a'), member('b', true)])] }
+      expect(guidedWorkflow(half.summary).next?.label).toBe('Approve template')
+      expect(step(half)).toMatchObject({ key: 'review-next:extraction-a', title: 'Pilot review', detail: [['Progress', '1 of 2 documents reviewed']] })
+      expect(options(step(half))).toEqual(['open-document:positive', 'approve:secondary', 'dismiss:dismiss'])
+      expect(step({ summary: approve(), batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
+        key: 'approve:revision-2', question: 'Every pilot document is reviewed. Approve the template for the whole project?' })
+      // Unread rounds may still wait: no claim that every pilot document is reviewed.
+      expect(step({ ...half, batches: null })?.question).toBe('Approve the template for the whole project?')
+    })
+
+    it('never strands the approval behind a pilot member re-run since, which can no longer be reviewed', () => {
+      // a's pilot Extraction was followed by a run of a alone (extraction-a2), its document's latest, shown on a.
+      const pilot = [batch([member('a'), member('b', true), member('c', true)])]
+      const a2 = { ...latest('COMPLETED'), extractionId: 'extraction-a2', toCheck: 0 }
+      expect(options(step({ summary: approve(), batches: pilot }))).toEqual(['open-document:positive', 'approve:secondary', 'dismiss:dismiss'])
+      // a's own card has no "Not yet": the approval is its way on.
+      const onA = step({ summary: approve(), batches: pilot, currentDocumentId: 'a' }, { latest: a2 })
+      expect(onA?.key).toBe('review:extraction-a')
+      expect(options(onA)).toEqual(['review:positive', 'approve:secondary'])
+      // A second pilot round that covers a again, whichever round this document was opened from.
+      const again = [{ ...batch([member('a'), member('b', true), member('c', true)]), batchExtractionId: 'pilot-1' },
+        { ...batch([{ ...member('a', true), extractionId: 'extraction-a2' }]), batchExtractionId: 'pilot-2', createdAt: '2026-11-02T00:00:00.000Z' }]
+      for (const roundId of [null, 'pilot-1', 'pilot-2'])
+        expect(options(step({ summary: approve(), batches: again, roundId }))).toContain('approve:secondary')
+    })
+
+    it('leaves a round of another revision to itself, even the one this document was opened from', () => {
+      const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
+      // Re-approval: the approved batch on revision 2 still has c and d to review.
+      const revised = approve({ phase: 'review', currentSchemaRevisionId: 'revision-3', currentSchemaRevisionReviewed: false })
+      const approved = batch([member('a', true), member('b', true), member('c'), member('d')])
+      expect(step({ summary: revised, batches: [approved], roundId: approved.batchExtractionId }, revision3)).toMatchObject({
+        key: 'approve:revision-3', title: 'Re-approve template' })
+      // First approval of revision 3, this document opened from revision 2's pilot round.
+      const older = batch([member('a'), member('b', true), member('c')]), current = batch([member('a', true), member('b', true)], 'revision-3')
+      expect(step({ summary: approve({ currentSchemaRevisionId: 'revision-3' }), batches: [older, current], roundId: older.batchExtractionId },
+        revision3)?.key).toBe('approve:revision-3')
+    })
   })
 
   it('follows a running batch, then asks for the approval, then extracts the documents left', () => {
