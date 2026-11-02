@@ -360,6 +360,10 @@ def test_guard_failure_can_resume_with_new_model_and_retained_values(tmp_path):
                     assert len(parsed['finds']) == 40
                     for found in parsed['finds']:
                         found['_item_text'] = 'Bundle: 40 beads'
+                    # This reply fails the guard and pauses the attempt, and a pause refuses Hill's verification if it
+                    # has not begun yet: hold the reply until Hill's value is published.
+                    until(lambda: any(value['node']['name'] == 'material' and value['modelValue'] == 'gold'
+                                      and value['evidence'] for value in control()['page']['values']))
                 output = {'choices': [{'message': {'content': json.dumps(parsed)}, 'finish_reason': 'stop'}],
                           'usage': {'prompt_tokens': counted, 'completion_tokens': 10}}
             raw = json.dumps(output).encode()
