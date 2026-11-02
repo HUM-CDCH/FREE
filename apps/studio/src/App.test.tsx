@@ -1009,7 +1009,7 @@ describe('reopened Source Document workspace', () => {
     const rail = screen.getByRole('complementary', {
       name: 'Chat, template and results',
     })
-    const mobileDrawerWidth = 'max-[859px]:!w-[min(90vw,32rem)]'
+    const mobileDrawerWidth = 'max-[860px]:!w-[min(90vw,32rem)]'
 
     expect(rail.className).toContain(mobileDrawerWidth)
 

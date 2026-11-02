@@ -1057,17 +1057,18 @@ export function DocumentWorkspace({
     <>
     {effectiveRailOpen && (
       <div
-        className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
+        className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[860px]:hidden"
         title="Drag to resize"
         onMouseDown={startResize}
       />
     )}
+    {/* max-[860px] is `width < 860px`, AppFrame's narrowViewport: the rail overlays exactly while the nav does. */}
     <aside
       style={{ width: effectiveRailWidth }}
-      className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+      className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[860px]:absolute max-[860px]:inset-y-0 max-[860px]:right-0 max-[860px]:z-30 ${
         // No `100%`: portaled into AppFrame's chat column, whose width is 0 while the rail overlays, it made the rail 0 wide.
         effectiveRailOpen
-          ? 'max-[859px]:!w-[min(90vw,32rem)] max-[859px]:shadow-xl'
+          ? 'max-[860px]:!w-[min(90vw,32rem)] max-[860px]:shadow-xl'
           : ''
       }`}
       aria-label="Chat, template and results"
@@ -1212,7 +1213,7 @@ export function DocumentWorkspace({
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="relative flex h-full min-h-0 overflow-hidden">
           {/* Reserve COLLAPSED_WIDTH for the schema rail when it becomes an overlay. */}
-          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[859px]:mr-[46px]" aria-label="PDF document">
+          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[860px]:mr-[46px]" aria-label="PDF document">
             <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2">
               <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
                 disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}>
