@@ -82,13 +82,15 @@ class CatalogFactors(BaseModel):
 
 
 class LimitedCounter:
-    """Count the exact serving template while enforcing a fixed experimental context ceiling. A counter's fixed framing
-    (`framing_tokens`: the Codex CLI's own instructions, counted in every request) is not part of the ceiling."""
-    def __init__(self, counter, limit: int):
+    """Count the exact serving template while enforcing a fixed experimental context ceiling. With `exclude_framing`
+    (`grounding_overflow`), a counter's fixed framing (`framing_tokens`: the Codex CLI's own instructions, counted in
+    every request) is not part of the ceiling: `excluded_tokens` of each count are neither source nor reply."""
+    def __init__(self, counter, limit: int, *, exclude_framing: bool = False):
         self.counter = counter
         self.upper_bound = getattr(counter, "upper_bound", False)
         self.framing_tokens = getattr(counter, "framing_tokens", 0)
-        self.context_tokens = min(counter.context_tokens, limit + self.framing_tokens)
+        self.excluded_tokens = self.framing_tokens if exclude_framing else 0
+        self.context_tokens = min(counter.context_tokens, limit + self.excluded_tokens)
 
     def request_tokens(self, system: str, user: str, schema=None) -> int:
         return self.counter.request_tokens(system, user, schema)

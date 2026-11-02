@@ -373,8 +373,10 @@ reserves the UTF-8 bytes of the request plus 12,288 tokens for framing, within a
 The capture labels this as `input_counting: upper_bound`, never an exact count. Returned input usage must fit the
 reservation, the reported model window must cover the planning ceiling, and reported output usage must fit the
 saved reply reserve; otherwise the call fails before publishing values. Output limits are checked after inference.
-Small explicit method budgets may therefore be refused: use a bounded Article context of at least 32,768 and
-increase counted Catalog input budgets beyond the framing allowance, or keep the default full Article mode.
+Bounded Article contexts with `grounding_overflow=windows` (Studio's default) leave the framing out of their
+ceiling: each holds its full budget of request bytes. Without it, small explicit method budgets may be refused: use
+a bounded Article context of at least 32,768 and increase counted Catalog input budgets beyond the framing
+allowance, or the full Article mode an omitted `article` runs.
 The policy is pinned with every capture, so later changes require a new policy version. Discovery text may be
 shown while generated, but only a validated completed reply becomes a checkpoint.
 

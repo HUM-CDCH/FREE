@@ -158,7 +158,8 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
     minimum_reply_tokens = None
     if document and counter is not None:
         counted = counter.request_tokens(system, user, reply_schema)
-        minimum_reply_tokens = max(REPLY_TOKENS, counted) if bounded_document else REPLY_TOKENS
+        source_counted = counted - getattr(counter, "excluded_tokens", 0)  # less a framing the ceiling leaves out
+        minimum_reply_tokens = max(REPLY_TOKENS, source_counted) if bounded_document else REPLY_TOKENS
         max_tokens = max(REPLY_TOKENS, (counter.context_tokens or 0) - counted)
     answer, attempts = complete(chat, stage="record", record=record, system=system, user=user,
                                 schema=reply_schema, counter=counter, max_tokens=max_tokens,
