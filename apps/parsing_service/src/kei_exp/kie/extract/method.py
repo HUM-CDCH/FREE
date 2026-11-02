@@ -69,7 +69,7 @@ class ArticleOptions(BaseModel):
 
 
 # What an omitted `article` option runs: the complete-source method of every Extraction admitted without recorded
-# settings, which Resume and Retry replay. Studio records its current default explicitly on each new Extraction.
+# settings, which Resume and Retry replay. Current Studio pages record Studio's default explicitly (with windows).
 REFERENCE = ArticleOptions()
 
 

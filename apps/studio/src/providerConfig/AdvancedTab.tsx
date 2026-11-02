@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
-  articleSettingsIssues, canonicalUnified, CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
+  articleSettingsIssues, canonicalArticle, canonicalUnified, CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
   UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
@@ -32,6 +32,9 @@ type Props = {
   extractionStrategy?: AdvancedStrategy
   /** An Extraction's own unified defaults version; absent, the account's, where verification on is Pro mode. */
   unifiedDefaults?: UnifiedCatalogSettings['defaults']
+  /** A pending input editor for an Extraction recorded with `article: null`: Save keeps that record while the Article
+   *  draft equals the saved one. */
+  unrecordedArticle?: boolean
 }
 
 /** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
@@ -64,7 +67,7 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
 export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy,
-  unifiedDefaults }: Props) {
+  unifiedDefaults, unrecordedArticle = false }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -152,7 +155,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
           </div>
         </div>
         {strategy === 'article'
-          ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
+          ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} unrecordedArticle={unrecordedArticle} />
           : unifiedView
             ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue}
                 unifiedDefaults={unifiedDefaults ?? UNIFIED_CATALOG_DEFAULTS_VERSION} pinned={unifiedDefaults !== undefined} />
@@ -162,7 +165,8 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
   )
 }
 
-function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
+function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArticle }:
+  Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue' | 'unrecordedArticle'>) {
   const savedId = useId()
   const explicit = draft.extractionSettings.article
   const custom = explicit !== undefined
@@ -207,8 +211,9 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
       {key === 'grounding' && <p className="text-[11px] text-ink-faint">Article document-level fields currently remain unverified.</p>}
     </section>,
   })))
-  const options = editor.settingsIssues.some((item) => item.path.startsWith('article.')) ? null :
-    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article }))  // what admission sends
+  const kept = unrecordedArticle && JSON.stringify(canonicalArticle(article)) === JSON.stringify(canonicalArticle(savedArticle))
+  const options = editor.settingsIssues.some((item) => item.path.startsWith('article.')) ? null :  // what admission, or Save of pending inputs, sends
+    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: kept ? null : article }))
   const entries = options ? requestEntries(options) : []
   return <>
     {additional.length > 0 && <section aria-label="Additional saved settings" className="flex flex-col gap-1 text-[11px] text-ink-muted">

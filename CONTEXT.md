@@ -177,7 +177,7 @@ A Researcher Account's choice of the Parsing Service's extraction models by role
 _Avoid_: extraction model, extraction route, model setting
 
 **Extraction Method Settings**:
-A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings keep the service defaults, which an Article Extraction records explicitly. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
+A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings keep the service defaults, which an Article Extraction started from a current Studio page records explicitly. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:

@@ -92,7 +92,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
             unserved="Not serving" onChange={(key:string)=>editor.setExtractionModel(role,key)}/>
         </label>)}
         <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified} unifiedDefaults={pinned}
-          extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'}/>
+          extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'} unrecordedArticle={'article' in used.settings&&used.settings.article===null}/>
       </>}
       {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger">{issue.message}</p>)}
       {stale&&<p role="status" className="text-secondary">The Extraction changed after this draft started.{' '}

@@ -178,9 +178,11 @@ its contract.
 
 Omitting `options.article` runs the reference method: the complete source as
 one value context, `semantic` grounding. API callers that omit it keep that
-method, and Extractions Studio recorded with `article: null` replay it. Studio
-always sends explicit settings: its default is that reference method with
-`grounding_overflow=windows`. Setting any option records every
+method, and Extractions Studio recorded with `article: null` replay it. Current
+Studio pages send explicit settings: Studio's default is that reference method
+with `grounding_overflow=windows`. A Studio page loaded before that default
+still sends `article: null` for an account without saved Article settings, and
+admission records it so. Setting any option records every
 setting and `method_version: 1` in the fingerprint. Studio sets these options on
 its Model Configuration Advanced tab. Non-default saved values from the last
 two rows appear under Additional saved settings with scoped resets; identity

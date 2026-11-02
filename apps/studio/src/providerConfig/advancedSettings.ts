@@ -105,7 +105,8 @@ export function resetArticleSetting(article: ArticleSettings, key: AdditionalArt
 }
 
 /** Why choosing `value` would break a rule at this very control, or null. A parent choice that breaks a child stays
- *  available (the child is kept and shown invalid); the choice already selected is never disabled. */
+ *  available (the child is kept and shown invalid, except large checks, which verification off clears: `setArticle`);
+ *  the choice already selected is never disabled. */
 export function unavailableReason<K extends ArticleKey>(article: ArticleSettings, key: K, value: ArticleSettings[K] | undefined): string | null {
   if (article[key] === value) return null
   const issue = articleSettingsIssues(orderedArticle({ ...article, [key]: value })).find((candidate) => candidate.path === key)
@@ -119,7 +120,7 @@ const VERIFICATION: Readonly<Record<ArticleSettings['grounding'], string>> = {
 const label = <K extends keyof typeof ARTICLE_CHOICES>(key: K, value: unknown) =>
   ARTICLE_CHOICES[key].find((choice) => choice.value === (value ?? undefined))!.label
 
-/** The one line under "Settings for"; service defaults read as the documented reference. */
+/** The one line under "Settings for"; service defaults read as Studio's (`REFERENCE_ARTICLE`, with windows). */
 export function effectiveSummary(article: ArticleSettings | undefined): string {
   const shown = article ?? REFERENCE_ARTICLE
   const scope = shown.context === 'bounded' ? `Bounded source units (${numberText(shown.context_tokens)} tokens)` : 'Full source'
@@ -135,7 +136,7 @@ export const describeArticleValue = (article: ArticleSettings, key: ArticleKey):
       ? (article.identity_fields.join(', ') || 'None')
       : label(key as keyof typeof ARTICLE_CHOICES, article[key])
 
-/** Sections whose shown values differ from the saved settings (service defaults compare as the reference). */
+/** Sections whose shown values differ from the saved settings (service defaults compare as `REFERENCE_ARTICLE`). */
 export function changedSections(draft: ArticleSettings, saved: ArticleSettings | undefined): ReadonlySet<ArticleSection> {
   const before = saved ?? REFERENCE_ARTICLE
   return new Set(ARTICLE_KEYS.filter((key) => describeArticleValue(draft, key) !== describeArticleValue(before, key)).map((key) => SECTION_OF[key]))

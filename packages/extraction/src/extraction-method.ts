@@ -73,9 +73,10 @@ export const ARTICLE_KEYS = [
   'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'rendering', 'grouping', 'grounding_overflow',
 ] as const satisfies readonly (keyof ArticleSettings)[]
 
-/** The service default: what every new Article Extraction records and sends, explicitly, and what Customize starts
- *  from: the whole source, and a claim too large to check in it checked in windows of it. The schema's own defaults
- *  are `UNRECORDED_ARTICLE`'s. */
+/** Studio's Article default, not the Parsing Service's (`method.py` `REFERENCE`, which is `UNRECORDED_ARTICLE`): the
+ *  whole source, and a claim too large to check in it checked in windows of it. A current Studio page records and sends
+ *  it explicitly for an account without saved Article settings (a page loaded before it still sends `article: null`),
+ *  and Customize starts from it. The schema's own defaults are `UNRECORDED_ARTICLE`'s. */
 export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
 /** What an Extraction recorded without Article settings (`article: null`) runs: the schema's defaults, the whole source
  *  without windows, as the service runs an omitted `options.article`. */
@@ -320,7 +321,7 @@ export function activeSettings(
 ): ActiveSettings {
   const canonical = canonicalExtractionSettings(settings)
   switch (settingsSlot(strategy, catalogRecipe, unified)) {
-    // An account on service defaults records them explicitly: `article: null` stays what Extractions admitted before
+    // An account on service defaults records Studio's explicitly: `article: null` stays what Extractions admitted before
     // did, run on the whole source (an omitted `options.article`), which Resume and Retry replay.
     case 'article': return { article: canonical.article ?? REFERENCE_ARTICLE }
     case 'recipe': return { recipe: canonical.catalog?.recipe ?? null }
