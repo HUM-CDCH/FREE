@@ -1065,8 +1065,9 @@ export function DocumentWorkspace({
     <aside
       style={{ width: effectiveRailWidth }}
       className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+        // No `100%`: portaled into AppFrame's chat column, whose width is 0 while the rail overlays, it made the rail 0 wide.
         effectiveRailOpen
-          ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
+          ? 'max-[859px]:!w-[min(90vw,32rem)] max-[859px]:shadow-xl'
           : ''
       }`}
       aria-label="Chat, template and results"

@@ -66,6 +66,11 @@ test('results identify an older template and a new Article admission survives re
     await expect(page.getByText('Old reference 17',{exact:true})).toBeVisible()
     await page.screenshot({path:testInfo.outputPath('schema-mismatch-desktop.png')})
     await page.setViewportSize({width:390,height:844})
+    // The open rail overlays the document inside the viewport, wide enough to read (it was 0 wide in the chat column).
+    const railBox=(await page.getByRole('complementary',{name:'Chat, template and results'}).boundingBox())!
+    expect(railBox.x).toBeGreaterThanOrEqual(0)
+    expect(railBox.x+railBox.width).toBeLessThanOrEqual(391)
+    expect(railBox.width).toBeGreaterThan(390/2)
     const schemaNotice=page.getByLabel('Results template')
     await expect(schemaNotice).toBeVisible()
     const bounds=await schemaNotice.boundingBox()
