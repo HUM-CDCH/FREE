@@ -968,13 +968,20 @@ export function DocumentWorkspace({
     setProjectError(null)
     try {
       const read = await listProjectExtractions(projectContextId)
+      const latest = projectLatest(read)
+      // Only the server's reviews say what to export: an older one answers none.
+      if (!latest) throw new Error('Reload the page to export: the reviewed results could not be read.')
       const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
-        batches: read.batchExtractions, latest: projectLatest(read), roundId: project.roundId, busy: false, error: null })
-      const members = sourceDocumentIds.flatMap((id) => {
-        const result = results.get(id)
-        return result ? [{ extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
-          sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
-          sourceRevisionId: result.sourceRepresentationRevisionId, review: result.review ?? undefined }] : []
+        batches: read.batchExtractions, latest, roundId: project.roundId, busy: false, error: null })
+      const name = (id: string) => project.documents.find((document) => document.id === id)?.name ?? id
+      // A ticked document is exported or the export fails: its review may have changed since the export was opened.
+      const missing = sourceDocumentIds.filter((id) => !results.has(id))
+      if (missing.length > 0)
+        throw new Error(`No reviewed result of ${missing.map(name).join(', ')} on this template now. Reload the page and export again.`)
+      const members = sourceDocumentIds.map((id) => {
+        const result = results.get(id)!
+        return { extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
+          sourceDocumentName: name(id), sourceRevisionId: result.sourceRepresentationRevisionId, review: result.review ?? undefined }
       })
       const { downloadDurableBatch } = await import('./durableExport')
       await downloadDurableBatch({ batchExtractionId: '', name: schemaName ?? 'Extraction results' }, members, format, choices)

@@ -290,7 +290,7 @@ type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresent
 
 /** Each document's result to export: only a reviewed one, at its finalized cut, on the Current Template Revision. Its
  *  newest review, as the project's read has it (a run of the document alone included); else, from a server without that
- *  read, its newest reviewed round member. */
+ *  read, its newest reviewed round member, which only offers the export: the export itself refuses without the read. */
 export function exportableResults(project: ProjectGuideInput): Map<string, ExportableResult> {
   const results = new Map<string, ExportableResult>()
   const revisionId = project.summary.currentSchemaRevisionId

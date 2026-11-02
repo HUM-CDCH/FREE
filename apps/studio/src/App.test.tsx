@@ -440,8 +440,15 @@ describe('reopened Source Document workspace', () => {
       const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => { blobs.push(blob as Blob); return 'blob:export' })
       const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
       try {
-        await renderInProject(done, [batch([member(here, true), member(others[0]!, true), member(others[1]!, true)])])
+        const round = batch([member(here, true), member(others[0]!, true), member(others[1]!, true)])
+        await renderInProject(done, [round])
         const step = await screen.findByRole('region', { name: 'Export results' })
+        // The server's read at the export: each document's newest review is its round member.
+        const reviewed = [here, others[0]!, others[1]!].map(reviewedMember), earlier = fetch
+        vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).startsWith('/api/batch-extractions?')
+          ? Promise.resolve(Response.json({ batchExtractions: [round], latestExtractions: reviewed, reviewedExtractions: reviewed,
+            newestExtractionIds: reviewed.map(({ extractionId }) => extractionId) }))
+          : earlier(input, init)))
         fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
         fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
         const options = await screen.findByRole('dialog', { name: 'Export options' })
@@ -482,6 +489,38 @@ describe('reopened Source Document workspace', () => {
         expect(asked.filter((url) => url.includes('/values')).toSorted()).toEqual([
           `/api/extractions/${member(others[0]!).extractionId}/durable/values?limit=500&snapshotVersion=1&feedbackVersion=0`,
           `/api/extractions/${alone}/durable/values?limit=500&snapshotVersion=2&feedbackVersion=3`].toSorted())
+      } finally {
+        createObjectURL.mockRestore()
+        revokeObjectURL.mockRestore()
+      }
+    })
+
+    it('refuses an export, naming why, rather than skip a ticked document or guess without the server\'s reviews', async () => {
+      const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+        extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:export')
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      try {
+        const round = batch([member(here, true), member(others[0]!, true)])
+        const reviewed = [reviewedMember(here), reviewedMember(others[0]!)]
+        for (const [answer, refusal] of [
+          // Letter 1's newest review moved to another revision while the export was open.
+          [{ latestExtractions: reviewed, reviewedExtractions: [reviewed[0], { ...reviewed[1], schemaRevisionId: '51000000-0000-4000-8004-000000000099' }],
+            newestExtractionIds: reviewed.map(({ extractionId }) => extractionId) }, /Letter 1\.pdf.*reload/i],
+          // An older server answers no reviews.
+          [{}, /reload the page/i],
+        ] as const) {
+          await renderInProject(done, [round])
+          const step = await screen.findByRole('region', { name: 'Export results' })
+          const earlier = fetch
+          vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => String(input).startsWith('/api/batch-extractions?')
+            ? Promise.resolve(Response.json({ batchExtractions: [round], ...answer })) : earlier(input, init)))
+          fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
+          fireEvent.click(within(await screen.findByRole('dialog', { name: 'Export options' })).getByRole('button', { name: 'CSV file' }))
+          expect(await within(step).findByText(refusal)).toBeInTheDocument()
+          expect(createObjectURL).not.toHaveBeenCalled()
+          cleanup()
+        }
       } finally {
         createObjectURL.mockRestore()
         revokeObjectURL.mockRestore()
