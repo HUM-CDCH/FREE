@@ -273,11 +273,12 @@ def unreadable_blocks(native: Transcription, glyphs: bool, artwork: list[OcrRegi
     A table Docling found no readable cells in (`native.blocks_of` marks it an error) with a box that overlaps its
     page's screened `artwork` by more than 5% of that box's area stays an error and makes its page incomplete: a crop
     of that box would read the artwork's pixels a second time (one at least 95% inside a single artwork region is no
-    native block). With `glyphs`, a body block whose text keeps an undecodable glyph leaves native text and is read
-    as text in its place, one region per box (its caption's first, for a table). Any other such table keeps its
-    block, for its caption, no longer an error; its boxes are read just after it as artwork that must hold text
+    native block). Any other such table keeps its block, for its caption, no longer an error, unless with `glyphs`
+    that caption keeps an undecodable glyph: then the caption is read as text in the block's place and the block
+    goes. Either way its boxes are read just after it as a table: artwork that must hold a letter or digit
     (`hybrid.supplement`) but is not the screened artwork whose empty-figure loops Surya retries with page context.
-    Running heads and feet stay native."""
+    With `glyphs`, any other body block whose text keeps an undecodable glyph leaves native text and is read as text
+    in its place, one region per box (its caption's first, for a table). Running heads and feet stay native."""
     records, regions, places, kinds = [], [], [], []
     for record in native.pages:
         blocks = record.payload.get("blocks", [])
@@ -291,17 +292,22 @@ def unreadable_blocks(native: Transcription, glyphs: bool, artwork: list[OcrRegi
                 kept.append(block)
                 refused.append(f"page {record.source_page}: table with no readable cells at "
                                f"{[round(v) for v in block['bbox']]} overlaps OCR'd artwork")
+            elif block.get("error"):
+                # Its boxes are a table's whatever its caption needs: an undecodable glyph there has the caption read
+                # as text in the block's place, the block going with it.
+                captions = block.get("caption_boxes", []) if glyphs and undecodable(block["html"]) else []
+                if not captions:
+                    kept.append({**block, "error": False})
+                for box, place, kind in [*((box, index, "text") for box in captions),
+                                         *((box, index + 0.25, "figure") for box in boxes)]:
+                    regions.append(OcrRegion(record.source_page, tuple(box)))
+                    places.append(place)  # a table's before artwork anchored at the next block, placed at index + 0.5
+                    kinds.append(kind)
             elif glyphs and block["label"] not in hybrid.FURNITURE and undecodable(block["html"]):
                 for box in [*block.get("caption_boxes", []), *boxes]:  # as its HTML reads
                     regions.append(OcrRegion(record.source_page, tuple(box)))
                     places.append(index)
                     kinds.append("text")
-            elif block.get("error"):
-                kept.append({**block, "error": False})
-                for box in boxes:
-                    regions.append(OcrRegion(record.source_page, tuple(box)))
-                    places.append(index + 0.25)  # before artwork anchored at the next block, placed at index + 0.5
-                    kinds.append("figure")
             else:
                 kept.append(block)
         if refused:
@@ -337,7 +343,7 @@ def supplement(execution: Execution, inputs: Inventory, emit: Emit, debug: Debug
               - 0.5 for region in execution.ocr_regions] + positions
     removed: dict[int, set[float]] = {}
     for region, position, kind in zip(text_regions, positions, text_kinds):
-        if kind == "text":  # an unreadable table's block stays
+        if kind == "text":  # it replaces the block at its place; an unreadable table's own crops follow theirs
             removed.setdefault(region.page, set()).add(position)
     anchors = [sum(1 for i in range(len(blocks.get(region.page, []))) if i < place and i not in removed.get(region.page, ()))
                for region, place in zip(regions, places)]
