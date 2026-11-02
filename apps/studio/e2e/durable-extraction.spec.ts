@@ -200,7 +200,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     await page.getByRole('button',{name:'More result actions'}).click()
     await page.getByRole('menuitem',{name:'Export…'}).click()
     const download=page.waitForEvent('download')
-    await page.getByRole('button',{name:'CSV',exact:true}).click()
+    await page.getByRole('button',{name:'CSV file',exact:true}).click()
     const saved=await download;expect(saved.suggestedFilename()).toContain('-extraction-result-s1.csv')
     // The ordinary research table: the schema's fields as columns, the researcher's edit applied.
     expect((await readFile((await saved.path())!,'utf8')).split('\r\n')).toEqual(['title,year','Corrected without Evidence,2026'])
@@ -243,7 +243,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     await page.getByRole('button',{name:'More result actions'}).click()
     await page.getByRole('menuitem',{name:'Export…'}).click()
     const workbook=page.waitForEvent('download')
-    await page.getByRole('button',{name:'Excel',exact:true}).click()
+    await page.getByRole('button',{name:'Excel workbook',exact:true}).click()
     expect((await workbook).suggestedFilename()).toContain('-extraction-result-s1.xlsx')
   } finally {await fixture.close()}
 })
@@ -457,7 +457,7 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     await page.getByRole('button',{name:'More result actions'}).click()
     await page.getByRole('menuitem',{name:'Export…'}).click()
     const downloading=page.waitForEvent('download')
-    await page.getByRole('button',{name:'CSV',exact:true}).click()
+    await page.getByRole('button',{name:'CSV file',exact:true}).click()
     // One row per record through the values' own producing field (a string title), not the adopted number schema.
     const rows=(await readFile((await (await downloading).path())!,'utf8')).split('\r\n')
     expect(rows[0]).toBe('title')
@@ -490,7 +490,7 @@ for(const status of ['PAUSED','FAILED','STOPPED'] as const) {
       await expect(members.getByRole('button').first()).toBeEnabled()
       await page.getByRole('button',{name:'Export',exact:true}).click()
       const downloading=page.waitForEvent('download')
-      await page.getByRole('button',{name:'CSV',exact:true}).click()
+      await page.getByRole('button',{name:'CSV file',exact:true}).click()
       const rows=(await readFile((await (await downloading).path())!,'utf8')).split('\r\n').map(row=>row.split(','))
       expect(rows[0]).toEqual(['Source Document','Source Document ID','Batch Extraction ID','title'])
       expect(rows).toHaveLength(3)
@@ -524,7 +524,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await expect(page.getByRole('button',{name:'Review grid',exact:true})).toHaveCount(0)
     await page.getByRole('button',{name:'Export',exact:true}).click()
     const downloading=page.waitForEvent('download')
-    await page.getByRole('button',{name:'CSV',exact:true}).click()
+    await page.getByRole('button',{name:'CSV file',exact:true}).click()
     const rows=(await readFile((await (await downloading).path())!,'utf8')).split('\r\n').map(row=>row.split(','))
     // The empty failed member has no record row; each row names the Source Document its values came from.
     expect(rows[0]).toEqual(['Source Document','Source Document ID','Batch Extraction ID','title'])
@@ -534,7 +534,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     // The workbook lists every member with its state, the empty failed one included.
     await page.getByRole('button',{name:'Export',exact:true}).click()
     const workbook=page.waitForEvent('download')
-    await page.getByRole('button',{name:'Excel',exact:true}).click()
+    await page.getByRole('button',{name:'Excel workbook',exact:true}).click()
     const files=unzipSync(new Uint8Array(await readFile((await (await workbook).path())!)))
     expect(strFromU8(files['xl/workbook.xml']!)).toMatch(/name="Members"/)
     const strings=strFromU8(files['xl/sharedStrings.xml']!)
@@ -953,7 +953,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     expect((await page.request.post(`${root}/finalize`,{headers,data:{snapshotVersion:1,feedbackVersion:0}})).status()).toBe(422)
     expect((await page.request.post(`${root}/values/title`,{headers,data:{snapshotVersion:1,expectedRevision:0,action:'APPROVED'}})).status()).toBe(422)
     await page.getByRole('button',{name:'More result actions'}).click();await page.getByRole('menuitem',{name:'Export…'}).click()
-    const download=page.waitForEvent('download');await page.getByRole('button',{name:'CSV',exact:true}).click()
+    const download=page.waitForEvent('download');await page.getByRole('button',{name:'CSV file',exact:true}).click()
     const csv=await readFile((await (await download).path())!,'utf8')
     expect(csv).toContain('title,title (review),title (alternatives)\r\n,Readings differ,')
     expect(csv).toContain('Article title');expect(csv).toContain('Cited title')

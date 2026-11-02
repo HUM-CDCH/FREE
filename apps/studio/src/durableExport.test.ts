@@ -60,7 +60,7 @@ describe('durable exports', () => {
   it('explains an unavailable batch row choice without silently changing the requested projection', async () => {
     const member = { extractionId: 'one', sourceDocumentId: 'one', sourceDocumentName: 'one.pdf', sourceRevisionId: 'one', status: 'PAUSED' };
     const snapshots = [{ fixed, member, values: [value(0, title, 'A title')] }];
-    await expect(durableBatchExportBlob({ batchExtractionId: 'batch' }, [member], snapshots, 'csv', { ...root, rowsRepresent: 'finds' })).rejects.toThrow('Choose Root result or another field');
+    await expect(durableBatchExportBlob({ batchExtractionId: 'batch' }, [member], snapshots, 'csv', { ...root, rowsRepresent: 'finds' })).rejects.toThrow('Choose “Each record”, or another list.');
   })
   it('keeps Evidence labels aligned with the Results columns for mixed producing types', async () => {
     const asText: SchemaNode = { ...year, type: 'string' };

@@ -299,7 +299,7 @@ function exportStep(project: ProjectGuideInput): StepCard | null {
     error: project.error ?? undefined,
     picker: { documents, initial: documents.map(({ id }) => id), limit: documents.length },
     options: [{ action: 'export', label: 'Export {n}…', tone: 'positive', picks: true, disabled: project.busy,
-      description: 'Choose what the rows represent, and CSV or an Excel workbook with its evidence' }, notYet],
+      description: 'Then choose how the spreadsheet is laid out, and Excel or CSV' }, notYet],
   }
 }
 

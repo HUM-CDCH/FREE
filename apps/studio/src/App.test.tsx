@@ -441,7 +441,7 @@ describe('reopened Source Document workspace', () => {
         fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
         fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
         const options = await screen.findByRole('dialog', { name: 'Export options' })
-        fireEvent.click(within(options).getByRole('button', { name: 'CSV' }))
+        fireEvent.click(within(options).getByRole('button', { name: 'CSV file' }))
         await waitFor(() => expect(blobs).toHaveLength(1))
         const rows = (await blobs[0]!.text()).split('\r\n').filter(Boolean).map((row) => row.split(',')[0])
         expect(new Set(rows.slice(1))).toEqual(new Set(['Beretning.pdf', 'Letter 1.pdf']))

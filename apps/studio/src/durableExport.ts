@@ -87,7 +87,7 @@ export async function downloadDurableBatch(batch:{batchExtractionId:string;name:
 export async function durableBatchExportBlob(batch:{batchExtractionId:string},members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES):Promise<Blob> {
   const registry=createFieldRegistry(snapshots.flatMap(snapshot=>snapshot.values),snapshots.flatMap(snapshot=>snapshot.fixed.state.selection?.schemaTree?.schemaNodes??[]))
   if(!deriveRowsRepresentOptions(registry.schemaNodes).some(option=>option.value===choices.rowsRepresent))
-    throw new Error('The selected repeated field is unavailable in these saved results. Choose Root result or another field.')
+    throw new Error('These saved results have no such list to give its own rows. Choose “Each record”, or another list.')
   const projected=snapshots.map(snapshot=>({snapshot,records:durableRecords(snapshot.values,registry)}))
   const attribution:string[]=[]
   for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(unusedColumn(base,[...registry.columns.map(node=>node.name),...attribution]))
