@@ -144,6 +144,14 @@ describe('nextStep in a project', () => {
       key: 'review-next:extraction-c', question: 'This document is reviewed. Open c.pdf next?' })
   })
 
+  it('keeps leading the pilot round this document was opened from after the template changed', () => {
+    const revised = summary({ currentSchemaRevisionId: 'revision-3', extractedSourceDocumentCount: 3 })
+    const round = batch([member('a'), member('b'), member('c')])
+    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Review 3 pilot results' })
+    expect(step({ summary: revised, batches: [round], roundId: round.batchExtractionId, currentDocumentId: 'a' }, {
+      revision: { id: 'revision-3', number: 3, fieldCount: 6 } })).toMatchObject({ key: 'review:extraction-a', title: 'Pilot review' })
+  })
+
   describe('in the approve phase, which the server reaches at the pilot\'s first review', () => {
     const approve = (overrides: Partial<ProjectContextActivitySummary> = {}) =>
       summary({ phase: 'approve', currentSchemaRevisionReviewed: true, ...overrides })

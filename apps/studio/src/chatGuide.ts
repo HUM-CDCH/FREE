@@ -244,7 +244,9 @@ function projectStep(input: GuideInput): StepCard | null {
     }
   }
   if (next.step === 'pilot' || next.step === 'review')
-    return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId)
+    // A pilot round this document was opened from keeps its review after the template changed, as the project page says.
+    return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId
+      || batch.batchExtractionId === project.roundId)
   if (next.step === 'approve') {
     const approve = { action: 'approve', label: next.label, disabled: project.busy || !revisionId } as const
     // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval
