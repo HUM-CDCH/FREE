@@ -20,7 +20,7 @@ export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string
   { section: 'context', title: 'Source context', keys: ['context', 'context_tokens', 'grouping', 'overlap_passages', 'selection'] },
   { section: 'identity', title: 'Record identity', keys: ['identity', 'identity_fields'] },
   { section: 'input', title: 'Extraction input', keys: ['prompt', 'rendering'] },
-  { section: 'evidence', title: 'Evidence', keys: ['grounding', 'evidence_policy', 'grounding_schedule', 'grounding_routing'] },
+  { section: 'evidence', title: 'Evidence', keys: ['grounding', 'grounding_overflow', 'evidence_policy', 'grounding_schedule', 'grounding_routing'] },
 ]
 /** Retired controls whose saved values remain part of the admitted method. `source_contexts` still counts
  *  `inventory_request` using identity, identity_fields and prompt for preliminary bounded source sizing (including
@@ -40,7 +40,8 @@ export const SECTION_OF = Object.fromEntries(
 export const CONTROL_LABELS: Readonly<Record<ArticleKey, string>> = {
   context: 'Scope', context_tokens: 'Context ceiling', grouping: 'Grouping', overlap_passages: 'Previous passages',
   selection: 'Value evidence', identity: 'Reconciliation', identity_fields: 'Identity fields', prompt: 'Instructions',
-  rendering: 'Source representation', grounding: 'Verification', evidence_policy: 'Fields to verify',
+  rendering: 'Source representation', grounding: 'Verification', grounding_overflow: 'Large checks',
+  evidence_policy: 'Fields to verify',
   grounding_schedule: 'Continue verification', grounding_routing: 'Unit order',
 }
 
@@ -51,6 +52,7 @@ export const CONTROL_HINTS: Readonly<Record<Exclude<ArticleKey, AdditionalArticl
   overlap_passages: 'Whole earlier passages repeated as context. They never own records; not pages or sentences.',
   rendering: 'Structured input labels blocks and table cells. It keeps the source characters and cannot recover missing OCR text or cells.',
   grounding: 'How each populated record value is checked against the source.',
+  grounding_overflow: 'A value whose check with its whole source unit is too large: checked in halves of that unit, or left unchecked.',
   evidence_policy: 'All populated record fields, or only those your schema policies mark quoted.',
 }
 
@@ -67,6 +69,7 @@ export const ARTICLE_CHOICES = {
     { value: 'semantic', label: 'Source labels' }, { value: 'quoted', label: 'Generated quotes' },
     { value: 'spans', label: 'Source spans' }, { value: 'off', label: 'Off' },
   ],
+  grounding_overflow: [{ value: undefined, label: 'Leave unchecked' }, { value: 'windows', label: 'Check in windows' }],
   evidence_policy: [{ value: undefined, label: 'All populated record fields' }, { value: 'schema', label: 'Follow schema policies' }],
   grounding_schedule: [{ value: undefined, label: 'Across all source units' }, { value: 'unresolved', label: 'Until first support' }],
   grounding_routing: [{ value: undefined, label: 'Source order' }, { value: 'origin_lexical', label: 'Origin and lexical relevance' }],
@@ -143,20 +146,20 @@ export type StartingPoint = Readonly<{ name: string; description: string; assign
 export const STARTING_POINTS: readonly StartingPoint[] = [
   {
     name: 'Reference controls',
-    description: 'Explicit full source, reference identity and prompt, plain input, source-label verification and no optional factors. A current-runtime reference configuration, not an exact reproduction of historical R1 v11.',
+    description: 'The service defaults, explicit: bounded 12,288-token source units, reference identity and prompt, plain input, source-label verification, large checks in windows and no other optional factor.',
     assign: {
-      context: 'full', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
+      context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
       prompt: 'reference', rendering: undefined, grounding: 'semantic', evidence_policy: undefined, grounding_schedule: undefined,
-      grounding_routing: undefined,
+      grounding_routing: undefined, grounding_overflow: 'windows',
     },
   },
   {
     name: 'Explore spans and schema policies',
-    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, schema prompt, plain input, source spans and schema policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
+    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, schema prompt, plain input, source spans, large checks in windows and schema policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
     assign: {
       context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
       prompt: 'schema', rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_schedule: undefined,
-      grounding_routing: undefined,
+      grounding_routing: undefined, grounding_overflow: 'windows',
     },
   },
 ]

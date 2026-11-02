@@ -1,4 +1,6 @@
-import { UNIFIED_CATALOG_DEFAULTS, type ActiveSettings, type UnifiedCatalogSettings } from 'extraction/extraction-method'
+import {
+  canonicalArticle, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS, UNRECORDED_ARTICLE, type ActiveSettings, type UnifiedCatalogSettings,
+} from 'extraction/extraction-method'
 import type { ExtractionModelChoice } from '../shared/extraction.contract'
 import {
   ARTICLE_SECTIONS, CATALOG_LABELS, CONTROL_LABELS, describeArticleValue, effectiveSummary,
@@ -63,7 +65,11 @@ export function settingsHeadline(settings: ActiveSettings | null): string {
     const custom = Object.keys(settings.unified).length > 1
     return `Unified Catalog, defaults version ${settings.unified.defaults}${custom ? ' with custom settings' : ''}`
   }
-  if ('article' in settings) return settings.article ? effectiveSummary(settings.article) : 'Service defaults'
+  if ('article' in settings) {  // recorded without settings: the whole source, the service defaults of its time
+    if (!settings.article) return `${effectiveSummary(UNRECORDED_ARTICLE)} (service defaults when admitted)`
+    const defaults = JSON.stringify(canonicalArticle(settings.article)) === JSON.stringify(canonicalArticle(REFERENCE_ARTICLE))
+    return `${defaults ? 'Service defaults · ' : ''}${effectiveSummary(settings.article)}`
+  }
   const lines = methodLines(settings)
   return lines.length === 0 ? 'Service defaults' : lines.map((line) => (line.label === 'Factors' ? line.value : `${line.label} ${line.value}`)).join(' · ')
 }

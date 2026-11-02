@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
+import { canonicalArticle, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { STARTING_POINTS, withStartingPoint } from './advancedSettings'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
@@ -35,7 +35,7 @@ describe('the Advanced draft', () => {
 
   it('an inactive context ceiling left behind by full source is not an unsaved change: Apply would store the saved value', () => {
     const { result } = draftHook()
-    act(() => result.current.initialize({ ...saved, extractionSettings: { article: REFERENCE_ARTICLE } }))
+    act(() => result.current.initialize({ ...saved, extractionSettings: { article: UNRECORDED_ARTICLE } }))
     act(() => result.current.setArticle('context', 'bounded'))
     act(() => result.current.setNumber('article.context_tokens', '9000'))
     expect(result.current.dirty).toBe(true)
@@ -46,7 +46,8 @@ describe('the Advanced draft', () => {
 
   it('an optional factor switched off and on again, or a number edited back, is not an unsaved change', () => {
     const { result } = draftHook()
-    act(() => result.current.initialize({ ...saved, extractionSettings: { article: { ...REFERENCE_ARTICLE, grounding: 'spans', evidence_policy: 'schema' } } }))
+    // Saved documents are canonical: `ArticleOptions` key order.
+    act(() => result.current.initialize({ ...saved, extractionSettings: { article: canonicalArticle({ ...REFERENCE_ARTICLE, grounding: 'spans', evidence_policy: 'schema' }) } }))
     act(() => result.current.setArticle('evidence_policy', undefined))
     expect(result.current.dirty).toBe(true)
     act(() => result.current.setArticle('evidence_policy', 'schema'))

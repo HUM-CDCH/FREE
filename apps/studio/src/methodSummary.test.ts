@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
+import { REFERENCE_ARTICLE, REFERENCE_CATALOG, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
 import { methodLines, modelsLine, settingsHeadline, unifiedLines } from './methodSummary'
 
 describe('method summaries', () => {
   it('say what was requested, service defaults, or that nothing was recorded', () => {
     expect(settingsHeadline(null)).toBe('Not recorded')
-    expect(settingsHeadline({ article: null })).toBe('Service defaults')
+    // Recorded without Article settings: the whole source it ran, the service defaults of its time.
+    expect(settingsHeadline({ article: null })).toBe('Full source · Plain text · Source-label verification (service defaults when admitted)')
     expect(settingsHeadline({ generic: null })).toBe('Service defaults')
     expect(settingsHeadline({ article: { ...REFERENCE_ARTICLE, context: 'bounded', grounding: 'spans' } }))
       .toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
@@ -16,7 +17,8 @@ describe('method summaries', () => {
   })
 
   it('list every Article control, leaving the unused ceiling out', () => {
-    const lines = methodLines({ article: REFERENCE_ARTICLE })
+    expect(methodLines({ article: REFERENCE_ARTICLE })).toContainEqual({ label: 'Large checks', value: 'Check in windows' })
+    const lines = methodLines({ article: UNRECORDED_ARTICLE })
     expect(lines.map((line) => line.label)).not.toContain('Context ceiling')
     expect(lines).toContainEqual({ label: 'Verification', value: 'Source labels' })
     expect(methodLines({ article: null })).toEqual([])

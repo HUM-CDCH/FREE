@@ -191,7 +191,7 @@ describe('the Explain guide', () => {
   })
 
   it('a draft that changes two or more choices says Combination not studied; the reference does not', () => {
-    renderGuide(vi.fn(), { ...REFERENCE_ARTICLE, context: 'bounded', rendering: 'structured' })
+    renderGuide(vi.fn(), { ...REFERENCE_ARTICLE, grounding: 'spans', rendering: 'structured' })
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
     const guide = within(screen.getByRole('dialog', { name: 'How this works' }))
     expect(guide.getByText('Combination not studied')).toBeInTheDocument()

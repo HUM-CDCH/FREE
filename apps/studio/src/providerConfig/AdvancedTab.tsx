@@ -179,7 +179,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
       unit="tokens, at least 8,192" value={article.context_tokens} edit={editor.numberEdits['article.context_tokens']}
       disabled={!custom} inactive={article.context === 'full'} error={issueAt('context_tokens')} onText={editor.setNumber} />,
     grouping: choice('grouping'), overlap_passages: choice('overlap_passages'), rendering: choice('rendering'),
-    grounding: choice('grounding'), evidence_policy: choice('evidence_policy'),
+    grounding: choice('grounding'), grounding_overflow: choice('grounding_overflow'), evidence_policy: choice('evidence_policy'),
   }
   const existingIssues = new Set(articleSettingsIssues(article).map(({ path }) => path))
   const savedArticle = saved.extractionSettings.article ?? REFERENCE_ARTICLE

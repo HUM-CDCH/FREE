@@ -176,11 +176,11 @@ A Researcher Account's choice of the Parsing Service's extraction models by role
 _Avoid_: extraction model, extraction route, model setting
 
 **Extraction Method Settings**:
-A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings keep the Parsing Service's defaults. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
+A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run, set on the Model Configuration page's Advanced tab; unset settings keep the service defaults, which an Article Extraction records explicitly. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (a single recipe Catalog Extraction only; a Batch Extraction has none), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (a single recipe Catalog Extraction only; a Batch Extraction has none), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version; an Article Extraction recorded without settings ran the whole source. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:

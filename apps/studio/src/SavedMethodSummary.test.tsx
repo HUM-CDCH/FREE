@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
+import { UNRECORDED_ARTICLE } from 'extraction/extraction-method'
 import { SavedMethodSummary } from './SavedMethodSummary'
 
 afterEach(cleanup)
@@ -10,7 +10,7 @@ const ready = { status: 'ready' as const, config: {} as never }
 
 it('shows the saved method it will submit, expandable', () => {
   render(<SavedMethodSummary saved={ready} conflict={null} onRefresh={vi.fn()}
-    method={{ models: { fields: 'instruct' }, settings: { article: { ...REFERENCE_ARTICLE, grounding: 'spans' } } }} />)
+    method={{ models: { fields: 'instruct' }, settings: { article: { ...UNRECORDED_ARTICLE, grounding: 'spans' } } }} />)
   fireEvent.click(screen.getByText('Saved advanced settings', { exact: false }))
   expect(screen.getByText('Full source · Plain text · Source-span verification')).toBeInTheDocument()
   expect(screen.getByText('Field values: instruct · Reasoning: deployment default')).toBeInTheDocument()

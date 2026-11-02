@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
-  identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
+  identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, UNRECORDED_ARTICLE,
   storedSettings, UNIFIED_CATALOG_DEFAULTS, UNIFIED_CATALOG_PRO_VERSION, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
   type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
@@ -52,9 +52,9 @@ test('every categorical combination gets the verdict the service gives it', () =
       mismatches.push(`#${index} ${JSON.stringify(input)} service=${expected}`)
     index += 1
   }
-  assert.equal(index, 6144)
+  assert.equal(index, 12288)
   assert.deepEqual(mismatches, [])
-  assert.deepEqual([inventory.accepted, inventory.rejected], [1560, 4584])
+  assert.deepEqual([inventory.accepted, inventory.rejected], [3016, 9272])
 })
 
 test('cross-field refusals name their field with the design copy', () => {
@@ -108,13 +108,13 @@ test('canonical settings: full Article, no nulls, the unused ceiling restored, e
   assert.deepEqual(extractionSettingsIssues(parsed), [])
   const canonical = canonicalExtractionSettings(parsed)
   assert.deepEqual(canonical, {
-    article: { ...REFERENCE_ARTICLE, context_tokens: ARTICLE_REFERENCE_CONTEXT_TOKENS },
+    article: { ...UNRECORDED_ARTICLE, context_tokens: ARTICLE_REFERENCE_CONTEXT_TOKENS },
     catalog: { recipe: { factors: { glossary: true, headings: true, overlap: true, verification: false } } },
   })
   assert.deepEqual(Object.keys(canonical.article!), ['context', 'context_tokens', 'overlap_passages', 'identity', 'identity_fields', 'prompt', 'grounding'])
   assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ catalog: {} })), {})
   // An explicit Article is never an omission: it changes the service's artifact.
-  assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ article: {} })), { article: REFERENCE_ARTICLE })
+  assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ article: {} })), { article: UNRECORDED_ARTICLE })
 })
 
 test('canonical Catalog settings keep schema key order, whatever order equal settings arrive in', () => {
@@ -174,12 +174,20 @@ test('service defaults omit the strategy member; generic Catalog emits no catalo
   }
 })
 
-test('explicit reference and omission are different descriptors', () => {
-  const omitted = activeMethod(null, {}, 'ARTICLE', null)
-  const explicit = activeMethod(null, { article: REFERENCE_ARTICLE }, 'ARTICLE', null)
-  assert.deepEqual(omitted, { models: null, settings: { article: null } })
-  assert.notDeepEqual(omitted, explicit)
-  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, explicit.settings)).article, REFERENCE_ARTICLE)
+test('service defaults are recorded and sent explicitly; a recorded null still sends no Article', () => {
+  const defaults = activeMethod(null, {}, 'ARTICLE', null)
+  assert.deepEqual(defaults, activeMethod(null, { article: REFERENCE_ARTICLE }, 'ARTICLE', null))
+  assert.deepEqual(defaults, { models: null, settings: { article: REFERENCE_ARTICLE } })
+  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, defaults.settings)).article, {
+    context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+    prompt: 'reference', grounding: 'semantic', grounding_overflow: 'windows',
+  })
+  // An Extraction admitted before recorded `article: null`: Resume and Retry send no Article (the whole source).
+  const recorded = canonicalIntent({ models: null, settings: { article: null } }, 'ARTICLE', null)
+  assert.deepEqual(recorded, { models: null, settings: { article: null } })
+  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, recorded!.settings)), { strategy: 'article' })
+  const { grounding_overflow: _windows, ...unwindowed } = REFERENCE_ARTICLE
+  assert.deepEqual(UNRECORDED_ARTICLE, { ...unwindowed, context: 'full' })
 })
 
 test('an account document yields the active descriptor; only the chosen strategy counts', () => {
@@ -245,7 +253,7 @@ test('where the deployment enables it, a new Catalog Extraction uses the unified
   })
   // Article and the legacy slots are untouched by the unified preference.
   assert.deepEqual(activeSettings(saved, 'CATALOG', null), { generic: null })
-  assert.deepEqual(activeSettings(saved, 'ARTICLE', null, true), { article: null })
+  assert.deepEqual(activeSettings(saved, 'ARTICLE', null, true), { article: REFERENCE_ARTICLE })
   // A submitted unified intent is canonical; a unified method never carries a recipe.
   assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { verification: false, defaults: 1 } } }, 'CATALOG', null),
     { models: null, settings: { unified: { defaults: 1, verification: false } } })
@@ -264,7 +272,7 @@ test('legacy Catalog preferences refuse new unified Catalog admission until migr
     assert.throws(() => accountMethod(account(legacy), 'CATALOG', null, true),
       (error: unknown) => error instanceof ExtractionError && error.code === 'catalog_migration_required')
   const legacy = account({ generic: { record_chars: 30_000 } })
-  assert.deepEqual(accountMethod(legacy, 'ARTICLE', null, true), { models: null, settings: { article: null } })
+  assert.deepEqual(accountMethod(legacy, 'ARTICLE', null, true), { models: null, settings: { article: REFERENCE_ARTICLE } })
   // Without the deployment's switch the legacy method is unchanged, character limits and all.
   assert.deepEqual(accountMethod(legacy, 'CATALOG', null), { models: null, settings: { generic: { record_chars: 30_000 } } })
   // Applying the unified group replaces the Catalog branch: nothing legacy is left to migrate.
