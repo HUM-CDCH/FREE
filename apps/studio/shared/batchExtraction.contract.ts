@@ -119,9 +119,10 @@ const latestExtractionSchema = z
 export type LatestExtraction = z.output<typeof latestExtractionSchema>
 
 export const batchExtractionListResponseSchema = z
-  // Only when asked for (`latest=1`): each document's latest Extraction, and its newest of any state, which it shows.
+  // Only when asked for (`latest=1`): each document's latest Extraction, its most recently reviewed one, and its newest
+  // of any state, which it shows.
   .object({ batchExtractions: z.array(batchExtractionSchema), latestExtractions: z.array(latestExtractionSchema).optional(),
-    newestExtractionIds: z.array(canonicalUuidSchema).optional() })
+    reviewedExtractions: z.array(latestExtractionSchema).optional(), newestExtractionIds: z.array(canonicalUuidSchema).optional() })
   .strict()
 
 /**

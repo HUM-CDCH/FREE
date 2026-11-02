@@ -71,9 +71,9 @@ export type ProjectGuideInput = {
   currentDocumentId: string
   /** The project's Batch Extractions; null until read. */
   batches: readonly BatchExtraction[] | null
-  /** Each document's latest Extraction as the project's summary counts it, and the newest each document shows (any
-   *  state); null until read. */
-  latest: { extractions: readonly LatestExtraction[]; newest: readonly string[] } | null
+  /** Each document's latest Extraction as the project's summary counts it, its most recently reviewed one, and the
+   *  newest each document shows (any state); null until read. */
+  latest: { extractions: readonly LatestExtraction[]; reviewed: readonly LatestExtraction[]; newest: readonly string[] } | null
   /** The Batch Extraction (a pilot round, or a batch) this document was opened from to review, if any. */
   roundId: string | null
   /** A batch start or an approval is under way. */
@@ -288,24 +288,24 @@ function projectStep(input: GuideInput): StepCard | null {
 
 type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId' | 'review'>
 
-/** Each document's result to export: its newest reviewed Extraction on the Current Template Revision at its reviewed
- *  cut, else its newest completed one there at its latest, with the Batch Extraction it belongs to, if any. Its latest,
- *  as the project page counts it, comes first: it may be an Extraction of the document alone, which no round holds. */
+/** Each document's result to export: only a reviewed one, at its finalized cut, on the Current Template Revision. Its
+ *  newest review, as the project's read has it (a run of the document alone included); else, from a server without that
+ *  read, its newest reviewed round member. */
 export function exportableResults(project: ProjectGuideInput): Map<string, ExportableResult> {
   const results = new Map<string, ExportableResult>()
   const revisionId = project.summary.currentSchemaRevisionId
+  if (project.latest) {
+    for (const reviewed of project.latest.reviewed)
+      if (reviewed.schemaRevisionId === revisionId) results.set(reviewed.sourceDocumentId, reviewed)
+    return results
+  }
   const newestFirst = (project.batches ?? []).filter((batch) => batch.schemaRevisionId === revisionId)
     .toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
-  for (const reviewed of [true, false]) {
-    for (const latest of project.latest?.extractions ?? [])
-      if (!results.has(latest.sourceDocumentId) && latest.schemaRevisionId === revisionId && (reviewed ? latest.review : latest.completed))
-        results.set(latest.sourceDocumentId, { ...latest, review: reviewed ? latest.review : null })
-    for (const batch of newestFirst)
-      for (const member of batch.members)
-        if (!results.has(member.sourceDocumentId) && (reviewed ? member.currentReview !== null : member.completed))
-          results.set(member.sourceDocumentId, { ...member, batchExtractionId: batch.batchExtractionId, review: reviewed && member.currentReview
-            ? { snapshotVersion: member.currentReview.snapshotVersion, feedbackVersion: member.currentReview.feedbackVersion } : null })
-  }
+  for (const batch of newestFirst)
+    for (const { currentReview, ...member } of batch.members)
+      if (!results.has(member.sourceDocumentId) && currentReview)
+        results.set(member.sourceDocumentId, { ...member, batchExtractionId: batch.batchExtractionId,
+          review: { snapshotVersion: currentReview.snapshotVersion, feedbackVersion: currentReview.feedbackVersion } })
   return results
 }
 

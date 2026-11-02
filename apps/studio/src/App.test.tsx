@@ -376,6 +376,10 @@ describe('reopened Source Document workspace', () => {
       projectContextId: reopened.projectContextId, schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       extractionSchemaId: reopened.extractionSchema!.extractionSchemaId, extractionSchemaName: 'Places', schemaRevisionNumber: 1,
       strategy: 'ARTICLE', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', members })
+    /** A reviewed member as the project's read of each document's latest and newest reviewed Extraction has it. */
+    const reviewedMember = (sourceDocumentId: string) => ({ sourceDocumentId, extractionId: member(sourceDocumentId).extractionId,
+      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, sourceRepresentationRevisionId: member(sourceDocumentId).sourceRepresentationRevisionId,
+      batchExtractionId: batch([]).batchExtractionId, createdAt: '2026-11-01T00:00:00.000Z', completed: true, review: { snapshotVersion: 1, feedbackVersion: 0 } })
     /** The workspace in its project, with the project's Batch Extractions and every batch it opens recorded. */
     async function renderInProject(projectSummary: ReturnType<typeof summary>, batches: ReturnType<typeof batch>[], overrides: Partial<DocumentWorkspaceProps> = {}) {
       const opened: Array<Record<string, unknown>> = []
@@ -469,7 +473,7 @@ describe('reopened Source Document workspace', () => {
           asked.push(String(input))
           return String(input).startsWith('/api/batch-extractions?')
             ? Promise.resolve(Response.json({ batchExtractions: [batch([member(here, true), member(others[0]!, true)])], latestExtractions,
-              newestExtractionIds: [alone, member(others[0]!).extractionId] }))
+              reviewedExtractions: [...latestExtractions, reviewedMember(others[0]!)], newestExtractionIds: [alone, member(others[0]!).extractionId] }))
             : earlier(input, init)
         }))
         fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
@@ -478,6 +482,44 @@ describe('reopened Source Document workspace', () => {
         expect(asked.filter((url) => url.includes('/values')).toSorted()).toEqual([
           `/api/extractions/${member(others[0]!).extractionId}/durable/values?limit=500&snapshotVersion=1&feedbackVersion=0`,
           `/api/extractions/${alone}/durable/values?limit=500&snapshotVersion=2&feedbackVersion=3`].toSorted())
+      } finally {
+        createObjectURL.mockRestore()
+        revokeObjectURL.mockRestore()
+      }
+    })
+
+    it('exports a document\'s newest review, never a newer run completed unreviewed while the export was open, nor an older member', async () => {
+      const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+        extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
+      const blobs: Blob[] = []
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => { blobs.push(blob as Blob); return 'blob:export' })
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      try {
+        const round = batch([member(here, true), member(others[0]!, true)])
+        const run = (extractionId: string, createdAt: string, review: { snapshotVersion: number; feedbackVersion: number } | null) => ({
+          sourceDocumentId: here, extractionId, schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+          sourceRepresentationRevisionId: member(here).sourceRepresentationRevisionId, batchExtractionId: null, createdAt, completed: true, review })
+        // Standalone A, run alone after the round, is reviewed; the export opens on it.
+        const a = run('51000000-0000-4000-8006-00000000000a', '2026-11-02T00:00:00.000Z', { snapshotVersion: 2, feedbackVersion: 3 })
+        const b = run('51000000-0000-4000-8006-00000000000b', '2026-11-03T00:00:00.000Z', null)
+        await renderInProject(done, [round])
+        const step = await screen.findByRole('region', { name: 'Export results' })
+        fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
+        const options = await screen.findByRole('dialog', { name: 'Export options' })
+        // In another tab, standalone B completes and is not reviewed.
+        const asked: string[] = [], earlier = fetch
+        vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          asked.push(String(input))
+          return String(input).startsWith('/api/batch-extractions?')
+            ? Promise.resolve(Response.json({ batchExtractions: [round], latestExtractions: [b, reviewedMember(others[0]!)], reviewedExtractions: [a, reviewedMember(others[0]!)],
+              newestExtractionIds: [b.extractionId, member(others[0]!).extractionId] }))
+            : earlier(input, init)
+        }))
+        fireEvent.click(within(options).getByRole('button', { name: 'CSV file' }))
+        await waitFor(() => expect(blobs).toHaveLength(1))
+        expect(asked.filter((url) => url.includes('/values')).toSorted()).toEqual([
+          `/api/extractions/${member(others[0]!).extractionId}/durable/values?limit=500&snapshotVersion=1&feedbackVersion=0`,
+          `/api/extractions/${a.extractionId}/durable/values?limit=500&snapshotVersion=2&feedbackVersion=3`].toSorted())
       } finally {
         createObjectURL.mockRestore()
         revokeObjectURL.mockRestore()

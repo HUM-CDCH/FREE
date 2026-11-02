@@ -104,8 +104,9 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     // The chat's read of the project: each pilot document shows its member, reviewed at a finalized cut.
     const latest = await page.request.get(`/api/batch-extractions?projectContextId=${project}&latest=1`)
     expect(latest.status(), await latest.text()).toBe(200)
-    const { latestExtractions, newestExtractionIds } = await latest.json()
+    const { latestExtractions, reviewedExtractions, newestExtractionIds } = await latest.json()
     expect(newestExtractionIds).toEqual(expect.arrayContaining(pilotMembers))
+    expect(reviewedExtractions.map(({ extractionId }: { extractionId: string }) => extractionId)).toEqual(expect.arrayContaining(pilotMembers))
     expect(latestExtractions.filter(({ extractionId }: { extractionId: string }) => pilotMembers.includes(extractionId))).toEqual(
       pilotMembers.map(() => expect.objectContaining({ completed: true, review: { snapshotVersion: expect.any(Number), feedbackVersion: expect.any(Number) } })))
     await page.reload()

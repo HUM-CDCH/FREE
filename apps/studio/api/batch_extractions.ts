@@ -120,6 +120,7 @@ export function createResearcherApiHandlers(
     )
   }
 
+  const dated = <T extends { createdAt: Date }>(extraction: T) => ({ ...extraction, createdAt: extraction.createdAt.toISOString() })
   const list = async (url: URL) => {
     const projectContextId = url.searchParams.get('projectContextId')
     if (
@@ -147,7 +148,7 @@ export function createResearcherApiHandlers(
     return json(
       batchExtractionListResponseSchema.parse({
         batchExtractions: batches.map(batchDto),
-        ...latest && { latestExtractions: latest.extractions.map((extraction) => ({ ...extraction, createdAt: extraction.createdAt.toISOString() })),
+        ...latest && { latestExtractions: latest.extractions.map(dated), reviewedExtractions: latest.reviewedExtractions.map(dated),
           newestExtractionIds: latest.newestExtractionIds },
       }),
       { headers: noStore },

@@ -881,8 +881,9 @@ export type ResearcherProjectStore = {
     sourceDocuments: SourceDocumentSummary[]
   } | null>
   /** Each Source Document's latest Extraction as listProjectContexts counts it (its newest completed or reviewed one),
-   *  and the newest of any state, which the document shows. */
-  listLatestExtractions(projectContextId: string): Promise<{ extractions: LatestExtraction[]; newestExtractionIds: string[] } | null>
+   *  its most recently reviewed one, and its newest of any state, which the document shows. */
+  listLatestExtractions(projectContextId: string): Promise<{ extractions: LatestExtraction[]; reviewedExtractions: LatestExtraction[];
+    newestExtractionIds: string[] } | null>
   /** Reads no Extraction state; callers may supply Extraction-owned pins. */
   getDocumentReopenSnapshot(
     projectContextId: string,
@@ -1816,17 +1817,24 @@ export function createResearcherProjectStore(
       if (!(await database.orm.public.ProjectContext.select('id').first({ id: projectContextId, researcherAccountId }))) return null
       const documents = await database.orm.public.SourceDocument.where({ projectContextId }).select('id').all()
       const latest = new Map<string, LatestExtraction>(), newest = new Map<string, { id: string; createdAt: Date }>()
+      const reviewed = new Map<string, LatestExtraction & { reviewedAt: Date }>()
       for (const extraction of await durableExtractionFacts(database, { documentIds: documents.map(({ id }) => id) })) {
         const known = latest.get(extraction.sourceDocumentId), shown = newest.get(extraction.sourceDocumentId)
+        const last = reviewed.get(extraction.sourceDocumentId)
+        const entry = { sourceDocumentId: extraction.sourceDocumentId, extractionId: extraction.id,
+          schemaRevisionId: extraction.schemaRevisionId, sourceRepresentationRevisionId: extraction.sourceRepresentationRevisionId,
+          batchExtractionId: extraction.batchExtractionId, createdAt: extraction.createdAt, completed: extraction.completed,
+          review: extraction.review }
         if (!shown || extraction.createdAt > shown.createdAt || (+extraction.createdAt === +shown.createdAt && extraction.id > shown.id))
           newest.set(extraction.sourceDocumentId, extraction)
         if ((extraction.completed || extraction.reviewedAt !== null) && (!known || extraction.createdAt >= known.createdAt))
-          latest.set(extraction.sourceDocumentId, { sourceDocumentId: extraction.sourceDocumentId, extractionId: extraction.id,
-            schemaRevisionId: extraction.schemaRevisionId, sourceRepresentationRevisionId: extraction.sourceRepresentationRevisionId,
-            batchExtractionId: extraction.batchExtractionId, createdAt: extraction.createdAt, completed: extraction.completed,
-            review: extraction.review })
+          latest.set(extraction.sourceDocumentId, entry)
+        // The most recent review, as "Latest reviewed" opens it: a newer run not reviewed yet never hides it.
+        if (extraction.reviewedAt && (!last || extraction.reviewedAt > last.reviewedAt))
+          reviewed.set(extraction.sourceDocumentId, { ...entry, reviewedAt: extraction.reviewedAt })
       }
-      return { extractions: [...latest.values()], newestExtractionIds: [...newest.values()].map(({ id }) => id) }
+      return { extractions: [...latest.values()], reviewedExtractions: [...reviewed.values()].map(({ reviewedAt: _, ...entry }) => entry),
+        newestExtractionIds: [...newest.values()].map(({ id }) => id) }
     },
     async getDocumentReopenSnapshot(
       projectContextId,

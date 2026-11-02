@@ -260,24 +260,29 @@ describe('nextStep in a project', () => {
     batchExtractionId: null as string | null, createdAt: '2026-11-02T00:00:00.000Z', completed: true,
     review: { snapshotVersion: 2, feedbackVersion: 3 } as { snapshotVersion: number; feedbackVersion: number } | null }
   // The project's read: each document's latest Extraction as its summary counts it, and the newest each document shows.
-  const read = (extractions: (typeof a2)[], newest = ['extraction-a2', 'extraction-b', 'extraction-c', 'extraction-d']) => ({ extractions, newest })
+  const read = (extractions: (typeof a2)[], newest = ['extraction-a2', 'extraction-b', 'extraction-c', 'extraction-d']) =>
+    ({ extractions, reviewed: extractions.filter(({ review }) => review), newest })
   const reviewing = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
     extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
 
-  it('exports each document\'s latest Extraction as the project page counts it, one of the document alone too, at its reviewed cut', () => {
+  it('exports each document\'s newest review at its finalized cut, never unreviewed values', () => {
     const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
       extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
-    const exported = (latest: ReturnType<typeof read>, members = [member('a', true), member('b', true)]) =>
+    const exported = (latest: ProjectGuideInput['latest'], members = [member('a', true), member('b', true)]) =>
       [...exportableResults(project({ summary: done, batches: [batch(members)], latest }))]
         .map(([id, { extractionId, batchExtractionId, review }]) => [id, extractionId, batchExtractionId, review])
-    // Each at its finalized results and decisions, not at those saved since.
-    expect(exported(read([a2]))).toEqual([['a', 'extraction-a2', null, { snapshotVersion: 2, feedbackVersion: 3 }],
+    // Without the project's read (an older server): the rounds' reviewed members, at their reviewed cut.
+    expect(exported(null)).toEqual([['a', 'extraction-a', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }],
       ['b', 'extraction-b', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }]])
-    // Not reviewed, or of another revision: the document's reviewed result in the round is exported.
-    expect(exported(read([{ ...a2, review: null }]))[0]).toEqual(['a', 'extraction-a', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }])
-    expect(exported(read([{ ...a2, schemaRevisionId: 'revision-1' }]))[0]).toEqual(['a', 'extraction-a', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }])
-    // With no reviewed result, the latest completed one, at its latest results.
-    expect(exported(read([]), [member('a')])).toEqual([['a', 'extraction-a', 'batch-revision-2', null]])
+    // A (a2, run alone) is reviewed, then B (a3) completes without review while the export is open: A, never B nor a's older member.
+    const b = { ...a2, sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'batch-revision-2', review: { snapshotVersion: 1, feedbackVersion: 0 } }
+    const a3 = { ...a2, extractionId: 'extraction-a3', createdAt: '2026-11-03T00:00:00.000Z', review: null }
+    expect(exported({ extractions: [a3, b], reviewed: [a2, b], newest: ['extraction-a3', 'extraction-b'] })).toEqual([
+      ['a', 'extraction-a2', null, { snapshotVersion: 2, feedbackVersion: 3 }], ['b', 'extraction-b', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }]])
+    // A newest review of another revision is not this template's result.
+    expect(exported({ extractions: [], reviewed: [{ ...a2, schemaRevisionId: 'revision-1' }], newest: [] })).toEqual([])
+    // A round member completed without review is never exported.
+    expect(exported(null, [member('a')])).toEqual([])
   })
 
   it('leads no review to a member its document no longer shows: a newer run of it, finished or not', () => {

@@ -95,8 +95,9 @@ export async function listProjectExtractions(projectContextId: string, signal?: 
 }
 
 /** The read's latest Extractions, as the chat takes them; null from a server that does not answer them. */
-export const projectLatest = ({ latestExtractions, newestExtractionIds }: Awaited<ReturnType<typeof listProjectExtractions>>) =>
-  latestExtractions && newestExtractionIds ? { extractions: latestExtractions, newest: newestExtractionIds } : null
+export const projectLatest = ({ latestExtractions, reviewedExtractions, newestExtractionIds }: Awaited<ReturnType<typeof listProjectExtractions>>) =>
+  latestExtractions && reviewedExtractions && newestExtractionIds
+    ? { extractions: latestExtractions, reviewed: reviewedExtractions, newest: newestExtractionIds } : null
 
 /**
  * Opens one Batch Extraction over the researcher's selection. The server owns
