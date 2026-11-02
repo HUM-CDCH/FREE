@@ -621,3 +621,22 @@ def test_the_first_entries_launched_are_those_nearest_the_start_page(monkeypatch
     entries = [units[c]["input"]["request"]["body"]["record"] for c in attempt.launched
                if units[c]["descriptor"]["stage"] == "entry"]
     assert entries[:2] == [4, 5] and sorted(entries) == list(range(6))
+
+
+@pytest.mark.parametrize("intent", ["RUN", "PAUSE"])
+def test_defaults_8_reads_entries_only_after_its_children_call_and_a_pause_there_stops_the_round(monkeypatch, intent):
+    schema = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
+    attempt = Attempt(monkeypatch, unified_request(schema=schema, defaults=8), pages(3, 3), chunks=1)
+    assert attempt.plan() is None
+    attempt.step()  # discovery finishes; the next round asks for the children call alone
+    attempt.lease.intent = intent
+    if intent == "PAUSE":
+        with pytest.raises(Boundary):
+            attempt.plan()
+        return
+    assert attempt.plan() is None and [stage for _, stage in attempt.trace[-1]["pending"]] == ["discovery"]
+    for _ in range(12):
+        attempt.step()
+        if attempt.plan() is not None:
+            break
+    assert [record["label"] for record in attempt.result["records"]] == ["1", "2", "3"]

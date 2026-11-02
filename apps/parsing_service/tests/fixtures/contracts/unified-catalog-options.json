@@ -68,6 +68,19 @@
       "single_pass": true,
       "heading_context": true,
       "candidates": 32
+    },
+    "8": {
+      "reserves": {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048},
+      "overlap": 3,
+      "headings": true,
+      "verification": false,
+      "splits": 6,
+      "windows": "budget",
+      "pipelined": true,
+      "entry_reply": "context",
+      "single_pass": true,
+      "nearby": true,
+      "children": true
     }
   },
   "valid": [
@@ -78,6 +91,7 @@
     {"defaults": 5},
     {"defaults": 6},
     {"defaults": 7},
+    {"defaults": 8},
     {"defaults": 7, "candidates": 1},
     {"defaults": 7, "candidates": 1024},
     {"defaults": 6, "verification": true},
@@ -86,7 +100,7 @@
   ],
   "invalid": [
     {},
-    {"defaults": 8},
+    {"defaults": 9},
     {"defaults": 7, "candidates": 0},
     {"defaults": 7, "candidates": 1025},
     {"defaults": 7, "candidates": 1.5},
