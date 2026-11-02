@@ -13,12 +13,12 @@ const nodes: SchemaNode[] = [{
   ],
 }]
 
-it('parses scalar types against the producing schema node', () => {
+it('parses scalar types against the producing template node', () => {
   const [people] = nodes
   const [age, active, kind] = people!.children!
   expect(parseReviewedValue(age!, '12')).toEqual({ value: 12, error: null })
   expect(parseReviewedValue(age!, '12.5').error).toBe('Enter a whole number.')
   expect(parseReviewedValue(age!, ' ').error).toBe('Enter a whole number.')
   expect(parseReviewedValue(active!, 'false')).toEqual({ value: false, error: null })
-  expect(parseReviewedValue(kind!, 'C').error).toBe('Choose a value allowed by the pinned schema.')
+  expect(parseReviewedValue(kind!, 'C').error).toBe('Choose a value allowed by the pinned template.')
 })

@@ -16,7 +16,7 @@ export class SchemaRevisionConflictError extends Error {
   readonly currentRevision: SchemaRevision
 
   constructor(currentRevision: SchemaRevision) {
-    super('The Current Schema Revision has changed.')
+    super('The Current Template Revision has changed.')
     this.name = 'SchemaRevisionConflictError'
     this.currentRevision = currentRevision
   }
@@ -30,7 +30,7 @@ export class SchemaRevisionConflictError extends Error {
 export class ExtractionSchemaHasExtractionsError extends Error {
   constructor() {
     super(
-      'This Extraction Schema has Extractions. Delete it anyway to remove them too.',
+      'This Extraction Template has Extractions. Delete it anyway to remove them too.',
     )
     this.name = 'ExtractionSchemaHasExtractionsError'
   }
@@ -100,7 +100,7 @@ function failure(value: unknown, status: number): Error {
   return new Error(
     error && typeof error.code === 'string' && typeof error.message === 'string'
       ? `${error.code}: ${error.message}`
-      : `Schema Revision request failed (HTTP ${status})`,
+      : `Template Revision request failed (HTTP ${status})`,
   )
 }
 

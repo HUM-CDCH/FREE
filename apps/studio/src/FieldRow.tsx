@@ -86,7 +86,7 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
     return (
       <span
         className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-overline font-semibold text-danger"
-        title="This proposal conflicts with a schema invariant."
+        title="This proposal conflicts with a template invariant."
       >
         Conflict
       </span>

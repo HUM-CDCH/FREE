@@ -401,7 +401,7 @@ describe('readIngestionModels', () => {
 })
 
 describe('requestSchemaEdit', () => {
-  it('submits durable schema pins without browser-authored schema or source data', async () => {
+  it('submits durable template pins without browser-authored template or source data', async () => {
     let submittedBody: FormData | null = null
     vi.stubGlobal(
       'fetch',

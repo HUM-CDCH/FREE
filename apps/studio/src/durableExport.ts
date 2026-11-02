@@ -9,7 +9,8 @@ import { readDurable, readValues } from './durableExtractionApi'
 /** One fixed cut of a durable Extraction: its state and the result page (a named result and decision version) the
  * researcher has open. The export reads nothing else: no history, no model calls, no other versions. */
 export type Fixed={state:DurableRead;page:DurablePage}
-export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceDocumentName:string;sourceRevisionId:string;status:string}
+/** `batchExtractionId`: the member's own Batch Extraction, where the export spans several (the chat's); else the batch's. */
+export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceDocumentName:string;sourceRevisionId:string;status:string;batchExtractionId?:string}
 export type BatchExportSnapshot={fixed:Fixed;values:DurablePage['values'];member:BatchExportMember}
 export const DEFAULT_EXPORT_CHOICES:ExportChoices={rowsRepresent:ROOT_ROWS,otherRepeatedFields:'preserve'}
 export const MEMBERS_SHEET='Members'
@@ -86,14 +87,14 @@ export async function downloadDurableBatch(batch:{batchExtractionId:string;name:
 export async function durableBatchExportBlob(batch:{batchExtractionId:string},members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES):Promise<Blob> {
   const registry=createFieldRegistry(snapshots.flatMap(snapshot=>snapshot.values),snapshots.flatMap(snapshot=>snapshot.fixed.state.selection?.schemaTree?.schemaNodes??[]))
   if(!deriveRowsRepresentOptions(registry.schemaNodes).some(option=>option.value===choices.rowsRepresent))
-    throw new Error('The selected repeated field is unavailable in these saved results. Choose Root result or another field.')
+    throw new Error('These saved results have no such list to give its own rows. Choose “Each record”, or another list.')
   const projected=snapshots.map(snapshot=>({snapshot,records:durableRecords(snapshot.values,registry)}))
   const attribution:string[]=[]
   for(const base of [SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,BATCH_EXTRACTION_ID])attribution.push(unusedColumn(base,[...registry.columns.map(node=>node.name),...attribution]))
   const [document,documentId,batchId]=attribution as [string,string,string]
   // One projection over all records keeps repeated-item columns together, regardless of each member's list length.
   const records=projected.flatMap(({snapshot,records})=>records.map(record=>({
-    [document]:snapshot.member.sourceDocumentName,[documentId]:snapshot.member.sourceDocumentId,[batchId]:batch.batchExtractionId,...record.fields})))
+    [document]:snapshot.member.sourceDocumentName,[documentId]:snapshot.member.sourceDocumentId,[batchId]:snapshot.member.batchExtractionId??batch.batchExtractionId,...record.fields})))
   const results=buildExportTable([...attribution.map(name=>({id:name,name,type:'string' as const})),...registry.columns],records,choices)
   if(format==='csv')return csvBlob(results)
   const membersTable:Table={columns:[SOURCE_DOCUMENT,SOURCE_DOCUMENT_ID,'Extraction ID','State','Results version','Decisions version','Review saved','Values','Source Representation Revision ID'],rows:members.map(member=> {

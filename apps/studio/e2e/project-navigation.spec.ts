@@ -916,18 +916,17 @@ test.describe('rail navigation', () => {
     ).toBeVisible()
   })
 
-  test('approves the current revision only through the workflow bar, once piloted, and keeps a running batch visible', async ({ page }) => {
+  test('says where the workflow stands, leaves the approval to the chat, and keeps a running batch visible', async ({ page }) => {
     const CURRENT = '00000000-0000-4000-8000-0000000001c2'
     const OLD = '00000000-0000-4000-8000-0000000001c1'
     let currentPilotReviewed = false
-    let approved = false
     let running = false
     await stubStudio(page, { store: railStore({
       async listProjectContexts() {
         const seed = seedOf(ELMBROOKE)!
         return [{ ...summary(seed), sourceDocumentCount: seed.sourceDocuments.length,
           summary: { ...emptyProjectContextActivitySummary(summary(seed).createdAt),
-            phase: approved ? 'batch' : 'approve', currentSchemaRevisionId: CURRENT, schemaStabilised: approved,
+            phase: 'approve', currentSchemaRevisionId: CURRENT, schemaStabilised: false,
             currentSchemaRevisionReviewed: currentPilotReviewed, pendingExtractionSourceDocumentCount: seed.sourceDocuments.length,
             extractionCount: 1, extractedSourceDocumentCount: 1, reviewedSourceDocumentCount: 1,
             runningBatch: running ? { completedMemberCount: 0, memberCount: 2 } : null,
@@ -951,35 +950,24 @@ test.describe('rail navigation', () => {
     await page.route('**/api/batch-extractions**', (route) => route.fulfill({ json: {
       batchExtractions: currentPilotReviewed ? [pilot(OLD, 1), pilot(CURRENT, 2)] : [pilot(OLD, 1)],
     } }))
-    const approvals: unknown[] = []
-    await page.route('**/api/stabilise_schema_revision', (route) => {
-      approvals.push(route.request().postDataJSON())
-      approved = true
-      return route.fulfill({ json: { schemaRevisionId: CURRENT, stabilisedAt: '2026-08-14T12:00:00.000Z' } })
-    })
 
-    await gotoAuthenticated(page, `/projects/${ELMBROOKE}/extractions`)
-    await expect(page.getByText('Places · Schema Revision 1')).toBeVisible()
-    // Only the old revision was piloted: the one way forward is piloting the current one, and nothing offers approval.
-    await expect(page.getByRole('button', { name: 'Next: Pilot the revised schema' })).toBeEnabled()
-    await expect(page.getByRole('button', { name: /Approve/ })).toHaveCount(0)
+    await gotoAuthenticated(page, `/projects/${ELMBROOKE}`)
+    const status = projectPage(page).getByRole('region', { name: 'Project status' })
+    // Only the old revision was piloted: the chat's next step pilots the current one; nothing here leads or approves.
+    await expect(status).toContainText('Next in the chat: Pilot the revised template')
+    await expect(projectPage(page).getByRole('button', { name: /Approve|^Next:/ })).toHaveCount(0)
 
     currentPilotReviewed = true
     await page.reload()
-    await page.getByRole('button', { name: 'Next: Approve schema' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Approve the schema for Batch Extraction?' })
-    await dialog.getByRole('button', { name: 'Approve', exact: true }).click()
-    await expect(dialog).toBeHidden()
-    expect(approvals).toEqual([{ projectContextId: ELMBROOKE, schemaRevisionId: CURRENT }])
-    await expect(page.getByRole('button', { name: /^Next: Extract \d+ documents?$/ })).toBeEnabled()
+    await expect(status).toContainText('Next in the chat: Approve template')
+    await expect(projectPage(page).getByRole('button', { name: /Approve/ })).toHaveCount(0)
 
     running = true
     await page.reload()
-    await expect(page.getByRole('button', { name: /^Next: Extract/ })).toBeDisabled()
-    await expect(page.getByText('Extraction running · 0/2', { exact: true })).toBeVisible()
+    await expect(status).toContainText('Extraction running · 0/2')
   })
 
-  test('deep-links every Project resource tab and the open Batch Extraction', async ({
+  test('deep-links every folded Project section and the open Batch Extraction', async ({
     page,
   }) => {
     await stubStudio(page)
@@ -1015,30 +1003,30 @@ test.describe('rail navigation', () => {
       route.fulfill({ json: { batchSchemaSuggestions: [] } }),
     )
     await page.route('**/api/schema-revisions/**', (route) =>
-      route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'No Schema Revision.' } } }),
+      route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'No Template Revision.' } } }),
     )
     await page.route('**/api/batch-extractions**', (route) =>
       route.fulfill({ json: { batchExtractions: [batchExtraction] } }),
     )
 
-    // A deep link opens the tab it names, and a refresh keeps it.
+    // A deep link opens the section it names, and a refresh keeps it.
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}/schemas`)
-    const tab = (name: string) =>
-      projectPage(page).getByRole('tab', { name, exact: true })
-    await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
-    await expect(projectPage(page).getByRole('heading', { name: 'Build your schema from a document' })).toBeVisible()
+    const section = (name: string) =>
+      projectPage(page).getByRole('button', { name, exact: true })
+    await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
+    await expect(projectPage(page).getByRole('heading', { name: 'Your templates' })).toBeVisible()
     await page.reload()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
-    await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
+    await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
 
-    // Sources is the page's entry, so it keeps the bare Project Context path.
-    await tab('Sources').click()
+    // The documents are the page's entry, so folding a section keeps the bare Project Context path.
+    await section('Template').click()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
-    await tab('Extractions').click()
+    await section('Runs & exports').click()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions`)
 
     // The opened Batch Extraction is routed too, so it is linkable on its own.
-    await projectPage(page).getByText('Places · Schema Revision 1').click()
+    await projectPage(page).getByText('Places · Template Revision 1').click()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions/${BATCH}`)
     const members = projectPage(page).getByRole('list', {
       name: 'Batch Extraction members',
@@ -1047,16 +1035,16 @@ test.describe('rail navigation', () => {
     await page.reload()
     await expect(members).toBeVisible()
 
-    // Back undoes each step it took to get here, tab switches included.
+    // Back undoes each step it took to get here, sections opened and folded included.
     await page.goBack()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/extractions`)
     await expect(members).toBeHidden()
     await page.goBack()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}`)
-    await expect(tab('Sources')).toHaveAttribute('aria-selected', 'true')
+    await expect(section('Runs & exports')).toHaveAttribute('aria-expanded', 'false')
     await page.goBack()
     await expect(page).toHaveURL(`/projects/${ELMBROOKE}/schemas`)
-    await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
+    await expect(section('Template')).toHaveAttribute('aria-expanded', 'true')
 
     // Sources' path is the bare one, so no other segment is routable.
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}/sources`)

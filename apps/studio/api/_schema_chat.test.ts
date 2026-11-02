@@ -138,6 +138,19 @@ describe('respondToSchemaEdit', () => {
     expect(JSON.parse(request.mock.calls[0]![1].body).chat_template_kwargs.mode).toBe('template-generation')
   })
 
+  it('asks to run the extraction instead of a change, on a general route and beside NuExtract alike', async () => {
+    generateTextMock.mockResolvedValueOnce({ text: '{"action":"extract"}', finishReason: 'stop' })
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Generate the results' }, general))
+      .resolves.toEqual({ action: 'extract' })
+    expect(sent(0)).toContain('{\\"action\\":\\"extract\\"}')
+
+    const untouched = stubNuExtract('{}')
+    generateTextMock.mockResolvedValueOnce({ text: '{"action":"extract"}', finishReason: 'stop' })
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Extract this one' }, nuextract))
+      .resolves.toEqual({ action: 'extract' })
+    expect(untouched).not.toHaveBeenCalled()
+  })
+
   it('NuExtract with no Assistant model beside it revises the schema, as before', async () => {
     const request = stubNuExtract('{"_description":"One burial.","name":"string"}')
     await expect(respondToSchemaEdit(CALLER, input, question, nuextractAlone)).resolves.toMatchObject({ template: { name: 'string' } })
@@ -150,6 +163,8 @@ describe('answerSchemaChat', () => {
   it('answers a question, or gives null for an instruction', async () => {
     generateTextMock.mockResolvedValueOnce({ text: '{"answer":"42 burials."}', finishReason: 'stop' })
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'How many burials?', history: [] }, {}, nuextract)).resolves.toBe('42 burials.')
+    // Before the first schema there is nothing to extract with: the message is never offered as a request to run it.
+    expect(sent(0)).not.toContain('{\\"action\\":\\"extract\\"}')
     generateTextMock.mockResolvedValueOnce({ text: '{"answer":null}', finishReason: 'stop' })
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Focus on dates', history: [] }, {}, general)).resolves.toBeNull()
   })

@@ -24,7 +24,7 @@ export function SchemaSaveStatus({
 }) {
   const status = save?.status
   const failure =
-    status === 'error' ? save?.error?.message || 'The schema could not be saved.' : null
+    status === 'error' ? save?.error?.message || 'The template could not be saved.' : null
   const failureAsStatus = failure !== null && !retry
   return (
     <span className={`flex min-w-0 items-center gap-1.5 text-secondary font-medium ${className}`}>
@@ -39,7 +39,7 @@ export function SchemaSaveStatus({
           : status === 'saving'
             ? 'Saving…'
             : status === 'conflict'
-              ? 'Not saved: the schema changed elsewhere'
+              ? 'Not saved: the template changed elsewhere'
               : failureAsStatus
                 ? `Not saved: ${failure}`
                 : showSaved && status === 'saved'

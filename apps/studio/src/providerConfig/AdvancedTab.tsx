@@ -458,7 +458,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
         </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
-          <p className="text-[10.5px] text-ink-faint">Records and fields come from the schema; models from the Models tab. Document-level fields remain unverified.</p>
+          <p className="text-[10.5px] text-ink-faint">Records and fields come from the template; models from the Models tab. Document-level fields remain unverified.</p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
             {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="text-ink">{line.value}</dd>])}
           </dl>

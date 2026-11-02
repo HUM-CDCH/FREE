@@ -97,7 +97,7 @@ export default function ResultsHeader({
           {status.rest && <span className="text-ink-muted tabular-nums">{status.mark === 'completed'
             ? <><span className="@max-[344px]:hidden">{status.rest}</span><span className="hidden @max-[344px]:inline">{status.rest.replace(/^· Catalog /, '').replace(/ ·$/, '')}</span></>
             : status.rest}</span>}
-          {status.schemaRevision !== undefined && <button type="button" className={linkButton} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
+          {status.schemaRevision !== undefined && <button type="button" className={linkButton} onClick={onSchema}>Template rev {status.schemaRevision}</button>}
           {status.onLatest && <button type="button" className={linkButton} onClick={status.onLatest}>Open latest</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
@@ -115,7 +115,7 @@ export default function ResultsHeader({
       )}
       {schemaNote && (
         <p className="-mt-1.5 m-0 text-secondary text-ink-muted">
-          This review applies to Schema revision {schemaNote.revision}. Run extraction again to use revision {schemaNote.current}; this review stays saved.
+          This review applies to Template revision {schemaNote.revision}. Run extraction again to use revision {schemaNote.current}; this review stays saved.
         </p>
       )}
       {alert}

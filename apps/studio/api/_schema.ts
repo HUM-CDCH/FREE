@@ -35,8 +35,12 @@ export function schemaAnswerClause(message: string): string {
   return `The researcher's chat message was:
 ${message.trim()}
 
-If that message asks a question (about the source document or the extraction schema) instead of asking for the schema to be generated or changed, do not return a schema. Answer the question from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.`
+If that message asks a question (about the source document or the extraction schema) instead of asking for the schema to be generated or changed, do not return a schema. Answer the question from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.
+${EXTRACT_CLAUSE}`
 }
+
+/** What lets a chat message ask for the extraction to run: Studio, not the model, then offers what may run. */
+export const EXTRACT_CLAUSE = `If that message instead asks to run the extraction with the schema as it is (to extract, get or generate the values or results from this document or from other documents, rather than to change the schema), do not return a schema or an answer and return only {"action":"extract"}.`
 
 /** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
 export const EXCERPT_THRESHOLD = 48_000

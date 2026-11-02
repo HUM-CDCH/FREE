@@ -41,7 +41,7 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
   if (!project || !open) return null
   let definition: ReturnType<typeof importDefinition> | null = null, validation: string | null = null
   if (columns.length) try { definition = importDefinition(columns, description, separator, groups) }
-  catch (error) { validation = error instanceof Error ? error.message : 'Invalid schema.' }
+  catch (error) { validation = error instanceof Error ? error.message : 'Invalid template.' }
   // A later request or a dismissal invalidates a preview in flight: its response is ignored and its request aborted.
   const close = () => {
     request.current++; previewAbort.current?.abort(); previewAbort.current = null
@@ -132,8 +132,8 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
               if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
               setConfirming(true); setError(null)
               try { await schema.confirmDefinition(definition); setConfirming(false); onImported?.(file.name); dismiss() }
-              catch (error) { setError(error instanceof Error ? error.message : 'Schema could not be confirmed.'); setConfirming(false) }
-            }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected schema' : 'Confirm schema'}</Button>
+              catch (error) { setError(error instanceof Error ? error.message : 'Template could not be confirmed.'); setConfirming(false) }
+            }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected template' : 'Confirm template'}</Button>
           )}
         </div>
       </div>

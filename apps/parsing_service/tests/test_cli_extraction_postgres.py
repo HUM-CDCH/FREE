@@ -1,4 +1,4 @@
-"""The forward migration keeps provider policy and exact saved source behind the restricted role."""
+"""The forward migrations keep each CLI provider's policy and exact saved source behind the restricted role."""
 from uuid import uuid4
 
 import psycopg
@@ -13,14 +13,17 @@ from kei_exp.workflows.durable_extract import chat_for
 pytestmark = pytest.mark.postgres
 
 
-def test_codex_provider_capture_policy_and_immutable_input(database, coordination_database):
+@pytest.mark.parametrize("adapter,url,other", [("codex-cli", "codex://local", "claude:utf8-budget-v1"),
+                                               ("claude-code", "claude://local", "codex:utf8-budget-v1")])
+def test_cli_provider_capture_policy_and_immutable_input(database, coordination_database, adapter, url, other):
     extraction, project, selection, attempt, revision, source_revision = [str(uuid4()) for _ in range(6)]
-    provider = {"key": "instruct", "adapterVersion": 1, "adapter": "codex-cli", "model": "test-model",
-                "url": "codex://local", "timeout": 10, "maxTokens": 8192}
+    provider = {"key": "instruct", "adapterVersion": 1, "adapter": adapter, "model": "test-model",
+                "url": url, "timeout": 10, "maxTokens": 8192}
     with psycopg.connect(database, autocommit=True) as owner:
         assert owner.execute('SELECT extraction_runtime.valid_provider(%s)', [Jsonb(provider)]).fetchone()[0]
-        assert not owner.execute('SELECT extraction_runtime.valid_provider(%s)',
-            [Jsonb({**provider, 'url': 'http://unauthorized.test'})]).fetchone()[0]
+        for unauthorized in ('http://unauthorized.test', 'codex://local' if url != 'codex://local' else 'claude://local'):
+            assert not owner.execute('SELECT extraction_runtime.valid_provider(%s)',
+                [Jsonb({**provider, 'url': unauthorized})]).fetchone()[0]
         owner.execute('''INSERT INTO extraction_runtime.head
           (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"attemptId",fence,
            acknowledgement,"controlVersion","pendingResume","leaseEpoch",generation,"snapshotVersion",deleted)
@@ -61,6 +64,11 @@ def test_codex_provider_capture_policy_and_immutable_input(database, coordinatio
             assert request['body']['httpRequest']['schema'] == schema
             # Replaying a saved request stays idempotent; editing its source is refused by the database fence.
             assert lease.call('finalize_input', capture, request)['digest'] == saved['digest']
+            # Neither CLI accepts the other's budget policy.
+            mixed = {**request, 'tokenizer': {**request['tokenizer'], 'source': other},
+                     'body': {**request['body'], 'httpRequest': {**request['body']['httpRequest'], 'policy': other}}}
+            with pytest.raises(psycopg.errors.InvalidParameterValue):
+                lease.call('finalize_input', capture, mixed)
             request['body']['httpRequest']['user'] = 'Different source'
             with pytest.raises(psycopg.errors.InvalidParameterValue):
                 lease.call('finalize_input', capture, request)

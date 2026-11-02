@@ -11,6 +11,7 @@ values are in the coordination schema, never served here.
 from __future__ import annotations
 
 import os
+import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -65,6 +66,13 @@ def list_extraction_models() -> dict:
         except (OSError, TimeoutError, ValueError, ModelOutputError):
             catalog, codex_reachable = [], False
         records += [extraction_models.resolve(f"codex:{repo}") for repo in catalog if repo != default.repo]
+    if default is not None and default.adapter == "claude-code":
+        # The CLI has no model catalog; the deployment's model is the only choice, available once a credential is.
+        from kei_exp.kie.extract.claude_code import logged_in
+        try:
+            claude_reachable = logged_in()
+        except (OSError, ValueError, subprocess.SubprocessError):
+            claude_reachable = False
     for record in records:
         key = record.key
         if record.adapter == "gliformer":
@@ -76,6 +84,9 @@ def list_extraction_models() -> dict:
         elif record.adapter == "codex-cli":
             reachable = codex_reachable
             repo = record.repo if record.repo in catalog else None
+        elif record.adapter == "claude-code":
+            reachable = claude_reachable
+            repo = record.repo if reachable else None
         else:
             reachable, repo = loaded_model(record.url)
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],

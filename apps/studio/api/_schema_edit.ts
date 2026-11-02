@@ -169,6 +169,7 @@ export async function proposeSchemaEdit(
       const reply = await (options.respond ?? respondToSchemaEdit)(
         options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [] })
       if ('answer' in reply) return { status: 'answered', answer: reply.answer }
+      if ('action' in reply) return { status: 'requested', action: reply.action }
       template = reply.template
       fieldDescriptions = reply.fieldDescriptions
     } else {

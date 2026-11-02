@@ -95,24 +95,24 @@ export function useSchemaProposalReview(
       current.draftVersion !== pending.originalDraftVersion ||
       current.extractableSchemaRevisionId !== pending.originalSchemaRevisionId
     ) {
-      appendMessage('Schema changed during review. The proposal was discarded.')
+      appendMessage('Template changed during review. The proposal was discarded.')
       reset()
       return false
     }
     const result = schema.commit(
       () => replay.nodes,
-      '✦ Schema updated via chat',
+      '✦ Template updated via chat',
     )
     if (!result.ok) {
       appendMessage(
         result.reason === 'duplicate-name'
           ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
-          : 'Cannot apply the proposal because no schema draft is open.',
+          : 'Cannot apply the proposal because no template draft is open.',
       )
       return false
     }
     appendMessage(
-      `✓ ${replay.appliedCount} schema change${replay.appliedCount === 1 ? '' : 's'} applied.`,
+      `✓ ${replay.appliedCount} template change${replay.appliedCount === 1 ? '' : 's'} applied.`,
     )
     reset()
     return true

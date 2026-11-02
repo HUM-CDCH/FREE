@@ -53,13 +53,13 @@ export function guidedWorkflow(
   // re-approval does not, so a revised schema is only a hint on the pilot then.
   const pilotAttention =
     summary.phase === 'approve' && !summary.currentSchemaRevisionReviewed
-      ? 'Schema changed since the pilot'
+      ? 'Template changed since the pilot'
       : null
   const pilotHint =
     reached('approve') && revised && !summary.currentSchemaRevisionReviewed
-      ? 'Revised schema not piloted'
+      ? 'Revised template not piloted'
       : null
-  const approveAttention = reached('approve') && revised ? 'Schema changed since approval' : null
+  const approveAttention = reached('approve') && revised ? 'Template changed since approval' : null
   const batchAttention = reached('batch') && pending > 0 ? `${plural(pending, 'document')} to extract` : null
   const complete = summary.phase === 'review' && unreviewed === 0 && pending === 0 && !revised
 
@@ -100,15 +100,15 @@ export function guidedWorkflow(
       case 'upload':
         return 'Upload documents'
       case 'schema':
-        return 'Create schema'
+        return 'Create template'
       case 'pilot':
         return pilotToReview
           ? `Review ${plural(unreviewed, 'pilot result')}`
           : pilotAttention
-            ? 'Pilot the revised schema'
+            ? 'Pilot the revised template'
             : 'Pilot extraction'
       case 'approve':
-        return approveAttention ? 'Re-approve schema' : 'Approve schema'
+        return approveAttention ? 'Re-approve template' : 'Approve template'
       case 'batch':
         return pending > 0 ? `Extract ${plural(pending, 'document')}` : 'Batch extraction'
       case 'review':

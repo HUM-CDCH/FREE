@@ -173,7 +173,7 @@ describe('editor gate', () => {
 
     const result = controller.commit(
       (current) => [...current, { ...node('site'), id: 'id-other' }],
-      '✎ Schema updated',
+      '✎ Template updated',
     )
 
     expect(result).toEqual({
@@ -197,11 +197,11 @@ describe('editor gate', () => {
 
     const result = setup.controller.commit(
       (current) => [...current, node('year')],
-      '✎ Schema updated',
+      '✎ Template updated',
     )
 
     expect(result).toEqual({ ok: true })
-    expect(setup.messages).toEqual(['✎ Schema updated'])
+    expect(setup.messages).toEqual(['✎ Template updated'])
     // The extractable revision drops because the draft has not been acknowledged.
     expect(setup.controller.snapshot().extractableSchemaRevisionId).toBeNull()
     expect(setup.saveState()).toBe('dirty')
@@ -371,14 +371,14 @@ describe('record scope', () => {
 
   it('keeps a failed scope save visible and unextractable until a retry flush saves it', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 1500 })
-    setup.failNextAppendWith(new Error('Could not save the Current Schema Revision.'))
+    setup.failNextAppendWith(new Error('Could not save the Current Template Revision.'))
     setup.controller.setRecordScope('records')
     await vi.advanceTimersByTimeAsync(0)
 
     expect(setup.controller.snapshot()).toMatchObject({
       recordScope: 'records',
       extractableSchemaRevisionId: null,
-      save: { status: 'error', error: new Error('Could not save the Current Schema Revision.') },
+      save: { status: 'error', error: new Error('Could not save the Current Template Revision.') },
     })
     // Choosing the same scope again changes nothing; the retry is a flush.
     setup.controller.setRecordScope('records')
@@ -423,11 +423,11 @@ describe('flush-before-extract', () => {
 
   it('propagates save failures to the flush caller and keeps the editor open', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
-    setup.failNextAppendWith(new Error('Could not save the Current Schema Revision.'))
+    setup.failNextAppendWith(new Error('Could not save the Current Template Revision.'))
 
     setup.controller.commit((current) => [...current, node('year')], 'edit')
     await expect(setup.controller.flush()).rejects.toThrow(
-      'Could not save the Current Schema Revision.',
+      'Could not save the Current Template Revision.',
     )
     expect(setup.controller.snapshot().draft!.schemaNodes).toHaveLength(2)
   })
@@ -466,7 +466,7 @@ describe('generation lifecycle', () => {
     expect(initialize).toHaveBeenCalledWith(imported, undefined, null, undefined)
     controller.dispose()
   })
-  it('initializes a fresh Extraction Schema on first generation', async () => {
+  it('initializes a fresh Extraction Template on first generation', async () => {
     const setup = setupDurable()
 
     const done = setup.controller.generate(async () => ({
@@ -501,7 +501,7 @@ describe('generation lifecycle', () => {
     )
   })
 
-  it('keeps the acknowledged schema mounted and extractable until regeneration is saved', async () => {
+  it('keeps the acknowledged template mounted and extractable until regeneration is saved', async () => {
     const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
     let resolveRequest!: (value: unknown) => void
     const request = new Promise<unknown>((resolve) => {
@@ -533,7 +533,7 @@ describe('generation lifecycle', () => {
     )
   })
 
-  it('reports failures without discarding the previous schema', async () => {
+  it('reports failures without discarding the previous template', async () => {
     const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
 
     await setup.controller.generate(async () => {
@@ -750,7 +750,7 @@ describe('generation lifecycle', () => {
     expect(running.appends).toHaveLength(0)
   })
 
-  it('restoreGeneration initializes the first schema only while none exists', async () => {
+  it('restoreGeneration initializes the first template only while none exists', async () => {
     const setup = setupDurable()
 
     await expect(setup.controller.restoreGeneration({ _description: 'One first record.', place: 'string' }, null)).resolves.toBe(true)
@@ -780,7 +780,7 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot()).toMatchObject({ generating: false, generationError: null, extractableSchemaRevisionId: 'rev-3' })
   })
 
-  it('operationScope names the durable project and schema, and is null for a local draft', () => {
+  it('operationScope names the durable project and template, and is null for a local draft', () => {
     const durable = setupDurable({ initial: revision(1, 'site') })
     expect(durable.controller.operationScope()).toEqual({ projectContextId: 'project-1', extractionSchemaId: 'schema-1' })
     const fresh = setupDurable()
@@ -854,7 +854,7 @@ describe('generation lifecycle', () => {
   })
 })
 
-describe('create Current Schema Revision from history', () => {
+describe('create Current Template Revision from history', () => {
   it('previews a historical revision without editing or flushing', async () => {
     const setup = setupDurable({
       initial: revision(2, 'current'),
@@ -885,7 +885,7 @@ describe('create Current Schema Revision from history', () => {
 
     expect(created.recordDescription).toBe('One historical record.')
     expect(setup.events).toEqual(['flush', 'edit', 'append', 'flush'])
-    expect(setup.messages).toEqual(['Created from Schema Revision 1'])
+    expect(setup.messages).toEqual(['Created from Template Revision 1'])
     expect(setup.controller.snapshot().draft!.schemaNodes[0]!.name).toBe(
       'historical',
     )
@@ -1035,7 +1035,7 @@ const generated = (name: string, coverage: SourceCoverage) =>
   }
 
 describe('the source declaration across a reopen', () => {
-  it('an initial generation saves its declaration, and the reopened schema shows it', async () => {
+  it('an initial generation saves its declaration, and the reopened template shows it', async () => {
     const server = revisionChain()
     await server.open().generate(generated('site', EXCERPTED))
 
@@ -1043,7 +1043,7 @@ describe('the source declaration across a reopen', () => {
     expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 
-  it('a regeneration saves its declaration and the reopened schema shows it; a whole-source one clears it', async () => {
+  it('a regeneration saves its declaration and the reopened template shows it; a whole-source one clears it', async () => {
     const server = revisionChain('site')
     await server.open().generate(generated('place', EXCERPTED))
     expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
@@ -1064,7 +1064,7 @@ describe('the source declaration across a reopen', () => {
     const server = revisionChain('site')
     const tab = server.open()
     await tab.generate(generated('place', EXCERPTED))
-    tab.commit((nodes) => [...nodes, node('year')], '✎ Schema updated')
+    tab.commit((nodes) => [...nodes, node('year')], '✎ Template updated')
     await tab.flush()
     expect(server.chain).toHaveLength(3)
     expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
@@ -1084,7 +1084,7 @@ describe('the source declaration across a reopen', () => {
     await tab.generate(generated('late', { complete: true }))
     expect(tab.snapshot().generationError).not.toBeNull()
     expect(tab.snapshot().sourceCoverage).toBeNull()
-    tab.commit((nodes) => [...nodes, node('year')], '✎ Schema updated')
+    tab.commit((nodes) => [...nodes, node('year')], '✎ Template updated')
     await tab.flush()
 
     expect(server.chain.map((saved) => saved.sourceCoverage)).toEqual([null, EXCERPTED, EXCERPTED])

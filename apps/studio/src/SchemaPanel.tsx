@@ -160,7 +160,7 @@ function fieldDescriptionsInstruction(nodes: readonly SchemaNode[]): string {
   const notes = enumerateFieldPaths(nodes)
     .filter(({ node }) => node.description)
     .map(({ path, node }) => `- ${path.join('.')}: ${node.description}`)
-  return notes.length ? `Field notes from the current schema:\n${notes.join('\n')}` : ''
+  return notes.length ? `Field notes from the current template:\n${notes.join('\n')}` : ''
 }
 
 
@@ -172,7 +172,7 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-line bg-canvas px-4 py-8 text-center" aria-live="polite">
       <span aria-hidden="true" className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent" />
-      <p className="text-content font-semibold text-ink">Producing schema…</p>
+      <p className="text-content font-semibold text-ink">Producing template…</p>
       <p className="max-w-[34ch] text-secondary leading-snug text-ink-muted">This can take a while on large documents.</p>
       <Button variant="danger" size="sm" className="mt-1" onClick={onStop}>Stop</Button>
     </div>
@@ -563,13 +563,13 @@ function SchemaPanelView({
   }
 
   function applyMove(nextNodes: SchemaNode[]) {
-    const result = schema.commit(() => nextNodes, '⠿ Schema reordered')
+    const result = schema.commit(() => nextNodes, '⠿ Template reordered')
     if (result.ok) setMutationError(null)
     else if (result.reason === 'duplicate-name')
       setMutationError(
         `Cannot move field: a sibling field already uses “${result.duplicateName}”.`,
       )
-    else setMutationError('No schema draft is open.')
+    else setMutationError('No template draft is open.')
   }
 
   async function previewHistory(revision: SchemaRevisionSummary) {
@@ -585,7 +585,7 @@ function SchemaPanelView({
       setHistoryError(
         error instanceof Error
           ? error.message
-          : 'Could not load the historical Schema Revision.',
+          : 'Could not load the historical Template Revision.',
       )
     }
   }
@@ -603,7 +603,7 @@ function SchemaPanelView({
       setHistoryError(
         error instanceof Error
           ? error.message
-          : 'Could not create a Current Schema Revision from history.',
+          : 'Could not create a Current Template Revision from history.',
       )
     } finally {
       creatingFromHistoryRef.current = false
@@ -643,7 +643,7 @@ function SchemaPanelView({
     ...(showRegenerate && onGenerateInstructions
       ? [{ id: 'regenerate', label: 'Regenerate from the document…', onSelect: () => setRegenerateOpen(true), disabled: snap.generating }]
       : []),
-    { id: 'clear', label: 'Clear schema', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true) },
+    { id: 'clear', label: 'Clear template', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true) },
   ]
 
   /** A durable schema with no fields yet: the researcher names it and describes the record (Ruling 5). The description
@@ -802,20 +802,20 @@ function SchemaPanelView({
                 editing,
               ),
             ],
-            '✎ Schema updated',
+            '✎ Template updated',
           )
         : schema.commit(
             (current) =>
               updateSchemaNode(current, editing.id, (node) =>
                 editedField(node, name, editing),
               ),
-            '✎ Schema updated',
+            '✎ Template updated',
           )
     if (!result.ok) {
       setEditingError(
         result.reason === 'duplicate-name'
           ? `A sibling field already uses “${result.duplicateName}”.`
-          : 'No schema draft is open.',
+          : 'No template draft is open.',
       )
       return
     }
@@ -839,7 +839,7 @@ function SchemaPanelView({
     if (!result.ok) {
       setMutationError(
         result.reason === 'no-draft'
-          ? 'No schema draft is open.'
+          ? 'No template draft is open.'
           : `A sibling field already uses “${result.duplicateName}”.`,
       )
       return
@@ -1001,12 +1001,12 @@ function SchemaPanelView({
           {ready && (
             <div className="flex shrink-0 items-center gap-2">
               <SegmentedControl
-                aria-label="Schema view"
+                aria-label="Template view"
                 value={view}
                 onChange={setView}
                 options={[{ value: 'fields', label: 'Fields' }, { value: 'code', label: 'Code' }]}
               />
-              {!editorReadOnly && <ActionsMenu label="Schema actions" items={menuItems} />}
+              {!editorReadOnly && <ActionsMenu label="Template actions" items={menuItems} />}
             </div>
           )}
         </div>
@@ -1064,20 +1064,20 @@ function SchemaPanelView({
               role="status"
             >
               <p className="min-w-0 text-compact text-ink">
-                Viewing historical Schema Revision{' '}
+                Viewing historical Template Revision{' '}
                 {snap.historicalPreview.revisionNumber}. This preview is read-only.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 <Button onClick={() => schema.closeHistoricalPreview()}>Close preview</Button>
                 <Button variant="positive" disabled={creatingFromHistory} onClick={() => void createFromHistory()}>
-                  Create Current Schema Revision
+                  Create Current Template Revision
                 </Button>
               </div>
             </div>
           )}
           {ready && snap.generating && (
             <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="status">
-              <p className="text-compact text-ink">Regenerating. The current saved schema remains available.</p>
+              <p className="text-compact text-ink">Regenerating. The current saved template remains available.</p>
               <Button variant="danger" onClick={() => schema.cancelGeneration()}>Stop</Button>
             </div>
           )}
@@ -1088,7 +1088,7 @@ function SchemaPanelView({
           )}
           {ready && snap.generationError && (
             <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-              <p className="text-compact text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
+              <p className="text-compact text-danger">Regeneration failed: {snap.generationError} The current saved template is unchanged.</p>
             </div>
           )}
           {snap.cancellationError && (
@@ -1102,14 +1102,14 @@ function SchemaPanelView({
               role="alert"
             >
               <p className="text-compact text-danger">
-                The Current Schema Revision changed elsewhere.
+                The Current Template Revision changed elsewhere.
               </p>
               <button
                 className="min-h-6 shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-compact font-semibold text-danger outline-none hover:bg-danger-soft"
                 type="button"
                 onClick={() => schema.reloadCurrent()}
               >
-                Reload Current Schema Revision
+                Reload Current Template Revision
               </button>
             </div>
           )}
@@ -1123,7 +1123,7 @@ function SchemaPanelView({
               <div className="flex min-h-full flex-col justify-center gap-2">
                 {snap.view === 'empty' ? (
                   <p className="mx-auto max-w-[34ch] text-center text-secondary leading-relaxed text-ink-muted">
-                    Ask about the document or say what to extract in the chat below, then generate the schema there.
+                    Ask about the document or say what to extract in the chat below, then generate the template there.
                   </p>
                 ) : (
                   <div className="flex flex-col items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
@@ -1143,7 +1143,7 @@ function SchemaPanelView({
               )}
               {snap.view === 'empty' ? (
                 <Button variant="positive" size="md" className="mt-1 self-center" disabled={asking !== null} onClick={() => onGenerateInstructions?.(instructions.text)}>
-                  Generate schema{instructions.countLabel}
+                  Generate template{instructions.countLabel}
                 </Button>
               ) : (
                 <div className="flex flex-col items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
@@ -1154,7 +1154,7 @@ function SchemaPanelView({
             </div>
           ) : (
             <>
-              {snap.view === 'empty' && <EmptyState title="No schema yet" />}
+              {snap.view === 'empty' && <EmptyState title="No template yet" />}
               {snap.view === 'failed' && (
                 <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
                   <p className="text-content leading-snug text-danger">{snap.generationError}</p>
@@ -1187,7 +1187,7 @@ function SchemaPanelView({
               ) : (
                 <>
                   <textarea
-                    aria-label="Schema code"
+                    aria-label="Template code"
                     wrap="off"
                     className="w-full overflow-x-auto whitespace-pre rounded-md border border-accent/50 bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink outline-none focus:border-accent"
                     style={{ minHeight: 240, resize: 'vertical' }}
@@ -1210,7 +1210,7 @@ function SchemaPanelView({
                           const parsed: unknown = JSON.parse(jsonDraft)
                           if (!isRecord(parsed)) throw new Error('The code must describe one object')
                           const definition = templateToSchemaDefinition(parsed)
-                          schema.replaceDraft(definition, '✎ Schema updated from the code view')
+                          schema.replaceDraft(definition, '✎ Template updated from the code view')
                           setJsonEditMode(false)
                           setJsonEditError(null)
                         } catch (e) {
@@ -1239,7 +1239,7 @@ function SchemaPanelView({
                     className="mt-1 block w-full resize-none rounded-[3px] border border-line bg-transparent px-2 py-1 text-secondary leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-faint hover:border-line-strong focus:border-line-strong"
                     rows={DESCRIPTION_ROWS.min}
                     value={recordDescriptionDraft}
-                    placeholder="Describe the record this schema extracts…"
+                    placeholder="Describe the record this template extracts…"
                     onChange={(event) => setRecordDescriptionDraft(event.target.value)}
                     onBlur={commitRecordDescription}
                   />
@@ -1247,7 +1247,7 @@ function SchemaPanelView({
               </label>
               {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
               {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
-              <div ref={fieldListRef} role="list" aria-label="Schema fields" className="-mx-2 flex flex-col px-2">
+              <div ref={fieldListRef} role="list" aria-label="Template fields" className="-mx-2 flex flex-col px-2">
                 {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
                 {provisionalField && editing?.id === provisionalField.id && (
                   <FieldEditForm
@@ -1305,12 +1305,12 @@ function SchemaPanelView({
           composer={
             <>
               <textarea className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50" rows={3}
-                placeholder="Describe a change to the schema…" value={chat.input} disabled={chatBlocked}
+                placeholder="Describe a change to the template…" value={chat.input} disabled={chatBlocked}
                 onChange={(event) => chat.setInput(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void chat.send(chat.input) } }} />
               {chatLoading ? (
                 <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
-                  onClick={chat.cancel} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
+                  onClick={chat.cancel} title="Stop template edit request" aria-label="Stop template edit request">■</button>
               ) : (
                 <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
                   aria-label="Send" disabled={!chat.input.trim() || chatBlocked} onClick={() => void chat.send(chat.input)}>↑</button>
@@ -1326,10 +1326,10 @@ function SchemaPanelView({
         {snap.view === 'generating' && (
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-stale" />
-            Producing schema from the document…
+            Producing template from the document…
           </span>
         )}
-        {snap.view === 'empty' && onGenerateInstructions && 'Generate the schema from the document to continue'}
+        {snap.view === 'empty' && onGenerateInstructions && 'Generate the template from the document to continue'}
         {snap.view === 'failed' && 'Generation failed'}
         {/* Status text only: the save's alert and Retry belong to the host beside its run controls, reachable with the
             Schema tab hidden. */}
@@ -1346,8 +1346,8 @@ function SchemaPanelView({
         }}
       />
       {historyOpen && (
-        <ModalDialog className={dialogCls} ariaLabel="Schema history" onDismiss={() => setHistoryOpen(false)}>
-          <h3 className="text-secondary font-semibold text-ink">Schema history</h3>
+        <ModalDialog className={dialogCls} ariaLabel="Template history" onDismiss={() => setHistoryOpen(false)}>
+          <h3 className="text-secondary font-semibold text-ink">Template history</h3>
           <div className="scrollbar-subtle mt-2 max-h-80 overflow-y-auto">
             {snap.history.map((revision) => (
               <button
@@ -1382,21 +1382,21 @@ function SchemaPanelView({
                 onGenerateInstructions?.([instructions.text, fieldDescriptionsInstruction(nodes)].filter(Boolean).join('\n\n'))
               }}
             >
-              Regenerate schema{instructions.countLabel}
+              Regenerate template{instructions.countLabel}
             </Button>
           </div>
         </ModalDialog>
       )}
       {confirmingDeleteSchema && (
-        <ModalDialog className={dialogCls} ariaLabel="Clear current schema" onDismiss={() => setConfirmingDeleteSchema(false)}>
-          <p className="text-secondary font-semibold text-ink">Clear current schema?</p>
+        <ModalDialog className={dialogCls} ariaLabel="Clear current template" onDismiss={() => setConfirmingDeleteSchema(false)}>
+          <p className="text-secondary font-semibold text-ink">Clear current template?</p>
           <p className="mt-1 text-compact leading-relaxed text-ink-muted">
-            This clears the current editor only. Saved Schema Revisions remain in history.
+            This clears the current editor only. Saved Template Revisions remain in history.
           </p>
           <div className="mt-3 flex justify-end gap-2">
             <Button onClick={() => setConfirmingDeleteSchema(false)}>Cancel</Button>
             {/* A clear the workspace refuses keeps the dialog open; a clear it accepts resets the editor, closing it. */}
-            <Button variant="danger" onClick={() => void deleteSchema()}>Clear schema</Button>
+            <Button variant="danger" onClick={() => void deleteSchema()}>Clear template</Button>
           </div>
         </ModalDialog>
       )}

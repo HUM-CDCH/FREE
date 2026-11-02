@@ -428,7 +428,7 @@ export default function BatchExtractionsPanel({
             value: null,
             failure: failureText(
               error,
-              'Batch Schema Suggestions could not be read.',
+              'Batch Template Suggestions could not be read.',
             ),
           })
       },
@@ -466,7 +466,7 @@ export default function BatchExtractionsPanel({
         if (controller.signal.aborted) return
         setSchemas({
           value: null,
-          failure: failureText(error, 'Schemas could not be read.'),
+          failure: failureText(error, 'Templates could not be read.'),
         })
       },
     )
@@ -550,12 +550,12 @@ export default function BatchExtractionsPanel({
     ? null
     : pinnedSchemaCurrent?.extractionSchemaId === openBatch.extractionSchemaId &&
         pinnedSchemaCurrent.schemaRevisionId !== openBatch.schemaRevisionId
-      ? `Schema Revision ${openBatch.schemaRevisionNumber} is no longer the current revision of ${openBatch.extractionSchemaName}, so this Batch Extraction cannot run again. Start a New Batch Extraction with the schema instead.`
+      ? `Template Revision ${openBatch.schemaRevisionNumber} is no longer the current revision of ${openBatch.extractionSchemaName}, so this Batch Extraction cannot run again. Start a New Batch Extraction with the template instead.`
       : currentPinnedBatchSchema &&
           currentPinnedBatchSchema.recordScope !== recordScopeOf(openBatch.strategy)
-        ? `Schema Revision ${openBatch.schemaRevisionNumber} ${currentPinnedBatchSchema.recordScope === null
+        ? `Template Revision ${openBatch.schemaRevisionNumber} ${currentPinnedBatchSchema.recordScope === null
           ? 'declares neither Article nor Catalog'
-          : `is saved as ${STRATEGY_NAME[strategyOf(currentPinnedBatchSchema.recordScope)]}`}, so this Batch Extraction cannot run again as ${STRATEGY_NAME[openBatch.strategy]}. Start a New Batch Extraction with the schema and choose Article or Catalog there.`
+          : `is saved as ${STRATEGY_NAME[strategyOf(currentPinnedBatchSchema.recordScope)]}`}, so this Batch Extraction cannot run again as ${STRATEGY_NAME[openBatch.strategy]}. Start a New Batch Extraction with the template and choose Article or Catalog there.`
         : null
   // Read the pinned Schema Revision to check its record scope before Run again.
   useEffect(() => {
@@ -579,7 +579,7 @@ export default function BatchExtractionsPanel({
             schemaRevisionId: pinnedSchemaRevisionId,
             message: failureText(
               error,
-              'The pinned Schema Revision could not be read.',
+              'The pinned Template Revision could not be read.',
             ),
           })
       },
@@ -934,14 +934,14 @@ export default function BatchExtractionsPanel({
           : saved.state.status === 'error'
             ? `Your extraction settings could not be read: ${saved.state.message}`
             : collectionScaleNeedsStabilisedSchema
-              ? `Approve the schema in the workflow bar to run more than ${PILOT_BATCH_SELECTION_LIMIT} Source Documents.`
+              ? `Approve the template in the chat to run more than ${PILOT_BATCH_SELECTION_LIMIT} Source Documents.`
               : schemaRevisionId === SUGGEST_SCHEMA
                 ? 'Get the suggested fields ready first.'
                 : schemaRevisionId.length === 0
-                  ? 'Choose an Extraction Schema.'
+                  ? 'Choose an Extraction Template.'
                   : selectedStrategy === null
                     ? 'Choose Article or Catalog.'
-                    : 'The schema has unsaved changes: resolve them above first.'
+                    : 'The template has unsaved changes: resolve them above first.'
   const toggleAllSourceDocuments = () => {
     if (schemaRevisionId === SUGGEST_SCHEMA) clearSuggestedFields()
     setSelected(
@@ -1056,10 +1056,7 @@ export default function BatchExtractionsPanel({
   return (
     <div
       id="project-extractions-panel"
-      role="tabpanel"
-      aria-labelledby="project-extractions-tab"
       className="flex flex-col pt-1"
-      tabIndex={0}
     >
       {!isPilotPrepare && (
         <div
@@ -1103,7 +1100,7 @@ export default function BatchExtractionsPanel({
                 variant="secondary"
                 size="md"
                 disabled={openingAnyBatch}
-                title="Advanced: choose the schema and Source Documents yourself, outside the guided workflow."
+                title="Advanced: choose the template and Source Documents yourself, outside the guided workflow."
                 onClick={() => {
                   setSelected(new Set(sourceDocumentIds))
                   setPreparingKind('custom')
@@ -1130,7 +1127,7 @@ export default function BatchExtractionsPanel({
           </p>
           {runFailureCode === 'schema_not_stabilised' && (
             <p className="text-[11px] leading-snug text-ink-muted">
-              Approve the schema in the workflow bar above, then run again.
+              Approve the template in the chat, then run again.
             </p>
           )}
         </div>
@@ -1153,8 +1150,8 @@ export default function BatchExtractionsPanel({
             {preparingKind === 'pilot' && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2">
                 <p className="text-[11px] leading-snug text-ink-muted">
-                  Try your schema on 2-3 documents first — it's faster to
-                  catch a schema issue now than after running the whole
+                  Try your template on 2-3 documents first — it's faster to
+                  catch a template issue now than after running the whole
                   collection.
                 </p>
                 <button
@@ -1233,7 +1230,7 @@ export default function BatchExtractionsPanel({
                           {alreadyReviewed.has(document.sourceDocumentId) && (
                             <span
                               className="shrink-0 rounded-full bg-green-soft px-1.5 py-0.5 text-[10px] font-semibold text-green"
-                              title="This Source Document has a reviewed result under this Schema Revision. Re-running the exact same selection and method reuses it; a different selection extracts it again."
+                              title="This Source Document has a reviewed result under this Template Revision. Re-running the exact same selection and method reuses it; a different selection extracts it again."
                             >
                               Reviewed under this Revision
                             </span>
@@ -1259,7 +1256,7 @@ export default function BatchExtractionsPanel({
             )}
             <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="text-[11px] font-semibold text-ink-muted">
-                Extraction Schema
+                Extraction Template
                 <select
                   className={`${control} mt-1 block w-full font-normal`}
                   value={schemaRevisionId}
@@ -1289,7 +1286,7 @@ export default function BatchExtractionsPanel({
                   {schemas.value ? (
                     <>
                       <option value="" disabled>
-                        Select an Extraction Schema
+                        Select an Extraction Template
                       </option>
                       {schemas.value.flatMap((schema) =>
                         schema.currentRevision
@@ -1298,7 +1295,7 @@ export default function BatchExtractionsPanel({
                                 key={schema.extractionSchemaId}
                                 value={schema.currentRevision.schemaRevisionId}
                               >
-                                {schema.name} · Schema Revision{' '}
+                                {schema.name} · Template Revision{' '}
                                 {schema.currentRevision.revisionNumber}
                               </option>,
                             ]
@@ -1314,8 +1311,8 @@ export default function BatchExtractionsPanel({
                   ) : (
                     <option value="">
                       {schemas.failure
-                        ? 'Schemas unavailable'
-                        : 'Loading schemas…'}
+                        ? 'Templates unavailable'
+                        : 'Loading templates…'}
                     </option>
                   )}
                 </select>
@@ -1374,8 +1371,8 @@ export default function BatchExtractionsPanel({
                 <div className="mb-3 rounded-md border border-line bg-surface-muted px-3 py-2">
                   <p className="text-[11px] leading-snug text-ink-muted">
                     {chosenRevision.stabilisedAt
-                      ? 'This schema is approved for batch extraction — the full collection is unlocked.'
-                      : `This schema isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved schema. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it in the workflow bar.`}
+                      ? 'This template is approved for batch extraction — the full collection is unlocked.'
+                      : `This template isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved template. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it in the chat.`}
                   </p>
                 </div>
               )}
@@ -1386,7 +1383,7 @@ export default function BatchExtractionsPanel({
                     These suggested fields start unstabilised, so they cannot
                     run over {selected.size} Source Documents yet. Pilot them
                     on {PILOT_BATCH_SELECTION_LIMIT} or fewer documents,
-                    review the results and approve the schema for batch
+                    review the results and approve the template for batch
                     extraction before running the full collection.
                   </p>
                 </div>
@@ -1398,8 +1395,8 @@ export default function BatchExtractionsPanel({
                 chosenSchema={chosenRevision}
                 sourceDocumentName={
                   selectedSchema
-                    ? `${selectedSchema.name} · Schema Revision ${chosenRevision.revisionNumber}`
-                    : `Schema Revision ${chosenRevision.revisionNumber}`
+                    ? `${selectedSchema.name} · Template Revision ${chosenRevision.revisionNumber}`
+                    : `Template Revision ${chosenRevision.revisionNumber}`
                 }
                 registerController={setSavedSchemaController}
                 onAcknowledgedRevision={(revision) =>
@@ -1482,7 +1479,7 @@ export default function BatchExtractionsPanel({
                 {suggestedFields?.status === 'heterogeneous' && (
                   <p className="text-xs text-ink-muted">
                     No reliable common field set was found. Choose an existing
-                    Extraction Schema or change the selection.
+                    Extraction Template or change the selection.
                   </p>
                 )}
                 {suggestedFields?.status === 'ready' && (
@@ -1618,7 +1615,7 @@ function SavedSchemaEditor({
   }, [acknowledged])
   const failure =
     snap.save?.status === 'error'
-      ? snap.save.error?.message ?? 'The schema could not be saved.'
+      ? snap.save.error?.message ?? 'The template could not be saved.'
       : null
   // A flush retries the failed save with the latest fields and scope; a new failure shows here again.
   const retrySave = () => void schema.flush().catch(() => undefined)
@@ -1633,7 +1630,7 @@ function SavedSchemaEditor({
     <>
       <section
         className="mb-5 h-[32rem] overflow-hidden rounded-md border border-line bg-surface"
-        aria-label="Extraction Schema fields"
+        aria-label="Extraction Template fields"
       >
         <SchemaPanel
           schema={schema}

@@ -601,7 +601,7 @@ export function ProjectContextRail({
           description={
             <>
               Deleting “{deletingProject.name}” permanently removes its Source
-              Documents, Annotations, Extraction Schema, Extractions, and
+              Documents, Annotations, Extraction Template, Extractions, and
               Review Decisions. This cannot be undone.
             </>
           }

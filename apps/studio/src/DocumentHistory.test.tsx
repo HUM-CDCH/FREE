@@ -27,19 +27,19 @@ const props = {
 }
 
 describe('document History', () => {
-  it('lists each Extraction with its tags, schema revisions and finalized reviews, and opens one or its review', async () => {
+  it('lists each Extraction with its tags, template revisions and finalized reviews, and opens one or its review', async () => {
     vi.mocked(readDocumentHistory).mockResolvedValue(history)
     const onOpen = vi.fn()
     render(<DocumentHistory {...props} onOpen={onOpen} />)
     const rows = within(await screen.findByRole('list', { name: 'Extractions of this document' })).getAllByRole('listitem')
-    expect(rows[0]).toHaveTextContent(/Latest.*Running · Catalog · schema rev 5 · rev 6 pending/)
-    expect(rows[1]).toHaveTextContent(/Batch.*Completed · Catalog · schema revs 4, 5.*Review finalized.*results 3/)
+    expect(rows[0]).toHaveTextContent(/Latest.*Running · Catalog · template rev 5 · rev 6 pending/)
+    expect(rows[1]).toHaveTextContent(/Batch.*Completed · Catalog · template revs 4, 5.*Review finalized.*results 3/)
     expect(rows[1]).toHaveAttribute('aria-current', 'true')
     expect(within(rows[1]!).getByText('Shown')).toBeVisible()
-    expect(rows[2]).toHaveTextContent(/Earlier source text \(rev 1\).*schema rev 3/)
+    expect(rows[2]).toHaveTextContent(/Earlier source text \(rev 1\).*template rev 3/)
     expect(rows[0]).not.toHaveTextContent('Earlier source text')
     // The current revision is the Project's, used by none of them.
-    expect(screen.getByText(/Not run yet with the current schema revision \(rev 7, shared across the Project\)/)).toBeVisible()
+    expect(screen.getByText(/Not run yet with the current template revision \(rev 7, shared across the Project\)/)).toBeVisible()
     fireEvent.click(within(rows[0]!).getByRole('button', { name: /^Open Extraction of / }))
     expect(onOpen).toHaveBeenLastCalledWith(ids[0])
     fireEvent.click(within(rows[1]!).getByRole('button', { name: /^Open the review finalized / }))

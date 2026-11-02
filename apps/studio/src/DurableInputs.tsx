@@ -79,11 +79,11 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
     finally{setBusy(false)}
   }
   return <section aria-label="Revised inputs" className="space-y-3 border-t border-line pt-3">
-    <p className="text-secondary">Changes apply after in-flight work is saved. Earlier values keep their producing schema and settings. Editing cancels an earlier pending Resume.</p>
+    <p className="text-secondary">Changes apply after in-flight work is saved. Earlier values keep their producing template and settings. Editing cancels an earlier pending Resume.</p>
     <fieldset disabled={busy} className="m-0 min-w-0 space-y-3 border-0 p-0">
-      <label className="block text-secondary">Schema to use next<select className="mt-1 w-full rounded-md border border-line bg-surface px-2 py-1 text-secondary" value={schemaId} onChange={event=>setSchemaId(event.target.value)}>
-        <option value={selection.schemaRevisionId}>Keep selected schema</option>
-        {currentSchema&&currentSchema!==selection.schemaRevisionId&&<option value={currentSchema}>Current saved schema</option>}
+      <label className="block text-secondary">Template to use next<select className="mt-1 w-full rounded-md border border-line bg-surface px-2 py-1 text-secondary" value={schemaId} onChange={event=>setSchemaId(event.target.value)}>
+        <option value={selection.schemaRevisionId}>Keep selected template</option>
+        {currentSchema&&currentSchema!==selection.schemaRevisionId&&<option value={currentSchema}>Current saved template</option>}
       </select></label>
       {editor.draft&&editor.saved&&<>
         {(['fields','reasoning'] as const).map(role=><label key={role} className="block text-secondary">{role==='fields'?'Field values model':'Reasoning model'}

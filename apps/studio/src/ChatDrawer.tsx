@@ -15,14 +15,24 @@ export type ChatDrawerProps = {
   /** The conversation's scroll container, for keeping the newest message in view. */
   bodyRef?: RefObject<HTMLDivElement | null>
   children: ReactNode
+  /** The conversation is the whole of its host (the rail chat's home): it fills it, always open, with no header. */
+  fill?: boolean
 }
 
 /** The rail's conversation: a composer line at rest; sending opens a drawer of 40% of the rail with the conversation,
  *  a header and a collapse chevron. Collapsing hides, never discards. */
-export default function ChatDrawer({ open, onCollapse, onExpand, title, label, dot, bar, composer, bodyRef, children }: ChatDrawerProps) {
+export default function ChatDrawer({ open, onCollapse, onExpand, title, label, dot, bar, composer, bodyRef, children, fill = false }: ChatDrawerProps) {
   // A bar (a proposal's review, a guided step) can be taller than 40% of the rail leaves it: the drawer then takes its
   // content's height, up to 75%, and the conversation scrolls, so the bar is never drawn under the composer.
   const height = !open ? '' : bar ? 'max-h-[75%]' : 'h-[40%] min-h-48'
+  if (fill)
+    return (
+      <section aria-label={title} className="flex min-h-0 flex-1 flex-col bg-surface-muted">
+        <div ref={bodyRef} className="scrollbar-subtle min-h-16 flex-1 overflow-y-auto px-4 py-2.5">{children}</div>
+        {bar}
+        <ChatComposer>{composer}</ChatComposer>
+      </section>
+    )
   return (
     <div className={`flex shrink-0 flex-col border-t border-line bg-surface-muted ${height}`}>
       {open && (

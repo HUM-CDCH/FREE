@@ -147,7 +147,7 @@ describe('starting points', () => {
       { label: 'Instructions', from: 'Reference', to: 'Schema-driven' },
       { label: 'Verification', from: 'Source labels', to: 'Source spans' },
       { label: 'Large checks', from: 'Check in windows', to: 'Leave unchecked' },
-      { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow schema policies' },
+      { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow template policies' },
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])
   })

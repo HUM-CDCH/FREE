@@ -36,8 +36,8 @@ const OLLAMA_BASE = 'http://127.0.0.1:11434'
 const LAB_VLLM_BASE = 'http://lab.example:8000/v1'
 const QWEN = 'Qwen/Qwen3.8-27B-FP8'
 const NUEXTRACT = 'numind/NuExtract3-FP8'
-const NUEXTRACT_NOTE = 'Schema Suggestion uses the NuExtract protocol for this model.'
-const FOLLOWS = 'Schema Suggestion uses the assistant model.'
+const NUEXTRACT_NOTE = 'Template Suggestion uses the NuExtract protocol for this model.'
+const FOLLOWS = 'Template Suggestion uses the assistant model.'
 
 const providers: ProviderDescriptor[] = [
   { kind: 'ollama', label: 'Ollama', transport: 'http', defaultBaseUrl: OLLAMA_BASE, authentication: 'optional', supportsNuextract: false },
@@ -272,15 +272,15 @@ describe('ProviderConfigPage', () => {
     expect(step('Reading documents')).toHaveTextContent(
       'Choose among the models this deployment runs. Applies to new uploads and reprocessing.',
     )
-    expect(step('Schema & chat')).toHaveTextContent(
-      `Chat, schema editing and Schema Suggestion use ${QWEN}, the deployment's model.`,
+    expect(step('Template & chat')).toHaveTextContent(
+      `Chat, template editing and Template Suggestion use ${QWEN}, the deployment's model.`,
     )
-    expect(step('Schema & chat')).toHaveTextContent('Choose any model from your connections.')
+    expect(step('Template & chat')).toHaveTextContent('Choose any model from your connections.')
     await waitFor(() => expect(step('Extracting data')).toHaveTextContent(
       `${NUEXTRACT} reads field values, ${QWEN} reasons over the source.`,
     ))
     expect(step('Extracting data')).toHaveTextContent('Choose among the models this deployment runs.')
-    for (const title of ['Reading documents', 'Schema & chat', 'Extracting data']) {
+    for (const title of ['Reading documents', 'Template & chat', 'Extracting data']) {
       expect(step(title)).toBeVisible()
       expect(within(step(title)).getByRole('button', { name: 'Change' })).toBeInTheDocument()
       expect(within(step(title)).queryByRole('button', { name: 'Use defaults' })).not.toBeInTheDocument()
@@ -331,14 +331,14 @@ describe('ProviderConfigPage', () => {
     // All steps stay visible; editing another step preserves each stored choice.
     expect(within(step('Reading documents')).getByRole('button', { name: 'Text recognition' })).toHaveTextContent('datalab-to/surya-ocr-2')
     expect(within(step('Reading documents')).getByRole('button', { name: 'Page regions' })).toHaveTextContent('Egret XLarge')
-    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
-    expect(within(step('Schema & chat')).getByRole('button', { name: 'Assistant model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    fireEvent.click(within(step('Template & chat')).getByRole('button', { name: 'Change' }))
+    expect(within(step('Template & chat')).getByRole('button', { name: 'Assistant model' })).toHaveTextContent('llama3.3 · Local Ollama')
     expect(step('Reading documents')).toHaveTextContent('Egret XLarge')
     expect(within(step('Reading documents')).queryByRole('button', { name: 'Text recognition' })).not.toBeInTheDocument()
     fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
     expect(within(step('Extracting data')).getByRole('button', { name: 'Field values' })).toHaveTextContent(QWEN)
 
-    for (const title of ['Reading documents', 'Schema & chat', 'Extracting data']) {
+    for (const title of ['Reading documents', 'Template & chat', 'Extracting data']) {
       const change = within(step(title)).queryByRole('button', { name: 'Change' })
       if (change) fireEvent.click(change)
       fireEvent.click(within(step(title)).getByRole('button', { name: 'Use defaults' }))
@@ -377,23 +377,23 @@ describe('ProviderConfigPage', () => {
     expect(server.puts()[0].extractionModels).toEqual({ fields: 'gliformer' })
   })
 
-  it('an unset Schema Suggestion route follows the Assistant model, and Use a different model stores an explicit route even when it equals it', async () => {
+  it('an unset Template Suggestion route follows the Assistant model, and Use a different model stores an explicit route even when it equals it', async () => {
     const assistant = { connectionId: OLLAMA_ID, modelId: 'llama3.3' }
     const server = studio(config({ connections: [ollama], routes: { schemaSuggestion: null, interaction: assistant } }))
     const first = await renderPage()
 
-    const schemaAndChat = within(step('Schema & chat'))
+    const schemaAndChat = within(step('Template & chat'))
     expect(schemaAndChat.getByText(FOLLOWS)).toBeInTheDocument()
-    expect(schemaAndChat.queryByRole('button', { name: 'Schema Suggestion model' })).not.toBeInTheDocument()
+    expect(schemaAndChat.queryByRole('button', { name: 'Template Suggestion model' })).not.toBeInTheDocument()
     expect(schemaAndChat.queryByText(/Deployment default/)).not.toBeInTheDocument()
 
     fireEvent.click(schemaAndChat.getByRole('button', { name: 'Use a different model' }))
     // Focus moves to the picker it revealed, not to the page.
-    expect(schemaAndChat.getByRole('button', { name: 'Schema Suggestion model' })).toHaveFocus()
-    fireEvent.click(schemaAndChat.getByRole('button', { name: 'Schema Suggestion model' }))
+    expect(schemaAndChat.getByRole('button', { name: 'Template Suggestion model' })).toHaveFocus()
+    fireEvent.click(schemaAndChat.getByRole('button', { name: 'Template Suggestion model' }))
     expect(screen.getByRole('option', { name: 'Use the assistant model' })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Schema Suggestion model' }))
-    await choose('Schema Suggestion model', 'Local Ollama', 'llama3.3')
+    fireEvent.click(screen.getByRole('button', { name: 'Template Suggestion model' }))
+    await choose('Template Suggestion model', 'Local Ollama', 'llama3.3')
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
     expect(server.puts()[0].routes).toEqual({ schemaSuggestion: assistant, interaction: assistant })
@@ -401,8 +401,8 @@ describe('ProviderConfigPage', () => {
     // Reopened, the saved route is still its own, though it equals the Assistant model.
     first.unmount()
     await renderPage()
-    const reopened = within(step('Schema & chat'))
-    expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    const reopened = within(step('Template & chat'))
+    expect(reopened.getByRole('button', { name: 'Template Suggestion model' })).toHaveTextContent('llama3.3 · Local Ollama')
     expect(reopened.queryByText(FOLLOWS)).not.toBeInTheDocument()
 
     fireEvent.click(reopened.getByRole('button', { name: 'Use the assistant model' }))
@@ -419,20 +419,20 @@ describe('ProviderConfigPage', () => {
       routes: { schemaSuggestion: null, interaction: { connectionId: VLLM_ID, modelId: NUEXTRACT } },
     }))
     await renderPage()
-    const schemaAndChat = within(step('Schema & chat'))
+    const schemaAndChat = within(step('Template & chat'))
 
     // Inherited from the Assistant model.
     expect(schemaAndChat.getByText(NUEXTRACT_NOTE)).toBeInTheDocument()
 
     fireEvent.click(schemaAndChat.getByRole('button', { name: 'Use a different model' }))
-    await typeModel('Schema Suggestion model', 'Lab vLLM', QWEN)
+    await typeModel('Template Suggestion model', 'Lab vLLM', QWEN)
     expect(schemaAndChat.queryByText(NUEXTRACT_NOTE)).not.toBeInTheDocument()
 
     // Not on a connection that cannot pass NuExtract's chat-template controls.
-    await typeModel('Schema Suggestion model', 'Local Ollama', NUEXTRACT)
+    await typeModel('Template Suggestion model', 'Local Ollama', NUEXTRACT)
     expect(schemaAndChat.queryByText(NUEXTRACT_NOTE)).not.toBeInTheDocument()
 
-    await typeModel('Schema Suggestion model', 'Lab vLLM', NUEXTRACT)
+    await typeModel('Template Suggestion model', 'Lab vLLM', NUEXTRACT)
     expect(schemaAndChat.getByText(NUEXTRACT_NOTE)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
@@ -478,13 +478,13 @@ describe('ProviderConfigPage', () => {
     expect(step('Reading documents')).toHaveTextContent(
       "Scanned pages are read and their page regions found by the deployment's default models.",
     )
-    expect(step('Schema & chat')).toHaveTextContent('No model is configured yet.')
+    expect(step('Template & chat')).toHaveTextContent('No model is configured yet.')
     // A saved choice stays saved and shown, though nothing lists it.
     expect(within(step('Extracting data')).getByRole('button', { name: 'Field values' })).toHaveTextContent('instruct')
     expect(within(step('Extracting data')).getByRole('button', { name: 'Reasoning' })).toHaveTextContent('Deployment default')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    fireEvent.click(within(step('Template & chat')).getByRole('button', { name: 'Change' }))
     await choose('Assistant model', 'Local Ollama', 'llama3.3')
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
@@ -762,7 +762,7 @@ describe('ProviderConfigPage', () => {
       put: () => (refuse ? jsonResponse({ error: { code: 'persistence_unavailable', message: 'Model Configuration storage is unavailable.' } }, 503) : undefined),
     })
     await renderPage()
-    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    fireEvent.click(within(step('Template & chat')).getByRole('button', { name: 'Change' }))
     await typeModel('Assistant model', 'Local Ollama', 'offline-model')
     apply()
 
@@ -890,7 +890,7 @@ describe('ProviderConfigPage', () => {
         .toHaveAccessibleDescription('Ollama is not reachable.'))
     fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
 
-    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    fireEvent.click(within(step('Template & chat')).getByRole('button', { name: 'Change' }))
     const group = await pickerGroup('Assistant model', 'Local Ollama')
     expect(group.getByText('Ollama is not reachable.')).toBeInTheDocument()
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search Assistant model' }), { key: 'Escape' })
@@ -910,7 +910,7 @@ describe('ProviderConfigPage', () => {
         }),
     })
     await renderPage()
-    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    fireEvent.click(within(step('Template & chat')).getByRole('button', { name: 'Change' }))
     await choose('Assistant model', 'Local Ollama', 'llama3.3')
     apply()
 
@@ -1133,7 +1133,7 @@ describe('Advanced', () => {
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const point = startingPoint('Explore spans and schema policies')
+    const point = startingPoint('Explore spans and template policies')
     fireEvent.click(within(point).getByRole('button', { name: 'Show changes' }))
     fireEvent.click(within(point).getByRole('button', { name: 'Use these settings' }))
     const additional = screen.getByRole('region', { name: 'Additional saved settings' })
@@ -1379,14 +1379,14 @@ describe('Advanced', () => {
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const point = startingPoint('Explore spans and schema policies')
+    const point = startingPoint('Explore spans and template policies')
     fireEvent.click(within(point).getByRole('button', { name: 'Show changes' }))
     fireEvent.click(within(point).getByRole('button', { name: 'Use these settings' }))
-    expect(screen.getByText('Settings from “Explore spans and schema policies” are in your draft. Apply saves them.')).toBeInTheDocument()
+    expect(screen.getByText('Settings from “Explore spans and template policies” are in your draft. Apply saves them.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByText('Everything saved')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const again = within(startingPoint('Explore spans and schema policies'))
+    const again = within(startingPoint('Explore spans and template policies'))
     fireEvent.click(again.getByRole('button', { name: 'Show changes' }))
     fireEvent.click(again.getByRole('button', { name: 'Use these settings' }))
     apply()
@@ -1447,12 +1447,12 @@ describe('Advanced', () => {
     openSection('Recipe Catalog')
     fireEvent.click(screen.getByRole('button', { name: 'Explain Recipe Catalog' }))
     selectView('Topics', 'How this works')
-    const point = within(startingPoint('Explore spans and schema policies'))
+    const point = within(startingPoint('Explore spans and template policies'))
     fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
     fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
     expect(screen.getByRole('radio', { name: 'Article' })).toBeChecked()
     await waitFor(() => expect(screen.getByRole('button', { name: 'How this works' })).toHaveFocus())
-    expect(screen.getByText('Settings from “Explore spans and schema policies” are in your draft. Apply saves them.')).toBeInTheDocument()
+    expect(screen.getByText('Settings from “Explore spans and template policies” are in your draft. Apply saves them.')).toBeInTheDocument()
     openSection('Evidence')
     fireEvent.click(radio('Fields to verify', 'All populated record fields'))
     expect(screen.queryByText(/are in your draft/)).toBeNull()
@@ -1465,7 +1465,7 @@ describe('Advanced', () => {
     openAdvanced()
     const useExplore = () => {
       fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-      const point = within(startingPoint('Explore spans and schema policies'))
+      const point = within(startingPoint('Explore spans and template policies'))
       fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
       fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
       expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
@@ -1473,7 +1473,7 @@ describe('Advanced', () => {
     useExplore()
     openSection('Evidence')
     fireEvent.click(radio('Fields to verify', 'All populated record fields'))
-    fireEvent.click(radio('Fields to verify', 'Follow schema policies'))
+    fireEvent.click(radio('Fields to verify', 'Follow template policies'))
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
