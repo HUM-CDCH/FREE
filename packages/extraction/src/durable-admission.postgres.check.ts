@@ -52,7 +52,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
     statuses: async () => new Map(),
   }
   const persistence = createResearcherExtractionPersistence(owner, execution, { database: db })
-  const method = { models: null, settings: { article: null } }
+  const method = accountMethod(null, 'ARTICLE', null)  // what an account that never applied settings is shown
   const single: RunSingleInput = { kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: documents[0].revisionId, schemaRevisionId: revisionId, strategy: 'ARTICLE', method }
   const batch: ScheduleBatchInput = { projectContextId: projectId, schemaRevisionId: revisionId, strategy: 'ARTICLE', method, sourceDocumentIds: documents.map(document => document.id), repetition: 'create-new' }
   const counts = async () => (await admin.query(`SELECT
@@ -73,6 +73,8 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   await assert.rejects(persistence.scheduleExtraction({...single,method:changedMethod}),{code:'extraction_id_conflict'})
   await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),method:changedMethod}),{code:'method_changed'})
   await assert.rejects(persistence.scheduleBatch({...batch,method:changedMethod}),{code:'method_changed'})
+  // A summary shown before the service defaults were recorded (a stale page's `article: null`) is refused the same way.
+  await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),method:{models:null,settings:{article:null}}}),{code:'method_changed'})
   assert.deepEqual(await counts(),beforeRefusals)
 
   const otherProject=randomUUID(),otherSchema=randomUUID(),otherRevision=randomUUID()

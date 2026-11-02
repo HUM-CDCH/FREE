@@ -22,7 +22,7 @@ describe('advanced settings in PostgreSQL', () => {
     const saved = { ...EMPTY_MODEL_CONFIG, extractionSettings: { article: { ...REFERENCE_ARTICLE, grounding: 'spans' as const } } }
     await applyAccountModelConfig({ config: saved }, { researcherAccountId: account.id, store, keys })
     await expect(readAccountModelConfig(account.id, store)).resolves.toEqual(saved)
-    const refused = { ...saved, extractionSettings: { article: { ...REFERENCE_ARTICLE, overlap_passages: 1 } } }
+    const refused = { ...saved, extractionSettings: { article: { ...REFERENCE_ARTICLE, context: 'full' as const, overlap_passages: 1 } } }
     await expect(applyAccountModelConfig({ config: refused }, { researcherAccountId: account.id, store, keys }))
       .rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
     await expect(readAccountModelConfig(account.id, store)).resolves.toEqual(saved)

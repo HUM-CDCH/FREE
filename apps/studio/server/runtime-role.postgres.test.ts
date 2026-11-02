@@ -8,6 +8,7 @@ import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ensureKeiRole } from 'db/kei-role'
 import { ensureStudioRole } from 'db/studio-role'
+import { accountMethod } from 'extraction/extraction-method'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
 import { migrate, provisionDatabase } from '../../../packages/db/src/record-scope-history-fixture.js'
 import { runWorkflowChild } from '../test/support/crash.js'
@@ -202,7 +203,7 @@ describe('Studio on its restricted runtime role', () => {
     const extractionId = randomUUID()
     await createResearcherExtractions(seeded.researcherAccountId).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId,
-      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: { models: null, settings: { article: null } },
+      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE', null),
     })
     const attempt = await eventually(async () => (await studioDbos().kei.listWorkflows({
       workflowName: 'extractDurableV1', loadInput: false, loadOutput: false })).find(() => true), 'kei has the attempt')

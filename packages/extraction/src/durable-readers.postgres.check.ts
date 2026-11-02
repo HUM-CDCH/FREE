@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { Client, Pool } from 'pg'
 import { createDisposableRuntime } from 'db/postgres-test-helpers'
 import { migrate, provisionDatabase, seedPreMigrationHistory, ARTICLE_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { accountMethod } from './extraction-method.js'
 
 /** Readers show durable Extractions only, to their owner only; fresh admission creates native coordination. */
 test('durable readers ignore head-less rows, conceal another researcher\'s Extraction, and admit fresh durable single and batch work', async t => {
@@ -72,7 +73,7 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   const heads = async () => (await admin.query('SELECT count(*)::int AS n FROM extraction_runtime.head')).rows[0].n as number
   const before = { rows: await rows(), heads: await heads() }
   await admin.query('UPDATE public."schemaRevision" SET "recordScope"=$2 WHERE id=$1', [history.revisions.article, 'document'])
-  const method = { models: null, settings: { article: null } }
+  const method = accountMethod(null, 'ARTICLE', null)  // what an account that never applied settings is shown
   // A single run waits while the newest Extraction on its revision is unfinished (ADR 0020).
   await admin.query('UPDATE extraction_runtime.head SET acknowledgement=\'COMPLETED\' WHERE id=$1', [id])
   const admitted = await owner.scheduleExtraction({ kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
