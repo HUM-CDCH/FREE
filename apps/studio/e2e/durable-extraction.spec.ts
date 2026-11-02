@@ -543,7 +543,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await expect(page).toHaveURL(new RegExp(`documents/${emptySource.sourceDocumentId}.*extractionId=${empty.id}`))
     await openRailView(page,'Results')
     const rail=page.getByRole('complementary',{name:'Chat, template and results'})
-    await expect(rail.getByText('Failed',{exact:true})).toBeVisible()
+    await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText('Failed',{exact:true})).toBeVisible()
     await expect(rail.getByRole('button',{name:'Review one by one',exact:true})).toBeDisabled()
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable/values`)).json()).values).toEqual([])
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable`)).json()).controlVersion).toBe(0)
@@ -564,8 +564,8 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       else await page.evaluate(route=>{window.history.pushState(null,'',route);window.dispatchEvent(new PopStateEvent('popstate'))},route)
       await openRailView(page,'Results')
       const rail=page.getByRole('complementary',{name:'Chat, template and results'})
-      // A running Article reads the document; every other lifecycle is named as it is.
-      await expect(rail.getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
+      // A running Article reads the document; every other lifecycle is named as it is. Scoped to Results: the chat's step card repeats the status.
+      await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
       await expect(rail.getByText(`Retained ${status}`,{exact:false})).toBeVisible()
       await rail.getByRole('button',{name:`To check title Retained ${status}`}).click()
       await expect(rail.getByRole('button',{name:'Edit',exact:true})).toBeEnabled()
