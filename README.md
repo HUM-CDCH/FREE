@@ -167,7 +167,9 @@ Code reads its token from the environment at every start. Both support schema he
    extracts the rest. Pause, resume, stop or retry a run from the chat too.
 5. **Review**: each value shows its evidence in the source, or is flagged as
    ungrounded. Approve, reject or correct values, then finalize.
-6. **Export** the results as CSV or Excel from the project's *Runs & exports*.
+6. **Export**: once every document is extracted and reviewed, the chat offers
+   the results to export: tick the documents, then choose CSV or an Excel
+   workbook. A batch's results also export from the project's *Runs & exports*.
 
 ## Develop and test
 

@@ -184,6 +184,15 @@ describe('durable exports', () => {
     expect(csv.type).toBe('text/csv;charset=utf-8')
     expect((await csv.text()).split('\r\n')[0]).toBe('Source Document,Source Document ID,Batch Extraction ID,title,site,year,gilded,names,finds.0.name,finds.0.count,finds.1.name,finds.1.count,catalogue,year (string)')
   })
+
+  it('names each row\'s own Batch Extraction when an export spans several (the chat\'s)', async () => {
+    const member = { extractionId: 'extraction', sourceDocumentId: 'one', sourceDocumentName: 'first.pdf', sourceRevisionId: 'source', status: 'COMPLETED' }
+    const spanning = [{ ...member, batchExtractionId: 'pilot' }, { ...member, extractionId: 'later', sourceDocumentId: 'two', sourceDocumentName: 'second.pdf', batchExtractionId: 'batch' }]
+    const csv = await durableBatchExportBlob({ batchExtractionId: '' }, spanning,
+      spanning.map((each) => ({ fixed, values: [value(0, title, each.sourceDocumentName)], member: each })), 'csv', root)
+    expect((await csv.text()).split('\r\n').slice(1, 3).map((row) => row.split(',').slice(0, 3))).toEqual([
+      ['first.pdf', 'one', 'pilot'], ['second.pdf', 'two', 'batch']])
+  })
 })
 
 it('CSV and XLSX keep disagreements explicit, including typed choices and batch alternatives',async()=> {

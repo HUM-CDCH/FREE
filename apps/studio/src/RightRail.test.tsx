@@ -366,7 +366,7 @@ describe('RightRail asked to extract in the chat', () => {
     vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'extract' })
     const run = { start: vi.fn(), available: true }
     const project = { guide: { summary, documents, currentDocumentId: 'here', batches: [], roundId: null, busy: false, error: null },
-      start: vi.fn(), approve: vi.fn(), open: vi.fn() }
+      start: vi.fn(), approve: vi.fn(), open: vi.fn(), export: vi.fn() }
     renderRail({ schema, run, project })
 
     let step = await ask('Generate the results')

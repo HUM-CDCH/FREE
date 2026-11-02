@@ -429,6 +429,28 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByRole('region', { name: 'Extract' })).not.toBeInTheDocument()
     })
 
+    it('offers a finished project\'s results to export: the ticked documents, in the options and format chosen', async () => {
+      const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+        extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 3 })
+      const blobs: Blob[] = []
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => { blobs.push(blob as Blob); return 'blob:export' })
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      try {
+        await renderInProject(done, [batch([member(here, true), member(others[0]!, true), member(others[1]!, true)])])
+        const step = await screen.findByRole('region', { name: 'Export results' })
+        fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
+        fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
+        const options = await screen.findByRole('dialog', { name: 'Export options' })
+        fireEvent.click(within(options).getByRole('button', { name: 'CSV' }))
+        await waitFor(() => expect(blobs).toHaveLength(1))
+        const rows = (await blobs[0]!.text()).split('\r\n').filter(Boolean).map((row) => row.split(',')[0])
+        expect(new Set(rows.slice(1))).toEqual(new Set(['Beretning.pdf', 'Letter 1.pdf']))
+      } finally {
+        createObjectURL.mockRestore()
+        revokeObjectURL.mockRestore()
+      }
+    })
+
     it('leads a pilot round\'s review to its next document, then asks for the approval in a dialog', async () => {
       const round = batch([member(here, true), member(others[0]!), member(others[1]!)])
       const { onNavigate } = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round],

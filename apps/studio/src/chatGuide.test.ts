@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractStep, nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
+import { exportableResults, extractStep, nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
@@ -171,6 +171,20 @@ describe('nextStep in a project', () => {
       .toBe('The document is still being indexed')
     expect(extractStep({ ...base, view: 'empty', run: null, project: project() }, 1)).toMatchObject({
       notice: 'Nothing can be extracted until the template is ready.', options: [{ action: 'dismiss' }] })
+  })
+
+  it('offers a finished project\'s results to export, every document with one ticked, each its newest reviewed result', () => {
+    const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+      extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 3 })
+    const pilot = { ...batch([member('a', true), member('b', true)]), batchExtractionId: 'pilot', createdAt: '2026-11-01T00:00:00.000Z' }
+    const later = { ...batch([{ ...member('b'), extractionId: 'b-again' }, member('c', true)]), batchExtractionId: 'later', createdAt: '2026-11-02T00:00:00.000Z' }
+    expect(step({ summary: done, batches: [pilot, later] })).toMatchObject({ key: 'export:revision-2', title: 'Export results',
+      picker: { documents: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], initial: ['a', 'b', 'c'], limit: 3 },
+      options: [{ action: 'export', label: 'Export {n}…', picks: true }, { action: 'dismiss' }] })
+    // b's newer result is not reviewed: its reviewed pilot result is exported.
+    const results = exportableResults(project({ summary: done, batches: [pilot, later] }))
+    expect([...results].map(([id, { member: { extractionId }, batchExtractionId }]) => [id, extractionId, batchExtractionId])).toEqual([
+      ['c', 'extraction-c', 'later'], ['a', 'extraction-a', 'pilot'], ['b', 'extraction-b', 'pilot']])
   })
 
   it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {

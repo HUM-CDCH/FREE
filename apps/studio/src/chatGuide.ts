@@ -25,6 +25,7 @@ export type StepAction =
   | 'batch'
   | 'approve'
   | 'open-document'
+  | 'export'
   | 'dismiss'
 
 export type StepOption = {
@@ -220,7 +221,8 @@ function projectStep(input: GuideInput): StepCard | null {
   const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
   // A schema saved here moves the phase on before the project's summary is read again.
   const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Pilot extraction', action: 'pilot' as const } : workflow.next
-  if (!next) return null
+  // Every document extracted and reviewed: what is left is the dataset.
+  if (!next) return exportStep(project)
   const revisionId = summary.currentSchemaRevisionId
   if (next.step === 'pilot' && next.action === 'pilot') {
     if (!schemaReady) return null
@@ -268,6 +270,37 @@ function projectStep(input: GuideInput): StepCard | null {
     }
   }
   return null
+}
+
+/** Each document's result to export: its newest reviewed Extraction on the Current Template Revision, else its newest
+ *  completed one there, with the Batch Extraction it belongs to. */
+export function exportableResults(project: ProjectGuideInput): Map<string, { member: BatchExtractionMember; batchExtractionId: string }> {
+  const results = new Map<string, { member: BatchExtractionMember; batchExtractionId: string }>()
+  const newestFirst = (project.batches ?? []).filter((batch) => batch.schemaRevisionId === project.summary.currentSchemaRevisionId)
+    .toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
+  for (const reviewed of [true, false])
+    for (const batch of newestFirst)
+      for (const member of batch.members)
+        if (!results.has(member.sourceDocumentId) && (reviewed ? member.currentReview !== null : member.completed))
+          results.set(member.sourceDocumentId, { member, batchExtractionId: batch.batchExtractionId })
+  return results
+}
+
+/** The finished project's dataset: the documents with a result to tick, then the export's own options and format. */
+function exportStep(project: ProjectGuideInput): StepCard | null {
+  if (project.batches === null) return null
+  const results = exportableResults(project)
+  const documents = project.documents.filter(({ id }) => results.has(id))
+  if (documents.length === 0) return null
+  return {
+    key: `export:${project.summary.currentSchemaRevisionId}`,
+    title: 'Export results',
+    question: 'Every document is extracted and reviewed. Export the results?',
+    error: project.error ?? undefined,
+    picker: { documents, initial: documents.map(({ id }) => id), limit: documents.length },
+    options: [{ action: 'export', label: 'Export {n}…', tone: 'positive', picks: true, disabled: project.busy,
+      description: 'Choose what the rows represent, and CSV or an Excel workbook with its evidence' }, notYet],
+  }
 }
 
 const waitingReview = (member: BatchExtractionMember) => member.reviewable && !member.currentReview

@@ -15,7 +15,9 @@ document's rather than the project's.
 - **The chat is the only guide.** Its next step (`chatGuide.ts`) runs, in order: the schema's own steps on the open
   document, that document's running Extraction with Pause, Resume, Retry and Stop, the project's workflow
   (`guidedWorkflow`, the server's phase: pilot the schema on documents ticked in the step, review a round document by
-  document, approve, extract the documents left, review), then a run of the open document alone. Studio still
+  document, approve, extract the documents left, review, then export the finished project's results: the documents
+  ticked in the step, each its newest reviewed result on the current revision, in one table through the export's
+  own options and format), then a run of the open document alone. Studio still
   chooses the step from state alone, and each option calls the handlers the controls it replaces called.
 - **The chat has a column of its own.** AppFrame gives it a full-height column beside the document area and its
   tabs, titled with the project. Schema, Results and History open from the chat as views that lead back to it; under

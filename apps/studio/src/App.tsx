@@ -41,7 +41,9 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot, ProjectContextActivitySummary } from './projectContexts/transport'
 import { BatchRequestError, openBatchExtraction } from './projectContexts/batchExtractions'
 import ApproveSchemaDialog from './projectContexts/ApproveSchemaDialog'
-import type { ProjectDocument } from './chatGuide'
+import { exportableResults, type ProjectDocument } from './chatGuide'
+import ExtractionResultExportControl from './ExtractionResultExportControl'
+import type { ExportChoices, ExportFormat } from 'extraction-result-export'
 import { useProjectBatches } from './useProjectBatches'
 import { renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
@@ -950,10 +952,36 @@ export function DocumentWorkspace({
   const [projectBusy, setProjectBusy] = useState(false)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [approvingSchema, setApprovingSchema] = useState(false)
+  // The documents the chat's export step ticked, while the export's options and format are chosen.
+  const [exporting, setExporting] = useState<readonly string[] | null>(null)
   // A revision saved here can move the project's phase (schema -> pilot): read its summary again.
   const refreshProject = project?.refresh
   const savedRevisionId = schemaSnap.extractableSchemaRevisionId
   useEffect(() => { if (savedRevisionId) refreshProject?.() }, [savedRevisionId, refreshProject])
+
+  /** Downloads the ticked documents' results as one table: each its newest reviewed result on the Current Template
+   *  Revision (else its newest completed one), at its own versions, named by its document and Batch Extraction. */
+  async function exportProjectResults(sourceDocumentIds: readonly string[], format: ExportFormat, choices: ExportChoices) {
+    if (!project || !sourceDocumentId) return
+    const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
+      batches: projectBatches, roundId: project.roundId, busy: false, error: null })
+    const members = sourceDocumentIds.flatMap((id) => {
+      const result = results.get(id)
+      return result ? [{ extractionId: result.member.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId,
+        sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
+        sourceRevisionId: result.member.sourceRepresentationRevisionId, status: result.member.executionStatus }] : []
+    })
+    setProjectBusy(true)
+    setProjectError(null)
+    try {
+      const { downloadDurableBatch } = await import('./durableExport')
+      await downloadDurableBatch({ batchExtractionId: '', name: schemaName ?? 'Extraction results' }, members, format, choices)
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'Unable to export saved values.')
+    } finally {
+      setProjectBusy(false)
+    }
+  }
 
   /** Saves the schema, re-reads the saved method and opens a Batch Extraction over the ticked documents, as a run
    *  does (ADR 0015): a `method_changed` refusal re-reads once. A pilot then opens its first document to review. */
@@ -1097,6 +1125,7 @@ export function DocumentWorkspace({
           approve: () => setApprovingSchema(true),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
             extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId }),
+          export: (ids) => setExporting(ids),
         } : null}
         boundaries={
           !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
@@ -1136,6 +1165,16 @@ export function DocumentWorkspace({
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
       {/* The open document's tab carries the review's progress as a ring, and says it. */}
+      <ExtractionResultExportControl
+        open={exporting !== null}
+        schemaNodes={schemaSnap.draft?.schemaNodes ?? []}
+        onDismiss={() => setExporting(null)}
+        onExport={(format, choices) => {
+          const ids = exporting ?? []
+          setExporting(null)
+          void exportProjectResults(ids, format, choices)
+        }}
+      />
       {approvingSchema && project?.summary.currentSchemaRevisionId && (
         <ApproveSchemaDialog
           projectContextId={projectContextId}

@@ -28,6 +28,8 @@ export type RailChatProps = {
     start: (kind: 'pilot' | 'batch', sourceDocumentIds: readonly string[]) => void
     approve: () => void
     open: (target: NonNullable<StepOption['target']>) => void
+    /** Exports the ticked documents' results, once their options and format are chosen. */
+    export: (sourceDocumentIds: readonly string[]) => void
   } | null
   /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
   control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
@@ -118,6 +120,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
+      export: () => project?.export(ids),
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
