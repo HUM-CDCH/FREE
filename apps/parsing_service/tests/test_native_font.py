@@ -137,11 +137,14 @@ def test_a_table_with_no_readable_cells_is_read_after_its_block_unless_its_capti
 @pytest.mark.parametrize("model, caption, grid", [
     ("surya", [block("Fees", (0, 0, 10, 10))], [block("Fee 10 EUR", (0, 0, 10, 10), "Table")]),
     ("granite_docling", "Fees", "| | |\n|----|----|\n| | |"),
+    ("granite_vision", "Fees", "![A table of fees](table.png)"),
+    ("nanonets_ocr2", "Fees", "<img>A table of fees with two columns</img>"),
     ("surya", [block("Fees", (0, 0, 10, 10))], [{**block("", (0, 0, 10, 10), "Table"),
                                                   "html": "<table><tr><td></td><td></td></tr></table>"}]),
     ("surya", [block("Fees", (0, 0, 10, 10))], [{**block("", (0, 0, 10, 10), "Table"),
                                                   "html": "<table><tr><td>—</td><td>-</td></tr></table>"}]),
-], ids=["the table reads", "a VLM's empty grid", "Surya's empty table", "Surya's grid of dashes"])
+], ids=["the table reads", "a VLM's empty grid", "a Markdown image", "a VLM's picture description",
+        "Surya's empty table", "Surya's grid of dashes"])
 def test_a_table_with_no_readable_cells_and_an_undecodable_caption_is_still_read_as_a_table(
         tmp_path, monkeypatch, model, caption, grid):
     """Its caption's glyph repair leaves the table's own crop a table's: reading no letter or digit refuses its page."""
