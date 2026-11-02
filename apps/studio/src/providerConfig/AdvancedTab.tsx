@@ -208,7 +208,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
     </section>,
   })))
   const options = editor.settingsIssues.some((item) => item.path.startsWith('article.')) ? null :
-    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: explicit ?? null }))
+    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article }))  // what admission sends
   const entries = options ? requestEntries(options) : []
   return <>
     {additional.length > 0 && <section aria-label="Additional saved settings" className="flex flex-col gap-1 text-[11px] text-ink-muted">

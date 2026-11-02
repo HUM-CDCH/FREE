@@ -970,6 +970,8 @@ describe('Advanced', () => {
     expect(screen.getByRole('button', { name: 'Use service defaults', pressed: true })).toBeInTheDocument()
     openSection('Source context')
     expect(radio('Scope', 'Full source')).toBeDisabled()
+    openSection('Technical details')  // the request admission sends: the service defaults, explicit
+    expect(screen.getByRole('option', { name: 'article.grounding_overflow' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.getByText('Applies to new Extractions in your Projects.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Models' }))

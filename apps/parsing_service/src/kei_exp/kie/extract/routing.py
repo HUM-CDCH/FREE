@@ -117,8 +117,8 @@ def rank_units(contexts: Sequence[Context], value_contexts: Sequence[Context], o
 
 
 OVERFLOW_VERSION = 1  # `grounding_overflow="windows"`: the windows below
-# Halvings of one refused unit at most: windows down to an eighth of it, so at most eight more calls per claim and unit
-# (a refused window sends none).
+# Halvings of one refused unit at most: windows down to an eighth of it, so at most 14 window checks per unit (2 + 4 + 8,
+# shared by the claims it refused), each one verifier pass as for a unit; a refused window sends no call.
 WINDOW_DEPTH = 3
 
 
