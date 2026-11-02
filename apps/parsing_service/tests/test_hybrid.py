@@ -10,7 +10,17 @@ import pypdfium2 as pdfium
 import pytest
 from PIL import Image
 from docling.datamodel.base_models import ConversionStatus
-from docling_core.types.doc import BoundingBox, CoordOrigin, DocItemLabel, DoclingDocument, ProvenanceItem, Size, TableData
+from docling_core.types.doc import (
+    BoundingBox,
+    ContentLayer,
+    CoordOrigin,
+    DocItemLabel,
+    DoclingDocument,
+    ProvenanceItem,
+    Size,
+    TableCell,
+    TableData,
+)
 
 from kei_exp.failures import should_retry
 from kei_exp.kie import passages
@@ -220,6 +230,55 @@ def test_an_empty_native_table_is_replaced_by_ocr_without_losing_its_caption(ill
     assert [b["html"] for b in outcome.pages[0].payload["blocks"]] == [
         "<p>Native prose</p>", "<p>Table 1. Native caption</p>",
     ]
+
+
+@pytest.mark.parametrize("table_text", ["Raster table words", None], ids=["printed as images", "a blank grid"])
+def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_ocr_after_it(
+        illustrated_pdf, tmp_path, monkeypatch, table_text):
+    """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
+    plans OCR for the page's real artwork only, and Docling reads a document index with no readable cell. Its boxes
+    are read just after its block, and OCR finding nothing there (a blank grid) is no failure either."""
+    document = DoclingDocument(name="raster-index")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+
+    def at(box):
+        return ProvenanceItem(page_no=1, charspan=(0, 0), bbox=BoundingBox(
+            l=box[0], t=box[1], r=box[2], b=box[3], coord_origin=CoordOrigin.TOPLEFT))
+
+    empty = [TableCell(text="", start_row_offset_idx=row, end_row_offset_idx=row + 1,
+                       start_col_offset_idx=column, end_col_offset_idx=column + 1)
+             for row in (0, 1) for column in (0, 1)]
+    document.add_text(label=DocItemLabel.TEXT, text="Native prose", prov=at((72, 60, 350, 80)))
+    document.add_heading(text="Administrative details", level=1, prov=at((72, 460, 350, 480)))
+    document.add_table(data=TableData(num_rows=2, num_cols=2, table_cells=empty), prov=at((72, 500, 372, 700)),
+                       label=DocItemLabel.DOCUMENT_INDEX)
+    document.add_text(label=DocItemLabel.PAGE_FOOTER, text="3", prov=at((290, 800, 300, 810)),
+                      content_layer=ContentLayer.FURNITURE)
+    result = SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
+                             status=ConversionStatus.SUCCESS)
+    monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
+        convert=lambda *args, **kwargs: result))
+    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", pages=(1, 1), result_dir=tmp_path / "result"))
+    assert [region.bbox for region in execution.ocr_regions] == [(72, 292, 372, 442)]  # the artwork, not the table
+
+    def recognize(request, crops, emit):
+        texts = {(72, 292, 372, 442): "Artwork words", (72, 500, 372, 700): table_text}
+        return Transcription({}, [record(n, [block(text, (0, 0, image.width, image.height))] if text else [],
+                                         image=image)
+                                  for n, (_, region, image) in enumerate(crops, 1)
+                                  for text in [texts[tuple(region.bbox)]]])
+
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", recognize)
+    ocr.run(execution, lambda _: None)
+    manifest = read_manifest(execution.result_dir)
+    page = read_page(execution.result_dir, 1, manifest)
+    assert manifest.status == "success" and page.complete
+    assert [(s.label, s.text, s.status) for s in page.segments] == [
+        ("Text", "Native prose", "ok"), ("Text", "Artwork words", "ok"),
+        ("SectionHeader", "Administrative details", "ok"), ("TableOfContents", "", "ok"),
+        *([("Text", table_text, "ok")] if table_text else []), ("PageFooter", "3", "ok")]
+    assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [
+        ("figure", (72, 292, 372, 442)), ("figure", (72, 500, 372, 700))]
 
 
 def test_vlm_crop_keeps_its_markdown_and_coarse_evidence(illustrated_pdf, tmp_path, monkeypatch):

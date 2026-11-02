@@ -6,7 +6,7 @@ import pypdfium2 as pdfium
 import pytest
 
 from kei_exp.kie.stages import ocr
-from kei_exp.kie.stages.ocr import resolve, undecodable_blocks
+from kei_exp.kie.stages.ocr import resolve, unreadable_blocks
 from kei_exp.pagefile import read_manifest, read_page
 from kei_exp.transcription.native import _has_undecodable_glyph, native_regions, undecodable_glyphs
 from kei_exp.transcription.types import IncompleteConversionError, OcrRegion, RunParams, Transcription
@@ -85,18 +85,21 @@ def test_only_body_blocks_keeping_a_control_code_leave_native_text_one_region_pe
                                            block("After", (10, 90, 290, 100))], source_page=1),
                                 record(2, [block("only \x0e C", (10, 20, 290, 40))], source_page=2),
                                 record(3, [block("Clean", (10, 20, 290, 40))], source_page=3)])
-    kept, regions, anchors = undecodable_blocks(native)
+    kept, regions, anchors, kinds = unreadable_blocks(native, True)
     assert [[b["html"] for b in r.payload.get("blocks", [])] for r in kept.pages] == [
         ["<p>Journal \x00 head</p>", "<p>Before</p>", "<p>After</p>"], [], ["<p>Clean</p>"]]
     assert kept.pages[1].payload["blocks"] == [] and kept.pages[2] is native.pages[2]
     assert regions == [OcrRegion(1, (10, 20, 140, 60)), OcrRegion(1, (160, 20, 290, 40)), OcrRegion(2, (10, 20, 290, 40))]
-    assert anchors == [2, 2, 0]
+    assert anchors == [2, 2, 0] and kinds == ["text"] * 3
+    # Without the screen's glyph flag a control code in Docling's text is left as it was read.
+    unflagged, *planned = unreadable_blocks(native, False)
+    assert unflagged.pages == native.pages and planned == [[], [], []]
 
 
 def test_a_table_read_by_ocr_reads_its_caption_too():
     """A table's HTML carries its caption, printed outside the table's box."""
     table = {**block("Location (cm \x00 1) 1696", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]]}
-    _, regions, anchors = undecodable_blocks(Transcription({}, [record(1, [table], source_page=1)]))
+    _, regions, anchors, _ = unreadable_blocks(Transcription({}, [record(1, [table], source_page=1)]), True)
     assert regions == [OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))] and anchors == [0, 0]
 
 
