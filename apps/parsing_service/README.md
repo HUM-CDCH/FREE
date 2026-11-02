@@ -164,10 +164,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   the conservative large-image scan route. A native table with no
   readable cells outside an OCR crop (its text printed as small images or
   outlines, or a blank grid) keeps its block for its caption, and a hybrid run
-  OCRs its box as a `figure` crop read just after it. That crop reading no
-  letter or digit (a model's image markup or picture description and an empty
-  grid's rules are no text), a box of the table
-  overlapping OCR'd artwork by more than 5% of the box's area, or the table in
+  OCRs its box as a `figure` crop read just after it. A caption that needs glyph
+  repair is OCR'd as text in the block's place instead, the table crop still
+  following it. That crop reading no letter or digit (a model's image markup or
+  picture description, nested or not, and an empty grid's rules are no text), a
+  box of the table overlapping OCR'd artwork by more than 5% of the box's area,
+  or the table in
   a native run, which has no OCR, makes its page and the conversion
   incomplete, as does an incomplete OCR crop. Surya artwork that
   repeats identical empty,
