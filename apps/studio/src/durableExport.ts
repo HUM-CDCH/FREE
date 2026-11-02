@@ -10,8 +10,10 @@ import { readDurable, readValues } from './durableExtractionApi'
  * researcher has open. The export reads nothing else: no history, no model calls, no other versions. */
 export type Fixed={state:DurableRead;page:DurablePage}
 /** `batchExtractionId`: the member's own Batch Extraction, where the export spans several (the chat's); else the batch's.
- * `status`: its state where no saved page says it (the chat exports saved pages only). */
-export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceDocumentName:string;sourceRevisionId:string;status?:string;batchExtractionId?:string}
+ * `status`: its state where no saved page says it (the chat exports saved pages only). `review`: the finalized cut to
+ * export (the chat's reviewed results), else the latest results and decisions. */
+export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceDocumentName:string;sourceRevisionId:string;status?:string;batchExtractionId?:string;
+  review?:{snapshotVersion:number;feedbackVersion:number}}
 export type BatchExportSnapshot={fixed:Fixed;values:DurablePage['values'];member:BatchExportMember}
 export const DEFAULT_EXPORT_CHOICES:ExportChoices={rowsRepresent:ROOT_ROWS,otherRepeatedFields:'preserve'}
 export const MEMBERS_SHEET='Members'
@@ -71,7 +73,9 @@ export async function downloadDurableExport(fixed:Fixed,format:ExportFormat,choi
 export async function downloadDurableBatch(batch:{batchExtractionId:string;name:string},members:readonly BatchExportMember[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,signal?:AbortSignal):Promise<boolean> {
   const snapshots:BatchExportSnapshot[]=[]
   for(const member of members) {
-    const {state,page,pageError}=await readDurable(member.extractionId,signal)
+    const {state,page,pageError}=member.review
+      ? {...await readDurable(member.extractionId,signal,null,false),page:await readValues(member.extractionId,member.review,signal),pageError:undefined}
+      : await readDurable(member.extractionId,signal)
     if(!page)throw pageError
     const fixed={state,page}
     snapshots.push({fixed,values:await fixedDurableValues(fixed,signal),member})

@@ -147,7 +147,8 @@ export function createResearcherApiHandlers(
     return json(
       batchExtractionListResponseSchema.parse({
         batchExtractions: batches.map(batchDto),
-        ...latest && { latestExtractions: latest.map((extraction) => ({ ...extraction, createdAt: extraction.createdAt.toISOString() })) },
+        ...latest && { latestExtractions: latest.extractions.map((extraction) => ({ ...extraction, createdAt: extraction.createdAt.toISOString() })),
+          newestExtractionIds: latest.newestExtractionIds },
       }),
       { headers: noStore },
     )

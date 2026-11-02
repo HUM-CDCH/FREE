@@ -329,8 +329,8 @@ export type LatestExtraction = {
   batchExtractionId: string | null
   createdAt: Date
   completed: boolean
-  /** Any of its cuts was finalized, as the project's summary counts a review. */
-  reviewed: boolean
+  /** Its latest finalized cut, as the project's summary counts a review: the results and decisions reviewed. */
+  review: { snapshotVersion: number; feedbackVersion: number } | null
 }
 
 export type IngestSourceDocumentInput = {
@@ -441,17 +441,18 @@ async function durableExtractionFacts(database: Database, where: { documentIds?:
     .where(row => row.extractionId.in([...heads.keys()])).where({ outcome: 'COMPLETED' })
     .select('extractionId').all()).map(row => row.extractionId))
   const finalizations = heads.size === 0 ? [] : await database.orm.extraction_runtime.Finalization.where((row) => row.extractionId.in([...heads.keys()]))
-    .select('extractionId', 'createdAt').all()
-  const reviewedAt = new Map<string, Date>()
+    .select('extractionId', 'snapshotVersion', 'feedbackVersion', 'createdAt').all()
+  const reviewed = new Map<string, (typeof finalizations)[number]>()
   for (const finalization of finalizations) {
-    const latest = reviewedAt.get(finalization.extractionId)
-    if (!latest || finalization.createdAt > latest) reviewedAt.set(finalization.extractionId, finalization.createdAt)
+    const latest = reviewed.get(finalization.extractionId)
+    if (!latest || finalization.createdAt > latest.createdAt) reviewed.set(finalization.extractionId, finalization)
   }
   return rows.filter((row) => heads.has(row.id)).map((row) => {
     const acknowledgement = heads.get(row.id)!
+    const review = reviewed.get(row.id)
     return { ...row, completed: acknowledgement === 'COMPLETED' || completed.has(row.id),
       finished: acknowledgement === 'COMPLETED' || acknowledgement === 'FAILED' || acknowledgement === 'STOPPED',
-      reviewedAt: reviewedAt.get(row.id) ?? null }
+      reviewedAt: review?.createdAt ?? null, review: review ? { snapshotVersion: review.snapshotVersion, feedbackVersion: review.feedbackVersion } : null }
   })
 }
 
@@ -879,8 +880,9 @@ export type ResearcherProjectStore = {
     projectContext: ProjectContextSummary
     sourceDocuments: SourceDocumentSummary[]
   } | null>
-  /** Each Source Document's latest Extraction as listProjectContexts counts it: its newest completed or reviewed one. */
-  listLatestExtractions(projectContextId: string): Promise<LatestExtraction[] | null>
+  /** Each Source Document's latest Extraction as listProjectContexts counts it (its newest completed or reviewed one),
+   *  and the newest of any state, which the document shows. */
+  listLatestExtractions(projectContextId: string): Promise<{ extractions: LatestExtraction[]; newestExtractionIds: string[] } | null>
   /** Reads no Extraction state; callers may supply Extraction-owned pins. */
   getDocumentReopenSnapshot(
     projectContextId: string,
@@ -1813,16 +1815,18 @@ export function createResearcherProjectStore(
     async listLatestExtractions(projectContextId) {
       if (!(await database.orm.public.ProjectContext.select('id').first({ id: projectContextId, researcherAccountId }))) return null
       const documents = await database.orm.public.SourceDocument.where({ projectContextId }).select('id').all()
-      const latest = new Map<string, LatestExtraction>()
+      const latest = new Map<string, LatestExtraction>(), newest = new Map<string, { id: string; createdAt: Date }>()
       for (const extraction of await durableExtractionFacts(database, { documentIds: documents.map(({ id }) => id) })) {
-        const known = latest.get(extraction.sourceDocumentId)
+        const known = latest.get(extraction.sourceDocumentId), shown = newest.get(extraction.sourceDocumentId)
+        if (!shown || extraction.createdAt > shown.createdAt || (+extraction.createdAt === +shown.createdAt && extraction.id > shown.id))
+          newest.set(extraction.sourceDocumentId, extraction)
         if ((extraction.completed || extraction.reviewedAt !== null) && (!known || extraction.createdAt >= known.createdAt))
           latest.set(extraction.sourceDocumentId, { sourceDocumentId: extraction.sourceDocumentId, extractionId: extraction.id,
             schemaRevisionId: extraction.schemaRevisionId, sourceRepresentationRevisionId: extraction.sourceRepresentationRevisionId,
             batchExtractionId: extraction.batchExtractionId, createdAt: extraction.createdAt, completed: extraction.completed,
-            reviewed: extraction.reviewedAt !== null })
+            review: extraction.review })
       }
-      return [...latest.values()]
+      return { extractions: [...latest.values()], newestExtractionIds: [...newest.values()].map(({ id }) => id) }
     },
     async getDocumentReopenSnapshot(
       projectContextId,

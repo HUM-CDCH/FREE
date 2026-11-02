@@ -41,7 +41,7 @@ export type StepOption = {
    *  none ticked or past the limit. */
   picks?: boolean
   /** The document `open-document` opens, on its Extraction in its Batch Extraction. */
-  target?: { sourceDocumentId: string; extractionId: string; batchExtractionId: string }
+  target?: { sourceDocumentId: string; extractionId: string; batchExtractionId: string | null }
 }
 
 export type ProjectDocument = { id: string; name: string }
@@ -71,8 +71,9 @@ export type ProjectGuideInput = {
   currentDocumentId: string
   /** The project's Batch Extractions; null until read. */
   batches: readonly BatchExtraction[] | null
-  /** Each document's latest Extraction, as the project's summary counts it; null until read. */
-  latest: readonly LatestExtraction[] | null
+  /** Each document's latest Extraction as the project's summary counts it, and the newest each document shows (any
+   *  state); null until read. */
+  latest: { extractions: readonly LatestExtraction[]; newest: readonly string[] } | null
   /** The Batch Extraction (a pilot round, or a batch) this document was opened from to review, if any. */
   roundId: string | null
   /** A batch start or an approval is under way. */
@@ -285,24 +286,25 @@ function projectStep(input: GuideInput): StepCard | null {
   return null
 }
 
-type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId'>
+type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId' | 'review'>
 
-/** Each document's result to export: its newest reviewed Extraction on the Current Template Revision, else its newest
- *  completed one there, with the Batch Extraction it belongs to, if any. Its latest, as the project page counts it,
- *  comes first: it may be an Extraction of the document alone, which no round holds. */
+/** Each document's result to export: its newest reviewed Extraction on the Current Template Revision at its reviewed
+ *  cut, else its newest completed one there at its latest, with the Batch Extraction it belongs to, if any. Its latest,
+ *  as the project page counts it, comes first: it may be an Extraction of the document alone, which no round holds. */
 export function exportableResults(project: ProjectGuideInput): Map<string, ExportableResult> {
   const results = new Map<string, ExportableResult>()
   const revisionId = project.summary.currentSchemaRevisionId
   const newestFirst = (project.batches ?? []).filter((batch) => batch.schemaRevisionId === revisionId)
     .toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
   for (const reviewed of [true, false]) {
-    for (const latest of project.latest ?? [])
-      if (!results.has(latest.sourceDocumentId) && latest.schemaRevisionId === revisionId && (reviewed ? latest.reviewed : latest.completed))
-        results.set(latest.sourceDocumentId, latest)
+    for (const latest of project.latest?.extractions ?? [])
+      if (!results.has(latest.sourceDocumentId) && latest.schemaRevisionId === revisionId && (reviewed ? latest.review : latest.completed))
+        results.set(latest.sourceDocumentId, { ...latest, review: reviewed ? latest.review : null })
     for (const batch of newestFirst)
       for (const member of batch.members)
         if (!results.has(member.sourceDocumentId) && (reviewed ? member.currentReview !== null : member.completed))
-          results.set(member.sourceDocumentId, { ...member, batchExtractionId: batch.batchExtractionId })
+          results.set(member.sourceDocumentId, { ...member, batchExtractionId: batch.batchExtractionId, review: reviewed && member.currentReview
+            ? { snapshotVersion: member.currentReview.snapshotVersion, feedbackVersion: member.currentReview.feedbackVersion } : null })
   }
   return results
 }
@@ -326,29 +328,32 @@ function exportStep(project: ProjectGuideInput): StepCard | null {
 
 /**
  * The review of a round (a Batch Extraction) that counts: the one this document was opened from while it has values
- * waiting, else the newest that has. This document's review if it waits, else the round's next document after this
- * one. `also` stands beside the review: the approval, in the approve phase.
+ * waiting, else the newest that has; then the finished runs of a document alone that wait, which no round holds. This
+ * document's review if it waits, else the next document after this one. `also` stands beside the review: the
+ * approval, in the approve phase.
  */
-function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batch: BatchExtraction) => boolean,
+function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run: { schemaRevisionId: string }) => boolean,
   also?: StepOption): StepCard | null {
   if (project.batches === null) return null
-  // A member whose document has a latest Extraction run since, which its document now shows, is no longer to review.
-  const waiting = (batch: BatchExtraction) => (member: BatchExtractionMember) => member.reviewable && !member.currentReview
-    && !project.latest?.some((latest) => latest.sourceDocumentId === member.sourceDocumentId
-      && latest.extractionId !== member.extractionId && latest.createdAt > batch.createdAt)
+  // Only the Extraction a document shows, its newest, can be reviewed: this document's is the one open here.
+  const shown = (sourceDocumentId: string, extractionId: string) => sourceDocumentId === project.currentDocumentId && input.latest
+    ? input.latest.extractionId === extractionId : project.latest?.newest.includes(extractionId) ?? true
+  const waiting = (member: BatchExtractionMember) => member.reviewable && !member.currentReview && shown(member.sourceDocumentId, member.extractionId)
   const opened = project.batches.find((batch) => batch.batchExtractionId === project.roundId)
-  const round = opened && counts(opened) && opened.members.some(waiting(opened)) ? opened
+  const round = opened && counts(opened) && opened.members.some(waiting) ? opened
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
-      .find((batch) => batch.members.some(waiting(batch)))
-  if (!round) return null
-  const waitingReview = waiting(round)
+      .find((batch) => batch.members.some(waiting))
+  const queue = [...(round?.members ?? []).map((member) => ({ ...member, batchExtractionId: round!.batchExtractionId as string | null, waits: waiting(member) })),
+    ...(project.latest?.extractions ?? []).filter((run) => run.batchExtractionId === null && run.completed && !run.review && counts(run)
+      && shown(run.sourceDocumentId, run.extractionId)).map((run) => ({ ...run, currentReview: null, waits: true }))]
+  if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
   const title = project.summary.schemaStabilised ? 'Review results' : 'Pilot review'
-  const { reviewed, reviewable } = batchExtractionProgress(round)
-  const detail: [string, string][] = [['Progress', `${reviewed} of ${plural(reviewable, 'document')} reviewed`]]
-  const index = round.members.findIndex(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
-  const here = round.members[index]
-  if (here && waitingReview(here))
+  const progress = round && batchExtractionProgress(round)
+  const detail: [string, string][] | undefined = progress && [['Progress', `${progress.reviewed} of ${plural(progress.reviewable, 'document')} reviewed`]]
+  const mine = queue.filter(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
+  const here = mine.find(({ waits }) => waits) ?? mine[0]
+  if (here?.waits)
     return {
       key: `review:${here.extractionId}`,
       title,
@@ -357,8 +362,9 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
       detail,
       options: [...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const], ...also ? [also] : []],
     }
-  // The next one after this document, round the round.
-  const next = [...round.members.slice(index + 1), ...round.members.slice(0, index + 1)].find(waitingReview)!
+  // The next one after this document, round the queue.
+  const index = here ? queue.indexOf(here) : -1
+  const next = [...queue.slice(index + 1), ...queue.slice(0, index + 1)].find(({ waits }) => waits)!
   const name = project.documents.find(({ id }) => id === next.sourceDocumentId)?.name ?? 'the next document'
   return {
     key: `review-next:${next.extractionId}`,
@@ -367,7 +373,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batc
     question: here?.currentReview ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
     detail,
     options: [{ action: 'open-document', label: `Next document · ${name}`, tone: 'positive',
-      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: round.batchExtractionId } },
+      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: next.batchExtractionId } },
       ...also ? [also] : [], notYet],
   }
 }

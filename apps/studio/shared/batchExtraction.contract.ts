@@ -111,15 +111,17 @@ const latestExtractionSchema = z
     batchExtractionId: canonicalUuidSchema.nullable(),
     createdAt: z.iso.datetime(),
     completed: z.boolean(),
-    reviewed: z.boolean(),
+    /** Its latest finalized cut: the results and decisions reviewed. */
+    review: z.object({ snapshotVersion: z.number().int().positive(), feedbackVersion: z.number().int().nonnegative() }).strict().nullable(),
   })
   .strict()
 
 export type LatestExtraction = z.output<typeof latestExtractionSchema>
 
 export const batchExtractionListResponseSchema = z
-  // `latestExtractions` only when asked for (`latest=1`).
-  .object({ batchExtractions: z.array(batchExtractionSchema), latestExtractions: z.array(latestExtractionSchema).optional() })
+  // Only when asked for (`latest=1`): each document's latest Extraction, and its newest of any state, which it shows.
+  .object({ batchExtractions: z.array(batchExtractionSchema), latestExtractions: z.array(latestExtractionSchema).optional(),
+    newestExtractionIds: z.array(canonicalUuidSchema).optional() })
   .strict()
 
 /**

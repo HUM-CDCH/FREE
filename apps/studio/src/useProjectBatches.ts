@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { BatchExtraction, LatestExtraction } from '../shared/batchExtraction.contract'
-import { listProjectExtractions } from './projectContexts/batchExtractions'
+import type { BatchExtraction } from '../shared/batchExtraction.contract'
+import type { ProjectGuideInput } from './chatGuide'
+import { listProjectExtractions, projectLatest } from './projectContexts/batchExtractions'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
 /** How often a running Batch Extraction, and the project's summary that follows it, are read again. */
@@ -18,17 +19,15 @@ export function useProjectBatches(
   projectContextId: string | null,
   summary: ProjectContextActivitySummary | null,
   refreshSummary?: () => void,
-): { batches: readonly BatchExtraction[] | null; latest: readonly LatestExtraction[] | null } {
-  const [state, setState] = useState<{ projectContextId: string; batches: BatchExtraction[]; latest: LatestExtraction[] | null } | null>(null)
+): { batches: readonly BatchExtraction[] | null; latest: ProjectGuideInput['latest'] } {
+  const [state, setState] = useState<{ projectContextId: string; batches: BatchExtraction[]; latest: ProjectGuideInput['latest'] } | null>(null)
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
     if (!projectContextId) return
     const controller = new AbortController()
     listProjectExtractions(projectContextId, controller.signal)
-      .then(({ batchExtractions, latestExtractions }) => {
-        if (!controller.signal.aborted) setState({ projectContextId, batches: batchExtractions, latest: latestExtractions ?? null })
-      })
+      .then((read) => { if (!controller.signal.aborted) setState({ projectContextId, batches: read.batchExtractions, latest: projectLatest(read) }) })
       .catch(() => {})
     return () => controller.abort()
   }, [projectContextId, summary, tick])

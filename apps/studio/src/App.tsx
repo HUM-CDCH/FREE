@@ -39,7 +39,7 @@ import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot, ProjectContextActivitySummary } from './projectContexts/transport'
-import { BatchRequestError, openBatchExtraction } from './projectContexts/batchExtractions'
+import { BatchRequestError, listProjectExtractions, openBatchExtraction, projectLatest } from './projectContexts/batchExtractions'
 import ApproveSchemaDialog from './projectContexts/ApproveSchemaDialog'
 import { exportableResults, type ProjectDocument } from './chatGuide'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
@@ -948,7 +948,7 @@ export function DocumentWorkspace({
   // the server refuses to stabilise a Schema Revision until a pilot Extraction
   // has been run and reviewed against it.
   // The project's workflow, led by the chat: a pilot or batch start, the approval, and the next document to review.
-  const { batches: projectBatches, latest: projectLatest } = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
+  const { batches: projectBatches, latest: projectLatestRead } = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
   const [projectBusy, setProjectBusy] = useState(false)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [approvingSchema, setApprovingSchema] = useState(false)
@@ -960,20 +960,22 @@ export function DocumentWorkspace({
   useEffect(() => { if (savedRevisionId) refreshProject?.() }, [savedRevisionId, refreshProject])
 
   /** Downloads the ticked documents' results as one table: each its newest reviewed result on the Current Template
-   *  Revision (else its newest completed one), at its own versions, named by its document and Batch Extraction. */
+   *  Revision at its reviewed cut (else its newest completed one, at its latest), named by its document and Batch
+   *  Extraction. The project is read again first: a result reviewed since the chat's last read is the one exported. */
   async function exportProjectResults(sourceDocumentIds: readonly string[], format: ExportFormat, choices: ExportChoices) {
     if (!project || !sourceDocumentId) return
-    const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
-      batches: projectBatches, latest: projectLatest, roundId: project.roundId, busy: false, error: null })
-    const members = sourceDocumentIds.flatMap((id) => {
-      const result = results.get(id)
-      return result ? [{ extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
-        sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
-        sourceRevisionId: result.sourceRepresentationRevisionId }] : []
-    })
     setProjectBusy(true)
     setProjectError(null)
     try {
+      const read = await listProjectExtractions(projectContextId)
+      const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
+        batches: read.batchExtractions, latest: projectLatest(read), roundId: project.roundId, busy: false, error: null })
+      const members = sourceDocumentIds.flatMap((id) => {
+        const result = results.get(id)
+        return result ? [{ extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
+          sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
+          sourceRevisionId: result.sourceRepresentationRevisionId, review: result.review ?? undefined }] : []
+      })
       const { downloadDurableBatch } = await import('./durableExport')
       await downloadDurableBatch({ batchExtractionId: '', name: schemaName ?? 'Extraction results' }, members, format, choices)
     } catch (error) {
@@ -1121,13 +1123,13 @@ export function DocumentWorkspace({
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
         project={project && sourceDocumentId ? {
-          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, latest: projectLatest,
+          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, latest: projectLatestRead,
             roundId: project.roundId,
             busy: projectBusy || approvingSchema, error: projectError },
           start: (kind, ids) => void startProjectBatch(kind, ids),
           approve: () => setApprovingSchema(true),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
-            extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId }),
+            extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId ?? undefined }),
           export: (ids) => setExporting(ids),
         } : null}
         boundaries={

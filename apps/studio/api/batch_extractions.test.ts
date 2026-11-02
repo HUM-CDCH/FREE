@@ -202,15 +202,16 @@ describe('/api/batch-extractions transport', () => {
   it("adds each document's latest Extraction only for a client that asks for it, which an older one's schema refuses", async () => {
     const latest = { sourceDocumentId: DOCUMENT, extractionId: '51000000-0000-4000-8002-000000000002', schemaRevisionId: REVISION,
       sourceRepresentationRevisionId: '51000000-0000-4000-8003-000000000001', batchExtractionId: null,
-      createdAt: new Date('2026-11-02T00:00:00.000Z'), completed: true, reviewed: true }
-    const store = { researcherAccountId: ACCOUNT, listLatestExtractions: vi.fn(async () => [latest]) }
+      createdAt: new Date('2026-11-02T00:00:00.000Z'), completed: true, review: { snapshotVersion: 2, feedbackVersion: 3 } }
+    const newest = '51000000-0000-4000-8002-000000000003'
+    const store = { researcherAccountId: ACCOUNT, listLatestExtractions: vi.fn(async () => ({ extractions: [latest], newestExtractionIds: [newest] })) }
     runtime.createResearcherExtractions.mockReturnValue(extractionModule())
     const handle = createResearcherApiHandlers(store as unknown as ResearcherProjectStore).POST
     const url = `http://test/api/batch-extractions?projectContextId=${PROJECT}`
-    expect(await (await handle(new Request(url))).json()).not.toHaveProperty('latestExtractions')
+    expect(Object.keys(await (await handle(new Request(url))).json())).toEqual(['batchExtractions'])
     expect(store.listLatestExtractions).not.toHaveBeenCalled()
-    expect((await (await handle(new Request(`${url}&latest=1`))).json()).latestExtractions).toEqual([
-      { ...latest, createdAt: '2026-11-02T00:00:00.000Z' }])
+    expect(await (await handle(new Request(`${url}&latest=1`))).json()).toMatchObject({
+      latestExtractions: [{ ...latest, createdAt: '2026-11-02T00:00:00.000Z' }], newestExtractionIds: [newest] })
     expect(store.listLatestExtractions).toHaveBeenCalledWith(PROJECT)
   })
 

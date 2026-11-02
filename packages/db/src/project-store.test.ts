@@ -857,7 +857,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
 
     // A finalized review of one of its cuts completes the pilot and moves review activity forward.
-    database.tables.Finalization.push({ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-04T10:00:00Z') })
+    database.tables.Finalization.push({ extractionId: '51000000-0000-4000-8006-000000000001', snapshotVersion: 1, feedbackVersion: 2,
+      createdAt: new Date('2026-08-04T10:00:00Z') })
     const reviewed = await store.listProjectContexts(20)
     const reviewedSummary = reviewed.find(
       (item) => item.projectContextId === PROJECT,
@@ -869,10 +870,15 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSummary?.lastActivityAt,
       new Date('2026-08-04T10:00:00Z'),
     )
-    // Each document's latest Extraction is the one the summary counts, and only the owner reads it.
-    const latest = async () => (await store.listLatestExtractions(PROJECT))
-      ?.map(({ sourceDocumentId, extractionId, completed, reviewed }) => [sourceDocumentId, extractionId, completed, reviewed])
-    assert.deepEqual(await latest(), [[DOCUMENT, '51000000-0000-4000-8006-000000000001', true, true]])
+    // Each document's latest Extraction is the one the summary counts, with its finalized cut, and only the owner reads
+    // it. The document shows its newest, the one still processing.
+    const latest = async () => {
+      const read = (await store.listLatestExtractions(PROJECT))!
+      return [read.extractions.map(({ sourceDocumentId, extractionId, completed, review }) => [sourceDocumentId, extractionId, completed, review]),
+        read.newestExtractionIds]
+    }
+    assert.deepEqual(await latest(), [[[DOCUMENT, '51000000-0000-4000-8006-000000000001', true, { snapshotVersion: 1, feedbackVersion: 2 }]],
+      ['51000000-0000-4000-8006-000000000002']])
     assert.equal(await createResearcherProjectStore(RESEARCHER_B, database as never).listLatestExtractions(PROJECT), null)
 
     // A newer unpublished-for-review Extraction supersedes the reviewed one:
@@ -895,7 +901,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )?.summary
     assert.equal(rerunSummary?.phase, 'approve')
     assert.equal(rerunSummary?.reviewedSourceDocumentCount, 0)
-    assert.deepEqual(await latest(), [[DOCUMENT, '51000000-0000-4000-8006-000000000003', true, false]])
+    assert.deepEqual(await latest(), [[[DOCUMENT, '51000000-0000-4000-8006-000000000003', true, null]], ['51000000-0000-4000-8006-000000000003']])
 
     // A newer current representation than the latest Extraction's pin is
     // exactly what makes the Source Document stale.

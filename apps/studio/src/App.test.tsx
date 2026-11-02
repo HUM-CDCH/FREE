@@ -451,6 +451,39 @@ describe('reopened Source Document workspace', () => {
       }
     })
 
+    it('exports what the project holds at the export, each result at its reviewed cut: a run of a document alone reviewed since', async () => {
+      const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+        extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
+      const blobs: Blob[] = []
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => { blobs.push(blob as Blob); return 'blob:export' })
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      try {
+        await renderInProject(done, [batch([member(here, true), member(others[0]!, true)])])
+        const step = await screen.findByRole('region', { name: 'Export results' })
+        // Since the chat's last read, this document was run again alone and that run reviewed at results 2, decisions 3.
+        const alone = '51000000-0000-4000-8006-000000000009', asked: string[] = [], earlier = fetch
+        const latestExtractions = [{ sourceDocumentId: here, extractionId: alone, schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+          sourceRepresentationRevisionId: member(here).sourceRepresentationRevisionId, batchExtractionId: null, createdAt: '2026-11-02T00:00:00.000Z',
+          completed: true, review: { snapshotVersion: 2, feedbackVersion: 3 } }]
+        vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          asked.push(String(input))
+          return String(input).startsWith('/api/batch-extractions?')
+            ? Promise.resolve(Response.json({ batchExtractions: [batch([member(here, true), member(others[0]!, true)])], latestExtractions,
+              newestExtractionIds: [alone, member(others[0]!).extractionId] }))
+            : earlier(input, init)
+        }))
+        fireEvent.click(within(step).getByRole('button', { name: /^Export 2 documents…/ }))
+        fireEvent.click(within(await screen.findByRole('dialog', { name: 'Export options' })).getByRole('button', { name: 'CSV file' }))
+        await waitFor(() => expect(blobs).toHaveLength(1))
+        expect(asked.filter((url) => url.includes('/values')).toSorted()).toEqual([
+          `/api/extractions/${member(others[0]!).extractionId}/durable/values?limit=500&snapshotVersion=1&feedbackVersion=0`,
+          `/api/extractions/${alone}/durable/values?limit=500&snapshotVersion=2&feedbackVersion=3`].toSorted())
+      } finally {
+        createObjectURL.mockRestore()
+        revokeObjectURL.mockRestore()
+      }
+    })
+
     it('leads a pilot round\'s review to its next document, then asks for the approval in a dialog', async () => {
       const round = batch([member(here, true), member(others[0]!), member(others[1]!)])
       const { onNavigate } = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round],

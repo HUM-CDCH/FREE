@@ -188,10 +188,8 @@ describe('nextStep in a project', () => {
       const pilot = [batch([member('a'), member('b', true), member('c', true)])]
       const a2 = { ...latest('COMPLETED'), extractionId: 'extraction-a2', toCheck: 0 }
       expect(options(step({ summary: approve(), batches: pilot }))).toEqual(['open-document:positive', 'approve:secondary', 'dismiss:dismiss'])
-      // a's own card has no "Not yet": the approval is its way on.
-      const onA = step({ summary: approve(), batches: pilot, currentDocumentId: 'a' }, { latest: a2 })
-      expect(onA?.key).toBe('review:extraction-a')
-      expect(options(onA)).toEqual(['review:positive', 'approve:secondary'])
+      // On a, which shows a2, a's pilot member can no longer be reviewed: the approval leads.
+      expect(step({ summary: approve(), batches: pilot, currentDocumentId: 'a' }, { latest: a2 })?.key).toBe('approve:revision-2')
       // A second pilot round that covers a again, whichever round this document was opened from.
       const again = [{ ...batch([member('a'), member('b', true), member('c', true)]), batchExtractionId: 'pilot-1' },
         { ...batch([{ ...member('a', true), extractionId: 'extraction-a2' }]), batchExtractionId: 'pilot-2', createdAt: '2026-11-02T00:00:00.000Z' }]
@@ -257,37 +255,59 @@ describe('nextStep in a project', () => {
       ['c', 'extraction-c', 'later'], ['a', 'extraction-a', 'pilot'], ['b', 'extraction-b', 'pilot']])
   })
 
-  // a was run again alone (extraction-a2), after the pilot round.
+  // a was run again alone (extraction-a2) after the pilot round, and reviewed at results 2 and decisions 3.
   const a2 = { sourceDocumentId: 'a', extractionId: 'extraction-a2', schemaRevisionId: 'revision-2', sourceRepresentationRevisionId: 'source-a',
-    batchExtractionId: null, createdAt: '2026-11-02T00:00:00.000Z', completed: true, reviewed: true }
+    batchExtractionId: null as string | null, createdAt: '2026-11-02T00:00:00.000Z', completed: true,
+    review: { snapshotVersion: 2, feedbackVersion: 3 } as { snapshotVersion: number; feedbackVersion: number } | null }
+  // The project's read: each document's latest Extraction as its summary counts it, and the newest each document shows.
+  const read = (extractions: (typeof a2)[], newest = ['extraction-a2', 'extraction-b', 'extraction-c', 'extraction-d']) => ({ extractions, newest })
+  const reviewing = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+    extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
 
-  it('exports each document\'s latest Extraction as the project page counts it, one of the document alone too, once reviewed', () => {
+  it('exports each document\'s latest Extraction as the project page counts it, one of the document alone too, at its reviewed cut', () => {
     const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
       extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
-    const exported = (latest: (typeof a2)[]) => [...exportableResults(project({ summary: done, batches: [batch([member('a', true), member('b', true)])], latest }))]
-      .map(([id, { extractionId, batchExtractionId }]) => [id, extractionId, batchExtractionId])
-    expect(exported([a2])).toEqual([['a', 'extraction-a2', null], ['b', 'extraction-b', 'batch-revision-2']])
+    const exported = (latest: ReturnType<typeof read>, members = [member('a', true), member('b', true)]) =>
+      [...exportableResults(project({ summary: done, batches: [batch(members)], latest }))]
+        .map(([id, { extractionId, batchExtractionId, review }]) => [id, extractionId, batchExtractionId, review])
+    // Each at its finalized results and decisions, not at those saved since.
+    expect(exported(read([a2]))).toEqual([['a', 'extraction-a2', null, { snapshotVersion: 2, feedbackVersion: 3 }],
+      ['b', 'extraction-b', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }]])
     // Not reviewed, or of another revision: the document's reviewed result in the round is exported.
-    expect(exported([{ ...a2, reviewed: false }])[0]).toEqual(['a', 'extraction-a', 'batch-revision-2'])
-    expect(exported([{ ...a2, schemaRevisionId: 'revision-1' }])[0]).toEqual(['a', 'extraction-a', 'batch-revision-2'])
+    expect(exported(read([{ ...a2, review: null }]))[0]).toEqual(['a', 'extraction-a', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }])
+    expect(exported(read([{ ...a2, schemaRevisionId: 'revision-1' }]))[0]).toEqual(['a', 'extraction-a', 'batch-revision-2', { snapshotVersion: 1, feedbackVersion: 0 }])
+    // With no reviewed result, the latest completed one, at its latest results.
+    expect(exported(read([]), [member('a')])).toEqual([['a', 'extraction-a', 'batch-revision-2', null]])
   })
 
-  it('leaves a member to review no longer once its document has a newer latest Extraction, as the project page counts it', () => {
-    const reviewing = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
-      extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
-    expect(step({ summary: reviewing, batches: [batch([member('a'), member('b', true), member('c')])], latest: [a2], currentDocumentId: 'a' }))
+  it('leads no review to a member its document no longer shows: a newer run of it, finished or not', () => {
+    const round = batch([member('a'), member('b', true), member('c')])
+    expect(step({ summary: reviewing, batches: [round], latest: read([a2]), currentDocumentId: 'a' }))
       .toMatchObject({ key: 'review-next:extraction-c', title: 'Review results' })
-    // Its newer run is not reviewed: no claim that this document is.
-    expect(step({ summary: reviewing, batches: [batch([member('a'), member('b', true), member('c')])], latest: [{ ...a2, reviewed: false }],
-      currentDocumentId: 'a' })?.question).toBe('Open c.pdf to review its values?')
-    // A member run after its document's latest (saved values, no completed attempt) still waits.
+    // a2 stopped before it completed: the summary's latest is still a's member, but a shows a2.
+    const stopped = read([{ ...a2, extractionId: 'extraction-a', batchExtractionId: 'batch-revision-2', review: null }])
+    expect(step({ summary: reviewing, batches: [round], latest: stopped, currentDocumentId: 'd' })?.key).toBe('review-next:extraction-c')
+    // Open on a, which shows a2, whatever the project's last read says; and no claim that a is reviewed.
+    expect(step({ summary: reviewing, batches: [round], currentDocumentId: 'a' }, { latest: { ...latest('STOPPED'), extractionId: 'extraction-a2' } }))
+      .toMatchObject({ key: 'review-next:extraction-c', question: 'Open c.pdf to review its values?' })
+    // A member its document shows still waits, whatever the summary counts as its latest.
     const failed = { ...member('a'), executionStatus: 'FAILED' as const, completed: false }
-    expect(step({ summary: reviewing, batches: [batch([failed, member('b', true), member('c')])], latest: [{ ...a2, createdAt: '2026-10-31T00:00:00.000Z' }],
+    expect(step({ summary: reviewing, batches: [batch([failed, member('b', true), member('c')])],
+      latest: read([{ ...a2, extractionId: 'extraction-a0', createdAt: '2026-10-31T00:00:00.000Z' }], ['extraction-a', 'extraction-b', 'extraction-c']),
       currentDocumentId: 'a' })?.key).toBe('review:extraction-a')
-    // Before the approval, a pilot whose only waiting member was re-run alone claims no fully reviewed pilot.
+    // Before the approval, a pilot whose only waiting member a shows no more claims no fully reviewed pilot.
     const approve = summary({ phase: 'approve', currentSchemaRevisionReviewed: true, extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 1 })
-    expect(step({ summary: approve, batches: [batch([member('a'), member('b', true)])], latest: [{ ...a2, reviewed: false }] })).toMatchObject({
+    expect(step({ summary: approve, batches: [batch([member('a'), member('b', true)])], latest: stopped })).toMatchObject({
       key: 'approve:revision-2', question: 'Approve the template for the whole project?' })
+  })
+
+  it('offers a finished run of a document alone, which no round holds, for review with the rounds\' members', () => {
+    const unreviewed = read([{ ...a2, review: null }])
+    const round = batch([member('a'), member('b', true), member('c', true)])
+    expect(step({ summary: reviewing, batches: [round], latest: unreviewed })).toMatchObject({ key: 'review-next:extraction-a2', options: [
+      { action: 'open-document', target: { sourceDocumentId: 'a', extractionId: 'extraction-a2', batchExtractionId: null } }, { action: 'dismiss' }] })
+    expect(step({ summary: reviewing, batches: [round], latest: unreviewed, currentDocumentId: 'a' })?.key).toBe('review:extraction-a2')
+    expect(step({ summary: reviewing, batches: [batch([member('b', true)])], latest: unreviewed })?.key).toBe('review-next:extraction-a2')
   })
 
   it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {
