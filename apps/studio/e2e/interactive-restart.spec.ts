@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { STUDIO_BOOT_HEADER } from '../shared/studioBoot.js'
 import { plantedKey } from '../test/support/plantedKey.js'
 import { E2E_ORIGIN, e2eStudioPath } from './auth.js'
-import { openRailView } from './rail.js'
+import { openRailView, workspaceRail } from './rail.js'
 import { prepareInteractiveDocument, type InteractiveDocument } from './interactiveStack.js'
 import { killStudio } from './studioRestart.js'
 
@@ -106,14 +106,14 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   // The reloaded page polls the running proposal; every poll answers with the Studio process's boot ID.
   const firstListing = page.waitForResponse((response) => pathOf(response.url()) === '/api/model-operations')
   await page.reload()
-  await openRailView(page, 'Template')
   const firstBoot = (await firstListing).headers()[STUDIO_BOOT_HEADER.toLowerCase()]
   expect(firstBoot).toBeTruthy()
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toBeVisible({ timeout: 20_000 })
   // The workspace finishes loading its document before Studio goes: a load cut mid-way is the page's bounded
   // "could not be opened" failure, which is not what this spec is about.
   await expect(page.getByText('/ 6', { exact: true })).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByText('title', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
+  // Its template too: the chat's Template line counts the loaded template's fields.
+  await expect(workspaceRail(page).getByRole('button', { name: /^Open template: [1-9]\d* fields?/ })).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(3_000) // the PDF worker and the rest of the document's loads (the polls never go idle)
   const requests = recordApiRequests(page)
 

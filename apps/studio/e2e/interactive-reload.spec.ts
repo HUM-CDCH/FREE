@@ -119,11 +119,13 @@ test('a reload mid-suggestSchema finds the running generation and saves it onto 
   await regenerate(page, 'Catalog entries')
   await stack.model.waitForCall(1, 30_000)
   await page.reload()
-  await openRailView(page, 'Template')
 
+  // The reloaded page lands on the chat, whose conversation names the running request.
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toBeVisible({ timeout: 20_000 })
   stack.model.release()
 
+  await expect(page.getByText(STILL_WORKING('Catalog entries'))).toHaveCount(0, { timeout: 20_000 })
+  await openRailView(page, 'Template')
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
   expect(stack.model.calls()).toHaveLength(1)
@@ -139,7 +141,6 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   await regenerate(page, 'Catalog entries')
   await stack.model.waitForCall(1, 30_000)
   await page.reload()
-  await openRailView(page, 'Template')
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toBeVisible({ timeout: 20_000 })
 
   // Newer work from another tab of the same account: a second revision lands while the generation runs.
@@ -155,6 +156,7 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   stack.model.release()
 
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toHaveCount(0, { timeout: 20_000 })
+  await openRailView(page, 'Template')
   // The generation's base moved: it is dropped, the page adopts the newer revision and shows no error.
   await expect(page.getByLabel('What one record is')).toHaveValue('One edited record.', { timeout: 20_000 })
   await page.waitForTimeout(3_000)
@@ -193,19 +195,18 @@ test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists ac
   await requestEdit(page, 'Rename title to heading')
   await stack.model.waitForCall(1, 30_000)
   await page.reload()
-  await openRailView(page, 'Template')
 
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toBeVisible({ timeout: 20_000 })
   stack.model.release()
 
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: /^Review in the Template view/ }).click()
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Discard' }).click()
   await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
 
   await page.reload()
   await stack.open()
-  await openRailView(page, 'Template')
   await page.waitForTimeout(3_000)
   await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toHaveCount(0)
