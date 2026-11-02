@@ -270,14 +270,14 @@ def unreadable_blocks(native: Transcription, glyphs: bool, artwork: list[OcrRegi
     """What native text could not read, planned for OCR: native's records as they stay, and one region per box with
     its place among its page's native blocks and its crop kind.
 
-    With `glyphs`, a body block whose text keeps an undecodable glyph leaves native text and is read as text in its
-    place, one region per box (its caption's first, for a table). A table Docling found no readable cells in
-    (`native.blocks_of` marks it an error) keeps its block, for its caption, no longer an error; its boxes are read
-    just after it as artwork that must hold text (`hybrid.supplement`) but is not the screened artwork whose
-    empty-figure loops Surya retries with page context. One that overlaps its page's screened `artwork` by more than
-    5% of its area stays an error and makes its page incomplete: its own crop would read that artwork's pixels a
-    second time (one at least 95% inside a single artwork region is no native block). Running heads and feet stay
-    native."""
+    A table Docling found no readable cells in (`native.blocks_of` marks it an error) with a box that overlaps its
+    page's screened `artwork` by more than 5% of that box's area stays an error and makes its page incomplete: a crop
+    of that box would read the artwork's pixels a second time (one at least 95% inside a single artwork region is no
+    native block). With `glyphs`, a body block whose text keeps an undecodable glyph leaves native text and is read
+    as text in its place, one region per box (its caption's first, for a table). Any other such table keeps its
+    block, for its caption, no longer an error; its boxes are read just after it as artwork that must hold text
+    (`hybrid.supplement`) but is not the screened artwork whose empty-figure loops Surya retries with page context.
+    Running heads and feet stay native."""
     records, regions, places, kinds = [], [], [], []
     for record in native.pages:
         blocks = record.payload.get("blocks", [])
@@ -285,17 +285,17 @@ def unreadable_blocks(native: Transcription, glyphs: bool, artwork: list[OcrRegi
         kept, refused = [], []
         for index, block in enumerate(blocks):
             boxes = block.get("boxes", [block["bbox"]])
-            overlap = sum(max(0, min(x1, ax1) - max(x0, ax0)) * max(0, min(y1, ay1) - max(y0, ay0))
-                          for x0, y0, x1, y1 in boxes for ax0, ay0, ax1, ay1 in art)
-            if glyphs and block["label"] not in hybrid.FURNITURE and undecodable(block["html"]):
+            if block.get("error") and any(
+                    sum(max(0, min(x1, ax1) - max(x0, ax0)) * max(0, min(y1, ay1) - max(y0, ay0))
+                        for ax0, ay0, ax1, ay1 in art) > 0.05 * (x1 - x0) * (y1 - y0) for x0, y0, x1, y1 in boxes):
+                kept.append(block)
+                refused.append(f"page {record.source_page}: table with no readable cells at "
+                               f"{[round(v) for v in block['bbox']]} overlaps OCR'd artwork")
+            elif glyphs and block["label"] not in hybrid.FURNITURE and undecodable(block["html"]):
                 for box in [*block.get("caption_boxes", []), *boxes]:  # as its HTML reads
                     regions.append(OcrRegion(record.source_page, tuple(box)))
                     places.append(index)
                     kinds.append("text")
-            elif block.get("error") and overlap > 0.05 * sum((x1 - x0) * (y1 - y0) for x0, y0, x1, y1 in boxes):
-                kept.append(block)
-                refused.append(f"page {record.source_page}: table with no readable cells at "
-                               f"{[round(v) for v in block['bbox']]} overlaps OCR'd artwork")
             elif block.get("error"):
                 kept.append({**block, "error": False})
                 for box in boxes:

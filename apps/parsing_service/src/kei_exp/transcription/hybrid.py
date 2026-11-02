@@ -65,9 +65,10 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
 
 
 def _has_text(record: PageRecord) -> bool:
-    # Not the Markdown: Docling exports Surya's bare `<img/>` (a table it read as a picture) as `<!-- image -->`.
+    # Not the Markdown: Docling exports Surya's bare `<img/>` (a table it read as a picture) as `<!-- image -->`. A
+    # Markdown VLM's text is its Markdown, so such markup is read off it too.
     blocks = record.payload.get("blocks") or []
-    return any(part.strip() for part in [record.text,
+    return any(part.strip() for part in [html_to_text(record.text),
                                          *(html_to_text(b["html"]) for b in blocks if not b.get("skipped"))])
 
 

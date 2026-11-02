@@ -117,10 +117,18 @@ def test_a_table_with_no_readable_cells_is_read_after_its_block_unless_its_capti
     assert kept.pages[0].payload["blocks"] == []
     assert (regions, places, kinds) == ([OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))], [0, 0],
                                         ["text", "text"])
-    # Its own crop would read the pixels of artwork over more than 5% of it a second time: its page is refused.
-    kept, regions, *_ = unreadable_blocks(native, False, [OcrRegion(1, (10, 60, 290, 200))])
-    assert kept.pages[0].payload["blocks"] == [table] and regions == []
-    assert kept.pages[0].incomplete == "page 1: table with no readable cells at [10, 40, 290, 90] overlaps OCR'd artwork"
+    # Its own crop would read the pixels of artwork over more than 5% of it a second time: its page is refused,
+    # its caption's undecodable glyph notwithstanding.
+    for glyphs in (False, True):
+        kept, regions, *_ = unreadable_blocks(native, glyphs, [OcrRegion(1, (10, 60, 290, 200))])
+        assert kept.pages[0].payload["blocks"] == [table] and regions == []
+        assert kept.pages[0].incomplete == ("page 1: table with no readable cells at [10, 40, 290, 90] overlaps "
+                                            "OCR'd artwork")
+    # Each box on its own: a small one inside the artwork is refused however large the table's other box is.
+    wide = {**table, "bbox": [10, 300, 580, 840], "boxes": [[10, 300, 580, 840], [20, 70, 280, 80]]}
+    kept, regions, *_ = unreadable_blocks(Transcription({}, [record(1, [wide], source_page=1)]), False,
+                                          [OcrRegion(1, (10, 60, 290, 200))])
+    assert regions == [] and kept.pages[0].incomplete is not None
     kept, regions, *_ = unreadable_blocks(native, False, [OcrRegion(1, (10, 88, 290, 200)), OcrRegion(2, (10, 40, 290, 90))])
     assert regions == [OcrRegion(1, (10, 40, 290, 90))] and kept.pages[0].incomplete is None  # 4%, and another page
 

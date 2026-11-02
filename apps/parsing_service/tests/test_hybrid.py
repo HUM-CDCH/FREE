@@ -235,11 +235,13 @@ def test_an_empty_native_table_is_replaced_by_ocr_without_losing_its_caption(ill
 PICTURE = {"html": "", "bbox": [0, 0, 10, 10], "label": "Picture", "confidence": 1.0, "error": False, "skipped": True}
 
 
-@pytest.mark.parametrize("answer", [[block("Raster table words", (0, 0, 10, 10))], [PICTURE],
-                                    [{**PICTURE, "html": "<img/>", "label": "Table", "skipped": False}], []],
-                         ids=["printed as images", "read as a picture", "read as a bare image", "a blank grid"])
+@pytest.mark.parametrize("model, answer", [
+    ("surya", [block("Raster table words", (0, 0, 10, 10))]), ("surya", [PICTURE]),
+    ("surya", [{**PICTURE, "html": "<img/>", "label": "Table", "skipped": False}]), ("surya", []),
+    ("infinity_parser", "<!-- image -->"),
+], ids=["printed as images", "read as a picture", "read as a bare image", "a blank grid", "a Markdown VLM's picture"])
 def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_ocr_after_it_or_refuses_its_page(
-        illustrated_pdf, tmp_path, monkeypatch, answer):
+        illustrated_pdf, tmp_path, monkeypatch, model, answer):
     """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
     plans OCR for the page's real artwork only, and Docling reads a document index with no readable cell. Its boxes
     are read just after its block, before the artwork printed below it. OCR finding no text there refuses the page:
@@ -265,15 +267,16 @@ def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_oc
                              status=ConversionStatus.SUCCESS)
     monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
         convert=lambda *args, **kwargs: result))
-    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", pages=(1, 1), result_dir=tmp_path / "result"))
+    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model=model, pages=(1, 1), result_dir=tmp_path / "result"))
     assert [region.bbox for region in execution.ocr_regions] == [(72, 292, 372, 442)]  # the artwork, not the table
 
-    def recognize(request, crops, emit):
+    def recognize(request, crops, emit):  # a Markdown VLM's answer is its record's Markdown and text, without blocks
         answers = {(72, 292, 372, 442): [block("Artwork words", (0, 0, 10, 10))], (72, 130, 372, 280): answer}
-        return Transcription({}, [record(n, answers[tuple(region.bbox)], image=image)
+        return Transcription({}, [replace(record(n, [], image=image), payload={}, text=read, markdown=read)
+                                  if isinstance(read := answers[tuple(region.bbox)], str) else record(n, read, image=image)
                                   for n, (_, region, image) in enumerate(crops, 1)])
 
-    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", recognize)
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya" if model == "surya" else "vlm"], "transcribe", recognize)
     if answer != [block("Raster table words", (0, 0, 10, 10))]:
         with pytest.raises(ocr.IncompleteConversionError,
                            match="page 1: OCR of crop 2, a table with no readable cells, returned no text"):
