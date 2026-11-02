@@ -60,7 +60,7 @@ describe('durable exports', () => {
   it('explains an unavailable batch row choice without silently changing the requested projection', async () => {
     const member = { extractionId: 'one', sourceDocumentId: 'one', sourceDocumentName: 'one.pdf', sourceRevisionId: 'one', status: 'PAUSED' };
     const snapshots = [{ fixed, member, values: [value(0, title, 'A title')] }];
-    await expect(durableBatchExportBlob({ batchExtractionId: 'batch' }, [member], snapshots, 'csv', { ...root, rowsRepresent: 'finds' })).rejects.toThrow('Choose Root result or another field');
+    await expect(durableBatchExportBlob({ batchExtractionId: 'batch' }, [member], snapshots, 'csv', { ...root, rowsRepresent: 'finds' })).rejects.toThrow('Choose “Each record”, or another list.');
   })
   it('keeps Evidence labels aligned with the Results columns for mixed producing types', async () => {
     const asText: SchemaNode = { ...year, type: 'string' };
@@ -183,6 +183,15 @@ describe('durable exports', () => {
     const csv = await durableBatchExportBlob({ batchExtractionId: 'batch' }, members, snapshots, 'csv', root)
     expect(csv.type).toBe('text/csv;charset=utf-8')
     expect((await csv.text()).split('\r\n')[0]).toBe('Source Document,Source Document ID,Batch Extraction ID,title,site,year,gilded,names,finds.0.name,finds.0.count,finds.1.name,finds.1.count,catalogue,year (string)')
+  })
+
+  it('names each row\'s own Batch Extraction when an export spans several (the chat\'s)', async () => {
+    const member = { extractionId: 'extraction', sourceDocumentId: 'one', sourceDocumentName: 'first.pdf', sourceRevisionId: 'source', status: 'COMPLETED' }
+    const spanning = [{ ...member, batchExtractionId: 'pilot' }, { ...member, extractionId: 'later', sourceDocumentId: 'two', sourceDocumentName: 'second.pdf', batchExtractionId: 'batch' }]
+    const csv = await durableBatchExportBlob({ batchExtractionId: '' }, spanning,
+      spanning.map((each) => ({ fixed, values: [value(0, title, each.sourceDocumentName)], member: each })), 'csv', root)
+    expect((await csv.text()).split('\r\n').slice(1, 3).map((row) => row.split(',').slice(0, 3))).toEqual([
+      ['first.pdf', 'one', 'pilot'], ['second.pdf', 'two', 'batch']])
   })
 })
 

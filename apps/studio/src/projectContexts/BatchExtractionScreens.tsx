@@ -115,7 +115,7 @@ function batchStatus(batch: BatchExtraction): {
 }
 
 function batchSchemaLine(batch: BatchExtraction): string {
-  return `${batch.extractionSchemaName} · Schema Revision ${batch.schemaRevisionNumber}`
+  return `${batch.extractionSchemaName} · Template Revision ${batch.schemaRevisionNumber}`
 }
 
 /** The batch's one spreadsheet: every member's saved values, one row per record, through the shared export options. */
@@ -149,7 +149,7 @@ function isPilotRound(batch: BatchExtraction): boolean {
 }
 
 /** Where a settled batch stands for the researcher: what is left before it is done, or that it is. Null while it runs
- *  and for a pilot round, whose end is the schema's approval (the document's PilotReviewGuide leads there). */
+ *  and for a pilot round, whose end is the schema's approval (the chat's review step leads there). */
 function batchOutcome(batch: BatchExtraction): { done: boolean; title: string; detail: string } | null {
   if (isPilotRound(batch) || batchStatus(batch).running) return null
   const progress = batchExtractionProgress(batch)
@@ -176,8 +176,8 @@ export function BatchExtractionHistory({
   if (batches.length === 0)
     return (
       <p className="py-6 text-center text-xs text-ink-muted">
-        No Batch Extractions yet. Start with "Pilot Extraction" above — it
-        picks a small first selection so you can catch a schema issue before
+        No Batch Extractions yet. Once the template is ready, the chat pilots it
+        on a few documents first, so you can catch a template issue before
         committing to the whole collection.
       </p>
     )
@@ -327,7 +327,7 @@ export function BatchExtractionMembers({
             {pinnedSchemaFailure}
           </p>
           <Button size="sm" variant="secondary" onClick={onRetrySchema}>
-            Retry Schema Revision
+            Retry Template Revision
           </Button>
         </div>
       )}

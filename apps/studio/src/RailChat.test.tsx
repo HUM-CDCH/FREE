@@ -21,23 +21,23 @@ function Harness(props: Omit<RailChatProps, 'chat'>) {
 }
 
 function renderChat(props: Partial<Omit<RailChatProps, 'chat'>> = {}) {
-  const all = { schema: schemaWithFields(), sourceDocumentName: 'letters.pdf', latest: null, onShowTab: vi.fn(), ...props }
+  const all = { schema: schemaWithFields(), sourceDocumentName: 'letters.pdf', latest: null, onShowView: vi.fn(), ...props }
   render(<Harness {...all} />)
   return all
 }
 
 describe('RailChat', () => {
-  it('asks for Generate schema before the first schema and generates with the kept instructions', () => {
+  it('asks for Generate template before the first template and generates with the kept instructions', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
     // No source to ask about: a message is kept as an instruction directly.
     const input = screen.getByPlaceholderText(/Add a generation instruction/)
     fireEvent.change(input, { target: { value: 'Focus on senders' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    const step = screen.getByRole('region', { name: 'Generate schema' })
-    fireEvent.click(within(step).getByRole('button', { name: 'Generate schema (1 message)' }))
+    const step = screen.getByRole('region', { name: 'Generate template' })
+    fireEvent.click(within(step).getByRole('button', { name: 'Generate template (1 message)' }))
     expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
-    expect(screen.getByText('Generate schema (1 message)', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Generate template (1 message)', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('saves the Record Scope from its step and folds the answer into the conversation', () => {
@@ -45,7 +45,8 @@ describe('RailChat', () => {
     renderChat({ recordScope: { value: null, onChange } })
     fireEvent.click(screen.getByRole('button', { name: /^Catalog: many records per document/ }))
     expect(onChange).toHaveBeenCalledExactlyOnceWith('records')
-    expect(screen.getByText('Choose Record Scope')).toBeInTheDocument()
+    // The step's title, and its answer folded into the open conversation.
+    expect(screen.getAllByText('Choose Record Scope')).toHaveLength(2)
   })
 
   it('runs the extraction from its step, with keys 1 and Esc', () => {
@@ -60,27 +61,30 @@ describe('RailChat', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, run: { start: vi.fn(), available: true, unavailableReason: null } })
     fireEvent.keyDown(screen.getByRole('region', { name: 'Run extraction' }), { key: 'Escape' })
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
-    // The answer is in the collapsed conversation, which the composer's dot opens.
-    fireEvent.click(screen.getByRole('button', { name: 'Show conversation' }))
+    // The answer is in the conversation, which is the rail's home.
     expect(screen.getByText(/Not yet/)).toBeInTheDocument()
   })
 
-  it('shows the step while the conversation is collapsed', () => {
-    renderChat({ recordScope: { value: null, onChange: vi.fn() } })
+  it('shows the step and the composer under another view, and returns home to answer a message', () => {
+    const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    fireEvent.change(input, { target: { value: 'Add a recipient' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onShowView).toHaveBeenCalledExactlyOnceWith('chat')
   })
 
   it('opens Results after a finished run', () => {
-    const onShowTab = vi.fn()
+    const onShowView = vi.fn()
     renderChat({
-      onShowTab,
+      onShowView,
       recordScope: { value: 'records', onChange: vi.fn() },
       run: { start: vi.fn(), available: true, unavailableReason: null },
       latest: { extractionId: 'extraction-1', schemaRevisionId: 'missing', status: 'COMPLETED', progress: 'Completed · Catalog · 3 records', toCheck: 2 },
     })
     // The schema changed since that run (its revision is not this draft's): a new run is offered, not the review.
     expect(screen.getByRole('region', { name: 'Run extraction again' })).toBeInTheDocument()
-    expect(onShowTab).not.toHaveBeenCalled()
+    expect(onShowView).not.toHaveBeenCalled()
   })
 })

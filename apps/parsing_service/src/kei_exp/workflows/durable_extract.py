@@ -101,6 +101,10 @@ def chat_for(provider):
         from kei_exp.kie.extract.codex import CodexChat
         return CodexChat(model=provider["model"], url=provider["url"], timeout=provider["timeout"],
                          max_tokens=provider["maxTokens"])
+    if provider["adapter"] == "claude-code":
+        from kei_exp.kie.extract.claude_code import ClaudeCodeChat
+        return ClaudeCodeChat(model=provider["model"], url=provider["url"], timeout=provider["timeout"],
+                              max_tokens=provider["maxTokens"])
     kind = {"instruct": OpenAIChat, "nuextract": NuExtractChat}.get(provider["adapter"])
     if kind is None:
         raise ValueError("unsupported durable fields adapter")
@@ -163,7 +167,7 @@ class PinnedCounter:
 def drop_stale_counts(extraction: str, attempt: str, attempts: list[calls.Call], *, upper_bound: bool = False) -> bool:
     """A call the server counted otherwise than its planning did: the attempt's kept /tokenize counts may be stale (a
     redeploy or another replica the probe did not show), so later planning rounds count again. True when dropped.
-    An upper bound (Codex) is computed, never served, so it cannot be stale and differs from usage by design."""
+    An upper bound (Codex, Claude Code) is computed, never served, so it cannot be stale and differs from usage by design."""
     if not upper_bound and any(call.counted_input_tokens is not None and call.input_tokens is not None
            and call.input_tokens != call.counted_input_tokens for call in attempts):
         tokens.forget(f"{extraction}/{attempt}")

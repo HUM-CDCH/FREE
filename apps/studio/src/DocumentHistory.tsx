@@ -6,7 +6,7 @@ import Button from './ui/Button'
 
 const at = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const word = (value: string) => value[0] + value.slice(1).toLowerCase()
-const revisions = (numbers: number[]) => numbers.length === 1 ? `schema rev ${numbers[0]}` : `schema revs ${numbers.join(', ')}`
+const revisions = (numbers: number[]) => numbers.length === 1 ? `template rev ${numbers[0]}` : `template revs ${numbers.join(', ')}`
 const shownTag = <span className="shrink-0 text-compact font-semibold text-accent">Shown</span>
 
 /** The document's Extractions, newest first: which one Results shows, which one the document opens on, and the schema
@@ -42,7 +42,7 @@ export default function DocumentHistory({ projectContextId, sourceDocumentId, vi
       {!history && !error && <p className="m-0 pt-2 text-secondary text-ink-muted">Loading…</p>}
       {history && <div className="space-y-2 pt-2 text-secondary">
         {history.extractions.length === 0 && <p className="m-0 text-compact text-ink-muted">No Extractions of this document yet.</p>}
-        {currentUnused && <p className="m-0 text-compact text-ink-muted">Not run yet with the current schema revision (rev {currentSchemaRevision.revisionNumber}, shared across the Project).</p>}
+        {currentUnused && <p className="m-0 text-compact text-ink-muted">Not run yet with the current template revision (rev {currentSchemaRevision.revisionNumber}, shared across the Project).</p>}
         <ol aria-label="Extractions of this document" className="m-0 list-none space-y-2 p-0">
           {history.extractions.map((extraction) => {
             const { extractionId } = extraction

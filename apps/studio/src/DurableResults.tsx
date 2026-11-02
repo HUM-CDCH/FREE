@@ -177,9 +177,9 @@ function HistoryAudit({id}:{id:string}) {
   if(!history)return <p role={error?'alert':'status'} className="pt-2 text-compact text-ink-muted">{error??'Loading…'}</p>
   return <div className="space-y-3 pt-2">
     {history.selections.map(selection=><details key={selection.id}>
-      <summary className="cursor-pointer">Input selection {selection.ordinal} · schema {selection.schemaRevisionId.slice(0,8)}</summary>
+      <summary className="cursor-pointer">Input selection {selection.ordinal} · template {selection.schemaRevisionId.slice(0,8)}</summary>
       <ProducingMethod ordinal={selection.ordinal} requested={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
-      <details><summary className="cursor-pointer">Pinned schema and admission inputs</summary>
+      <details><summary className="cursor-pointer">Pinned template and admission inputs</summary>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>
       </details>
     </details>)}
@@ -224,14 +224,14 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
           <span aria-current={finalization.id===review||undefined} className={finalization.id===review?'font-semibold':undefined}>Results {finalization.snapshotVersion}<span className="font-normal text-ink-muted">{savedAt(finalization.createdAt)&&` · ${savedAt(finalization.createdAt)}`}{finalization.id===review&&' · shown'}</span></span>
           <Button aria-label={`Open finalized review of results ${finalization.snapshotVersion}`} onClick={()=>onSnapshot(finalization.snapshotVersion,finalization.feedbackVersion)}>Open</Button>
         </li>)}</ul></section>}
-      {history.selections.length>0&&<section aria-label="Inputs"><h3 className="m-0 text-compact font-semibold">Schema and model used</h3>
+      {history.selections.length>0&&<section aria-label="Inputs"><h3 className="m-0 text-compact font-semibold">Template and model used</h3>
         <ul className="m-0 list-none space-y-1 p-0">{[...history.selections].reverse().map(selection=> {
           const effective=history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined
           const previous=history.selections.find(each=>each.ordinal===selection.ordinal-1)
           const producingSchema=history.schemaRevisions?.find(revision=>revision.schemaRevisionId===selection.schemaRevisionId)
           return <li key={selection.id}>
             {selection.ordinal===1?'First inputs':`Changed inputs (version ${selection.ordinal})`}
-            <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}{producingSchema&&` · ${resultSchemaLabel(producingSchema)}`}</span>
+            <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · template changed':''}{producingSchema&&` · ${resultSchemaLabel(producingSchema)}`}</span>
           </li>})}</ul></section>}
       {/* The run's intermediate saves: for audit, one disclosure away; Results shows the latest. */}
       {history.snapshots.length>0&&<details><summary className="cursor-pointer text-compact text-ink-muted">Intermediate results ({history.snapshots.length})</summary>
@@ -632,7 +632,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {detailsOpen&&<div className="space-y-1 text-secondary">
         <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 [&>dd]:m-0 [&>dt]:text-ink-muted">
           {attempt.createdAt&&<><dt>Started</dt><dd>{savedAt(attempt.createdAt)}</dd></>}
-          {quiet&&<><dt>Schema</dt><dd>{resultSchemaLabel(quiet)}</dd></>}
+          {quiet&&<><dt>Template</dt><dd>{resultSchemaLabel(quiet)}</dd></>}
           <dt>Inputs</dt><dd>version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}</dd>
           {state.failure&&<><dt>Failure</dt><dd>{state.failure.code}</dd></>}
         </dl>
@@ -653,7 +653,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         <button type="button" className={linkClass} onClick={showLatest}>Show the latest results</button></p>}
     </div>}
     <div ref={resultsContainer} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">
-      {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
+      {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending template and won’t be shown to the model.{' '}
         {onShowHistory&&<button type="button" className={linkClass} onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
         {/* Hidden for now: "Corrections the model learns from". Restore with the import above; while hidden, `unfit`

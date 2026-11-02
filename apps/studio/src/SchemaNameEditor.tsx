@@ -53,8 +53,8 @@ export default function SchemaNameEditor({
         <button
           className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted opacity-0 outline-none transition-colors hover:bg-surface-muted hover:text-ink group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           type="button"
-          aria-label={`Rename schema ${name}`}
-          title="Rename schema"
+          aria-label={`Rename template ${name}`}
+          title="Rename template"
           onClick={() => {
             setDraft(name)
             setFailure(null)
@@ -88,7 +88,7 @@ export default function SchemaNameEditor({
         ref={inputRef}
         autoFocus
         className="h-7 min-w-0 flex-1 border-b border-line-strong bg-transparent p-0 font-[inherit] text-[inherit] outline-none focus-visible:border-accent read-only:opacity-60"
-        aria-label={`Schema name for ${name}`}
+        aria-label={`Template name for ${name}`}
         value={draft}
         readOnly={saving}
         aria-busy={saving}
@@ -102,8 +102,8 @@ export default function SchemaNameEditor({
       <button
         className="grid size-6 shrink-0 place-items-center rounded-md leading-none text-green outline-none hover:bg-green-soft disabled:opacity-60"
         type="submit"
-        aria-label="Save schema name"
-        title="Save schema name"
+        aria-label="Save template name"
+        title="Save template name"
         disabled={saving || !parsed.success}
       >
         <span aria-hidden="true">✓</span>
@@ -111,8 +111,8 @@ export default function SchemaNameEditor({
       <button
         className="grid size-6 shrink-0 place-items-center rounded-md leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink disabled:opacity-60"
         type="button"
-        aria-label="Cancel schema rename"
-        title="Cancel schema rename"
+        aria-label="Cancel template rename"
+        title="Cancel template rename"
         onClick={close}
       >
         <span aria-hidden="true">×</span>

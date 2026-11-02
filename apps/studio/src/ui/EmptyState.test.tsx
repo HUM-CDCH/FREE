@@ -9,7 +9,7 @@ afterEach(cleanup)
 
 it('wraps its actions, centred with their gap, so three fit a 264px rail', () => {
   render(
-    <EmptyState title="No schema yet">
+    <EmptyState title="No template yet">
       <button type="button">Generate from the document</button>
       <button type="button">Import from Excel codebook…</button>
       <button type="button">Start blank</button>

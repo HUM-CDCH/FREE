@@ -10,11 +10,11 @@ afterEach(cleanup)
 function renderMenu(items: ActionItem[]) {
   render(
     <>
-      <ActionsMenu label="Schema actions" items={items} />
+      <ActionsMenu label="Template actions" items={items} />
       <button type="button">Outside</button>
     </>,
   )
-  const trigger = screen.getByRole('button', { name: 'Schema actions' })
+  const trigger = screen.getByRole('button', { name: 'Template actions' })
   // A pointer click carries its click count in `detail`.
   return { trigger, open: () => { trigger.focus(); fireEvent.click(trigger, { detail: 1 }) } }
 }
@@ -46,7 +46,7 @@ describe('ActionsMenu', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     open()
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('menu', { name: 'Schema actions' })).toBeInTheDocument()
+    expect(screen.getByRole('menu', { name: 'Template actions' })).toBeInTheDocument()
     for (const entry of screen.getAllByRole('menuitem')) expect(entry).toHaveAttribute('tabindex', '-1')
   })
 

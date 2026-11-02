@@ -362,8 +362,9 @@ export function parsingGpuComposeArguments(environment = process.env, execute = 
   const mode = environment.FREE_GPU || 'auto'
   if (!['auto', 'off', 'required', 'shared'].includes(mode))
     throw new Error('FREE_GPU must be auto, off, required, or shared.')
-  if (environment.KEI_EXTRACT_PROVIDER === 'codex-cli' && mode !== 'off')
-    throw new Error('Codex extraction requires FREE_GPU=off; use an external OCR server for scanned PDFs.')
+  const provider = { 'codex-cli': 'Codex', 'claude-code': 'Claude Code' }[environment.KEI_EXTRACT_PROVIDER]
+  if (provider && mode !== 'off')
+    throw new Error(`${provider} extraction requires FREE_GPU=off; use an external OCR server for scanned PDFs.`)
   if (mode === 'off') return []
   if (mode === 'shared') {
     console.log('Models: using the model servers another stack shares on the free-models network.')
@@ -384,12 +385,17 @@ export function parsingGpuComposeArguments(environment = process.env, execute = 
   return []
 }
 
+// A deployment-owned CLI login replaces the extraction model servers.
+function extractionComposeFiles(environment) {
+  return { 'codex-cli': ['compose.codex.yaml'], 'claude-code': ['compose.claude.yaml'] }[environment.KEI_EXTRACT_PROVIDER] ?? []
+}
+
 export function developmentComposeFiles(profile, environment = process.env) {
   return [
     'compose.yaml',
     'compose.override.yaml',
     ...(profile.entra ? ['compose.entra.yaml'] : []),
-    ...(environment.KEI_EXTRACT_PROVIDER === 'codex-cli' ? ['compose.codex.yaml'] : []),
+    ...extractionComposeFiles(environment),
   ]
 }
 
@@ -617,7 +623,7 @@ export function productionComposeFiles(environment) {
     'compose.yaml',
     'compose.prod.yaml',
     ...(environment.FREE_NGINX === 'container' ? ['compose.nginx.yaml'] : []),
-    ...(environment.KEI_EXTRACT_PROVIDER === 'codex-cli' ? ['compose.codex.yaml'] : []),
+    ...extractionComposeFiles(environment),
   ]
 }
 

@@ -18,7 +18,7 @@ describe('the one-by-one queue', () => {
   ])
   const queue = reviewQueue(two)
 
-  it('orders by record in list order, doubtful links first, then schema order; only decidable values of read records', () => {
+  it('orders by record in list order, doubtful links first, then template order; only decidable values of read records', () => {
     expect(queue.map((item) => item.key)).toEqual(['3.c', '3.a', '3.b', '1.x', '1.y'])
   })
 

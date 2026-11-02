@@ -272,7 +272,7 @@ afterEach(() => {
 async function openSuggestedFields() {
   fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
   await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-  fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+  fireEvent.change(screen.getByLabelText('Extraction Template'), {
     target: { value: '__suggest_common_fields__' },
   })
   return screen.findByLabelText('Suggested common fields')
@@ -350,7 +350,7 @@ describe('BatchExtractionsPanel', () => {
     })
   })
 
-  it('renders markup-like batch schema and member names as inert text', async () => {
+  it('renders markup-like batch template and member names as inert text', async () => {
     const schemaName = '<img src=x onerror="batch-secret">'
     const sourceName = '<script>member-secret</script>.pdf'
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -385,7 +385,7 @@ describe('BatchExtractionsPanel', () => {
       documents[1],
     ])
 
-    fireEvent.click(await screen.findByText(`${schemaName} · Schema Revision 1`))
+    fireEvent.click(await screen.findByText(`${schemaName} · Template Revision 1`))
     expect(await screen.findByText(sourceName, { exact: true })).toBeVisible()
     expect(document.querySelector('img[src="x"]')).toBeNull()
     expect(document.querySelector('script')).toBeNull()
@@ -423,7 +423,7 @@ describe('BatchExtractionsPanel', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    expect(await screen.findByText('Places · Schema Revision 1')).toBeVisible()
+    expect(await screen.findByText('Places · Template Revision 1')).toBeVisible()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(listReads).toBe(2)
   })
@@ -478,7 +478,7 @@ describe('BatchExtractionsPanel', () => {
     // The chosen Schema Revision (stabilised, per this fixture) loads
     // independently of the document checkboxes; wait for it so the later
     // Run-enabled assertions aren't racing that fetch.
-    await screen.findByText(/This schema is approved for batch extraction/)
+    await screen.findByText(/This template is approved for batch extraction/)
     expect(screen.getByText(/takes at most 50/)).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Run 51 Source Documents' }),
@@ -488,7 +488,7 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(/takes at most 50/)).not.toBeInTheDocument()
     await enabledRun('Run 50 Source Documents')
 
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     expect(
@@ -500,7 +500,7 @@ describe('BatchExtractionsPanel', () => {
     ).toBeDisabled()
   })
 
-  it('pre-selects a schema and up to 3 Source Documents when starting a Pilot Extraction', async () => {
+  it('pre-selects a template and up to 3 Source Documents when starting a Pilot Extraction', async () => {
     const manyDocuments = Array.from({ length: 6 }, (_, index) => ({
       sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
       name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
@@ -559,7 +559,7 @@ describe('BatchExtractionsPanel', () => {
     for (const name of [/^Source 04\.pdf/, /^Source 05\.pdf/, /^Source 06\.pdf/])
       expect(screen.getByRole('checkbox', { name })).not.toBeChecked()
     expect(
-      within(screen.getByLabelText('Extraction Schema')).getByRole('option', {
+      within(screen.getByLabelText('Extraction Template')).getByRole('option', {
         name: /Places/,
         selected: true,
       }),
@@ -571,7 +571,7 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /^Source 04\.pdf/ }))
     expect(screen.getByText('3 selected')).toBeInTheDocument()
     // The workflow's pilot runs its Current Schema Revision: no other schema, no suggestion, no skipping ahead.
-    expect(screen.getByLabelText('Extraction Schema')).toBeDisabled()
+    expect(screen.getByLabelText('Extraction Template')).toBeDisabled()
     expect(screen.queryByRole('option', { name: 'Suggest fields from selected sources' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Skip/)).not.toBeInTheDocument()
   })
@@ -608,7 +608,7 @@ describe('BatchExtractionsPanel', () => {
     )
   }
 
-  it("an approved schema's hand-off opens the pilot preparation once the Source Documents have loaded", async () => {
+  it("an approved template's hand-off opens the pilot preparation once the Source Documents have loaded", async () => {
     stubPilotPreparation()
     const props = { projectContextId, openBatchExtractionId: null, pilotSchemaRevisionId: schemaRevisionId, onNavigate: () => {} }
     // The project's documents are still loading when the approval lands here.
@@ -633,7 +633,7 @@ describe('BatchExtractionsPanel', () => {
     expect(onGuidedRequestHandled).toHaveBeenCalledOnce()
   })
 
-  it('disables Run for a collection-scale selection against an unstabilised Schema Revision, and says approval is in the workflow bar', async () => {
+  it('disables Run for a collection-scale selection against an unstabilised Template Revision, and says approval is in the chat', async () => {
     const manyDocuments = Array.from(
       { length: PILOT_BATCH_SELECTION_LIMIT + 1 },
       (_, index) => ({
@@ -720,7 +720,7 @@ describe('BatchExtractionsPanel', () => {
         name: `Run ${selectionCount} Source Documents`,
       }),
     ).toBeDisabled()
-    expect(screen.getByText(/^Approve the schema in the workflow bar to run more than/)).toBeVisible()
+    expect(screen.getByText(/^Approve the template in the chat to run more than/)).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Approve for batch extraction' })).not.toBeInTheDocument()
   })
 
@@ -763,7 +763,7 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.getByText('2 selected')).toBeVisible()
   })
 
-  it('edits and saves a saved schema with the shared schema workbench', async () => {
+  it('edits and saves a saved template with the shared template workbench', async () => {
     const addEventListener = vi.spyOn(window, 'addEventListener')
     const fetch = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -838,13 +838,13 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Custom Batch Extraction' }),
     )
 
-    const schema = await screen.findByLabelText('Extraction Schema fields')
+    const schema = await screen.findByLabelText('Extraction Template fields')
     expect(await within(schema).findByText('One place record.')).toBeVisible()
     expect(within(schema).getByText('place')).toBeVisible()
     expect(within(schema).getByRole('button', { name: 'Fields' })).toBeVisible()
     expect(within(schema).getByRole('button', { name: 'Code' })).toBeVisible()
     expect(
-      within(schema).getByPlaceholderText('Describe a change to the schema…'),
+      within(schema).getByPlaceholderText('Describe a change to the template…'),
     ).toBeVisible()
 
     fireEvent.click(within(schema).getByRole('button', { name: 'Edit place' }))
@@ -948,7 +948,7 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Run 6 Source Documents' }),
     ).toBeEnabled()
 
-    const schema = await screen.findByLabelText('Extraction Schema fields')
+    const schema = await screen.findByLabelText('Extraction Template fields')
     fireEvent.click(within(schema).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(schema).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
@@ -1002,7 +1002,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
-    await screen.findByLabelText('Extraction Schema fields')
+    await screen.findByLabelText('Extraction Template fields')
     expect(screen.getByText('Saved advanced settings: Service defaults')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
@@ -1017,7 +1017,7 @@ describe('BatchExtractionsPanel', () => {
   })
 
   it('shows a record scope refusal with the server\'s message where a changed method is shown', async () => {
-    const message = 'The schema is saved as an Article; refresh to run it.'
+    const message = 'The template is saved as an Article; refresh to run it.'
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
@@ -1038,7 +1038,7 @@ describe('BatchExtractionsPanel', () => {
     }))
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
-    await screen.findByLabelText('Extraction Schema fields')
+    await screen.findByLabelText('Extraction Template fields')
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
 
@@ -1047,7 +1047,7 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.getByRole('button', { name: 'Refresh summary' })).toBeInTheDocument()
   })
 
-  it('waits for an Article or Catalog choice on a schema that saved none, and saves it before the run', async () => {
+  it('waits for an Article or Catalog choice on a template that saved none, and saves it before the run', async () => {
     const help = 'Article: one object for the whole document. Catalog: a collection of records.'
     const writes: Array<Record<string, unknown>> = []
     const posted: Array<Record<string, unknown>> = []
@@ -1072,7 +1072,7 @@ describe('BatchExtractionsPanel', () => {
     }))
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
-    await screen.findByLabelText('Extraction Schema fields')
+    await screen.findByLabelText('Extraction Template fields')
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
 
     const strategy = screen.getByLabelText('Batch extraction strategy')
@@ -1091,7 +1091,7 @@ describe('BatchExtractionsPanel', () => {
     expect(posted[0]).toMatchObject({ strategy: 'ARTICLE', schemaRevisionId: appendedRevisionId })
   })
 
-  it('refuses Run while the chosen schema\'s scope save failed, and Retry saves it before the run', async () => {
+  it('refuses Run while the chosen template\'s scope save failed, and Retry saves it before the run', async () => {
     const writes: Array<Record<string, unknown>> = []
     const posted: Array<Record<string, unknown>> = []
     let failNextWrite = true
@@ -1124,7 +1124,7 @@ describe('BatchExtractionsPanel', () => {
     }))
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
-    await screen.findByLabelText('Extraction Schema fields')
+    await screen.findByLabelText('Extraction Template fields')
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     const strategy = screen.getByLabelText('Batch extraction strategy')
     await waitFor(() => expect(strategy).toBeEnabled())
@@ -1133,7 +1133,7 @@ describe('BatchExtractionsPanel', () => {
     // The Batch's own notice is the one alert, with the one Retry; the schema panel's footer says it as status text.
     expect(await screen.findByRole('alert')).toHaveTextContent('The database is unavailable.')
     expect(
-      within(screen.getByLabelText('Extraction Schema fields')).getAllByRole('status')
+      within(screen.getByLabelText('Extraction Template fields')).getAllByRole('status')
         .some((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
     ).toBe(true)
     expect(strategy).toHaveValue('CATALOG')
@@ -1183,7 +1183,7 @@ describe('BatchExtractionsPanel', () => {
     saved.state = { status: 'ready', config: saved.config(), unifiedCatalog: true }
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
-    await screen.findByLabelText('Extraction Schema fields')
+    await screen.findByLabelText('Extraction Template fields')
     await waitFor(() => expect(screen.getByLabelText('Batch extraction strategy')).toBeEnabled())
     fireEvent.change(screen.getByLabelText('Batch extraction strategy'), { target: { value: 'CATALOG' } })
     expect(await screen.findByText('Saved advanced settings: Unified Catalog, defaults version 6')).toBeInTheDocument()
@@ -1320,7 +1320,7 @@ describe('BatchExtractionsPanel', () => {
     expect(body).not.toHaveProperty('id')
   })
 
-  it('saves Catalog as the chosen schema\'s record scope and opens the Batch Extraction with it', async () => {
+  it('saves Catalog as the chosen template\'s record scope and opens the Batch Extraction with it', async () => {
     const writes: Array<Record<string, unknown>> = []
     const fetch = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1444,7 +1444,7 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    await waitFor(() => expect(screen.getByLabelText('Extraction Schema')).toHaveValue(schemaRevisionId))
+    await waitFor(() => expect(screen.getByLabelText('Extraction Template')).toHaveValue(schemaRevisionId))
     // The chosen schema's fields render above the sources once read; its saved scope is the strategy.
     await waitFor(() => expect(screen.getByLabelText('Batch extraction strategy')).toHaveValue('ARTICLE'))
     const failedDocument = () => screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!
@@ -1733,7 +1733,7 @@ describe('BatchExtractionsPanel', () => {
     // Leaving the batch returns to the history it was routed away from.
     fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
     expect(
-      await screen.findByText('Places · Schema Revision 1'),
+      await screen.findByText('Places · Template Revision 1'),
     ).toBeInTheDocument()
   })
 
@@ -1880,10 +1880,10 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
   })
 
-  it('explains a pinned Schema Revision failure and retries its Run again scope check', async () => {
+  it('explains a pinned Template Revision failure and retries its Run again scope check', async () => {
     let revisionReads = 0
-    const failure = 'The pinned Schema Revision could not be read.'
-    const refusal = 'Schema Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'
+    const failure = 'The pinned Template Revision could not be read.'
+    const refusal = 'Template Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the template and choose Article or Catalog there.'
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [batch] })
@@ -1900,23 +1900,23 @@ describe('BatchExtractionsPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(failure)
     expect(revisionReads).toBe(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Retry Schema Revision' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Template Revision' }))
 
     const rerun = screen.getByRole('button', { name: 'Run again' })
     await waitFor(() => expect(rerun).toHaveAccessibleDescription(refusal))
     expect(rerun).toBeDisabled()
     expect(revisionReads).toBe(2)
     expect(screen.queryByText(failure)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Retry Schema Revision' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry Template Revision' })).not.toBeInTheDocument()
   })
 
   it.each([
     ['its revision declares neither Article nor Catalog', chosenRevision(null), null,
-      'Schema Revision 1 declares neither Article nor Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'],
+      'Template Revision 1 declares neither Article nor Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the template and choose Article or Catalog there.'],
     ['its revision is saved as the other strategy', chosenRevision('records'), null,
-      'Schema Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'],
+      'Template Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the template and choose Article or Catalog there.'],
     ['a later save replaced its revision', chosenRevision(), appendedRevisionId,
-      'Schema Revision 1 is no longer the current revision of Places, so this Batch Extraction cannot run again. Start a New Batch Extraction with the schema instead.'],
+      'Template Revision 1 is no longer the current revision of Places, so this Batch Extraction cannot run again. Start a New Batch Extraction with the template instead.'],
   ])('does not offer Run again when %s, and says to start a new Batch Extraction', async (_case, revision, current, message) => {
     const posted: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -2138,7 +2138,7 @@ describe('BatchExtractionsPanel', () => {
     expect(within(suggested).getByText('place')).toBeVisible()
     expect(within(suggested).getByText('Suggesting common fields…')).toBeVisible()
     expect(within(suggested).queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
-    expect(within(suggested).queryByRole('button', { name: 'Schema actions' })).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Template actions' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
     expect(
       fetch.mock.calls.filter(([, init]) => init?.method === 'PATCH' || init?.method === 'POST'),
@@ -2241,10 +2241,10 @@ describe('BatchExtractionsPanel', () => {
     expect(await within(suggested).findByText('This work stopped before it finished. Start it again.', {}, { timeout: 2_000 })).toBeVisible()
     expect(within(suggested).getByText('location')).toBeVisible()
     expect(within(suggested).getByRole('button', { name: 'Try again' })).toBeDisabled()
-    fireEvent.click(within(suggested).getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Template actions' }))
     expect(within(suggested).getByRole('menuitem', { name: 'History' })).toBeInTheDocument()
     expect(within(suggested).queryByRole('menuitem', { name: /Regenerate/ })).not.toBeInTheDocument()
-    fireEvent.click(within(suggested).getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Template actions' }))
     expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
   })
 
@@ -2297,9 +2297,9 @@ describe('BatchExtractionsPanel', () => {
         expect(screen.getAllByRole('checkbox')).toHaveLength(2),
       )
       await waitFor(() =>
-        expect(screen.getByLabelText('Extraction Schema')).toBeEnabled(),
+        expect(screen.getByLabelText('Extraction Template')).toBeEnabled(),
       )
-      fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      fireEvent.change(screen.getByLabelText('Extraction Template'), {
         target: { value: '__suggest_common_fields__' },
       })
       await screen.findByLabelText('Suggested common fields')
@@ -2333,7 +2333,7 @@ describe('BatchExtractionsPanel', () => {
     ).toBeVisible()
   })
 
-  it('shows suggested fields in the schema slot and regenerates them', async () => {
+  it('shows suggested fields in the template slot and regenerates them', async () => {
     let suggestions: unknown[] = []
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -2377,7 +2377,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -2394,11 +2394,11 @@ describe('BatchExtractionsPanel', () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
 
-    fireEvent.click(within(suggested).getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Template actions' }))
     fireEvent.click(within(suggested).getByRole('menuitem', { name: 'Regenerate from the document…' }))
     fireEvent.click(
       within(within(suggested).getByRole('dialog', { name: 'Regenerate from the document' }))
-        .getByRole('button', { name: /Regenerate schema/ }),
+        .getByRole('button', { name: /Regenerate template/ }),
     )
     await waitFor(() =>
       expect(
@@ -2464,7 +2464,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
@@ -2574,7 +2574,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
@@ -2625,7 +2625,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
@@ -2662,7 +2662,7 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Run 2 Source Documents' }),
     ).toBeDisabled()
     expect(within(suggested).queryByRole('button', { name: /Regenerate|Try again/ })).not.toBeInTheDocument()
-    expect(within(suggested).queryByRole('button', { name: 'Schema actions' })).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Template actions' })).not.toBeInTheDocument()
     expect(within(suggested).queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
     expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
@@ -2701,7 +2701,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -2766,7 +2766,7 @@ describe('BatchExtractionsPanel', () => {
         PILOT_BATCH_SELECTION_LIMIT + 1,
       ),
     )
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Suggest common fields' }))
@@ -2819,7 +2819,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    fireEvent.change(screen.getByLabelText('Extraction Template'), {
       target: { value: '__suggest_common_fields__' },
     })
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
@@ -2868,7 +2868,7 @@ describe('BatchExtractionsPanel', () => {
     vi.stubGlobal('fetch', fetch)
     renderPanel()
 
-    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
+    fireEvent.click(await screen.findByText('Places · Template Revision 1'))
     await screen.findByRole('list', { name: 'Batch Extraction members' })
 
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
@@ -2915,13 +2915,13 @@ it('leaves approving a reviewed pilot to the workflow bar: the history offers no
     openBatchExtractionId={null} pilotSchemaRevisionId={null} summary={pilotSummary()}
     onNavigate={() => {}} />)
 
-  await screen.findByRole('button', { name: /Places · Schema Revision 1/ })
+  await screen.findByRole('button', { name: /Places · Template Revision 1/ })
   expect(screen.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Pilot Extraction' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Custom Batch Extraction' })).toBeEnabled()
 })
 
-it('the workflow bar\'s batch step opens the collection run on the approved Current Schema Revision', async () => {
+it('the workflow bar\'s batch step opens the collection run on the approved Current Template Revision', async () => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
@@ -2942,10 +2942,10 @@ it('the workflow bar\'s batch step opens the collection run on the approved Curr
     summary={pilotSummary({ phase: 'batch', schemaStabilised: true, pendingExtractionSourceDocumentCount: 2 })}
     guidedRequest="batch" onGuidedRequestHandled={onGuidedRequestHandled} onNavigate={() => {}} />)
 
-  expect(await screen.findByText(/This schema is approved for batch extraction/)).toBeVisible()
+  expect(await screen.findByText(/This template is approved for batch extraction/)).toBeVisible()
   expect(onGuidedRequestHandled).toHaveBeenCalledOnce()
   expect(screen.getByText('2 selected')).toBeInTheDocument()
-  expect(screen.getByLabelText('Extraction Schema')).toBeDisabled()
+  expect(screen.getByLabelText('Extraction Template')).toBeDisabled()
   expect(screen.queryByRole('option', { name: 'Suggest fields from selected sources' })).not.toBeInTheDocument()
   await enabledRun('Run 2 Source Documents')
 })

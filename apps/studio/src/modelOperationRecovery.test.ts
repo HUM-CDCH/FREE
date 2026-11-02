@@ -47,7 +47,7 @@ describe('planRecovery', () => {
     expect(planRecovery([generation(1, 'SUCCEEDED')], view({ cleanCurrentRevisionId: R2 }))).toMatchObject(nothing)
   })
 
-  it('a first generation is saved only while no Extraction Schema exists', () => {
+  it('a first generation is saved only while no Extraction Template exists', () => {
     const first = generation(1, 'SUCCEEDED', { baseSchemaRevisionId: null })
     expect(planRecovery([first], view({ cleanCurrentRevisionId: null, noSchemaYet: true })).saveGeneration).toBe(first)
     expect(planRecovery([first], view({ cleanCurrentRevisionId: null, noSchemaYet: false })).saveGeneration).toBeNull()
@@ -112,7 +112,7 @@ describe('recoveryView', () => {
     expect(recoveryView(snapshot({ historicalPreview: { ...acknowledged, origin: 'suggestion', createdAt: 'now' } }), false).busy).toBe(true)
   })
 
-  it('has no schema yet only with neither a durable schema nor a draft', () => {
+  it('has no template yet only with neither a durable template nor a draft', () => {
     expect(recoveryView(snapshot({ view: 'empty', draft: null, save: null, extractionSchemaId: null, extractableSchemaRevisionId: null }), false))
       .toEqual({ cleanCurrentRevisionId: null, noSchemaYet: true, busy: false })
     expect(recoveryView(snapshot({ save: null, extractionSchemaId: null, extractableSchemaRevisionId: null }), false).noSchemaYet).toBe(false)

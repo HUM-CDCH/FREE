@@ -615,12 +615,13 @@ test('development enables both CLI deployment connections; the base file leaves 
   )
 })
 
-for (const serverCapacity of ['1', '4']) test(`Codex parsing deadlines use the worker limit with server capacity ${serverCapacity}`, () => {
-  const environment = {
-    ...process.env, FREE_GPU: 'off', KEI_CODEX_MODEL: 'synthetic-codex-model', OCR_MAX_NUM_SEQS: serverCapacity,
-  }
+for (const [provider, overlay, login] of [
+  ['Codex', 'compose.codex.yaml', { KEI_CODEX_MODEL: 'synthetic-codex-model' }],
+  ['Claude Code', 'compose.claude.yaml', { KEI_CLAUDE_MODEL: 'synthetic-claude-model', CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-token' }],
+]) for (const serverCapacity of ['1', '4']) test(`${provider} parsing deadlines use the worker limit with server capacity ${serverCapacity}`, () => {
+  const environment = { ...process.env, FREE_GPU: 'off', ...login, OCR_MAX_NUM_SEQS: serverCapacity }
   const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}), null, environment,
-    ['-f', 'compose.codex.yaml']).services
+    ['-f', overlay]).services
   assert.equal(services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL, '1')
   assert.equal(services.studio.environment.FREE_PARSING_OCR_PARALLEL,
     services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL)

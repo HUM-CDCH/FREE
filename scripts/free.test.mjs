@@ -959,3 +959,17 @@ it('selects the Codex overlay explicitly and never starts the large GPU extracti
   assert.deepEqual(parsingGpuComposeArguments(environment, () => assert.fail('GPU probe is disabled')), [])
   assert.throws(() => parsingGpuComposeArguments({ KEI_EXTRACT_PROVIDER: 'codex-cli' }), /requires FREE_GPU=off/)
 })
+
+
+it('selects the Claude Code overlay explicitly and never starts the large GPU extraction models with it', () => {
+  const environment = { KEI_EXTRACT_PROVIDER: 'claude-code', FREE_GPU: 'off' }
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  assert.deepEqual(developmentComposeFiles(profile, environment), [
+    'compose.yaml', 'compose.override.yaml', 'compose.claude.yaml',
+  ])
+  assert.deepEqual(productionComposeFiles(environment), [
+    'compose.yaml', 'compose.prod.yaml', 'compose.claude.yaml',
+  ])
+  assert.deepEqual(parsingGpuComposeArguments(environment, () => assert.fail('GPU probe is disabled')), [])
+  assert.throws(() => parsingGpuComposeArguments({ KEI_EXTRACT_PROVIDER: 'claude-code' }), /Claude Code extraction requires FREE_GPU=off/)
+})

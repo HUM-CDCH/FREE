@@ -145,7 +145,7 @@ describe('starting points', () => {
       { label: 'Context ceiling', from: 'Used with bounded source units', to: '12,288 tokens' },
       { label: 'Instructions', from: 'Reference', to: 'Schema-driven' },
       { label: 'Verification', from: 'Source labels', to: 'Source spans' },
-      { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow schema policies' },
+      { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow template policies' },
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])
   })

@@ -130,7 +130,7 @@ export function createSchemaSaveCoordinator(
         settle(error)
       } else {
         const failure =
-          error instanceof Error ? error : new Error('Schema save failed.')
+          error instanceof Error ? error : new Error('Template save failed.')
         publish({ ...state, status: 'error', error: failure })
         settle(failure)
       }

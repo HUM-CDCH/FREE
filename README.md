@@ -60,7 +60,7 @@ and Studio starts only once they are healthy. With the default models they need
 about 60 GB of GPU memory; on a smaller GPU, choose smaller models (see
 [Models](#models)) or set `FREE_GPU=off`. Set `FREE_GPU=required` to stop with
 an error when no GPU is available. Without model servers you can still upload
-text PDFs and build schemas. Extraction can also use your Codex login; scanned PDFs need an OCR server.
+text PDFs and build schemas. Extraction can also use your Codex or Claude Code login; scanned PDFs need an OCR server.
 
 `pnpm dev` reads settings from your shell, not from `.env` (only `DATABASE_URL`,
 and the `FREE_ENTRA_*` values of `pnpm dev -- --entra`, come from `.env`), so
@@ -108,6 +108,16 @@ Codex has no preflight tokenizer: FREE uses an explicit conservative UTF-8 budge
 before accepting a reply. See the [Parsing Service's policy](apps/parsing_service/README.md#codex-extraction).
 OCR remains a separate service; native text PDFs need no OCR model.
 
+**Extraction can use Claude Code the same way.** Create a token with `claude setup-token` and give the full model ID:
+
+```bash
+KEI_EXTRACT_PROVIDER=claude-code KEI_CLAUDE_MODEL=<model-id> CLAUDE_CODE_OAUTH_TOKEN=<token> FREE_GPU=off pnpm dev
+```
+
+Each call is an isolated, tool-free `claude -p` turn under its own conservative budget
+([ADR 0025](docs/adr/0025-deployment-owned-claude-code-extraction.md)). It runs on the token's account and rate
+limits: a batch of documents makes many calls.
+
 **Schema help and chat run on any connection you add in Studio.** Open
 **Configure models** → **Connections**. Each researcher adds their own. API keys
 are kept in the browser; Studio holds them in memory only and never stores them.
@@ -138,8 +148,8 @@ CLAUDE_CODE_OAUTH_TOKEN=<token> pnpm dev          # production: put it in .env
 ```
 
 The Codex login lives in a Docker volume, so it survives image rebuilds. Claude
-Code reads its token from the environment at every start. Both support schema help and chat. Codex also supports extraction when the deployment selects
-`KEI_EXTRACT_PROVIDER=codex-cli`; Claude Code is not an extraction backend.
+Code reads its token from the environment at every start. Both support schema help and chat. Either can also serve extraction when the deployment selects
+`KEI_EXTRACT_PROVIDER=codex-cli` or `KEI_EXTRACT_PROVIDER=claude-code`.
 
 ## Use
 
@@ -147,14 +157,19 @@ Code reads its token from the environment at every start. Both support schema he
    assistant model and the extraction models, and click **Apply**.
 2. **Create a project** and upload PDFs (up to 100 MiB each). FREE parses them
    in the background.
-3. **Build a schema**: ask Schema Suggestion for one, edit it by hand, or refine
-   it in chat. Pick *Article* (one record per document) or *Catalog* (many
-   records per document), then approve it.
-4. **Run an extraction** on one document or a batch. You can pause, resume,
-   stop or retry it.
+3. **Open a document and follow the project chat** beside it: it always shows
+   the next step. It suggests a template of the fields to extract (refine it in
+   the chat, or edit it by hand from the chat's *Template* line) and asks for
+   *Article* (one record per
+   document) or *Catalog* (many records per document).
+4. **Pilot, approve, extract**: the chat runs a pilot on documents you tick,
+   leads you through reviewing them, asks you to approve the template, then
+   extracts the rest. Pause, resume, stop or retry a run from the chat too.
 5. **Review**: each value shows its evidence in the source, or is flagged as
    ungrounded. Approve, reject or correct values, then finalize.
-6. **Export** the results as CSV or Excel.
+6. **Export**: once every document is extracted and reviewed, the chat offers
+   the results to export: tick the documents, then choose CSV or an Excel
+   workbook. A batch's results also export from the project's *Runs & exports*.
 
 ## Develop and test
 

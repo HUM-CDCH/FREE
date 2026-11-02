@@ -57,7 +57,7 @@ export function useSchemaInstructions(): SchemaInstructions {
     text: kept.map((instruction) => instruction.text).join('\n\n'),
     history: items.flatMap((item): ChatHistory => [
       { role: 'user', text: item.text },
-      { role: 'assistant', text: item.answer ?? 'Recorded as an instruction for schema generation.' },
+      { role: 'assistant', text: item.answer ?? 'Recorded as an instruction for template generation.' },
     ]),
     count: kept.length,
     countLabel:

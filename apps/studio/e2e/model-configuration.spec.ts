@@ -15,8 +15,8 @@ const QWEN = 'Qwen/Qwen3.8-27B-FP8'
 const NUEXTRACT = 'numind/NuExtract3-FP8'
 const OPENAI_BASE = 'https://api.openai.com/v1'
 const OLLAMA_BASE = 'http://127.0.0.1:11434'
-const FOLLOWS = 'Schema Suggestion uses the assistant model.'
-const NUEXTRACT_NOTE = 'Schema Suggestion uses the NuExtract protocol for this model.'
+const FOLLOWS = 'Template Suggestion uses the assistant model.'
+const NUEXTRACT_NOTE = 'Template Suggestion uses the NuExtract protocol for this model.'
 
 /** What a probe of each provider lists. Probes never leave the browser: every model server is answered here. */
 const CATALOGS: Readonly<Record<string, readonly string[]>> = {
@@ -154,7 +154,7 @@ const storedKeys = (page: Page, accountId: string) =>
 
 /** Picks `model` for a route picker from one connection's group: listed by its probe, or typed as an exact ID. */
 async function chooseRoute(dialog: Locator, picker: string, group: string, model: string, typed = false): Promise<void> {
-  await step(dialog, 'Schema & chat')
+  await step(dialog, 'Template & chat')
   await dialog.getByRole('button', { name: picker, exact: true }).click()
   if (typed) await dialog.getByRole('combobox', { name: `Search ${picker}` }).fill(model)
   await dialog
@@ -190,7 +190,7 @@ test.describe('against Studio and PostgreSQL', () => {
     const dialog = await openModelConfiguration(page)
     await addConnection(dialog, 'vLLM', { baseUrl: 'http://lab-a.example:8000/v1', key: 'sk-test-e2e-account-a' })
     await showModels(dialog)
-    await (await step(dialog, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
+    await (await step(dialog, 'Template & chat')).getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'vLLM', QWEN)
     const committed = await apply(page, dialog)
     const [labVllm] = committed.connections
@@ -208,13 +208,13 @@ test.describe('against Studio and PostgreSQL', () => {
       await showConnections(dialogB)
       await expect(researcherConnectionsB).toHaveCount(0)
       await showModels(dialogB)
-      await expect((await step(dialogB, 'Schema & chat')).getByRole('button', { name: 'Change' })).toBeVisible()
+      await expect((await step(dialogB, 'Template & chat')).getByRole('button', { name: 'Change' })).toBeVisible()
       await expect(dialogB.getByRole('button', { name: 'Assistant model', exact: true })).toHaveCount(0)
 
       await addConnection(dialogB, 'Ollama')
       await expect(researcherConnectionsB).toHaveCount(1)
       await showModels(dialogB)
-      await (await step(dialogB, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
+      await (await step(dialogB, 'Template & chat')).getByRole('button', { name: 'Change' }).click()
       await chooseRoute(dialogB, 'Assistant model', 'Ollama', 'llama3.3')
       const committedB = await apply(pageB, dialogB)
       expect(committedB.connections.map(({ provider }) => provider)).toEqual(['ollama'])
@@ -235,41 +235,41 @@ test.describe('against Studio and PostgreSQL', () => {
 
     await reload(page)
     const reopened = await openModelConfiguration(page)
-    await step(reopened, 'Schema & chat')
+    await step(reopened, 'Template & chat')
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toContainText(`${QWEN} · vLLM`)
     expect(await storedConfiguration(page)).toEqual(committed)
   })
 
-  test('an explicit Schema Suggestion model stays explicit across a reload even when it equals the Assistant model', async ({ page }) => {
+  test('an explicit Template Suggestion model stays explicit across a reload even when it equals the Assistant model', async ({ page }) => {
     await routeModelServers(page)
     await signIn(page)
     const dialog = await openModelConfiguration(page)
     await addConnection(dialog, 'Ollama')
     await showModels(dialog)
-    const schemaAndChat = await step(dialog, 'Schema & chat')
+    const schemaAndChat = await step(dialog, 'Template & chat')
     await schemaAndChat.getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'Ollama', 'llama3.3')
     await expect(schemaAndChat.getByText(FOLLOWS)).toBeVisible()
     await schemaAndChat.getByRole('button', { name: 'Use a different model' }).click()
-    await chooseRoute(dialog, 'Schema Suggestion model', 'Ollama', 'llama3.3')
+    await chooseRoute(dialog, 'Template Suggestion model', 'Ollama', 'llama3.3')
     const committed = await apply(page, dialog)
     expect(committed.routes.schemaSuggestion).toEqual(committed.routes.interaction)
 
     await reload(page)
     let reopened = await openModelConfiguration(page)
-    await step(reopened, 'Schema & chat')
-    await expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toContainText('llama3.3 · Ollama')
-    await expect((await step(reopened, 'Schema & chat')).getByText(FOLLOWS)).toHaveCount(0)
+    await step(reopened, 'Template & chat')
+    await expect(reopened.getByRole('button', { name: 'Template Suggestion model' })).toContainText('llama3.3 · Ollama')
+    await expect((await step(reopened, 'Template & chat')).getByText(FOLLOWS)).toHaveCount(0)
     expect((await storedConfiguration(page)).routes.schemaSuggestion).toEqual(committed.routes.interaction)
 
     // "Use defaults" removes both of the step's stored routes; reopened, the step is one sentence again.
-    await (await step(reopened, 'Schema & chat')).getByRole('button', { name: 'Use defaults' }).click()
+    await (await step(reopened, 'Template & chat')).getByRole('button', { name: 'Use defaults' }).click()
     await apply(page, reopened)
     await reload(page)
     reopened = await openModelConfiguration(page)
-    await expect((await step(reopened, 'Schema & chat')).getByRole('button', { name: 'Change' })).toBeVisible()
-    await expect((await step(reopened, 'Schema & chat'))).toContainText(/Chat, schema editing and Schema Suggestion use|No model is configured yet\./)
-    await step(reopened, 'Schema & chat')
+    await expect((await step(reopened, 'Template & chat')).getByRole('button', { name: 'Change' })).toBeVisible()
+    await expect((await step(reopened, 'Template & chat'))).toContainText(/Chat, template editing and Template Suggestion use|No model is configured yet\./)
+    await step(reopened, 'Template & chat')
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toHaveCount(0)
     expect((await storedConfiguration(page)).routes).toEqual({ schemaSuggestion: null, interaction: null })
   })
@@ -283,11 +283,11 @@ test.describe('against Studio and PostgreSQL', () => {
     await addConnection(dialog, 'vLLM', { baseUrl: 'http://nuextract.example:8000/v1' })
     await addConnection(dialog, 'OpenAI', { key: 'sk-test-e2e-typed' })
     await showModels(dialog)
-    const schemaAndChat = await step(dialog, 'Schema & chat')
+    const schemaAndChat = await step(dialog, 'Template & chat')
     await schemaAndChat.getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'OpenAI', 'gpt-manual', true)
     await schemaAndChat.getByRole('button', { name: 'Use a different model' }).click()
-    await chooseRoute(dialog, 'Schema Suggestion model', 'vLLM', manualNuExtract, true)
+    await chooseRoute(dialog, 'Template Suggestion model', 'vLLM', manualNuExtract, true)
     await expect(schemaAndChat.getByText(NUEXTRACT_NOTE)).toBeVisible()
 
     const configurationPut = page.waitForRequest((request) => pathOf(request.url()) === '/api/model_config' && request.method() === 'PUT')
@@ -302,11 +302,11 @@ test.describe('against Studio and PostgreSQL', () => {
 
     await dialog.getByRole('button', { name: 'Close Model Configuration' }).click()
     const reopened = await openModelConfiguration(page)
-    await step(reopened, 'Schema & chat')
+    await step(reopened, 'Template & chat')
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toContainText('gpt-manual · OpenAI')
-    await step(reopened, 'Schema & chat')
-    await expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toContainText(`${manualNuExtract} · vLLM`)
-    await expect((await step(reopened, 'Schema & chat')).getByText(NUEXTRACT_NOTE)).toBeVisible()
+    await step(reopened, 'Template & chat')
+    await expect(reopened.getByRole('button', { name: 'Template Suggestion model' })).toContainText(`${manualNuExtract} · vLLM`)
+    await expect((await step(reopened, 'Template & chat')).getByText(NUEXTRACT_NOTE)).toBeVisible()
   })
 
   test("Apply hands this browser's key to Studio for the connection's current base only", async ({ page }) => {
@@ -523,7 +523,7 @@ test.describe('with a mocked configuration', () => {
     await expect((await step(dialog, 'Reading documents'))).toContainText(
       "Scanned pages are read and their page regions found by the deployment's default models.",
     )
-    await (await step(dialog, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
+    await (await step(dialog, 'Template & chat')).getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'Local Ollama', 'llama3.3')
     await dialog.getByRole('button', { name: 'Apply' }).click()
     await expect(dialog.getByText('Everything saved')).toBeVisible()
@@ -591,7 +591,7 @@ test.describe('with a mocked configuration', () => {
     const dialog = await openModelConfiguration(page)
     await expect(dialog.getByRole('button', { name: 'Close Model Configuration' })).toBeFocused()
 
-    await (await step(dialog, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
+    await (await step(dialog, 'Template & chat')).getByRole('button', { name: 'Change' }).click()
     const trigger = dialog.getByRole('button', { name: 'Assistant model', exact: true })
     await trigger.click()
     const search = dialog.getByRole('combobox', { name: 'Search Assistant model' })

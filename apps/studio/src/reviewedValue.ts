@@ -38,7 +38,7 @@ export function parseReviewedValue(
   raw: string,
 ): { value: ReviewedValue; error: string | null } {
   if (!node)
-    return { value: raw, error: 'The pinned schema does not define this value.' }
+    return { value: raw, error: 'The pinned template does not define this value.' }
   if (node.type === 'array') {
     if (node.children) return { value: raw, error: 'Only scalar values can be edited.' }
     const items = raw
@@ -55,7 +55,7 @@ export function parseReviewedValue(
     return { value: values, error: null }
   }
   if (node.allowedValues && !node.allowedValues.includes(raw))
-    return { value: raw, error: 'Choose a value allowed by the pinned schema.' }
+    return { value: raw, error: 'Choose a value allowed by the pinned template.' }
   if (node.type === 'object') return { value: raw, error: 'Only scalar values can be edited.' }
   return parseReviewedScalar(node.type, raw)
 }

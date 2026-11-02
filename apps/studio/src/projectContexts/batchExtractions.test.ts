@@ -73,7 +73,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('Batch Schema Suggestion requests', () => {
+describe('Batch Template Suggestion requests', () => {
   it('creating and retrying a batch suggestion send the keys first', async () => {
     await createBatchSchemaSuggestion(projectContextId, [sourceDocumentId])
     await retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, 1)

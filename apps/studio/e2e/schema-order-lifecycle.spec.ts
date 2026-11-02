@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import { e2eStudioPath, loginResearcher } from './auth.js'
+import { openRailView } from './rail.js'
 
 const id = {
   account: '73000000-0000-4000-8000-000000000000',
@@ -51,7 +52,7 @@ async function installArtifactRoutes(page: Page) {
     `**/api/project-contexts/${id.project}/source-representations/${id.representation}/markdown**`,
     (route) =>
       route.fulfill({
-        body: '# Ordered schema',
+        body: '# Ordered template',
         contentType: 'text/markdown',
       }),
   )
@@ -77,12 +78,12 @@ test.beforeAll(async () => {
     id: id.account,
     tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
     objectId: id.object,
-    displayName: 'Schema Order Researcher',
+    displayName: 'Template Order Researcher',
   })
   await db.orm.public.ProjectContext.create({
     id: id.project,
     researcherAccountId: id.account,
-    name: 'Ordered schema E2E',
+    name: 'Ordered template E2E',
   })
   await db.orm.public.SourceDocument.create({
     id: id.document,
@@ -132,7 +133,7 @@ test.beforeAll(async () => {
   })
 })
 
-test('restored JSONB schema order survives a fresh browser @database', async ({
+test('restored JSONB template order survives a fresh browser @database', async ({
   browser,
   page,
 }) => {
@@ -153,14 +154,14 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
 
   await installArtifactRoutes(page)
   await page.goto(e2eStudioPath(`/projects/${id.project}/documents/${id.document}`))
-  await page.getByRole('tab', { name: /^Schema / }).click()
-  await page.getByRole('button', { name: 'Schema actions' }).click()
+  await openRailView(page, 'Template')
+  await page.getByRole('button', { name: 'Template actions' }).click()
   const history = page.getByRole('menuitem', { name: 'History' })
   await expect(history).toBeEnabled({ timeout: 15_000 })
   await history.click()
-  await page.getByRole('dialog', { name: 'Schema history' }).getByRole('button', { name: /^Revision 1:/ }).click()
+  await page.getByRole('dialog', { name: 'Template history' }).getByRole('button', { name: /^Revision 1:/ }).click()
 
-  await expect(page.getByText('Viewing historical Schema Revision 1. This preview is read-only.')).toBeVisible()
+  await expect(page.getByText('Viewing historical Template Revision 1. This preview is read-only.')).toBeVisible()
   await expect(page.getByRole('button', { name: '+ Add field' })).toHaveCount(0)
 
   const previewTimeline = await page.request.get(
@@ -171,7 +172,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   }
   expect(previewBody.revisions[0]?.revisionNumber).toBe(2)
 
-  await page.getByRole('button', { name: 'Create Current Schema Revision' }).click()
+  await page.getByRole('button', { name: 'Create Current Template Revision' }).click()
 
   await expect.poll(async () => {
     const response = await page.request.get(
@@ -201,14 +202,14 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await loginResearcher(freshPage, id.object)
   await installArtifactRoutes(freshPage)
   await freshPage.goto(e2eStudioPath(`/projects/${id.project}/documents/${id.document}`))
-  await freshPage.getByRole('tab', { name: /^Schema / }).click()
-  await freshPage.getByRole('button', { name: 'Schema actions' }).click()
+  await openRailView(freshPage, 'Template')
+  await freshPage.getByRole('button', { name: 'Template actions' }).click()
   const freshHistory = freshPage.getByRole('menuitem', { name: 'History' })
   await expect(freshHistory).toBeEnabled({ timeout: 15_000 })
   await freshHistory.click()
-  await expect(freshPage.getByRole('dialog', { name: 'Schema history' }).getByText('Revision 3 · Current')).toBeVisible()
+  await expect(freshPage.getByRole('dialog', { name: 'Template history' }).getByText('Revision 3 · Current')).toBeVisible()
   // The rows' worded Edit actions, by their accessible names (decision 11 dropped their titles), in document order.
-  const fieldButtons = freshPage.getByRole('list', { name: 'Schema fields' }).locator(
+  const fieldButtons = freshPage.getByRole('list', { name: 'Template fields' }).locator(
     'button[aria-label="Edit zeta"], button[aria-label="Edit group"], button[aria-label="Edit beta"], button[aria-label="Edit alpha"]',
   )
   await expect(fieldButtons).toHaveCount(5)

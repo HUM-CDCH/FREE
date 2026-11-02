@@ -118,7 +118,7 @@ export function ModelsTab({
 
         <Step
           n={2}
-          title="Schema & chat"
+          title="Template & chat"
           source={FROM_CONNECTIONS}
           open={editing === 2}
           onOpen={() => setEditing(2)}
@@ -131,18 +131,18 @@ export function ModelsTab({
             interaction || schemaSuggestion ? (
               <>
                 Assistant: <Model>{interaction?.modelId ?? deployment.defaultRoute?.modelId ?? 'No model configured'}</Model>.
-                {' '}Schema Suggestion: <Model>{suggestion?.modelId ?? 'No model configured'}</Model>.
+                {' '}Template Suggestion: <Model>{suggestion?.modelId ?? 'No model configured'}</Model>.
               </>
             ) : deployment.defaultRoute ? (
               <>
-                Chat, schema editing and Schema Suggestion use <Model>{deployment.defaultRoute.modelId}</Model>, the deployment's
+                Chat, template editing and Template Suggestion use <Model>{deployment.defaultRoute.modelId}</Model>, the deployment's
                 model.
               </>
             ) : (
               'No model is configured yet.'
             )
           }
-          note={nuextract ? 'Schema Suggestion uses the NuExtract protocol for this model.' : undefined}
+          note={nuextract ? 'Template Suggestion uses the NuExtract protocol for this model.' : undefined}
         >
           <AssistantChoice draft={draft} deployment={deployment} routable={routable} probes={probes} assign={assign} />
         </Step>
@@ -295,7 +295,7 @@ function AssistantChoice({
   const deploymentDefault = deployment.defaultRoute ? `Deployment default · ${deployment.defaultRoute.modelId}` : 'No model configured'
   return (
     <div className="model-assistant-choices grid gap-3 sm:grid-cols-2">
-      <Labeled label="Assistant model" hint="Schema Suggestion and schema edits, unless they use a different model">
+      <Labeled label="Assistant model" hint="Template Suggestion and template edits, unless they use a different model">
         <RoutePicker
           ariaLabel="Assistant model"
           route={interaction}
@@ -309,13 +309,13 @@ function AssistantChoice({
         {schemaSuggestion !== null || different ? (
           <div ref={suggestion} className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[11px] font-semibold text-ink-muted">Schema Suggestion</span>
+              <span className="text-[11px] font-semibold text-ink-muted">Template Suggestion</span>
               <button type="button" className="text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-ink" onClick={followAssistant}>
                 Use the assistant model
               </button>
             </div>
             <RoutePicker
-              ariaLabel="Schema Suggestion model"
+              ariaLabel="Template Suggestion model"
               route={schemaSuggestion}
               unset="Use the assistant model"
               routable={routable}
@@ -325,7 +325,7 @@ function AssistantChoice({
           </div>
         ) : (
           <div className="flex flex-wrap items-baseline gap-x-2 text-[12px] text-ink-muted">
-            <p>Schema Suggestion uses the assistant model.</p>
+            <p>Template Suggestion uses the assistant model.</p>
             <button ref={differentButton} type="button" className="font-semibold text-accent hover:underline" onClick={chooseDifferent}>
               Use a different model
             </button>

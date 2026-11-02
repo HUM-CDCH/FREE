@@ -5,7 +5,8 @@ grounded entry's candidates). `reasoning` decides over labelled text (where reco
 value, which competing candidate is right). A template extractor such as NuExtract fills fields well but cannot
 express the reasoning calls' replies (enums over thousands of passage labels), so it takes the fields role only.
 
-Generative models use vLLM; GLiFormer has a native encoder service. The deployment sets the registry.
+Generative models use vLLM; GLiFormer has a native encoder service. A deployment may instead use its own Codex or
+Claude Code login for both roles. The deployment sets the registry.
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ class ExtractModel:
     key: str
     repo: str                          # the served model id
     url: str                           # chat completions URL, or the native service base URL
-    adapter: Literal["instruct", "nuextract", "gliformer", "codex-cli"]
+    adapter: Literal["instruct", "nuextract", "gliformer", "codex-cli", "claude-code"]
     roles: frozenset[Role]
 
     def chat(self) -> Chat | GLiFormerFields:
@@ -42,6 +43,9 @@ class ExtractModel:
         if self.adapter == "codex-cli":
             from kei_exp.kie.extract.codex import CodexChat
             return CodexChat(model=self.repo, url=self.url)
+        if self.adapter == "claude-code":
+            from kei_exp.kie.extract.claude_code import ClaudeCodeChat
+            return ClaudeCodeChat(model=self.repo, url=self.url)
         kind = OpenAIChat if self.adapter == "instruct" else NuExtractChat
         return kind(url=self.url, model=self.repo)
 
@@ -49,13 +53,19 @@ class ExtractModel:
 def registry(environ: Mapping[str, str]) -> dict[str, ExtractModel]:
     """The instruction model always; optional fields backends only where the deployment names their server."""
     provider = environ.get("KEI_EXTRACT_PROVIDER", "vllm")
-    if provider not in ("vllm", "codex-cli"):
-        raise ValueError("KEI_EXTRACT_PROVIDER must be vllm or codex-cli")
+    if provider not in ("vllm", "codex-cli", "claude-code"):
+        raise ValueError("KEI_EXTRACT_PROVIDER must be vllm, codex-cli or claude-code")
     if provider == "codex-cli":
         model = environ.get("KEI_EXTRACT_MODEL")
         if not model:
             raise ValueError("Codex extraction requires KEI_EXTRACT_MODEL")
         return {"instruct": ExtractModel("instruct", model, "codex://local", "codex-cli", frozenset(ROLES))}
+    if provider == "claude-code":
+        from kei_exp.kie.extract.claude_code import MODEL_ID, URL
+        model = environ.get("KEI_EXTRACT_MODEL")
+        if not model or not MODEL_ID.fullmatch(model):
+            raise ValueError("Claude Code extraction requires KEI_EXTRACT_MODEL to name a full model ID")
+        return {"instruct": ExtractModel("instruct", model, URL, "claude-code", frozenset(ROLES))}
     models = {"instruct": ExtractModel("instruct", environ.get("KEI_EXTRACT_MODEL", llm.EXTRACT_MODEL),
                                        environ.get("KEI_EXTRACT_URL", llm.EXTRACT_URL), "instruct",
                                        frozenset(ROLES))}
