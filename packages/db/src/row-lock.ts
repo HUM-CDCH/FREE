@@ -31,6 +31,28 @@ export async function lockSourceDocumentRow(
 }
 
 /**
+ * Serializes appends to one Project Context's chat for the rest of the current transaction, the same way: a no-op
+ * UPDATE of the project's row, whose lock (FOR NO KEY UPDATE) the next appender waits on, while inserts of the project's
+ * other children (KEY SHARE through their foreign key) do not. Returns false when the account does not own the project,
+ * or it was deleted while this call waited.
+ */
+export async function lockOwnedProjectContextRow(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  projectContextId: string,
+): Promise<boolean> {
+  const project = await transaction.orm.public.ProjectContext.select('id', 'name')
+    .first({ id: projectContextId, researcherAccountId })
+  if (!project) return false
+  return (
+    (await transaction.orm.public.ProjectContext.where({
+      id: projectContextId,
+      researcherAccountId,
+    }).update({ name: project.name })) !== null
+  )
+}
+
+/**
  * Orders an admission against its Researcher Account's configuration applies for the rest of the admission's
  * transaction, and returns the committed document (null before the account's first apply). `client` is the pooled
  * client withPoolClientTransaction hands its work, so the lock belongs to that transaction.

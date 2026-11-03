@@ -3,6 +3,7 @@ import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
+import { Button } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
@@ -38,6 +39,8 @@ export type RailChatProps = {
   readOnly?: boolean
   /** Results is the rail's open view. */
   resultsShown?: boolean
+  /** The Template view is the rail's open view. */
+  templateShown?: boolean
   onShowView: (view: 'chat' | 'schema' | 'results') => void
   /** `full`: the rail's home, the whole conversation filling it. `step`: under another view, the next step and the
    *  composer; sending, or the conversation's dot, returns to the home to show the reply. */
@@ -49,7 +52,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -84,6 +87,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       continueDescription: control.continueDescription, pauseDescription: control.pauseDescription },
     latest,
     resultsShown,
+    templateShown,
     dismissed,
     project: project?.guide ?? null,
   }
@@ -93,7 +97,14 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<string> } | null>(null)
   const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
 
-  function choose(card: StepCard, option: StepOption) {
+  function choose(card: StepCard, option: StepOption, text = '') {
+    if (option.action === 'tell') {
+      // Said, not chosen: the message itself joins the conversation, which answers it.
+      if (option.disabled || !text.trim()) return
+      reveal()
+      void (preSchema ? chat.ask(text) : chat.send(text))
+      return
+    }
     const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
     if (option.action !== 'review-schema') chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
@@ -121,6 +132,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
       export: () => project?.export(ids),
+      tell: () => {},
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
@@ -140,8 +152,16 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ask = () => { reveal(); void chat.ask() }
   const send = () => { reveal(); void chat.send(chat.input) }
 
-  const card = step && <StepCardView card={step} scopeDisabled={!!recordScope?.disabled} onChoose={(option) => choose(step, option)}
+  const card = step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} onChoose={(option, text) => choose(step, option, text)}
     picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
+  // The Generate template step closed ("Not yet"): generating stays one click away, without a word said.
+  const generate = !step && preSchema && (
+    <div className="mx-4 my-2 flex shrink-0 justify-end">
+      <Button variant="positive" size="md" disabled={chat.asking !== null} onClick={() => onGenerate?.(instructions.text)}>
+        Generate template{instructions.countLabel}
+      </Button>
+    </div>
+  )
   const blocked = !!pending || chat.loading
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
@@ -151,8 +171,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
         placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
         onChange={(event) => instructions.setDraft(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} />
-      <button type="button" aria-label="Send message" className={sendClass}
-        disabled={!instructions.draft.trim() || chat.asking !== null} onClick={ask}>↑</button>
+      {chat.asking !== null ? (
+        <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
+          onClick={chat.stopAsking} title="Stop and edit the message" aria-label="Stop the reply">■</button>
+      ) : (
+        <button type="button" aria-label="Send message" className={sendClass}
+          disabled={!instructions.draft.trim()} onClick={ask}>↑</button>
+      )}
     </>
   ) : (
     <>
@@ -162,7 +187,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
         <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
-          onClick={chat.cancel} title="Stop template edit request" aria-label="Stop template edit request">■</button>
+          onClick={chat.cancel} title="Stop and edit the message" aria-label="Stop template edit request">■</button>
       ) : (
         <button type="button" className={sendClass}
           aria-label="Send" disabled={!editable || !chat.input.trim() || blocked} onClick={send}>↑</button>
@@ -179,7 +204,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
 
   return (
     <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
-      title="Conversation" label={card} dot={dot} bodyRef={bodyRef} bar={card ?? undefined} composer={composer}>
+      title="Conversation" label={card || generate} dot={dot} bodyRef={bodyRef} bar={card || generate || undefined} composer={composer}>
       <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
     </ChatDrawer>
   )
@@ -198,11 +223,14 @@ const pickedLabel = (option: StepOption, count: number) => option.label.replace(
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
 
 /** The next step: a permission card with numbered options. 1–9 choose while it has focus; Esc is "Not yet". A step that
- *  acts on documents lists the project's to tick. */
+ *  acts on documents lists the project's to tick. A `tell` option is a line to type in: its number focuses it, Enter
+ *  sends it. */
 export function StepCardView({ card, scopeDisabled = false, onChoose, picked = null, onPick }: {
-  card: StepCard; scopeDisabled?: boolean; onChoose: (option: StepOption) => void
+  card: StepCard; scopeDisabled?: boolean; onChoose: (option: StepOption, text?: string) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
 }) {
+  const [told, setTold] = useState('')
+  const tellRef = useRef<HTMLInputElement>(null)
   const count = picked?.size ?? 0
   const options = card.options.map((option) =>
     scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
@@ -210,12 +238,14 @@ export function StepCardView({ card, scopeDisabled = false, onChoose, picked = n
   return (
     <section aria-label={card.title} className="mx-4 my-2 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface"
       onKeyDown={(event) => {
-        if ((event.target as HTMLElement).matches('textarea, input')) return
+        // Typing goes to the field; only Esc still closes the step from there.
+        if ((event.target as HTMLElement).matches('textarea, input') && event.key !== 'Escape') return
         const index = Number(event.key) - 1
         const option = Number.isInteger(index) && index >= 0 ? options[index] : event.key === 'Escape' ? options.find(({ tone }) => tone === 'dismiss') : undefined
         if (!option) return
         event.preventDefault()
-        onChoose(option)
+        if (option.action === 'tell') tellRef.current?.focus()
+        else onChoose(option)
       }}>
       <div className="flex items-center gap-2 border-b border-line px-2.5 py-1.5">
         {card.busy
@@ -259,7 +289,21 @@ export function StepCardView({ card, scopeDisabled = false, onChoose, picked = n
         )}
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
-            {options.map((option, index) => (
+            {options.map((option, index) => option.action === 'tell' ? (
+              <label key={option.action}
+                className={`flex min-h-7 items-baseline gap-2 rounded-[3px] border border-line bg-surface px-2 py-1 text-compact focus-within:border-ink-faint ${option.disabled ? 'opacity-50' : ''}`}>
+                <span aria-hidden="true" className="w-3 shrink-0 font-mono font-semibold text-ink opacity-70">{index + 1}</span>
+                <input ref={tellRef} type="text" aria-label={option.label} placeholder={option.label} value={told} disabled={option.disabled}
+                  className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-muted"
+                  onChange={(event) => setTold(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' || !told.trim()) return
+                    event.preventDefault()
+                    onChoose(option, told)
+                    setTold('')
+                  }} />
+              </label>
+            ) : (
               <button key={option.action} type="button" disabled={option.disabled}
                 title={option.description} aria-description={option.description}
                 className={`flex min-h-7 cursor-pointer items-baseline gap-2 rounded-[3px] border px-2 py-1 text-left text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[option.tone]}`}

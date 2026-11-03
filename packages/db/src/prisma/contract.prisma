@@ -315,8 +315,24 @@ model ProjectContext {
   batchSchemaSuggestions     BatchSchemaSuggestion[]
   projectSpreadsheetVersions ProjectSpreadsheetVersion[]
   evaluationRounds           EvaluationRound[]
+  chatEntries                ProjectChatEntry[]
 
   @@index([researcherAccountId])
+}
+
+// One entry of a Project Context's chat, in the order it was said: a message, a
+// guided step's answer, or the Source Document the researcher turned to. `entry`
+// is Studio's projectChat contract; positions count from 1 and never move. An
+// entry is removed only when the researcher removes a kept instruction.
+model ProjectChatEntry {
+  id               Uuid           @id
+  projectContextId Uuid
+  position         Int
+  entry            Json
+  createdAt        Timestamptz6   @default(now())
+  projectContext   ProjectContext @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+
+  @@unique([projectContextId, position])
 }
 
 // One versioned, project-scoped spreadsheet slot: uploading again appends a

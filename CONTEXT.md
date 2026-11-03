@@ -32,6 +32,10 @@ _Avoid_: research context, workspace when referring to one Project Context
 The concise researcher-facing name for a Project Context. It denotes the same research aggregate, not a separate kind of object.
 _Avoid_: research context
 
+**Project Chat**:
+A Project Context's one conversation, which leads its guided workflow: messages, a guided step's answers, and each turn to another of its Source Documents. It is kept with the Project Context and outlives the page that showed it ([ADR 0028](docs/adr/0028-the-project-chat-is-kept-with-the-project.md)). The model reads its latest part beside the open Source Document only.
+_Avoid_: schema chat when the whole conversation is meant, chat history when the kept conversation is meant
+
 **Research Workspace**:
 The authenticated area of FREE in which a Humanities Researcher works across Project Contexts and shared capabilities. It is not itself a Project Context and owns no research state.
 _Avoid_: Project Context when the whole authenticated area is meant

@@ -13,7 +13,7 @@ import { DurableResults } from './DurableResults'
 import { durableRailModel, statusLine } from './durableRailModel'
 import RailChat, { type RailChatProps } from './RailChat'
 import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
-import { useSchemaChat } from './useSchemaChat'
+import { useSchemaChat, type ChatScope } from './useSchemaChat'
 import type { CurrentResultSchema } from './resultSchema'
 import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
@@ -78,6 +78,8 @@ type RightRailProps = {
   control?: { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void; busy: boolean } | null
   /** The project's workflow, which the chat's steps lead. */
   project?: RailChatProps['project']
+  /** Where the chat is kept: with its project, the turn to this document said in it. */
+  chatScope?: ChatScope | null
 }
 
 const VIEW_TITLES: Record<Exclude<RailView, 'chat'>, string> = {
@@ -138,6 +140,7 @@ function RightRail({
   run = null,
   control = null,
   project = null,
+  chatScope = null,
 }: RightRailProps) {
   const { parsedDocument } = inspection
   // A collapsed rail moves nothing on the document; one-by-one follows its value again on expand (DurableResults).
@@ -166,7 +169,7 @@ function RightRail({
   const statusError = extraction.monitorError ?? latestReading?.error ?? null
 
   // The schema chat lives with the rail, under every tab, so its conversation and next step follow the researcher.
-  const chat = useSchemaChat({ schema, sourceRepresentationId })
+  const chat = useSchemaChat({ schema, sourceRepresentationId, scope: chatScope })
   const latestAttempt = extraction.attempt
   const latestPage = latestReading?.latestPage?.extractionId === latestAttempt?.extractionId ? latestReading?.latestPage ?? null : null
   const latestModel = useMemo(() => latestPage ? durableRailModel(latestPage, null) : null, [latestPage])
@@ -345,6 +348,7 @@ function RightRail({
         readOnly={inspection.readOnly}
         project={project}
         resultsShown={open && activeView === 'results'}
+        templateShown={open && activeView === 'schema'}
         onShowView={onViewChange}
         mode={activeView === 'chat' ? 'full' : 'step'}
       />

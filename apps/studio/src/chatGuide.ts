@@ -26,6 +26,7 @@ export type StepAction =
   | 'approve'
   | 'open-document'
   | 'export'
+  | 'tell'
   | 'dismiss'
 
 export type StepOption = {
@@ -34,7 +35,8 @@ export type StepOption = {
   hint?: string
   /** Said as the option's title and description, not its name: what it does or why it waits. */
   description?: string
-  /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. */
+  /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. A `tell` option
+   *  is a line to type in, its label the prompt: what is typed there is sent as a message of the conversation. */
   tone: 'positive' | 'secondary' | 'danger' | 'dismiss'
   disabled?: boolean
   /** Acts on the documents ticked in the step's picker: its label says their count where it reads `{n}`; refused with
@@ -112,6 +114,8 @@ export type GuideInput = {
   } | null
   /** Results is already in view: a finished run needs no step to open it. */
   resultsShown: boolean
+  /** The Template view is already open: the steps after a generation need no way to it. */
+  templateShown?: boolean
   dismissed: ReadonlySet<string>
   project?: ProjectGuideInput | null
 }
@@ -121,6 +125,10 @@ const notYet: StepOption = { action: 'dismiss', label: 'Not yet', tone: 'dismiss
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 export const RUN_LABEL = '▶ Run extraction'
 export const RERUN_LABEL = '↻ Re-run extraction'
+
+/** The way to the template from the steps that follow its generation, unless it is already in view. */
+const viewTemplate = (input: GuideInput): StepOption[] =>
+  input.templateShown ? [] : [{ action: 'review-schema', label: 'View template', hint: 'See its fields', tone: 'secondary' }]
 
 /** Why Run cannot start, else what a run does: one record per catalogue entry or for the document, and that a new run
  *  keeps the results and review already saved. */
@@ -246,6 +254,7 @@ function projectStep(input: GuideInput): StepCard | null {
         { action: 'pilot', label: 'Run pilot on {n}', tone: 'positive', picks: true, disabled: project.busy },
         ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without a pilot round', tone: 'secondary',
           disabled: !input.run.available, description: runDescription(input, input.latest !== null) } as const] : []),
+        ...viewTemplate(input),
         notYet,
       ],
     }
@@ -400,6 +409,8 @@ function schemaStep(input: GuideInput): StepCard | null {
       error: input.view === 'failed' ? input.generationError ?? undefined : undefined,
       options: [
         { action: 'generate', label: `Generate template${messages}`, tone: 'positive', disabled: input.asking },
+        // Not like this: say how, in the step itself.
+        { action: 'tell', label: 'Tell it what to focus on, or ask about the document', tone: 'secondary', disabled: input.asking },
         notYet,
       ],
     }
@@ -425,9 +436,11 @@ function schemaStep(input: GuideInput): StepCard | null {
       key: 'scope',
       title: 'Choose Record Scope',
       question: 'Is each Source Document one record, or does it hold many?',
+      detail: [['Template', plural(input.revision.fieldCount, 'field')]],
       options: [
         { action: 'scope:records', label: 'Catalog: many records per document', hint: 'Each entry in the document becomes its own record', tone: 'secondary' },
         { action: 'scope:document', label: 'Article: one record per document', hint: 'The whole document becomes one object', tone: 'secondary' },
+        ...viewTemplate(input),
       ],
     }
   return null
@@ -470,6 +483,7 @@ function runStep(input: GuideInput): StepCard | null {
     options: [
       { action: 'run', label: rerun ? RERUN_LABEL : RUN_LABEL, tone: 'positive', disabled: !input.run.available,
         description: runDescription(input, rerun) },
+      ...viewTemplate(input),
       notYet,
     ],
   }

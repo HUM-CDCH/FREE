@@ -29,7 +29,7 @@ describe('nextStep', () => {
   it('offers Generate template before the first template, counting the kept instructions', () => {
     const step = nextStep({ ...base, view: 'empty', instructionCount: 2 })
     expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate template (2 messages)', tone: 'positive' })
-    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'dismiss'])
+    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'tell', 'dismiss'])
   })
 
   it('holds Generate while a question is answered, and shows a failed generation\'s error', () => {
@@ -50,12 +50,19 @@ describe('nextStep', () => {
   })
 
   it('asks for the Record Scope before a run', () => {
-    expect(actions({ recordScope: null })).toEqual(['scope:records', 'scope:document'])
+    expect(actions({ recordScope: null })).toEqual(['scope:records', 'scope:document', 'review-schema'])
+  })
+
+  it('opens the template from the steps after its generation, unless it is in view', () => {
+    expect(nextStep({ ...base, recordScope: null })?.detail).toEqual([['Template', '6 fields']])
+    expect(nextStep(base)?.options).toContainEqual(expect.objectContaining({ action: 'review-schema', label: 'View template' }))
+    expect(actions({ recordScope: null, templateShown: true })).toEqual(['scope:records', 'scope:document'])
+    expect(actions({ templateShown: true })).toEqual(['run', 'dismiss'])
   })
 
   it('offers the run, and says why it cannot start', () => {
     expect(nextStep(base)).toMatchObject({ key: 'run:first', title: 'Run extraction',
-      options: [{ action: 'run', label: '▶ Run extraction', disabled: false }, { action: 'dismiss' }] })
+      options: [{ action: 'run', label: '▶ Run extraction', disabled: false }, { action: 'review-schema' }, { action: 'dismiss' }] })
     const blocked = nextStep({ ...base, run: { unavailableReason: 'The document is still being indexed', available: false } })
     expect(blocked?.notice).toBe('The document is still being indexed')
     expect(blocked?.options[0]?.disabled).toBe(true)
@@ -124,7 +131,7 @@ describe('nextStep in a project', () => {
 
   it('pilots a ready template on this document and the next ones, with a run of this document alone beside it', () => {
     expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the template',
-      picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [{ action: 'pilot', picks: true }, { action: 'run', label: 'Only this document' }, { action: 'dismiss' }] })
+      picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [{ action: 'pilot', picks: true }, { action: 'run', label: 'Only this document' }, { action: 'review-schema', label: 'View template' }, { action: 'dismiss' }] })
     // A schema saved here leads to the pilot before the summary is read again.
     expect(step({ summary: summary({ phase: 'schema' }) })?.key).toBe('pilot:revision-2')
     // Its own steps lead until the schema is ready.

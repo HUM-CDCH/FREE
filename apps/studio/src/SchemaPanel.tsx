@@ -1291,8 +1291,13 @@ function SchemaPanelView({
             placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
             onChange={(event) => instructions.setDraft(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendInstruction() } }} />
-          <button type="button" aria-label="Send message" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
-            disabled={!instructions.draft.trim() || asking !== null} onClick={() => void sendInstruction()}>↑</button>
+          {asking !== null ? (
+            <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
+              onClick={chat.stopAsking} title="Stop and edit the message" aria-label="Stop the reply">■</button>
+          ) : (
+            <button type="button" aria-label="Send message" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+              disabled={!instructions.draft.trim()} onClick={() => void sendInstruction()}>↑</button>
+          )}
         </ChatComposer>
       )}
 
@@ -1310,7 +1315,7 @@ function SchemaPanelView({
                 onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void chat.send(chat.input) } }} />
               {chatLoading ? (
                 <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
-                  onClick={chat.cancel} title="Stop template edit request" aria-label="Stop template edit request">■</button>
+                  onClick={chat.cancel} title="Stop and edit the message" aria-label="Stop template edit request">■</button>
               ) : (
                 <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
                   aria-label="Send" disabled={!chat.input.trim() || chatBlocked} onClick={() => void chat.send(chat.input)}>↑</button>

@@ -41,7 +41,14 @@ export function ChatTranscript({ chat, empty, before }: { chat: SchemaChat; empt
       {chat.messages.length === 0 && chat.recovery.running.length === 0 && !chat.loading && !before && (
         <p className="text-secondary leading-relaxed text-ink-faint">{empty}</p>
       )}
-      {chat.messages.map((message, index) => message.role === 'step' ? (
+      {chat.messages.map((message, index) => message.role === 'document' ? (
+        // A turn to another Source Document: what follows was said about it.
+        <p key={index} className="flex min-w-0 items-center gap-2 self-stretch text-overline font-semibold uppercase tracking-[0.08em] text-ink-faint">
+          <span aria-hidden="true" className="h-px flex-1 bg-line" />
+          <span className="min-w-0 truncate normal-case tracking-normal" title={message.name}>{message.name}</span>
+          <span aria-hidden="true" className="h-px flex-1 bg-line" />
+        </p>
+      ) : message.role === 'step' ? (
         // An answered step folds to one line: what was asked and what the researcher chose.
         <p key={index} className="flex min-w-0 items-baseline gap-1.5 self-stretch text-compact text-ink-muted">
           <span aria-hidden="true" className="text-green">✓</span>
@@ -50,6 +57,9 @@ export function ChatTranscript({ chat, empty, before }: { chat: SchemaChat; empt
       ) : (
         <div key={index} className={chatMessageClass(message.role)}>{message.text}</div>
       ))}
+      {chat.unsaved && (
+        <p role="status" className="text-compact text-ink-muted">Part of this conversation is not saved yet; it is saved with the next message.</p>
+      )}
       {chat.loading && (
         <div className="self-start rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2">
           <span className="flex gap-1">

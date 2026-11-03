@@ -20,7 +20,7 @@ import {
   withPoolClientTransaction,
   type TransactionalEnqueue,
 } from './pool-client-transaction.js'
-import { lockSourceDocumentRow } from './row-lock.js'
+import { lockOwnedProjectContextRow, lockSourceDocumentRow } from './row-lock.js'
 import { packageIsReferenced } from './garbage-references.js'
 
 export type SchemaRevisionOrigin =
@@ -740,6 +740,14 @@ export type ProjectSpreadsheetVersionRecord = {
   createdAt: Date
 }
 
+/** One entry of a Project Context's chat; `entry` is Studio's projectChat contract, which this store does not read. */
+export type ProjectChatEntryRecord = {
+  projectChatEntryId: string
+  position: number
+  entry: unknown
+  createdAt: Date
+}
+
 /** One developer-evaluation round's label: the two pilots and the batch. */
 export type EvaluationRoundLabel = 'PILOT_1' | 'PILOT_2' | 'BATCH'
 export type EvaluationRoundStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
@@ -1075,6 +1083,23 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     limit: number,
   ): Promise<EvaluationRoundRecord[] | null>
+  /** The Project Context's latest `limit` chat entries, oldest first; null when the account does not own it. */
+  listProjectChatEntries(
+    projectContextId: string,
+    limit: number,
+  ): Promise<ProjectChatEntryRecord[] | null>
+  /** Appends entries after the chat's last one, in the order given; an ID already in the chat is not added again, so a
+   *  repeated request appends nothing twice. Null when the account does not own the Project Context. */
+  appendProjectChatEntries(
+    projectContextId: string,
+    entries: readonly { projectChatEntryId: string; entry: unknown }[],
+  ): Promise<ProjectChatEntryRecord[] | null>
+  /** Removes one entry; false when the chat has none with that ID, null when the account does not own the Project
+   *  Context. */
+  deleteProjectChatEntry(
+    projectContextId: string,
+    projectChatEntryId: string,
+  ): Promise<boolean | null>
   /** One round of an owned Project Context, or null. */
   getEvaluationRound(
     projectContextId: string,
@@ -2342,6 +2367,53 @@ export function createResearcherProjectStore(
         .take(limit)
         .all()
       return rows.map((row) => evaluationRoundRecord(row as StoredEvaluationRound))
+    },
+    async listProjectChatEntries(projectContextId, limit) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      const rows = await database.orm.public.ProjectChatEntry.where({ projectContextId })
+        .select('id', 'position', 'entry', 'createdAt')
+        .orderBy((entry) => entry.position.desc())
+        .take(limit)
+        .all()
+      return rows.reverse().map((row) => ({
+        projectChatEntryId: row.id,
+        position: row.position,
+        entry: row.entry,
+        createdAt: row.createdAt,
+      }))
+    },
+    async appendProjectChatEntries(projectContextId, entries) {
+      // Appends queue on the project's row, so each reads the end the one before it left; another tab's append waits.
+      return database.transaction(async (transaction) => {
+        if (!(await lockOwnedProjectContextRow(transaction, researcherAccountId, projectContextId)))
+          return null
+        const { orm } = transaction
+        const ids = entries.map(({ projectChatEntryId }) => projectChatEntryId)
+        const present = ids.length === 0 ? [] : await orm.public.ProjectChatEntry.where((entry) => entry.id.in(ids))
+          .select('id')
+          .all()
+        const known = new Set(present.map(({ id }) => id))
+        const head = await orm.public.ProjectChatEntry.where({ projectContextId })
+          .select('position')
+          .orderBy((entry) => entry.position.desc())
+          .first()
+        let position = head?.position ?? 0
+        const created: ProjectChatEntryRecord[] = []
+        for (const { projectChatEntryId, entry } of entries) {
+          if (known.has(projectChatEntryId)) continue
+          known.add(projectChatEntryId)
+          position += 1
+          const row = await orm.public.ProjectChatEntry.create({ id: projectChatEntryId, projectContextId, position, entry })
+          created.push({ projectChatEntryId, position, entry, createdAt: row.createdAt })
+        }
+        return created
+      })
+    },
+    async deleteProjectChatEntry(projectContextId, projectChatEntryId) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      return (await database.orm.public.ProjectChatEntry.where({ id: projectChatEntryId, projectContextId }).deleteCount()) > 0
     },
     async getEvaluationRound(projectContextId, evaluationRoundId) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))

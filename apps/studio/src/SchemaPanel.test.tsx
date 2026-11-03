@@ -1361,8 +1361,11 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(stop).toHaveFocus()
     fireEvent.click(stop)
 
-    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    // The message is taken back: off the conversation, into the composer to edit and send again.
+    await waitFor(() => expect(screen.getByPlaceholderText('Describe a change to the template…')).toHaveValue('Check fields'))
     expect(screen.getByPlaceholderText('Describe a change to the template…')).toBeEnabled()
+    expect(screen.queryByText('Check fields', { selector: 'p, div, span' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Cancelled.')).not.toBeInTheDocument()
   })
 
   it('a reloaded panel shows a running operation with its instruction, and Stop cancels it', async () => {
@@ -1450,7 +1453,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(requestSchemaEdit).not.toHaveBeenCalled()
   })
 
-  it('Stop on a running edit cancels edit:<operationId> on the server and says Cancelled.', async () => {
+  it('Stop on a running edit cancels edit:<operationId> on the server', async () => {
     requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
       new Promise<SchemaEditResponse>((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
@@ -1467,7 +1470,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     fireEvent.click(stop)
 
-    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    await waitFor(() => expect(input).toHaveValue('Check fields'))
     expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(`edit:${operationId}`)
   })
 
@@ -1487,7 +1490,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     fireEvent.click(stop)
 
-    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    await waitFor(() => expect(input).toHaveValue('Check fields'))
     expect(await screen.findByText('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.')).toBeInTheDocument()
     expect(input).toBeEnabled()
   })
@@ -2495,6 +2498,22 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(await screen.findByText('Could not send the message: No model is configured.')).toBeInTheDocument()
     expect(input).toHaveValue('How many burials are there?')
     expect(screen.getByRole('button', { name: 'Generate template' })).toBeEnabled()
+  })
+
+  it('Stop while a message before the first template waits for its reply returns it to the composer, unrecorded', async () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn(), sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
+    requestSchemaChat.mockImplementationOnce((_context, _message, signal: AbortSignal) =>
+      new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })))
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(input).toHaveValue('')
+    fireEvent.change(input, { target: { value: 'and deaths' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop the reply' }))
+    expect(input).toHaveValue('How many burials are there?\nand deaths')
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
+    expect(screen.queryByText('Message 1 of 1')).not.toBeInTheDocument()
+    expect(requestSchemaChat.mock.calls[0]![2]).toHaveProperty('aborted', true)
   })
 
   it('an edit chat question is answered in the conversation, with no proposal', async () => {

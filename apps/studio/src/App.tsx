@@ -948,6 +948,9 @@ export function DocumentWorkspace({
   // the server refuses to stabilise a Schema Revision until a pilot Extraction
   // has been run and reviewed against it.
   // The project's workflow, led by the chat: a pilot or batch start, the approval, and the next document to review.
+  // The chat is the project's: kept with it, each turn to a document said in it.
+  const chatScope = useMemo(() => sourceDocumentId ? { projectContextId, sourceDocumentId, name: filename } : null,
+    [projectContextId, sourceDocumentId, filename])
   const { batches: projectBatches, latest: projectLatestRead } = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
   const [projectBusy, setProjectBusy] = useState(false)
   const [projectError, setProjectError] = useState<string | null>(null)
@@ -1090,6 +1093,7 @@ export function DocumentWorkspace({
         schema={schema}
         onGenerateInstructions={handleGenerate}
         onClearDraft={resetSchema}
+        chatScope={chatScope}
         extraction={extraction}
         inspection={{
           attempt: inspectedAttempt,
