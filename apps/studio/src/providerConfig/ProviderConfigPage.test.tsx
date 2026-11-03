@@ -970,6 +970,8 @@ describe('Advanced', () => {
     expect(screen.getByRole('button', { name: 'Use service defaults', pressed: true })).toBeInTheDocument()
     openSection('Source context')
     expect(radio('Scope', 'Full source')).toBeDisabled()
+    openSection('Technical details')  // the request admission sends: the service defaults, explicit
+    expect(screen.getByRole('option', { name: 'article.grounding_overflow' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.getByText('Applies to new Extractions in your Projects.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
@@ -1092,7 +1094,8 @@ describe('Advanced', () => {
     expect(within(additional).getAllByRole('button')).toHaveLength(5)
     expect(within(settingsSelector()).getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Source context: Scope', 'Source context: Context ceiling', 'Source context: Grouping', 'Source context: Previous passages',
-      'Extraction input: Source representation', 'Evidence: Verification', 'Evidence: Fields to verify', 'Effective settings', 'Technical details',
+      'Extraction input: Source representation', 'Evidence: Verification', 'Evidence: Large checks', 'Evidence: Fields to verify',
+      'Effective settings', 'Technical details',
     ])
     expect(screen.queryByRole('textbox', { name: 'Identity field name' })).not.toBeInTheDocument()
     setting('Source representation')

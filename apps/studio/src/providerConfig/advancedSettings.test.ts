@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
+import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, UNRECORDED_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
 import { methodLines } from '../methodSummary'
 import {
   ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, orderedCatalog,
@@ -13,7 +13,7 @@ const inventory = JSON.parse(readFileSync(new URL(
 
 /** The order a researcher would set choices in: parents before the children they enable. */
 const ORDER: readonly ArticleKey[] = ['context', 'context_tokens', 'identity_fields', 'identity', 'prompt', 'rendering', 'grounding',
-  'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'grouping', 'overlap_passages']
+  'grounding_overflow', 'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'grouping', 'overlap_passages']
 
 function* inputs(): Generator<Record<string, unknown>> {
   const names = Object.keys(inventory.factors)
@@ -44,7 +44,7 @@ describe('availability rules for the complete admitted Article contract', () => 
       else expect(disabled || articleSettingsIssues(draft).length > 0, `#${index}`).toBe(true)
       index += 1
     }
-    expect(index).toBe(6144)
+    expect(index).toBe(12288)
   })
 })
 
@@ -88,6 +88,7 @@ describe('choices', () => {
     expect(unavailableReason(REFERENCE_ARTICLE, 'overlap_passages', 1)).toBe(METHOD_MESSAGES.bounded)
     expect(unavailableReason(REFERENCE_ARTICLE, 'selection', 'supported')).toBe(METHOD_MESSAGES.bounded)
     expect(unavailableReason(REFERENCE_ARTICLE, 'grouping', 'structural')).toBe(METHOD_MESSAGES.bounded)
+    expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off', grounding_overflow: undefined }, 'grounding_overflow', 'windows')).toBe(METHOD_MESSAGES.overflow)
     expect(unavailableReason(REFERENCE_ARTICLE, 'evidence_policy', 'schema')).toBe(METHOD_MESSAGES.schemaPolicy)
     expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off' }, 'grounding_schedule', 'unresolved')).toBe(METHOD_MESSAGES.schedule)
     expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'spans' }, 'grounding_routing', 'origin_lexical')).toBe(METHOD_MESSAGES.routing)
@@ -107,13 +108,14 @@ describe('choices', () => {
 
 describe('summaries', () => {
   it('service defaults and the explicit reference read as the documented reference', () => {
-    expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification')
-    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
+    expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
+    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
+    expect(effectiveSummary(UNRECORDED_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
   })
 
   it('inactive values never reach a summary', () => {
     const full = { ...REFERENCE_ARTICLE, context_tokens: 16384 }
-    expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification')
+    expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
     const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
     expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
   })
@@ -145,6 +147,7 @@ describe('starting points', () => {
       { label: 'Context ceiling', from: 'Used with bounded source units', to: '12,288 tokens' },
       { label: 'Instructions', from: 'Reference', to: 'Schema-driven' },
       { label: 'Verification', from: 'Source labels', to: 'Source spans' },
+      { label: 'Large checks', from: 'Check in windows', to: 'Leave unchecked' },
       { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow template policies' },
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])

@@ -116,9 +116,16 @@ def rank_units(contexts: Sequence[Context], value_contexts: Sequence[Context], o
             "lexical_scores": [round(score, 8) for score in scores]}
 
 
+OVERFLOW_VERSION = 1  # `grounding_overflow="windows"`: the windows below
+# Halvings of one refused unit at most: windows down to an eighth of it, so each claim checks at most 14 windows of a
+# refused unit (2 + 4 + 8); claims at the same window in the same round share its pass, one verifier pass as for a
+# unit; a refused window sends no call.
+WINDOW_DEPTH = 3
+
+
 def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, chat, *,
                   origins: Sequence[dict], value_contexts: Sequence[Context], record: int,
-                  verifier, skip_paths: frozenset = frozenset(), **verification):
+                  verifier, skip_paths: frozenset = frozenset(), windows: bool = False, **verification):
     """Batch claims sharing their next preferred unit; keep unresolved fallback exhaustive.
 
     A refusal is recorded separately from an attempted comparison. Missing/invalid
@@ -127,6 +134,11 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
     end the round: the round's other units are independent of it, so their checks are
     captured, and their saved replies read, in the same planning round. The next round
     routes each claim by this round's outcomes, so it starts once every unit has replied.
+    With `windows` (`grounding_overflow="windows"`), a claim refused because its check of a unit exceeds the budget is
+    checked next in that unit's two halves of passages, each a window, halved again when refused (`WINDOW_DEPTH`
+    times at most): claims at the same window in the same round share its pass. A window refused at the limit, or
+    holding one passage, keeps the refusal. Windows are local to this routing and routes name only `contexts`, the published
+    listing: a unit checked through its windows is attempted, or refused when one of its windows was.
     """
     by_path = {tuple(item["path"]): item for item in origins}
     routes = {}
@@ -147,29 +159,55 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
                                  "remaining": list(ranked["order"]), "supported": False}
     all_paths = {("records", record, *path) for path, _ in leaves(fields)}
     links, calls, issues = [], [], []
+    units = list(contexts)
+    depth = [0] * len(units)
+    context_of = list(range(len(units)))  # the published context a window is part of
+    halves: dict[int, tuple[int, int]] = {}
+    queued: dict[tuple, list[int]] = {path: [] for path in routes}  # each claim's windows, checked before `remaining`
     while True:
         batches = {}
         for path, route in routes.items():
-            if not route["supported"] and route["remaining"]:
-                unit = route["remaining"].pop(0)
+            if not route["supported"] and (queued[path] or route["remaining"]):
+                unit = queued[path].pop(0) if queued[path] else route["remaining"].pop(0)
                 batches.setdefault(unit, set()).add(path)
         if not batches:
             break
         waiting = False  # a unit's check captured for the durable workflow to run: read next planning round
         for unit, paths in batches.items():
             try:
-                found, attempts, problems = verifier(contexts[unit].passages, fields, schema, chat,
+                found, attempts, problems = verifier(units[unit].passages, fields, schema, chat,
                     record=record, skip_paths=frozenset(all_paths - paths), **verification)
             except NeedsCall:
                 waiting = True
                 continue
             supported = {link.path for link in found}
             refused = {issue.path for issue in problems if issue.code == "grounding_exceeds_budget"}
+            windowed = set()
+            if windows and refused and depth[unit] < WINDOW_DEPTH and len(units[unit].passages) > 1:
+                if unit not in halves:
+                    shown, middle = units[unit].passages, len(units[unit].passages) // 2
+                    units += [Context(shown[:middle]), Context(shown[middle:])]
+                    depth += [depth[unit] + 1] * 2
+                    context_of += [context_of[unit]] * 2
+                    halves[unit] = (len(units) - 2, len(units) - 1)
+                windowed = refused
+                problems = [issue for issue in problems
+                            if not (issue.code == "grounding_exceeds_budget" and issue.path in windowed)]
             if any(issue.code == "no_evidence" for issue in problems):
                 refused = paths
             for path in paths:
-                routes[path]["refused" if path in refused else "attempted"].append(unit)
-                routes[path]["supported"] = path in supported
+                route = routes[path]
+                route["supported"] = path in supported
+                if path in windowed:  # its windows are checked next
+                    queued[path][0:0] = halves[unit]
+                    if unit == context_of[unit]:
+                        route["attempted"].append(unit)
+                elif unit != context_of[unit]:  # a window: a refusal in it leaves its context refused
+                    if path in refused and context_of[unit] in route["attempted"]:
+                        route["attempted"].remove(context_of[unit])
+                        route["refused"].append(context_of[unit])
+                else:
+                    route["refused" if path in refused else "attempted"].append(unit)
             links += found
             calls += attempts
             issues += problems

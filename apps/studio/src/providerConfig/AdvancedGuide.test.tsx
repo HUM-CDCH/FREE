@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
+import { REFERENCE_ARTICLE, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
 import { EVIDENCE_SOURCES, FLOW_NOTE, GUIDE_TOPICS } from './advancedGuide.data'
 import { STARTING_POINTS } from './advancedSettings'
@@ -191,16 +191,19 @@ describe('the Explain guide', () => {
   })
 
   it('a draft that changes two or more choices says Combination not studied; the reference does not', () => {
-    renderGuide(vi.fn(), { ...REFERENCE_ARTICLE, context: 'bounded', rendering: 'structured' })
+    renderGuide(vi.fn(), { ...REFERENCE_ARTICLE, grounding: 'spans', rendering: 'structured' })
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
     const guide = within(screen.getByRole('dialog', { name: 'How this works' }))
     expect(guide.getByText('Combination not studied')).toBeInTheDocument()
     // What the studies did, not an inference from how many choices changed.
     expect(guide.getByText(/completed studies changed one choice at a time/)).toBeInTheDocument()
-    cleanup()
-    renderGuide()
-    fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    expect(within(screen.getByRole('dialog', { name: 'How this works' })).queryByText('Combination not studied')).toBeNull()
+    // The reference, and one choice changed in a draft saved before large checks existed (no windows), are studied.
+    for (const article of [REFERENCE_ARTICLE, { ...UNRECORDED_ARTICLE, grounding: 'spans' as const }]) {
+      cleanup()
+      renderGuide(vi.fn(), article)
+      fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
+      expect(within(screen.getByRole('dialog', { name: 'How this works' })).queryByText('Combination not studied')).toBeNull()
+    }
   })
 
   it('a starting point the draft already uses shows no changes and cannot be used again', () => {

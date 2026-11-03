@@ -177,7 +177,12 @@ its contract.
 ## Article choices
 
 Omitting `options.article` runs the reference method: the complete source as
-one value context, `semantic` grounding. Setting any option records every
+one value context, `semantic` grounding. API callers that omit it keep that
+method, and Extractions Studio recorded with `article: null` replay it. Current
+Studio pages send explicit settings: Studio's default is that reference method
+with `grounding_overflow=windows`. A Studio page loaded before that default
+still sends `article: null` for an account without saved Article settings, and
+admission records it so. Setting any option records every
 setting and `method_version: 1` in the fingerprint. Studio sets these options on
 its Model Configuration Advanced tab. Non-default saved values from the last
 two rows appear under Additional saved settings with scoped resets; identity
@@ -191,6 +196,7 @@ combinations the last column names.
 | `grouping=structural` | Keep a heading with its first body block and tables with adjacent captions and footnotes, across page furniture; carry the latest heading into continuation units. An oversized group is refused intact; no heading hierarchy or cross-page table is inferred. | `context=bounded` |
 | `rendering=structured` | Expose canonical block IDs, labels and pages, and table cell IDs, rows, columns, spans and roles. Every source character is kept; the markup is counted, so it can raise cost or cause refusal. | |
 | `grounding=semantic\|quoted\|spans\|off` | Source-label verification; exact source-substring checks with model-attested attribution; span IDs chosen from offered canonical ranges, with quotes rebuilt from the source; or no links. A valid substring and the model's attribution are not independent proof of semantic correctness. | |
+| `grounding_overflow=windows` | A claim whose check over a whole context exceeds the reasoning budget (`grounding_exceeds_budget`) is checked next in that context's two halves of passages, halved again when refused, at most three times (`routing.WINDOW_DEPTH`), stopping at support: each claim checks at most 14 windows of a refused context (2 + 4 + 8), and claims at the same window in the same round share its pass. A single passage or an eighth that still does not fit keeps the refusal. Without it the refusal stands, as before. Records `grounding_overflow_version`. | grounding |
 | `evidence_policy=schema` | Apply the schema's `evidencePolicy` metadata (below). | `quoted` or `spans` grounding |
 | `identity`, `identity_fields`, `prompt`, `selection` | No effect on Article's document-value prompt, record identity or units read, but they stay in the fingerprint. The first three still affect preliminary bounded source sizing: `source_contexts` counts `inventory_request` with these values, including on full-source fallback, without sending an inventory call. Research replays still read them. | `identity=conservative` needs `identity_fields`; `selection` needs `context=bounded` |
 | `grounding_schedule`, `grounding_routing` | No effect on how Article grounds: it always checks each claim first in the context its value was read from, with exhaustive fallback, stopping at support. `grounding_routing` still adds its diagnostics (`value_origins`, `grounding_routes`). | `grounding_schedule` needs grounding; `grounding_routing` needs `grounding_schedule=unresolved` and `quoted` or `spans` grounding |

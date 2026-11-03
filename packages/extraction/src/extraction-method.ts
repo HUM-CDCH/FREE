@@ -27,6 +27,7 @@ export const METHOD_MESSAGES = {
   bounded: 'This choice requires bounded source units.',
   schemaPolicy: 'Schema policies require generated quotes or source spans.',
   schedule: 'Choose a verification method to use this schedule.',
+  overflow: 'Choose a verification method to check large claims in windows.',
   routing: 'Use generated quotes or source spans, and stop after support.',
   identity: 'Add the scalar record fields that identify one record.',
   identityNames: 'Each identity field needs its own non-empty name.',
@@ -62,17 +63,24 @@ export const articleSettingsSchema = z.object({
   selection: optionalFactor('supported'),
   rendering: optionalFactor('structured'),
   grouping: optionalFactor('structural'),
+  grounding_overflow: optionalFactor('windows'),
 }).strict()
 export type ArticleSettings = z.output<typeof articleSettingsSchema>
 
 /** `ArticleOptions` field order: saved, compared and sent Article settings keep it, so equal drafts serialize alike. */
 export const ARTICLE_KEYS = [
   'context', 'context_tokens', 'overlap_passages', 'identity', 'identity_fields', 'prompt', 'grounding',
-  'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'rendering', 'grouping',
+  'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'rendering', 'grouping', 'grounding_overflow',
 ] as const satisfies readonly (keyof ArticleSettings)[]
 
-/** The explicit reference Customize starts from: every required field, no optional factor. */
-export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({}))
+/** Studio's Article default, not the Parsing Service's (`method.py` `REFERENCE`, which is `UNRECORDED_ARTICLE`): the
+ *  whole source, and a claim too large to check in it checked in windows of it. A current Studio page records and sends
+ *  it explicitly for an account without saved Article settings (a page loaded before it still sends `article: null`),
+ *  and Customize starts from it. The schema's own defaults are `UNRECORDED_ARTICLE`'s. */
+export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
+/** What an Extraction recorded without Article settings (`article: null`) runs: the schema's defaults, the whole source
+ *  without windows, as the service runs an omitted `options.article`. */
+export const UNRECORDED_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({}))
 
 export const genericCatalogSettingsSchema = z.object({
   discovery_chars: wholeNumber(METHOD_MESSAGES.characters, 1_000).optional(),
@@ -193,6 +201,8 @@ export function articleSettingsIssues(article: ArticleSettings): MethodIssue[] {
   if (article.evidence_policy && !verifiesQuotes) issues.push({ path: 'evidence_policy', message: METHOD_MESSAGES.schemaPolicy })
   if (article.grounding_schedule && article.grounding === 'off')
     issues.push({ path: 'grounding_schedule', message: METHOD_MESSAGES.schedule })
+  if (article.grounding_overflow && article.grounding === 'off')
+    issues.push({ path: 'grounding_overflow', message: METHOD_MESSAGES.overflow })
   if (article.grounding_routing && (!verifiesQuotes || article.grounding_schedule !== 'unresolved'))
     issues.push({ path: 'grounding_routing', message: METHOD_MESSAGES.routing })
   if (article.identity === 'conservative' && article.identity_fields.length === 0)
@@ -311,7 +321,9 @@ export function activeSettings(
 ): ActiveSettings {
   const canonical = canonicalExtractionSettings(settings)
   switch (settingsSlot(strategy, catalogRecipe, unified)) {
-    case 'article': return { article: canonical.article ?? null }
+    // An account on service defaults records Studio's explicitly: `article: null` stays what Extractions admitted before
+    // did, run on the whole source (an omitted `options.article`), which Resume and Retry replay.
+    case 'article': return { article: canonical.article ?? REFERENCE_ARTICLE }
     case 'recipe': return { recipe: canonical.catalog?.recipe ?? null }
     case 'generic': return { generic: canonical.catalog?.generic ?? null }
     case 'unified': return { unified: canonicalUnified(canonical.catalog?.unified) }

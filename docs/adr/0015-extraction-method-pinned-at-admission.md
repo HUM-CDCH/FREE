@@ -3,8 +3,9 @@
 Date: 2026-09-29. Status: accepted; amends 0011 (the Extraction Model Choice is
 submitted with each start, not applied from the account per request); amended
 by [0017](0017-durable-extraction-control-and-call-checkpoints.md) (the pin
-applies to each durable input selection) and on 2026-10-12 (single Run shows
-no method and submits the saved one).
+applies to each durable input selection), on 2026-10-12 (single Run shows
+no method and submits the saved one) and on 2026-11-02 (Studio's Article
+default).
 
 ## Context
 
@@ -22,7 +23,8 @@ admitted with.
   part of the one Model Configuration document, as a required
   `extractionSettings` member with one member per strategy (Article; generic and
   recipe Catalog, and the unified Catalog preference where
-  `FREE_CATALOG_METHOD=unified`). `{}` means the Parsing Service's defaults.
+  `FREE_CATALOG_METHOD=unified`). `{}` means the Parsing Service's defaults
+  (for Article, see the 2026-11-02 amendment).
   They are edited on the page's Advanced tab through the same draft, Apply and
   Discard. They never hold a key and never edit an Extraction Schema.
 - **A start submits what it showed.** Every single, batch and suggested-batch
@@ -80,3 +82,16 @@ re-read that switches to the Unified Catalog Method drops the run's recipe,
 which that method does not take. Batch and suggested-batch starts still show
 the method they submit, and Extraction details (History's technical details)
 show the method a single Run was admitted with.
+
+## Amendment (2026-11-02)
+
+For Article, `{}` no longer means the Parsing Service's defaults. Studio
+resolves an account without saved Article settings to its own default,
+`REFERENCE_ARTICLE`: the whole source, with large checks in windows
+(`grounding_overflow=windows`). Current Studio pages submit it, and admission
+records it, explicitly. The service's default is what an omitted
+`options.article` runs, and what an Extraction recorded with `article: null`
+replays: the whole source without windows. A Studio page loaded before this
+default still submits `article: null`. For an account without saved Article
+settings, admission accepts that as recorded, without windows. Catalog's `{}`
+is unchanged.

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import '@testing-library/jest-dom/vitest'
 import {
   act,
@@ -41,7 +42,9 @@ vi.mock('../savedMethod', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../savedMethod')>()),
   useSavedMethod: () => saved,
 }))
-const SERVICE_DEFAULTS = { models: null, settings: { article: null } }
+// The account keeps every service default, which an Article run records explicitly.
+const DEFAULTS_HEADLINE = 'Service defaults · Full source · Plain text · Source-label verification · Large checks in windows'
+const SERVICE_DEFAULTS = { models: null, settings: { article: REFERENCE_ARTICLE } }
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
@@ -1003,7 +1006,7 @@ describe('BatchExtractionsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Template fields')
-    expect(screen.getByText('Saved advanced settings: Service defaults')).toBeInTheDocument()
+    expect(screen.getByText(`Saved advanced settings: ${DEFAULTS_HEADLINE}`)).toBeInTheDocument()
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
 
@@ -1872,7 +1875,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel(vi.fn(), batchExtractionId)
 
     const rerun = await screen.findByRole('button', { name: 'Run again' })
-    expect(screen.getByText('Saved advanced settings: Service defaults')).toBeInTheDocument()
+    expect(screen.getByText(`Saved advanced settings: ${DEFAULTS_HEADLINE}`)).toBeInTheDocument()
     fireEvent.click(rerun)
     expect(await screen.findByText(message, { exact: false })).toHaveAttribute('role', 'alert')
     fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))

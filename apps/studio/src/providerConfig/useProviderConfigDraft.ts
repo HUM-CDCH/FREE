@@ -196,7 +196,7 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     })
   }
 
-  /** Customize: that strategy's override starts from the documented reference settings. */
+  /** Customize: that strategy's override starts from Studio's defaults (`REFERENCE_ARTICLE`, with windows). */
   function customize(strategy: AdvancedStrategy): void {
     setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? REFERENCE_ARTICLE : REFERENCE_CATALOG }))
   }
@@ -207,9 +207,12 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([path]) => !path.startsWith(`${strategy}.`))))
   }
 
-  /** `undefined` switches an optional factor off (omitted, never null). A parent change keeps its children as they are. */
+  /** `undefined` switches an optional factor off (omitted, never null). A parent change keeps its children as they are,
+   *  except that verification off also clears large checks. */
   function setArticle<K extends ArticleKey>(key: K, value: ArticleSettings[K] | undefined): void {
-    setSettings((settings) => settings.article ? { ...settings, article: orderedArticle({ ...settings.article, [key]: value }) } : settings)
+    // Large checks, on by default, mean nothing without verification: turning it off clears them in the same change.
+    const cleared = key === 'grounding' && value === 'off' ? { grounding_overflow: undefined } : {}
+    setSettings((settings) => settings.article ? { ...settings, article: orderedArticle({ ...settings.article, [key]: value, ...cleared }) } : settings)
   }
 
   /** A starting point, and its Undo: the whole Article override, or none, with the Article number text that goes with

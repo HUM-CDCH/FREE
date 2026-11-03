@@ -177,11 +177,12 @@ function StudyEvidence({ topic }: { topic: GuideTopic }) {
   </SettingsViews>
 }
 
-/** Choices away from the documented reference; context ceiling and identity field names are inputs, not choices. Two or
- *  more together is what the completed one-choice-at-a-time studies did not cover. */
+/** Choices away from the studies' reference (Studio's default without its large checks, which a draft saved before them
+ *  lacks); context ceiling and identity field names are inputs, not choices. Two or more together is what the completed
+ *  one-choice-at-a-time studies did not cover. */
 function changedChoices(article: ArticleSettings | undefined): number {
   if (!article) return 0
-  return ARTICLE_KEYS.filter((key) => key !== 'context_tokens' && key !== 'identity_fields' &&
+  return ARTICLE_KEYS.filter((key) => key !== 'context_tokens' && key !== 'identity_fields' && key !== 'grounding_overflow' &&
     (article[key] ?? undefined) !== (REFERENCE_ARTICLE[key] ?? undefined)).length
 }
 

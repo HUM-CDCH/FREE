@@ -59,7 +59,10 @@ export const METHOD_CHANGED_MESSAGE =
 /** Whether the account's saved method, read under its configuration row's lock, is still the one the researcher saw.
  *  The comparison and the snapshot write share one transaction, so an Apply commits wholly before or after it. Where the
  *  deployment enables the unified Catalog, a new Catalog Extraction is admitted on it alone: a legacy recipe or generic
- *  method is a stale one, and legacy Catalog preferences refuse it until their migration is applied. */
+ *  method is a stale one, and legacy Catalog preferences refuse it until their migration is applied. A page loaded
+ *  before Studio recorded Article's service defaults explicitly submits `article: null` for an account without saved
+ *  Article settings: still the method that page showed (the whole source, as before), so it is admitted as recorded
+ *  until the account saves Article settings. */
 export async function savedMethodStillCurrent(
   client: Parameters<typeof lockModelConfiguration>[0],
   owner: string,
@@ -67,8 +70,13 @@ export async function savedMethodStillCurrent(
   catalogRecipe: string | null,
   method: ExtractionMethodIntent,
 ): Promise<boolean> {
-  const saved = accountMethod(await lockModelConfiguration(client, owner), strategy, catalogRecipe, unifiedCatalogEnabled())
-  return isDeepStrictEqual(saved, method)
+  const document = await lockModelConfiguration(client, owner)
+  const saved = accountMethod(document, strategy, catalogRecipe, unifiedCatalogEnabled())
+  if (isDeepStrictEqual(saved, method)) return true
+  // accountMethod has validated a stored document, so it has `extractionSettings`.
+  const storedArticle = (document as { extractionSettings: { article?: unknown } } | null)?.extractionSettings.article
+  return strategy === 'ARTICLE' && storedArticle === undefined
+    && isDeepStrictEqual({ models: saved.models, settings: { article: null } }, method)
 }
 
 /** Identity fields the pinned schema cannot key records by refuse the Extraction before anything is enqueued; the

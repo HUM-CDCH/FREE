@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -53,7 +54,8 @@ const {
   }
 })
 
-// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`. A run
+// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`, an Article
+// run the explicit `REFERENCE_ARTICLE`. A run
 // re-reads it (`refresh`), which answers the ready state, or null when it is not ready.
 const saved = vi.hoisted(() => ({
   state: {
@@ -2399,10 +2401,11 @@ describe('reopened Source Document workspace', () => {
       schemaRevisionId: strategy === 'CATALOG' ? appendedRevisionId(2) : reopened.extractionSchema!.schemaRevisionId,
       strategy,
       ...(catalogRecipe ? { catalogRecipe } : {}),
-      // The saved method of the run's own settings slot: the account keeps every service default.
+      // The saved method of the run's own settings slot: the account keeps every service default, which an Article
+      // run records explicitly.
       method: {
         models: null,
-        settings: strategy === 'ARTICLE' ? { article: null } : catalogRecipe ? { recipe: null } : { generic: null },
+        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : catalogRecipe ? { recipe: null } : { generic: null },
       },
     })
 

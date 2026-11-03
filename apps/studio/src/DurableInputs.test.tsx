@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import {afterEach,expect,it,vi} from 'vitest'
 import type {DurableRead} from 'extraction/durable-types'
 import {REFERENCE_ARTICLE} from 'extraction/extraction-method'
@@ -43,6 +43,22 @@ it.each([
     expectedVersion:3,schemaRevisionId:'schema',method:{models:null,settings},
   }))
   expect(onSaved).toHaveBeenCalledOnce()
+})
+
+it('an Extraction recorded without Article settings previews what Save sends: no article until the draft changes',async()=>{
+  vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
+  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}},pendingSelection:null} as unknown as DurableRead
+  render(<DurableInputs attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={vi.fn()} onEdited={async()=>{}}/>)
+  await screen.findByRole('button',{name:'Save pending inputs'})
+  const view=screen.getByRole('combobox',{name:'Article setting'})
+  const show=(title:string)=>fireEvent.change(view,{target:{value:(within(view).getAllByRole('option') as HTMLOptionElement[]).find(option=>option.textContent===title||option.textContent?.startsWith(`${title}: `))!.value}})
+  show('Technical details')
+  expect(screen.getByRole('heading',{name:'strategy'})).toBeInTheDocument()  // the only request option
+  expect(screen.queryByRole('combobox',{name:'Request option'})).toBeNull()
+  show('Source context')
+  fireEvent.click(screen.getByRole('radio',{name:'Bounded source units'}))
+  show('Technical details')
+  expect(within(screen.getByRole('combobox',{name:'Request option'})).getByRole('option',{name:'article.context'})).toBeInTheDocument()
 })
 
 const article={...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}
