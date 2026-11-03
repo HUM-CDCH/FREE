@@ -4,6 +4,7 @@ import type {
   ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { extractionSchemaListResponseSchema } from '../shared/schemaRevision.contract.js'
+import type { ModelOperationClient } from './_model_operation.js'
 import {
   createDeleteExtractionSchema,
   createGetExtractionSchemas,
@@ -121,7 +122,7 @@ describe('PATCH /api/extraction-schemas/:id', () => {
     }))
     const PATCH = createPatchExtractionSchema({ renameExtractionSchema })
     const response = await PATCH(
-      request({ projectContextId: PROJECT, name: 'Beretning', expectedName: 'Extraction Schema' }),
+      request({ projectContextId: PROJECT, name: 'Beretning', expectedName: 'Extraction Template' }),
     )
 
     expect(response.status).toBe(200)
@@ -132,7 +133,7 @@ describe('PATCH /api/extraction-schemas/:id', () => {
       PROJECT,
       SCHEMA,
       'Beretning',
-      'Extraction Schema',
+      'Extraction Template',
     )
   })
 
@@ -168,6 +169,7 @@ describe('PATCH /api/extraction-schemas/:id', () => {
 })
 
 describe('DELETE /api/extraction-schemas/:id', () => {
+  const ACCOUNT = '51000000-0000-4000-8009-000000000001'
   const request = (
     id = SCHEMA,
     projectContextId: string | null = PROJECT,
@@ -180,12 +182,38 @@ describe('DELETE /api/extraction-schemas/:id', () => {
       })}`,
       { method: 'DELETE' },
     )
+  const finishedGeneration = (n: number) => ({
+    workflowID: `suggestion:51000000-0000-4000-8005-00000000000${n}`,
+  })
+  function operations(found = [finishedGeneration(1), finishedGeneration(2)]) {
+    const client = {
+      listWorkflows: vi.fn(async () => found),
+      deleteWorkflows: vi.fn<(workflowIds: string[]) => Promise<void>>(
+        async () => {},
+      ),
+    }
+    return client as unknown as ModelOperationClient & typeof client
+  }
+  function handlerWith(
+    deleteExtractionSchema: ResearcherProjectStore['deleteExtractionSchema'],
+    client = operations(),
+    owned = true,
+  ) {
+    return createDeleteExtractionSchema(
+      {
+        researcherAccountId: ACCOUNT,
+        deleteExtractionSchema,
+        modelOperationScopeExists: vi.fn(async () => owned),
+      },
+      () => client,
+    )
+  }
 
   it('deletes one project-owned schema with no Extractions', async () => {
     const deleteExtractionSchema = vi.fn(async () => ({
       status: 'deleted' as const,
     }))
-    const DELETE = createDeleteExtractionSchema({ deleteExtractionSchema })
+    const DELETE = handlerWith(deleteExtractionSchema)
     const response = await DELETE(request())
 
     expect(response.status).toBe(204)
@@ -193,29 +221,77 @@ describe('DELETE /api/extraction-schemas/:id', () => {
     expect(deleteExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA, false)
   })
 
+  it('deletes the project\'s finished first generations first, so opening a document does not save one again', async () => {
+    const client = operations()
+    const deleteExtractionSchema = vi.fn(async () => {
+      expect(client.deleteWorkflows).toHaveBeenCalled()
+      return { status: 'deleted' as const }
+    })
+    await handlerWith(deleteExtractionSchema, client)(request())
+
+    expect(client.listWorkflows).toHaveBeenCalledWith({
+      workflow_id_prefix: 'suggestion:',
+      attributes: { projectContextId: PROJECT, extractionSchemaId: null },
+      authenticatedUser: ACCOUNT,
+      status: 'SUCCESS',
+      loadInput: false,
+      loadOutput: false,
+    })
+    expect(client.deleteWorkflows).toHaveBeenCalledWith([
+      finishedGeneration(1).workflowID,
+      finishedGeneration(2).workflowID,
+    ])
+    expect(deleteExtractionSchema).toHaveBeenCalledOnce()
+  })
+
+  it('deletes no workflow when there is none', async () => {
+    const client = operations([])
+    await handlerWith(
+      vi.fn(async () => ({ status: 'deleted' as const })),
+      client,
+    )(request())
+    expect(client.deleteWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('leaves the schema when its workflows cannot be cleared', async () => {
+    const client = operations()
+    client.listWorkflows.mockRejectedValue(new Error('postgresql://secret'))
+    const deleteExtractionSchema = vi.fn(async () => ({
+      status: 'deleted' as const,
+    }))
+    const response = await handlerWith(deleteExtractionSchema, client)(
+      request(),
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain('secret')
+    expect(deleteExtractionSchema).not.toHaveBeenCalled()
+  })
+
   it('passes force through to the store', async () => {
     const deleteExtractionSchema = vi.fn(async () => ({
       status: 'deleted' as const,
     }))
-    const DELETE = createDeleteExtractionSchema({ deleteExtractionSchema })
+    const DELETE = handlerWith(deleteExtractionSchema)
     await DELETE(request(SCHEMA, PROJECT, true))
 
     expect(deleteExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA, true)
   })
 
   it('refuses invalid ids, missing schemas, and schemas with Extractions', async () => {
-    const missing = createDeleteExtractionSchema({
-      deleteExtractionSchema: vi.fn(async () => null),
-    })
+    const client = operations()
+    const missing = handlerWith(vi.fn(async () => null), client, false)
     expect((await missing(request('not-a-uuid'))).status).toBe(422)
     expect((await missing(request(SCHEMA, null))).status).toBe(422)
     expect((await missing(request())).status).toBe(404)
+    // Another account's project names no workflow to delete.
+    expect(client.listWorkflows).not.toHaveBeenCalled()
 
-    const blocked = createDeleteExtractionSchema({
-      deleteExtractionSchema: vi.fn(async () => ({
+    const blocked = handlerWith(
+      vi.fn(async () => ({
         status: 'has_extractions' as const,
       })),
-    })
+    )
     const response = await blocked(request())
     expect(response.status).toBe(409)
     const body = await response.json()
@@ -223,11 +299,11 @@ describe('DELETE /api/extraction-schemas/:id', () => {
   })
 
   it('sanitizes persistence failures', async () => {
-    const unavailable = createDeleteExtractionSchema({
-      deleteExtractionSchema: vi.fn(async () => {
+    const unavailable = handlerWith(
+      vi.fn(async () => {
         throw new Error('postgresql://secret')
       }),
-    })
+    )
     const response = await unavailable(request())
     expect(response.status).toBe(503)
     expect(await response.text()).not.toContain('secret')

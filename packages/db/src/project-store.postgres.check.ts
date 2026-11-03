@@ -218,24 +218,24 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   })
   await t.test('conditional schema renames recheck the expected name after competing PostgreSQL writes', async () => {
     const scope = project.projectContextId
-    await store.renameExtractionSchema(scope, schema.id, 'Extraction Schema')
+    await store.renameExtractionSchema(scope, schema.id, 'Extraction Template')
     const names = ['First automatic name', 'Second automatic name']
     const results = await withBlockedUpdates(databaseUrl, 'ExtractionSchema', schema.id, 2,
-      () => Promise.all(names.map((name) => store.renameExtractionSchema(scope, schema.id, name, ' Extraction Schema '))),
+      () => Promise.all(names.map((name) => store.renameExtractionSchema(scope, schema.id, name, ' Extraction Template '))),
     )
     const saved = await db.orm.public.ExtractionSchema.select('name').first({ id: schema.id })
     assert.ok(names.includes(saved!.name))
     assert.deepEqual(results.map((result) => result?.name), [saved!.name, saved!.name],
       'only one fenced update wins; the loser reads the winner instead of overwriting it')
 
-    await store.renameExtractionSchema(scope, schema.id, 'Extraction Schema')
+    await store.renameExtractionSchema(scope, schema.id, 'Extraction Template')
     await withBlockedUpdates(databaseUrl, 'ExtractionSchema', schema.id, 2, () => Promise.all([
-      store.renameExtractionSchema(scope, schema.id, 'Automatic name', 'Extraction Schema'),
+      store.renameExtractionSchema(scope, schema.id, 'Automatic name', 'Extraction Template'),
       store.renameExtractionSchema(scope, schema.id, 'Researcher name'),
     ]))
     assert.equal((await db.orm.public.ExtractionSchema.select('name').first({ id: schema.id }))?.name, 'Researcher name',
       'the manual name wins whichever blocked write PostgreSQL releases first')
-    assert.equal((await store.renameExtractionSchema(scope, schema.id, 'Late automatic name', 'Extraction Schema'))?.name,
+    assert.equal((await store.renameExtractionSchema(scope, schema.id, 'Late automatic name', 'Extraction Template'))?.name,
       'Researcher name')
     assert.equal(await survivorStore.renameExtractionSchema(scope, schema.id, 'Foreign name', 'Researcher name'), null)
     assert.equal((await db.orm.public.ExtractionSchema.select('name').first({ id: schema.id }))?.name, 'Researcher name')

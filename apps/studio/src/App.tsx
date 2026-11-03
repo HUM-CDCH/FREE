@@ -51,6 +51,7 @@ import { strategyOf } from 'extraction/schema'
 import type { NavigableRoute } from './projectNavigation'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
+import { extractionSchemaInitialName } from '../shared/schemaRevision.contract'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -258,16 +259,16 @@ export function DocumentWorkspace({
   const renameQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const renameSequenceRef = useRef(0)
   const durableSchemaNameRef = useRef(extractionSchema?.name ?? null)
-  /** Renames the schema; null on success, else why not. `expectedName` (the automatic first name only: 'Extraction
-   *  Schema', the name the server created the schema with) fences the rename on the server, which applies it only while
-   *  the schema still carries that name and otherwise answers the name as it stands; it is also the server's name
-   *  should this rename fail. With `timeoutMs` the request is given up (aborted, so it fails) once it has waited that
-   *  long for its answer, and the queue goes on with the next rename: a stalled automatic name never strands the
+  /** Renames the schema; null on success, else why not. `expectedName` (the automatic first name only:
+   *  `extractionSchemaInitialName`, the name the server created the schema with) fences the rename on the server, which
+   *  applies it only while the schema still carries that name and otherwise answers the name as it stands; it is also
+   *  the server's name should this rename fail. With `timeoutMs` the request is given up (aborted, so it fails) once it
+   *  has waited that long for its answer, and the queue goes on with the next rename: a stalled automatic name never strands the
    *  researcher's rename behind it. Giving up stops the waiting, not the server's write, but the fence makes that write
    *  harmless in all but one case: an abandoned automatic name reaching the database after the researcher's rename
    *  finds another name there and changes nothing, so it does not overwrite a later manual name. The one exception: a
-   *  researcher's own name equal to the creation name ('Extraction Schema') still satisfies the fence, so an abandoned
-   *  automatic write landing after it still applies. The fence is on the name, not a version; a rename version would
+   *  researcher's own name equal to the creation name still satisfies the fence, so an abandoned automatic write
+   *  landing after it still applies. The fence is on the name, not a version; a rename version would
    *  close that case, an accepted residual. The queue keeps the order on screen. A researcher's own rename is never
    *  fenced. */
   function renameSchema(extractionSchemaId: string, name: string, expectedName?: string, timeoutMs?: number): Promise<string | null> {
@@ -591,7 +592,7 @@ export function DocumentWorkspace({
       if (extractionSchemaId) {
         const name = defaultSchemaName(filename)
         setSchemaName(name)
-        void renameSchema(extractionSchemaId, name, 'Extraction Template', automaticRenameTimeoutMs)
+        void renameSchema(extractionSchemaId, name, extractionSchemaInitialName, automaticRenameTimeoutMs)
       }
     }
   }

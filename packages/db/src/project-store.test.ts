@@ -1719,7 +1719,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     }
 
     assert.deepEqual(
-      await store.renameExtractionSchema(PROJECT, SCHEMA, 'Beretning', 'Extraction Schema'),
+      await store.renameExtractionSchema(PROJECT, SCHEMA, 'Beretning', 'Extraction Template'),
       { ...places, name: 'Places' },
     )
     assert.equal(database.tables.ExtractionSchema[0].name, 'Places')

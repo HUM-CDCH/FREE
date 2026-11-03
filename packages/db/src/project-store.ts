@@ -1168,6 +1168,8 @@ type StoredProjectContext = { id: string; name: string; createdAt: Date }
 
 export const PROJECT_CONTEXT_NAME_LIMIT = 512
 export const EXTRACTION_SCHEMA_NAME_LIMIT = 512
+/** The name a first generation's Extraction Schema is created with; Studio's automatic first name is fenced on it. */
+export const EXTRACTION_SCHEMA_INITIAL_NAME = 'Extraction Template'
 
 /**
  * The durable name contract, enforced where the write happens: no caller can
@@ -2581,7 +2583,7 @@ export function createResearcherProjectStore(
           await orm.public.ExtractionSchema.create({
             id: extractionSchemaId,
             projectContextId,
-            name: 'Extraction Schema',
+            name: EXTRACTION_SCHEMA_INITIAL_NAME,
           })
         }
 
