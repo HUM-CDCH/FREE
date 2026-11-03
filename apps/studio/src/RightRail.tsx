@@ -345,6 +345,7 @@ function RightRail({
         readOnly={inspection.readOnly}
         project={project}
         resultsShown={open && activeView === 'results'}
+        templateShown={open && activeView === 'schema'}
         onShowView={onViewChange}
         mode={activeView === 'chat' ? 'full' : 'step'}
       />

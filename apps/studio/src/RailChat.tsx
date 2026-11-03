@@ -38,6 +38,8 @@ export type RailChatProps = {
   readOnly?: boolean
   /** Results is the rail's open view. */
   resultsShown?: boolean
+  /** The Template view is the rail's open view. */
+  templateShown?: boolean
   onShowView: (view: 'chat' | 'schema' | 'results') => void
   /** `full`: the rail's home, the whole conversation filling it. `step`: under another view, the next step and the
    *  composer; sending, or the conversation's dot, returns to the home to show the reply. */
@@ -49,7 +51,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -84,6 +86,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       continueDescription: control.continueDescription, pauseDescription: control.pauseDescription },
     latest,
     resultsShown,
+    templateShown,
     dismissed,
     project: project?.guide ?? null,
   }
@@ -151,8 +154,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
         placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
         onChange={(event) => instructions.setDraft(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} />
-      <button type="button" aria-label="Send message" className={sendClass}
-        disabled={!instructions.draft.trim() || chat.asking !== null} onClick={ask}>↑</button>
+      {chat.asking !== null ? (
+        <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
+          onClick={chat.stopAsking} title="Stop and edit the message" aria-label="Stop the reply">■</button>
+      ) : (
+        <button type="button" aria-label="Send message" className={sendClass}
+          disabled={!instructions.draft.trim()} onClick={ask}>↑</button>
+      )}
     </>
   ) : (
     <>
@@ -162,7 +170,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
         <button type="button" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
-          onClick={chat.cancel} title="Stop template edit request" aria-label="Stop template edit request">■</button>
+          onClick={chat.cancel} title="Stop and edit the message" aria-label="Stop template edit request">■</button>
       ) : (
         <button type="button" className={sendClass}
           aria-label="Send" disabled={!editable || !chat.input.trim() || blocked} onClick={send}>↑</button>

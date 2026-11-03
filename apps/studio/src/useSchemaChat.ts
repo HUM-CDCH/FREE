@@ -37,6 +37,9 @@ export type SchemaChat = {
   send(text: string): Promise<void>
   /** Sends the instructions draft before the first schema: a question is answered, anything else kept. */
   ask(): Promise<void>
+  /** Stops waiting for `ask`'s reply: the message goes back to the composer, unsent. */
+  stopAsking(): void
+  /** Stops a running edit request: the message is taken back from the conversation into the composer. */
   cancel(): void
   apply(): void
   discard(): void
@@ -134,7 +137,8 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     if (!text.trim() || loading || pending) return
     setDrawerOpen(true)
     const userMsg = text.trim()
-    setMessages(c => [...c, { role: 'user', text: userMsg }])
+    const sent: ChatMsg = { role: 'user', text: userMsg }
+    setMessages(c => [...c, sent])
     setInput('')
     setLoading(true)
     const controller = new AbortController()
@@ -209,7 +213,9 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         'name' in err &&
         err.name === 'AbortError'
       ) {
-        appendMessage('Cancelled.')
+        // Stopped by the researcher: the message is taken back to edit and send again.
+        setMessages((current) => current.filter((message) => message !== sent))
+        setInput(userMsg)
       } else {
         // The sent message stays in the conversation above the error; the composer stays empty for the next one.
         appendMessage(`Error: ${err instanceof Error ? err.message : 'Request failed'}`)
@@ -231,6 +237,16 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         appendMessage('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.'),
       )
     abortRef.current?.abort()
+  }
+
+  function stopAsking() {
+    // The reply is not waited for, so nothing is recorded: the message returns ahead of anything typed since.
+    if (asking === null) return
+    askAbortRef.current?.abort()
+    askAbortRef.current = null
+    setAsking(null)
+    const typed = instructions.draft.trim()
+    instructions.setDraft(typed ? `${asking}\n${typed}` : asking)
   }
 
   // A message before the first schema asks the model whether it is a question: a question is answered from the document,
@@ -286,6 +302,7 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     revealed,
     send,
     ask,
+    stopAsking,
     cancel,
     // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
     apply: () => { if (proposalReview.apply()) setDrawerOpen(false) },

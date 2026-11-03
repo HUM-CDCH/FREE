@@ -74,9 +74,10 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     const project = (await created.json()).projectContext.projectContextId as string
     await page.goto(`/projects/${project}`)
 
-    // Upload: the project page leads no step of its own; with no document it asks for one.
+    // Upload: the one step taken on the project page, so it points below and not to the chat.
     const status = page.getByRole('region', { name: 'Project status' })
-    await expect(status).toContainText('Upload documents to begin.')
+    await expect(status).toContainText('Next: upload documents below.')
+    await expect(status).not.toContainText('in the chat')
     await expect(page.getByRole('button', { name: /^Next:/ })).toHaveCount(0)
     await page.getByLabel('Drop PDFs here or browse').setInputFiles(Array.from({ length: DOCUMENTS }, (_, index) => catalogue(index + 1)))
     await expect.poll(async () => (await (await page.request.get(`/api/project-contexts/${project}`)).json()).sourceDocuments.length,
