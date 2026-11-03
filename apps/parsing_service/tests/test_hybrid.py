@@ -10,7 +10,17 @@ import pypdfium2 as pdfium
 import pytest
 from PIL import Image
 from docling.datamodel.base_models import ConversionStatus
-from docling_core.types.doc import BoundingBox, CoordOrigin, DocItemLabel, DoclingDocument, ProvenanceItem, Size, TableData
+from docling_core.types.doc import (
+    BoundingBox,
+    ContentLayer,
+    CoordOrigin,
+    DocItemLabel,
+    DoclingDocument,
+    ProvenanceItem,
+    Size,
+    TableCell,
+    TableData,
+)
 
 from kei_exp.failures import should_retry
 from kei_exp.kie import passages
@@ -220,6 +230,143 @@ def test_an_empty_native_table_is_replaced_by_ocr_without_losing_its_caption(ill
     assert [b["html"] for b in outcome.pages[0].payload["blocks"]] == [
         "<p>Native prose</p>", "<p>Table 1. Native caption</p>",
     ]
+
+
+PICTURE = {"html": "", "bbox": [0, 0, 10, 10], "label": "Picture", "confidence": 1.0, "error": False, "skipped": True}
+
+
+def table_html(*cells):
+    return {**block("", (0, 0, 10, 10), "Table"),
+            "html": "<table><tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr></table>"}
+
+
+@pytest.mark.parametrize("model, answer, table", [
+    ("surya", [table_html("Fee", "10 EUR")], ("Table", "Fee\t10 EUR")),
+    ("surya", [{**table_html(), "html": "<table>\n<tr>\n<td><b>Reference</b></td>\n<td>12-345</td>\n</tr>\n<tr>\n"
+                                        "<td><b>Date</b></td>\n<td>2020</td>\n</tr>\n</table>"}],
+     ("Table", "\n\nReference\t\n12-345\t\n\n\n\nDate\t\n2020")),
+    ("granite_vision", "| Fee | 10 EUR |\n|----|----|", ("text", "| Fee | 10 EUR |\n|----|----|")),
+    ("surya", [PICTURE], None), ("surya", [block("Annual fees", (0, 0, 10, 10)), PICTURE], None),
+    ("surya", [block("Raster table words", (0, 0, 10, 10))], None), ("granite_vision", "| | |\n|----|----|\n| | |", None),
+    ("granite_vision", "| Fee |\n|----|\n![10 EUR](fee.png)", None),
+], ids=["a table", "a key-value table", "a pipe table", "read as a picture", "a title above a picture", "read as prose",
+        "an empty grid", "a grid holding a picture"])
+def test_a_native_table_with_no_readable_cells_outside_the_artwork_is_read_by_ocr_after_it_or_refuses_its_page(
+        illustrated_pdf, tmp_path, monkeypatch, model, answer, table):
+    """A born-digital page whose table is printed as many small images, none of them artwork on its own: the screen
+    plans OCR for the page's real artwork only, and Docling reads a document index with no readable cell. Its boxes
+    are read just after its block, before the artwork printed below it. OCR finding no text there refuses the page:
+    a blank grid cannot be told from a table OCR read as a picture."""
+    document = DoclingDocument(name="raster-index")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+
+    def at(box):
+        return ProvenanceItem(page_no=1, charspan=(0, 0), bbox=BoundingBox(
+            l=box[0], t=box[1], r=box[2], b=box[3], coord_origin=CoordOrigin.TOPLEFT))
+
+    empty = [TableCell(text="", start_row_offset_idx=row, end_row_offset_idx=row + 1,
+                       start_col_offset_idx=column, end_col_offset_idx=column + 1)
+             for row in (0, 1) for column in (0, 1)]
+    document.add_text(label=DocItemLabel.TEXT, text="Native prose", prov=at((72, 60, 350, 80)))
+    document.add_heading(text="Administrative details", level=1, prov=at((72, 100, 350, 120)))
+    document.add_table(data=TableData(num_rows=2, num_cols=2, table_cells=empty), prov=at((72, 130, 372, 280)),
+                       label=DocItemLabel.DOCUMENT_INDEX)
+    document.add_text(label=DocItemLabel.TEXT, text="Native below", prov=at((72, 460, 350, 480)))
+    document.add_text(label=DocItemLabel.PAGE_FOOTER, text="3", prov=at((290, 800, 300, 810)),
+                      content_layer=ContentLayer.FURNITURE)
+    result = SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
+                             status=ConversionStatus.SUCCESS)
+    monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
+        convert=lambda *args, **kwargs: result))
+    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model=model, pages=(1, 1), result_dir=tmp_path / "result"))
+    assert [region.bbox for region in execution.ocr_regions] == [(72, 292, 372, 442)]  # the artwork, not the table
+
+    def recognize(request, crops, emit):  # a Markdown VLM's answer is its record's Markdown and text, without blocks
+        answers = {(72, 292, 372, 442): [block("Artwork words", (0, 0, 10, 10))], (72, 130, 372, 280): answer}
+        return Transcription({}, [replace(record(n, [], image=image), payload={}, text=read, markdown=read)
+                                  if isinstance(read := answers[tuple(region.bbox)], str) else record(n, read, image=image)
+                                  for n, (_, region, image) in enumerate(crops, 1)])
+
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya" if model == "surya" else "vlm"], "transcribe", recognize)
+    if table is None:
+        with pytest.raises(ocr.IncompleteConversionError,
+                           match="page 1: OCR of crop 2, a table with no readable cells, returned no table text"):
+            ocr.run(execution, lambda _: None)
+        assert read_manifest(execution.result_dir).status == "incomplete"
+        return
+    ocr.run(execution, lambda _: None)
+    manifest = read_manifest(execution.result_dir)
+    page = read_page(execution.result_dir, 1, manifest)
+    assert manifest.status == "success" and page.complete
+    assert [(s.label, s.text) for s in page.segments] == [
+        ("Text", "Native prose"), ("SectionHeader", "Administrative details"), ("TableOfContents", ""), table,
+        ("Text", "Artwork words"), ("Text", "Native below"), ("PageFooter", "3")]
+    assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [
+        ("figure", (72, 130, 372, 280)), ("figure", (72, 292, 372, 442))]
+
+
+def test_a_native_table_with_no_readable_cells_partly_inside_the_artwork_refuses_its_page(
+        illustrated_pdf, tmp_path, monkeypatch):
+    """A table holding the page's artwork but less than 95% inside it (4 pt wider on each side): a crop of its own
+    would read the artwork's pixels, and their text, a second time."""
+    document = DoclingDocument(name="raster-table")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_table(data=TableData(num_rows=1, num_cols=1, table_cells=[TableCell(
+        text="", start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1)]),
+        prov=ProvenanceItem(page_no=1, charspan=(0, 0), bbox=BoundingBox(l=68, t=288, r=376, b=446,
+                                                                          coord_origin=CoordOrigin.TOPLEFT)))
+    result = SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
+                             status=ConversionStatus.SUCCESS)
+    monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
+        convert=lambda *args, **kwargs: result))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", lambda request, crops, emit: Transcription({}, [
+        record(n, [block("Fee 10 EUR", (0, 0, 10, 10))], image=image) for n, (_, _, image) in enumerate(crops, 1)]))
+    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", pages=(1, 1), result_dir=tmp_path / "result"))
+    with pytest.raises(ocr.IncompleteConversionError,
+                       match=r"page 1: table with no readable cells at \[68, 288, 376, 446\] overlaps OCR'd artwork"):
+        ocr.run(execution, lambda _: None)
+    page = read_page(execution.result_dir, 1, read_manifest(execution.result_dir))
+    assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [("figure", (72, 292, 372, 442))]
+    assert sorted((s.label, s.text, s.status) for s in page.segments) == [("Table", "", "error"),
+                                                                          ("Text", "Fee 10 EUR", "ok")]
+
+
+@pytest.mark.parametrize("pages", [(2, 2), (1, 2)], ids=["native", "hybrid"])
+def test_a_native_table_with_no_readable_cells_is_read_by_ocr_only_in_a_hybrid_run_and_refused_without_it(
+        illustrated_pdf, tmp_path, monkeypatch, pages):
+    """The table is on page 2, which has no artwork. With page 1's artwork selected too the run is hybrid and OCRs
+    the table; alone, page 2 is a native run, which has no OCR to read it, and is refused."""
+    document = DoclingDocument(name="two-pages")
+
+    def on(number, box):
+        return ProvenanceItem(page_no=number, charspan=(0, 0), bbox=BoundingBox(
+            l=box[0], t=box[1], r=box[2], b=box[3], coord_origin=CoordOrigin.TOPLEFT))
+
+    for number in (1, 2):
+        document.add_page(page_no=number, size=Size(width=595, height=842))
+        document.add_text(label=DocItemLabel.TEXT, text=f"Page {number} prose", prov=on(number, (72, 60, 350, 80)))
+    document.add_table(data=TableData(num_rows=1, num_cols=1, table_cells=[TableCell(
+        text="", start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1)]),
+        prov=on(2, (72, 130, 372, 280)))
+    monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
+        convert=lambda *args, page_range, **kwargs: SimpleNamespace(
+            document=document, pages=[SimpleNamespace(page_no=n) for n in range(page_range[0], page_range[1] + 1)],
+            errors=[], status=ConversionStatus.SUCCESS)))
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya"], "transcribe", lambda request, crops, emit: Transcription({}, [
+        record(n, [table_html("Fee", "10 EUR")], image=image) for n, (_, _, image) in enumerate(crops, 1)]))
+    execution = ocr.resolve(RunParams(pdf=illustrated_pdf, model="surya", pages=pages, result_dir=tmp_path / "result"))
+    if pages == (2, 2):
+        assert execution.transcriber == "native" and execution.model is None
+        with pytest.raises(ocr.IncompleteConversionError, match="page 2: table has no readable cells; OCR is required"):
+            ocr.run(execution, lambda _: None)
+        return
+    assert execution.transcriber == "hybrid"
+    ocr.run(execution, lambda _: None)
+    manifest = read_manifest(execution.result_dir)
+    page = read_page(execution.result_dir, 2, manifest)
+    assert manifest.status == "success" and page.complete
+    assert [(s.label, s.text, s.status) for s in page.segments] == [
+        ("Text", "Page 2 prose", "ok"), ("Table", "", "ok"), ("Table", "Fee\t10 EUR", "ok")]
 
 
 def test_vlm_crop_keeps_its_markdown_and_coarse_evidence(illustrated_pdf, tmp_path, monkeypatch):

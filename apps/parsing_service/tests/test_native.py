@@ -456,7 +456,7 @@ def test_blocks_of_carries_every_item_that_holds_evidence_and_nothing_twice(synt
     assert heading["html"] == "<p>Head</p>" and unmapped["html"] == "<p>Bibliography</p>"
     assert "<table" in table["html"] and "Table 1: counts" in table["html"]  # the caption stays in the table
     assert "<table" in index["html"]
-    for block in blocks:  # Docling reports no per-item confidence, and no item of a native page is an error
+    for block in blocks:  # Docling reports no per-item confidence, and a table with readable cells is no error
         assert (block["confidence"], block["error"], block["skipped"]) == (None, False, False)
     # Bottom-left provenance becomes the page's top-left points: the first item sits at the top of a 400 pt page.
     assert text["bbox"] == [10.0, 10.0, 190.0, 30.0] and table["bbox"] == [10.0, 100.0, 190.0, 200.0]

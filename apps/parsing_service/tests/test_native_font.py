@@ -6,7 +6,7 @@ import pypdfium2 as pdfium
 import pytest
 
 from kei_exp.kie.stages import ocr
-from kei_exp.kie.stages.ocr import resolve, undecodable_blocks
+from kei_exp.kie.stages.ocr import resolve, unreadable_blocks
 from kei_exp.pagefile import read_manifest, read_page
 from kei_exp.transcription.native import _has_undecodable_glyph, native_regions, undecodable_glyphs
 from kei_exp.transcription.types import IncompleteConversionError, OcrRegion, RunParams, Transcription
@@ -85,19 +85,90 @@ def test_only_body_blocks_keeping_a_control_code_leave_native_text_one_region_pe
                                            block("After", (10, 90, 290, 100))], source_page=1),
                                 record(2, [block("only \x0e C", (10, 20, 290, 40))], source_page=2),
                                 record(3, [block("Clean", (10, 20, 290, 40))], source_page=3)])
-    kept, regions, anchors = undecodable_blocks(native)
+    kept, regions, anchors, kinds = unreadable_blocks(native, True, [])
     assert [[b["html"] for b in r.payload.get("blocks", [])] for r in kept.pages] == [
         ["<p>Journal \x00 head</p>", "<p>Before</p>", "<p>After</p>"], [], ["<p>Clean</p>"]]
     assert kept.pages[1].payload["blocks"] == [] and kept.pages[2] is native.pages[2]
     assert regions == [OcrRegion(1, (10, 20, 140, 60)), OcrRegion(1, (160, 20, 290, 40)), OcrRegion(2, (10, 20, 290, 40))]
-    assert anchors == [2, 2, 0]
+    assert anchors == [2, 2, 0] and kinds == ["text"] * 3
+    # Without the screen's glyph flag a control code in Docling's text is left as it was read.
+    unflagged, *planned = unreadable_blocks(native, False, [])
+    assert unflagged.pages == native.pages and planned == [[], [], []]
 
 
 def test_a_table_read_by_ocr_reads_its_caption_too():
     """A table's HTML carries its caption, printed outside the table's box."""
     table = {**block("Location (cm \x00 1) 1696", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]]}
-    _, regions, anchors = undecodable_blocks(Transcription({}, [record(1, [table], source_page=1)]))
+    _, regions, anchors, _ = unreadable_blocks(Transcription({}, [record(1, [table], source_page=1)]), True, [])
     assert regions == [OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))] and anchors == [0, 0]
+
+
+
+def test_a_table_with_no_readable_cells_is_read_after_its_block_unless_its_caption_needs_ocr_too():
+    """Docling's empty table keeps its block for its caption and is read just after it; with an undecodable glyph
+    in that caption the caption is read as text in the block's place, the block going with it, and the table is
+    still read just after, as a table."""
+    table = {**block("Table 1 (cm \x00 1)", (10, 40, 290, 90), label="Table"), "caption_boxes": [[10, 20, 290, 30]],
+             "error": True}
+    native = Transcription({}, [record(1, [table], source_page=1)])
+    kept, regions, places, kinds = unreadable_blocks(native, False, [])
+    assert kept.pages[0].payload["blocks"] == [{**table, "error": False}]
+    assert (regions, places, kinds) == ([OcrRegion(1, (10, 40, 290, 90))], [0.25], ["figure"])
+    kept, regions, places, kinds = unreadable_blocks(native, True, [])
+    assert kept.pages[0].payload["blocks"] == []
+    assert (regions, places, kinds) == ([OcrRegion(1, (10, 20, 290, 30)), OcrRegion(1, (10, 40, 290, 90))],
+                                        [0, 0.25], ["text", "figure"])
+    # Its own crop would read the pixels of artwork over more than 5% of it a second time: its page is refused,
+    # its caption's undecodable glyph notwithstanding.
+    for glyphs in (False, True):
+        kept, regions, *_ = unreadable_blocks(native, glyphs, [OcrRegion(1, (10, 60, 290, 200))])
+        assert kept.pages[0].payload["blocks"] == [table] and regions == []
+        assert kept.pages[0].incomplete == ("page 1: table with no readable cells at [10, 40, 290, 90] overlaps "
+                                            "OCR'd artwork")
+    # Each box on its own: a small one inside the artwork is refused however large the table's other box is.
+    wide = {**table, "bbox": [10, 300, 580, 840], "boxes": [[10, 300, 580, 840], [20, 70, 280, 80]]}
+    kept, regions, *_ = unreadable_blocks(Transcription({}, [record(1, [wide], source_page=1)]), False,
+                                          [OcrRegion(1, (10, 60, 290, 200))])
+    assert regions == [] and kept.pages[0].incomplete is not None
+    kept, regions, *_ = unreadable_blocks(native, False, [OcrRegion(1, (10, 88, 290, 200)), OcrRegion(2, (10, 40, 290, 90))])
+    assert regions == [OcrRegion(1, (10, 40, 290, 90))] and kept.pages[0].incomplete is None  # 4%, and another page
+
+
+FEES = {**block("", (0, 0, 10, 10), "Table"), "html": "<table><tr><td>Fee</td><td>10 EUR</td></tr></table>"}
+
+
+@pytest.mark.parametrize("model, caption, grid", [
+    ("surya", [block("Fees", (0, 0, 10, 10))], [FEES]),
+    ("granite_vision", "Fees", "| | |\n|----|----|\n| | |"),
+    ("surya", [block("Fees", (0, 0, 10, 10))], [{**FEES, "html": "<table><tr><td>—</td><td>-</td></tr></table>"}]),
+], ids=["the table reads", "a VLM's empty grid", "Surya's grid of dashes"])
+def test_a_table_with_no_readable_cells_and_an_undecodable_caption_is_still_read_as_a_table(
+        tmp_path, monkeypatch, model, caption, grid):
+    """Its caption's glyph repair leaves the table's own crop a table's: reading no letter or digit refuses its page."""
+    broken, _ = _pdfs(tmp_path)
+    execution = resolve(RunParams(pdf=broken, model=model, result_dir=tmp_path / "result"))
+    table = {**block("Table 1 (cm \x00 1)", (40, 120, 260, 180), label="Table"), "caption_boxes": [[40, 90, 200, 110]],
+             "error": True}
+    monkeypatch.setattr(ocr.TRANSCRIBERS["native"], "transcribe", Mock(return_value=Transcription({}, [
+        record(1, [block("Native above", (40, 20, 260, 40)), table], source_page=1)])))
+
+    def recognize(request, crops, emit):  # a Markdown VLM's answer is its record's Markdown and text, without blocks
+        answers = {(40, 90, 200, 110): caption, (40, 120, 260, 180): grid}
+        return Transcription({}, [replace(record(n, [], image=image), payload={}, text=read, markdown=read)
+                                  if isinstance(read := answers[tuple(region.bbox)], str) else record(n, read, image=image)
+                                  for n, (_, region, image) in enumerate(crops, 1)])
+
+    monkeypatch.setattr(ocr.TRANSCRIBERS["surya" if model == "surya" else "vlm"], "transcribe", recognize)
+    if grid != [FEES]:
+        with pytest.raises(IncompleteConversionError,
+                           match="page 1: OCR of crop 2, a table with no readable cells, returned no table text"):
+            ocr.run(execution, lambda _: None)
+        return
+    ocr.run(execution, lambda _: None)
+    page = read_page(execution.result_dir, 1, read_manifest(execution.result_dir))
+    assert [segment.text for segment in page.segments] == ["Native above", "Fees", "Fee\t10 EUR"]
+    assert [(crop.kind, crop.bbox_pt) for crop in page.units[0].crops] == [
+        ("text", (40, 90, 200, 110)), ("figure", (40, 120, 260, 180))]
 
 
 # Long enough that an undeclared encoding was guessed wrong, as on a real page.

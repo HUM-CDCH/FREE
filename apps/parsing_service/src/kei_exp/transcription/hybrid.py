@@ -4,6 +4,7 @@ The OCR stage (`kei_exp.kie.stages.ocr`) owns the route, the crops, their readin
 it runs the native transcriber and the selected model's transcriber as they are. This module only joins their
 records: one whole-page record per native page, its crops' outcomes attached unchanged as supplements.
 """
+import re
 from dataclasses import replace
 from html import escape
 
@@ -21,12 +22,12 @@ HEADINGS = {"Title": "h1", "SectionHeader": "h2"}
 
 
 def supplement(native: Transcription, recognized: Transcription, crops: list[CropPlan],
-               anchors: list[int]) -> Transcription:
+               anchors: list[int], tables: frozenset[int]) -> Transcription:
     """Native's records with each crop's record attached to its page, read at its anchor (`regions.anchor`).
 
     crops[n - 1] and anchors[n - 1] are the crop recognized's record n read, as it was read: the crops' images are
-    already released. OCR text never makes a page with
-    missing native evidence complete. ConversionError: native omitted a page that has a crop.
+    already released; `tables` are the n whose crop is a native table with no readable cells. OCR text never makes
+    a page with missing native evidence complete. ConversionError: native omitted a page that has a crop.
     """
     assert sorted(record.page for record in recognized.pages) == list(range(1, len(crops) + 1)), \
         "OCR records are not the region inputs"
@@ -49,9 +50,13 @@ def supplement(native: Transcription, recognized: Transcription, crops: list[Cro
             reasons.append(f"page {page.source_page}: native evidence has no located blocks")
         if unreadable:
             reasons.append(f"page {page.source_page}: hybrid HTML export failed: {unreadable}")
-        # Artwork may hold no text; a native block read by OCR always did.
+        # Artwork may hold no text; a native block read by OCR always did. So must a table Docling found no readable
+        # cells in: an empty read cannot tell a blank grid from a table OCR missed.
         reasons += [f"page {page.source_page}: OCR of native text crop {s.ordinal} returned no text"
                     for s in supplements if s.crop[1].kind == "text" and not _has_text(s.record)]
+        reasons += [
+            f"page {page.source_page}: OCR of crop {s.ordinal}, a table with no readable cells, returned no table text"
+            for s in supplements if s.ordinal in tables and not _reads_table(s.record)]
         merged.append(replace(page, ocr=supplements, markdown=markdown, text=text,
                               incomplete="; ".join(reasons) or None,
                               input_tokens=_sum(s.record.input_tokens for s in supplements),
@@ -66,6 +71,21 @@ def _has_text(record: PageRecord) -> bool:
     blocks = record.payload.get("blocks") or []
     return any(part.strip() for part in [record.text,
                                          *(html_to_text(b["html"]) for b in blocks if not b.get("skipped"))])
+
+
+def _reads_table(record: PageRecord) -> bool:
+    # A letter or digit inside a table cell (`<td>`, `<th>` or a `| … |` row's), and no picture anywhere in the read:
+    # no block skipped as one, no `<img`, `![` or `<!-- image -->`. Grid rules, prose and captions are no table read.
+    blocks = record.payload.get("blocks") or []
+    parts = [record.text, *(b["html"] for b in blocks if not b.get("skipped"))]
+    if any(b.get("skipped") for b in blocks) or any(
+            re.search(r"<img\b|!\[|<!--\s*image\s*-->", part, flags=re.IGNORECASE) for part in parts):
+        return False
+    html_cells = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", flags=re.IGNORECASE | re.DOTALL)
+    cells = [cell for part in parts for cell in html_cells.findall(part)]
+    cells += [cell for part in parts for row in part.splitlines() if row.lstrip().startswith("|")
+              for cell in row.split("|")]
+    return any(character.isalnum() for cell in cells for character in html_to_text(cell))
 
 
 def _sum(values) -> int | None:

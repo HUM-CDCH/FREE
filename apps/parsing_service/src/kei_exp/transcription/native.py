@@ -348,8 +348,12 @@ def blocks_of(document: DoclingDocument, page_no: int, *, omit: tuple[PointBox, 
             continue
         boxes = [[box.l, box.t, box.r, box.b]
                  for box in (prov.bbox.to_top_left_origin(page.size.height) for prov in provenances)]
+        # A table Docling found no readable cells in (text printed as images or outlines, a blank grid) is an error
+        # block, never a successful caption-only read: a hybrid run OCRs it (`kei_exp.kie.stages.ocr.unreadable_blocks`)
+        # and a native-only run, which has no OCR, refuses its page (`NativeText.transcribe`).
+        unreadable = isinstance(item, TableItem) and not any(cell.text.strip() for cell in item.data.table_cells)
         block = {"html": html, "label": BLOCK_LABELS.get(item.label, str(item.label)),
-                 "bbox": boxes[0], "confidence": None, "error": False, "skipped": False}
+                 "bbox": boxes[0], "confidence": None, "error": unreadable, "skipped": False}
         if len(boxes) > 1:
             block["boxes"] = boxes
         if isinstance(item, TableItem):
@@ -437,10 +441,9 @@ class NativeText:
         for index, page in enumerate(result.pages, 1):
             omit = tuple(region.bbox for region in execution.ocr_regions if region.page == page.page_no)
             errors = [error.error_message for error in result.errors if error.page_no == page.page_no]
-            errors += ["table has no readable cells; OCR is required" for item, _ in _items(document, page.page_no)
-                       if isinstance(item, TableItem) and not _covered(item, document, page.page_no, omit)
-                       and not any(cell.text.strip() for cell in item.data.table_cells)]
             blocks = blocks_of(document, page.page_no, omit=omit)
+            if execution.transcriber == self.kind:  # no OCR follows to read such a table
+                errors += ["table has no readable cells; OCR is required" for block in blocks if block["error"]]
             records.append(PageRecord(
                 page=index, region=None, image=None, seconds=None, input_tokens=0, output_tokens=0, stop=None,
                 capped=False, payload={"blocks": blocks} if blocks else {}, stats={},
