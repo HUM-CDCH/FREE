@@ -362,6 +362,12 @@ user action carries a client-minted ID (*Client IDs*).
     once more and show one more proposal. That costs one model call and
     loses nothing, so no dismissal record is kept.
   - A client abort only detaches.
+- **Deleting a schema.** `DELETE /api/extraction-schemas/<id>` first deletes
+  the project's finished first generations (`suggestion:`, recorded on
+  `extractionSchemaId: null`, status `SUCCESS`), then the schema. A first
+  generation outlives the schema it made, and a panel on a project with no
+  schema would save it again; once a schema has existed, each has been saved or
+  dropped. A first generation still running is left to finish.
 - **Browser.** `src/api.ts` repeats a POST that starts model work after a
   network failure, or a 502/503/504 that is not one of Studio's confirmed
   failures, at most three more times, 1, 2 and 4 s apart. The keys go first

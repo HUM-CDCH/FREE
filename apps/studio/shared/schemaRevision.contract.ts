@@ -78,6 +78,8 @@ export const extractionSchemaListResponseSchema = z
   .strict()
 
 export const extractionSchemaNameLimit = 512
+/** The name the server creates a first generation's Extraction Schema with: the automatic first name's rename fence. */
+export const extractionSchemaInitialName = 'Extraction Template'
 export const extractionSchemaNameSchema = z
   .string()
   .trim()
