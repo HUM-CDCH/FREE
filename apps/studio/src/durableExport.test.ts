@@ -223,3 +223,20 @@ it('a batch export stops when a member\'s values cannot be read', async () => {
   const member = { extractionId: 'member', sourceDocumentId: 'document', sourceDocumentName: 'Report', sourceRevisionId: 'revision', status: 'COMPLETED' } satisfies BatchExportMember
   await expect(downloadDurableBatch({ batchExtractionId: 'batch', name: 'Batch' }, [member], 'csv')).rejects.toThrow('Request failed (HTTP 502).')
 })
+
+it('exports a reviewed member at its finalized results and decisions, not at those saved since', async () => {
+  const downloads = stubDownloads(), asked: string[] = []
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+    asked.push(String(input))
+    const versions = Object.fromEntries([...new URLSearchParams(String(input).split('?')[1] ?? '')].filter(([key]) => key.endsWith('Version')).map(([key, at]) => [key, Number(at)]))
+    return String(input).includes('/values')
+      ? Response.json({ ...fixed.page, ...versions, status: 'COMPLETED', finalization: { id: 'f' }, values: [value(0, title, 'Reviewed')], total: 1 })
+      // Resumed since its review: results 2 and decisions 5 are not reviewed.
+      : Response.json({ ...fixed.state, extractionId: 'member', status: 'COMPLETED', controlVersion: 1, snapshotVersion: 2, feedbackVersion: 5 })
+  }))
+  const member = { extractionId: 'member', sourceDocumentId: 'document', sourceDocumentName: 'Report', sourceRevisionId: 'revision',
+    review: { snapshotVersion: 1, feedbackVersion: 3 } } satisfies BatchExportMember
+  expect(await downloadDurableBatch({ batchExtractionId: '', name: 'Results' }, [member], 'csv')).toBe(true)
+  expect(asked.filter((url) => url.includes('/values'))).toEqual([expect.stringMatching(/snapshotVersion=1&feedbackVersion=3$/)])
+  expect(await downloads[0]!.blob.text()).toContain('Reviewed')
+})

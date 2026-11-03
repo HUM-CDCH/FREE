@@ -100,8 +100,29 @@ export const batchExtractionResponseSchema = z
   .object({ batchExtraction: batchExtractionSchema })
   .strict()
 
+/** A Source Document's latest Extraction as the project's summary counts it: its newest completed or reviewed one,
+ *  in a Batch Extraction or of the document alone (`batchExtractionId` null). */
+const latestExtractionSchema = z
+  .object({
+    sourceDocumentId: canonicalUuidSchema,
+    extractionId: canonicalUuidSchema,
+    schemaRevisionId: canonicalUuidSchema,
+    sourceRepresentationRevisionId: canonicalUuidSchema,
+    batchExtractionId: canonicalUuidSchema.nullable(),
+    createdAt: z.iso.datetime(),
+    completed: z.boolean(),
+    /** Its latest finalized cut: the results and decisions reviewed. */
+    review: z.object({ snapshotVersion: z.number().int().positive(), feedbackVersion: z.number().int().nonnegative() }).strict().nullable(),
+  })
+  .strict()
+
+export type LatestExtraction = z.output<typeof latestExtractionSchema>
+
 export const batchExtractionListResponseSchema = z
-  .object({ batchExtractions: z.array(batchExtractionSchema) })
+  // Only when asked for (`latest=1`): each document's latest Extraction, its most recently reviewed one, and its newest
+  // of any state, which it shows.
+  .object({ batchExtractions: z.array(batchExtractionSchema), latestExtractions: z.array(latestExtractionSchema).optional(),
+    reviewedExtractions: z.array(latestExtractionSchema).optional(), newestExtractionIds: z.array(canonicalUuidSchema).optional() })
   .strict()
 
 /**

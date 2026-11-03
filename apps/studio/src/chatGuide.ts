@@ -1,6 +1,6 @@
 import type { RecordScope } from 'extraction/schema'
 import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, type BatchExtraction,
-  type BatchExtractionMember } from '../shared/batchExtraction.contract'
+  type BatchExtractionMember, type LatestExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
 import { guidedWorkflow } from './projectContexts/guidedWorkflow'
@@ -41,7 +41,7 @@ export type StepOption = {
    *  none ticked or past the limit. */
   picks?: boolean
   /** The document `open-document` opens, on its Extraction in its Batch Extraction. */
-  target?: { sourceDocumentId: string; extractionId: string; batchExtractionId: string }
+  target?: { sourceDocumentId: string; extractionId: string; batchExtractionId: string | null }
 }
 
 export type ProjectDocument = { id: string; name: string }
@@ -71,6 +71,9 @@ export type ProjectGuideInput = {
   currentDocumentId: string
   /** The project's Batch Extractions; null until read. */
   batches: readonly BatchExtraction[] | null
+  /** Each document's latest Extraction as the project's summary counts it, its most recently reviewed one, and the
+   *  newest each document shows (any state); null until read. */
+  latest: { extractions: readonly LatestExtraction[]; reviewed: readonly LatestExtraction[]; newest: readonly string[] } | null
   /** The Batch Extraction (a pilot round, or a batch) this document was opened from to review, if any. */
   roundId: string | null
   /** A batch start or an approval is under way. */
@@ -225,6 +228,10 @@ function projectStep(input: GuideInput): StepCard | null {
   if (!next) return exportStep(project)
   const revisionId = summary.currentSchemaRevisionId
   if (next.step === 'pilot' && next.action === 'pilot') {
+    // A round of this revision with values to review leads before another pilot: a revision piloted after the server's
+    // phase reached the approval has no phase of its own to say so.
+    const review = reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId)
+    if (review) return review
     if (!schemaReady) return null
     const initial = [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)]
       .filter((id) => documents.some((document) => document.id === id)).slice(0, 3)
@@ -244,16 +251,23 @@ function projectStep(input: GuideInput): StepCard | null {
     }
   }
   if (next.step === 'pilot' || next.step === 'review')
-    return reviewStep(input, project, (batch) => next.step === 'review' || batch.schemaRevisionId === revisionId)
-  if (next.step === 'approve')
-    return {
+    // Every round's review counts, of an older template too, as the project page's count of results to review does.
+    return reviewStep(input, project, () => true)
+  if (next.step === 'approve') {
+    const approve = { action: 'approve', label: next.label, disabled: project.busy || !revisionId } as const
+    // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval
+    // beside it, since a member re-run since can never be reviewed.
+    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' }) ?? {
       key: `approve:${revisionId}`,
       title: next.label,
       question: next.label === 'Re-approve template'
         ? 'The template changed since its approval. Approve the current revision for the whole project?'
-        : 'Every pilot document is reviewed. Approve the template for the whole project?',
-      options: [{ action: 'approve', label: next.label, tone: 'positive', disabled: project.busy || !revisionId }, notYet],
+        // Unread rounds may still wait for review, and a pilot document's latest Extraction may be its own, unreviewed.
+        : `${batches === null || summary.extractedSourceDocumentCount > summary.reviewedSourceDocumentCount ? ''
+          : 'Every pilot document is reviewed. '}Approve the template for the whole project?`,
+      options: [{ ...approve, tone: 'positive' }, notYet],
     }
+  }
   if (next.step === 'batch') {
     if (batches === null) return { key: 'batch-reading', title: 'Batch extraction', notice: 'Reading the project’s extractions…', busy: true, options: [] }
     // Every document without a result on the approved revision yet.
@@ -272,17 +286,26 @@ function projectStep(input: GuideInput): StepCard | null {
   return null
 }
 
-/** Each document's result to export: its newest reviewed Extraction on the Current Template Revision, else its newest
- *  completed one there, with the Batch Extraction it belongs to. */
-export function exportableResults(project: ProjectGuideInput): Map<string, { member: BatchExtractionMember; batchExtractionId: string }> {
-  const results = new Map<string, { member: BatchExtractionMember; batchExtractionId: string }>()
-  const newestFirst = (project.batches ?? []).filter((batch) => batch.schemaRevisionId === project.summary.currentSchemaRevisionId)
+type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId' | 'review'>
+
+/** Each document's result to export: only a reviewed one, at its finalized cut, on the Current Template Revision. Its
+ *  newest review, as the project's read has it (a run of the document alone included); else, from a server without that
+ *  read, its newest reviewed round member, which only offers the export: the export itself refuses without the read. */
+export function exportableResults(project: ProjectGuideInput): Map<string, ExportableResult> {
+  const results = new Map<string, ExportableResult>()
+  const revisionId = project.summary.currentSchemaRevisionId
+  if (project.latest) {
+    for (const reviewed of project.latest.reviewed)
+      if (reviewed.schemaRevisionId === revisionId) results.set(reviewed.sourceDocumentId, reviewed)
+    return results
+  }
+  const newestFirst = (project.batches ?? []).filter((batch) => batch.schemaRevisionId === revisionId)
     .toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
-  for (const reviewed of [true, false])
-    for (const batch of newestFirst)
-      for (const member of batch.members)
-        if (!results.has(member.sourceDocumentId) && (reviewed ? member.currentReview !== null : member.completed))
-          results.set(member.sourceDocumentId, { member, batchExtractionId: batch.batchExtractionId })
+  for (const batch of newestFirst)
+    for (const { currentReview, ...member } of batch.members)
+      if (!results.has(member.sourceDocumentId) && currentReview)
+        results.set(member.sourceDocumentId, { ...member, batchExtractionId: batch.batchExtractionId,
+          review: { snapshotVersion: currentReview.snapshotVersion, feedbackVersion: currentReview.feedbackVersion } })
   return results
 }
 
@@ -303,44 +326,60 @@ function exportStep(project: ProjectGuideInput): StepCard | null {
   }
 }
 
-const waitingReview = (member: BatchExtractionMember) => member.reviewable && !member.currentReview
-
 /**
- * The review of a round (a Batch Extraction): the one this document was opened from while it has values waiting,
- * else the newest that has. This document's review if it waits, else the round's next document after this one.
+ * The review of a round (a Batch Extraction) that counts: the one this document was opened from while it has values
+ * waiting, else the newest that has; then the finished runs of a document alone that wait, which no round holds. This
+ * document's review if it waits, else the next document after this one. `also` stands beside the review: the
+ * approval, in the approve phase.
  */
-function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (batch: BatchExtraction) => boolean): StepCard | null {
+function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run: { schemaRevisionId: string }) => boolean,
+  also?: StepOption): StepCard | null {
   if (project.batches === null) return null
+  // Only the Extraction a document shows, its newest, can be reviewed: this document's is the one open here.
+  const shown = (sourceDocumentId: string, extractionId: string) => sourceDocumentId === project.currentDocumentId && input.latest
+    ? input.latest.extractionId === extractionId : project.latest?.newest.includes(extractionId) ?? true
+  const waiting = (member: BatchExtractionMember) => member.reviewable && !member.currentReview && shown(member.sourceDocumentId, member.extractionId)
   const opened = project.batches.find((batch) => batch.batchExtractionId === project.roundId)
-  const round = opened?.members.some(waitingReview) ? opened
+  const round = opened && counts(opened) && opened.members.some(waiting) ? opened
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
-      .find((batch) => batch.members.some(waitingReview))
-  if (!round) return null
+      .find((batch) => batch.members.some(waiting))
+  const queue = [...(round?.members ?? []).map((member) => ({ ...member, batchExtractionId: round!.batchExtractionId as string | null, waits: waiting(member) })),
+    // A run alone of an older template is its document's to run again, not to review.
+    ...(project.latest?.extractions ?? []).filter((run) => run.batchExtractionId === null && run.completed && !run.review
+      && run.schemaRevisionId === project.summary.currentSchemaRevisionId && counts(run) && shown(run.sourceDocumentId, run.extractionId))
+      .map((run) => ({ ...run, currentReview: null, waits: true }))]
+  if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
   const title = project.summary.schemaStabilised ? 'Review results' : 'Pilot review'
-  const { reviewed, reviewable } = batchExtractionProgress(round)
-  const detail: [string, string][] = [['Progress', `${reviewed} of ${plural(reviewable, 'document')} reviewed`]]
-  const index = round.members.findIndex(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
-  const here = round.members[index]
-  if (here && waitingReview(here))
+  const progress = round && batchExtractionProgress(round)
+  const detail: [string, string][] | undefined = progress && [['Progress', `${progress.reviewed} of ${plural(progress.reviewable, 'document')} reviewed`]]
+  const mine = queue.filter(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
+  const here = mine.find(({ waits }) => waits) ?? mine[0]
+  if (here?.waits)
     return {
       key: `review:${here.extractionId}`,
       title,
       question: input.resultsShown ? undefined : 'Check each value against its source in Results, then save the review.',
       notice: input.resultsShown ? 'Check each value against its highlighted source, then save the review.' : undefined,
       detail,
-      options: input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' }],
+      options: [...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const],
+        // A run alone keeps its re-run: one that saved no values can never be reviewed.
+        ...here.batchExtractionId === null && input.run ? [{ action: 'run', label: RERUN_LABEL, tone: 'secondary', disabled: !input.run.available,
+          description: runDescription(input, true) } as const] : [], ...also ? [also] : []],
     }
-  // The next one after this document, round the round.
-  const next = [...round.members.slice(index + 1), ...round.members.slice(0, index + 1)].find(waitingReview)!
+  // The next one after this document, round the queue.
+  const index = here ? queue.indexOf(here) : -1
+  const next = [...queue.slice(index + 1), ...queue.slice(0, index + 1)].find(({ waits }) => waits)!
   const name = project.documents.find(({ id }) => id === next.sourceDocumentId)?.name ?? 'the next document'
   return {
     key: `review-next:${next.extractionId}`,
     title,
-    question: here ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
+    // Not waiting is not reviewed: this document's member may have no values to review, or a newer run of its own.
+    question: here?.currentReview ? `This document is reviewed. Open ${name} next?` : `Open ${name} to review its values?`,
     detail,
     options: [{ action: 'open-document', label: `Next document · ${name}`, tone: 'positive',
-      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: round.batchExtractionId } }, notYet],
+      target: { sourceDocumentId: next.sourceDocumentId, extractionId: next.extractionId, batchExtractionId: next.batchExtractionId } },
+      ...also ? [also] : [], notYet],
   }
 }
 

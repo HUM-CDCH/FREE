@@ -161,7 +161,8 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     const paused=await shown()
     expect(read.size).toBeGreaterThan(0)
     expect([...paused].sort()).toEqual([...read].sort())
-    await expect(rail.getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
+    // The chat's step notice says the same: the count is the Results view's.
+    await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
     await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
     await expect.poll(async()=>{
       const head=await state()
@@ -575,7 +576,7 @@ test('a real bounded Article retains two title readings through worker publicati
       await page.getByRole('button',{name:'More result actions'}).click()
       await page.getByRole('menuitem',{name:'Export…'}).click()
       const pending=page.waitForEvent('download')
-      await page.getByRole('button',{name:format==='XLSX'?'Excel':format,exact:true}).click()
+      await page.getByRole('button',{name:format==='XLSX'?'Excel workbook':'CSV file',exact:true}).click()
       return readFile((await (await pending).path())!)
     }
     const csv=(await download('CSV')).toString('utf8')

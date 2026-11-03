@@ -39,7 +39,7 @@ import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot, ProjectContextActivitySummary } from './projectContexts/transport'
-import { BatchRequestError, openBatchExtraction } from './projectContexts/batchExtractions'
+import { BatchRequestError, listProjectExtractions, openBatchExtraction, projectLatest } from './projectContexts/batchExtractions'
 import ApproveSchemaDialog from './projectContexts/ApproveSchemaDialog'
 import { exportableResults, type ProjectDocument } from './chatGuide'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
@@ -948,7 +948,7 @@ export function DocumentWorkspace({
   // the server refuses to stabilise a Schema Revision until a pilot Extraction
   // has been run and reviewed against it.
   // The project's workflow, led by the chat: a pilot or batch start, the approval, and the next document to review.
-  const projectBatches = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
+  const { batches: projectBatches, latest: projectLatestRead } = useProjectBatches(project && sourceDocumentId ? projectContextId : null, project?.summary ?? null, project?.refresh)
   const [projectBusy, setProjectBusy] = useState(false)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [approvingSchema, setApprovingSchema] = useState(false)
@@ -960,20 +960,29 @@ export function DocumentWorkspace({
   useEffect(() => { if (savedRevisionId) refreshProject?.() }, [savedRevisionId, refreshProject])
 
   /** Downloads the ticked documents' results as one table: each its newest reviewed result on the Current Template
-   *  Revision (else its newest completed one), at its own versions, named by its document and Batch Extraction. */
+   *  Revision at its reviewed cut (else its newest completed one, at its latest), named by its document and Batch
+   *  Extraction. The project is read again first: a result reviewed since the chat's last read is the one exported. */
   async function exportProjectResults(sourceDocumentIds: readonly string[], format: ExportFormat, choices: ExportChoices) {
     if (!project || !sourceDocumentId) return
-    const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
-      batches: projectBatches, roundId: project.roundId, busy: false, error: null })
-    const members = sourceDocumentIds.flatMap((id) => {
-      const result = results.get(id)
-      return result ? [{ extractionId: result.member.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId,
-        sourceDocumentName: project.documents.find((document) => document.id === id)?.name ?? id,
-        sourceRevisionId: result.member.sourceRepresentationRevisionId, status: result.member.executionStatus }] : []
-    })
     setProjectBusy(true)
     setProjectError(null)
     try {
+      const read = await listProjectExtractions(projectContextId)
+      const latest = projectLatest(read)
+      // Only the server's reviews say what to export: an older one answers none.
+      if (!latest) throw new Error('Reload the page to export: the reviewed results could not be read.')
+      const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
+        batches: read.batchExtractions, latest, roundId: project.roundId, busy: false, error: null })
+      const name = (id: string) => project.documents.find((document) => document.id === id)?.name ?? id
+      // A ticked document is exported or the export fails: its review may have changed since the export was opened.
+      const missing = sourceDocumentIds.filter((id) => !results.has(id))
+      if (missing.length > 0)
+        throw new Error(`No reviewed result of ${missing.map(name).join(', ')} on this template now. Reload the page and export again.`)
+      const members = sourceDocumentIds.map((id) => {
+        const result = results.get(id)!
+        return { extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
+          sourceDocumentName: name(id), sourceRevisionId: result.sourceRepresentationRevisionId, review: result.review ?? undefined }
+      })
       const { downloadDurableBatch } = await import('./durableExport')
       await downloadDurableBatch({ batchExtractionId: '', name: schemaName ?? 'Extraction results' }, members, format, choices)
     } catch (error) {
@@ -1057,16 +1066,18 @@ export function DocumentWorkspace({
     <>
     {effectiveRailOpen && (
       <div
-        className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
+        className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[860px]:hidden"
         title="Drag to resize"
         onMouseDown={startResize}
       />
     )}
+    {/* max-[860px] is `width < 860px`, AppFrame's narrowViewport: the rail overlays exactly while the nav does. */}
     <aside
       style={{ width: effectiveRailWidth }}
-      className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+      className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[860px]:absolute max-[860px]:inset-y-0 max-[860px]:right-0 max-[860px]:z-30 ${
+        // No `100%`: portaled into AppFrame's chat column, whose width is 0 while the rail overlays, it made the rail 0 wide.
         effectiveRailOpen
-          ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
+          ? 'max-[860px]:!w-[min(90vw,32rem)] max-[860px]:shadow-xl'
           : ''
       }`}
       aria-label="Chat, template and results"
@@ -1119,12 +1130,13 @@ export function DocumentWorkspace({
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
         project={project && sourceDocumentId ? {
-          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, roundId: project.roundId,
+          guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, latest: projectLatestRead,
+            roundId: project.roundId,
             busy: projectBusy || approvingSchema, error: projectError },
           start: (kind, ids) => void startProjectBatch(kind, ids),
           approve: () => setApprovingSchema(true),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
-            extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId }),
+            extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId ?? undefined }),
           export: (ids) => setExporting(ids),
         } : null}
         boundaries={
@@ -1211,7 +1223,7 @@ export function DocumentWorkspace({
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="relative flex h-full min-h-0 overflow-hidden">
           {/* Reserve COLLAPSED_WIDTH for the schema rail when it becomes an overlay. */}
-          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[859px]:mr-[46px]" aria-label="PDF document">
+          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[860px]:mr-[46px]" aria-label="PDF document">
             <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2">
               <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
                 disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}>

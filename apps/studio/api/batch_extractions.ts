@@ -120,6 +120,7 @@ export function createResearcherApiHandlers(
     )
   }
 
+  const dated = <T extends { createdAt: Date }>(extraction: T) => ({ ...extraction, createdAt: extraction.createdAt.toISOString() })
   const list = async (url: URL) => {
     const projectContextId = url.searchParams.get('projectContextId')
     if (
@@ -140,9 +141,15 @@ export function createResearcherApiHandlers(
     } catch (error) {
       unavailableUnlessNotFound(error, 'Project Context was not found.')
     }
+    // Only a client that asks for it reads each document's latest Extraction: an older one's strict schema refuses it.
+    const latest = url.searchParams.get('latest') === '1'
+      ? await store.listLatestExtractions(projectContextId).catch((cause) => { throw persistenceUnavailable(cause) })
+      : null
     return json(
       batchExtractionListResponseSchema.parse({
         batchExtractions: batches.map(batchDto),
+        ...latest && { latestExtractions: latest.extractions.map(dated), reviewedExtractions: latest.reviewedExtractions.map(dated),
+          newestExtractionIds: latest.newestExtractionIds },
       }),
       { headers: noStore },
     )

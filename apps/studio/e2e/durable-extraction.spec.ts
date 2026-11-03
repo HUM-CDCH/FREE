@@ -66,12 +66,23 @@ test('results identify an older template and a new Article admission survives re
     await expect(page.getByText('Old reference 17',{exact:true})).toBeVisible()
     await page.screenshot({path:testInfo.outputPath('schema-mismatch-desktop.png')})
     await page.setViewportSize({width:390,height:844})
+    // The open rail overlays the document inside the viewport, wide enough to read (it was 0 wide in the chat column).
+    const railBox=(await page.getByRole('complementary',{name:'Chat, template and results'}).boundingBox())!
+    expect(railBox.x).toBeGreaterThanOrEqual(0)
+    expect(railBox.x+railBox.width).toBeLessThanOrEqual(391)
+    expect(railBox.width).toBeGreaterThan(390/2)
     const schemaNotice=page.getByLabel('Results template')
     await expect(schemaNotice).toBeVisible()
     const bounds=await schemaNotice.boundingBox()
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(391)
     await page.screenshot({path:testInfo.outputPath('schema-mismatch-narrow.png')})
+    // The project navigation opened over it dims the rail too: a click there closes the navigation, not a rail control.
+    await page.getByRole('button',{name:'Open project navigation'}).click()
+    const outside={x:railBox.x+railBox.width-8,y:railBox.y+railBox.height/2}
+    expect(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('[aria-label="Chat, template and results"]'),outside)).toBe(false)
+    await page.mouse.click(outside.x,outside.y)
+    await expect(page.getByRole('button',{name:'Open project navigation'})).toBeVisible()
     await page.setViewportSize({width:1440,height:900})
     await page.getByRole('button',{name:'Open Template',exact:true}).click()
     await expect(page.getByRole('heading',{level:2,name:'Template',exact:true})).toBeVisible()
@@ -232,8 +243,14 @@ test('saved live review survives reload, rejects another owner and exports its f
     await page.reload()
     await openRailView(page,'Results')
     await expect(page.getByText(/1 approved · 1 edited · 0 rejected · review saved/)).toBeVisible()
-    await page.getByRole('button',{name:'■ Stop',exact:true}).click()
-    await expect(page.getByRole('button',{name:'↻ Re-run extraction',exact:true})).toBeVisible()
+    // The paused Extraction's controls are the chat's step (ADR 0026).
+    const extractionStep=page.getByRole('region',{name:'Extraction',exact:true})
+    await expect(extractionStep.getByRole('button',{name:'▶ Resume extraction',exact:true})).toBeVisible()
+    await extractionStep.getByRole('button',{name:'■ Stop',exact:true}).click()
+    // Stopped, the step and its controls go and the chat leads the project again: with this document's review saved,
+    // the template's approval is next.
+    await expect(page.getByRole('button',{name:'Approve template',exact:true})).toBeVisible()
+    await expect(extractionStep).toHaveCount(0)
     await expect(page.getByRole('button',{name:'▶ Resume extraction',exact:true})).toHaveCount(0)
     const stopped=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
     expect(stopped.status).toBe('STOPPED')
@@ -543,7 +560,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await expect(page).toHaveURL(new RegExp(`documents/${emptySource.sourceDocumentId}.*extractionId=${empty.id}`))
     await openRailView(page,'Results')
     const rail=page.getByRole('complementary',{name:'Chat, template and results'})
-    await expect(rail.getByText('Failed',{exact:true})).toBeVisible()
+    await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText('Failed',{exact:true})).toBeVisible()
     await expect(rail.getByRole('button',{name:'Review one by one',exact:true})).toBeDisabled()
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable/values`)).json()).values).toEqual([])
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable`)).json()).controlVersion).toBe(0)
@@ -564,8 +581,8 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       else await page.evaluate(route=>{window.history.pushState(null,'',route);window.dispatchEvent(new PopStateEvent('popstate'))},route)
       await openRailView(page,'Results')
       const rail=page.getByRole('complementary',{name:'Chat, template and results'})
-      // A running Article reads the document; every other lifecycle is named as it is.
-      await expect(rail.getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
+      // A running Article reads the document; every other lifecycle is named as it is. Scoped to Results: the chat's step card repeats the status.
+      await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
       await expect(rail.getByText(`Retained ${status}`,{exact:false})).toBeVisible()
       await rail.getByRole('button',{name:`To check title Retained ${status}`}).click()
       await expect(rail.getByRole('button',{name:'Edit',exact:true})).toBeEnabled()
