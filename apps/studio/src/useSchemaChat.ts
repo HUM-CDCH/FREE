@@ -8,13 +8,34 @@ import { useSchemaInstructions, type SchemaInstructions } from './useSchemaInstr
 import { useSchemaProposalReview, type SchemaProposalReview } from './useSchemaProposalReview'
 import { useModelOperationRecovery } from './useModelOperationRecovery'
 import { schemaAncestorIds } from './schemaEditorTree'
+import { boundedHistory, useProjectChatLog } from './projectChat'
+import { PROJECT_CHAT_TEXT_LIMIT, type ProjectChatEntry } from '../shared/projectChat.contract'
 
 const EMPTY_NODES: SchemaNode[] = []
 
-/** A conversation entry: a message, or a guided step the researcher answered (its title and the choice made). */
+/** A conversation entry: a message, a guided step the researcher answered (its title and the choice made), or the
+ *  Source Document the researcher turned to before what follows was said. */
 export type ChatMsg =
   | { role: 'user' | 'assistant'; text: string }
   | { role: 'step'; title: string; choice: string }
+  | { role: 'document'; sourceDocumentId: string; name: string }
+
+/** Where a chat is kept: its Project Context, and the Source Document open now. */
+export type ChatScope = { projectContextId: string; sourceDocumentId: string; name: string }
+
+const clamp = (text: string) => text.slice(0, PROJECT_CHAT_TEXT_LIMIT)
+function chatEntry(message: ChatMsg): ProjectChatEntry {
+  switch (message.role) {
+    case 'step': return { kind: 'step', title: message.title.slice(0, 500), choice: message.choice.slice(0, 500) }
+    case 'document': return { kind: 'document', sourceDocumentId: message.sourceDocumentId, name: message.name.slice(0, 500) }
+    default: return { kind: 'message', role: message.role, text: clamp(message.text) }
+  }
+}
+/** What the model reads of the conversation: messages, and a note for each document turned to; steps are clicks. */
+const historyOf = (messages: readonly ChatMsg[]): ChatHistory => messages.flatMap((message): ChatHistory =>
+  message.role === 'step' ? []
+    : message.role === 'document' ? [{ role: 'note', text: `The researcher turned to the Source Document “${message.name}”.` }]
+      : [message])
 
 export type SchemaChat = {
   readonly instructions: SchemaInstructions
@@ -29,14 +50,17 @@ export type SchemaChat = {
   readonly proposalReview: SchemaProposalReview
   readonly recovery: ReturnType<typeof useModelOperationRecovery>
   /** The researcher's open or collapse of the conversation; null keeps the host's default. */
+  /** Some of the conversation could not be saved with the project yet. */
+  readonly unsaved: boolean
   readonly drawerOpen: boolean | null
   setDrawerOpen(open: boolean | null): void
   /** Groups to expand so a proposal's changes show; `seq` changes with every request. */
   readonly revealed: { seq: number; ids: ReadonlySet<string> }
   /** Sends an edit request after the first schema: answered, or a proposal to review. */
   send(text: string): Promise<void>
-  /** Sends the instructions draft before the first schema: a question is answered, anything else kept. */
-  ask(): Promise<void>
+  /** Sends the instructions draft, or `message` from a step, before the first schema: a question is answered, anything
+   *  else kept. */
+  ask(message?: string): Promise<void>
   /** Stops waiting for `ask`'s reply: the message goes back to the composer, unsent. */
   stopAsking(): void
   /** Stops a running edit request: the message is taken back from the conversation into the composer. */
@@ -57,12 +81,56 @@ export type SchemaChat = {
  * instructions conversation before the first schema, the edit chat after it, its proposal review, and the recovery of
  * requests a reload left running.
  */
-export function useSchemaChat({ schema, sourceRepresentationId }: {
+export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: {
   schema: SchemaEditorController
   sourceRepresentationId?: string
+  /** Kept with this Project Context, read back when the chat opens again; without it the chat lasts as long as the page. */
+  scope?: ChatScope | null
 }): SchemaChat {
-  const instructions = useSchemaInstructions()
+  const log = useProjectChatLog(scope?.projectContextId ?? null)
+  const { keep: keepEntries, remove: removeEntry } = log
+  const keep = useCallback(
+    (shown: readonly ChatMsg[]) => keepEntries(shown.map((message) => ({ id: crypto.randomUUID(), entry: chatEntry(message) }))),
+    [keepEntries],
+  )
+  const instructions = useSchemaInstructions({
+    onAdd: ({ id, text, answer }) => keepEntries([{ id, entry: { kind: 'instruction', text: clamp(text), ...(answer === undefined ? {} : { answer: clamp(answer) }) } }]),
+    onRemove: removeEntry,
+  })
   const [messages, setMessages] = useState<ChatMsg[]>([])
+  // The document what is said next is about: a turn to another one is shown, and kept, before it.
+  const documentRef = useRef(scope && { sourceDocumentId: scope.sourceDocumentId, name: scope.name })
+  useEffect(() => { documentRef.current = scope && { sourceDocumentId: scope.sourceDocumentId, name: scope.name } })
+  const shownDocument = useRef<string | null>(null)
+  const show = useCallback((said: readonly ChatMsg[]): ChatMsg[] => {
+    const document = documentRef.current
+    const turn: ChatMsg[] = document && shownDocument.current !== document.sourceDocumentId ? [{ role: 'document', ...document }] : []
+    if (document) shownDocument.current = document.sourceDocumentId
+    const shown = [...turn, ...said]
+    setMessages((current) => [...current, ...shown])
+    return shown
+  }, [])
+  // The stored conversation, once read, goes ahead of anything said meanwhile.
+  const restoreInstructions = instructions.restore
+  const restored = useRef(false)
+  useEffect(() => {
+    if (!log.loaded || restored.current) return
+    restored.current = true
+    const stored = log.loaded
+    restoreInstructions(stored.flatMap(({ id, entry }) => entry.kind === 'instruction'
+      ? [{ id, text: entry.text, ...(entry.answer === undefined ? {} : { answer: entry.answer }) }] : []))
+    const earlier = stored.flatMap(({ entry }): ChatMsg[] => {
+      switch (entry.kind) {
+        case 'message': return [{ role: entry.role, text: entry.text }]
+        case 'step': return [{ role: 'step', title: entry.title, choice: entry.choice }]
+        case 'document': return [{ role: 'document', sourceDocumentId: entry.sourceDocumentId, name: entry.name }]
+        default: return []
+      }
+    })
+    const lastTurn = earlier.findLast((message) => message.role === 'document')
+    if (shownDocument.current === null && lastTurn?.role === 'document') shownDocument.current = lastTurn.sourceDocumentId
+    setMessages((current) => [...earlier, ...current])
+  }, [log.loaded, restoreInstructions])
   const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null)
   const [revealed, setRevealed] = useState<{ seq: number; ids: ReadonlySet<string> }>(() => ({ seq: 0, ids: new Set() }))
   const reveal = useCallback((ids: ReadonlySet<string>) => setRevealed((current) => ({ seq: current.seq + 1, ids })), [])
@@ -70,12 +138,12 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
   const [extractRequest, setExtractRequest] = useState<number | null>(null)
   const extractRequests = useRef(0)
   const appendMessage = useCallback(
-    (message: string) => setMessages((current) => [...current, { role: 'assistant', text: message }]),
-    [],
+    (message: string) => keep(show([{ role: 'assistant', text: message }])),
+    [keep, show],
   )
   const appendStep = useCallback(
-    (title: string, choice: string) => setMessages((current) => [...current, { role: 'step', title, choice }]),
-    [],
+    (title: string, choice: string) => keep(show([{ role: 'step', title, choice }])),
+    [keep, show],
   )
   const proposalReview = useSchemaProposalReview(schema, appendMessage)
   const { pending, reset: resetProposal } = proposalReview
@@ -138,7 +206,13 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     setDrawerOpen(true)
     const userMsg = text.trim()
     const sent: ChatMsg = { role: 'user', text: userMsg }
-    setMessages(c => [...c, sent])
+    const shown = show([sent])
+    // The conversation before the message as the model reads it, a turn to this document last.
+    const history = boundedHistory([...instructions.history, ...historyOf([...messages, ...shown.slice(0, -1)])])
+    // Kept once it is answered (or fails), ahead of its answer; a message taken back with Stop is never kept.
+    let kept = false
+    const keepSent = () => { if (!kept) { kept = true; keep(shown) } }
+    const say = (message: string) => { keepSent(); appendMessage(message) }
     setInput('')
     setLoading(true)
     const controller = new AbortController()
@@ -151,25 +225,24 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     try {
       const modelContext = await schema.requestModelEdit()
       if (schema.snapshot().draftVersion !== versionBeforeFlush) {
-        appendMessage('Template changed while the request was running. Send the request again.')
+        say('Template changed while the request was running. Send the request again.')
         return
       }
       const original = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
       const originalDraftVersion = schema.snapshot().draftVersion
       if (!modelContext) {
-        appendMessage('Save this Extraction Template before requesting a model edit.')
+        say('Save this Extraction Template before requesting a model edit.')
         return
       }
       const originalSchemaRevisionId = modelContext.schemaRevisionId
-      // The whole conversation goes with the message: the instructions before the first schema, then this chat. An
-      // answered step is the researcher's click, not something said, so it stays out.
-      const history = messages.flatMap((message): ChatHistory => message.role === 'step' ? [] : [message])
+      // The conversation goes with the message (the instructions before the first schema, then this chat), its latest
+      // part where it is long.
       const response = await requestSchemaEdit(
         modelContext,
         userMsg,
         controller.signal,
         operationId,
-        [...instructions.history, ...history],
+        history,
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -177,22 +250,23 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         currentAfterResponse.extractableSchemaRevisionId !==
           originalSchemaRevisionId
       ) {
-        appendMessage('Template changed while the request was running. Send the request again.')
+        say('Template changed while the request was running. Send the request again.')
         return
       }
       if (response.status === 'answered') {
-        appendMessage(response.answer)
+        say(response.answer)
       } else if (response.status === 'requested') {
         // Studio, not the model, offers what may run: the step below asks which documents.
-        appendMessage('Choose what to extract below.')
+        say('Choose what to extract below.')
         setExtractRequest(extractRequests.current += 1)
       } else if (response.status === 'refused' || response.status === 'failed') {
-        appendMessage(`${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}`)
+        say(`${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}`)
       } else {
         const proposal = deriveSchemaProposal(original, response)
         if (proposal.changes.length === 0 && proposal.issues.length === 0) {
-          appendMessage('That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.')
+          say('That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.')
         } else {
+          keepSent()
           proposalReview.start(
             proposal,
             original,
@@ -213,12 +287,13 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         'name' in err &&
         err.name === 'AbortError'
       ) {
-        // Stopped by the researcher: the message is taken back to edit and send again.
+        // Stopped by the researcher: the message is taken back to edit and send again. A turn to this document stays.
         setMessages((current) => current.filter((message) => message !== sent))
+        keep(shown.filter((message) => message !== sent))
         setInput(userMsg)
       } else {
         // The sent message stays in the conversation above the error; the composer stays empty for the next one.
-        appendMessage(`Error: ${err instanceof Error ? err.message : 'Request failed'}`)
+        say(`Error: ${err instanceof Error ? err.message : 'Request failed'}`)
       }
     } finally {
       if (abortRef.current === controller) {
@@ -251,17 +326,18 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
 
   // A message before the first schema asks the model whether it is a question: a question is answered from the document,
   // anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
-  async function ask() {
-    const text = instructions.draft.trim()
+  async function ask(message?: string) {
+    const fromDraft = message === undefined
+    const text = (message ?? instructions.draft).trim()
     const projectContextId = schema.operationScope()?.projectContextId
     if (!text || asking !== null) return
+    if (fromDraft) instructions.setDraft('')
     if (!projectContextId || !sourceRepresentationId) {
-      instructions.send()
+      instructions.add(text)
       return
     }
     const controller = new AbortController()
     askAbortRef.current = controller
-    instructions.setDraft('')
     setAskError(null)
     setAsking(text)
     try {
@@ -270,7 +346,7 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
         text,
         controller.signal,
         crypto.randomUUID(),
-        instructions.history,
+        boundedHistory(instructions.history),
       )
       if (askAbortRef.current !== controller) return
       instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)
@@ -297,6 +373,7 @@ export function useSchemaChat({ schema, sourceRepresentationId }: {
     askError,
     proposalReview,
     recovery,
+    unsaved: log.unsaved,
     drawerOpen,
     setDrawerOpen,
     revealed,

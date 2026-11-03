@@ -40,6 +40,29 @@ describe('RailChat', () => {
     expect(screen.getByText('Generate template (1 message)', { selector: 'span' })).toBeInTheDocument()
   })
 
+  it('takes an instruction typed into the Generate template step, and Esc still closes it', () => {
+    const onGenerate = vi.fn()
+    renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
+    const step = screen.getByRole('region', { name: 'Generate template' })
+    const tell = within(step).getByRole('textbox', { name: 'Tell it what to focus on, or ask about the document' })
+    fireEvent.keyDown(step, { key: '2' })
+    expect(tell).toHaveFocus()
+    fireEvent.change(tell, { target: { value: 'Focus on senders' } })
+    fireEvent.keyDown(tell, { key: 'Enter' })
+    // Said in the conversation, and kept for the generation: no step answer is folded in for it.
+    expect(screen.getByText('Focus on senders')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Add a generation instruction/)).toHaveValue('')
+    fireEvent.click(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('button', { name: 'Generate template (1 message)' }))
+    expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
+    // A new instruction asked again; Esc closes the step until the next one.
+    fireEvent.keyDown(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('textbox'), { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Generate template' })).not.toBeInTheDocument()
+    // Closed, generating is still one click away.
+    onGenerate.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 message)' }))
+    expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
+  })
+
   it('saves the Record Scope from its step and folds the answer into the conversation', () => {
     const onChange = vi.fn()
     renderChat({ recordScope: { value: null, onChange } })

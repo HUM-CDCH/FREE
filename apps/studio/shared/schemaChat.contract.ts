@@ -7,9 +7,10 @@ export const schemaChatReplySchema = z.discriminatedUnion('kind', [
 ])
 export type SchemaChatReply = z.infer<typeof schemaChatReplySchema>
 
-/** The schema chat so far, oldest first: every message a request's model reads besides the one it answers. */
+/** The schema chat so far, oldest first: every message a request's model reads besides the one it answers. A `note` is
+ *  Studio's, not said by anyone: which Source Document the researcher turned to, or that earlier messages are left out. */
 export const chatHistorySchema = z.array(z.object({
-  role: z.enum(['user', 'assistant']),
+  role: z.enum(['user', 'assistant', 'note']),
   text: z.string(),
 }).strict()).max(500)
 export type ChatHistory = z.infer<typeof chatHistorySchema>

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { mkId } from 'extraction/schema'
 import type { ChatHistory } from '../shared/schemaChat.contract'
 
@@ -16,32 +16,48 @@ export type SchemaInstructions = {
   readonly open: boolean
   setDraft(value: string): void
   send(): void
-  /** Records a sent message: an instruction, or with `answer` a question and its answer. */
-  add(text: string, answer?: string): void
+  /** Records a sent message: an instruction, or with `answer` a question and its answer. Returns what it recorded. */
+  add(text: string, answer?: string): SchemaInstruction
   remove(id: string): void
+  /** Puts back what an earlier visit recorded, ahead of anything recorded since. */
+  restore(items: readonly SchemaInstruction[]): void
   toggle(): void
   reset(): void
 }
 
-/** Owns the complete pre-generation instruction conversation and drawer state. */
-export function useSchemaInstructions(): SchemaInstructions {
+/** Owns the complete pre-generation instruction conversation and drawer state; `onAdd` and `onRemove` hear each item
+ *  recorded or taken back. */
+export function useSchemaInstructions({ onAdd, onRemove }: {
+  onAdd?: (item: SchemaInstruction) => void
+  onRemove?: (id: string) => void
+} = {}): SchemaInstructions {
   const [items, setItems] = useState<SchemaInstruction[]>([])
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
+
+  const listeners = useRef({ onAdd, onRemove })
+  useEffect(() => { listeners.current = { onAdd, onRemove } })
+  const add = useCallback((text: string, answer?: string) => {
+    const item = { id: mkId(), text, ...(answer === undefined ? {} : { answer }) }
+    setItems((current) => [...current, item])
+    listeners.current.onAdd?.(item)
+    return item
+  }, [])
 
   const send = useCallback(() => {
     const text = draft.trim()
     if (!text) return
     setDraft('')
-    setItems((current) => [...current, { id: mkId(), text }])
-  }, [draft])
-
-  const add = useCallback((text: string, answer?: string) => {
-    setItems((current) => [...current, { id: mkId(), text, ...(answer === undefined ? {} : { answer }) }])
-  }, [])
+    add(text)
+  }, [add, draft])
 
   const remove = useCallback((id: string) => {
     setItems((current) => current.filter((instruction) => instruction.id !== id))
+    listeners.current.onRemove?.(id)
+  }, [])
+
+  const restore = useCallback((restored: readonly SchemaInstruction[]) => {
+    setItems((current) => [...restored.filter(({ id }) => !current.some((item) => item.id === id)), ...current])
   }, [])
 
   const reset = useCallback(() => {
@@ -69,6 +85,7 @@ export function useSchemaInstructions(): SchemaInstructions {
     send,
     add,
     remove,
+    restore,
     toggle: () => setOpen((current) => !current),
     reset,
   }

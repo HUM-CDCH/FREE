@@ -26,8 +26,13 @@ Write a source-specific record definition in "_description" and add the actual r
 /** The schema chat before the message a request answers, oldest first; empty when there is none. */
 export function chatHistoryText(history: ChatHistory): string {
   if (history.length === 0) return ''
-  return `Conversation so far, oldest first (the researcher's latest message may refer to it):
-${history.map(({ role, text }) => `${role === 'user' ? 'Researcher' : 'Assistant'}: ${text.trim()}`).join('\n')}`
+  const speaker = { user: 'Researcher', assistant: 'Assistant', note: 'Note' } as const
+  // Notes say which Source Document each part of the conversation was about: the one you read is only the current one.
+  const notes = history.some(({ role }) => role === 'note')
+    ? ' Notes are Studio\'s, not said by anyone: earlier messages may be about another Source Document than the one you read now.'
+    : ''
+  return `Conversation so far, oldest first (the researcher's latest message may refer to it).${notes}
+${history.map(({ role, text }) => `${speaker[role]}: ${text.trim()}`).join('\n')}`
 }
 
 /** What lets a chat's Schema Suggestion request answer a question instead of returning a schema. */

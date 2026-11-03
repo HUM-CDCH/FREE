@@ -24,6 +24,7 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
     'source_reprocess',
   ],
   [/^\/api\/project-contexts\/[^/]+\/source-ingestions(?:\/[^/]+(?:\/retry)?)?$/, 'source_ingestions'],
+  [/^\/api\/project-contexts\/[^/]+\/chat(?:\/[^/]+)?$/, 'project_chat'],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],

@@ -26,6 +26,7 @@ export type StepAction =
   | 'approve'
   | 'open-document'
   | 'export'
+  | 'tell'
   | 'dismiss'
 
 export type StepOption = {
@@ -34,7 +35,8 @@ export type StepOption = {
   hint?: string
   /** Said as the option's title and description, not its name: what it does or why it waits. */
   description?: string
-  /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. */
+  /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. A `tell` option
+   *  is a line to type in, its label the prompt: what is typed there is sent as a message of the conversation. */
   tone: 'positive' | 'secondary' | 'danger' | 'dismiss'
   disabled?: boolean
   /** Acts on the documents ticked in the step's picker: its label says their count where it reads `{n}`; refused with
@@ -407,6 +409,8 @@ function schemaStep(input: GuideInput): StepCard | null {
       error: input.view === 'failed' ? input.generationError ?? undefined : undefined,
       options: [
         { action: 'generate', label: `Generate template${messages}`, tone: 'positive', disabled: input.asking },
+        // Not like this: say how, in the step itself.
+        { action: 'tell', label: 'Tell it what to focus on, or ask about the document', tone: 'secondary', disabled: input.asking },
         notYet,
       ],
     }

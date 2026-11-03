@@ -26,6 +26,7 @@ import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { createPostGenerateSchema } from '../api/generate_schema.js'
 import { createPostEditSchema } from '../api/edit_schema.js'
 import { createModelOperationHandlers } from '../api/model_operations.js'
+import { createResearcherApiHandlers as createProjectChatHandlers } from '../api/project_chat.js'
 import { createSourceIngestionDismissal, createSourceIngestionListing } from '../api/source_ingestions.js'
 import {
   createResearcherApiHandlers as createDocumentReopenHandlers,
@@ -322,6 +323,9 @@ function twoAccountStoreFixture(): TwoAccountStores {
       completeEvaluationRound: vi.fn(async () => null),
       listEvaluationRounds: vi.fn(async () => null),
       getEvaluationRound: vi.fn(async () => null),
+      listProjectChatEntries: vi.fn(async () => null),
+      appendProjectChatEntries: vi.fn(async () => null),
+      deleteProjectChatEntry: vi.fn(async () => null),
       listLatestExtractions: vi.fn(async () => null),
       createProjectContext: vi.fn(async (name) => {
         const projectContextId =
@@ -790,6 +794,7 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     '../api/extractions.ts': researcherModule(createExtractionHandlers),
     '../api/batch_extractions.ts': researcherModule(createBatchExtractionHandlers),
     '../api/batch_schema_suggestions.ts': researcherModule(createBatchSuggestionHandlers),
+    '../api/project_chat.ts': researcherModule(createProjectChatHandlers),
   })
 }
 
@@ -1036,6 +1041,22 @@ describe('two-account project and source API isolation', () => {
     expect(fixture.ingestion.listWorkflows).not.toHaveBeenCalled()
     expect(fixture.ingestion.getWorkflow).not.toHaveBeenCalled()
     expect(fixture.ingestion.deleteWorkflows).not.toHaveBeenCalled()
+  })
+
+  it("refuses another account's project chat through the owner-scoped store", async () => {
+    const fixture = await appFixture()
+    const aliceStore = fixture.stores.get(ids.accountA)!
+    const entry = { projectChatEntryId: ids.operationB, entry: { kind: 'message', role: 'user', text: 'Hello' } }
+
+    for (const [pathname, init] of [
+      [`/api/project-contexts/${ids.projectB}/chat`, {}],
+      [`/api/project-contexts/${ids.projectB}/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entries: [entry] }) }],
+      [`/api/project-contexts/${ids.projectB}/chat/${ids.operationB}`, { method: 'DELETE' }],
+    ] as const)
+      await expectPrivateNotFound(await api(fixture, ids.accountA, pathname, init), forbiddenB)
+    expect(aliceStore.listProjectChatEntries).toHaveBeenCalledWith(ids.projectB, 1000)
+    expect(aliceStore.appendProjectChatEntries).toHaveBeenCalledWith(ids.projectB, [entry])
+    expect(aliceStore.deleteProjectChatEntry).toHaveBeenCalledWith(ids.projectB, ids.operationB)
   })
 
   it('rejects cross-owner ingest and deletion before staging, a workflow, or mutation', async () => {

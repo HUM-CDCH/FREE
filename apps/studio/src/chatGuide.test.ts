@@ -29,7 +29,7 @@ describe('nextStep', () => {
   it('offers Generate template before the first template, counting the kept instructions', () => {
     const step = nextStep({ ...base, view: 'empty', instructionCount: 2 })
     expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate template (2 messages)', tone: 'positive' })
-    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'dismiss'])
+    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'tell', 'dismiss'])
   })
 
   it('holds Generate while a question is answered, and shows a failed generation\'s error', () => {

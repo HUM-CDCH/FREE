@@ -1,0 +1,163 @@
+[
+  {
+    "id": "table.projectChatEntry",
+    "label": "Create table \"projectChatEntry\"",
+    "summary": "Creates table \"projectChatEntry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "projectChatEntry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"projectChatEntry\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectChatEntry\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"projectChatEntry\"",
+        "sql": "CREATE TABLE \"public\".\"projectChatEntry\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"entry\" jsonb NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"position\" int4 NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"projectChatEntry\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectChatEntry\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.projectChatEntry.projectChatEntry_projectContextId_position_key",
+    "label": "Add unique constraint on \"projectChatEntry\" (projectContextId, position)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "projectChatEntry_projectContextId_position_key",
+        "table": "projectChatEntry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"projectChatEntry_projectContextId_position_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectChatEntry_projectContextId_position_key",
+          "public",
+          "\"public\".\"projectChatEntry\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"projectChatEntry_projectContextId_position_key\"",
+        "sql": "ALTER TABLE \"public\".\"projectChatEntry\" ADD CONSTRAINT \"projectChatEntry_projectContextId_position_key\" UNIQUE (\"projectContextId\", \"position\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"projectChatEntry_projectContextId_position_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectChatEntry_projectContextId_position_key",
+          "public",
+          "\"public\".\"projectChatEntry\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.projectChatEntry.projectChatEntry_projectContextId_idx",
+    "label": "Create index \"projectChatEntry_projectContextId_idx\" on \"projectChatEntry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "projectChatEntry_projectContextId_idx",
+        "table": "projectChatEntry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"projectChatEntry_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectChatEntry_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"projectChatEntry_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"projectChatEntry_projectContextId_idx\" ON \"public\".\"projectChatEntry\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"projectChatEntry_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectChatEntry_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.projectChatEntry.projectChatEntry_projectContextId_fkey",
+    "label": "Add foreign key \"projectChatEntry_projectContextId_fkey\" on \"projectChatEntry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "projectChatEntry_projectContextId_fkey",
+        "table": "projectChatEntry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"projectChatEntry_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectChatEntry_projectContextId_fkey",
+          "public",
+          "\"public\".\"projectChatEntry\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"projectChatEntry_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"projectChatEntry\"\nADD CONSTRAINT \"projectChatEntry_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"projectChatEntry_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectChatEntry_projectContextId_fkey",
+          "public",
+          "\"public\".\"projectChatEntry\""
+        ]
+      }
+    ]
+  }
+]

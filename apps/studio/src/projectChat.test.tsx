@@ -1,0 +1,173 @@
+// @vitest-environment jsdom
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { SchemaModelContext } from './api'
+import type { ChatHistory } from '../shared/schemaChat.contract'
+import type { ProjectChatEntry } from '../shared/projectChat.contract'
+import { createSchemaEditorController, localSchemaPersistence } from './currentSchemaRevision'
+import { boundedHistory, useProjectChatLog } from './projectChat'
+import { useSchemaChat, type ChatScope } from './useSchemaChat'
+
+const { authenticatedFetch, requestSchemaEdit } = vi.hoisted(() => ({ authenticatedFetch: vi.fn(), requestSchemaEdit: vi.fn() }))
+vi.mock('./auth/authenticatedFetch', () => ({ authenticatedFetch, requestModelKeyResend: vi.fn() }))
+vi.mock('./api', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./api')>(),
+  requestSchemaEdit,
+  listModelOperations: vi.fn(async () => []),
+  deleteModelOperation: vi.fn(async () => undefined),
+}))
+
+const projectContextId = '51000000-0000-4000-8000-000000000001'
+const documentA = '51000000-0000-4000-8001-00000000000a'
+const documentB = '51000000-0000-4000-8001-00000000000b'
+const id = (n: number) => `51000000-0000-4000-8013-${n.toString().padStart(12, '0')}`
+
+/** A stored chat, and the bodies of the writes made to it, in order. */
+function server(stored: { projectChatEntryId: string; entry: ProjectChatEntry }[] = [], failures = 0) {
+  const appended: ProjectChatEntry[][] = []
+  const deleted: string[] = []
+  authenticatedFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (!init?.method)
+      return Response.json({ entries: stored.map((item, index) => ({ ...item, position: index + 1, createdAt: '2026-11-03T10:00:00.000Z' })) })
+    if (init.method === 'DELETE') {
+      deleted.push(url.split('/').at(-1)!)
+      return new Response(null, { status: 204 })
+    }
+    if (failures-- > 0) return new Response(null, { status: 503 })
+    appended.push((JSON.parse(String(init.body)) as { entries: { entry: ProjectChatEntry }[] }).entries.map(({ entry }) => entry))
+    return Response.json({ entries: [] }, { status: 201 })
+  })
+  return { appended, deleted, kept: () => appended.flat() }
+}
+
+afterEach(() => {
+  cleanup()
+  vi.resetAllMocks()
+})
+
+describe('boundedHistory', () => {
+  const message = (text: string, role: ChatHistory[number]['role'] = 'user') => ({ role, text })
+
+  it('keeps a conversation that fits whole', () => {
+    const history = [message('a'), message('b', 'assistant')]
+    expect(boundedHistory(history, 10)).toBe(history)
+  })
+
+  it('keeps the latest messages, says the rest is left out, and names the document they were about', () => {
+    const history = [message('about A', 'note'), message('x'.repeat(8)), message('about B', 'note'), message('y'.repeat(8)), message('z'.repeat(8))]
+    expect(boundedHistory(history, 16)).toEqual([
+      { role: 'note', text: 'Earlier messages are left out.' }, message('about B', 'note'), message('y'.repeat(8)), message('z'.repeat(8)),
+    ])
+  })
+
+  it('keeps at most the message limit', () => {
+    const history = Array.from({ length: 5 }, (_, index) => message(`m${index}`))
+    expect(boundedHistory(history, 1_000, 2)).toEqual([{ role: 'note', text: 'Earlier messages are left out.' }, message('m3'), message('m4')])
+  })
+})
+
+describe('useProjectChatLog', () => {
+  it('writes in order, and a failed write goes again with the next', async () => {
+    const { appended } = server([], 1)
+    const { result } = renderHook(() => useProjectChatLog(projectContextId))
+    await waitFor(() => expect(result.current.loaded).toEqual([]))
+    act(() => result.current.keep([{ id: id(1), entry: { kind: 'message', role: 'user', text: 'first' } }]))
+    await waitFor(() => expect(result.current.unsaved).toBe(true))
+    act(() => result.current.keep([{ id: id(2), entry: { kind: 'message', role: 'user', text: 'second' } }]))
+    await waitFor(() => expect(result.current.unsaved).toBe(false))
+    expect(appended).toEqual([[{ kind: 'message', role: 'user', text: 'first' }, { kind: 'message', role: 'user', text: 'second' }]])
+  })
+
+  it('removes an entry not yet written without a request, and a written one after its write', async () => {
+    const { deleted, kept } = server()
+    const { result } = renderHook(() => useProjectChatLog(projectContextId))
+    await waitFor(() => expect(result.current.loaded).toEqual([]))
+    act(() => {
+      result.current.keep([{ id: id(1), entry: { kind: 'instruction', text: 'kept' } }, { id: id(2), entry: { kind: 'instruction', text: 'taken back' } }])
+      result.current.remove(id(2))
+    })
+    await waitFor(() => expect(kept()).toEqual([{ kind: 'instruction', text: 'kept' }]))
+    act(() => result.current.remove(id(1)))
+    await waitFor(() => expect(deleted).toEqual([id(1)]))
+  })
+
+  it('keeps nothing without a project', () => {
+    const { result } = renderHook(() => useProjectChatLog(null))
+    act(() => result.current.keep([{ id: id(1), entry: { kind: 'message', role: 'user', text: 'lost' } }]))
+    expect(result.current.loaded).toBeNull()
+    expect(authenticatedFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('useSchemaChat kept with its project', () => {
+  const stored = [
+    { projectChatEntryId: id(1), entry: { kind: 'instruction', text: 'Focus on dates' } },
+    { projectChatEntryId: id(2), entry: { kind: 'document', sourceDocumentId: documentA, name: 'a.pdf' } },
+    { projectChatEntryId: id(3), entry: { kind: 'message', role: 'user', text: 'Add a sender' } },
+    { projectChatEntryId: id(4), entry: { kind: 'message', role: 'assistant', text: 'Added.' } },
+    { projectChatEntryId: id(5), entry: { kind: 'step', title: 'Run extraction', choice: '▶ Run extraction' } },
+  ] satisfies { projectChatEntryId: string; entry: ProjectChatEntry }[]
+
+  function renderChat(scope: ChatScope) {
+    const schema = createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }), {
+      initialDraft: { recordDescription: 'One letter.', schemaNodes: [{ id: 'sender', name: 'sender', type: 'string' }] },
+    })
+    // The local draft has no revision: the model context names none, so the answer is taken as current.
+    vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId, extractionSchemaId: id(9), schemaRevisionId: null } as unknown as SchemaModelContext)
+    return renderHook(() => useSchemaChat({ schema, scope }))
+  }
+
+  it('reopens with what was said, and says a turn to another document before what is said on it', async () => {
+    const { kept } = server(stored)
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'It has 3 senders.' })
+    const { result } = renderChat({ projectContextId, sourceDocumentId: documentB, name: 'b.pdf' })
+    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    expect(result.current.instructions.items).toEqual([{ id: id(1), text: 'Focus on dates' }])
+
+    await act(() => result.current.send('How many senders?'))
+
+    expect(result.current.messages.slice(4)).toEqual([
+      { role: 'document', sourceDocumentId: documentB, name: 'b.pdf' },
+      { role: 'user', text: 'How many senders?' },
+      { role: 'assistant', text: 'It has 3 senders.' },
+    ])
+    await waitFor(() => expect(kept()).toEqual([
+      { kind: 'document', sourceDocumentId: documentB, name: 'b.pdf' },
+      { kind: 'message', role: 'user', text: 'How many senders?' },
+      { kind: 'message', role: 'assistant', text: 'It has 3 senders.' },
+    ]))
+    // The model reads which document each part was about, the current one last; a step is a click, not said.
+    expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([
+      { role: 'user', text: 'Focus on dates' },
+      { role: 'assistant', text: 'Recorded as an instruction for template generation.' },
+      { role: 'note', text: 'The researcher turned to the Source Document “a.pdf”.' },
+      { role: 'user', text: 'Add a sender' },
+      { role: 'assistant', text: 'Added.' },
+      { role: 'note', text: 'The researcher turned to the Source Document “b.pdf”.' },
+    ])
+  })
+
+  it('keeps no message taken back with Stop', async () => {
+    const { kept } = server(stored)
+    requestSchemaEdit.mockImplementationOnce((_context, _message, signal: AbortSignal) =>
+      new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })))
+    const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
+    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    let sending!: Promise<void>
+    act(() => { sending = result.current.send('Never mind') })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    act(() => result.current.cancel())
+    await act(() => sending)
+    expect(result.current.input).toBe('Never mind')
+    // Still on a.pdf, as the stored chat last said: no turn, and nothing kept.
+    expect(kept()).toEqual([])
+  })
+
+  it('forgets an instruction taken back', async () => {
+    const { deleted } = server(stored)
+    const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
+    await waitFor(() => expect(result.current.instructions.items).toHaveLength(1))
+    act(() => result.current.instructions.remove(id(1)))
+    await waitFor(() => expect(deleted).toEqual([id(1)]))
+  })
+})
