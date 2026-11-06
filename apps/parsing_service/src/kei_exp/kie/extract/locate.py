@@ -94,13 +94,26 @@ def normalise(text: str) -> _Normal:
     return _Normal("".join(joined_text), tuple(joined_ranges))
 
 
+def _word(char: str) -> bool:
+    """A letter or digit, or a combining mark, which belongs to the word it follows (`café` written with U+0301)."""
+    return char.isalnum() or unicodedata.category(char).startswith("M")
+
+
 def _bounded(haystack: str, start: int, end: int) -> bool:
     before = haystack[start - 1] if start > 0 else " "
     after = haystack[end] if end < len(haystack) else " "
-    return not before.isalnum() and not after.isalnum()
+    return not _word(before) and not _word(after)
 
 
 SIGNS = "-\u2212\u2013"  # hyphen-minus, minus, en dash: a sign, or a range between numbers
+JOINERS = "/\u2044\u2215"  # slash, fraction slash, division slash: between digits one token (`1/2`, `0,6/0,7`)
+GROUPING = " '\u2019\u00a0\u202f\u2009"  # a digit, one of these, then exactly three digits: thousands, perhaps (`1 234`)
+_GROUP = re.compile(r"\d{3}(?!\d)")
+# A mantissa before `× 10^k` or `× 10¹`, the `10` itself, or the exponent after `^`. Exponent letters (`1.8e1`) are
+# already word characters. shortcut: `normalise` reads a superscript as its digit (`× 10¹` is `× 101`), so `locate`
+# still finds a mantissa before a superscript exponent; upgrade when a Catalog quote prints one.
+_MANTISSA = re.compile(r"\s*[×xX·]\s*10(?:\s*\^|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻])")
+_EXPONENT = re.compile(r"10\s*\^\s*[+\-\u2212]?$")
 
 
 def _before(haystack: str, index: int) -> int:
@@ -111,28 +124,65 @@ def _before(haystack: str, index: int) -> int:
     return index
 
 
+def _after(haystack: str, index: int) -> int:
+    """The position of the nearest non-space character at or after `index`, or -1."""
+    while index < len(haystack) and haystack[index].isspace():
+        index += 1
+    return index if index < len(haystack) else -1
+
+
+def spaced_join(haystack: str, left: int, right: int) -> bool:
+    """Whether the digits at `left` and `right`, with only spaces and one `.` or `,` between them, are one number as text
+    extraction spaces it (`0 . 02`, `0 .02`, `0. 02`), or may be. A comma with a space after it only lists numbers
+    (`18, 20`); with no space at all it is the unspaced number the callers already read."""
+    sep = _after(haystack, left + 1)
+    if not (left < sep < right and haystack[sep] in ".," and _after(haystack, sep + 1) == right):
+        return False
+    return sep > left + 1 or (right > sep + 1 and haystack[sep] == ".")
+
+
 def _whole_number(haystack: str, start: int, end: int, signed: bool) -> bool:
-    """A number printed at [start, end) is the whole number there: no decimal digits continue it; after a decimal
-    separator it is a fraction unless a letter precedes the separator (an abbreviation: `Nr.2`); and an unsigned value
-    has no sign before it, spaced or not. A hyphen or dash is a range, not a sign, only after a number."""
-    if end + 1 < len(haystack) and haystack[end] in ".," and haystack[end + 1].isdigit():
+    """A number printed at [start, end) is the whole number there: no decimal digits continue it, spaced or not; after a
+    decimal separator it is a fraction unless a letter precedes the separator (an abbreviation: `Nr.2`); and an unsigned
+    value has no sign before it, spaced or not. A hyphen, dash or plus is a range or a sum, not a sign, only after a
+    number. A slash between digits joins them (`1/2`); a digit, a grouping space or apostrophe, then exactly three
+    digits may be one grouped number (`1 234`, `1'234`), so neither side is whole; nor is a part of `1.8 × 10^1`."""
+    if end + 1 < len(haystack) and haystack[end] in ".," + JOINERS and haystack[end + 1].isdigit():
         return False
     if start >= 1 and haystack[start - 1] in ".," and (start < 2 or not haystack[start - 2].isalpha()):
+        return False
+    if start >= 2 and haystack[start - 1] in JOINERS and haystack[start - 2].isdigit():
+        return False
+    if end < len(haystack) and haystack[end] in GROUPING and haystack[end - 1].isdigit() and _GROUP.match(haystack, end + 1):
+        return False
+    if start >= 2 and haystack[start - 1] in GROUPING and haystack[start - 2].isdigit() and _GROUP.match(haystack, start):
+        return False
+    following = _after(haystack, end)
+    if _MANTISSA.match(haystack, end) or _EXPONENT.search(haystack, max(0, start - 12), start) or \
+            following >= 0 and haystack[following] == "^":
+        return False
+    following = _after(haystack, following + 1) if following >= 0 else -1
+    if following >= 0 and haystack[following].isdigit() and spaced_join(haystack, end - 1, following):
+        return False
+    preceding = _before(haystack, _before(haystack, start))
+    if preceding >= 0 and haystack[preceding].isdigit() and spaced_join(haystack, preceding, start):
         return False
     if signed:
         return True
     sign = _before(haystack, start)
-    if sign < 0 or haystack[sign] not in SIGNS:
+    if sign < 0 or haystack[sign] not in SIGNS + "+":
         return True
     prior = _before(haystack, sign)
     return prior >= 0 and haystack[prior].isdigit()
 
 
-def _occurrences(haystack: str, needle: str, numeric: bool = False) -> list[int]:
+def _occurrences(haystack: str, needle: str, numeric: bool = False, spaced: str | None = None) -> list[int]:
+    """`spaced`: the haystack as `_whole_number` reads it, when that differs."""
     found, start = [], haystack.find(needle)
     while start != -1:
         end = start + len(needle)
-        if _bounded(haystack, start, end) and (not numeric or _whole_number(haystack, start, end, needle[0] in SIGNS)):
+        if _bounded(haystack, start, end) and (not numeric or _whole_number(spaced or haystack, start, end,
+                                                                            needle[0] in SIGNS)):
             found.append(start)
         start = haystack.find(needle, start + 1)
     return found
@@ -160,8 +210,11 @@ def locate(block: BlockText, quote: str, *, within: tuple[int, int] | None = Non
     if not needle:
         return []
     view = normalise(block.text)
+    # A view space is a grouping space only where it stands for one source character that is (`1\t234` is two numbers).
+    spaced = "".join("\t" if char == " " and (end - start != 1 or block.text[start] not in GROUPING) else char
+                     for char, (start, end) in zip(view.text, view.ranges)) if numeric else None
     found = []
-    for start in _occurrences(view.text, needle, numeric):
+    for start in _occurrences(view.text, needle, numeric, spaced):
         end = start + len(needle)
         if (start > 0 and view.ranges[start - 1] == view.ranges[start]) or \
                 (end < len(view.text) and view.ranges[end] == view.ranges[end - 1]):

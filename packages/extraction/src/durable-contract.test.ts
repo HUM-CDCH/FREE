@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { durableValueSchema } from './durable-contract.js'
+import { plainEvidenceLink } from './kei-evidence.js'
 
 test('retained model Evidence preserves leaf attribution and rejects a different value or anchor',()=> {
   const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,hits:1,
@@ -33,6 +34,28 @@ test('a single-pass unified link keeps its spans as a lexical producer, not a st
   const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true, hits: 1,
     linked_by: 'lexical', support: 'literal', spans: [span], alternatives: [], precision: 'segment', raw: 'Site', item: null }
   assert.deepEqual(durableValueSchema.shape.evidence.element.shape.producer.parse(link), link)
+})
+
+test('an Article version-1 link keeps its location as a plain producer and projects it outside grounding', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../apps/parsing_service/tests/fixtures/contracts/article-location-link.json', import.meta.url), 'utf8'))
+  const producerSchema = durableValueSchema.shape.evidence.element.shape.producer
+  const located = producerSchema.parse(fixture.with_location), plain = producerSchema.parse(fixture.without_location)
+  assert.deepEqual(located, fixture.with_location)
+  assert.deepEqual(plain, fixture.without_location)
+  assert.ok(!('support' in located) && !('provenance' in located) && !('support' in plain) && !('provenance' in plain))
+  const { spans: [span], raw } = fixture.with_location.location
+  assert.equal([...fixture.passage_text].slice(span.start, span.end).join(''), raw)
+  const link = plainEvidenceLink(located, 'a_p1_s3')
+  assert.deepEqual(link.location, { textSpans: [span], raw })
+  assert.ok(!('grounding' in link) && !('linkedBy' in link))
+  const { location: _location, ...unlocated } = link
+  assert.deepEqual(unlocated, plainEvidenceLink(plain, 'a_p1_s3'))
+  // A location is a single valid printing in the link's own segment, or the producer does not parse.
+  for (const location of [
+    { spans: [{ ...span, segment: 'p1_s4' }], raw }, { spans: [{ ...span, end: span.start }], raw },
+    { spans: [{ ...span, start: -1 }], raw }, { spans: [], raw }, { spans: [span, span], raw },
+    { spans: [span], raw: '' }, { spans: [span] }, { spans: [{ ...span, page: 1 }], raw }, { spans: [span], raw, boxes: [] },
+  ]) assert.equal(producerSchema.safeParse({ ...fixture.with_location, location }).success, false, JSON.stringify(location))
 })
 
 test('Value Disagreements retain typed alternatives at null places addressed by child id',()=> {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -76,26 +76,28 @@ describe('focused Evidence navigation', () => {
     })
   })
 
-  // The rail open on its Evidence tab is no Results tab (`active: false`), yet its navigation follows the quote.
-  it.each([[false, false, 1], [true, false, 0], [false, true, 0]])('shows the focus again once the text layer narrows it, unless the researcher scrolled or collapsed the rail since (scrolled: %s, collapsed: %s)', (scrolled, collapsed, scrolls) => {
+  // Narrowing to the quote in the text layer failed its safety gate (ADR 0029): a link's spans or location never narrow.
+  it.each([
+    ['grounding spans', { grounding: { textSpans: [{ segment: 's1', start: 11, end: 16 }] } }],
+    ['an Article location', { location: { textSpans: [{ segment: 's1', start: 11, end: 16 }], raw: 'Gamma' } }],
+  ])('outlines the whole block for a link with %s on a text layer, and never scrolls again on a repaint', (_, quote) => {
     const block = 'Alpha Beta Gamma'
     const parsedDocument = decodeParsedDocument(JSON.parse(JSON.stringify(parsedFixture).replaceAll('"bundled-anchor"', '"a_s1"').replace('"Unit 7"', JSON.stringify(block))))
     const anchor = parsedDocument.evidence_index.anchors[0]!
     const occurrence = anchor.producer_observations[0]!, bbox = verifiedEvidenceBbox(parsedDocument, occurrence)!
     const page = parsedDocument.pages.find((each) => each.page_number === occurrence.page_number)!
-    const link = { resultPath: ['records', 0, 'gamma'], evidenceAnchorId: anchor.anchor_id, precision: 'segment',
-      grounding: { textSpans: [{ segment: 's1', start: 11, end: 16 }] } } as EvidenceLink
+    const link = { resultPath: ['records', 0, 'gamma'], evidenceAnchorId: anchor.anchor_id, precision: 'segment', ...quote } as EvidenceLink
     const container = document.createElement('div')
-    container.innerHTML = `<div class="page" data-page-number="${occurrence.page_number}"></div>`
+    container.innerHTML = `<div class="page" data-page-number="${occurrence.page_number}"><div class="textLayer"><span>${block}</span></div></div>`
     container.scrollTo = vi.fn()
     document.body.append(container)
     const listeners = new Map<string, () => void>()
     const viewer = { scrollPageIntoView: vi.fn(), eventBus: {
       on: (event: string, paint: () => void) => listeners.set(event, paint), off: (event: string) => listeners.delete(event) } }
-    // The block's focus shows in the pane; the quote's box, once the text layer has drawn, lies below it.
-    let focusRect = new DOMRect(10, 100, 200, 60)
+    // The block's focus shows in the pane; a text layer in page points holds the block's text in one span over its box,
+    // and a range's rect spans its characters, so a narrowing hook would find the quote.
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      return this.classList.contains('parsed-evidence-focus') ? focusRect
+      return this.classList.contains('parsed-evidence-focus') ? new DOMRect(10, 100, 200, 60)
         : this.classList.contains('textLayer') ? new DOMRect(0, 0, page.width_pt, page.height_pt)
           : this.tagName === 'SPAN' ? new DOMRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0) : new DOMRect(0, 0, 500, 600)
     })
@@ -104,25 +106,18 @@ describe('focused Evidence navigation', () => {
       setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
       getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
     }) as unknown as Range)
-    // Refs stay the same across renders, as the workspace's do.
-    const containerRef = { current: container }, viewerRef = { current: viewer as never }
-    const { result, rerender } = renderHook(({ railOpen }) => useEvidenceOverlays({ containerRef, viewerRef,
-      parsedDocument, attempt: null, active: false, railOpen }), { initialProps: { railOpen: true } })
+    const { result } = renderHook(() => useEvidenceOverlays({ containerRef: { current: container }, viewerRef: { current: viewer as never },
+      parsedDocument, attempt: null, active: false }))
 
     act(() => result.current(anchor, link))
-    const blockBox = container.querySelector<HTMLElement>('.parsed-evidence-focus')!.style.cssText
-    expect(container.scrollTo).not.toHaveBeenCalled()
-    if (scrolled) fireEvent.wheel(container)
-    if (collapsed) rerender({ railOpen: false })
-    container.querySelector('.page')!.insertAdjacentHTML('afterbegin', `<div class="textLayer"><span>${block}</span></div>`)
-    focusRect = new DOMRect(10, 900, 40, 12)
-    act(() => listeners.get('textlayerrendered')!())
-    expect(container.scrollTo).toHaveBeenCalledTimes(scrolls)
-    // Collapsed, the selected value keeps its outline, narrowed to the quote.
-    expect(container.querySelector<HTMLElement>('.parsed-evidence-focus')!.style.cssText).not.toBe(blockBox)
-    // Later renders that leave the focus as it is never scroll the source again.
+    const focus = () => container.querySelector<HTMLElement>('.parsed-evidence-focus')!
+    expect(parseFloat(focus().style.left)).toBeCloseTo((bbox.x0 / page.width_pt) * 100)
+    expect(parseFloat(focus().style.width)).toBeCloseTo(((bbox.x1 - bbox.x0) / page.width_pt) * 100)
+    expect([...listeners.keys()]).toEqual(['pagerendered'])
+    const blockBox = focus().style.cssText
     act(() => listeners.get('pagerendered')!())
-    expect(container.scrollTo).toHaveBeenCalledTimes(scrolls)
+    expect(focus().style.cssText).toBe(blockBox)
+    expect(container.scrollTo).not.toHaveBeenCalled()
   })
 })
 
@@ -389,16 +384,19 @@ describe('correction marks', () => {
 })
 
 describe('part marks', () => {
-  it('a value\'s parts in one passage share its mark in their field\'s colour, and each boxes its own quote on a text layer', () => {
-    // The fixture's one passage, renamed as a segment's anchor and holding two values' quotes; spans count code points.
+  it('a value\'s parts in one passage share its block mark in their field\'s colour, text layer or not', () => {
+    // The fixture's one passage, renamed as a segment's anchor and holding two values' quotes: one part's link has
+    // grounding spans, the other an Article location; spans count code points.
     const block = '𝛼 Alpha Beta Gamma'
     const parsedDocument = decodeParsedDocument(JSON.parse(JSON.stringify(parsedFixture).replaceAll('"bundled-anchor"', '"a_s1"').replace('"Unit 7"', JSON.stringify(block))))
     const anchor = parsedDocument.evidence_index.anchors[0]!
     const occurrence = anchor.producer_observations[0]!, bbox = verifiedEvidenceBbox(parsedDocument, occurrence)!
     const page = parsedDocument.pages.find((each) => each.page_number === occurrence.page_number)!
-    const part = (name: string, start: number) => ({ key: `v#["${name}"]`, link: { resultPath: ['records', 0, 's', name], evidenceAnchorId: anchor.anchor_id,
-      precision: 'segment', grounding: { textSpans: [{ segment: anchor.anchor_id.slice(2), start, end: start + 3 }] } } as EvidenceLink })
-    const parts = [part('a', 2), part('b', [...block].length - 3)]
+    const spans = (start: number) => [{ segment: anchor.anchor_id.slice(2), start, end: start + 3 }]
+    const part = (name: string, quote: object) => ({ key: `v#["${name}"]`, link: { resultPath: ['records', 0, 's', name],
+      evidenceAnchorId: anchor.anchor_id, precision: 'segment', ...quote } as EvidenceLink })
+    const parts = [part('a', { grounding: { textSpans: spans(2) } }),
+      part('b', { location: { textSpans: spans([...block].length - 3), raw: 'mma' } })]
     const describe = new Map(parts.map(({ key }) => [key, { name: key, value: key, word: null, style: 'link' as const, anchorId: anchor.anchor_id, color: '#e15759' }]))
     const render = (layer: string) => {
       const container = document.createElement('div')
@@ -410,16 +408,8 @@ describe('part marks', () => {
       }))
       return [...container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')]
     }
-    // No text layer (a scanned page): one block mark naming both parts, selected with its value.
-    const [shared, ...rest] = render('')
-    expect(rest).toHaveLength(0)
-    expect(shared!.getAttribute('aria-label')).toBe('v#["a"]: v#["a"]; v#["b"]: v#["b"]')
-    expect(shared!.getAttribute('aria-current')).toBe('true')
-    expect(shared!.style.getPropertyValue('--color-ev')).toBe('#e15759')
     // A text layer in page points: the block's text in one span over its box; a range's rect spans its characters.
-    let runReads = 0
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this.tagName === 'SPAN') runReads++
       return this.classList.contains('textLayer') ? new DOMRect(0, 0, page.width_pt, page.height_pt)
         : new DOMRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0)
     })
@@ -428,13 +418,17 @@ describe('part marks', () => {
       setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
       getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
     }) as unknown as Range)
-    const narrowed = render(`<div class="textLayer"><span>${block}</span></div>`)
-    expect(narrowed.map((mark) => mark.getAttribute('aria-label'))).toEqual(['v#["a"]: v#["a"]', 'v#["b"]: v#["b"]'])
-    // The paint reads the layer's runs once, not once per link: per link, a long document's paint froze the page.
-    expect(runReads).toBe(1)
-    // A range's offsets are UTF-16 units: "Alp" starts at 3, "mma" 3 before the end.
-    expect(parseFloat(narrowed[0]!.style.left)).toBeCloseTo(((bbox.x0 + 3 - 1) / page.width_pt) * 100)
-    expect(parseFloat(narrowed[1]!.style.left)).toBeCloseTo(((bbox.x0 + block.length - 3 - 1) / page.width_pt) * 100)
+    // No text layer (a scanned page) or one showing both quotes: one block mark naming both parts, selected with its
+    // value.
+    for (const layer of ['', `<div class="textLayer"><span>${block}</span></div>`]) {
+      const [shared, ...rest] = render(layer)
+      expect(rest).toHaveLength(0)
+      expect(shared!.getAttribute('aria-label')).toBe('v#["a"]: v#["a"]; v#["b"]: v#["b"]')
+      expect(shared!.getAttribute('aria-current')).toBe('true')
+      expect(shared!.style.getPropertyValue('--color-ev')).toBe('#e15759')
+      expect(parseFloat(shared!.style.left)).toBeCloseTo((bbox.x0 / page.width_pt) * 100)
+      expect(parseFloat(shared!.style.width)).toBeCloseTo(((bbox.x1 - bbox.x0) / page.width_pt) * 100)
+    }
   })
 })
 

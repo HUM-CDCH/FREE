@@ -5,8 +5,9 @@
 import { z } from 'zod'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
-/** One grounded value's evidence: kei-exp's `Link`, with `path` and `bbox_pt` as lists. */
-export const evidenceSchema = z.object({
+const span = z.object({ segment: z.string().regex(/^p\d+_s\d+$/), start: z.number().int().nonnegative(), end: z.number().int().positive() })
+/** kei-exp's `Link`, with `path` and `bbox_pt` as lists; versions 2 and 3 extend it. */
+const linkSchema = z.object({
   path,
   segment: z.string().regex(/^p\d+_s\d+$/),
   page: z.number().int().positive(),
@@ -21,10 +22,15 @@ export const evidenceSchema = z.object({
     .optional(),
   precision: z.enum(['cell', 'segment', 'input']).optional(),
 })
-const span = z.object({ segment: z.string().regex(/^p\d+_s\d+$/), start: z.number().int().nonnegative(), end: z.number().int().positive() })
+/** One grounded value's evidence (version 1). An Article link may carry `location`: the value's unique printing in its
+ *  segment, as code-point spans and the printed text. */
+export const evidenceSchema = linkSchema.extend({
+  location: z.object({ spans: z.array(span.strict()).length(1), raw: z.string().min(1) }).strict().optional(),
+}).refine(link => link.location?.spans.every(each => each.segment === link.segment && each.start < each.end) ?? true,
+  { path: ['location'], message: 'location spans must be non-empty ranges in the link\'s segment' })
 /** Version 2 evidence (`kie/extract/grounded.py` `_link`): the version 1 link plus the raw code-point spans of the value,
  *  its key, its provenance and alternatives, and the precision its box can claim. */
-export const groundedEvidenceSchema = evidenceSchema.extend({
+export const groundedEvidenceSchema = linkSchema.extend({
   linked_by: z.enum(['key', 'structure']),
   spans: z.array(span).min(1),
   alternatives: z.array(z.array(span)),
@@ -39,7 +45,7 @@ export const groundedEvidenceSchema = evidenceSchema.extend({
 /** Version 3 evidence (`kie/extract/unified.py` `_link`): a located value, its literal span or the passage that
  *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. `verification`:
  *  a separate verification accepted it; `lexical`: a single-pass method (defaults 6) where only code located it. */
-export const unifiedEvidenceSchema = evidenceSchema.extend({
+export const unifiedEvidenceSchema = linkSchema.extend({
   linked_by: z.enum(['verification', 'lexical']),
   support: z.enum(['literal', 'supporting']),
   spans: z.array(span).min(1),
@@ -71,6 +77,8 @@ export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidence
     ...(link.precision ? { precision: link.precision } : {}),
     verbatim: link.verbatim, lexicalHits: link.hits,
     ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
+    // A display location only: never `grounding`, which names a version 2 or 3 rule and its review wording.
+    ...(link.location ? { location: { textSpans: link.location.spans, raw: link.location.raw } } : {}),
   }
 }
 /** The recipe's rule attribution is independent of a verifier's support. */

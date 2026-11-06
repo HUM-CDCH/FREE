@@ -1,0 +1,26 @@
+{
+  "with_location": {
+    "path": ["records", 0, "site_name"],
+    "segment": "p1_s3",
+    "page": 1,
+    "bbox_pt": [34.0, 100.5, 170.75, 116.5],
+    "verbatim": true,
+    "hits": 1,
+    "linked_by": "model",
+    "cell": null,
+    "precision": "segment",
+    "location": {"spans": [{"segment": "p1_s3", "start": 14, "end": 23}], "raw": "Cedar Bay"}
+  },
+  "without_location": {
+    "path": ["records", 0, "site_name"],
+    "segment": "p1_s3",
+    "page": 1,
+    "bbox_pt": [34.0, 100.5, 170.75, 116.5],
+    "verbatim": true,
+    "hits": 1,
+    "linked_by": "model",
+    "cell": null,
+    "precision": "segment"
+  },
+  "passage_text": "Survey site:  Cedar Bay"
+}

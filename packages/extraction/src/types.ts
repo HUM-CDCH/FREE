@@ -32,6 +32,9 @@ export type EvidenceLink = Readonly<{
    *  introduced it or the heading it was inherited from, and the precision its box can claim. Version 3 (unified
    *  Catalog): the verified value's literal span or supporting passage. Absent on version 1. */
   grounding?: EvidenceGrounding | VerifiedGrounding
+  /** An Article (version 1) link's value printing: its one code-point span in the linked segment and the printed text.
+   *  Where to draw it only; it claims no rule, so it is never `grounding`. */
+  location?: Readonly<{ textSpans: readonly TextSpan[]; raw: string }>
 }>
 
 export type TextSpan = Readonly<{ segment: string; start: number; end: number }>
