@@ -23,13 +23,17 @@ no call and links nothing, leaving every value ungrounded. Links from before thi
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
+from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.llm import Chat
+from kei_exp.kie.extract.locate import GROUPING, JOINERS, SIGNS, BlockText, _before, _bounded, _whole_number, forms, locate
 from kei_exp.kie.extract.method import GroundingChoice
 from kei_exp.kie.extract.schema import Schema, describe
 from kei_exp.kie.extract.stages import Issue, Link, _text, contains, leaves
@@ -166,7 +170,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
            quoted: bool = False,
            proofs: list[dict] | None = None, span_ids: bool = False,
            skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
-           on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
+           located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """Ground claims in complete evidence, splitting claim batches to fit the request budget.
 
@@ -189,6 +193,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     after it are independent of it, so they are captured in the same planning round and run beside it, and a reply
     already saved is read (and `on_batch` run) meanwhile; the round yields once every batch is captured or read. The
     fallback round is grouped from the whole precise round's unsupported claims, so it starts once they have all replied.
+    `located` (Article) also gives each link the value's one printing in the evidence chosen (`_location`), read off
+    the value, never off a model quote; the version 1 Catalog's links stay without one.
     """
     prefix: tuple[str | int, ...] = ("records", record)
     if quoted and span_ids:
@@ -372,7 +378,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
             else:
                 candidate = labelled[label]
-                links.append(_link(path, candidate, contains(candidate.text, value), hits, "model"))
+                links.append(_link(path, candidate, contains(candidate.text, value), hits, "model",
+                                   _location(candidate, value) if located else None))
                 if quoted and proofs is not None:
                     proofs.append({"path": list(path), "segment": candidate.passage.id,
                                    "cell": candidate.cell.cell_id if candidate.cell else None,
@@ -389,11 +396,105 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     return links, calls, issues
 
 
-def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, hits: int, linked_by: str) -> Link:
+def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, hits: int, linked_by: str,
+          location: dict | None = None) -> Link:
     passage, cell = candidate.passage, candidate.cell
     precise = cell is not None and cell.bbox_pt is not None
     return Link(path, passage.id, passage.page, cell.bbox_pt if precise else passage.bbox_pt,
-                verbatim, hits, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision)
+                verbatim, hits, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision,
+                location)
+
+
+# A printed number: digits with decimal or thousands separators, perhaps a leading one (`.5`), never part of a word or
+# of a longer number (`18` in `18.5mm` is neither a printing nor a whole token, nor `5` in `pH7.5`). A separator spaced
+# by text extraction joins too (`0 . 02`, `0. 02`, but not the list `18, 20`), as `locate.spaced_join` reads it, and so
+# do a slash between digits (`1/2`) and a grouping space or apostrophe before exactly three digits (`1 234`), as
+# `locate._whole_number` reads them. An exponent is part of it: `1.8e1`, `1.8E+1`, `1.8×10^1`, `1.8 × 10¹`, and
+# `1.8 × 10-1` or `1.8 × 101`, which may be a superscript text extraction lowered.
+_SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+_NUMBER = re.compile(
+    r"(?<!\w)(?<!\d[.,])(?P<number>[.,]?\d+(?:(?:[.,%s]|\s+[.,]\s*|\.\s+|[%s](?=\d{3}(?!\d)))\d+)*)"
+    r"(?P<exponent>[eE][+\-\u2212]?\d{1,3}|\s*[×xX·]\s*10(?:\s*\^\s*[+\-\u2212]?\d{1,3}|[⁺⁻]?[%s]{1,3}|[\-\u2212]?\d{1,3}))?"
+    r"(?!\w|[.,]\d|\s+[.,]\s*\d|\.\s+\d)" % (JOINERS, GROUPING, _SUPERSCRIPTS))
+_JOINED = re.compile(r"\s+[.,]\s*|\.\s+|[%s]|[%s]" % (JOINERS, GROUPING))
+_POWER = re.compile(r"[eE]|\s*[×xX·]\s*10\s*\^?\s*")
+
+
+def _scaled(readings: set[Decimal], exponent: str) -> set[Decimal]:
+    """The readings of a mantissa times its exponent; `× 10-1` and `× 101` (a superscript lowered, or a product and a
+    range) also read as their parts."""
+    power = _POWER.sub("", exponent, count=1).translate(str.maketrans(_SUPERSCRIPTS + "⁺⁻\u2212", "0123456789+--"))
+    scaled = {reading.scaleb(int(power)) for reading in readings}
+    if re.fullmatch(r"\s*[×xX·]\s*10[\-\u2212]?\d+", exponent):
+        scaled |= readings | {Decimal(part) for part in re.findall(r"\d+", exponent)}
+    return scaled
+
+
+def _readings(number: str) -> set[Decimal]:
+    """What a printed number may mean: `18,0` and `18.00` one value each, `1,000` and `18.000` two (a decimal and a
+    thousands reading), `1,000.5` one (its last separator is the decimal point), and a token neither reads as
+    (`12.3.1937`, a date) each of its parts."""
+    separators, groups = re.findall("[.,]", number), re.split("[.,]", number)
+    if not separators:
+        return {Decimal(number)}
+    parts = {Decimal(group) for group in groups if group}
+    grouped = 1 <= len(groups[0]) <= 3 and all(len(group) == 3 for group in groups[1:-1])
+    if len(set(separators)) == 2:
+        return ({Decimal("".join(groups[:-1]) + "." + groups[-1])}
+                if grouped and separators.count(separators[-1]) == 1 else parts)
+    decimal = {Decimal(number.replace(",", "."))} if len(separators) == 1 else set()
+    return (decimal | ({Decimal("".join(groups))} if grouped and len(groups[-1]) == 3 else set())) or parts
+
+
+def _location(candidate: _Candidate | SourceSpan, value: Any) -> dict | None:
+    """Where `value` is printed in the candidate chosen, when it is printed there exactly once: one span of its passage
+    and that span's raw text, else None. A number counts every printing of its value (`18`, `18.0`, `18,0`, `18.00`),
+    and its one printing must have no other reading (`1,000`); a string is found as `locate` finds it, a string of
+    digits only as a whole number (`18` never in `18.5`). The whole passage is searched, within the candidate's range,
+    so the text around that range still bounds a token. A whole table is never located: its text holds the caption,
+    which its box leaves out."""
+    passage, text = candidate.passage, candidate.passage.text
+    if candidate.cell is None and (passage.label == "Table" or passage.table is not None):
+        return None
+    low, high = ((candidate.start, candidate.end) if isinstance(candidate, SourceSpan) else
+                 (candidate.cell.start, candidate.cell.end) if candidate.cell else (0, len(text)))
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        target, found = Decimal(repr(value)), []
+        for match in _NUMBER.finditer(text):
+            start, end, number, parts = match.start(), match.end(), match["number"], _JOINED.split(match["number"])
+            # A joined number (`0 . 02`, `1/2`, `1 234`) may be one number or several: each reading is printed there,
+            # none located on it; nor on an exponent form, whose span the text layer may not print.
+            whole = "" if any(joiner in number for joiner in JOINERS) else re.sub(r"[\s'\u2019]", "", number)
+            readings = (_readings(whole) if whole else set()).union(*map(_readings, parts))
+            if match["exponent"]:
+                readings = _scaled(readings, match["exponent"])
+            sign = _before(text, start)
+            prior = _before(text, sign)
+            signed = sign >= 0 and text[sign] in SIGNS and (prior < 0 or not text[prior].isdigit())  # not a range
+            if signed:
+                start, readings = sign, {-reading for reading in readings}
+            if low <= start and end <= high and target in readings:
+                found.append((start, end, len(readings) == 1 and len(parts) == 1 and not match["exponent"]
+                              and _bounded(text, start, end) and _whole_number(text, start, end, signed)))
+        if len(found) != 1 or not found[0][2]:
+            return None
+        start, end, _ = found[0]
+    elif isinstance(value, str) and text:
+        block = BlockText.of([(passage.id, text, Span(segment_id=passage.id, start=0, end=len(text)))])
+        places = {(found[0].start, found[-1].end): found
+                  for form in forms(value)
+                  for found in locate(block, form, within=(low, high), numeric=bool(_NUMBER.fullmatch(value)))}
+        if len(places) != 1:
+            return None
+        [spans] = places.values()
+        if len(spans) != 1 or spans[0].segment_id != passage.id:
+            return None
+        start, end = spans[0].start, spans[0].end
+    else:
+        return None
+    if not 0 <= start < end <= len(text):
+        return None
+    return {"spans": [{"segment": passage.id, "start": start, "end": end}], "raw": text[start:end]}
 
 
 Grounding = Callable[..., tuple[list[Link], list[Call], list[Issue]]]
@@ -403,43 +504,43 @@ def semantic(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Ch
              budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
              proofs: list[dict] | None = None,
              skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
-             on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
+             located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """The production reference: one evidence label per claim, or NONE."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
                   record_context=record_context, proofs=proofs, skip_paths=skip_paths,
-                  projected=projected, on_batch=on_batch)
+                  projected=projected, located=located, on_batch=on_batch)
 
 
 def quoted(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
            budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
            proofs: list[dict] | None = None,
            skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
-           on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
+           located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """A label, an exact source quote and an attribution per claim; accepted quotes are appended to `proofs`."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
                   record_context=record_context, quoted=True, proofs=proofs, skip_paths=skip_paths,
-                  projected=projected, on_batch=on_batch)
+                  projected=projected, located=located, on_batch=on_batch)
 
 
 def spans(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
           budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
           proofs: list[dict] | None = None,
           skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
-          on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
+          located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """Canonical spans with reconstructed quotes and model-attested attribution."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
                   record_context=record_context, proofs=proofs, skip_paths=skip_paths, span_ids=True,
-                  projected=projected, on_batch=on_batch)
+                  projected=projected, located=located, on_batch=on_batch)
 
 
 def off(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
         budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
         proofs: list[dict] | None = None,
         skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
-        on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
+        located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """No grounding: no call, no link, no issue; every value stays ungrounded."""
     return [], [], []

@@ -4,7 +4,7 @@ import { adaptedCorrection, correctionSourceContext, correctionValueFits, fieldM
 import type { SchemaNode } from './schema.js'
 import sourceFixture from '../../../apps/studio/src/assets/parsed_document.v2.json' with {type:'json'}
 import { decodeParsedDocument } from './parsed-document.js'
-import { durableValueSchema } from './durable-contract.js'
+import { durableValueSchema, type DurableValue } from './durable-contract.js'
 
 const text: SchemaNode = { id:'field-1', name:'title', type:'string', description:'A work title' }
 const source=decodeParsedDocument(sourceFixture)
@@ -57,6 +57,15 @@ test('model-anchor context remains separate from optional researcher Evidence',(
   assert.deepEqual(context.modelEvidence,modelEvidence)
   assert.deepEqual(context.correctionEvidence,[])
   assert.equal(context.modelGrounding,'ungrounded')
+})
+test('an Article link\'s location never reaches correction guidance: its bytes match the unlocated link\'s',()=> {
+  const anchor=source.evidence_index.anchors[0]
+  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,hits:1,linked_by:'model' as const}
+  const guidance=(evidence:DurableValue['evidence'][number]['producer'])=>JSON.stringify(correctionSourceContext(source,'Full source',
+    {...saved,evidence:[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:evidence}]},[]))
+  const located=guidance({...producer,location:{spans:[{segment:'p1_s0',start:0,end:4}],raw:'Unit'}})
+  assert.equal(located,guidance(producer))
+  assert.ok(!located.includes('location'))
 })
 test('compatibility preserves renames and excludes changed meaning or type for each target', () => {
   const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'A corrected title',sourceContext:'Own source',grounded:false,node:text}

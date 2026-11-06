@@ -154,10 +154,10 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
 
     Article supplies identities and complete source contexts; each claim is routed to the context its value was read
     from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
-    fields rather than the whole root (`grounding.verify`'s `projected`). Generic Catalog uses the owned passages in
-    each slice. Neither path extracts or reconciles values here. `resume` names paths an earlier grounding of the same
-    values already supported: they are not checked again. `on_batch` runs after each grounding batch with the links it
-    made.
+    fields rather than the whole root (`grounding.verify`'s `projected`), each link with its value's one printing when
+    there is one (`located`). Generic Catalog uses the owned passages in each slice, its links unlocated. Neither path
+    extracts or reconciles values here. `resume` names paths an earlier grounding of the same values already
+    supported: they are not checked again. `on_batch` runs after each grounding batch with the links it made.
     """
     result = GroundingResult()
     verifier = grounding.technique(method.grounding if method is not None else None)
@@ -180,7 +180,7 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
         if identities is not None:
             links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
                 origins=origins[number], value_contexts=value_contexts[number],
-                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True,
+                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, located=True,
                 windows=method is not None and method.grounding_overflow == "windows", **verification)
             result.links += links
             result.calls += calls
@@ -266,8 +266,11 @@ def artifact(evidence: Evidence, request, chat: Router, *, started: str, clock: 
 
 
 def link_json(link: Link) -> dict:
-    """A link as the artifact (and a retained value's evidence) writes it."""
-    return {**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)}
+    """A link as the artifact (and a retained value's evidence) writes it; one without a location has no such key."""
+    dumped = {**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)}
+    if link.location is None:
+        del dumped["location"]
+    return dumped
 
 
 def _total(values) -> int | None:

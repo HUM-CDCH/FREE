@@ -63,6 +63,8 @@ export const evidenceLinkSchema = z
     linkedBy: z.enum(['citation_lexical', 'lexical']).optional(),
     // Present only on version 2 and version 3 results.
     grounding: z.union([evidenceGroundingSchema, verifiedGroundingSchema]).optional(),
+    // An Article (version 1) link's value printing, for drawing only; never a `grounding`.
+    location: z.object({ textSpans: z.array(textSpanSchema).length(1), raw: z.string().min(1) }).strict().optional(),
   })
   .strict()
 

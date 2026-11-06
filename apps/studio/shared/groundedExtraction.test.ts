@@ -13,4 +13,14 @@ describe('saved value Evidence links', () => {
     expect(evidenceLinkSchema.parse(link)).toEqual(link)
     expect(evidenceLinkSchema.safeParse({ ...link, reviewedOccurrenceIds: [] }).success).toBe(false)
   })
+
+  it('accepts an Article link\'s location as one span and its printed text, and nothing else', () => {
+    const span = { segment: 'p1_s3', start: 14, end: 23 }
+    const link = { resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_p1_s3', precision: 'segment', verbatim: true,
+      lexicalHits: 1, location: { textSpans: [span], raw: 'Cedar Bay' } }
+    expect(evidenceLinkSchema.parse(link)).toEqual(link)
+    for (const location of [{ textSpans: [], raw: 'Cedar Bay' }, { textSpans: [span, span], raw: 'Cedar Bay' }, { textSpans: [span], raw: '' },
+      { spans: [span], raw: 'Cedar Bay' }, { textSpans: [span], raw: 'Cedar Bay', boxes: [] }, { textSpans: [{ ...span, page: 1 }], raw: 'Cedar Bay' }])
+      expect(evidenceLinkSchema.safeParse({ ...link, location }).success).toBe(false)
+  })
 })
