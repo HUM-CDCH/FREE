@@ -57,10 +57,15 @@ describe('RailChat', () => {
     // A new instruction asked again; Esc closes the step until the next one.
     fireEvent.keyDown(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('textbox'), { key: 'Escape' })
     expect(screen.queryByRole('region', { name: 'Generate template' })).not.toBeInTheDocument()
-    // Closed, generating is still one click away.
+    // Closed, the step folds to its title line: generating is still one click away, and the title brings it back.
+    const folded = screen.getByRole('region', { name: 'Generate template, set aside' })
+    expect(within(folded).getByText('· 1 instruction')).toBeInTheDocument()
     onGenerate.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 instruction)' }))
+    fireEvent.click(within(folded).getByRole('button', { name: 'Generate template (1 instruction)' }))
     expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
+    fireEvent.click(within(folded).getByRole('button', { name: 'Show the Generate template step' }))
+    expect(screen.getByRole('region', { name: 'Generate template' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Generate template, set aside' })).not.toBeInTheDocument()
   })
 
   it('saves the Record Scope from its step and folds the answer into the conversation', () => {

@@ -3,7 +3,6 @@ import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
-import { Button } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
@@ -156,13 +155,14 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const canSay = preSchema ? chat.asking === null : editable && !blocked
   const card = step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
     onChoose={(option, text) => choose(step, option, text)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
-  // The Generate template step set aside: generating stays one click away, without a word said.
+  // The Generate template step set aside: folded to its title line, generating stays one click away and the title
+  // brings the whole step back.
   const generate = !step && preSchema && (
-    <div className="mx-4 my-2 flex shrink-0 justify-end">
-      <Button variant="positive" size="md" disabled={chat.asking !== null} onClick={() => onGenerate?.(instructions.text)}>
-        Generate template{instructions.countLabel}
-      </Button>
-    </div>
+    <SetAsideStepView title="Generate template" summary={instructions.count > 0 ? plural(instructions.count, 'instruction') : 'no instructions'}
+      expandLabel="Show the Generate template step"
+      onExpand={() => setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))}
+      action={{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
+        run: () => onGenerate?.(instructions.text) }} />
   )
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
@@ -222,6 +222,28 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 /** A picking option's label with the documents it acts on. */
 const pickedLabel = (option: StepOption, count: number) => option.label.replace('{n}', plural(count, 'document'))
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
+
+/** A step set aside, folded to the card's title line: the same left edge and ⏵, a summary, and its one action. The
+ *  title brings the whole step back. */
+function SetAsideStepView({ title, summary, expandLabel, onExpand, action }: {
+  title: string; summary: string; expandLabel: string; onExpand: () => void
+  action: { label: string; name: string; disabled: boolean; run: () => void }
+}) {
+  return (
+    <section aria-label={`${title}, set aside`} className="mx-4 my-2 flex shrink-0 items-center gap-2 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
+      <button type="button" aria-label={expandLabel} title={expandLabel} onClick={onExpand}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left outline-none">
+        <span aria-hidden="true" className="text-accent">⏵</span>
+        <span className="truncate text-secondary font-bold text-ink">{title}</span>
+        <span className="shrink-0 text-compact text-ink-faint">· {summary}</span>
+      </button>
+      <button type="button" aria-label={action.name} title={action.name} disabled={action.disabled} onClick={action.run}
+        className="shrink-0 cursor-pointer rounded-[3px] border border-green bg-green px-2 py-0.5 text-compact font-semibold text-white outline-none transition-colors hover:brightness-108 disabled:cursor-default disabled:opacity-50">
+        {action.label}
+      </button>
+    </section>
+  )
+}
 
 /** The next step: a permission card with numbered options. 1–9 choose while it has focus. A step that acts on
  *  documents lists the project's to tick. The way past it (`dismiss`) is a line to type in: its number focuses it,
