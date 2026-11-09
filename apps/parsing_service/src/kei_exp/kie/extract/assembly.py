@@ -245,6 +245,12 @@ def artifact(evidence: Evidence, request, chat: Router, *, started: str, clock: 
     grounded = {link.path for link in links}
     ungrounded = [["records", number, *path] for number, values in enumerate(fields)
                   for path, _ in leaves(values) if ("records", number, *path) not in grounded]
+    # Nonblank text the engine never read was extracted from by no context, so the run is as incomplete as a failed
+    # call: without this, a source whose middle pages failed to parse reads as a complete extraction.
+    unread = [passage.id for passage in evidence.withheld if passage.text.strip()]
+    if unread:
+        issues = [*issues, Issue("source_unread", f"{len(unread)} segment(s) the engine did not read: "
+                                                  f"{', '.join(unread[:10])}{', …' if len(unread) > 10 else ''}")]
     result = {
         "extraction_version": EXTRACTION_VERSION, "run_id": evidence.run_id, "generation": evidence.generation,
         "digest": evidence.digest, "strategy": options.strategy, "model": chat.model, "models": chat.models,

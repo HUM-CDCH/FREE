@@ -280,7 +280,9 @@ failed call, such as a reply
 `llm.parse_json` cannot read, or a provider exception fails its capture, and the
 attempt is acknowledged as `capture_failed` (above). A record the supplied
 source ends inside, with no unread text after it, ends `source_end` and does not
-make boundaries incomplete. The internal result carries the execution record
+make boundaries incomplete. Nonblank withheld text anywhere in the source,
+counted in `processing.source.unread`, makes processing incomplete, so a durable
+Extraction over it does not publish as complete. The internal result carries the execution record
 (pins and resolved budgets), the discovery record and each entry's work;
 retained snapshots keep the execution and discovery records as diagnostics.
 

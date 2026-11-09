@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from kei_exp.kie.extract import discovery, run, unified
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import as_router
+from kei_exp.kie.extract.retained import processing_complete
 from kei_exp.kie.passages import Evidence, Passage, load
 from kei_exp.pagefile import PageTable, TableCell
 from tests.helpers import catalogue
@@ -282,7 +283,10 @@ def test_only_nonblank_withheld_text_after_the_last_record_unsettles_its_end():
     result = excerpt_ending_inside_a_record((passage("p0_s5", "unreadable scan", status="failed"),
                                              passage("p1_s1", " \n", label="Picture", status="skipped")))
     assert [entry["end"] for entry in result["discovery"]["entries"]] == ["validated"] * 5 + ["source_end"]
-    assert result["completeness"]["boundaries"] is True and result["complete"] is True
+    assert result["completeness"]["boundaries"] is True
+    # Every boundary is settled, yet the scan before the last record was never read: the run is not complete.
+    assert result["processing"]["source"]["unread"] == 1
+    assert result["completeness"]["processing"] is False and result["complete"] is False
 
 
 def test_a_middle_window_continuation_the_next_window_denies_stays_unresolved():
@@ -1083,7 +1087,17 @@ def test_withheld_source_and_reading_order_issues_stay_visible():
     result, _ = extract(source)
     assert ranges(result, "withheld") == [("p1_s1", 0, 15)]
     assert any(issue["code"] == "reading_order" for issue in result["issues"])
+    # Unread source is unread wherever it lies: a run that never saw it is incomplete, not complete-with-a-note.
+    assert result["processing"]["source"]["unread"] == 1
+    assert result["completeness"]["processing"] is False and result["complete"] is False
+    assert processing_complete(result) is False  # what a durable Extraction publishes as its completion
     assert_accounted(source, result)
+
+
+def test_a_fully_read_source_reports_nothing_unread():
+    result, _ = extract(evidence("1. Ort. Material: Holz."))
+    assert result["processing"]["source"]["unread"] == 0
+    assert result["completeness"]["processing"] is True and result["complete"] is True
 
 
 def test_no_records_is_an_honest_empty_result():

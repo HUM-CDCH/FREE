@@ -835,6 +835,9 @@
         "applicable": true,
         "windows": 1,
         "failed": 0
+      },
+      "source": {
+        "unread": 0
       }
     },
     "completeness": {

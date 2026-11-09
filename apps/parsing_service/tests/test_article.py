@@ -55,6 +55,30 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert not result["complete"] and result["ungrounded"]  # a model's NONE remains explicit
 
 
+def test_article_names_the_source_the_engine_never_read(monkeypatch):
+    """A segment the engine failed to read was extracted from by no value context: the run names it, never silently
+    reporting the same completeness as a run that read the whole source."""
+    source = passages(["31. Hill. Results: Hill 1827."])
+    unread = dataclasses.replace(passages(["unreadable scan"], page=9)[0], status="failed")
+
+    def extracted(withheld, **method):
+        monkeypatch.setattr(run, "load", lambda _: dataclasses.replace(evidence(source), withheld=withheld))
+        return run.extract(None, run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", **method}),
+                           Router(CountingChat(lambda system, user, schema: {"site": "Hill"}),
+                                  CountingChat(lambda system, user, schema:
+                                               {claim: "NONE" for claim in schema["properties"]})),
+                           counter={role: WordCounter() for role in ("fields", "reasoning")})
+
+    def named(result):
+        return [issue["detail"] for issue in result["issues"] if issue["code"] == "source_unread"]
+    assert named(extracted(())) == []
+    result = extracted((unread,))
+    assert named(result) == ["1 segment(s) the engine did not read: p9_s0"]
+    method = {"article": {"context": "bounded", "grounding": "semantic"}}
+    assert extracted((), **method)["completion"]["source_coverage"] == "attempted"
+    assert extracted((unread,), **method)["completion"]["source_coverage"] == "partial"
+
+
 def test_article_grounding_does_not_lexically_accept_another_samples_unique_measurement():
     source = passages(["Hill: temperature 18.5. Brook: not measured."])
     fields = {"site": "Brook", "year": 18.5}
