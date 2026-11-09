@@ -2458,9 +2458,9 @@ describe('chat composer and drawer (redesign §7)', () => {
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.getByText('Focus on dates')).toBeInTheDocument()
-    expect(screen.getByText('Message 1 of 1')).toBeInTheDocument()
+    expect(screen.getByText('Instruction 1 of 1 · for generation')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show conversation' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 message)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 instruction)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
 
@@ -2473,19 +2473,19 @@ describe('chat composer and drawer (redesign §7)', () => {
     fireEvent.change(input, { target: { value: 'How many burials are there?' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(await screen.findByText('The register lists 42 burials.')).toBeInTheDocument()
-    expect(screen.getByText('Question')).toBeInTheDocument()
+    expect(screen.getByText('Question · not used for generation')).toBeInTheDocument()
     expect(requestSchemaChat.mock.calls[0]!.slice(0, 2)).toEqual([
       { projectContextId: modelContext.projectContextId, sourceRepresentationRevisionId: modelContext.sourceRepresentationRevisionId },
       'How many burials are there?',
     ])
     fireEvent.change(input, { target: { value: 'Focus on dates' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('Message 1 of 1')).toBeInTheDocument()
+    expect(await screen.findByText('Instruction 1 of 1 · for generation')).toBeInTheDocument()
     expect(requestSchemaChat.mock.calls[1]![4]).toEqual([
       { role: 'user', text: 'How many burials are there?' },
       { role: 'assistant', text: 'The register lists 42 burials.' },
     ])
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 message)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 instruction)' }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
 
@@ -2512,7 +2512,7 @@ describe('chat composer and drawer (redesign §7)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Stop the reply' }))
     expect(input).toHaveValue('How many burials are there?\nand deaths')
     expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
-    expect(screen.queryByText('Message 1 of 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Instruction 1 of 1 · for generation')).not.toBeInTheDocument()
     expect(requestSchemaChat.mock.calls[0]![2]).toHaveProperty('aborted', true)
   })
 

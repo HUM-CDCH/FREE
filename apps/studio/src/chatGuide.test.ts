@@ -28,8 +28,8 @@ const actions = (input: Partial<GuideInput>) => nextStep({ ...base, ...input })?
 describe('nextStep', () => {
   it('offers Generate template before the first template, counting the kept instructions', () => {
     const step = nextStep({ ...base, view: 'empty', instructionCount: 2 })
-    expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate template (2 messages)', tone: 'positive' })
-    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'tell', 'dismiss'])
+    expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate template (2 instructions)', tone: 'positive' })
+    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'dismiss'])
   })
 
   it('holds Generate while a question is answered, and shows a failed generation\'s error', () => {
@@ -233,7 +233,7 @@ describe('nextStep in a project', () => {
       picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [
         { action: 'run', label: 'Only this document', disabled: false },
         { action: 'pilot', label: 'Documents in this project · {n}', picks: true, disabled: false },
-        { action: 'dismiss', label: 'Not now' }] })
+        { action: 'dismiss' }] })
     const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true })
     expect(extractStep({ ...base, project: project({ summary: approved, batches: [batch([member('a', true)])] }) }, 2)).toMatchObject({
       picker: { initial: ['b', 'c', 'd'], limit: 50 }, options: [{ action: 'run' }, { action: 'batch', picks: true }, { action: 'dismiss' }] })

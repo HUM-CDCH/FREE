@@ -375,10 +375,10 @@ describe('RightRail asked to extract in the chat', () => {
     expect(run.start).toHaveBeenCalledOnce()
     expect(screen.queryByRole('region', { name: 'Extract' })).not.toBeInTheDocument()
 
-    // This draft has no saved revision yet, so nothing of the project can run on it; Not now ends the request.
+    // This draft has no saved revision yet, so nothing of the project can run on it; Esc ends the request.
     step = await ask('Now extract the others too')
     expect(within(step).queryByRole('checkbox')).not.toBeInTheDocument()
-    fireEvent.click(within(step).getByRole('button', { name: 'Not now' }))
+    fireEvent.keyDown(step, { key: 'Escape' })
     expect(screen.queryByRole('region', { name: 'Extract' })).not.toBeInTheDocument()
     expect(project.start).not.toHaveBeenCalled()
   })

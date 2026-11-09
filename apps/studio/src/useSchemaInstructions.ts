@@ -78,7 +78,7 @@ export function useSchemaInstructions({ onAdd, onRemove }: {
     count: kept.length,
     countLabel:
       kept.length > 0
-        ? ` (${kept.length} message${kept.length === 1 ? '' : 's'})`
+        ? ` (${kept.length} instruction${kept.length === 1 ? '' : 's'})`
         : '',
     open,
     setDraft,

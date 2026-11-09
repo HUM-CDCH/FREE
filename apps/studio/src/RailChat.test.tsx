@@ -35,16 +35,16 @@ describe('RailChat', () => {
     fireEvent.change(input, { target: { value: 'Focus on senders' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     const step = screen.getByRole('region', { name: 'Generate template' })
-    fireEvent.click(within(step).getByRole('button', { name: 'Generate template (1 message)' }))
+    fireEvent.click(within(step).getByRole('button', { name: 'Generate template (1 instruction)' }))
     expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
-    expect(screen.getByText('Generate template (1 message)', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Generate template (1 instruction)', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('takes an instruction typed into the Generate template step, and Esc still closes it', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
     const step = screen.getByRole('region', { name: 'Generate template' })
-    const tell = within(step).getByRole('textbox', { name: 'Tell it what to focus on, or ask about the document' })
+    const tell = within(step).getByRole('textbox', { name: 'Or say what to focus on, or ask about the document…' })
     fireEvent.keyDown(step, { key: '2' })
     expect(tell).toHaveFocus()
     fireEvent.change(tell, { target: { value: 'Focus on senders' } })
@@ -52,14 +52,14 @@ describe('RailChat', () => {
     // Said in the conversation, and kept for the generation: no step answer is folded in for it.
     expect(screen.getByText('Focus on senders')).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Add a generation instruction/)).toHaveValue('')
-    fireEvent.click(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('button', { name: 'Generate template (1 message)' }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('button', { name: 'Generate template (1 instruction)' }))
     expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
     // A new instruction asked again; Esc closes the step until the next one.
     fireEvent.keyDown(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('textbox'), { key: 'Escape' })
     expect(screen.queryByRole('region', { name: 'Generate template' })).not.toBeInTheDocument()
     // Closed, generating is still one click away.
     onGenerate.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 message)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 instruction)' }))
     expect(onGenerate).toHaveBeenCalledExactlyOnceWith('Focus on senders')
   })
 
@@ -82,10 +82,25 @@ describe('RailChat', () => {
 
   it('keeps a dismissed step away', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, run: { start: vi.fn(), available: true, unavailableReason: null } })
-    fireEvent.keyDown(screen.getByRole('region', { name: 'Run extraction' }), { key: 'Escape' })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Run extraction' })).getByRole('button', { name: 'Not yet' }))
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
     // The answer is in the conversation, which is the rail's home.
     expect(screen.getByText(/Not yet/)).toBeInTheDocument()
+  })
+
+  it('sets a step aside for what is typed instead, said in the conversation', () => {
+    const start = vi.fn()
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, run: { start, available: true, unavailableReason: null } })
+    const step = screen.getByRole('region', { name: 'Run extraction' })
+    const instead = within(step).getByRole('textbox', { name: 'Something else? Say what to do instead…' })
+    fireEvent.keyDown(step, { key: '3' })
+    expect(instead).toHaveFocus()
+    fireEvent.change(instead, { target: { value: 'Add a recipient field first' } })
+    fireEvent.keyDown(instead, { key: 'Enter' })
+    expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
+    expect(screen.getByText('Add a recipient field first')).toBeInTheDocument()
+    expect(screen.queryByText(/Not yet/)).not.toBeInTheDocument()
+    expect(start).not.toHaveBeenCalled()
   })
 
   it('shows the step and the composer under another view, and returns home to answer a message', () => {

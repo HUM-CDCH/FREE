@@ -26,7 +26,6 @@ export type StepAction =
   | 'approve'
   | 'open-document'
   | 'export'
-  | 'tell'
   | 'dismiss'
 
 export type StepOption = {
@@ -35,8 +34,8 @@ export type StepOption = {
   hint?: string
   /** Said as the option's title and description, not its name: what it does or why it waits. */
   description?: string
-  /** Positive commits (one per step), secondary, destructive, or the "Not yet" that dismisses the step. A `tell` option
-   *  is a line to type in, its label the prompt: what is typed there is sent as a message of the conversation. */
+  /** Positive commits (one per step), secondary, destructive, or the way past the step (`dismiss`): a line to type in,
+   *  its label the prompt. What is typed there is sent as a message of the conversation; Esc sets the step aside unsaid. */
   tone: 'positive' | 'secondary' | 'danger' | 'dismiss'
   disabled?: boolean
   /** Acts on the documents ticked in the step's picker: its label says their count where it reads `{n}`; refused with
@@ -121,7 +120,7 @@ export type GuideInput = {
 }
 
 const ACTIVE: ReadonlySet<ExtractionExecutionStatus> = new Set(['QUEUED', 'RUNNING', 'PAUSING', 'STOPPING'])
-const notYet: StepOption = { action: 'dismiss', label: 'Not yet', tone: 'dismiss' }
+const notYet: StepOption = { action: 'dismiss', label: 'Something else? Say what to do instead…', tone: 'dismiss' }
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 export const RUN_LABEL = '▶ Run extraction'
 export const RERUN_LABEL = '↻ Re-run extraction'
@@ -214,7 +213,7 @@ export function extractStep(input: GuideInput, request: number): StepCard {
       : run?.unavailableReason ?? 'Nothing can be extracted until the template is ready.',
     error: project?.error ?? undefined,
     picker,
-    options: [...options, { action: 'dismiss', label: 'Not now', tone: 'dismiss' }],
+    options: [...options, notYet],
   }
 }
 
@@ -399,19 +398,18 @@ function schemaStep(input: GuideInput): StepCard | null {
       options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
   if (input.view === 'empty' || input.view === 'failed') {
     if (!input.canGenerate) return null
-    const messages = input.instructionCount > 0 ? ` (${plural(input.instructionCount, 'message')})` : ''
+    const kept = input.instructionCount > 0 ? ` (${plural(input.instructionCount, 'instruction')})` : ''
     return {
       // A new instruction asks again after "Not yet".
       key: `generate:${input.instructionCount}`,
       title: 'Generate template',
       question: input.view === 'failed' ? 'Try generating the template again?' : `Suggest a template from ${input.sourceDocumentName}?`,
-      detail: [['Instructions', input.instructionCount > 0 ? `${plural(input.instructionCount, 'message')} kept` : 'none yet']],
+      detail: [['Instructions', input.instructionCount > 0 ? `${input.instructionCount} kept for generation` : 'none yet']],
       error: input.view === 'failed' ? input.generationError ?? undefined : undefined,
       options: [
-        { action: 'generate', label: `Generate template${messages}`, tone: 'positive', disabled: input.asking },
+        { action: 'generate', label: `Generate template${kept}`, tone: 'positive', disabled: input.asking },
         // Not like this: say how, in the step itself.
-        { action: 'tell', label: 'Tell it what to focus on, or ask about the document', tone: 'secondary', disabled: input.asking },
-        notYet,
+        { ...notYet, label: 'Or say what to focus on, or ask about the document…' },
       ],
     }
   }

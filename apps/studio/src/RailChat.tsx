@@ -98,16 +98,16 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
 
   function choose(card: StepCard, option: StepOption, text = '') {
-    if (option.action === 'tell') {
-      // Said, not chosen: the message itself joins the conversation, which answers it.
-      if (option.disabled || !text.trim()) return
-      reveal()
-      void (preSchema ? chat.ask(text) : chat.send(text))
-      return
-    }
     const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
-    if (option.action !== 'review-schema') chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
+    // Past the step, something else said instead: the message itself joins the conversation, which answers it.
+    const said = option.action === 'dismiss' ? text.trim() : ''
+    if (said) {
+      if (!canSay) return
+      reveal()
+      void (preSchema ? chat.ask(said) : chat.send(said))
+    } else if (option.action !== 'review-schema')
+      chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
     // The extract step answers one request: any choice ends it.
     if (card.key.startsWith('extract:')) {
       chat.clearExtractRequest()
@@ -132,7 +132,6 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
       export: () => project?.export(ids),
-      tell: () => {},
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
@@ -152,9 +151,12 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ask = () => { reveal(); void chat.ask() }
   const send = () => { reveal(); void chat.send(chat.input) }
 
-  const card = step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} onChoose={(option, text) => choose(step, option, text)}
-    picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
-  // The Generate template step closed ("Not yet"): generating stays one click away, without a word said.
+  const blocked = !!pending || chat.loading
+  // What is typed in place of a step goes where the composer's message would.
+  const canSay = preSchema ? chat.asking === null : editable && !blocked
+  const card = step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
+    onChoose={(option, text) => choose(step, option, text)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
+  // The Generate template step set aside: generating stays one click away, without a word said.
   const generate = !step && preSchema && (
     <div className="mx-4 my-2 flex shrink-0 justify-end">
       <Button variant="positive" size="md" disabled={chat.asking !== null} onClick={() => onGenerate?.(instructions.text)}>
@@ -162,7 +164,6 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       </Button>
     </div>
   )
-  const blocked = !!pending || chat.loading
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
   const composer = preSchema ? (
@@ -222,11 +223,11 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 const pickedLabel = (option: StepOption, count: number) => option.label.replace('{n}', plural(count, 'document'))
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
 
-/** The next step: a permission card with numbered options. 1–9 choose while it has focus; Esc is "Not yet". A step that
- *  acts on documents lists the project's to tick. A `tell` option is a line to type in: its number focuses it, Enter
- *  sends it. */
-export function StepCardView({ card, scopeDisabled = false, onChoose, picked = null, onPick }: {
-  card: StepCard; scopeDisabled?: boolean; onChoose: (option: StepOption, text?: string) => void
+/** The next step: a permission card with numbered options. 1–9 choose while it has focus. A step that acts on
+ *  documents lists the project's to tick. The way past it (`dismiss`) is a line to type in: its number focuses it,
+ *  Enter sends what is typed and sets the step aside; Esc, or the header's ×, sets it aside unsaid. */
+export function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick }: {
+  card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption, text?: string) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
 }) {
   const [told, setTold] = useState('')
@@ -235,23 +236,31 @@ export function StepCardView({ card, scopeDisabled = false, onChoose, picked = n
   const options = card.options.map((option) =>
     scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
       : option.picks ? { ...option, label: pickedLabel(option, count), disabled: option.disabled || !pickable(card, count) } : option)
+  const dismiss = options.find(({ action }) => action === 'dismiss')
   return (
     <section aria-label={card.title} className="mx-4 my-2 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface"
       onKeyDown={(event) => {
         // Typing goes to the field; only Esc still closes the step from there.
         if ((event.target as HTMLElement).matches('textarea, input') && event.key !== 'Escape') return
         const index = Number(event.key) - 1
-        const option = Number.isInteger(index) && index >= 0 ? options[index] : event.key === 'Escape' ? options.find(({ tone }) => tone === 'dismiss') : undefined
+        const escape = event.key === 'Escape'
+        const option = Number.isInteger(index) && index >= 0 ? options[index] : escape ? dismiss : undefined
         if (!option) return
         event.preventDefault()
-        if (option.action === 'tell') tellRef.current?.focus()
+        if (option.action === 'dismiss' && !escape) tellRef.current?.focus()
         else onChoose(option)
       }}>
       <div className="flex items-center gap-2 border-b border-line px-2.5 py-1.5">
         {card.busy
           ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
           : <span aria-hidden="true" className="text-accent">⏵</span>}
-        <span className="min-w-0 truncate text-secondary font-bold text-ink">{card.title}</span>
+        <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink">{card.title}</span>
+        {dismiss && (
+          <button type="button" aria-label="Not yet" title="Not yet (Esc)" onClick={() => onChoose(dismiss)}
+            className="shrink-0 cursor-pointer rounded-md px-1 leading-none text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink">
+            <span aria-hidden="true">×</span>
+          </button>
+        )}
       </div>
       <div className="flex flex-col gap-2 px-2.5 py-2">
         {card.detail && (
@@ -289,11 +298,11 @@ export function StepCardView({ card, scopeDisabled = false, onChoose, picked = n
         )}
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
-            {options.map((option, index) => option.action === 'tell' ? (
+            {options.map((option, index) => option.action === 'dismiss' ? (
               <label key={option.action}
-                className={`flex min-h-7 items-baseline gap-2 rounded-[3px] border border-line bg-surface px-2 py-1 text-compact focus-within:border-ink-faint ${option.disabled ? 'opacity-50' : ''}`}>
+                className={`flex min-h-7 items-baseline gap-2 rounded-[3px] border border-line bg-surface px-2 py-1 text-compact focus-within:border-ink-faint ${sayDisabled ? 'opacity-50' : ''}`}>
                 <span aria-hidden="true" className="w-3 shrink-0 font-mono font-semibold text-ink opacity-70">{index + 1}</span>
-                <input ref={tellRef} type="text" aria-label={option.label} placeholder={option.label} value={told} disabled={option.disabled}
+                <input ref={tellRef} type="text" aria-label={option.label} placeholder={option.label} value={told} disabled={sayDisabled}
                   className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-muted"
                   onChange={(event) => setTold(event.target.value)}
                   onKeyDown={(event) => {

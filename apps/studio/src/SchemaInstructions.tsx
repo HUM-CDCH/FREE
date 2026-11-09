@@ -2,21 +2,12 @@ import type { SchemaInstructions } from './useSchemaInstructions'
 
 type MessageClass = (role: 'user' | 'assistant') => string
 
-const ACKNOWLEDGEMENTS: React.ReactNode[] = [
-  <>Got it — recorded for template generation.</>,
-  <>Noted. That's added to the instructions guiding template generation.</>,
-  <>Recorded — this'll factor into the generated template.</>,
-  <>Good, saved. Keep adding instructions, or generate the template whenever you're ready.</>,
-]
-
-function acknowledgement(index: number): React.ReactNode {
-  return ACKNOWLEDGEMENTS[index % ACKNOWLEDGEMENTS.length]
-}
-
+const removeClass = 'grid size-6 shrink-0 cursor-pointer place-items-center font-semibold outline-none hover:text-danger'
 
 /** Pre-generation conversation over the same instruction state used by the Regenerate dialog: the message list only;
- *  the panel scrolls and composes it. A question is shown with its answer and is not an instruction; `asking` is the
- *  message whose reply is still coming. */
+ *  the panel scrolls and composes it. An instruction is kept for generation, a note rather than a turn of the
+ *  conversation; a question is a turn, shown with its answer, and generation never reads it. `asking` is the message
+ *  whose reply is still coming. */
 export function SchemaInstructionsChat({
   instructions,
   messageClass,
@@ -27,31 +18,29 @@ export function SchemaInstructionsChat({
   asking?: string | null
 }) {
   if (instructions.items.length === 0 && asking === null) return null
-  let instructionIndex = 0
+  // Each instruction's number among the instructions alone.
+  const numbers = new Map(instructions.items.filter(({ answer }) => answer === undefined).map(({ id }, index) => [id, index + 1]))
   return (
     <div className="flex flex-col gap-2">
-      {instructions.items.map((instruction) => {
-        const index = instruction.answer === undefined ? instructionIndex++ : null
-        return (
-          <div key={instruction.id} className="flex flex-col gap-1">
-            <div className={messageClass('user')}>{instruction.text}</div>
-            <div className="flex items-center gap-1.5 self-start pl-1 text-overline text-ink-faint">
-              <span>{index === null ? 'Question' : `Message ${index + 1} of ${instructions.count}`}</span>
-              <button
-                type="button"
-                className="grid size-6 cursor-pointer place-items-center font-semibold outline-none hover:text-danger"
-                title={index === null ? 'Remove this question' : 'Remove this instruction'}
-                onClick={() => instructions.remove(instruction.id)}
-              >
-                ✗
-              </button>
-            </div>
-            <div className={`${messageClass('assistant')} ${index === null ? 'whitespace-pre-wrap' : ''}`}>
-              {index === null ? instruction.answer : acknowledgement(index)}
-            </div>
+      {instructions.items.map((instruction) => instruction.answer === undefined ? (
+        <div key={instruction.id} role="note" aria-label={`Instruction ${numbers.get(instruction.id)}`}
+          className="flex max-w-[88%] flex-col self-end rounded-[3px] border border-dashed border-accent/60 bg-accent-ghost py-1 pl-3 pr-1">
+          <div className="flex items-center gap-1.5 text-overline font-semibold text-accent">
+            <span className="min-w-0 flex-1">{`Instruction ${numbers.get(instruction.id)} of ${instructions.count} · for generation`}</span>
+            <button type="button" className={removeClass} title="Remove this instruction" onClick={() => instructions.remove(instruction.id)}>✗</button>
           </div>
-        )
-      })}
+          <p className="pr-2 pb-0.5 text-secondary leading-relaxed whitespace-pre-wrap text-ink">{instruction.text}</p>
+        </div>
+      ) : (
+        <div key={instruction.id} className="flex flex-col gap-1">
+          <div className={messageClass('user')}>{instruction.text}</div>
+          <div className="flex items-center gap-1.5 self-end pr-1 text-overline text-ink-faint">
+            <span>Question · not used for generation</span>
+            <button type="button" className={removeClass} title="Remove this question" onClick={() => instructions.remove(instruction.id)}>✗</button>
+          </div>
+          <div className={`${messageClass('assistant')} whitespace-pre-wrap`}>{instruction.answer}</div>
+        </div>
+      ))}
       {asking !== null && (
         <div className="flex flex-col gap-1">
           <div className={messageClass('user')}>{asking}</div>
