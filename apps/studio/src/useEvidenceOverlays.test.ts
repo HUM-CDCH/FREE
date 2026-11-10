@@ -511,3 +511,78 @@ describe('mark precision, focus and navigation ownership', () => {
     expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
   })
 })
+
+describe('value marks', () => {
+  const parsedDocument = decodeParsedDocument(parsedFixture)
+  const anchor = parsedDocument.evidence_index.anchors[0]!
+  const bbox = verifiedEvidenceBbox(parsedDocument, anchor.producer_observations[0]!)!
+  const inside = { x0: bbox.x0 + 2, y0: bbox.y0 + 1, x1: bbox.x0 + 20, y1: bbox.y0 + 8 }
+  const key = JSON.stringify(['records', 0, 'title'])
+  function paint(valueBoxes: EvidenceLink['valueBoxes'], precision: EvidenceLink['precision'] = 'segment', selected: string | null = key) {
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0]!.page_number}"></div>`
+    document.body.append(container)
+    const listeners = new Map<string, () => void>()
+    const viewer = { scrollPageIntoView: vi.fn(), eventBus: { on: (event: string, paint: () => void) => listeners.set(event, paint), off: (event: string) => listeners.delete(event) } }
+    const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]), selected, onSelect: vi.fn(),
+      savedLinks: [{ key, link: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision, valueBoxes } }] }
+    const hook = renderHook((props: { marks: typeof marks; active?: boolean }) => useEvidenceOverlays({
+      containerRef: { current: container }, viewerRef: { current: viewer as never }, parsedDocument, attempt: { extractionId: 'run' }, active: props.active ?? true, marks: props.marks,
+    }), { initialProps: { marks } as { marks: typeof marks; active?: boolean } })
+    return { ...hook, marks, container, listeners, values: () => container.querySelectorAll<HTMLElement>('.parsed-evidence-value') }
+  }
+
+  it('draws one inert element per box for the selected value, beside its block mark, and repaints on a page render', () => {
+    const second = { ...inside, y0: bbox.y0 + 9, y1: bbox.y0 + 16 }
+    const { container, values, listeners } = paint([inside, second])
+    expect(values()).toHaveLength(2)
+    values().forEach((mark) => {
+      expect(mark.tagName).toBe('DIV')
+      expect(mark.getAttribute('aria-hidden')).toBe('true')
+      expect(mark.style.pointerEvents).toBe('none')
+    })
+    expect(container.querySelectorAll('button.evidence-mark')).toHaveLength(anchor.producer_observations.length)
+    container.querySelector('.page')!.querySelectorAll('.parsed-evidence-value').forEach((mark) => mark.remove())
+    act(() => listeners.get('pagerendered')!())
+    expect(values()).toHaveLength(2)
+  })
+
+  it('draws nothing for an unselected value, for page-only precision, or when a box lies outside its anchor', () => {
+    expect(paint([inside], 'segment', null).values()).toHaveLength(0)
+    expect(paint([inside], 'input').values()).toHaveLength(0)
+    expect(paint([inside, { ...inside, x1: bbox.x1 + 3 }]).values()).toHaveLength(0)
+    expect(paint([{ ...inside, y0: bbox.y0 - 3 }]).values()).toHaveLength(0)
+    // A box within 2pt of the anchor's edge still counts.
+    expect(paint([{ ...inside, x1: bbox.x1 + 2 }]).values()).toHaveLength(1)
+  })
+
+  it('removes the value mark when the selection changes, the rail goes inactive, or the hook unmounts', () => {
+    const { rerender, marks, values, unmount, container } = paint([inside])
+    rerender({ marks: { ...marks, selected: 'other' } })
+    expect(values()).toHaveLength(0)
+    rerender({ marks })
+    expect(values()).toHaveLength(1)
+    rerender({ marks, active: false })
+    expect(values()).toHaveLength(0)
+    rerender({ marks })
+    unmount()
+    expect(container.querySelectorAll('.parsed-evidence-value')).toHaveLength(0)
+  })
+
+  it('scrolls to the value mark when the rail navigates to its link, and to the block otherwise', () => {
+    const { result, marks, values, container } = paint([inside])
+    container.scrollTo = vi.fn()
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('parsed-evidence-value') ? new DOMRect(10, 900, 20, 10)
+        : this.classList.contains('parsed-evidence-focus') ? new DOMRect(10, 3000, 100, 40) : new DOMRect(0, 0, 500, 600)
+    })
+    act(() => result.current(anchor, marks.savedLinks[0]!.link))
+    expect(values()).toHaveLength(1)
+    expect(container.scrollTo).toHaveBeenCalledTimes(1)
+    const valueTop = (vi.mocked(container.scrollTo).mock.calls[0]![0] as ScrollToOptions).top
+    vi.mocked(container.scrollTo).mockClear()
+    act(() => result.current(anchor))
+    expect((vi.mocked(container.scrollTo).mock.calls[0]![0] as ScrollToOptions).top).not.toBe(valueTop)
+    rect.mockRestore()
+  })
+})

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Literal
@@ -34,6 +35,8 @@ from kei_exp.kie.extract.schema import RecordScope, Schema
 from kei_exp.kie.extract.unified import ITEM, UnifiedOptions
 from kei_exp.kie.passages import Evidence, load
 from kei_exp.kie.recipe import load_recipe
+
+logger = logging.getLogger(__name__)
 
 # The task scope each service strategy serves (`tests/fixtures/contracts/record-scope.json`, `service_strategies`):
 # Article is one document-level object, a Catalog (generic, recipe or unified) a collection of records.
@@ -183,7 +186,9 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     to the scope's cardinality: a document-scope result that is not exactly one record is a `RecordScopeViolation`,
     never an artifact; a records-scope result may hold any number, none included. Durable execution and the research
     harness call this with evidence already read (the harness's `run_dir` None: a recipe, which needs its run's
-    segmentation, is refused by `grounded.extract`)."""
+    segmentation, is refused by `grounded.extract`). Every link of the result gets its value mark here from the run's
+    `input.pdf` where one is placed (`value_mark.place_links`; none without `run_dir`), after the implementation's
+    fingerprint, which the marks never change."""
     chat = as_router(chat)
     scope = request.record_scope
     if scope == "document":
@@ -196,6 +201,12 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     if scope == "document" and len(result["records"]) != 1:
         raise RecordScopeViolation(f"record_scope_violation: a document-scope extraction is exactly one record, "
                                    f"and the {request.options.strategy!r} strategy returned {len(result['records'])}")
+    # pdfium's lock is Docling's: imported when linking, never by a module the worker loads before its slot
+    from kei_exp.kie.extract.value_mark import place_links
+    counts = place_links(result.get("evidence", []), evidence.passages,
+                         None if run_dir is None else run_dir / "input.pdf")
+    refused = {reason: count for reason, count in sorted(counts.items()) if reason not in ("spans", "placed")}
+    logger.info("value marks: %d links with spans, %d placed, refused %s", counts["spans"], counts["placed"], refused)
     return result
 
 

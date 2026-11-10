@@ -135,6 +135,20 @@ function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, o
   }
 }
 
+/** A selected link's value boxes, each with the occurrence it lies in (within 2pt); none if any box lies in no occurrence. */
+function placedValueBoxes(parsedDocument: ParsedDocument, occurrences: readonly EvidenceOccurrence[], boxes: NonNullable<EvidenceLink['valueBoxes']>) {
+  const placed: { occurrence: EvidenceOccurrence; box: (typeof boxes)[number] }[] = []
+  for (const box of boxes) {
+    const occurrence = occurrences.find((candidate) => {
+      const bbox = verifiedEvidenceBbox(parsedDocument, candidate)
+      return bbox && box.x0 >= bbox.x0 - 2 && box.y0 >= bbox.y0 - 2 && box.x1 <= bbox.x1 + 2 && box.y1 <= bbox.y1 + 2
+    })
+    if (!occurrence) return []
+    placed.push({ occurrence, box })
+  }
+  return placed
+}
+
 function removeOverlays(container: HTMLElement | null, className: string) {
   container
     ?.querySelectorAll(`.${className}`)
@@ -211,6 +225,7 @@ export function useEvidenceOverlays({
       !active
     ) {
       removeOverlays(container, 'parsed-evidence-highlight')
+      removeOverlays(container, 'parsed-evidence-value')
       return
     }
 
@@ -224,6 +239,7 @@ export function useEvidenceOverlays({
       const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
         .map((element) => [element.dataset.occurrenceId!, element]))
       // One mark per occurrence, its block's box, carrying every value its passage supports: never narrowed to a quote.
+      // The selected value's printing is drawn apart, inside its block mark (ADR 0031).
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue
@@ -265,6 +281,31 @@ export function useEvidenceOverlays({
           if (colors[name]) painted.style.setProperty(name, colors[name]); else painted.style.removeProperty(name)
       }
       previous.forEach((element) => element.remove())
+      removeOverlays(container, 'parsed-evidence-value')
+      for (const { link, key, occurrenceIds } of evidenceLinks) {
+        const anchor = anchors.get(link.evidenceAnchorId)
+        if (!link.valueBoxes || link.precision === 'input' || !anchor || marks?.selected == null || !ownsMark(marks.selected, key)) continue
+        const occurrences = anchorOccurrences(anchor).filter((occurrence) => !occurrenceIds || occurrenceIds.includes(occurrence.occurrence_id))
+        const colors = evidenceColorVars(marks.describe.get(key)?.color)
+        for (const { occurrence, box } of placedValueBoxes(parsedDocument, occurrences, link.valueBoxes)) {
+          const page = container.querySelector(`.page[data-page-number="${occurrence.page_number}"]`)
+          const meta = parsedDocument.pages.find((candidate) => candidate.page_number === occurrence.page_number)
+          if (!(page instanceof HTMLElement) || !meta) continue
+          const mark = window.document.createElement('div')
+          mark.className = 'parsed-evidence-value evidence-value-mark'
+          mark.ariaHidden = 'true'
+          mark.dataset.occurrenceId = occurrence.occurrence_id
+          mark.dataset.resultPath = JSON.stringify(link.resultPath)
+          Object.assign(mark.style, {
+            position: 'absolute', left: `${(box.x0 / meta.width_pt) * 100}%`, top: `${(box.y0 / meta.height_pt) * 100}%`,
+            width: `${((box.x1 - box.x0) / meta.width_pt) * 100}%`, height: `${((box.y1 - box.y0) / meta.height_pt) * 100}%`,
+            pointerEvents: 'none', zIndex: '5',
+          })
+          for (const name of ['--color-ev', '--color-ev-soft', '--color-ev-ghost']) if (colors[name]) mark.style.setProperty(name, colors[name])
+          if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
+          page.append(mark)
+        }
+      }
     }
 
     viewer?.eventBus?.on('pagerendered', paint)
@@ -272,6 +313,7 @@ export function useEvidenceOverlays({
     paint()
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
+      removeOverlays(container, 'parsed-evidence-value')
     }
   }, [active, attempt, containerRef, marks, parsedDocument, viewerRef])
 
@@ -284,6 +326,7 @@ export function useEvidenceOverlays({
       stopFocusedPaint.current = null
       removeOverlays(containerRef.current, 'parsed-evidence-focus')
       removeOverlays(containerRef.current, 'parsed-evidence-highlight')
+      removeOverlays(containerRef.current, 'parsed-evidence-value')
     },
     [attempt?.extractionId, containerRef, parsedDocument],
   )
@@ -323,7 +366,12 @@ export function useEvidenceOverlays({
       viewer.eventBus?.on('pagerendered', paintFocus)
       stopFocusedPaint.current = () => viewer.eventBus?.off('pagerendered', paintFocus)
       const focus = paintFocus()
-      if (focus) scrollWithinPane(container, focus)
+      // A value mark painted for this link is what the researcher looks for: bring it into view rather than its block.
+      const path = JSON.stringify(link?.resultPath)
+      const value = [...container.querySelectorAll<HTMLElement>('.parsed-evidence-value')].find((mark) => mark.dataset.resultPath === path
+        && occurrences.some((occurrence) => occurrence.occurrence_id === mark.dataset.occurrenceId))
+      if (value) scrollWithinPane(container, value)
+      else if (focus) scrollWithinPane(container, focus)
       else viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     },
     [containerRef, parsedDocument, viewerRef],

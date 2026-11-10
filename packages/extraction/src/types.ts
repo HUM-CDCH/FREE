@@ -35,6 +35,9 @@ export type EvidenceLink = Readonly<{
   /** An Article (version 1) link's value printing: its one code-point span in the linked segment and the printed text.
    *  Where to draw it only; it claims no rule, so it is never `grounding`. */
   location?: Readonly<{ textSpans: readonly TextSpan[]; raw: string }>
+  /** Where the value prints on its page, one box per printed line in PDF points from the top-left of the displayed
+   *  page (ADR 0031). Where to draw it only; Studio checks each lies inside its anchor before drawing. */
+  valueBoxes?: readonly Readonly<{ x0: number; y0: number; x1: number; y1: number }>[]
 }>
 
 export type TextSpan = Readonly<{ segment: string; start: number; end: number }>

@@ -366,6 +366,36 @@ test('One by one waits for its pinned source before navigating retained Model Ev
   } finally {release.resolve();await fixture.close()}
 })
 
+test('the selected value shows its value mark inside its block mark',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
+    const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!,{x0,y0,x1,y1}=occurrence.bbox
+    // The Parsing Service's value box (ADR 0031): the second quarter of the block's width, the middle half of its height.
+    const box:[number,number,number,number]=[x0+(x1-x0)/4,y0+(y1-y0)/4,x0+(x1-x0)/2,y1-(y1-y0)/4]
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
+      {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
+        segment:'p1_s0',page:1,bbox_pt:[x0,y0,x1,y1],verbatim:true,hits:1,linked_by:'lexical',precision:'segment',value_boxes_pt:[box]}}]}})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await openRailView(page,'Results')
+    const block=page.locator(`.parsed-evidence-highlight[data-occurrence-id="${occurrence.occurrence_id}"]`),value=page.locator('.evidence-value-mark')
+    await expect(block).toHaveCount(1)
+    // No value is selected yet: the block mark alone.
+    await expect(value).toHaveCount(0)
+    await block.click()
+    await expect(value).toHaveCount(1)
+    const outer=(await block.boundingBox())!,inner=(await value.boundingBox())!
+    expect(Math.abs((inner.x-outer.x)/outer.width-0.25)).toBeLessThan(0.03)
+    expect(Math.abs(inner.width/outer.width-0.25)).toBeLessThan(0.03)
+    expect(Math.abs((inner.y-outer.y)/outer.height-0.25)).toBeLessThan(0.05)
+    expect(Math.abs(inner.height/outer.height-0.5)).toBeLessThan(0.05)
+    // The block mark stays the button: the value mark takes no pointer hits and is not announced.
+    await expect(value).toHaveAttribute('aria-hidden','true')
+    await expect(value).toHaveCSS('pointer-events','none')
+    await page.screenshot({path:'test-results/value-mark.png'})
+  } finally {await fixture.close()}
+})
+
 test('a collapsed rail keeps one-by-one and moves nothing on the page; each toggle passes the focus on',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {
