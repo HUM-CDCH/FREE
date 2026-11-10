@@ -188,6 +188,13 @@ function placedValueBoxes(parsedDocument: ParsedDocument, occurrences: readonly 
   return placed
 }
 
+/** A page holding the selected mark says so by class, so its focus overlay is not drawn over that mark (pdf-viewer.css).
+ *  The paint sets it: a `:has()` rule restyled the whole page once for every mark a repaint touched. */
+function flagSelectedPages(container: HTMLElement | null) {
+  const holding = new Set<Element | null>([...container?.querySelectorAll('.evidence-mark.selected') ?? []].map((mark) => mark.parentElement))
+  container?.querySelectorAll('.page').forEach((page) => page.classList.toggle('holds-selected-mark', holding.has(page)))
+}
+
 function removeOverlays(container: HTMLElement | null, className: string) {
   container
     ?.querySelectorAll(`.${className}`)
@@ -268,6 +275,7 @@ export function useEvidenceOverlays({
     ) {
       removeOverlays(container, 'parsed-evidence-highlight')
       removeOverlays(container, 'parsed-evidence-value')
+      flagSelectedPages(container)
       overviewRef?.current?.replaceChildren()
       return
     }
@@ -340,6 +348,7 @@ export function useEvidenceOverlays({
           if (colors[name]) painted.style.setProperty(name, colors[name]); else painted.style.removeProperty(name)
       }
       previous.forEach((element) => element.remove())
+      flagSelectedPages(container)
       // A value mark is kept across paints, as a block mark is: the one under the pointer is not replaced as its own
       // hover repaints.
       const previousValues = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-value')]

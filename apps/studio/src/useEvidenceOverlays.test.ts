@@ -491,6 +491,17 @@ describe('mark precision, focus and navigation ownership', () => {
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
     expect(container.querySelectorAll('.evidence-mark')).toHaveLength(anchor.producer_observations.length)
   })
+  it('names the page holding the selected mark, and no page once the marks go', () => {
+    const { rerender, attempt, marks, key, container } = fixture()
+    const named = () => [...container.querySelectorAll('.page.holds-selected-mark')]
+    expect(named()).toHaveLength(0)
+    rerender({ attempt, marks: { ...marks, selected: key } })
+    const pages = [...new Set([...container.querySelectorAll('.evidence-mark.selected')].map((mark) => mark.parentElement))]
+    expect(pages.length).toBeGreaterThan(0)
+    expect(named()).toEqual(pages)
+    rerender({ attempt, marks: { ...marks, selected: key }, active: false })
+    expect(named()).toHaveLength(0)
+  })
   it('keeps the selected value\'s outline while the rail is collapsed; only the marks go', () => {
     const { result, rerender, attempt, marks, key, container, anchor, viewer } = fixture()
     const selected = { ...marks, selected: key }

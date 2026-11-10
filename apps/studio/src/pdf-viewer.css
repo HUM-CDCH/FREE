@@ -296,8 +296,9 @@ button.evidence-mark[data-name].hovered:hover::after { content: attr(data-name);
 /* An outlined mark shows one edge only: its own underline would run inside the outline as a second line. */
 .pdf-viewer .evidence-mark.selected { background: var(--color-ev-soft); border-color: transparent; outline-offset: 0; }
 /* The selected mark already carries the accent outline and fill: a focus overlay on its page would draw a second
-   border and darken it, so it stays in the layout as the scroll target but is not drawn. */
-.pdf-viewer .page:has(.evidence-mark.selected) .parsed-evidence-focus { visibility: hidden; }
+   border and darken it, so it stays in the layout as the scroll target but is not drawn. The paint names that page
+   (useEvidenceOverlays); `:has()` here made every repaint restyle the page once per mark. */
+.pdf-viewer .page.holds-selected-mark .parsed-evidence-focus { visibility: hidden; }
 /* A value's printing, drawn inside its block mark in its field's colour: every placed value as a highlighter stroke,
    the selected or hovered one stronger. Its underline is its own link's, as a block's is: dotted by rule, dashed for an
    uncertain passage, 1px once decided. The pointer picks its one value in Results (the painter sets `pointer-events`);
