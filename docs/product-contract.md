@@ -211,8 +211,10 @@ optional Evidence from the correction's own source. An incompatible correction
 stays saved but never enters the consuming target's context, and FREE
 classifies no guidance conflicts automatically. Each Batch Extraction member
 is its own Extraction, with its own result snapshots and finalized reviews;
-it stays openable and exportable when paused, failed or stopped, and there is
-no batch-wide review grid. An export follows each field that has a Value
+it stays openable and exportable when paused, failed or stopped. A Batch
+Extraction's review grid shows its completed members' latest values side by
+side; each decision there is a correction of one value, and each member's
+review is finalized on its own (ADR 0030). An export follows each field that has a Value
 Disagreement with a review column and an alternatives column; XLSX also lists
 each alternative and where it was read on a Disagreements sheet. Typed columns
 stay typed.

@@ -59,6 +59,14 @@ function RerunIcon() {
   )
 }
 
+function GridIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="none">
+      <path d="M3 3.5h14v13H3zM3 8h14M3 12.5h14M8 3.5v13" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function DocumentIcon() {
   return (
     <svg
@@ -261,6 +269,7 @@ export function BatchExtractionMembers({
   onExport,
   onRetrySchema,
   onRunAgain,
+  onOpenGridReview,
   onOpenMember,
 }: {
   batch: BatchExtraction
@@ -280,6 +289,8 @@ export function BatchExtractionMembers({
   onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
+  /** Opens the review grid: every completed member's values, one row per record. */
+  onOpenGridReview(): void
   onOpenMember(sourceDocumentId: string, extractionId: string): void
 }) {
   const status = batchStatus(batch)
@@ -293,6 +304,11 @@ export function BatchExtractionMembers({
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
+          <Button size="sm" variant="secondary" disabled={!hasSuccessfulResult} onClick={onOpenGridReview}
+            title="Review every completed document's values side by side, one row per record">
+            <GridIcon />
+            Review in grid
+          </Button>
           <RetainedBatchExport disabled={!hasSuccessfulResult} primary={outcome?.done ?? false} schemaNodes={exportSchemaNodes} onExport={onExport}/>
           <Button
             size="sm"
