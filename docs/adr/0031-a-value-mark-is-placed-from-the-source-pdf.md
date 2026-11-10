@@ -76,7 +76,9 @@ box. The anchor's own mark is unchanged.
   placed value, the selected or hovered one stronger, inside the anchor's mark, and only if every box lies inside one
   occurrence of the anchor; otherwise it draws none. A block that holds a value mark recedes to a faint fill, so a
   page reads by its values without a selection. The anchor's mark stays the button and the accessible name; a value
-  mark is a pointer shortcut that selects its own value, not announced. Studio still locates nothing by text
+  mark is a pointer shortcut that selects its own value, not announced. A block whose every value has a value mark
+  takes no pointer, so each value has one pointer target; the keyboard still reaches the block. Studio still locates
+  nothing by text
   ([0005](0005-parsed-document-v2-canonical-content-stream.md)).
 - **Never shown to a model, written once.** The correction context strips the boxes as it strips `location`. The
   field is optional and additive: links with and without it are read alike, and no method version or DBOS patch

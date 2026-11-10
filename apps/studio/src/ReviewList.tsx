@@ -42,7 +42,7 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
     const linked = linkedKeys.has(row.key), lit = Boolean(hovered?.includes(row.key))
     return passes || row.key === selectedKey || linked ? [
       <div key={row.key} data-result-key={row.key} data-evidence-linked={linked || undefined} data-evidence-hovered={lit || undefined}
-        className={lit ? 'rounded-md bg-ev-soft shadow-[inset_2px_0_0_var(--color-ev)]' : linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : undefined}>
+        className={lit && row.key !== selectedKey ? 'rounded-md bg-surface-muted' : linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : undefined}>
         {linked && <span className="sr-only">Linked to the selected passage</span>}
         {renderRow(row, !passes)}
       </div>,
@@ -57,13 +57,15 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   )
   if (model.records.length === 0 && model.document.length === 0)
     return <p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">No records were found in the source.</p>
-  // One listener for the list: a row a decision drops from under the pointer is let go at its next move.
-  const onMouseOver = (event: MouseEvent) => {
-    const key = (event.target as Element).closest<HTMLElement>('[data-result-key]')?.dataset.resultKey
-    onHover(key ? [key] : null)
+  // One listener for the list: a row a decision drops from under the pointer is let go at its next move. It follows
+  // the pointer's own movement, so a row that scrolls in under a still pointer is not lit.
+  const onMouseMove = (event: MouseEvent) => {
+    const key = (event.target as Element).closest<HTMLElement>('[data-result-key]')?.dataset.resultKey ?? null
+    const lit = hovered?.length === 1 ? hovered[0] : hovered ? undefined : null
+    if (key !== lit) onHover(key ? [key] : null)
   }
   return (
-    <div className="flex flex-col gap-2" onMouseOver={onMouseOver} onMouseLeave={() => onHover(null)}>
+    <div className="flex flex-col gap-2" onMouseMove={onMouseMove} onMouseLeave={() => onHover(null)}>
       {model.document.length > 0 && (
         <section aria-label="Document" className={`${section} p-1`}>
           <h3 className="m-0 px-2 pt-1.5 pb-1 text-content font-bold text-ink">Document</h3>
@@ -81,7 +83,7 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
           <section key={record.key ?? record.index} aria-label={`${record.label}, ${state.text}`} className={section}>
             <button type="button" aria-expanded={open} disabled={record.state === 'queued'} onClick={() => onToggle(record)}
               data-evidence-hovered={holdsHovered || undefined}
-              className={`flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default ${holdsHovered ? 'bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : ''}`}>
+              className={`flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default ${holdsHovered ? 'bg-surface-muted' : ''}`}>
               <DisclosureGlyph open={open} />
               <b className="min-w-10 truncate text-content text-ink">{record.label}</b>
               <span className="min-w-0 truncate text-secondary text-ink-muted">

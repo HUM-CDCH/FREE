@@ -1,6 +1,7 @@
 import type { ParsedDocument } from 'extraction/parsed-document'
 import { markLabel, type RailMarks } from './useEvidenceOverlays'
 import { evidenceColorVars, markValueId, ownsMark, sharedColor } from './durableRailModel'
+import { fieldWords } from './reviewVocabulary'
 
 type Marks = RailMarks
 
@@ -46,9 +47,9 @@ export default function DocumentMarkdown({ markdown, document, marks, marksShown
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{decode(span.start, span.end)}</span> : (
       <button key={span.start} type="button" style={evidenceColorVars(sharedColor(infos.map((info) => info.color)))} className={`evidence-mark ${infos.some((info) => info.style === 'preview') ? 'preview' : infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''}${hovered ? ' hovered' : ''} whitespace-pre-wrap text-left font-mono`}
         data-evidence-anchor-id={span.anchorId}
-        aria-label={markLabel(infos)} title={markLabel(infos)} aria-current={selected || undefined}
+        aria-label={markLabel(infos)} data-name={[...new Set(infos.map((info) => fieldWords(info.name)))].join(', ')} aria-current={selected || undefined}
         onClick={(event) => marks!.onSelect(keys, event.currentTarget)}
-        onMouseEnter={() => marks!.onHover?.(keys)} onMouseLeave={() => marks!.onHover?.(null)}>{decode(span.start, span.end)}</button>
+        onMouseMove={() => { if (!hovered) marks!.onHover?.(keys) }} onMouseLeave={() => marks!.onHover?.(null)}>{decode(span.start, span.end)}</button>
     ))
     at = span.end
   }

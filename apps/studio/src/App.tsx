@@ -1168,15 +1168,11 @@ export function DocumentWorkspace({
             ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
             : null
         }
-        resultsHeaderExtras={
-          <>
-            {reviewedOnAnotherSource && latestReviewedExtraction && (
-              <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
+        resultsMenuItems={reviewedOnAnotherSource && latestReviewedExtraction
+          ? [{ label: 'Open latest reviewed', onSelect: () => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
                 ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
-                : undefined)}>Open latest reviewed</Button>
-            )}
-          </>
-        }
+                : undefined) }]
+          : undefined}
         onRenameSchema={async (name) => {
           // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
           const extractionSchemaId = schema.snapshot().extractionSchemaId

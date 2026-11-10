@@ -18,7 +18,7 @@ import type { PartPick } from './ui/ReviewedValueDisplay'
 import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
 import ResultsHeader from './ResultsHeader'
-import ResultsMenu from './ResultsMenu'
+import ResultsMenu, { type MenuItem } from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
@@ -26,7 +26,7 @@ import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markVa
 import { provisionalMarks } from './provisionalMarks'
 import type { MarkInfo } from './useEvidenceOverlays'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
-import { shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { fieldWords, shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SelectionChannel } from './selectionChannel'
 import { sourceEvidenceLinks } from './evidenceNavigation'
@@ -42,20 +42,19 @@ const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
 const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
 
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick,onHistory}:{
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
   newer?:boolean;
   focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
-  onFocus:()=>void;
+
   keyboardRoot:RefObject<HTMLDivElement|null>;
   menuOpen:boolean;detailsOpen:boolean;exportOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer'|'dialog')=>void;
   projectId:string;sourceDocumentId:string;article:boolean;
   /** The open value's chosen part, whose Evidence the row shows, and its parts to pick from. */
   part?:ValuePart;pick?:PartPick;
   /** Opens this value's history across the document's Extractions. */
-  onHistory?:()=>void;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
@@ -99,13 +98,13 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     root.addEventListener('keydown',keys)
     return()=>root.removeEventListener('keydown',keys)
   })
-  return <section aria-label={`Review ${value.node.name}`} className="space-y-2">
+  return <section aria-label={`Review ${fieldWords(value.node.name)}`} className="space-y-2">
     <div>
       {focus?<ReviewFocus {...common} article={article} current={row} items={position?.items??[]} position={position}
         recordLabel={recordLabel} label={recordLabel} upNext={queue.filter(item=>item.key!==value.id&&item.row.kind==='to-check').slice(0,3)}
         end={null} headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
-          saved={readOnly} onReviewFromHere={onFocus}/>}
+          saved={readOnly}/>}
       {editing&&!readOnly&&document&&<details className="mx-3 mb-2 text-secondary">
         <summary className="cursor-pointer text-compact text-ink-muted">Link Evidence for your edit (optional)</summary>
         <label className="mt-1 block">Link correction Evidence from this source
@@ -117,7 +116,6 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
       </details>}
     </div>
     {newer&&<p role="status" className="mx-3 text-compact text-stale-ink">A newer version of this value was saved. Close this one and open the value again to review it.</p>}
-    {onHistory&&<p className="mx-3 text-compact"><button type="button" className={linkClass} onClick={onHistory}>History of this value</button></p>}
     {value.historicalCorrection&&<p className="mx-3 text-compact"><a className={linkClass} href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open the earlier correction</a></p>}
     {state.context.error&&<div className="mx-3 space-y-2"><p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
     {(state.context.error||state.context.comparing)&&<section aria-label="Compare saved value and draft" className="mx-3 space-y-2 rounded-md border border-line p-3 text-secondary">
@@ -257,7 +255,7 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,headerExtras,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
@@ -269,7 +267,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   /** Names the export file; falls back to the pinned source's own name, then the Extraction's id. */
   sourceDocumentName?:string;onEvidence:(id:string,occurrenceIds?:readonly string[],link?:EvidenceLink)=>void;readOnly?:boolean;
   /** The workspace's channel: requests to select a value come in; this view's marks and one-by-one's dimming go out. */
-  selection:SelectionChannel;headerExtras?:React.ReactNode;
+  selection:SelectionChannel;menuItems?:readonly MenuItem[];
   onPinnedDocument?:(id:string,source:PinnedExtractionSource|null)=>void;
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
   onReviewFinalized?:()=>void;
@@ -575,6 +573,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const latest=latestPage.snapshotVersion===page.snapshotVersion&&latestPage.feedbackVersion===page.feedbackVersion
   // An earlier cut names itself in the status line: the run's word and details stay the latest state's.
   const status=statusLine(state,model,article,Boolean(page.finalization))
+  // The header says only that a completed run is completed: its list shows the records. The chat keeps the whole line.
+  if(status.mark==='completed'&&(article||model.records.some(record=>record.state==='finished')))status.rest=''
   if(page.snapshotVersion<latestPage.snapshotVersion)status.rest=[status.rest,`· Results ${page.snapshotVersion} of ${latestPage.snapshotVersion}`].filter(Boolean).join(' ')
   if(onOpenLatest) {
     const started=attempt?.createdAt?new Date(attempt.createdAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):null
@@ -594,23 +594,21 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       if(!focus&&link)onEvidence(link.evidenceAnchorId,undefined,link)
     }}:undefined
   const valueReview=review&&<ValueReview part={reviewParts.find(each=>each.key===chosenPart)} pick={pick} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
-    recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
-    menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}
-    onHistory={onValueHistory?()=>onValueHistory(id,review.value.id,review.value.node.name):undefined}/>
+    recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
+    menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
   const linkedKeys=new Set(passageKeys.filter(key=>page.values.some(value=>value.id===key)))
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const renderValue=(row:RailRow,pinnedRow:boolean)=><div style={evidenceColorVars(fieldColor(fieldOrder,row.name))}>{inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} canDecide={false} saved={readOnly}
     editing={false} node={page.values.find(value=>value.id===row.key)?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>}</div>
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
     onKeyDown={event=>{if(event.key==='Escape'&&menuOpen&&!event.defaultPrevented){event.preventDefault();setMenuOpen(false)}}}>
-    <ResultsHeader status={{...status,...(quiet&&{schemaRevision:quiet.revisionNumber})}}
-      extras={headerExtras} counts={counts} running={active} readOnlyNote={readOnly?'Read-only: a saved review.':undefined}
+    <ResultsHeader status={status}
+      counts={counts} running={active} reviewSaved={Boolean(page.finalization)} readOnlyNote={readOnly?'Read-only: a saved review.':undefined}
       actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):counts.toCheck===0?'Nothing left to check here':null}:null,
         saveReview:canSave?'Save review':null,list:focus}}
-      breakdown={`${counts.approved} approved · ${counts.edited} edited · ${counts.rejected} rejected${page.finalization?' · review saved':''}`}
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
-      onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
-      onOneByOne={()=>{setFocus(true);const first=nextToCheck(queue,null);if(first)selectValue(first)}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
+      onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
+      onOneByOne={()=>{setFocus(true);const first=review&&queue.some(item=>item.key===review.value.id)?null:nextToCheck(queue,null);if(first)selectValue(first)}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {previews.length>0&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">Preview highlights show matching text. Citations are still being checked.</p>}
     <ResultSchemaNotice page={page} state={state} current={currentSchema} controlled={controlled} readOnly={readOnly} onSchema={onSchema}/>
     {menuOpen&&<ResultsMenu items={[
@@ -618,6 +616,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       // Offered once per edit session: another acknowledgement would move the open draft's fence.
       ...(!readOnly&&!terminal&&editing===null?[{label:'Change inputs',disabled:busy?'Saving…':null,
         onSelect:()=>{setMenuOpen(false);void command('editing').then(receipt=>{if(receipt)setEditing(receipt.controlVersion)})}}]:[]),
+      // What the header no longer says at rest: the open value's history, the Template revision the results used,
+      // and the workspace's own entries.
+      ...(review&&onValueHistory?[{label:'History of this value',onSelect:()=>{setMenuOpen(false);onValueHistory(id,review.value.id,review.value.node.name)}}]:[]),
+      ...(quiet?[{label:`Template revision ${quiet.revisionNumber}`,onSelect:()=>{setMenuOpen(false);setDetailsOpen(true)}}]:[]),
+      ...(menuItems??[]).map(item=>({...item,onSelect:()=>{setMenuOpen(false);item.onSelect()}})),
     ]}/>}
     <ExtractionResultExportControl open={exportOpen} schemaNodes={exportFields} returnFocusRef={menuButton} onDismiss={()=>setExportOpen(false)}
       onExport={(format,choices)=>{setExportOpen(false);void exportSaved(format,choices)}}/>

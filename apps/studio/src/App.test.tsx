@@ -1391,9 +1391,10 @@ describe('reopened Source Document workspace', () => {
     expect(document.querySelectorAll('[data-evidence-linked]')).toHaveLength(2)
     // Hover links the two sides: a row lights its passage, the passage lights its rows.
     const passage = screen.getByRole('button', { name: /place: Harlow/ })
-    fireEvent.mouseOver(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
+    fireEvent.mouseMove(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
     expect(passage).toHaveClass('hovered')
-    fireEvent.mouseEnter(passage)
+    fireEvent.mouseLeave(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
+    fireEvent.mouseMove(passage)
     expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(2)
     fireEvent.mouseLeave(passage)
     expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(0)
@@ -3670,9 +3671,11 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     )
     const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeEnabled()
-    // "Open latest reviewed" sits in the Results header.
+    // "Open latest reviewed" sits in the Results header's ⋯ menu.
     openRailView('Results')
-    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     expect(resultsRunActions()).toEqual([])
 
     // Leaving the chat for Results mounts its step anew: the Run shown now.
@@ -3755,7 +3758,8 @@ describe('updated latest reviewed extraction', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
     fireEvent.click(await screen.findByRole('button', { name: /To check place/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'History of this value' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'History of this value' }))
     expect(shownRailView()).toBe('History')
     const readings = await screen.findByRole('list', { name: 'Readings of place' })
     expect(readings).toHaveTextContent('Elmbrooke')
@@ -3783,7 +3787,8 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} latestReviewedExtraction={elsewhere} onOpenExtraction={onOpenExtraction} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
-    fireEvent.click(await screen.findByRole('button', { name: 'Open latest reviewed' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'More result actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open latest reviewed' }))
     expect(onOpenExtraction).toHaveBeenCalledWith(elsewhere.extractionId, { snapshotVersion: 1, feedbackVersion: 2 })
   })
 

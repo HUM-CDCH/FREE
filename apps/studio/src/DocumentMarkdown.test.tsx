@@ -100,7 +100,12 @@ describe('the values in one passage', () => {
     const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect: vi.fn(), onHover }} />)
     const mark = screen.getByRole('button', { name: 'orientation: NE–SW' })
     expect(mark).not.toHaveClass('hovered')
+    expect(mark).not.toHaveAttribute('title')
+    expect(mark).toHaveAttribute('data-name', 'orientation')
+    // The pointer's own movement lights it; a mark that scrolls in under a still pointer gets only `mouseenter`.
     fireEvent.mouseEnter(mark)
+    expect(onHover).not.toHaveBeenCalled()
+    fireEvent.mouseMove(mark)
     expect(onHover).toHaveBeenLastCalledWith([key])
     fireEvent.mouseLeave(mark)
     expect(onHover).toHaveBeenLastCalledWith(null)

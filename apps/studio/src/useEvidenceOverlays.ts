@@ -13,13 +13,14 @@ import {
 } from './evidenceNavigation'
 import { scrollWithinPane } from './scrollWithinPane'
 import { evidenceColorVars, markValueId, ownsMark, sharedColor } from './durableRailModel'
+import { fieldWords } from './reviewVocabulary'
 
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral' | 'preview'; anchorId: string; precision?: EvidenceLink['precision']; color?: string }
 
 /** A mark's accessible name and its tooltip: each value it supports, with what its underline says, in words. */
 export const markLabel = (infos: readonly MarkInfo[]) => infos.map((info) =>
-  `${info.name}: ${info.value}${info.style === 'doubtful' ? ', uncertain' : info.style === 'rule' ? ', linked by rule' : ''}${info.word ? `, ${info.word}` : ''}`).join('; ')
+  `${fieldWords(info.name)}: ${info.value}${info.style === 'doubtful' ? ', uncertain' : info.style === 'rule' ? ', linked by rule' : ''}${info.word ? `, ${info.word}` : ''}`).join('; ')
 
 /** The rail's values for the marks: a key `describe` names is a value a mark selects. */
 export type RailMarkState = {
@@ -38,6 +39,41 @@ export type RailMarks = RailMarkState & {
   onHover?: (keys: readonly string[] | null) => void
 }
 
+// One pointer, so one mark under it and one name tag for the whole page view.
+let pointed: HTMLElement | null = null
+let nameTag: HTMLElement | null = null
+
+/** The field name over the mark under the pointer: the marks' one tooltip. It is drawn beside the mark, never inside
+ *  it, so the pointer cannot land on it (no flicker) and a value mark's multiply blend leaves it opaque; its CSS delays
+ *  it, so sweeping the pointer across a page pops nothing. */
+function nameMark(mark: HTMLElement | null, name = '') {
+  nameTag?.remove()
+  nameTag = null
+  if (!mark?.parentElement || !name) return
+  nameTag = window.document.createElement('div')
+  nameTag.className = 'evidence-mark-name'
+  nameTag.ariaHidden = 'true'
+  nameTag.textContent = name
+  Object.assign(nameTag.style, { left: mark.style.left, bottom: `calc(${100 - parseFloat(mark.style.top)}% + 4px)` })
+  mark.parentElement.append(nameTag)
+}
+
+/** Hover follows the pointer's own movement: a mark that scrolls in under a still pointer lights nothing and names
+ *  nothing (browsers fire `mouseenter` for it, never `mousemove`), and a move within one mark reports once. */
+function followPointer(mark: HTMLElement, name: string, onHover: ((over: boolean) => void) | undefined) {
+  mark.onmousemove = onHover ? () => {
+    if (pointed === mark) return
+    pointed = mark
+    nameMark(mark, name)
+    onHover(true)
+  } : null
+  mark.onmouseleave = onHover ? () => {
+    pointed = null
+    nameMark(null)
+    onHover(false)
+  } : null
+}
+
 function appendOverlay(
   container: HTMLElement,
   parsedDocument: ParsedDocument,
@@ -50,7 +86,7 @@ function appendOverlay(
     evidenceAnchorId?: string
     resultPath?: readonly (string | number)[]
     /** A mark the researcher can select: a button with its accessible name. */
-    mark?: { label: string; current: boolean; onClick: (element: HTMLElement) => void; onHover?: (over: boolean) => void }
+    mark?: { label: string; name: string; current: boolean; onClick: (element: HTMLElement) => void; onHover?: (over: boolean) => void }
   },
 ): HTMLElement | null {
   const page = container.querySelector(
@@ -70,14 +106,11 @@ function appendOverlay(
     const { label, current, onClick, onHover } = options.mark
     ;(overlay as HTMLButtonElement).type = 'button'
     overlay.setAttribute('aria-label', label)
-    // shortcut: the browser's own tooltip, slow to open and unstyled; a house tooltip when Studio has one.
-    overlay.title = label
     overlay.removeAttribute('aria-hidden')
     if (current) overlay.setAttribute('aria-current', 'true')
     else overlay.removeAttribute('aria-current')
-    overlay.onclick = () => onClick(overlay)
-    overlay.onmouseenter = onHover ? () => onHover(true) : null
-    overlay.onmouseleave = onHover ? () => onHover(false) : null
+    overlay.onclick = () => { nameMark(null); onClick(overlay) }
+    followPointer(overlay, options.mark.name, onHover)
   } else overlay.ariaHidden = 'true'
   overlay.dataset.occurrenceId = occurrence.occurrence_id
   if (options.evidenceAnchorId)
@@ -296,7 +329,7 @@ export function useEvidenceOverlays({
           evidenceAnchorId: anchorId,
           resultPath,
           ...(marks && infos.length > 0 ? { mark: {
-            label: markLabel(infos),
+            label: markLabel(infos), name: [...new Set(infos.map((info) => fieldWords(info.name)))].join(', '),
             current, onClick: (element: HTMLElement) => marks.onSelect(selectable, element),
             ...(marks.onHover ? { onHover: (over: boolean) => marks.onHover!(over ? selectable : null) } : {}),
           } } : {}),
@@ -332,10 +365,8 @@ export function useEvidenceOverlays({
         // block picks among all its passage supports, and lights only its row. A pointer shortcut, not announced:
         // the block mark stays the button and the value's Results row the keyboard's way to it.
         const pick = marks && info ? marks : null
-        mark.onclick = pick ? () => pick.onSelect([key], mark) : null
-        mark.onmouseenter = pick?.onHover ? () => pick.onHover!([key]) : null
-        mark.onmouseleave = pick?.onHover ? () => pick.onHover!(null) : null
-        if (pick && info) mark.title = markLabel([info]); else mark.removeAttribute('title')
+        mark.onclick = pick ? () => { nameMark(null); pick.onSelect([key], mark) } : null
+        followPointer(mark, info ? fieldWords(info.name) : '', pick?.onHover ? (over) => pick.onHover!(over ? [key] : null) : undefined)
         Object.assign(mark.style, {
           position: 'absolute', left: `${(box.x0 / meta.width_pt) * 100}%`, top: `${(box.y0 / meta.height_pt) * 100}%`,
           width: `${((box.x1 - box.x0) / meta.width_pt) * 100}%`, height: `${((box.y1 - box.y0) / meta.height_pt) * 100}%`,
