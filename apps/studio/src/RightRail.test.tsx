@@ -86,6 +86,7 @@ function renderRail({
   documentHistory,
   run = null,
   project = null,
+  onGenerateInstructions,
 }: {
   open?: boolean
   view?: RailView
@@ -100,6 +101,7 @@ function renderRail({
   documentHistory?: (visible: boolean) => ReactNode
   run?: { start: () => void; available: boolean } | null
   project?: ComponentProps<typeof RightRail>['project']
+  onGenerateInstructions?: (instruction: string) => void
 } = {}) {
   const rail = (open: boolean) => (
     <RightRail
@@ -121,6 +123,7 @@ function renderRail({
       recordScope={{ value: 'document', onChange: vi.fn() }}
       run={run}
       project={project}
+      onGenerateInstructions={onGenerateInstructions}
     />
   )
   const rendered = render(rail(open))
@@ -221,6 +224,42 @@ describe('RightRail Results', () => {
     expect(screen.queryByRole('navigation', { name: 'Template and results' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }))
     expect(onViewChange).toHaveBeenLastCalledWith('chat')
+  })
+  it('keeps generating the template and running the extraction within reach on the workflow lines', () => {
+    const onGenerateInstructions = vi.fn()
+    const start = vi.fn()
+    // No template yet: Generate leads; Run waits for the template and says so.
+    renderRail({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerateInstructions, run: { start, available: true } })
+    const empty = within(screen.getByRole('navigation', { name: 'Template and results' }))
+    fireEvent.click(empty.getByRole('button', { name: 'Generate the template from the document' }))
+    expect(onGenerateInstructions).toHaveBeenCalledExactlyOnceWith('')
+    expect(empty.getByRole('button', { name: 'Extract this document' })).toBeDisabled()
+    expect(empty.getByRole('button', { name: 'Extract this document' })).toHaveAttribute('title', 'Extract this document: create the template first')
+    cleanup()
+    // A template and a finished run: both again, each one click.
+    onGenerateInstructions.mockClear()
+    const completed = { ...attempt, executionStatus: 'COMPLETED' as const }
+    renderRail({ onGenerateInstructions, run: { start, available: true }, extraction: { ...defaultController, attempt: completed } })
+    const done = within(screen.getByRole('navigation', { name: 'Template and results' }))
+    // Generating again asks first, as the Template view's Regenerate does; Cancel generates nothing.
+    fireEvent.click(done.getByRole('button', { name: 'Generate the template again from the document' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Regenerate from the document' })).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+    fireEvent.click(done.getByRole('button', { name: 'Generate the template again from the document' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Regenerate from the document' })).getByRole('button', { name: /^Regenerate template/ }))
+    expect(onGenerateInstructions).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+    fireEvent.click(done.getByRole('button', { name: 'Extract this document again' }))
+    expect(start).toHaveBeenCalledOnce()
+    cleanup()
+    // A run at work offers no second one; a read-only inspection offers neither action.
+    renderRail({ onGenerateInstructions, run: { start, available: true }, extraction: { ...defaultController, attempt: { ...attempt, executionStatus: 'RUNNING' } } })
+    expect(screen.queryByRole('button', { name: /^Extract this document/ })).not.toBeInTheDocument()
+    cleanup()
+    renderRail({ onGenerateInstructions, run: { start, available: true }, inspection: { ...defaultInspection, readOnly: true } })
+    expect(screen.queryByRole('button', { name: /^Generate the template/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Extract this document/ })).not.toBeInTheDocument()
   })
 })
 

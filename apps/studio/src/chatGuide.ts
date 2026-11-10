@@ -125,6 +125,9 @@ export type GuideInput = {
   templateShown?: boolean
   /** A generation has just finished and the researcher has not yet chosen to go on: the chat stops at Template ready. */
   templateReady?: boolean
+  /** This document's latest Extraction has just completed and the researcher has not yet chosen to go on: the chat stops
+   *  at Results ready. */
+  resultsReady?: boolean
   dismissed: ReadonlySet<string>
   project?: ProjectGuideInput | null
 }
@@ -185,7 +188,27 @@ export function nextStep(input: GuideInput): StepCard | null {
 function currentStep(input: GuideInput): StepCard | null {
   // An older Extraction or revision shown read-only takes no schema step; a run is still the host's to allow. The
   // open document's own run goes on before anything else; then the project's workflow leads, then this document.
-  return (input.readOnly ? null : schemaStep(input)) ?? controlStep(input) ?? projectStep(input) ?? runStep(input)
+  return (input.readOnly ? null : schemaStep(input)) ?? controlStep(input) ?? resultsReadyStep(input) ?? projectStep(input)
+    ?? runStep(input)
+}
+
+/** Each completed run stops here before the workflow goes on: look at its results, or go on to the next step. */
+function resultsReadyStep(input: GuideInput): StepCard | null {
+  const { latest } = input
+  if (!input.resultsReady || !latest || latest.status !== 'COMPLETED') return null
+  const toCheck = latest.toCheck ?? 0
+  return {
+    key: `results-ready:${latest.extractionId}`,
+    title: 'Results ready',
+    question: input.resultsShown ? 'Continue once the results look right.'
+      : toCheck ? `Look at the results? ${plural(toCheck, 'value')} to check.` : 'Look at the results before going on?',
+    detail: latest.progress ? [['Result', latest.progress]] : undefined,
+    options: [
+      ...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const],
+      { action: 'continue', label: 'Continue', tone: input.resultsShown ? 'positive' : 'secondary' },
+      notYet,
+    ],
+  }
 }
 
 /**

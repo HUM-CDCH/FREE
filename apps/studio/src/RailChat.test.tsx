@@ -55,6 +55,30 @@ describe('RailChat', () => {
     expect(screen.getByRole('region', { name: 'Template ready' })).toBeInTheDocument()
     fireEvent.click(within(screen.getByRole('region', { name: 'Template ready' })).getByRole('button', { name: /Continue/ }))
     expect(screen.queryByRole('region', { name: 'Template ready' })).not.toBeInTheDocument()
+     // Generated again over the template (the editor never leaves it), the chat stops there again.
+    await act(async () => { await schema.generate(async () => ({ _description: 'One letter.', sender: 'string', date: 'string' })) })
+    expect(screen.getByRole('region', { name: 'Template ready' })).toBeInTheDocument()
+  })
+
+  it('stops at Results ready once a run seen at work completes, until the researcher goes on', () => {
+    const schema = schemaWithFields()
+    const onShowView = vi.fn()
+    const props = { schema, sourceDocumentName: 'letters.pdf', onShowView, recordScope: { value: 'document' as const, onChange: vi.fn() },
+      run: { start: vi.fn(), available: true, unavailableReason: null } }
+    const at = (status: 'RUNNING' | 'COMPLETED', extractionId = 'extraction-1') =>
+      ({ extractionId, schemaRevisionId: 'revision-1', status, progress: null, toCheck: 2 })
+    // A run already completed when the chat first sees it asks nothing.
+    const view = render(<Harness {...props} latest={at('COMPLETED', 'extraction-0')} />)
+    expect(screen.queryByRole('region', { name: 'Results ready' })).not.toBeInTheDocument()
+    view.rerender(<Harness {...props} latest={at('RUNNING')} />)
+    view.rerender(<Harness {...props} latest={at('COMPLETED')} />)
+    const step = screen.getByRole('region', { name: 'Results ready' })
+    expect(within(step).getByText('Look at the results? 2 values to check.')).toBeVisible()
+    // Opening Results keeps the step; Continue ends it.
+    fireEvent.click(within(step).getByRole('button', { name: /Open Results/ }))
+    expect(onShowView).toHaveBeenCalledWith('results')
+    fireEvent.click(within(screen.getByRole('region', { name: 'Results ready' })).getByRole('button', { name: /Continue/ }))
+    expect(screen.queryByRole('region', { name: 'Results ready' })).not.toBeInTheDocument()
   })
 
   it('takes an instruction typed into the Generate template step, and Esc still closes it', () => {

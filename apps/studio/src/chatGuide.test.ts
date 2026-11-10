@@ -64,6 +64,17 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, templateReady: true, proposal: { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true } })?.key).toBe('proposal')
   })
 
+  it('stops at Results ready after a completed run, before the project or the next run', () => {
+    const step = nextStep({ ...base, resultsReady: true, latest: latest('COMPLETED') })
+    expect(step).toMatchObject({ key: 'results-ready:extraction-1', title: 'Results ready', question: 'Look at the results? 2 values to check.',
+      detail: [['Result', 'Reading records · 3 of 14']] })
+    expect(step?.options.map(({ action, tone }) => [action, tone])).toEqual([['review', 'positive'], ['continue', 'secondary'], ['dismiss', 'dismiss']])
+    // In view, Continue leads; a run not completed, or one not just seen to complete, has no such step.
+    expect(actions({ resultsReady: true, latest: latest('COMPLETED'), resultsShown: true })).toEqual(['continue', 'dismiss'])
+    expect(nextStep({ ...base, resultsReady: true, latest: latest('RUNNING') })?.title).not.toBe('Results ready')
+    expect(nextStep({ ...base, latest: latest('COMPLETED') })?.title).not.toBe('Results ready')
+  })
+
   it('asks for the Record Scope before a run', () => {
     expect(actions({ recordScope: null })).toEqual(['scope:records', 'scope:document', 'review-schema'])
   })

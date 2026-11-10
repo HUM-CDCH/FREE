@@ -12,6 +12,7 @@ import type { PinnedExtractionSource, DurableReviewProgress } from './durableExt
 import { DurableResults } from './DurableResults'
 import { durableRailModel, statusLine } from './durableRailModel'
 import RailChat, { type RailChatProps } from './RailChat'
+import RegenerateDialog from './RegenerateDialog'
 import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
 import { useSchemaChat, type ChatScope } from './useSchemaChat'
 import type { CurrentResultSchema } from './resultSchema'
@@ -86,7 +87,10 @@ const VIEW_TITLES: Record<Exclude<RailView, 'chat'>, string> = {
   evidence: 'Evidence', schema: 'Template', results: 'Results', history: 'History',
 }
 
-const iconButtonClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink'
+/** An Extraction still at work: its line shows it running, with no Run beside it. */
+const ACTIVE_STATUSES: ReadonlySet<ExtractionAttempt['executionStatus']> = new Set(['QUEUED', 'RUNNING', 'PAUSING', 'STOPPING'])
+
+const iconButtonClass ='grid size-7 shrink-0 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink'
 
 function HistoryIcon() {
   return (
@@ -96,15 +100,52 @@ function HistoryIcon() {
   )
 }
 
-/** One of the chat's context lines: what the schema or the results are now, opening them in full. */
-function ContextLine({ label, detail, onOpen }: { label: string; detail: string; onOpen: () => void }) {
+/** A workflow line's own action: generating the template, or running this document's extraction. Its name is told
+ *  apart from the chat step's options, which say the same things. */
+type WorkflowAction = { label: ReactNode; name: string; tone: 'positive' | 'secondary' | 'danger'; disabled: boolean; reason: string | null; run: () => void }
+
+const workflowButton = 'inline-flex h-6 min-w-7 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border px-2 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-45'
+const workflowTone: Record<WorkflowAction['tone'], string> = {
+  positive: 'border-green bg-green text-white hover:brightness-108',
+  secondary: 'border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-muted',
+  danger: 'border-danger/40 bg-surface text-danger hover:border-danger hover:bg-danger-soft',
+}
+
+/** "Again": a circular arrow, drawn so it sits on the text's line at any font, unlike the ⟳ glyph. */
+function AgainIcon() {
   return (
-    <button type="button" onClick={onOpen} aria-label={`Open ${label.toLowerCase()}: ${detail}`}
-      className="flex min-w-0 cursor-pointer items-baseline gap-2 rounded-[3px] px-1.5 py-1 text-left text-compact outline-none transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted">
-      <span className="shrink-0 font-bold text-ink">{label}</span>
-      <span className="min-w-0 flex-1 truncate text-ink-muted" title={detail}>{detail}</span>
-      <span aria-hidden="true" className="shrink-0 text-ink-faint">›</span>
-    </button>
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="block">
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+      <path d="M13.5 2.5v3h-3" />
+    </svg>
+  )
+}
+
+/** One step of the workflow under the chat's header: where the template or the results are now, a way to open them
+ *  in full, and the step's own action, always within reach whatever the chat's step is. */
+function WorkflowLine({ step, label, detail, state, onOpen, action }: {
+  step: number; label: string; detail: string; state: 'todo' | 'busy' | 'done'; onOpen: () => void; action: WorkflowAction | null
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 px-1.5 py-1">
+      {state === 'busy'
+        ? <span aria-hidden="true" className="size-4 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
+        : <span aria-hidden="true" className={`grid size-4 shrink-0 place-items-center rounded-full text-[10px] font-bold ${state === 'done' ? 'bg-green text-white' : 'border border-line-strong text-ink-muted'}`}>
+            {state === 'done' ? '✓' : step}
+          </span>}
+      <span className="shrink-0 text-compact font-bold text-ink">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-compact text-ink-muted" title={detail}>{detail}</span>
+      <button type="button" onClick={onOpen} aria-label={`Open ${label.toLowerCase()}: ${detail}`} title={`Open ${label.toLowerCase()}`}
+        className={`${workflowButton} ${workflowTone.secondary}`}>
+        {label === 'Template' ? 'View' : 'Open'}
+      </button>
+      {action && (
+        <button type="button" onClick={action.run} disabled={action.disabled} aria-label={action.name}
+          title={action.reason ? `${action.name}: ${action.reason}` : action.name} className={`${workflowButton} ${workflowTone[action.tone]}`}>
+          {action.label}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -193,6 +234,31 @@ function RightRail({
       : 'Not created yet'
   // The schema is the project's; results are one document's, named so the chat never reads as that document's own.
   const resultsDetail = `${sourceDocumentName} · ${shown ? shown.executionStatus.toLowerCase() : 'not run yet'}`
+  // Each workflow line's own action, reachable whatever step the chat is on: (re)generating the template, or (re)running
+  // this document's extraction. What blocks one is said on it.
+  const readOnly = inspection.readOnly
+  const [regenerating, setRegenerating] = useState(false)
+  const generateAction: WorkflowAction | null = !onGenerateInstructions || readOnly ? null
+    : schemaSnap.generating
+      ? { label: 'Stop', name: 'Stop the template generation', tone: 'danger', disabled: false, reason: null, run: () => schema.cancelGeneration() }
+      : (() => {
+          const reason = chat.asking !== null || chat.loading ? 'wait for the reply'
+            : chat.proposalReview.pending ? 'apply or discard the proposed changes first'
+              : schemaSnap.historicalPreview !== null ? 'leave the History preview first' : null
+          return schemaReady
+            // Generating again asks first, as the Template view's Regenerate does.
+            ? { label: <AgainIcon />, name: 'Generate the template again from the document', tone: 'secondary', disabled: reason !== null, reason,
+                run: () => setRegenerating(true) }
+            : { label: 'Generate', name: 'Generate the template from the document', tone: 'positive', disabled: reason !== null, reason,
+                run: () => onGenerateInstructions(chat.instructions.text) }
+        })()
+  const latestActive = latestAttempt ? ACTIVE_STATUSES.has(latestAttempt.executionStatus) : false
+  const runAction: WorkflowAction | null = !run || readOnly || latestActive ? null : (() => {
+    const reason = !schemaReady ? 'create the template first' : run.available ? null : runUnavailableReason ?? 'it cannot start now'
+    return latestAttempt
+      ? { label: <AgainIcon />, name: 'Extract this document again', tone: schemaReady ? 'positive' : 'secondary', disabled: reason !== null, reason, run: run.start }
+      : { label: '▶ Run', name: 'Extract this document', tone: schemaReady ? 'positive' : 'secondary', disabled: reason !== null, reason, run: run.start }
+  })()
 
   return (
     <>
@@ -251,9 +317,11 @@ function RightRail({
         </button>
       </div>
       {activeView === 'chat' && (
-        <nav aria-label="Template and results" className="flex shrink-0 flex-col border-b border-line px-1.5 py-1">
-          <ContextLine label="Template" detail={schemaDetail} onOpen={() => onViewChange('schema')} />
-          <ContextLine label="Results" detail={resultsDetail} onOpen={() => onViewChange('results')} />
+        <nav aria-label="Template and results" className="flex shrink-0 flex-col divide-y divide-line border-b border-line px-1.5 py-0.5">
+          <WorkflowLine step={1} label="Template" detail={schemaDetail} onOpen={() => onViewChange('schema')} action={generateAction}
+            state={schemaSnap.generating ? 'busy' : schemaReady ? 'done' : 'todo'} />
+          <WorkflowLine step={2} label="Results" detail={resultsDetail} onOpen={() => onViewChange('results')} action={runAction}
+            state={latestActive ? 'busy' : shown?.executionStatus === 'COMPLETED' ? 'done' : 'todo'} />
         </nav>
       )}
 
@@ -352,6 +420,10 @@ function RightRail({
         onShowView={onViewChange}
         mode={activeView === 'chat' ? 'full' : 'step'}
       />
+      {regenerating && onGenerateInstructions && schemaReady && (
+        <RegenerateDialog instructions={chat.instructions} nodes={schemaSnap.draft!.schemaNodes} generating={schemaSnap.generating}
+          onCancel={() => setRegenerating(false)} onRegenerate={onGenerateInstructions} />
+      )}
     </div>
     </>
   )

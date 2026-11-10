@@ -63,13 +63,22 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ready = snap.view === 'editing'
   const editable = ready && snap.historicalPreview === null
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
-  // A generation that has just finished holds the chat at Template ready until the researcher goes on; generating again
-  // or leaving the template's editor ends it.
-  const [seenView, setSeenView] = useState(snap.view)
+  // Every generation adopted (the first, or one generated again over a template) holds the chat at Template ready until
+  // the researcher goes on; generating again or leaving the template's editor ends it.
+  const [seenReplacement, setSeenReplacement] = useState(snap.replacementVersion)
   const [templateReady, setTemplateReady] = useState(false)
-  if (snap.view !== seenView) {
-    setSeenView(snap.view)
-    setTemplateReady(seenView === 'generating' && snap.view === 'editing')
+  if (snap.replacementVersion !== seenReplacement) {
+    setSeenReplacement(snap.replacementVersion)
+    setTemplateReady(true)
+  } else if (templateReady && (snap.generating || snap.view !== 'editing')) setTemplateReady(false)
+  // Likewise each run of this document seen at work and then completed holds the chat at Results ready; a run already
+  // completed when the chat first sees it (an opened document) does not.
+  const [seenRun, setSeenRun] = useState(latest && { id: latest.extractionId, status: latest.status })
+  const [resultsReady, setResultsReady] = useState<string | null>(null)
+  if ((latest?.extractionId ?? null) !== (seenRun?.id ?? null) || (latest && latest.status !== seenRun?.status)) {
+    setSeenRun(latest && { id: latest.extractionId, status: latest.status })
+    setResultsReady(latest?.status === 'COMPLETED' && seenRun?.id === latest.extractionId ? latest.extractionId
+      : latest?.extractionId === resultsReady ? resultsReady : null)
   }
   // The last run's template against the current one, compared by content, not only by revision.
   const sameTemplate = useSameTemplateAsRun(schema, latest?.schemaRevisionId ?? null)
@@ -103,6 +112,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     resultsShown,
     templateShown,
     templateReady,
+    resultsReady: resultsReady !== null && resultsReady === latest?.extractionId,
     dismissed,
     project: project?.guide ?? null,
   }
@@ -121,10 +131,12 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       if (!canSay) return
       reveal()
       void (preSchema ? chat.ask(said) : chat.send(said))
-    } else if (option.action !== 'review-schema')
+    } else if (option.action !== 'review-schema' && !(card.key.startsWith('results-ready:') && option.action === 'review'))
       chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
     // Template ready waits for a way on: viewing the template keeps it, any other choice ends it.
     if (card.key.startsWith('template-ready:') && option.action !== 'review-schema') setTemplateReady(false)
+    // Results ready likewise: opening Results keeps it, any other choice ends it.
+    if (card.key.startsWith('results-ready:') && option.action !== 'review') setResultsReady(null)
     // The extract step answers one request: any choice ends it.
     if (card.key.startsWith('extract:')) {
       chat.clearExtractRequest()

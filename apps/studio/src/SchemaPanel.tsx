@@ -1,4 +1,5 @@
 import { SchemaImport } from './SchemaImport'
+import RegenerateDialog from './RegenerateDialog'
 import {
   useCallback,
   useEffect,
@@ -33,10 +34,7 @@ import ActionsMenu, { type ActionItem } from './ActionsMenu'
 import SchemaNameEditor from './SchemaNameEditor'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { defaultSchemaName } from './schemaNames'
-import {
-  SchemaInstructionsChat,
-  SchemaInstructionsDrawer,
-} from './SchemaInstructions'
+import { SchemaInstructionsChat } from './SchemaInstructions'
 import { ProposalReviewBar } from './SchemaProposalReview'
 import { useSchemaChat, type SchemaChat } from './useSchemaChat'
 import { ChatLabel, ChatTranscript, RunningRequests } from './SchemaChatParts'
@@ -155,13 +153,6 @@ function editingOf(node: SchemaNode): FieldEditing {
 // ────────────────────────────────────────────────────────────────────────────
 
 
-/** Per-field notes set from each row's note action, so Regenerate carries them into the instruction. */
-function fieldDescriptionsInstruction(nodes: readonly SchemaNode[]): string {
-  const notes = enumerateFieldPaths(nodes)
-    .filter(({ node }) => node.description)
-    .map(({ path, node }) => `- ${path.join('.')}: ${node.description}`)
-  return notes.length ? `Field notes from the current template:\n${notes.join('\n')}` : ''
-}
 
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1375,23 +1366,8 @@ function SchemaPanelView({
         </ModalDialog>
       )}
       {regenerateOpen && (
-        <ModalDialog className={dialogCls} ariaLabel="Regenerate from the document" onDismiss={() => setRegenerateOpen(false)}>
-          <h3 className="mb-2 text-secondary font-semibold text-ink">Regenerate from the document</h3>
-          <SchemaInstructionsDrawer instructions={instructions} />
-          <div className="mt-3 flex justify-end gap-2">
-            <Button onClick={() => setRegenerateOpen(false)}>Cancel</Button>
-            <Button
-              variant="positive"
-              disabled={snap.generating}
-              onClick={() => {
-                setRegenerateOpen(false)
-                onGenerateInstructions?.([instructions.text, fieldDescriptionsInstruction(nodes)].filter(Boolean).join('\n\n'))
-              }}
-            >
-              Regenerate template{instructions.countLabel}
-            </Button>
-          </div>
-        </ModalDialog>
+        <RegenerateDialog instructions={instructions} nodes={nodes} generating={snap.generating}
+          onCancel={() => setRegenerateOpen(false)} onRegenerate={(instruction) => onGenerateInstructions?.(instruction)} />
       )}
       {confirmingDeleteSchema && (
         <ModalDialog className={dialogCls} ariaLabel="Clear current template" onDismiss={() => setConfirmingDeleteSchema(false)}>

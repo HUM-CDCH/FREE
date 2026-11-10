@@ -747,6 +747,8 @@ describe('reopened Source Document workspace', () => {
       expect(reads).toEqual([])
     }
     expect(shownToasts.filter(message => message.includes('complete —'))).toHaveLength(1)
+    // Each completed run stops at Results ready until the researcher goes on.
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Results ready' })).getByRole('button', { name: /Continue/ }))
     expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
   }, 6_000)
 
