@@ -267,7 +267,7 @@
 /* A value under the pointer, here or on its Results row: its marks get the ev-soft fill and nothing else. The outline
    is the selected value's alone, so hover and selection never stack into a third look. */
 .evidence-mark.hovered { background: var(--color-ev-soft); }
-/* The field name over the mark under the pointer (`nameMark`): a sibling of the marks, so it takes no pointer and no
+/* The field name over the mark under the pointer (the source presenter): a sibling of the marks, so it takes no pointer and no
    blend; it waits for the pointer to rest. */
 .evidence-mark-name { position: absolute; z-index: 6; padding: 2px 6px; border-radius: 3px; background: var(--color-ink);
   color: var(--color-canvas); font: 600 11px/1.3 var(--font-sans); white-space: nowrap; pointer-events: none;
@@ -280,7 +280,7 @@ button.evidence-mark[data-name].hovered:hover::after { content: attr(data-name);
   z-index: 6; padding: 2px 6px; border-radius: 3px; background: var(--color-ink); color: var(--color-canvas);
   font: 600 11px/1.3 var(--font-sans); white-space: nowrap; pointer-events: none; animation: evidence-mark-name 0.12s 0.4s both; }
 /* The "Evidence marks" switch hides every mark but the selected one. */
-.evidence-marks-off .evidence-mark:not(.selected) { display: none; }
+.evidence-marks-off .evidence-mark:not(.selected):not(.parsed-evidence-focus) { display: none; }
 /* On the PDF a mark lies over the page's own text, so an alpha fill of a pale token washes the ink out. Multiply
    tints the paper and never lightens the ink, however many marks stack. */
 .pdf-viewer .evidence-mark,
@@ -295,9 +295,8 @@ button.evidence-mark[data-name].hovered:hover::after { content: attr(data-name);
 .pdf-viewer .evidence-mark.hovered { background: var(--color-ev-soft); }
 /* An outlined mark shows one edge only: its own underline would run inside the outline as a second line. */
 .pdf-viewer .evidence-mark.selected { background: var(--color-ev-soft); border-color: transparent; outline-offset: 0; }
-/* The selected mark already carries the accent outline and fill: a focus overlay on its page would draw a second
-   border and darken it, so it stays in the layout as the scroll target but is not drawn. */
-.pdf-viewer .page:has(.evidence-mark.selected) .parsed-evidence-focus { visibility: hidden; }
+/* The occurrence painter assigns at most one outline: a located passage without a selected mark on its page. */
+.pdf-viewer .evidence-mark.parsed-evidence-focus { border: 2px solid var(--color-accent); background: var(--color-ev-soft); }
 /* A value's printing, drawn inside its block mark in its field's colour: every placed value as a highlighter stroke,
    the selected or hovered one stronger. Its underline is its own link's, as a block's is: dotted by rule, dashed for an
    uncertain passage, 1px once decided. The pointer picks its one value in Results (the painter sets `pointer-events`);

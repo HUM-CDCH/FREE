@@ -66,6 +66,8 @@ const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
 // highlight annotation, which left nothing for the browser's native copy to
 // act on. Flip this back to true to restore highlight creation once that's
 // worth the copy/paste tradeoff again.
+// pdf.js's `.page:has(.annotationEditorLayer.nonEditing) … .editorAnnotation` rule is inert while this is off.
+// Re-profile overlay painting before enabling highlights: this dependency selector can invalidate the page's styles.
 const HIGHLIGHT_ANNOTATIONS_ENABLED = false
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
@@ -233,7 +235,7 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const pdfViewerRef = useRef<PDFViewer | null>(null)
+  const [pdfViewer, setPdfViewer] = useState<PDFViewer | null>(null)
   const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
   useEffect(() => {
     activeSourceRepresentationIdRef.current = sourceRepresentationId
@@ -311,6 +313,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
+  const railElement = useRef<HTMLElement>(null)
   const [railView, setRailView] = useState<RailView>(() => routedValue ? 'results' : 'chat')
   // The History tab follows one value when set, until "Whole document"; it belongs to the document it was opened on.
   const [valueScope, setValueScope] = useState<{ sourceDocumentId: string; extractionId: string; valueId: string; name: string } | null>(null)
@@ -425,6 +428,7 @@ export function DocumentWorkspace({
         // as ctrlKey wheel events with small deltas, so scale smoothly.
         const lineHeight = event.deltaMode === 1 ? 25 : event.deltaMode === 2 ? 120 : 1
         pdfViewer.updateScale({
+          drawingDelay: 150,
           scaleFactor: Math.exp(-event.deltaY * 0.0015 * lineHeight),
           origin: [event.clientX, event.clientY],
         })
@@ -451,7 +455,7 @@ export function DocumentWorkspace({
     )
 
     let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
-    pdfViewerRef.current = pdfViewer
+    setPdfViewer(pdfViewer)
     setLoadState({ status: 'loading' })
 
     async function loadPdf() {
@@ -500,7 +504,7 @@ export function DocumentWorkspace({
     void loadPdf()
 
     return () => {
-      pdfViewerRef.current = null
+      setPdfViewer(null)
       setPdfDocument(null)
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
@@ -627,15 +631,18 @@ export function DocumentWorkspace({
     resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = railWidth
+    let width = startWidth
     const onMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX
-      setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
+      width = Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx))
+      railElement.current?.style.setProperty('--rail-width', `${width}px`)
     }
     const onUp = () => {
       controller.abort()
       if (resizeControllerRef.current === controller)
         resizeControllerRef.current = null
       document.body.style.cursor = ''
+      setRailWidth(width)
     }
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove, { signal: controller.signal })
@@ -794,9 +801,6 @@ export function DocumentWorkspace({
   // Results and the document pane talk through one channel: value requests go to Results; its marks and one-by-one's
   // dimming come back.
   const [selection] = useState(createSelectionChannel)
-  const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
-  const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
-  const hovered = useSyncExternalStore(selection.subscribe, () => selection.snapshot().hover)
   const markdownContainerRef = useRef<HTMLDivElement>(null)
   const evidenceOverviewRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
@@ -808,34 +812,22 @@ export function DocumentWorkspace({
     const seq = selection.select(routedKey, true, routedExtractionId)
     return () => selection.consume(seq)
   }, [selection, routedKey, routedExtractionId])
-  // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
-  // reveals its linked fields directly in Results, including shared Evidence. Hovering a mark lights its rows there, and
-  // a row's marks light here.
-  const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
-    ...publishedMarks,
-    hovered,
-    onHover: selection.hover,
-    onSelect: (keys: string[]) => {
-      // A passage holding the selection keeps it; else it picks a part of the selected value there (also from a sibling
-      // part), else keeps that value by its correction Evidence there.
-      const selected = publishedMarks.selected, value = selected && markValueId(selected)
-      const key = selected && keys.includes(selected) ? selected
-        : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
-      if (!key) return
-      setRailOpen(true)
-      setRailView('results')
-      selection.select(key, false, publishedMarks.extractionId, keys)
-    },
-  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
+  const selectMark = useCallback((keys: string[]) => {
+    const published = selection.snapshot().marks
+    if (!published || published.extractionId !== inspectedAttempt?.extractionId) return
+    // Prefer the chosen part or its correction when a passage supports several values.
+    const selected = published.selected, value = selected && markValueId(selected)
+    const key = selected && keys.includes(selected) ? selected
+      : keys.find(each => value && each.startsWith(`${value}#[`)) ?? keys.find(each => value && each === `${value}#correction`) ?? keys[0]
+    if (!key) return
+    setRailOpen(true)
+    setRailView('results')
+    selection.select(key, false, published.extractionId, keys)
+  }, [selection, inspectedAttempt?.extractionId])
   const selectPdfEvidence = useEvidenceOverlays({
-    containerRef,
-    viewerRef: pdfViewerRef,
-    parsedDocument:inspectionDocument,
-    attempt: inspectedAttempt,
-    marks,
-    active: effectiveRailOpen && railView === 'results',
-    dimLink: marks ? publishedDim : null,
-    overviewRef: evidenceOverviewRef,
+    containerRef, viewer: pdfViewer, parsedDocument: inspectionDocument,
+    extractionId: inspectedAttempt?.extractionId ?? null, selection, onSelect: selectMark,
+    active: effectiveRailOpen && railView === 'results', marksShown, overviewRef: evidenceOverviewRef,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
@@ -1095,7 +1087,8 @@ export function DocumentWorkspace({
     )}
     {/* max-[860px] is `width < 860px`, AppFrame's narrowViewport: the rail overlays exactly while the nav does. */}
     <aside
-      style={{ width: effectiveRailWidth }}
+      ref={railElement}
+      style={{ width: 'var(--rail-width)', '--rail-width': `${effectiveRailWidth}px` } as React.CSSProperties}
       className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[860px]:absolute max-[860px]:inset-y-0 max-[860px]:right-0 max-[860px]:z-30 ${
         // No `100%`: portaled into AppFrame's chat column, whose width is 0 while the rail overlays, it made the rail 0 wide.
         effectiveRailOpen
@@ -1251,7 +1244,10 @@ export function DocumentWorkspace({
               </Button>
               {loadState.status === 'ready' ? (
                 <PagePager page={currentPage} pageCount={loadState.pageCount}
-                  onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }} />
+                  onNavigate={(page) => {
+                    // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                    if (pdfViewer) pdfViewer.currentPageNumber = page
+                  }} />
               ) : (
                 <p role="status" aria-live="polite" className={`min-w-0 truncate text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
                   <span title={loadState.status === 'error' ? loadState.message : undefined}>
@@ -1266,7 +1262,7 @@ export function DocumentWorkspace({
                     aria-label="Zoom out"
                     title="Zoom out (Ctrl + -)"
                     disabled={zoomPercent <= 10}
-                    onClick={() => pdfViewerRef.current?.decreaseScale()}
+                    onClick={() => pdfViewer?.decreaseScale()}
                     className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
                   >
                     −
@@ -1276,7 +1272,8 @@ export function DocumentWorkspace({
                     aria-label="Reset zoom to 100%"
                     title="Reset zoom to 100%"
                     onClick={() => {
-                      if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
+                      // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                      if (pdfViewer) pdfViewer.currentScale = 1
                     }}
                     className="min-w-11 rounded-full px-1.5 text-center text-compact font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink"
                   >
@@ -1287,7 +1284,7 @@ export function DocumentWorkspace({
                     aria-label="Zoom in"
                     title="Zoom in (Ctrl + +)"
                     disabled={zoomPercent >= 2500}
-                    onClick={() => pdfViewerRef.current?.increaseScale()}
+                    onClick={() => pdfViewer?.increaseScale()}
                     className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
                   >
                     +
@@ -1304,7 +1301,10 @@ export function DocumentWorkspace({
             <div className="relative flex min-h-0 flex-1">
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
                 id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
-                onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
+                onNavigate={(page) => {
+                    // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                    if (pdfViewer) pdfViewer.currentPageNumber = page
+                  }}
                 onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }}
                 thumbnails={thumbnails} />}
               <div className="relative min-w-0 flex-1">
@@ -1317,7 +1317,7 @@ export function DocumentWorkspace({
                     rail is open. */}
                 {documentView === 'markdown' && (
                   <div ref={markdownContainerRef} className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} selection={selection} extractionId={inspectedAttempt?.extractionId ?? null} active={effectiveRailOpen} marksShown={marksShown} onSelect={selectMark} />
                   </div>
                 )}
               </div>

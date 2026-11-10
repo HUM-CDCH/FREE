@@ -289,7 +289,6 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const [passageKeys,setPassageKeys]=useState<readonly string[]>([])
   const reading=useDurableReading(reader),state=reading?.state,latestPage=reading?.latestPage??null
   const request=useSyncExternalStore(selection.subscribe,()=>selection.snapshot().request)
-  const hovered=useSyncExternalStore(selection.subscribe,()=>selection.snapshot().hover)
   // While the rail is open, Results wants the latest values, also while it shows an explicitly opened cut ("Show the
   // latest results"). Collapsed, a read already started finishes and none starts.
   useEffect(()=>railOpen?reader?.wantPages():undefined,[reader,railOpen])
@@ -445,7 +444,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     if(!model||!page||!id)return
     const rows=[...model.document,...model.records.flatMap(record=>record.rows)]
     if(review){const row=durableRailRow(review.value,document),index=rows.findIndex(each=>each.key===row.key);if(index<0)rows.push(row);else rows[index]=row}
-    const describe=new Map<string,MarkInfo>(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision,color:fieldColor(fieldOrder,row.name)}]))
+    const describe=new Map<string,MarkInfo>(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',color:fieldColor(fieldOrder,row.name)}]))
     const anchors=new Set(document?.evidence_index.anchors.map(anchor=>anchor.anchor_id)??[])
     const savedLinks=[...displayed.flatMap(value=> {
       // A composite value's link to one of its parts is that part's mark, named by it; a link no part names, or one to a
@@ -453,11 +452,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       const parts=new Map(composite(value)?valueParts(value).filter(part=>part.link).map(part=>[JSON.stringify(part.path),part]):[])
       // The correction's Evidence is its own mark, named as its value: it lights with any part chosen (`ownsMark`).
       const parent=describe.get(value.id),own=value.correction?.decision.evidence??[]
-      if(parent&&own.length)describe.set(`${value.id}#correction`,{...parent,anchorId:own[0].anchorId,precision:undefined})
+      if(parent&&own.length)describe.set(`${value.id}#correction`,parent)
       return [...value.links.flatMap(link=> {
         const part=parts.get(JSON.stringify(link.resultPath))
         // The part's mark takes its own link's style (rule, doubtful); the decision word stays the value's.
-        if(part&&parent)describe.set(part.key,{...parent,name:part.name,value:shownValue(part.value),style:durableRailRow(value,document,part).chip?.style??'neutral',anchorId:link.evidenceAnchorId,precision:link.precision})
+        if(part&&parent)describe.set(part.key,{...parent,name:part.name,value:shownValue(part.value),style:durableRailRow(value,document,part).chip?.style??'neutral'})
         return sourceEvidenceLinks(link,anchors).map(each=>({key:part?.key??value.id,link:each}))
       }),
       ...own.map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:`${value.id}#correction`,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
@@ -466,7 +465,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       // Drawing hints only: never fed to review, export or the saved value's Evidence.
       if(savedLinks.some(saved=>saved.key===preview.key))continue
       describe.set(preview.key,{name:`${preview.name} (preview, not verified)`,value:preview.value,word:null,
-        style:'preview',anchorId:preview.link.evidenceAnchorId,color:fieldColor(fieldOrder,preview.field)})
+        style:'preview',color:fieldColor(fieldOrder,preview.field)})
       savedLinks.push({key:preview.key,link:preview.link})
     }
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
@@ -670,7 +669,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
-          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} hovered={hovered?.map(markValueId)??null} onHover={selection.hover} isOpen={isOpen}
+          selectedKey={review?.value.id??null} linkedKeys={linkedKeys} selection={selection} isOpen={isOpen}
           onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}/>)}
     </div>
   </div>

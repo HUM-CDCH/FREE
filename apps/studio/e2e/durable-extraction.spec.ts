@@ -366,8 +366,8 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     await expect(page.getByRole('heading',{name:'Unit 7',exact:true})).toBeFocused()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
     release.resolve()
-    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
-    await expect(page.locator('.parsed-evidence-focus')).toHaveAttribute('data-occurrence-id',occurrence.occurrence_id)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
   } finally {release.resolve();await fixture.close()}
 })
 
@@ -436,7 +436,7 @@ test('a collapsed rail keeps one-by-one and moves nothing on the page; each togg
     await page.getByRole('button',{name:'Review one by one',exact:true}).click()
     const heading=page.getByRole('heading',{name:'Unit 7',exact:true}),current=page.getByLabel('Current page')
     await expect(heading).toBeFocused()
-    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
     await expect(current).toHaveValue(String(occurrence.page_number))
     // Away from the value's page, which a collapse must not bring back.
     await current.fill('6');await current.press('Enter')
@@ -455,7 +455,7 @@ test('a collapsed rail keeps one-by-one and moves nothing on the page; each togg
     await expect(heading).toBeVisible()
     // Expanding in one-by-one scrolls back to its value.
     await expect(current).toHaveValue(String(occurrence.page_number))
-    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
   } finally {await fixture.close()}
 })
 

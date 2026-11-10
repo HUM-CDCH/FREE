@@ -933,11 +933,11 @@ it('lights the rows of values hovered on the page, a collapsed record\'s header 
   expect(record).toHaveAttribute('aria-expanded','false')
   const row=screen.getByRole('button',{name:/To check a First title/})
   act(()=>selection.hover(['b']))
-  expect(record).toHaveAttribute('data-evidence-hovered')
-  expect(view.container.querySelectorAll('[data-evidence-hovered]')).toHaveLength(1)
+  expect(record).toHaveClass('hovered')
+  expect(view.container.querySelectorAll('.hovered')).toHaveLength(1)
   act(()=>selection.hover(['a']))
-  expect(row.closest('[data-result-key]')).toHaveAttribute('data-evidence-hovered')
-  expect(record).not.toHaveAttribute('data-evidence-hovered')
+  expect(row.closest('[data-result-key]')).toHaveClass('hovered')
+  expect(record).not.toHaveClass('hovered')
   act(()=>selection.hover(null))
   // A row that scrolls in under a still pointer gets `mouseover` and no `mousemove`: it is not lit.
   fireEvent.mouseOver(row)
@@ -1169,7 +1169,7 @@ it('picks a part of a composite value: its mark, its Evidence, and back to the w
   expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s0',undefined,skeletArt)
   // Each linked part is its own mark; the open value outlines them all.
   const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
-  expect(marks().describe.get(tooth)).toMatchObject({name:'skelet › dele › #1 › note',value:'Tooth',anchorId:'a_p1_s2_r1_c1',precision:'cell'})
+  expect(marks().describe.get(tooth)).toMatchObject({name:'skelet › dele › #1 › note',value:'Tooth'})
   expect(marks().selected).toBe('v1')
   const note=()=>screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
   fireEvent.click(note())
@@ -1223,7 +1223,8 @@ it('keys a value\'s correction Evidence as its own mark, named by the value and 
   const {marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Human',dele:[]},included:true,evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
   const own=marks().savedLinks!.find(saved=>saved.occurrenceIds)!
   expect(own.key).toBe('v1#correction')
-  expect(marks().describe.get(own.key)).toMatchObject({name:'skelet',anchorId:'a_p1_s1'})
+  expect(own.link.evidenceAnchorId).toBe('a_p1_s1')
+  expect(marks().describe.get(own.key)).toMatchObject({name:'skelet'})
   expect(ownsMark(marks().selected!,own.key)).toBe(true)
 })
 

@@ -1,6 +1,9 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { useLayoutEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
+import { observeEvidenceHover } from './evidenceHover'
+import { markValueId } from './durableRailModel'
+import type { SelectionChannel } from './selectionChannel'
 
 /** A record header's right-hand state, as text and as the section's accessible name. */
 function recordState(record: RailRecord): { text: string; busy: boolean; done: boolean } {
@@ -21,7 +24,7 @@ const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">
  * The list: one component for both phases, records keyed by their index so settlement
  * moves nothing; a document's fields once above them; an Article's one record flat. The caller renders each row.
  */
-export default function ReviewList({ model, article, finding, filter, selectedKey, linkedKeys, hovered, onHover, isOpen, onToggle, renderRow }: {
+export default function ReviewList({ model, article, finding, filter, selectedKey, linkedKeys, selection, isOpen, onToggle, renderRow }: {
   model: RailModel
   article: boolean
   /** Before discovery: the one block that becomes the list. */
@@ -30,19 +33,21 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   selectedKey: string | null
   linkedKeys: ReadonlySet<string>
   /** The values under the pointer, on a mark or a row: their rows are lit, a collapsed record's header for its own. */
-  hovered: readonly string[] | null
-  /** The row under the pointer names its value; off the rows, none. */
-  onHover: (keys: readonly string[] | null) => void
+  selection: SelectionChannel
   isOpen: (record: RailRecord) => boolean
   onToggle: (record: RailRecord) => void
   renderRow: (row: RailRow, pinned: boolean) => ReactNode
 }) {
+  const root = useRef<HTMLDivElement>(null)
+  // Subscribe here, not in Results or the workspace. Hover changes only the affected wrappers and collapsed headers;
+  // it never renders a value row again. Rebind after React changes the list or opens a record.
+  useLayoutEffect(() => observeEvidenceHover(selection, [root.current], true))
   const rowsOf = (rows: readonly RailRow[]) => rows.flatMap((row) => {
     const passes = passesFilter(row, filter)
-    const linked = linkedKeys.has(row.key), lit = Boolean(hovered?.includes(row.key))
+    const linked = linkedKeys.has(row.key)
     return passes || row.key === selectedKey || linked ? [
-      <div key={row.key} data-result-key={row.key} data-evidence-linked={linked || undefined} data-evidence-hovered={lit || undefined}
-        className={lit && row.key !== selectedKey ? 'rounded-md bg-surface-muted' : linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : undefined}>
+      <div key={row.key} data-result-key={row.key} data-hover-keys={JSON.stringify([row.key])} data-evidence-linked={linked || undefined}
+        className={`${row.key !== selectedKey ? '[&.hovered]:rounded-md [&.hovered]:bg-surface-muted [&.hovered]:shadow-none' : ''} ${linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : ''}`}>
         {linked && <span className="sr-only">Linked to the selected passage</span>}
         {renderRow(row, !passes)}
       </div>,
@@ -61,11 +66,12 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   // the pointer's own movement, so a row that scrolls in under a still pointer is not lit.
   const onMouseMove = (event: MouseEvent) => {
     const key = (event.target as Element).closest<HTMLElement>('[data-result-key]')?.dataset.resultKey ?? null
-    const lit = hovered?.length === 1 ? hovered[0] : hovered ? undefined : null
-    if (key !== lit) onHover(key ? [key] : null)
+    const hovered = selection.snapshot().hover
+    const lit = hovered?.length === 1 ? markValueId(hovered[0]!) : hovered ? undefined : null
+    if (key !== lit) selection.hover(key ? [key] : null)
   }
   return (
-    <div className="flex flex-col gap-2" onMouseMove={onMouseMove} onMouseLeave={() => onHover(null)}>
+    <div ref={root} className="flex flex-col gap-2" onMouseMove={onMouseMove} onMouseLeave={() => selection.hover(null)}>
       {model.document.length > 0 && (
         <section aria-label="Document" className={`${section} p-1`}>
           <h3 className="m-0 px-2 pt-1.5 pb-1 text-content font-bold text-ink">Document</h3>
@@ -78,12 +84,11 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
         const state = recordState(record)
         const open = record.state !== 'queued' && isOpen(record)
         const rows = open ? rowsOf(record.rows) : []
-        const holdsHovered = !open && record.rows.some((row) => hovered?.includes(row.key))
         return (
           <section key={record.key ?? record.index} aria-label={`${record.label}, ${state.text}`} className={section}>
             <button type="button" aria-expanded={open} disabled={record.state === 'queued'} onClick={() => onToggle(record)}
-              data-evidence-hovered={holdsHovered || undefined}
-              className={`flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default ${holdsHovered ? 'bg-surface-muted' : ''}`}>
+              data-hover-keys={JSON.stringify(open ? [] : record.rows.map(row => row.key))}
+              className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-surface-muted [&.hovered]:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <DisclosureGlyph open={open} />
               <b className="min-w-10 truncate text-content text-ink">{record.label}</b>
               <span className="min-w-0 truncate text-secondary text-ink-muted">
