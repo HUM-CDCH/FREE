@@ -38,10 +38,24 @@ second sample of the same results: it placed 99.2% of 1,148,150 values in blocks
 of 11,780 table cells, and 36,125 of the 38,941 OCR-read values its text rule could place; another 160,676 OCR-read
 values print under no text layer that agrees with them.
 
+For those, a second reader of the page image was then measured (amended 2026-11-10): Tesseract's word boxes on the
+block's crop, aligned with canonical text. On 14 block crops of real scans from four works (8 on pages with no text
+layer), 98 whole-word stand-in values had their ink marked on the pixels by readers who saw no prediction. The rule
+below placed 52 (26 of the 56 on pages with no text layer): 50 covered at least 99% of their reference ink and no
+ink outside it, and the two others were looked at on the pixels by an independent reviewer, who found the mark on
+the value and the reference not. On 54 more crops (6 further blocks of those scans, 24 blocks of twelve native PDFs
+rendered as images, and the same 24 degraded), it placed 101 of 162, each on the ink its reference names. Two
+earlier rules placed a value on its other printing in constructed cases and were dropped: one took the one match
+left in the second reading where the reader missed the first; one asked only that whole words spell the value
+once, which two columns read in different orders, with words broken apart differently, defeat. The rule below
+refuses both and every other constructed case (233 controls). The crops are not redistributable; the protocols,
+fixed before each run, the independent review and the results are summarised in the pull request that adds this
+amendment.
+
 ## Decision
 
-A **value mark** is where a value prints on the PDF page: one box per printed line, inside its Evidence Anchor's
-box. The anchor's own mark is unchanged.
+A **value mark** is where a value prints on the PDF page: one box per printed line, or per printed word where it is
+placed from the page image, inside its Evidence Anchor's box. The anchor's own mark is unchanged.
 
 - **Placed when linked, in the Parsing Service, from the run's own PDF.** Where a link names the value's printing as
   code-point spans of its own segment, the linker reads the page of the run's `input.pdf` with pdfium and adds
@@ -70,8 +84,33 @@ box. The anchor's own mark is unchanged.
   least 20 can be judged and at least 80% lie on ink, with most of the nearby ink inside the box and a word gap beside
   each side edge. And each of the value's own boxes must lie on ink. A block counts as read from the PDF's own text
   only under the `native` or `hybrid` transcriber and with no crop; every other block is checked. A scan without a
-  text layer, or a page with too few tokens to judge, keeps its block mark until Printed Lines
-  ([0024](0024-printed-lines-narrow-scanned-evidence.md)).
+  text layer, or a page with too few tokens to judge, is left to the page image.
+- **Scanned pages from the page image, where no text layer places the value** (amended 2026-11-10). A block the OCR
+  model read, of one box and not a table cell, that the rule above did not place is read once more, only for where
+  its words print: its crop of the rendered page (the block's box and 2 pt around it, bordered in its own paper
+  tone) goes to Tesseract, which returns words with their boxes. Canonical text stays the only text; the second
+  reading changes no value, span or anchor. Both readings are folded as above and aligned whole, and the value is
+  placed only if all of this holds:
+  - every alignment of the two readings within one edit of the best maps the value and 8 folded characters on each
+    side, unchanged, to the same characters of the second reading. A misreading away from the value is tolerated;
+    one at it, beside it, or that could be shifted onto it is not; a text edge must be an edge of the reading;
+  - the value is whole printed words in both readings, spelled alike character for character. A word's box says
+    nothing of where a comma, a quotation mark, a hyphen at a line end or a syllable inside it ends, so a value
+    that leaves any of them out keeps its block mark;
+  - the value's folded letters occur once in the text and once in the reading, inside a longer word and across
+    words included. Aligned text cannot tell two printings of the same letters apart when the two readers took
+    the block in different orders, and a reader that breaks words apart differently can make a whole word of
+    either, so a value whose letters repeat is never chosen by position;
+  - the reading is in the order of its places (the middles of its words rise along each line and of its lines down
+    the crop), and each of the value's word boxes, grown by one pixel (a third of a point: Tesseract's boxes shave
+    the outermost ink), lies inside the crop and clear of every other word's box. A touch between two boxes
+    refuses the values beside it, not their block. Nothing here shows the block to be one column, which is why
+    the letters must occur once.
+
+  The mark is those words' own measured boxes, one per printed word, never split, joined or interpolated, at most
+  64, together narrower than the block and inside the anchor's box within 2 pt. Anything else leaves the block's
+  mark, as do a reading that fails and one that would take a placement call past 120 seconds; each reason is
+  counted under `scan:`. Without Tesseract installed nothing is read and nothing else changes.
 - **Checked again and drawn by Studio.** `EvidenceLink.valueBoxes` carries the boxes. Studio draws them for every
   placed value, the selected or hovered one stronger, inside the anchor's mark, and only if every box lies inside one
   occurrence of the anchor; otherwise it draws none. A block that holds a value mark recedes to a faint fill, so a
@@ -87,7 +126,13 @@ box. The anchor's own mark is unchanged.
   broken by a hyphen at a line end, a paragraph in two columns, a repeated phrase, a value printed twice with the
   same surroundings, a ligature, a rotated page, a table cell, a page with no text, and scans whose text layer is
   in register, one line off and half a line off. A wrong box fails; a missing one fails only where the case expects
-  one. On real documents the check uses a reader the rule does not:
+  one. For the page image, readings are laid out in the test, so every word's place is known: misreadings away
+  from, beside and at the value, repeated values, two columns the readers took in different orders and broke into
+  different words, touching and nested boxes, words and lines out of order, punctuation, quotation marks and a
+  hyphen at a line end; the alignment is held to
+  every alignment enumerated; and a scan with no text layer is placed with a stand-in reader and, where Tesseract
+  is installed (the worker image, CI), with Tesseract itself. On real documents the check uses a reader the rule
+  does not:
   every box is compared with docling-parse's word cells, and each disagreement is looked at on a rendered page. Its
   pass rule is no box on a place the page does not print the value. That check needs documents that cannot be
   committed, so its results go in the pull request.
@@ -97,7 +142,8 @@ box. The anchor's own mark is unchanged.
 
 - Canonical page files, manifests, parsed_document.v2 and their hashes are unchanged, and no Source Document is
   parsed again. A value gets a mark when a new Extraction links it; saved links are not rewritten.
-- The mark covers the value's own characters, not its line or its whole token.
+- The mark covers the value's own characters, not its line or its whole token. From the page image it covers the
+  value's whole printed words, and only a value that is whole words is placed.
 - A value whose surroundings the two readers spell differently, beyond the fold, gets no mark. So does a value in a
   block whose box also covers a neighbour's characters at a text edge.
 - Extraction opens the PDF for the pages its links cite, under the process-wide pdfium lock only while pdfium
@@ -105,8 +151,23 @@ box. The anchor's own mark is unchanged.
   unified Catalog entry). A page is rendered only where an OCR-read block is placed on.
 - A rollback of Studio past this change refuses links that carry the boxes, as a rollback past 0029 refuses
   `location`.
-- Printed Lines (0024) stay the way to narrow a scan without a text layer. How their line boxes would reach a link
-  written before they exist is not decided here.
+- Printed Lines (0024) stay the way to narrow what the page image does not place. How their line boxes would reach
+  a link written before they exist is not decided here.
+- From the page image, coverage is partial by design. Not placed: a value beside punctuation its span leaves out,
+  a part of a word, a word broken at a line end whose hyphen canonical text dropped, a value whose letters print
+  again in its block (a short number inside a longer one), a value the two readers spell differently at or beside
+  it, a block of several boxes, a table, a rotated page, and a block whose reading is out of order (2 of the 14
+  measured crops). On those crops that left 26 of 56 whole-word values placed on pages with no text layer. What
+  remains possible is what any reading of text allows: a reader that misses the value where it prints and reads
+  the same letters, in the same surroundings, elsewhere. Not measured: values as researchers cite them (the saved
+  Extractions audited hold no citation with spans on a page with no text layer), how often a cited value is whole
+  words, a value of several words on real pixels (it is placed as the same per-word boxes), scripts and languages
+  beyond the four models, and a block set in several columns under one box (constructed cases only).
+- The worker image carries Tesseract 5 (Debian's, with its English, Danish, German and French models), run as a
+  process on one thread: 0.3 to 1.4 s a block on the measured crops, on the production host. Its output there is
+  byte for byte that of the build the measurements used. A block is read once per worker process: the reading is
+  kept for the later placements of the same run. Other languages are read with those four models and mostly
+  refused.
 - What that leaves unmarked, counted on the deployed parse results on 2026-11-10 (576 results of 557 distinct PDFs;
   every token of an OCR-read block a stand-in value; pages counted per result): 125 PDFs carry no text layer on any
   page (612 pages, 171,908 values, none placed). Another 405 pages in 106 PDFs have too few tokens to judge: their

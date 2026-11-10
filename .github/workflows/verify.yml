@@ -90,6 +90,13 @@ jobs:
           wait
 
       # The Parsing Service's PostgreSQL tests create and drop their own free_test_parsing_* databases from this one.
+      # The reader of value marks on scans (ADR 0031), as the worker image installs it: with it on the runner the
+      # Parsing Service's unit tests place a value with Tesseract itself instead of skipping that case.
+      - name: Install Tesseract
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-dan tesseract-ocr-deu tesseract-ocr-fra
+
       - name: Create the extraction and parsing integration databases
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction

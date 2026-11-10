@@ -14,6 +14,7 @@ alone, only where it and its surroundings print exactly once. Deterministic: a s
 from __future__ import annotations
 
 import re
+import time
 import unicodedata
 from bisect import bisect_left
 from collections import Counter
@@ -46,6 +47,7 @@ TOKEN_CHARS = 4       # a token that registers a page has at least this many cha
 TOKENS = 200          # at most this many tokens are judged per page, chosen evenly
 JUDGED = 20           # a page is judged on at least this many tokens
 REGISTERED = 0.8      # share of judged tokens on ink that registers a page
+SCAN_SECONDS = 120    # what one call may spend reading page images for words (`scan_mark`)
 
 
 def folded(chars: Iterable[str]) -> tuple[str, list[int]]:
@@ -246,10 +248,13 @@ def place(wanted: tuple[str, list[tuple[int, int]], list[Box]], characters: Sequ
             return found
         boxes += found
     rounded = [[round(value, 2) for value in box] for box in boxes]
-    if not all(any(x0 - INSIDE_PT <= a and y0 - INSIDE_PT <= b and c <= x1 + INSIDE_PT and d <= y1 + INSIDE_PT
-                   for x0, y0, x1, y1 in anchors) for a, b, c, d in rounded):
-        return "outside anchor"
-    return rounded
+    return rounded if _inside(rounded, anchors) else "outside anchor"
+
+
+def _inside(boxes: Sequence[Sequence[float]], anchors: Sequence[Box]) -> bool:
+    """Whether every box lies inside one of the anchor's boxes, within INSIDE_PT."""
+    return all(any(x0 - INSIDE_PT <= a and y0 - INSIDE_PT <= b and c <= x1 + INSIDE_PT and d <= y1 + INSIDE_PT
+                   for x0, y0, x1, y1 in anchors) for a, b, c, d in boxes)
 
 
 def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | None) -> Counter:
@@ -258,8 +263,12 @@ def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | 
     lock only while pdfium runs, for the pages the links cite; a page is rendered only where an OCR-read block is placed
     on, and its image is dropped before the next page is read. A value on a block the OCR model read is placed only on
     a registered page and only where each of its boxes is on the image's ink: its position is the text layer's, which
-    may be shifted against the image. Returns the counts the extraction logs: `spans` (links a mark is placed for),
-    `placed`, and every refusal by its reason."""
+    may be shifted against the image. Where that places none, the block's own crop of the page image is read for its
+    words (`scan_mark`), for at most SCAN_SECONDS a call; without the reader installed the link keeps what it had.
+    Returns the counts the extraction logs: `spans` (links a mark is placed for), `placed`, `scan` (those of them
+    placed from the page image), and every refusal by its reason."""
+    from kei_exp.kie.extract import scan_mark  # it builds on this module
+    deadline = time.monotonic() + SCAN_SECONDS if scan_mark.available() else None
     passages = list(passages)
     by_id = {passage.id: passage for passage in passages}
     pages: dict[int, list[tuple[dict, tuple]]] = {}
@@ -291,6 +300,7 @@ def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | 
                 continue
             characters, image = read
             registered: str | None | bool = False  # False until the page is judged
+            scan = None if deadline is None or image is None else scan_mark.Page(pdf, number, image, deadline)
             for link, wanted in todo:
                 reason = boxes = place(wanted, characters)
                 if not isinstance(boxes, str):
@@ -302,8 +312,17 @@ def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | 
                                 and each.extent == "block" and each.label != "Table" and each.table is None])
                         reason = registered or next(
                             ("value box off the ink" for box in boxes if not on_ink(image, box, token=False)), None)
+                # A block of one box the OCR model read, not a cell: the only crops the page image was measured on.
+                if reason is not None and scan is not None and wanted[3] and len(wanted[2]) == 1 \
+                        and not link.get("cell"):
+                    boxes = scan.place(wanted[0], wanted[1], wanted[2][0])
+                    if not isinstance(boxes, str) and not _inside(boxes, wanted[2]):
+                        boxes = "outside anchor"
+                    reason = f"scan: {boxes}" if isinstance(boxes, str) else None
                     if reason is None:
-                        link["value_boxes_pt"] = boxes
+                        counts["scan"] += 1
+                if reason is None:
+                    link["value_boxes_pt"] = boxes
                 counts[reason or "placed"] += 1
     finally:
         if document is not None:

@@ -11,7 +11,9 @@ Preserve canonical page/manifest hashes, immutable parse generations and source
 evidence identities. Extraction reads canonical results only; debug artifacts are
 diagnostics. The one exception is a value mark: the linker reads the run's own
 `input.pdf` to place a printing canonical text already located, and for nothing
-else (ADR 0031, `kie/extract/value_mark.py`). Keep database-backed and
+else (ADR 0031, `kie/extract/value_mark.py`; on a scan, `scan_mark.py` has
+Tesseract read the block's crop of the page image for where its words print,
+never for their text). Keep database-backed and
 model-backed tests out of the fast test command. Test databases must pass the
 explicit disposable-target guard before connecting. A change to a workflow's
 steps goes behind `DBOS.patch()`
