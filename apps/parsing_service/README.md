@@ -144,6 +144,13 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Tables read by
   OCR stay coarse, without cells.
+  Native text rule 5 checks a learned grid against positioned PDF words: words on
+  one printed line must share a logical row, including rowspans. A contradictory
+  grid with geometrically separated columns and populated cells on each line is
+  rebuilt from the native lines;
+  consistent multiline cells and spans are preserved. If the columns cannot be
+  separated, or a continuation line is ambiguous, the table takes the existing
+  unreadable-table path below.
 - A PDF with text on every selected nonblank page parses natively. For this
   route decision, a non-whitespace character counts when its box meets the
   displayed page and its render mode is not 3 (invisible, such as a scan's
@@ -163,7 +170,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   PDFs use artwork OCR; requests for book splitting retain
   the conservative large-image scan route. A native table with no
   readable cells outside an OCR crop (its text printed as small images or
-  outlines, or a blank grid) keeps its block for its caption, and a hybrid run
+  outlines, a blank grid, or contradictory geometry that cannot be resolved from
+  native words) keeps its block for its caption, and a hybrid run
   OCRs its box as a `figure` crop read just after it. A caption that needs glyph
   repair is OCR'd as text in the block's place instead, the table crop still
   following it. The crop counts as read only with a letter or digit inside a
@@ -295,7 +303,19 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   across a window cut is lost to its parent; a rerun masks retained records' text, so a
   child reread after its parent was retained loses that parent as context; a child may
   still take its parent's identifier from context when the parent states it for itself.
-  Studio still admits defaults 6 by default, only where its
+  Defaults 9 retains defaults 8's children pass and lets the schema determine the
+  discovery unit: primary table entries are peers, while titles and indices that
+  only repeat records described elsewhere are record-free. Requested enclosing
+  records stay whole until the children pass. Discovery explicitly marks shared
+  table qualifications (units, abbreviation definitions and note meanings);
+  those ranges within or immediately after a table are shared with its entries
+  as context, never added to their owned text. Ordinary narrative, another table,
+  a heading or another record ends following qualifications. Field instructions
+  ask for complete source expressions, preserve identifying qualifiers, and
+  distinguish a verbatim quote from a value's editorial note markers. This is a
+  model decision, with no punctuation stripping or field-specific cleanup.
+  Defaults 1–8 retain their prompts and recorded versions.
+  Studio admits defaults 9 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
@@ -318,6 +338,11 @@ Limitations:
   of heading hierarchy. A stale heading the model accepts can still be wrong.
   Standing headings can be omitted when requests have no room; long histories
   repeat context references and one omission row per range per entry in artifacts.
+- Native word alignment constrains physical rows; it cannot infer a missing
+  logical distinction when the learned grid is geometrically consistent. Shared
+  qualification classification and complete field interpretation remain model
+  decisions. Structural completion and locatable quotes do not prove semantic
+  correctness.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership. For

@@ -331,6 +331,33 @@ Each study's protocol was declared before its results were inspected:
 - R4, structural grouping: [grouping protocol](../experiments/extraction/grouping-protocol.md).
 - R5, fixed-upstream grounding: [grounding protocol](../experiments/extraction/grounding-protocol.md) (`experiments.extraction.grounding_study`).
 
+## Focused table-discovery validation
+
+`experiments.extraction.table_discovery` compares an exact captured discovery
+request with the version 9 scope and shared-qualification classification. Its
+synthetic controls cover primary tables, internal tables, indices repeated in
+prose and nested requested records. Each printed line is a synthetic passage;
+this tests discovery and ownership, not canonical table cells or field accuracy.
+The optional original candidate preserves the earlier scope-only alternative.
+Replay requires identical requests and never falls back to inference.
+
+`experiments.extraction.table_discovery_full` runs the actual configured method
+over an immutable canonical generation. It does not patch prompt constants. Its
+reference declares ordered entries with exact ranges, resolved ends and parent
+links, plus aligned field records. The same structural scorer gates both
+experiments; a correct start count cannot hide an unresolved end, excess source
+ownership or a lost parent. Field comparison uses NFKC, casefold and whitespace
+normalization, with no punctuation removal.
+
+The full runner retains final serialized HTTP attempts after adapter/template
+construction, successful responses, loaded application hashes, image identities
+and available model/tokenizer cache revisions. Headers and credential URLs are
+excluded. Cache availability does not prove which revision a server loaded;
+missing serving metadata is recorded as unavailable. The module docstrings give
+the commands and input formats. Keep source documents, captures, annotations
+and results outside tracked files. These bounded development checks and repeated
+greedy runs do not establish general accuracy or deterministic model output.
+
 ## Iterative evaluation against a golden workbook
 
 `experiments/extraction/iterative_eval.py` is the developer loop for "pilot a few

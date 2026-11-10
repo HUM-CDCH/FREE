@@ -53,7 +53,7 @@ def evidence(*texts: str, withheld: tuple[Passage, ...] = ()) -> Evidence:
 
 
 def section(user: str, name: str) -> str:
-    match = re.search(rf"### {name}\n(.*?)(?:\n### END {name}|\n\n### |\n\nReturn the JSON)", user, re.S)
+    match = re.search(rf"### {re.escape(name)}\n(.*?)(?:\n### END {name}|\n\n### |\n\nReturn the JSON)", user, re.S)
     return match[1] if match else ""
 
 
@@ -893,13 +893,14 @@ def test_the_children_pass_over_1500_records_stays_fast():
     assert_accounted(source, {"discovery": result})
 
 
-def test_defaults_8_reads_a_child_record_beside_its_parents_text():
+@pytest.mark.parametrize("defaults", [8, 9])
+def test_current_methods_read_a_child_record_beside_its_parents_text(defaults):
     source = evidence("\n".join(GRAVES[:4]) + "\nMaterial: Holz.\n" + GRAVES[4])
     model = Model(source, discovery=lambda user: {"places": [["L1", "record", "Grave 1"], ["L6", "record", "Grave 2"]],
                                                   "begins_inside_record": False, "ends_inside_record": False},
                   children=lambda user: {"children": [["L3", "L3", "1."], ["L4", "L4", "2."]]})
-    result, chat = extract(source, model, defaults=8)
-    assert (result["execution"]["discovery_version"], result["prompt_version"]) == (11, 10)
+    result, chat = extract(source, model, defaults=defaults)
+    assert (result["execution"]["discovery_version"], result["prompt_version"]) == ((11, 10) if defaults == 8 else (12, 11))
     reads = [call for call in chat.calls if call["system"].startswith("You extract structured data from one record")]
     child = [call for call in reads if "is printed inside another record" in call["system"]]
     assert len(reads) == 4 and len(child) == 2
@@ -1430,6 +1431,16 @@ def test_a_yes_no_value_has_a_supporting_passage_never_a_literal_span():
     result, _ = extract(source)
     (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "gilded"]]
     assert link["support"] == "supporting" and link["verbatim"] is False and link["raw"] == "Gilded"
+
+
+@pytest.mark.parametrize(('printed', 'value'), [('Alpha*', 'Alpha'), ('A*B', 'A*B')])
+def test_a_text_value_is_located_without_editing_its_quote_or_stripping_punctuation(printed, value):
+    source = evidence(f'1. Adorf. Site: {printed}.')
+    result, _ = extract(source, Model(source, entry=noted(None, site=candidate(value, printed))),
+                        schema=NOTES, defaults=9)
+    assert result['records'][0]['site'] == value
+    (link,) = [link for link in result['evidence'] if link['path'] == ['records', 0, 'site']]
+    assert link['raw'] == value and link['support'] == 'literal'
 
 
 def test_a_list_item_value_printed_in_several_items_is_its_own_items():
@@ -1982,6 +1993,50 @@ def test_the_defaults_and_option_bounds_match_the_shared_fixture():
     for options in shared["invalid"]:
         with pytest.raises(ValueError):
             unified.UnifiedOptions.model_validate(options)
+
+
+def test_current_method_changes_record_scope_and_text_completeness_without_rewriting_pinned_methods():
+    source = evidence("1. Harbour A (North Island). Material: wood.")
+    old, old_chat = extract(source, defaults=8)
+    current, current_chat = extract(source, defaults=9)
+    old_discovery = next(c['system'] for c in old_chat.calls if c['system'].startswith('You find where'))
+    current_discovery = next(c['system'] for c in current_chat.calls if c['system'].startswith('You find where'))
+    assert unified.DISCOVERY_SCOPE in old_discovery
+    assert unified.DISCOVERY_SCOPE_V9 in current_discovery
+    old_entry = next(c['system'] for c in old_chat.calls if c['system'].startswith('You extract structured'))
+    current_entry = next(c['system'] for c in current_chat.calls if c['system'].startswith('You extract structured'))
+    assert unified.COMPLETE_TEXT_V9 not in old_entry and unified.COMPLETE_TEXT_V9 in current_entry
+    assert old['prompt_version'] == 10 and old['discovery']['version'] == 11
+    assert current['prompt_version'] == 11 and current['discovery']['version'] == 12
+    assert current['execution']['effective']['children'] is True
+    assert current['records'] == old['records']
+
+
+@pytest.mark.parametrize('defaults', [8, 9])
+@pytest.mark.parametrize('inside_table', [False, True])
+def test_table_qualifications_are_shared_context_not_record_text(defaults, inside_table):
+    note = 'Units and reference-marker meanings apply to every entry above.'
+    table = 'Entry\tMaterial\n1. Alpha.\twood\n2. Beta.\tstone'
+    qualifications = note + '\nUnrelated continuation.'
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 1, (
+        passage('p1_s0', table + ('\n' + qualifications if inside_table else ''), label='Table'),
+        *(() if inside_table else (passage('p1_s1', qualifications),)),
+        passage('p1_s2', 'Another section', label='SectionHeader'),
+        passage('p1_s3', 'Unrelated text after the next heading.')))
+    def boundaries(user):
+        return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'record', '2.'],
+                           ['L4', 'context' if defaults == 9 else 'other', None], ['L5', 'other', None]],
+                'begins_inside_record': False, 'ends_inside_record': False}
+    result, chat = extract(source, Model(source, discovery=boundaries), defaults=defaults)
+    reads = [c for c in chat.calls if c['system'].startswith('You extract structured')]
+    assert len(reads) == 2
+    for call in reads:
+        assert (note in section(call['user'], 'CONTEXT (not part of the record)')) == (defaults == 9)
+        assert note not in section(call['user'], 'RECORD')
+        assert 'Another section' not in section(call['user'], 'CONTEXT (not part of the record)')
+        assert 'Unrelated continuation.' not in section(call['user'], 'CONTEXT (not part of the record)')
+    assert all(r['segment'] != 'p1_s1' for e in result['discovery']['entries'] for r in e['ranges'])
+    assert_accounted(source, result)
 
 
 def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_found():

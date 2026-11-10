@@ -57,7 +57,7 @@ from kei_exp.kie.extract.stages import Issue
 from kei_exp.kie.extract.windows import Unit, windows_of
 from kei_exp.kie.passages import Evidence, Passage
 
-VERSION = 11  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
+VERSION = 12  # 2: a record the last window says continues ends at the source end, not beyond scope; 3: unless nonblank
 # withheld text follows it, where it may continue: then its end is unresolved; 4: page furniture is left out of the
 # windows, so a record continues past a running head or folio; 5: an unlabelled place at a window's start is ignored
 # when both edge flags say the record continues; 6: a WINDOW line's label names its layout kind (`kinds_of`); 7: when
@@ -70,6 +70,8 @@ VERSION = 11  # 2: a record the last window says continues ends at the source en
 # 11 (defaults 8): a record start found nowhere in its named line is placed where it occurs once nearby (`_nearby`);
 # one more reading carves records printed inside the discovered records out of them (`children`), never one that
 # repeats its record's printed label; its failed windows count as failed discovery processing. Pinned for defaults 8.
+# 12 (defaults 9): distinguish primary table entries, indices and enclosing records; explicitly identify shared
+# table qualifications so following notes can inform field interpretation without becoming record text.
 # Unicode White_Space, the only characters that are blank: every other character, punctuation included, is source.
 WHITE_SPACE = ("\t\n\v\f\r \x85\xa0            "
                "    　")
@@ -90,6 +92,14 @@ DISCOVERY = (
     "layout kind (heading or table row); a kind is a hint, never text of the line. CONTEXT lines are shown for "
     "orientation "
     "only: never report a place in them. Return only the JSON object, on one line, without indentation.")
+
+
+# Defaults 9: qualifiers are explicitly identified; their ledger disposition remains record-free.
+SHARED_CONTEXT = ("\nUse context instead of other for shared qualifications outside records: units, abbreviation "
+                  "definitions, table notes and reference-marker meanings that apply to the preceding table's entries. "
+                  "Mark where context begins and where ordinary other text resumes. Narrative paragraphs, indices and "
+                  "bibliographies are other, not context merely because they follow a table. Context never starts "
+                  "a record and never belongs to a record's own text.")
 
 
 HEADING_DISCOVERY = (
@@ -294,9 +304,9 @@ def _render(window: Window, texts: dict[str, str], kinds: dict[str, str]) -> tup
     return "\n\n".join(parts) + "\n\nReturn the JSON object now.", labels
 
 
-def _reply(labels: list[str]) -> dict:
+def _reply(labels: list[str], *, shared_context: bool = False) -> dict:
     place = {"type": "array", "prefixItems": [{"type": "string", "enum": labels},
-                                              {"type": "string", "enum": ["record", "other"]},
+                                              {"type": "string", "enum": ["record", "other", "context"] if shared_context else ["record", "other"]},
                                               {"type": ["string", "null"]}, {"type": "string"}],
              "items": False, "minItems": 3, "maxItems": 4}
     return {"type": "object", "properties": {
@@ -333,7 +343,7 @@ def _nearby(window: Window, texts: dict[str, str], index: int, text: str) -> tup
 
 
 def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[str],
-             issues: list[Issue], *, nearby: bool = False) -> _Seen | None:
+             issues: list[Issue], *, nearby: bool = False, shared_context: bool = False) -> _Seen | None:
     """The window's places located in its own lines, or None when the reply is not the requested shape. With
     `nearby` (defaults 8), a start found nowhere in its named line is placed where `_nearby` finds it once."""
     places, begins, ends = (answer.get(key) for key in ("places", "begins_inside_record", "ends_inside_record"))
@@ -343,7 +353,7 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
     unplaced: set[int] = set()
     for place in places:
         if not isinstance(place, list) or len(place) not in (3, 4) or place[0] not in labels or \
-                place[1] not in ("record", "other"):
+                place[1] not in (("record", "other", "context") if shared_context else ("record", "other")):
             return None
         line_label, kind, label, text = (*place, None)[:4]
         index = labels.index(line_label)
@@ -376,7 +386,7 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
             same = {(kind, label) for at, kind, label in found[index] if at == offset}
             kinds = {kind for kind, _ in same}
             labels_at = {label for _, label in same if label is not None}
-            kind = "record" if "record" in kinds else "other"  # a record and an `other` at one spot are the record: a
+            kind = "record" if "record" in kinds else "context" if "context" in kinds else "other"  # a record and an `other` at one spot are the record: a
             # heading read as both begins it rather than leaving it unresolved
             located.append((index, offset, kind, labels_at.pop() if len(labels_at) == 1 else None))
     return _Seen(window, True, located, begins, ends)
@@ -395,7 +405,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
              progress: Callable[[list[dict], list[dict]], None] | None = None, frontier: bool = False,
              unanswered: tuple[type[BaseException], ...] = (), heading_context: bool = False,
-             nearby: bool = False) -> dict | None:
+             nearby: bool = False, shared_context: bool = False) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
@@ -415,10 +425,12 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     system = (HEADING_DISCOVERY if heading_context else DISCOVERY).format(description=description)
+    if shared_context:
+        system += SHARED_CONTEXT
 
     def fits(window: Window) -> bool:
         user, labels = _render(window, texts, kinds)
-        return fits_budget(system, user, _reply(labels))
+        return fits_budget(system, user, _reply(labels, shared_context=shared_context))
     units, windows, at = units_of([each for each in evidence.passages if each.label not in FURNITURE]), [], 0
     for group in groups_of(units, evidence.passages, by):
         planned = plan(group, texts, fits, overlap=overlap, lead=units[max(0, at - overlap):at],
@@ -444,8 +456,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
             report(window)
         calls: list = []
         issues: list[Issue] = []
-        answer = ask(None, system, user, _reply(labels), calls, issues)
-        observed = _observe(answer, window, texts, labels, issues, nearby=nearby) if answer is not None else None
+        answer = ask(None, system, user, _reply(labels, shared_context=shared_context), calls, issues)
+        observed = _observe(answer, window, texts, labels, issues, nearby=nearby, shared_context=shared_context) if answer is not None else None
         if heading_context and observed is not None and len(window.primary) > 1 and depth < splits and \
                 any(kind == "unresolved" for _, _, kind, _ in observed.places):
             return None, calls, issues  # the halves replace this reading, including its provisional progress
@@ -669,6 +681,39 @@ def record_starts(seen: Sequence[_Seen]) -> list[dict]:
             for each in seen for index, _, kind, label in each.places if kind == "record"]
 
 
+def table_notes(body: dict, evidence: Evidence) -> dict:
+    """Share following record-free table qualifications with its entries, without making them record text.
+
+    Headers precede entries, while units, abbreviations and reference-marker definitions often follow them.
+    Only ranges explicitly classified as shared qualifications are eligible; a heading, another table, a record
+    or ordinary record-free text ends following notes. The counted request budget bounds what the field call can
+    read. Child records retain their separately defined parent context.
+    """
+    qualified = {}
+    occupied = {r['segment'] for r in body['ledger'] if r['disposition'] != 'other'}
+    for row in body['ledger']:
+        if row.get('shared_context'):
+            qualified.setdefault(row['segment'], []).append({k: row[k] for k in ('segment', 'start', 'end')})
+    notes = {}
+    for index, passage in enumerate(evidence.passages):
+        if passage.label != 'Table':
+            continue
+        following = list(qualified.get(passage.id, []))
+        for after in evidence.passages[index + 1:]:
+            if after.label in FURNITURE:
+                continue
+            if after.label in HEADINGS or after.label == 'Table' or after.id in occupied or after.id not in qualified:
+                break
+            following.extend(qualified[after.id])
+        notes[passage.id] = following
+    entries = []
+    for entry in body['entries']:
+        segments = {r['segment'] for r in entry['ranges']}
+        extra = notes.get(next(iter(segments)), []) if len(segments) == 1 and 'parent' not in entry else []
+        entries.append({**entry, 'context': [*entry['context'], *extra]} if extra else entry)
+    return {**body, 'entries': entries}
+
+
 class StreamedPlaces:
     """The places a discovery reply has completed while it is still generated, for display only: discovery reads
     the saved reply alone (`_observe`). A place is complete once its list closes; nothing is repaired."""
@@ -823,12 +868,14 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
                 # Range dictionaries stay read-only; share them without sharing the growing prefix list.
                 entries[entry]["context"] = others.copy() if heading_context else others[-CONTEXT_UNITS:]
             entries[entry]["ranges"] += ranges_json(owned)
-        elif kind == "other":
+        elif kind in ("other", "context"):
             others += ranges_json(owned)
         for piece in owned:
             row = {"segment": piece.segment, "start": piece.start, "end": piece.end,
-                   "disposition": "entry" if entry is not None else kind,
+                   "disposition": "entry" if entry is not None else "other" if kind == "context" else kind,
                    "entry": entries[entry]["id"] if entry is not None else None}
+            if kind == "context":
+                row["shared_context"] = True
             if ledger and {**ledger[-1], "start": 0, "end": 0} == {**row, "start": 0, "end": 0}:
                 ledger[-1]["end"] = piece.end  # the same region's next line of one segment: only White_Space between
             else:

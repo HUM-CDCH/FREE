@@ -23,6 +23,7 @@ from docling_core.types.doc import (
     TableItem,
     TextItem,
 )
+from docling_core.types.doc.page import TextCellUnit
 
 from kei_exp._pdfium import pdfium_lock
 from kei_exp.geometry import PointBox
@@ -30,6 +31,7 @@ from kei_exp.progress import Emit
 from kei_exp.regions import Crop
 from kei_exp.transcription.types import TRANSCRIBER_KNOBS, ConversionError, Execution, OcrRegion, PageRecord, Transcription
 from kei_exp.transcription.tables import table_of_html
+from kei_exp.transcription.native_tables import align_native_table
 
 
 def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
@@ -243,6 +245,11 @@ class NativePageAssembly(PageAssembleModel):
                 # On one baseline, a gap wider than a character's height separates cells, not words.
                 # Retain that layout boundary as whitespace instead of flattening adjacent metadata fields.
                 for element in assembled.assembled.elements:
+                    if element.cluster.label == DocItemLabel.TABLE:
+                        segmented = assembled._backend.get_segmented_page()
+                        if segmented is not None:
+                            words = segmented.get_cells_in_bbox(cell_unit=TextCellUnit.WORD, bbox=element.cluster.bbox)
+                            align_native_table(element, words)
                     cells = element.cluster.cells
                     boxes = [c.rect.to_bounding_box().to_top_left_origin(page.size.height) for c in cells]
                     if (element.cluster.label in {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH} and len(cells) > 1
