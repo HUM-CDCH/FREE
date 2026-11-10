@@ -110,6 +110,9 @@ export type GuideInput = {
     /** The status line Results shows, e.g. "Reading records · 3 of 14". */
     progress: string | null
     toCheck: number | null
+    /** Whether the revision it ran with, when not the current one, defines the same template (fields, record
+     *  description and Article/Catalog) as the current revision: compared by the host; null until known. */
+    sameTemplate?: boolean | null
   } | null
   /** Results is already in view: a finished run needs no step to open it. */
   resultsShown: boolean
@@ -444,6 +447,19 @@ function schemaStep(input: GuideInput): StepCard | null {
   return null
 }
 
+/** Why the chat offers to run again: how the last run ended, unless it finished, and whether the template changed since,
+ *  said only once compared (`unknown`: another revision, not yet known to define another template). */
+function rerunQuestion(status: ExtractionExecutionStatus, template: 'same' | 'changed' | 'unknown'): string {
+  const ended = status === 'STOPPED' ? 'The last extraction was stopped' : status === 'FAILED' ? 'The last extraction failed'
+    : status === 'PAUSED' ? 'The last extraction is paused' : null
+  if (ended)
+    return template === 'same' ? `${ended}. Run it again?`
+      : template === 'changed' ? `${ended}, and the template changed since. Run it again?`
+        : `${ended}, and it used another template revision. Run it again?`
+  return template === 'changed' ? 'The template changed since the last run. Run the extraction again?'
+    : 'The last run used another template revision. Run the extraction again?'
+}
+
 /** The latest run's controls while it can go on, else a run (again) of the schema and what a finished one left. */
 function runStep(input: GuideInput): StepCard | null {
   const control = controlStep(input)
@@ -451,9 +467,11 @@ function runStep(input: GuideInput): StepCard | null {
   // Before a schema is ready, or before its scope is chosen, its own steps lead; there is nothing to run yet.
   if (input.view !== 'editing' || !input.run || (!input.readOnly && input.recordScope === null)) return null
   const latest = input.latest
-  // Finished on this revision: what is left to check, and a new run of it, stay here (no "Not yet": the chat is the
+  // The template the last run used is the current one: its revision, or another revision defining the same template.
+  const sameTemplate = latest !== null && (latest.schemaRevisionId === input.revision.id || latest.sameTemplate === true)
+  // Finished on this template: what is left to check, and a new run of it, stay here (no "Not yet": the chat is the
   // only place to re-run).
-  if (latest && latest.status === 'COMPLETED' && latest.schemaRevisionId === input.revision.id) {
+  if (latest && latest.status === 'COMPLETED' && sameTemplate) {
     const toCheck = latest.toCheck && !input.resultsShown ? latest.toCheck : 0
     return {
       key: `finished:${latest.extractionId}`,
@@ -468,21 +486,21 @@ function runStep(input: GuideInput): StepCard | null {
     }
   }
   const rerun = latest !== null
+  const template = !latest || sameTemplate ? 'same' : latest.sameTemplate === false ? 'changed' : 'unknown'
+  const run: StepOption = { action: 'run', label: rerun ? RERUN_LABEL : RUN_LABEL, tone: 'positive', disabled: !input.run.available,
+    description: runDescription(input, rerun) }
+  // Another template than the last run's: look at it before running again, unless it is already in view.
+  const look = template === 'same' ? [] : viewTemplate(input).map((option) => ({ ...option, tone: 'positive' as const }))
   return {
     // "Not yet" holds until another Extraction starts.
     key: `run:${latest?.extractionId ?? 'first'}`,
     title: rerun ? 'Run extraction again' : 'Run extraction',
-    question: rerun ? 'The template changed since the last run. Run the extraction again?' : `Run the extraction on ${input.sourceDocumentName}?`,
+    question: latest ? rerunQuestion(latest.status, template) : `Run the extraction on ${input.sourceDocumentName}?`,
     detail: [
       ['Template', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`],
       ['Strategy', input.recordScope === 'records' ? 'Catalog' : 'Article'],
     ],
     notice: input.run.unavailableReason ?? undefined,
-    options: [
-      { action: 'run', label: rerun ? RERUN_LABEL : RUN_LABEL, tone: 'positive', disabled: !input.run.available,
-        description: runDescription(input, rerun) },
-      ...viewTemplate(input),
-      notYet,
-    ],
+    options: look.length > 0 ? [...look, { ...run, tone: 'secondary' }, notYet] : [run, ...viewTemplate(input), notYet],
   }
 }
