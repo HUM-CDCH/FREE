@@ -235,7 +235,7 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const pdfViewerRef = useRef<PDFViewer | null>(null)
+  const [pdfViewer, setPdfViewer] = useState<PDFViewer | null>(null)
   const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
   useEffect(() => {
     activeSourceRepresentationIdRef.current = sourceRepresentationId
@@ -455,7 +455,7 @@ export function DocumentWorkspace({
     )
 
     let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
-    pdfViewerRef.current = pdfViewer
+    setPdfViewer(pdfViewer)
     setLoadState({ status: 'loading' })
 
     async function loadPdf() {
@@ -504,7 +504,7 @@ export function DocumentWorkspace({
     void loadPdf()
 
     return () => {
-      pdfViewerRef.current = null
+      setPdfViewer(null)
       setPdfDocument(null)
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
@@ -825,7 +825,7 @@ export function DocumentWorkspace({
     selection.select(key, false, published.extractionId, keys)
   }, [selection, inspectedAttempt?.extractionId])
   const selectPdfEvidence = useEvidenceOverlays({
-    containerRef, viewerRef: pdfViewerRef, parsedDocument: inspectionDocument,
+    containerRef, viewer: pdfViewer, parsedDocument: inspectionDocument,
     extractionId: inspectedAttempt?.extractionId ?? null, selection, onSelect: selectMark,
     active: effectiveRailOpen && railView === 'results', marksShown, overviewRef: evidenceOverviewRef,
   })
@@ -1244,7 +1244,10 @@ export function DocumentWorkspace({
               </Button>
               {loadState.status === 'ready' ? (
                 <PagePager page={currentPage} pageCount={loadState.pageCount}
-                  onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }} />
+                  onNavigate={(page) => {
+                    // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                    if (pdfViewer) pdfViewer.currentPageNumber = page
+                  }} />
               ) : (
                 <p role="status" aria-live="polite" className={`min-w-0 truncate text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
                   <span title={loadState.status === 'error' ? loadState.message : undefined}>
@@ -1259,7 +1262,7 @@ export function DocumentWorkspace({
                     aria-label="Zoom out"
                     title="Zoom out (Ctrl + -)"
                     disabled={zoomPercent <= 10}
-                    onClick={() => pdfViewerRef.current?.decreaseScale()}
+                    onClick={() => pdfViewer?.decreaseScale()}
                     className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
                   >
                     −
@@ -1269,7 +1272,8 @@ export function DocumentWorkspace({
                     aria-label="Reset zoom to 100%"
                     title="Reset zoom to 100%"
                     onClick={() => {
-                      if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
+                      // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                      if (pdfViewer) pdfViewer.currentScale = 1
                     }}
                     className="min-w-11 rounded-full px-1.5 text-center text-compact font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink"
                   >
@@ -1280,7 +1284,7 @@ export function DocumentWorkspace({
                     aria-label="Zoom in"
                     title="Zoom in (Ctrl + +)"
                     disabled={zoomPercent >= 2500}
-                    onClick={() => pdfViewerRef.current?.increaseScale()}
+                    onClick={() => pdfViewer?.increaseScale()}
                     className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
                   >
                     +
@@ -1297,7 +1301,10 @@ export function DocumentWorkspace({
             <div className="relative flex min-h-0 flex-1">
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
                 id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
-                onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
+                onNavigate={(page) => {
+                    // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                    if (pdfViewer) pdfViewer.currentPageNumber = page
+                  }}
                 onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }}
                 thumbnails={thumbnails} />}
               <div className="relative min-w-0 flex-1">

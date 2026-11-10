@@ -162,9 +162,9 @@ type Block = { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];
 
 /** One lifetime owns the source's occurrence marks, navigation intent, page events and pointer. Results selection
  * and explicit Evidence navigation are distinct facts; their visible outlines are resolved before touching the DOM. */
-export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, extractionId, active, marksShown = true, selection, onSelect, overviewRef }: {
+export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extractionId, active, marksShown = true, selection, onSelect, overviewRef }: {
   containerRef: RefObject<HTMLDivElement | null>
-  viewerRef: RefObject<PDFViewer | null>
+  viewer: PDFViewer | null
   parsedDocument: ParsedDocument | null
   extractionId: string | null
   active: boolean
@@ -173,16 +173,16 @@ export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, e
   onSelect: (keys: string[], element: HTMLElement) => void
   overviewRef?: RefObject<HTMLElement | null>
 }) {
-  const controller = useRef<{ source: ParsedDocument; extractionId: string | null; update: () => void; locate: (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => void } | null>(null)
+  const controller = useRef<{ source: ParsedDocument; extractionId: string | null; update: () => void; paint: (event?: PageRender) => void; scale: () => void; locate: (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => void } | null>(null)
   const pending = useRef<(LocatedEvidence & { source: ParsedDocument | null; extractionId: string | null }) | null>(null)
-  const presentation = useRef({ active, marksShown, onSelect })
+  const presentation = useRef({ active, marksShown, onSelect, viewer })
   useLayoutEffect(() => {
-    presentation.current = { active, marksShown, onSelect }
+    presentation.current = { active, marksShown, onSelect, viewer }
     controller.current?.update()
-  }, [active, marksShown, onSelect])
+  }, [active, marksShown, onSelect, viewer])
 
   useEffect(() => {
-    const container = containerRef.current, viewer = viewerRef.current, overview = overviewRef?.current
+    const container = containerRef.current, overview = overviewRef?.current
     if (!container || !parsedDocument) return
     const anchors = new Map(parsedDocument.evidence_index.anchors.map(anchor => [anchor.anchor_id, anchor]))
     const metadata = new Map(parsedDocument.pages.map(page => [page.page_number, page]))
@@ -248,7 +248,8 @@ export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, e
         previous.delete(occurrence.occurrence_id)
         tick.dataset.occurrenceId = occurrence.occurrence_id
         tick.dataset.pageNumber = String(occurrence.page_number)
-        tick.className = `evidence-tick${keys.some(key => marks?.selected && ownsMark(marks.selected, key)) ? ' selected' : ''}`
+        tick.classList.add('evidence-tick')
+        tick.classList.toggle('selected', keys.some(key => !!marks?.selected && ownsMark(marks.selected, key)))
         tick.style.top = `${(page.top + bbox.y0 / meta.height_pt * page.height - top) / height * 100}%`
         tick.style.height = `${(bbox.y1 - bbox.y0) / meta.height_pt * page.height / height * 100}%`
         decorate(tick, keys, undefined, sharedColor(describeMarks(keys, marks?.describe).map(({ info }) => info.color)))
@@ -362,9 +363,10 @@ export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, e
       }
       snapshot = next
     }
-    const scale = () => { paintOverview(); bindHover() }
+    const scale = () => paintOverview()
     const locate = (anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
       update({ anchor, link })
+      const viewer = presentation.current.viewer
       const occurrences = anchorOccurrences(anchor), first = occurrences[0]
       if (!viewer || !first) return
       const path = JSON.stringify(link?.resultPath)
@@ -384,12 +386,8 @@ export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, e
         } else viewer.scrollPageIntoView({ pageNumber: first.page_number })
       }
     }
-    controller.current = { source: parsedDocument, extractionId, update, locate }
+    controller.current = { source: parsedDocument, extractionId, update, locate, paint, scale }
     const unsubscribe = selection.subscribe(sync)
-    const initialize = () => update()
-    viewer?.eventBus?.on('pagesinit', initialize)
-    viewer?.eventBus?.on('pagerendered', paint)
-    viewer?.eventBus?.on('scalechanging', scale)
     container.addEventListener('mousemove', move)
     container.addEventListener('mouseleave', leave)
     container.addEventListener('mouseout', out)
@@ -404,9 +402,6 @@ export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, e
       controller.current = null
       unsubscribe(); stopHover(); clearName()
       if (pointed) selection.hover(null)
-      viewer?.eventBus?.off('pagesinit', initialize)
-      viewer?.eventBus?.off('pagerendered', paint)
-      viewer?.eventBus?.off('scalechanging', scale)
       container.removeEventListener('mousemove', move)
       container.removeEventListener('mouseleave', leave)
       container.removeEventListener('mouseout', out)
@@ -414,7 +409,21 @@ export function useEvidenceOverlays({ containerRef, viewerRef, parsedDocument, e
       container.querySelectorAll('.parsed-evidence-highlight, .parsed-evidence-value, .parsed-evidence-focus, .evidence-dim').forEach(element => element.remove())
       overview?.replaceChildren()
     }
-  }, [containerRef, viewerRef, overviewRef, parsedDocument, extractionId, selection])
+  }, [containerRef, overviewRef, parsedDocument, extractionId, selection])
+  // The source owns location; the viewer owns page events and can be replaced independently.
+  useEffect(() => {
+    const current = controller.current, bus = viewer?.eventBus
+    if (!current || !bus) return
+    const initialize = () => current.update()
+    bus.on('pagesinit', initialize)
+    bus.on('pagerendered', current.paint)
+    bus.on('scalechanging', current.scale)
+    return () => {
+      bus.off('pagesinit', initialize)
+      bus.off('pagerendered', current.paint)
+      bus.off('scalechanging', current.scale)
+    }
+  }, [viewer, containerRef, overviewRef, parsedDocument, extractionId, selection])
   return useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     if (controller.current?.source === parsedDocument && controller.current?.extractionId === extractionId)
       controller.current?.locate(anchor, link)

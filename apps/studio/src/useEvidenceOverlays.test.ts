@@ -59,7 +59,7 @@ describe('focused Evidence navigation', () => {
     } }
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
     const { result, rerender } = renderHook(({ document }) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument: document, attempt: null,
+      containerRef, viewer: viewerRef.current, parsedDocument: document, attempt: null,
       active: false,
     }), { initialProps: { document: parsedDocument as typeof parsedDocument | null } })
 
@@ -92,7 +92,7 @@ describe('focused Evidence navigation', () => {
     })
     const { result } = renderHook(() => usePublishedEvidence({
       containerRef: { current: container },
-      viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
+      viewer: { scrollPageIntoView: vi.fn() } as never,
       parsedDocument,
       attempt: null,
       active: false,
@@ -137,7 +137,7 @@ describe('focused Evidence navigation', () => {
       setStart: (_: Node, at: number) => { range = [at, range[1]!] }, setEnd: (_: Node, at: number) => { range = [range[0]!, at] },
       getClientRects: () => [new DOMRect(bbox.x0 + range[0]!, bbox.y0, range[1]! - range[0]!, 10)],
     }) as unknown as Range)
-    const { result } = renderHook(() => usePublishedEvidence({ containerRef: { current: container }, viewerRef: { current: viewer as never },
+    const { result } = renderHook(() => usePublishedEvidence({ containerRef: { current: container }, viewer: viewer as never,
       parsedDocument, attempt: null, active: false }))
 
     act(() => result.current(anchor, link))
@@ -176,7 +176,7 @@ describe('saved Evidence marks across reads', () => {
     const savedLinks = ['title', 'unit'].map((key) => ({ key,
       link: { resultPath: ['records', 0, key], evidenceAnchorId: anchor.anchor_id } }))
     const { rerender } = renderHook(({ describe }) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument, attempt: running, active: true,
+      containerRef, viewer: viewerRef.current, parsedDocument, attempt: running, active: true,
       marks: { describe, selected: null, onSelect: vi.fn(), savedLinks },
     }), { initialProps: { describe } })
     const mark = container.querySelector('.parsed-evidence-highlight')!
@@ -191,7 +191,7 @@ describe('saved Evidence marks across reads', () => {
     const anchor = parsedDocument.evidence_index.anchors[0]
     const { container, containerRef, viewerRef } = viewerWithPage(anchor)
     const { result, rerender } = renderHook(({ attempt }) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument, attempt,
+      containerRef, viewer: viewerRef.current, parsedDocument, attempt,
       active: true,
     }), { initialProps: { attempt: running as Parameters<typeof usePublishedEvidence>[0]['attempt'] } })
     act(() => result.current(anchor))
@@ -234,7 +234,7 @@ describe('saved Evidence marks across reads', () => {
     const marks = (selected: string | null) => ({ describe: new Map(), selected, onSelect: vi.fn(),
       savedLinks: evidenceLinks.map((link) => ({ key: JSON.stringify(link.resultPath), link })) })
     const { result, rerender } = renderHook(({ attempt, marks }) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument: source, attempt, marks,
+      containerRef, viewer: viewerRef.current, parsedDocument: source, attempt, marks,
       active: true,
     }), { initialProps: { attempt: running as Parameters<typeof usePublishedEvidence>[0]['attempt'], marks: marks(null) } })
 
@@ -266,7 +266,7 @@ describe('dimming in one-by-one', () => {
     document.body.append(container)
     const dimLink: EvidenceLink = { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, ...(precision ? { precision } : {}) }
     const { rerender } = renderHook(({ link }) => usePublishedEvidence({
-      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
+      containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never,
       parsedDocument, attempt: null, active: true, dimLink: link,
     }), { initialProps: { link: dimLink as EvidenceLink | null } })
     const shades = container.querySelectorAll<HTMLElement>('.evidence-dim')
@@ -292,7 +292,7 @@ describe('dimming in one-by-one', () => {
     container.innerHTML = `<div class="page" data-page-number="${first.page_number}"></div>`
     document.body.append(container)
     renderHook(() => usePublishedEvidence({
-      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
+      containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never,
       parsedDocument, attempt: null, active: true,
       dimLink: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision: 'segment' },
     }))
@@ -329,7 +329,7 @@ describe('marks select their values', () => {
       [JSON.stringify(['records', 0, 'subtitle']), { name: 'subtitle', value: 'Beta', word: null, style: 'rule' as const }],
     ])
     renderHook(() => usePublishedEvidence({
-      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+      containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never, parsedDocument,
       attempt: { extractionId: 'x' },
       active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect,
         // Discovery's record start in the same passage has no value to select.
@@ -365,7 +365,7 @@ describe('marks select their values', () => {
         { key, link: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id } }] }
     const containerRef = { current: container }, viewerRef = { current: { scrollPageIntoView: vi.fn() } as never }, attempt = { extractionId: 'x' }
     renderHook(({ marks }) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument, attempt, active: true, marks, hoverChannel,
+      containerRef, viewer: viewerRef.current, parsedDocument, attempt, active: true, marks, hoverChannel,
     }), { initialProps: { marks } })
     const mark = container.querySelector<HTMLButtonElement>('button.evidence-mark')!
     expect(mark.className).not.toMatch(/\bhovered\b/)
@@ -400,7 +400,7 @@ describe('correction marks', () => {
     const link: EvidenceLink = { resultPath: ['records', 0, 'site'], evidenceAnchorId: anchor.anchor_id }
     const edited = { name: 'site', value: 'Elmbrooke', word: 'Edited', style: 'link' as const }
     renderHook(() => usePublishedEvidence({
-      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+      containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never, parsedDocument,
       attempt: { extractionId: 'x' }, active: true, marks: { describe: new Map([['v', edited], ['v#correction', edited]]), selected: 'v#["x"]',
         onSelect: vi.fn(), savedLinks: [{ key: 'v', link }, { key: 'v#correction', link, occurrenceIds: [anchor.producer_observations[0].occurrence_id] }] },
     }))
@@ -419,7 +419,7 @@ describe('correction marks', () => {
     const harlow = { name: 'place', value: 'Harlow', word: null, style: 'link' as const }
     const link = (record: number): EvidenceLink => ({ resultPath: ['records', record, 'place'], evidenceAnchorId: anchor.anchor_id })
     renderHook(() => usePublishedEvidence({
-      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+      containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never, parsedDocument,
       attempt: { extractionId: 'x' }, active: true, marks: { describe: new Map([['v', harlow], ['w', harlow]]), selected: null,
         onSelect: vi.fn(), savedLinks: [{ key: 'v', link: link(0) }, { key: 'w', link: link(1) }] },
     }))
@@ -447,7 +447,7 @@ describe('part marks', () => {
       container.innerHTML = `<div class="page" data-page-number="${occurrence.page_number}">${layer}</div>`
       document.body.append(container)
       renderHook(() => usePublishedEvidence({
-        containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+        containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never, parsedDocument,
         attempt: { extractionId: 'x' }, active: true, marks: { describe, selected: 'v', onSelect: vi.fn(), savedLinks: parts },
       }))
       return [...container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')]
@@ -491,7 +491,7 @@ describe('mark precision, focus and navigation ownership', () => {
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
     type Props = { attempt: typeof attempt; marks: typeof marks; active?: boolean; marksShown?: boolean }
     const hook = renderHook(({ attempt, marks, active = true, marksShown = true }: Props) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument, attempt, active, marks, marksShown,
+      containerRef, viewer: viewerRef.current, parsedDocument, attempt, active, marks, marksShown,
     }), { initialProps: { attempt, marks } as Props })
     return { ...hook, attempt, marks, key, container, viewer, anchor }
   }
@@ -605,7 +605,7 @@ describe('value marks', () => {
     const containerRef = { current: container }, viewerRef = { current: viewer as never }, overviewRef = { current: overview }
     const hoverChannel = createSelectionChannel()
     const hook = renderHook((props: { marks: RailMarks; active?: boolean }) => usePublishedEvidence({
-      containerRef, viewerRef, parsedDocument, attempt: { extractionId: 'run' }, active: props.active ?? true, marks: props.marks, overviewRef, hoverChannel,
+      containerRef, viewer: viewerRef.current, parsedDocument, attempt: { extractionId: 'run' }, active: props.active ?? true, marks: props.marks, overviewRef, hoverChannel,
     }), { initialProps: { marks } as { marks: RailMarks; active?: boolean } })
     return { ...hook, marks, container, listeners, overview, hoverChannel, values: () => container.querySelectorAll<HTMLElement>('.parsed-evidence-value') }
   }
