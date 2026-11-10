@@ -61,15 +61,16 @@ it('names a run at the pilot limit a pilot and a larger one a collection batch',
 })
 
 it('opens every retained member and keeps typed review on its member route', () => {
-  const onOpenMember = vi.fn()
+  const onOpenMember = vi.fn(), onOpenGridReview = vi.fn()
   render(<BatchExtractionMembers batch={batch}
     pinnedSchemaFailure={null} hasSuccessfulResult coverageMessage={null} opening={false}
     canRunAgain={false} runAgainRefusal={null} runAgainMethod={null}
-    documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()}
+    documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()} onOpenGridReview={onOpenGridReview}
     onOpenMember={onOpenMember} />)
   expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
-  // Each member is reviewed through its own typed values; there is no batch-wide review grid.
-  expect(screen.queryByRole('button', { name: 'Review grid' })).not.toBeInTheDocument()
+  // Each member keeps its own review; the grid shows the completed ones side by side.
+  fireEvent.click(screen.getByRole('button', { name: 'Review in grid' }))
+  expect(onOpenGridReview).toHaveBeenCalledOnce()
   for (const member of batch.members) {
     const button = screen.getByRole('button', { name: new RegExp(member.sourceDocumentId) })
     expect(button).toBeEnabled()
@@ -95,7 +96,7 @@ describe('the settled batch outcome', () => {
   const show = (shown: BatchExtraction) => render(<BatchExtractionMembers batch={shown}
     pinnedSchemaFailure={null} hasSuccessfulResult coverageMessage={null} opening={false}
     canRunAgain={false} runAgainRefusal={null} runAgainMethod={null}
-    documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()}
+    documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()} onOpenGridReview={vi.fn()}
     onOpenMember={vi.fn()} />)
 
   it('says what is left to review before the batch is done', () => {

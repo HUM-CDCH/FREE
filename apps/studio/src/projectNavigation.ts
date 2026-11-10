@@ -22,6 +22,8 @@ export type ProjectResource =
   | {
       tab: 'extractions'
       batchExtractionId?: string
+      /** The opened Batch Extraction's review grid (`/review`) rather than its documents. */
+      view?: 'grid'
       /** Set right after approving a Schema Revision from the document
        *  workspace, so the Extractions tab opens straight into "Pilot
        *  Extraction" — a small Source Document selection pre-picked, on this
@@ -115,11 +117,11 @@ export function parseRoute(pathname: string, search = ''): Route {
   }
 
   // Extractions is the one tab with a resource of its own beneath it.
-  const extractions = /^\/projects\/([^/]+)\/extractions(?:\/([^/]+))?$/.exec(
+  const extractions = /^\/projects\/([^/]+)\/extractions(?:\/([^/]+)(\/review)?)?$/.exec(
     path,
   )
   if (extractions) {
-    const [, projectContextId, batchExtractionId] = extractions
+    const [, projectContextId, batchExtractionId, review] = extractions
     const params = new URLSearchParams(search || inlineSearch)
     const pilotSchemaRevisionId = params.get('pilotSchemaRevisionId')
     return canonicalUuidSchema.safeParse(projectContextId).success &&
@@ -132,6 +134,7 @@ export function parseRoute(pathname: string, search = ''): Route {
           projectContextId,
           tab: 'extractions',
           ...(batchExtractionId ? { batchExtractionId } : {}),
+          ...(batchExtractionId && review ? { view: 'grid' as const } : {}),
           ...(pilotSchemaRevisionId ? { pilotSchemaRevisionId } : {}),
         }
       : { kind: 'badReference' }
@@ -194,7 +197,7 @@ export function href(route: NavigableRoute): string {
       : {}),
   })
   return `${project}/extractions${
-    route.batchExtractionId ? `/${route.batchExtractionId}` : ''
+    route.batchExtractionId ? `/${route.batchExtractionId}${route.view === 'grid' ? '/review' : ''}` : ''
   }${
     params.size ? `?${params}` : ''
   }`

@@ -2875,7 +2875,7 @@ describe('BatchExtractionsPanel', () => {
     await screen.findByRole('list', { name: 'Batch Extraction members' })
 
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'Review grid' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review in grid' })).toBeDisabled()
     expect(
       fetch.mock.calls.some(([url]) =>
         String(url).includes('/durable'),

@@ -1804,6 +1804,9 @@ export default function ProjectContextPage({
                 ? (resource.batchExtractionId ?? null)
                 : null
             }
+            openBatchExtractionView={
+              resource.tab === 'extractions' ? (resource.view ?? null) : null
+            }
             pilotSchemaRevisionId={
               resource.tab === 'extractions'
                 ? (resource.pilotSchemaRevisionId ?? null)
