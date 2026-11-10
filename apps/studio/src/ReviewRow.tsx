@@ -2,7 +2,7 @@ import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, groundingDetail, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, groundingDetail, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -84,8 +84,8 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
   const word = row.decision ? DECISION_WORD[row.decision.action] : ''
   const origin = row.link && linkOrigin(row.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
-  const precision = row.link?.precision === 'input' ? ' · located to the whole page only' : row.link?.precision === 'cell' ? ' · a table cell' : ''
-  const source = row.retained?.source ?? `${row.kind === 'edited' || row.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${row.page === null ? '' : `p.${row.page} · `}${origin}${precision}`
+  const precision = row.link?.precision === 'input' ? ' · page only' : row.link?.precision === 'cell' ? ' · a table cell' : ''
+  const source = row.retained?.source ?? `${row.kind === 'edited' || row.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${row.page === null ? '' : `p.${row.page} · `}${origin}${precision}${passageOnly(row.link)}`
   const style = row.chip?.style ?? 'neutral'
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
@@ -94,7 +94,8 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
         className={`${grid} min-h-7.5 cursor-pointer outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
-          <span className="block truncate font-mono text-compact text-ink-faint">{row.name}</span>
+          {/* The colour key: a linked value's swatch is the colour of its marks on the page. */}
+          <span className="block truncate font-mono text-compact text-ink-faint">{row.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{row.name}</span>
           <span className="line-clamp-2 text-content font-medium text-ink" title={rowText(row)}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
@@ -114,7 +115,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
               <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
               {row.link && row.decision && groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action) &&
                 <p className="m-0 text-compact text-ink-muted">{groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action)}</p>}
-              {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Doubtful link.</b> {row.doubt}.</span></p>}
+              {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Uncertain passage.</b> {row.doubt}</span></p>}
             </>
           )}
           {!linked && row.evidence && (

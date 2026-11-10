@@ -112,15 +112,21 @@ export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>
   filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null : isNotReviewable(row.kind))
 
-/** A doubtful link (`evidenceCheck`'s two reasons); checks describe the extracted value, so none after an edit or a
- *  rejection. */
+/** An uncertain passage: why the passage a value is linked to may not be its source, as one short
+ *  sentence. The checks describe the extracted value, so none after an edit or a rejection. The code keeps the older
+ *  name (`doubt`, `doubtful`); the researcher reads "Uncertain passage". */
 export function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewAction): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
-  if (link.verbatim === false) return 'Value not found in the linked passage'
+  if (link.verbatim === false) return 'Value not printed word for word.'
   const others = (link.lexicalHits ?? 1) - 1
-  if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
+  if (link.verbatim && others > 0) return others === 1 ? 'Also printed in 1 other passage.' : `Also printed in ${others} other passages.`
   return null
 }
+
+/** A link located to its passage but not to the value's own words (no value mark, ADR 0031): the row says so, so a
+ *  passage without a highlighted value reads as a limit and not a fault. A page-only or cell link says its own. */
+export const passageOnly = (link: EvidenceLink | null) =>
+  link && link.precision !== 'input' && link.precision !== 'cell' && !link.valueBoxes ? ' · passage only' : ''
 
 /** What tied a recipe or unified Catalog value to its field, in the researcher's words; it describes the extracted
  *  value, so none after an edit or a rejection. */

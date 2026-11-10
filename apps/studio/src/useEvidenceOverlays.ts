@@ -12,10 +12,14 @@ import {
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 import { scrollWithinPane } from './scrollWithinPane'
-import { evidenceColorVars, markValueId, ownsMark } from './durableRailModel'
+import { evidenceColorVars, markValueId, ownsMark, sharedColor } from './durableRailModel'
 
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral' | 'preview'; anchorId: string; precision?: EvidenceLink['precision']; color?: string }
+
+/** A mark's accessible name and its tooltip: each value it supports, with what its underline says, in words. */
+export const markLabel = (infos: readonly MarkInfo[]) => infos.map((info) =>
+  `${info.name}: ${info.value}${info.style === 'doubtful' ? ', uncertain' : info.style === 'rule' ? ', linked by rule' : ''}${info.word ? `, ${info.word}` : ''}`).join('; ')
 
 /** The rail's values for the marks: a key `describe` names is a value a mark selects. */
 export type RailMarkState = {
@@ -66,6 +70,8 @@ function appendOverlay(
     const { label, current, onClick, onHover } = options.mark
     ;(overlay as HTMLButtonElement).type = 'button'
     overlay.setAttribute('aria-label', label)
+    // shortcut: the browser's own tooltip, slow to open and unstyled; a house tooltip when Studio has one.
+    overlay.title = label
     overlay.removeAttribute('aria-hidden')
     if (current) overlay.setAttribute('aria-current', 'true')
     else overlay.removeAttribute('aria-current')
@@ -135,7 +141,7 @@ function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, o
   }
 }
 
-/** A selected link's value boxes, each with the occurrence it lies in (within 2pt); none if any box lies in no occurrence. */
+/** A link's value boxes, each with the occurrence it lies in (within 2pt); none if any box lies in no occurrence. */
 function placedValueBoxes(parsedDocument: ParsedDocument, occurrences: readonly EvidenceOccurrence[], boxes: NonNullable<EvidenceLink['valueBoxes']>) {
   const placed: { occurrence: EvidenceOccurrence; box: (typeof boxes)[number] }[] = []
   for (const box of boxes) {
@@ -168,6 +174,7 @@ export function useEvidenceOverlays({
   active,
   dimLink = null,
   marks = null,
+  overviewRef,
 }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewerRef: RefObject<PDFViewer | null>
@@ -178,6 +185,8 @@ export function useEvidenceOverlays({
   dimLink?: EvidenceLink | null
   /** The rail's saved values: model and correction Evidence paint as marks that select them. */
   marks?: RailMarks | null
+  /** The strip over the document's scrollbar: it gets one tick per block mark, at the mark's place in the document. */
+  overviewRef?: RefObject<HTMLElement | null>
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
   const focusedAnchor = useRef<string | null>(null)
@@ -226,6 +235,7 @@ export function useEvidenceOverlays({
     ) {
       removeOverlays(container, 'parsed-evidence-highlight')
       removeOverlays(container, 'parsed-evidence-value')
+      overviewRef?.current?.replaceChildren()
       return
     }
 
@@ -239,7 +249,16 @@ export function useEvidenceOverlays({
       const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
         .map((element) => [element.dataset.occurrenceId!, element]))
       // One mark per occurrence, its block's box, carrying every value its passage supports: never narrowed to a quote.
-      // The selected value's printing is drawn apart, inside its block mark (ADR 0031).
+      // Every placed value's printing is drawn apart, inside its block mark (ADR 0031); placed first, so a block
+      // that holds one can recede behind it.
+      const placedValues = evidenceLinks.flatMap(({ link, key, occurrenceIds }) => {
+        const anchor = anchors.get(link.evidenceAnchorId)
+        if (!link.valueBoxes || link.precision === 'input' || !anchor) return []
+        const occurrences = anchorOccurrences(anchor).filter((occurrence) => !occurrenceIds || occurrenceIds.includes(occurrence.occurrence_id))
+        return placedValueBoxes(parsedDocument, occurrences, link.valueBoxes).map((placed) => ({ ...placed, link, key }))
+      })
+      const placedKeys = new Map<string, Set<string>>()
+      for (const { occurrence, key } of placedValues) placedKeys.set(occurrence.occurrence_id, (placedKeys.get(occurrence.occurrence_id) ?? new Set()).add(key))
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue
@@ -257,54 +276,92 @@ export function useEvidenceOverlays({
         const element = previous.get(occurrence.occurrence_id)
         previous.delete(occurrence.occurrence_id)
         // A value's correction Evidence in its own model passage names it once; two values that read alike stay two.
-        const infos = keys.filter((key) => !key.endsWith('#correction') || !keys.includes(markValueId(key)))
-          .map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
-        const style = infos.some((info) => info.style === 'preview') ? 'preview' : infos[0]?.style ?? 'link'
+        const described = keys.filter((key) => !key.endsWith('#correction') || !keys.includes(markValueId(key)))
+          .flatMap((key) => { const info = marks?.describe.get(key); return info ? [{ key, info }] : [] })
+        const infos = described.map(({ info }) => info)
+        // The underline says how a value is linked, on the most exact mark the value has. So the block keeps it for
+        // the values with no value mark here, and recedes once every value it supports has its own.
+        const placedHere = placedKeys.get(occurrence.occurrence_id)
+        const unplaced = described.filter(({ key }) => !placedHere?.has(key)).map(({ info }) => info)
+        const valued = placedHere !== undefined && unplaced.length === 0
+        const cue = unplaced.length > 0 ? unplaced : infos
+        const style = cue.some((info) => info.style === 'preview') ? 'preview' : cue[0]?.style ?? 'link'
         const decided = infos.length > 0 && infos.every((info) => info.word !== null)
         const current = marks?.selected !== null && marks?.selected !== undefined && keys.some((key) => ownsMark(marks.selected!, key))
         const hovered = keys.some((key) => marks?.hovered?.some((each) => ownsMark(each, key)))
         const selectable = keys.filter((key) => marks?.describe.has(key))
         const painted = appendOverlay(container, parsedDocument, occurrence, {
           element,
-          className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${current ? ' selected' : ''}${hovered ? ' hovered' : ''}`,
+          className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${valued ? ' valued' : ''}${current ? ' selected' : ''}${hovered ? ' hovered' : ''}`,
           evidenceAnchorId: anchorId,
           resultPath,
           ...(marks && infos.length > 0 ? { mark: {
-            label: infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; '),
+            label: markLabel(infos),
             current, onClick: (element: HTMLElement) => marks.onSelect(selectable, element),
             ...(marks.onHover ? { onHover: (over: boolean) => marks.onHover!(over ? selectable : null) } : {}),
           } } : {}),
         })
-        // The mark takes its field's colour, or the one Evidence colour.
-        const colors = evidenceColorVars(infos[0]?.color)
+        // The mark takes its field's colour, the one Evidence colour, or a neutral one when its values' fields differ.
+        const colors = evidenceColorVars(sharedColor(infos.map((info) => info.color)))
         if (painted) for (const name of ['--color-ev', '--color-ev-soft', '--color-ev-ghost'])
           if (colors[name]) painted.style.setProperty(name, colors[name]); else painted.style.removeProperty(name)
       }
       previous.forEach((element) => element.remove())
-      removeOverlays(container, 'parsed-evidence-value')
-      for (const { link, key, occurrenceIds } of evidenceLinks) {
-        const anchor = anchors.get(link.evidenceAnchorId)
-        if (!link.valueBoxes || link.precision === 'input' || !anchor || marks?.selected == null || !ownsMark(marks.selected, key)) continue
-        const occurrences = anchorOccurrences(anchor).filter((occurrence) => !occurrenceIds || occurrenceIds.includes(occurrence.occurrence_id))
-        const colors = evidenceColorVars(marks.describe.get(key)?.color)
-        for (const { occurrence, box } of placedValueBoxes(parsedDocument, occurrences, link.valueBoxes)) {
-          const page = container.querySelector(`.page[data-page-number="${occurrence.page_number}"]`)
-          const meta = parsedDocument.pages.find((candidate) => candidate.page_number === occurrence.page_number)
-          if (!(page instanceof HTMLElement) || !meta) continue
-          const mark = window.document.createElement('div')
-          mark.className = 'parsed-evidence-value evidence-value-mark'
-          mark.ariaHidden = 'true'
-          mark.dataset.occurrenceId = occurrence.occurrence_id
-          mark.dataset.resultPath = JSON.stringify(link.resultPath)
-          Object.assign(mark.style, {
-            position: 'absolute', left: `${(box.x0 / meta.width_pt) * 100}%`, top: `${(box.y0 / meta.height_pt) * 100}%`,
-            width: `${((box.x1 - box.x0) / meta.width_pt) * 100}%`, height: `${((box.y1 - box.y0) / meta.height_pt) * 100}%`,
-            pointerEvents: 'none', zIndex: '5',
-          })
-          for (const name of ['--color-ev', '--color-ev-soft', '--color-ev-ghost']) if (colors[name]) mark.style.setProperty(name, colors[name])
-          if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
-          page.append(mark)
-        }
+      // A value mark is kept across paints, as a block mark is: the one under the pointer is not replaced as its own
+      // hover repaints.
+      const previousValues = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-value')]
+        .map((element) => [element.dataset.valueMark!, element]))
+      for (const [index, { occurrence, box, link, key }] of placedValues.entries()) {
+        const page = container.querySelector(`.page[data-page-number="${occurrence.page_number}"]`)
+        const meta = parsedDocument.pages.find((candidate) => candidate.page_number === occurrence.page_number)
+        if (!(page instanceof HTMLElement) || !meta) continue
+        const id = `${occurrence.occurrence_id}|${key}|${index}`
+        const mark = previousValues.get(id) ?? window.document.createElement('div')
+        previousValues.delete(id)
+        mark.dataset.valueMark = id
+        // The selected or hovered value's printing is the strong one; the others stay a quiet highlighter. Its
+        // underline is its own link's: dotted by rule, dashed for an uncertain passage, thinner once decided.
+        const current = marks?.selected != null && ownsMark(marks.selected, key)
+        const hovered = marks?.hovered?.some((each) => ownsMark(each, key))
+        const info = marks?.describe.get(key)
+        mark.className = `parsed-evidence-value evidence-value-mark ${info?.style ?? 'link'}${info?.word ? ' decided' : ''}${current ? ' selected' : ''}${hovered ? ' hovered' : ''}`
+        mark.ariaHidden = 'true'
+        mark.dataset.occurrenceId = occurrence.occurrence_id
+        mark.dataset.resultPath = JSON.stringify(link.resultPath)
+        // A value the rail names is picked by its own mark: the pointer selects that one value in Results, where a
+        // block picks among all its passage supports, and lights only its row. A pointer shortcut, not announced:
+        // the block mark stays the button and the value's Results row the keyboard's way to it.
+        const pick = marks && info ? marks : null
+        mark.onclick = pick ? () => pick.onSelect([key], mark) : null
+        mark.onmouseenter = pick?.onHover ? () => pick.onHover!([key]) : null
+        mark.onmouseleave = pick?.onHover ? () => pick.onHover!(null) : null
+        if (pick && info) mark.title = markLabel([info]); else mark.removeAttribute('title')
+        Object.assign(mark.style, {
+          position: 'absolute', left: `${(box.x0 / meta.width_pt) * 100}%`, top: `${(box.y0 / meta.height_pt) * 100}%`,
+          width: `${((box.x1 - box.x0) / meta.width_pt) * 100}%`, height: `${((box.y1 - box.y0) / meta.height_pt) * 100}%`,
+          pointerEvents: pick ? 'auto' : 'none', zIndex: '5',
+        })
+        const colors = evidenceColorVars(info?.color)
+        for (const name of ['--color-ev', '--color-ev-soft', '--color-ev-ghost'])
+          if (colors[name]) mark.style.setProperty(name, colors[name]); else mark.style.removeProperty(name)
+        if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
+        if (mark.parentElement !== page) page.append(mark)
+      }
+      previousValues.forEach((element) => element.remove())
+      // The overview: one tick per block mark over the scrollbar, at the mark's place and height in the whole document
+      // and in its colour. Every rectangle is read before a tick is attached, so the page is laid out once.
+      const overview = overviewRef?.current, height = container.scrollHeight
+      if (overview && height > 0) {
+        const top = container.getBoundingClientRect().top - container.scrollTop
+        overview.replaceChildren(...[...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')].map((block) => {
+          const rect = block.getBoundingClientRect(), tick = window.document.createElement('div')
+          tick.className = `evidence-tick${block.classList.contains('selected') ? ' selected' : ''}${block.classList.contains('hovered') ? ' hovered' : ''}`
+          tick.style.top = `${((rect.top - top) / height) * 100}%`
+          tick.style.height = `${(rect.height / height) * 100}%`
+          const color = block.style.getPropertyValue('--color-ev')
+          if (color) tick.style.setProperty('--color-ev', color)
+          return tick
+        }))
       }
     }
 
@@ -313,12 +370,14 @@ export function useEvidenceOverlays({
     paint()
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
-      removeOverlays(container, 'parsed-evidence-value')
     }
-  }, [active, attempt, containerRef, marks, parsedDocument, viewerRef])
+  }, [active, attempt, containerRef, marks, overviewRef, parsedDocument, viewerRef])
 
-  useEffect(() => () => removeOverlays(containerRef.current, 'parsed-evidence-highlight'),
-    [active, attempt?.extractionId, containerRef, parsedDocument])
+  // Marks outlive a repaint (a hover, a selection), block and value alike, and go with their Extraction or document.
+  useEffect(() => () => {
+    removeOverlays(containerRef.current, 'parsed-evidence-highlight')
+    removeOverlays(containerRef.current, 'parsed-evidence-value')
+  }, [active, attempt?.extractionId, containerRef, parsedDocument])
 
   useEffect(
     () => () => {
@@ -327,8 +386,9 @@ export function useEvidenceOverlays({
       removeOverlays(containerRef.current, 'parsed-evidence-focus')
       removeOverlays(containerRef.current, 'parsed-evidence-highlight')
       removeOverlays(containerRef.current, 'parsed-evidence-value')
+      overviewRef?.current?.replaceChildren()
     },
-    [attempt?.extractionId, containerRef, parsedDocument],
+    [attempt?.extractionId, containerRef, overviewRef, parsedDocument],
   )
 
   return useCallback(

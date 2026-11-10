@@ -71,10 +71,12 @@ box. The anchor's own mark is unchanged.
   only under the `native` or `hybrid` transcriber and with no crop; every other block is checked. A scan without a
   text layer, or a page with too few tokens to judge, keeps its block mark until Printed Lines
   ([0024](0024-printed-lines-narrow-scanned-evidence.md)).
-- **Checked again and drawn by Studio.** `EvidenceLink.valueBoxes` carries the boxes. Studio draws them for the
-  selected value only, inside the anchor's mark, and only if every box lies inside one occurrence of the anchor;
-  otherwise it draws none. The anchor's mark stays the button, the accessible name and the selection. Studio still
-  locates nothing by text ([0005](0005-parsed-document-v2-canonical-content-stream.md)).
+- **Checked again and drawn by Studio.** `EvidenceLink.valueBoxes` carries the boxes. Studio draws them for every
+  placed value, the selected or hovered one stronger, inside the anchor's mark, and only if every box lies inside one
+  occurrence of the anchor; otherwise it draws none. A block that holds a value mark recedes to a faint fill, so a
+  page reads by its values without a selection. The anchor's mark stays the button and the accessible name; a value
+  mark is a pointer shortcut that selects its own value, not announced. Studio still locates nothing by text
+  ([0005](0005-parsed-document-v2-canonical-content-stream.md)).
 - **Never shown to a model, written once.** The correction context strips the boxes as it strips `location`. The
   field is optional and additive: links with and without it are read alike, and no method version or DBOS patch
   guards it, as for `location` in 0029.
