@@ -9,7 +9,9 @@ PDF only leaves links without boxes.
 
 A span counts code points of canonical text, which is not the PDF's (line joins, hyphens, ligatures, quotation
 marks), so the value is found again among the characters under the anchor's box: never by searching for the value
-alone, only where it and its surroundings print exactly once. Deterministic: a snapshot's identity digests its links.
+alone, only where it and its surroundings print exactly once. From the PDF's own characters a placement is
+deterministic; one from the page image (`scan_mark`) also depends on a reading that may fail or run out of time, so a
+later placement of the same link may differ, and a snapshot, whose identity digests its links, is then another one.
 """
 from __future__ import annotations
 
@@ -266,7 +268,8 @@ def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | 
     may be shifted against the image. Where that places none, the block's own crop of the page image is read for its
     words (`scan_mark`), for at most SCAN_SECONDS a call; without the reader installed the link keeps what it had.
     Returns the counts the extraction logs: `spans` (links a mark is placed for), `placed`, `scan` (those of them
-    placed from the page image), and every refusal by its reason."""
+    placed from the page image), and every refusal by its reason: the page image's, as `scan: ...`, where it was
+    read."""
     from kei_exp.kie.extract import scan_mark  # it builds on this module
     deadline = time.monotonic() + SCAN_SECONDS if scan_mark.available() else None
     passages = list(passages)
@@ -300,7 +303,7 @@ def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | 
                 continue
             characters, image = read
             registered: str | None | bool = False  # False until the page is judged
-            scan = None if deadline is None or image is None else scan_mark.Page(pdf, number, image, deadline)
+            scan = None if deadline is None or image is None else scan_mark.Page(image, deadline)
             for link, wanted in todo:
                 reason = boxes = place(wanted, characters)
                 if not isinstance(boxes, str):
@@ -315,7 +318,10 @@ def place_links(links: Iterable[dict], passages: Iterable[Passage], pdf: Path | 
                 # A block of one box the OCR model read, not a cell: the only crops the page image was measured on.
                 if reason is not None and scan is not None and wanted[3] and len(wanted[2]) == 1 \
                         and not link.get("cell"):
-                    boxes = scan.place(wanted[0], wanted[1], wanted[2][0])
+                    try:
+                        boxes = scan.place(wanted[0], wanted[1], wanted[2][0])
+                    except Exception:  # as an unreadable PDF: no boxes, never a failed extraction
+                        boxes = "error"
                     if not isinstance(boxes, str) and not _inside(boxes, wanted[2]):
                         boxes = "outside anchor"
                     reason = f"scan: {boxes}" if isinstance(boxes, str) else None

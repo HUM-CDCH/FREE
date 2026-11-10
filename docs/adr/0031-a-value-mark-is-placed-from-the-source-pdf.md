@@ -75,9 +75,10 @@ placed from the page image, inside its Evidence Anchor's box. The anchor's own m
   If that occurs more than once, the surroundings are doubled until it is unique or they are the whole text. Where
   the text ends before 8 characters, nothing else may print before, or after, under the box. No match, two matches
   or an unanchored edge leaves the link without boxes. The match is never a search for the value alone.
-- **One box per printed line**, from the boxes of the value's own characters, and each must lie inside the anchor's
+- **One box per printed line** where the PDF's characters place the value, from the boxes of the value's own
+  characters (from the page image, below, one per printed word), and each must lie inside the anchor's
   box within 2 pt, or none is written. A link with several spans gets boxes only if every span is placed.
-- **Scanned pages only through a text layer the page image confirms.** A block the OCR model read is placed the same
+- **Scanned pages first through a text layer the page image confirms.** A block the OCR model read is placed the same
   way when the PDF carries a text layer that prints the value and its surroundings as the model read them. The
   position is then the text layer's, and some scans carry one shifted against the image. So the page is rendered and
   two things are required. The page must be in register: of the tokens its text layer places in OCR-read blocks, at
@@ -101,16 +102,18 @@ placed from the page image, inside its Evidence Anchor's box. The anchor's own m
     words included. Aligned text cannot tell two printings of the same letters apart when the two readers took
     the block in different orders, and a reader that breaks words apart differently can make a whole word of
     either, so a value whose letters repeat is never chosen by position;
-  - the reading is in the order of its places (the middles of its words rise along each line and of its lines down
-    the crop), and each of the value's word boxes, grown by one pixel (a third of a point: Tesseract's boxes shave
-    the outermost ink), lies inside the crop and clear of every other word's box. A touch between two boxes
-    refuses the values beside it, not their block. Nothing here shows the block to be one column, which is why
-    the letters must occur once.
+  - the reading is in the order of its places: every word box lies in the crop, the words of a line overlap
+    vertically, and the middles of the words rise along each line and of the lines down the crop. Each of the
+    value's word boxes, grown by one pixel (a third of a point: Tesseract's boxes shave the outermost ink), lies
+    inside the crop and clear of every other word's box. A touch between two boxes refuses the values beside it,
+    not their block. Nothing here shows the block to be one column, which is why the letters must occur once.
 
   The mark is those words' own measured boxes, one per printed word, never split, joined or interpolated, at most
-  64, together narrower than the block and inside the anchor's box within 2 pt. Anything else leaves the block's
-  mark, as do a reading that fails and one that would take a placement call past 120 seconds; each reason is
-  counted under `scan:`. Without Tesseract installed nothing is read and nothing else changes.
+  64, their areas together under nine tenths of the crop's, and inside the anchor's box within 2 pt. Anything else
+  leaves the block's mark: so do a block of more than 4,000 folded characters, a reading that fails or takes more
+  than 30 seconds (it is not tried again), and a block not yet read when less than 30 of a placement call's 120
+  seconds are left. The reason counted is then the page image's, under `scan:`, in place of the text layer's.
+  Without Tesseract and its four language models installed nothing is read and nothing else changes.
 - **Checked again and drawn by Studio.** `EvidenceLink.valueBoxes` carries the boxes. Studio draws them for every
   placed value, the selected or hovered one stronger, inside the anchor's mark, and only if every box lies inside one
   occurrence of the anchor; otherwise it draws none. A block that holds a value mark recedes to a faint fill, so a
@@ -163,11 +166,14 @@ placed from the page image, inside its Evidence Anchor's box. The anchor's own m
   Extractions audited hold no citation with spans on a page with no text layer), how often a cited value is whole
   words, a value of several words on real pixels (it is placed as the same per-word boxes), scripts and languages
   beyond the four models, and a block set in several columns under one box (constructed cases only).
-- The worker image carries Tesseract 5 (Debian's, with its English, Danish, German and French models), run as a
-  process on one thread: 0.3 to 1.4 s a block on the measured crops, on the production host. Its output there is
-  byte for byte that of the build the measurements used. A block is read once per worker process: the reading is
-  kept for the later placements of the same run. Other languages are read with those four models and mostly
-  refused.
+- The worker image carries Tesseract 5 (Debian's, with its English, Danish, German and French models; the packages
+  are not pinned), run as a process on one thread: 0.3 to 1.4 s a block on the measured crops, on the production
+  host. Its output there was byte for byte that of the build the measurements used. A reading is kept in the
+  worker's memory, by the crop's pixels, for the later placements of the same block (512 readings, the least
+  recently used dropped first). Other languages are read with those four models and mostly refused.
+- A mark from the page image is not deterministic as one from the PDF's characters is: a reading that fails, or a
+  call that runs out of time after the worker dropped the reading, leaves a later placement of the same link without
+  the mark an earlier one had. The snapshot that carries it is then another snapshot, never a conflicting one.
 - What that leaves unmarked, counted on the deployed parse results on 2026-11-10 (576 results of 557 distinct PDFs;
   every token of an OCR-read block a stand-in value; pages counted per result): 125 PDFs carry no text layer on any
   page (612 pages, 171,908 values, none placed). Another 405 pages in 106 PDFs have too few tokens to judge: their

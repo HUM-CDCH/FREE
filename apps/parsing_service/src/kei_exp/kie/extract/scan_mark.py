@@ -9,15 +9,18 @@ whole printed words, one box each. No box is interpolated, split or joined, and 
 """
 from __future__ import annotations
 
+import hashlib
 import io
+import logging
 import os
 import re
-import shutil
 import subprocess
+import threading
 import time
 from bisect import bisect_left
+from collections import OrderedDict
+from functools import cache
 from itertools import accumulate, pairwise
-from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
@@ -25,18 +28,20 @@ from PIL import Image
 
 from kei_exp.kie.extract.value_mark import CONTEXT, SCALE, folded
 
+logger = logging.getLogger(__name__)
+
 Pixels = tuple[int, int, int, int]
 
 SLACK = 1             # every alignment within this many edits of the best must place the value alike
 MARGIN_PX = 6         # the crop reaches this far beyond the block's box
 PAD_PX = 48           # the crop's border, in its own paper tone: a white one on a grey page reads as one blot
 GROW_PX = 1           # a word's box grows by this on each side: Tesseract's boxes shave the outermost ink
-NARROWER = 0.9        # the marks together cover less than this share of the crop
+NARROWER = 0.9        # the marks' areas together stay under this share of the crop's
 MARKS = 64            # the most boxes a link carries (Studio's contract)
 LONGEST = 4000        # folded characters of a block, or of its reading, that are aligned
 LANGUAGES = "eng+dan+deu+fra"
-SECONDS = 30          # one reading's limit
-KEPT = 512            # readings kept between the partial and final placements of an extraction
+SECONDS = 30          # one reading's limit; none starts with less left of its call's allowance
+KEPT = 512            # readings kept, the least recently used dropped first
 
 
 class Word(NamedTuple):
@@ -181,7 +186,8 @@ class Scan:
 
     def place(self, spans: list[tuple[int, int]]) -> list[Pixels] | str:
         """One box per printed word of the value, in the crop's pixels, or the reason there is none: each word's
-        own box grown by GROW_PX, inside the crop, clear of every other word's box."""
+        own box grown by GROW_PX, inside the crop, clear of every other word's box, their areas together under
+        NARROWER of the crop's."""
         if self.refusal is not None:
             return self.refusal
         chosen: list[int] = []
@@ -210,25 +216,34 @@ class Scan:
         return boxes
 
 
+@cache
 def available() -> bool:
-    """Whether the reader is installed. Without it nothing here runs and every link keeps what it had."""
-    return shutil.which("tesseract") is not None
-
-
-def read(crop: np.ndarray, seconds: float = SECONDS) -> list[Word] | None:
-    """The words Tesseract reads on the grey image `crop`, in its order, or None when it fails or runs out of
-    `seconds`. The crop gets a border in its own paper tone (the lower median of its outermost ring)."""
-    ring = np.concatenate([crop[0], crop[-1], crop[1:-1, 0], crop[1:-1, -1]])
-    tone = int(np.sort(ring)[(len(ring) - 1) // 2])
-    png = io.BytesIO()
-    Image.fromarray(np.pad(crop, PAD_PX, constant_values=tone)).save(png, format="PNG")
+    """Whether the reader is installed with its language models, asked once. Without it nothing here runs and every
+    link keeps what it had."""
     try:
+        listed = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True, timeout=SECONDS)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    missing = set(LANGUAGES.split("+")) - set(listed.stdout.split())
+    if missing:
+        logger.warning("Tesseract lacks %s: values on scans keep their block marks", sorted(missing))
+    return not missing
+
+
+def read(crop: np.ndarray) -> list[Word] | None:
+    """The words Tesseract reads on the grey image `crop`, in its order, or None when it fails or takes more than
+    SECONDS. The crop gets a border in its own paper tone (the lower median of its outermost ring)."""
+    try:
+        ring = np.concatenate([crop[0], crop[-1], crop[1:-1, 0], crop[1:-1, -1]])
+        tone = int(np.sort(ring)[(len(ring) - 1) // 2])
+        png = io.BytesIO()
+        Image.fromarray(np.pad(crop, PAD_PX, constant_values=tone)).save(png, format="PNG")
         done = subprocess.run(
             ["nice", "-n", "10", "tesseract", "stdin", "stdout", "--oem", "1", "--psm", "6", "-l", LANGUAGES,
-             "--dpi", str(72 * SCALE), "tsv"], input=png.getvalue(), capture_output=True, timeout=seconds,
+             "--dpi", str(72 * SCALE), "tsv"], input=png.getvalue(), capture_output=True, timeout=SECONDS,
             env={**os.environ, "OMP_THREAD_LIMIT": "1"})  # one thread: conversions share the processor
         if done.returncode:
-            return None
+            raise OSError(done.stderr.decode("utf-8", "replace")[-200:])
         words = []
         for row in done.stdout.decode("utf-8").splitlines()[1:]:
             cells = row.split("\t")
@@ -237,39 +252,55 @@ def read(crop: np.ndarray, seconds: float = SECONDS) -> list[Word] | None:
                 words.append(Word(cells[11], (left - PAD_PX, top - PAD_PX, left + width - PAD_PX,
                                               top + height - PAD_PX), tuple(int(cell) for cell in cells[1:5])))
         return words
-    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as error:
+        logger.warning("Tesseract did not read a block: %r", error)
         return None
 
 
-_READINGS: dict[tuple[str, int, Pixels], list[Word]] = {}
+# What Tesseract read on a crop, by the crop's own pixels: a block is read once for an extraction's partial and final
+# placements, on whichever thread asks first or again; a reading that failed is kept too, and not tried again.
+_READINGS: OrderedDict[tuple, list[Word] | None] = OrderedDict()
+_LOCK = threading.Lock()
 
 
 class Page:
-    """One rendered page of a run's PDF, whose blocks are read at most once each (`_READINGS` keeps a reading for
-    the extraction's later placements) and until `deadline` (`time.monotonic`)."""
+    """One rendered page: its blocks are read at most once each, and none is begun with less than SECONDS left
+    before `deadline` (`time.monotonic`). The alignment tables of one block at a time are held."""
 
-    def __init__(self, pdf: Path, number: int, image: np.ndarray, deadline: float):
-        self.pdf, self.number, self.image, self.deadline = str(pdf), number, image, deadline
+    def __init__(self, image: np.ndarray, deadline: float):
+        self.image, self.deadline = image, deadline
         self.scans: dict[tuple[Pixels, str], Scan | str] = {}
+        self.last: Scan | None = None
 
     def _scan(self, text: str, anchor: tuple[float, float, float, float]) -> tuple[Pixels, Scan | str]:
         x0, y0, x1, y1 = (round(value * SCALE) for value in anchor)
         height, width = self.image.shape
         crop = (max(0, x0 - MARGIN_PX), max(0, y0 - MARGIN_PX), min(width, x1 + MARGIN_PX), min(height, y1 + MARGIN_PX))
         if (crop, text) not in self.scans:
-            words = _READINGS.get((self.pdf, self.number, crop))
-            if words is None and crop[0] < crop[2] and crop[1] < crop[3]:
-                left = self.deadline - time.monotonic()
-                if left <= 0:
-                    return crop, "out of time"  # not remembered: a later placement may have time
-                words = read(self.image[crop[1]:crop[3], crop[0]:crop[2]], min(SECONDS, left))
-                if words is not None:
-                    if len(_READINGS) >= KEPT:
-                        _READINGS.clear()
-                    _READINGS[self.pdf, self.number, crop] = words
+            words = None
+            if crop[0] < crop[2] and crop[1] < crop[3]:
+                pixels = self.image[crop[1]:crop[3], crop[0]:crop[2]]
+                key = (pixels.shape, hashlib.blake2b(pixels.tobytes(), digest_size=16).digest())
+                with _LOCK:
+                    known = key in _READINGS
+                    if known:
+                        _READINGS.move_to_end(key)
+                        words = _READINGS[key]
+                if not known:
+                    if self.deadline - time.monotonic() < SECONDS:
+                        return crop, "out of time"  # not remembered: a later placement may have time
+                    words = read(pixels)
+                    with _LOCK:
+                        _READINGS[key] = words
+                        while len(_READINGS) > KEPT:
+                            _READINGS.popitem(last=False)
             self.scans[crop, text] = "not read" if words is None else Scan(
                 text, words, (crop[2] - crop[0], crop[3] - crop[1]))
-        return crop, self.scans[crop, text]
+        scan = self.scans[crop, text]
+        if self.last is not None and self.last is not scan:
+            self.last._tables = None  # megabytes for a long block: recomputed if a later link returns to it
+        self.last = scan if isinstance(scan, Scan) else None
+        return crop, scan
 
     def place(self, text: str, spans: list[tuple[int, int]],
               anchor: tuple[float, float, float, float]) -> list[list[float]] | str:

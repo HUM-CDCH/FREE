@@ -5,8 +5,9 @@ answers from the generator's positions and, where Tesseract is installed, with T
 """
 import io
 import random
-import shutil
 import subprocess
+import time
+from collections import OrderedDict
 
 import numpy as np
 import pypdfium2 as pdfium
@@ -318,6 +319,16 @@ def test_a_reading_of_no_words_is_an_empty_one(monkeypatch):
     assert scan_mark.read(np.full((100, 200), 255, dtype=np.uint8)) == []
 
 
+@pytest.mark.parametrize("listed, there", [
+    ("List of available languages (5):\ndan\ndeu\neng\nfra\nosd\n", True),
+    ("List of available languages (2):\neng\nosd\n", False)])  # the reader without its models reads nothing
+def test_the_reader_counts_only_with_its_language_models(monkeypatch, listed, there):
+    calls = reading(monkeypatch, listed)
+    assert scan_mark.available.__wrapped__() is there and calls[0][0] == ["tesseract", "--list-langs"]
+    reading(monkeypatch, error=FileNotFoundError("tesseract"))
+    assert scan_mark.available.__wrapped__() is False
+
+
 # --- place_links on a scan with no text layer ------------------------------------------------------------------------
 
 def scan_run(tmp_path, texts: list[str]):
@@ -348,13 +359,13 @@ def reader(monkeypatch):
         words: list[Word] | None = None
         crops: list[tuple[int, int]] = []
 
-    def read(crop, seconds=scan_mark.SECONDS):
+    def read(crop):
         Reader.crops.append(crop.shape)
         return Reader.words
     Reader.crops = []
     monkeypatch.setattr(scan_mark, "available", lambda: True)
     monkeypatch.setattr(scan_mark, "read", read)
-    monkeypatch.setattr(scan_mark, "_READINGS", {})
+    monkeypatch.setattr(scan_mark, "_READINGS", OrderedDict())
     return Reader
 
 
@@ -382,11 +393,34 @@ def test_a_block_is_read_once_for_an_extractions_every_placement(tmp_path, reade
 def test_a_reading_that_fails_or_runs_out_of_time_keeps_the_blocks_mark(tmp_path, reader, monkeypatch):
     pdf, passage, words = scan_run(tmp_path, PARAGRAPH)
     link = located(passage, "1962")
-    assert place_links([link], [passage], pdf) == {"spans": 1, "placed": 0, "scan: not read": 1}
-    monkeypatch.setattr("kei_exp.kie.extract.value_mark.SCAN_SECONDS", 0)
+    for _ in range(2):  # a reading that failed is not tried again
+        assert place_links([link], [passage], pdf) == {"spans": 1, "placed": 0, "scan: not read": 1}
+    assert len(reader.crops) == 1
     reader.words = words
+    scan_mark._READINGS.clear()
+    monkeypatch.setattr("kei_exp.kie.extract.value_mark.SCAN_SECONDS", scan_mark.SECONDS - 1)
     assert place_links([link], [passage], pdf) == {"spans": 1, "placed": 0, "scan: out of time": 1}
-    assert "value_boxes_pt" not in link and len(reader.crops) == 1  # a failed reading is not kept, and none is begun late
+    assert "value_boxes_pt" not in link and len(reader.crops) == 1  # none is begun without its own limit ahead of it
+    monkeypatch.setattr("kei_exp.kie.extract.value_mark.SCAN_SECONDS", scan_mark.SECONDS + 60)
+    assert place_links([link], [passage], pdf) == {"spans": 1, "placed": 1, "scan": 1}  # running out is not kept
+
+
+def test_readings_are_kept_by_the_crops_pixels_and_the_least_recently_used_dropped(reader, monkeypatch):
+    monkeypatch.setattr(scan_mark, "KEPT", 1)
+    reader.words = []
+    white, grey = np.full((90, 300), 255, dtype=np.uint8), np.full((90, 300), 200, dtype=np.uint8)
+    for image in (white, white, grey, white):  # read, kept, read in its place, read again
+        assert scan_mark.Page(image, time.monotonic() + 1000).place("amber", [(0, 5)], (10.0, 10.0, 60.0, 20.0)) \
+            == "nothing read"
+    assert len(reader.crops) == 3
+
+
+def test_an_error_in_the_page_images_rule_is_a_refusal_never_a_failed_extraction(tmp_path, reader, monkeypatch):
+    pdf, passage, reader.words = scan_run(tmp_path, PARAGRAPH)
+    monkeypatch.setattr(Scan, "place", lambda *_: 1 / 0)
+    link = located(passage, "1962")
+    assert place_links([link], [passage], pdf) == {"spans": 1, "placed": 0, "scan: error": 1}
+    assert "value_boxes_pt" not in link
 
 
 def test_a_mark_reaching_beyond_its_anchor_is_never_written(tmp_path, reader, monkeypatch):
@@ -422,11 +456,12 @@ def test_without_the_reader_a_scan_keeps_what_the_text_layer_gave(tmp_path, monk
     assert place_links([located(passage, "1962")], [passage], pdf) == {"spans": 1, "placed": 0, "not printed": 1}
 
 
-@pytest.mark.skipif(shutil.which("tesseract") is None, reason="Tesseract is not installed")
+@pytest.mark.slow
+@pytest.mark.skipif(not scan_mark.available(), reason="Tesseract and its language models are not installed")
 def test_tesseract_itself_places_a_value_on_a_scan_with_no_text_layer(tmp_path, monkeypatch):
-    """The whole path with the real reader, as the service's image runs it: a wrong box fails, never a missing one
-    that the rule refuses."""
-    monkeypatch.setattr(scan_mark, "_READINGS", {})
+    """The whole path with the real reader, as the service's image runs it: a wrong box fails, and so does a clean
+    page it cannot place its plainest value on."""
+    monkeypatch.setattr(scan_mark, "_READINGS", OrderedDict())
     pdf, passage, _ = scan_run(tmp_path, PARAGRAPH)
     printed = {"1962": [(142, 5, 9)], "plaster": [(114, 22, 29)], "Trench four": [(100, 0, 6), (100, 7, 11)]}
     links = {value: located(passage, value) for value in (*printed, "Ostia")}

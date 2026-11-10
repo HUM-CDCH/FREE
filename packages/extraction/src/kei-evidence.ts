@@ -10,7 +10,8 @@ const finite = z.number().finite()
 /** A box in PDF points from the top-left of the displayed page, as `bbox_pt` is. */
 const valueBox = z.tuple([finite, finite, finite, finite]).refine(([x0, y0, x1, y1]) => x0 < x1 && y0 < y1, { message: 'a value box must have positive area' })
 /** kei-exp's `Link`, with `path` and `bbox_pt` as lists; versions 2 and 3 extend it. `value_boxes_pt` (ADR 0031): where the
- *  value prints on the link's page, one box per printed line; absent when nothing was placed. */
+ *  value prints on the link's page, one box per printed line, or per printed word where it was placed from a scan's page
+ *  image; absent when nothing was placed. */
 const linkSchema = z.object({
   path,
   segment: z.string().regex(/^p\d+_s\d+$/),
