@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kei_exp.kie.passages import load
-from kei_exp.kie.extract.assembly import ground_records
+from kei_exp.kie.extract.assembly import ground_records, link_json
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.method import LimitedCounter
 from kei_exp.kie.extract.assembly import PROMPT_VERSION, fingerprint
@@ -117,7 +117,7 @@ def fixed_grounding(source: dict, request, chat, counters, *, model_seconds: flo
         "started": started, "seconds": round(time.monotonic() - clock, 3), "complete": False,
         "records": bundle["records"], "inventory": bundle["inventory"], "contexts": bundle["contexts"],
         "value_contexts": bundle["value_contexts"], "conflicts": bundle["conflicts"],
-        "evidence": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in support.links],
+        "evidence": [link_json(link) for link in support.links],
         "quoted_support": support.proofs, "ungrounded": ungrounded,
         "unverified": [node.name for node in schema.document_nodes],
         "issues": [{**asdict(issue), "path": list(issue.path) if issue.path else None} for issue in support.issues],

@@ -61,6 +61,7 @@ class Link:
     linked_by: str                      # model (lexical only in results from before PROMPT_VERSION 13)
     cell: str | None = None             # local cell identity within segment, only with measured geometry
     precision: str = "segment"
+    location: dict | None = None        # Article only: the value's one printing, {spans: [{segment, start, end}], raw}
 
 
 @dataclass(frozen=True)

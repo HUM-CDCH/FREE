@@ -48,7 +48,17 @@
    "hits": 1,
    "linked_by": "model",
    "cell": null,
-   "precision": "segment"
+   "precision": "segment",
+   "location": {
+    "spans": [
+     {
+      "segment": "p1_s0",
+      "start": 0,
+      "end": 5
+     }
+    ],
+    "raw": "Viega"
+   }
   },
   {
    "path": [
@@ -70,7 +80,17 @@
    "hits": 1,
    "linked_by": "model",
    "cell": null,
-   "precision": "segment"
+   "precision": "segment",
+   "location": {
+    "spans": [
+     {
+      "segment": "p1_s0",
+      "start": 49,
+      "end": 54
+     }
+    ],
+    "raw": "77000"
+   }
   },
   {
    "path": [
@@ -92,7 +112,17 @@
    "hits": 1,
    "linked_by": "model",
    "cell": null,
-   "precision": "segment"
+   "precision": "segment",
+   "location": {
+    "spans": [
+     {
+      "segment": "p1_s0",
+      "start": 55,
+      "end": 62
+     }
+    ],
+    "raw": "elbow 0"
+   }
   },
   {
    "path": [
@@ -114,7 +144,17 @@
    "hits": 1,
    "linked_by": "model",
    "cell": null,
-   "precision": "segment"
+   "precision": "segment",
+   "location": {
+    "spans": [
+     {
+      "segment": "p1_s0",
+      "start": 63,
+      "end": 70
+     }
+    ],
+    "raw": "per 100"
+   }
   },
   {
    "path": [
@@ -136,7 +176,17 @@
    "hits": 1,
    "linked_by": "model",
    "cell": null,
-   "precision": "segment"
+   "precision": "segment",
+   "location": {
+    "spans": [
+     {
+      "segment": "p1_s0",
+      "start": 71,
+      "end": 74
+     }
+    ],
+    "raw": "7.5"
+   }
   },
   {
    "path": [
@@ -158,7 +208,17 @@
    "hits": 1,
    "linked_by": "model",
    "cell": null,
-   "precision": "segment"
+   "precision": "segment",
+   "location": {
+    "spans": [
+     {
+      "segment": "p1_s1",
+      "start": 32,
+      "end": 37
+     }
+    ],
+    "raw": "77001"
+   }
   },
   {
    "path": [

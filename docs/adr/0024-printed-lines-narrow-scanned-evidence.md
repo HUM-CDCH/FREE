@@ -3,7 +3,8 @@
 Date: 2026-10-29. Status: proposed; amends [0017](0017-durable-extraction-control-and-call-checkpoints.md) (the
 workflows the worker registers) and the durable execution spec's
 [Deletion and garbage collection](../design/unified-durable-execution.md#deletion-and-garbage-collection)
-(attempts only read runs).
+(attempts only read runs); amended by [0029](0029-article-evidence-locates-its-value.md): a link's spans include an
+Article link's `location`, and Studio no longer narrows through pdf.js's text layer.
 
 ## Context
 
@@ -11,6 +12,8 @@ Since PR #315, Studio boxes a segment link's mark to its quoted text when pdf.js
 in `useEvidenceOverlays.ts`). Where a scanned page has no text layer, or one that does not show the quote, its mark
 stays the whole Source OCR block, usually a paragraph. That costs precision, not correctness: the paragraph is
 locatable Evidence under the product contract (item 4), and an Evidence Anchor needs no visual geometry.
+[0029](0029-article-evidence-locates-its-value.md) has since removed that text-layer narrowing: every mark stays the
+whole block, text layer or not, until Printed Lines narrow it.
 
 Nothing finer exists. Surya (surya-ocr 0.22.1), the default OCR model, returns one box per block; on 3 pages probed
 its full-page output held no nested line boxes. A segment Surya read keeps that one box (`PageSegment` in
@@ -41,12 +44,13 @@ page prints it: its box on the PDF page and the code-point range of its segment'
 recipe path's source line.
 
 - **Started where links are made.** Links and spans are the Parsing Service's output (`publish_final` saves the
-  result's `evidence`; Studio only projects `spans` onto `grounding.textSpans`). So once `publishExtractionResultV1`
-  has published a result whose processing completed (`processing_complete`; not a historical-only one),
-  `extractDurableV1` enqueues `extractLinesV1` as `kei-lines:<attempt>` without waiting, with identities only: the
-  run, its Result generation and the cited segments' Evidence references. `extractLinesV1` joins 0017's list of
-  registered workflows; the new step is behind DBOS patch `extract-lines`, and a failed enqueue is logged and never
-  stops the acknowledgement.
+  result's `evidence`; Studio only projects `spans` onto `grounding.textSpans`, and an Article link's `location`
+  onto `location`, which [0029](0029-article-evidence-locates-its-value.md) counts as the link's spans). So once
+  `publishExtractionResultV1` has published a result whose processing completed (`processing_complete`; not a
+  historical-only one), `extractDurableV1` enqueues `extractLinesV1` as `kei-lines:<attempt>` without waiting,
+  with identities only: the run, its Result generation and the cited segments' Evidence references.
+  `extractLinesV1` joins 0017's list of registered workflows; the new step is behind DBOS patch `extract-lines`, and
+  a failed enqueue is logged and never stops the acknowledgement.
 - **On its own lane**, `kei-lines`, one workflow at a time. Its line reads go to the OCR server conversions use.
 - **What it reads.** Each segment that a link with spans cites and that Surya read as one block (extent `block`, not
   a native page's Docling block): the detector runs over its box and one Surya block request reads each line. Line
@@ -82,12 +86,11 @@ recipe path's source line.
   (`source_representations.ts`): after the same ownership check it branches before the canonical-package read, finds
   the run from the revision's preprocess ID (`keiRunOf`) and reads kei with bounded reads; the other resources'
   decoding is unchanged. A missing, unreadable or digest-mismatched file gives no lines.
-- **Drawn by Studio.** Where the text layer does not narrow a segment-precision link (a scan has none, or its
-  overlay lacks the quote) and its block has lines, `narrowBox` unions the boxes of the lines whose ranges overlap
-  the link's spans; a quote with any code point outside a ranged line keeps the paragraph mark. The overlay draws
-  that box inside the paragraph outline, which stays visible (a text-layer box replaces the block's today).
-  Evidence is still located by its anchor's identity, as [0005](0005-parsed-document-v2-canonical-content-stream.md)
-  requires; `narrowBox`'s text match and Printed Lines only refine how the located box is drawn.
+- **Drawn by Studio.** Where a segment-precision link cites an OCR'd block that has lines, Studio unions the boxes
+  of the lines whose ranges overlap the link's spans; a quote with any code point outside a ranged line keeps the
+  paragraph mark. The overlay draws that box inside the paragraph outline, which stays visible. Evidence is still
+  located by its anchor's identity, as [0005](0005-parsed-document-v2-canonical-content-stream.md) requires; Printed
+  Lines only refine how the located box is drawn.
 - **Failure leaves paragraph marks**, and the Extraction's outcome never depends on enrichment.
 - **It follows the representation's lifecycle.** The files live in the run, which Studio's `collectGarbage` hands
   to `deleteRuns` once no Source Representation revision or durable head names it. `kei-lines:<attempt>` joins its

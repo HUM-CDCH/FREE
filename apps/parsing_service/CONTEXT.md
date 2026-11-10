@@ -55,8 +55,8 @@ position in that file's segment list, named `p{page}_s{index}`. It resolves for 
 italics stay resolvable from the page file through the segment's evidence reference, while the generation exists.
 
 **Span** — a half-open character range `[start, end)` inside one segment's text, counted in code points.
-Values, ownership and evidence are all spans. A value that crosses segments is a list of spans, never a
-concatenated string.
+Values, ownership and evidence are all spans, except a link that points at a whole passage or cell (invariant 4).
+A value that crosses segments is a list of spans, never a concatenated string.
 
 **Page segment** — a segment as the OCR stage publishes it, placed on the PDF page (`PageSegment` in
 `src/kei_exp/pagefile.py`): text and HTML as the engine gave them, the engine's own box, and that box on the
@@ -124,9 +124,11 @@ the execution has no type of its own.
 3. **Not every character is owned.** Headings, the glossary and running heads legitimately belong to no
    block. Unowned text is therefore a diagnostic worth looking at, not a validation failure.
 
-4. **Evidence is a span, not a quotation.** A value carries the segment and the offsets it came from; its
-   string is derived from those and can always be re-derived. A value that cannot be pointed at is not
-   grounded.
+4. **Evidence is a place, not a quotation.** A value's link points at the segment it came from: by the offsets
+   of its spans, or as a whole passage or cell, as an Article or generic Catalog link does. An Article link may
+   also carry, as its `location`, the span where its value prints once in that passage or cell. Any string a link
+   holds is derived from what it points at and can always be re-derived. A value that cannot be pointed at is
+   not grounded.
 
 5. **Evidence that cannot be placed is recorded, not dropped.** A rejected entry-start candidate, or a
    source OCR block that cannot belong to one page, goes to an explicit list with its locator and a reason.

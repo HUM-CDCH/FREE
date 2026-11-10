@@ -832,7 +832,6 @@ export function DocumentWorkspace({
     attempt: inspectedAttempt,
     marks,
     active: effectiveRailOpen && railView === 'results',
-    railOpen: effectiveRailOpen,
     dimLink: marks ? publishedDim : null,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {

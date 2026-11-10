@@ -23,7 +23,12 @@ export function correctionSourceContext(document: ParsedDocument, markdown: stri
   })
   return {
     source:excerpts.length?{scope:evidence.length?'correction-anchors':'model-anchors',excerpts}:{scope:'document',text:markdown},
-    correctionEvidence:evidence,modelEvidence:value.evidence,modelGrounding:value.grounding,
+    // An Article link's `location` only places its mark: it never reaches correction guidance, so prompts keep their bytes.
+    correctionEvidence:evidence,modelEvidence:value.evidence.map(link=> {
+      if(!('location' in link.producer))return link
+      const {location:_location,...producer}=link.producer
+      return {...link,producer}
+    }),modelGrounding:value.grounding,
   }
 }
 
