@@ -689,22 +689,30 @@ def table_notes(body: dict, evidence: Evidence) -> dict:
     or ordinary record-free text ends following notes. The counted request budget bounds what the field call can
     read. Child records retain their separately defined parent context.
     """
-    qualified = {}
-    occupied = {r['segment'] for r in body['ledger'] if r['disposition'] != 'other'}
+    by_segment = {}
     for row in body['ledger']:
-        if row.get('shared_context'):
-            qualified.setdefault(row['segment'], []).append({k: row[k] for k in ('segment', 'start', 'end')})
+        by_segment.setdefault(row['segment'], []).append(row)
+
+    def reference(row):
+        return {k: row[k] for k in ('segment', 'start', 'end')}
+
     notes = {}
     for index, passage in enumerate(evidence.passages):
         if passage.label != 'Table':
             continue
-        following = list(qualified.get(passage.id, []))
+        following = [reference(row) for row in by_segment.get(passage.id, []) if row.get('shared_context')]
         for after in evidence.passages[index + 1:]:
             if after.label in FURNITURE:
                 continue
-            if after.label in HEADINGS or after.label == 'Table' or after.id in occupied or after.id not in qualified:
+            if after.label in HEADINGS or after.label == 'Table':
                 break
-            following.extend(qualified[after.id])
+            rows = sorted(by_segment.get(after.id, []), key=lambda row: row['start'])
+            for row in rows:
+                if not row.get('shared_context'):
+                    break
+                following.append(reference(row))
+            if not rows or any(not row.get('shared_context') for row in rows):
+                break
         notes[passage.id] = following
     entries = []
     for entry in body['entries']:

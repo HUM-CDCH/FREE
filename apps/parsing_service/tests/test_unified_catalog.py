@@ -2039,6 +2039,28 @@ def test_table_qualifications_are_shared_context_not_record_text(defaults, insid
     assert_accounted(source, result)
 
 
+@pytest.mark.parametrize('ordinary_first', [False, True])
+def test_ordinary_text_ends_table_qualifications_at_its_exact_range(ordinary_first):
+    note, later_note = 'Units apply to the preceding entries.', 'Later shared qualifications.'
+    paragraph = '\n'.join(['Ordinary narrative.', note] if ordinary_first else [note, 'Ordinary narrative.'])
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 1, (
+        passage('p1_s0', 'Entry\tMaterial\n1. Alpha.\twood\n2. Beta.\tstone', label='Table'),
+        passage('p1_s1', paragraph), passage('p1_s2', later_note),
+        passage('p1_s3', 'Another section', label='SectionHeader')))
+    def boundaries(user):
+        return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'record', '2.'],
+                           ['L4', 'other' if ordinary_first else 'context', None],
+                           ['L5', 'context' if ordinary_first else 'other', None],
+                           ['L6', 'context', None], ['L7', 'other', None]],
+                'begins_inside_record': False, 'ends_inside_record': False}
+    result, chat = extract(source, Model(source, discovery=boundaries), defaults=9)
+    for call in (c for c in chat.calls if c['system'].startswith('You extract structured')):
+        context = section(call['user'], 'CONTEXT (not part of the record)')
+        assert (note in context) == (not ordinary_first)
+        assert later_note not in context and 'Ordinary narrative.' not in context
+    assert_accounted(source, result)
+
+
 def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_found():
     from kei_exp.kie.extract.discovery import Window, _Seen, record_starts
     from kei_exp.kie.extract.windows import Unit
