@@ -51,11 +51,21 @@ describe('project chat API', () => {
     expect(deleteProjectChatEntry).toHaveBeenCalledWith(projectContextId, entryId)
   })
 
-  it('needs canonical IDs, and an entry only for DELETE', async () => {
+  it('clears the whole chat, and says not found for another account\'s project', async () => {
+    const clearProjectChatEntries = vi.fn().mockResolvedValueOnce(3).mockResolvedValueOnce(0).mockResolvedValueOnce(null)
+    const clear = () => handlers({ clearProjectChatEntries }).DELETE!(new Request(url(), { method: 'DELETE' }))
+    expect((await clear()).status).toBe(204)
+    // Already empty is what was asked.
+    expect((await clear()).status).toBe(204)
+    expect((await clear()).status).toBe(404)
+    expect(clearProjectChatEntries).toHaveBeenCalledWith(projectContextId)
+  })
+
+  it('needs canonical IDs, and an entry for neither GET nor POST', async () => {
     const store = { listProjectChatEntries: vi.fn().mockResolvedValue(null) }
     expect((await handlers(store).GET!(new Request(url()))).status).toBe(404)
     expect((await handlers(store).GET!(new Request(url().replace(projectContextId, 'PROJECT')))).status).toBe(422)
     expect((await handlers(store).GET!(new Request(url(`/${entryId}`)))).status).toBe(404)
-    expect((await handlers({}).DELETE!(new Request(url(), { method: 'DELETE' }))).status).toBe(404)
+    expect((await handlers({}).DELETE!(new Request(url().replace(projectContextId, 'PROJECT'), { method: 'DELETE' }))).status).toBe(422)
   })
 })

@@ -74,6 +74,9 @@ export type SchemaChat = {
   clearExtractRequest(): void
   /** Stops a running request and drops the proposal; with `clearConversation` also the conversation and instructions. */
   reset(clearConversation?: boolean): void
+  /** Clears the conversation where it is kept, then here: every message, instruction, step and document turn. Rejects,
+   *  changing nothing shown, when the stored chat could not be cleared. */
+  clearConversation(): Promise<void>
 }
 
 /**
@@ -88,7 +91,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   scope?: ChatScope | null
 }): SchemaChat {
   const log = useProjectChatLog(scope?.projectContextId ?? null)
-  const { keep: keepEntries, remove: removeEntry } = log
+  const { keep: keepEntries, remove: removeEntry, clear: clearLog } = log
   const keep = useCallback(
     (shown: readonly ChatMsg[]) => keepEntries(shown.map((message) => ({ id: crypto.randomUUID(), entry: chatEntry(message) }))),
     [keepEntries],
@@ -192,6 +195,17 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     },
     [resetInstructions, resetProposal],
   )
+  const clearConversation = useCallback(async () => {
+    await clearLog()
+    askAbortRef.current?.abort()
+    askAbortRef.current = null
+    setAsking(null)
+    setAskError(null)
+    reset(true)
+    // A stored chat still on its way is not brought back; what is said next names its document again.
+    restored.current = true
+    shownDocument.current = null
+  }, [clearLog, reset])
   // A wholesale replacement of the draft ends any request and proposal made on the one it replaced.
   const replacementVersion = useSyncExternalStore(schema.subscribe, () => schema.snapshot().replacementVersion)
   const observedReplacementVersion = useRef(replacementVersion)
@@ -374,6 +388,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     proposalReview,
     recovery,
     unsaved: log.unsaved,
+    clearConversation,
     drawerOpen,
     setDrawerOpen,
     revealed,

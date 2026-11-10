@@ -23,13 +23,20 @@ const documentB = '51000000-0000-4000-8001-00000000000b'
 const id = (n: number) => `51000000-0000-4000-8013-${n.toString().padStart(12, '0')}`
 
 /** A stored chat, and the bodies of the writes made to it, in order. */
-function server(stored: { projectChatEntryId: string; entry: ProjectChatEntry }[] = [], failures = 0) {
+function server(stored: { projectChatEntryId: string; entry: ProjectChatEntry }[] = [], failures = 0, clearFailures = 0) {
   const appended: ProjectChatEntry[][] = []
   const deleted: string[] = []
+  /** Each clear, as the number of writes made before it. */
+  const cleared: number[] = []
   authenticatedFetch.mockImplementation(async (url: string, init?: RequestInit) => {
     if (!init?.method)
       return Response.json({ entries: stored.map((item, index) => ({ ...item, position: index + 1, createdAt: '2026-11-03T10:00:00.000Z' })) })
     if (init.method === 'DELETE') {
+      if (url.endsWith('/chat')) {
+        if (clearFailures-- > 0) return new Response(null, { status: 503 })
+        cleared.push(appended.length)
+        return new Response(null, { status: 204 })
+      }
       deleted.push(url.split('/').at(-1)!)
       return new Response(null, { status: 204 })
     }
@@ -37,7 +44,7 @@ function server(stored: { projectChatEntryId: string; entry: ProjectChatEntry }[
     appended.push((JSON.parse(String(init.body)) as { entries: { entry: ProjectChatEntry }[] }).entries.map(({ entry }) => entry))
     return Response.json({ entries: [] }, { status: 201 })
   })
-  return { appended, deleted, kept: () => appended.flat() }
+  return { appended, deleted, cleared, kept: () => appended.flat() }
 }
 
 afterEach(() => {
@@ -89,6 +96,23 @@ describe('useProjectChatLog', () => {
     await waitFor(() => expect(kept()).toEqual([{ kind: 'instruction', text: 'kept' }]))
     act(() => result.current.remove(id(1)))
     await waitFor(() => expect(deleted).toEqual([id(1)]))
+  })
+
+  it('clears after the write on its way, never sending what was queued; a failed clear keeps the queue', async () => {
+    const { appended, cleared } = server([], 1, 1)
+    const { result } = renderHook(() => useProjectChatLog(projectContextId))
+    await waitFor(() => expect(result.current.loaded).toEqual([]))
+    act(() => result.current.keep([{ id: id(1), entry: { kind: 'message', role: 'user', text: 'unsent' } }]))
+    await waitFor(() => expect(result.current.unsaved).toBe(true))
+    // The clear fails: the unsent entry is still queued, and goes with the next write.
+    await act(() => expect(result.current.clear()).rejects.toThrow('could not be cleared'))
+    expect(cleared).toEqual([])
+    // It clears now: the queued entry is dropped, never sent.
+    await act(() => result.current.clear())
+    expect(cleared).toEqual([0])
+    expect(result.current.unsaved).toBe(false)
+    act(() => result.current.keep([{ id: id(2), entry: { kind: 'message', role: 'user', text: 'after' } }]))
+    await waitFor(() => expect(appended).toEqual([[{ kind: 'message', role: 'user', text: 'after' }]]))
   })
 
   it('keeps nothing without a project', () => {
@@ -161,6 +185,35 @@ describe('useSchemaChat kept with its project', () => {
     expect(result.current.input).toBe('Never mind')
     // Still on a.pdf, as the stored chat last said: no turn, and nothing kept.
     expect(kept()).toEqual([])
+  })
+
+  it('clears the conversation where it is kept, then names the document again before what is said next', async () => {
+    const { cleared, kept } = server(stored)
+    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'Three.' })
+    const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
+    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    await act(() => result.current.clearConversation())
+    expect(cleared).toEqual([0])
+    expect(result.current.messages).toEqual([])
+    expect(result.current.instructions.items).toEqual([])
+
+    await act(() => result.current.send('How many senders?'))
+    await waitFor(() => expect(kept()).toEqual([
+      { kind: 'document', sourceDocumentId: documentA, name: 'a.pdf' },
+      { kind: 'message', role: 'user', text: 'How many senders?' },
+      { kind: 'message', role: 'assistant', text: 'Three.' },
+    ]))
+    // Nothing from before the clear reaches the model.
+    expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([{ role: 'note', text: 'The researcher turned to the Source Document “a.pdf”.' }])
+  })
+
+  it('keeps the conversation shown when the clear fails', async () => {
+    server(stored, 0, 1)
+    const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
+    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    await act(() => expect(result.current.clearConversation()).rejects.toThrow('could not be cleared'))
+    expect(result.current.messages).toHaveLength(4)
+    expect(result.current.instructions.items).toHaveLength(1)
   })
 
   it('forgets an instruction taken back', async () => {

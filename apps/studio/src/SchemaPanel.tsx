@@ -491,10 +491,11 @@ function SchemaPanelView({
     [onPendingLocalEditChange],
   )
 
-  // The chat resets itself on a replacement (useSchemaChat); a cleared schema also clears its conversation.
+  // The chat resets itself on a replacement (useSchemaChat). A cleared schema keeps its conversation: clearing that is
+  // the chat's own action.
   const resetChat = chat.reset
   const resetEditorUi = useCallback(
-    (clearConversation = false) => {
+    (cleared = false) => {
       setEditing(null)
       setProvisionalField(null)
       setEditingError(null)
@@ -514,9 +515,9 @@ function SchemaPanelView({
       setRecordDescriptionDraft(
         schema.snapshot().draft?.recordDescription ?? '',
       )
-      if (clearConversation) {
+      if (cleared) {
         setHistoryOpen(false)
-        resetChat(true)
+        resetChat()
       }
     },
     [dismissPanelToast, resetChat, schema],

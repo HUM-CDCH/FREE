@@ -3,6 +3,7 @@ import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
+import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
@@ -164,6 +165,17 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       action={{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
         run: () => onGenerate?.(instructions.text) }} />
   )
+  // The whole conversation cleared, once confirmed: not while a reply or a proposal is on its way.
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const clearRef = useRef<HTMLButtonElement>(null)
+  const clearBusy = chat.asking !== null || chat.loading || !!pending
+  const clear = !readOnly && (chat.messages.length > 0 || instructions.items.length > 0) && (
+    <button ref={clearRef} type="button" disabled={clearBusy} onClick={() => setConfirmingClear(true)}
+      title={clearBusy ? 'Clear the conversation once the reply or proposal is settled' : 'Clear the conversation'}
+      className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-compact text-ink-muted outline-none transition-colors hover:bg-surface hover:text-danger disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted">
+      Clear conversation
+    </button>
+  )
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
   const composer = preSchema ? (
@@ -204,10 +216,28 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   ) : undefined
 
   return (
-    <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
-      title="Conversation" label={card || generate} dot={dot} bodyRef={bodyRef} bar={card || generate || undefined} composer={composer}>
-      <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
-    </ChatDrawer>
+    <>
+      <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
+        title="Conversation" label={card || generate} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
+        bar={card || generate || undefined} composer={composer}>
+        <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
+      </ChatDrawer>
+      {confirmingClear && (
+        <DeleteDialog title="Clear the conversation?" confirmLabel="Clear conversation" returnFocusRef={clearRef}
+          description="Every message, instruction, answered step and document turn of this project's chat is removed for good. The template is not changed, but it is generated again without the instructions kept so far."
+          onCancel={() => setConfirmingClear(false)}
+          onConfirm={async () => {
+            try {
+              await chat.clearConversation()
+              // Steps set aside before are asked afresh.
+              setDismissed(new Set())
+              return null
+            } catch (error) {
+              return { message: error instanceof Error ? error.message : 'The conversation could not be cleared.' }
+            }
+          }} />
+      )}
+    </>
   )
 }
 

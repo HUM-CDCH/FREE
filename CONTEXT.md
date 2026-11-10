@@ -33,7 +33,7 @@ The concise researcher-facing name for a Project Context. It denotes the same re
 _Avoid_: research context
 
 **Project Chat**:
-A Project Context's one conversation, which leads its guided workflow: messages, a guided step's answers, and each turn to another of its Source Documents. It is kept with the Project Context and outlives the page that showed it ([ADR 0028](docs/adr/0028-the-project-chat-is-kept-with-the-project.md)). The model reads its latest part beside the open Source Document only.
+A Project Context's one conversation, which leads its guided workflow: messages, a guided step's answers, and each turn to another of its Source Documents. It is kept with the Project Context and outlives the page that showed it ([ADR 0028](docs/adr/0028-the-project-chat-is-kept-with-the-project.md)); the researcher may clear it as a whole, apart from the template ([ADR 0029](docs/adr/0029-the-researcher-clears-the-project-chat.md)). The model reads its latest part beside the open Source Document only.
 _Avoid_: schema chat when the whole conversation is meant, chat history when the kept conversation is meant
 
 **Research Workspace**:

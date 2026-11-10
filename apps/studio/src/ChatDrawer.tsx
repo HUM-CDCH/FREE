@@ -9,6 +9,8 @@ export type ChatDrawerProps = {
   label?: ReactNode
   /** While collapsed, marks the composer: an open conversation or an earlier request still running. */
   dot?: { title: string } | null
+  /** The conversation's own controls (e.g. Clear conversation), shown with it while it is open. */
+  actions?: ReactNode
   /** Sticky controls between the conversation and the composer, e.g. the proposal's Apply / Discard bar. */
   bar?: ReactNode
   composer: ReactNode
@@ -21,13 +23,14 @@ export type ChatDrawerProps = {
 
 /** The rail's conversation: a composer line at rest; sending opens a drawer of 40% of the rail with the conversation,
  *  a header and a collapse chevron. Collapsing hides, never discards. */
-export default function ChatDrawer({ open, onCollapse, onExpand, title, label, dot, bar, composer, bodyRef, children, fill = false }: ChatDrawerProps) {
+export default function ChatDrawer({ open, onCollapse, onExpand, title, label, dot, actions, bar, composer, bodyRef, children, fill = false }: ChatDrawerProps) {
   // A bar (a proposal's review, a guided step) can be taller than 40% of the rail leaves it: the drawer then takes its
   // content's height, up to 75%, and the conversation scrolls, so the bar is never drawn under the composer.
   const height = !open ? '' : bar ? 'max-h-[75%]' : 'h-[40%] min-h-48'
   if (fill)
     return (
       <section aria-label={title} className="flex min-h-0 flex-1 flex-col bg-surface-muted">
+        {actions && <div className="flex shrink-0 items-center justify-end gap-1.5 px-4 pt-1.5">{actions}</div>}
         <div ref={bodyRef} className="scrollbar-subtle min-h-16 flex-1 overflow-y-auto px-4 py-2.5">{children}</div>
         {bar}
         <ChatComposer>{composer}</ChatComposer>
@@ -41,6 +44,7 @@ export default function ChatDrawer({ open, onCollapse, onExpand, title, label, d
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-1.5">
             <span className="min-w-0 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted" title={title}>{title}</span>
             <div className="flex shrink-0 items-center gap-1.5">
+              {actions}
               <button type="button" aria-label="Collapse conversation" title="Collapse"
                 className="grid size-6 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none hover:text-ink" onClick={onCollapse}>
                 <span aria-hidden="true">⌄</span>

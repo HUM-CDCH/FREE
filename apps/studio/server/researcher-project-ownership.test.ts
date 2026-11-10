@@ -326,6 +326,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
       listProjectChatEntries: vi.fn(async () => null),
       appendProjectChatEntries: vi.fn(async () => null),
       deleteProjectChatEntry: vi.fn(async () => null),
+      clearProjectChatEntries: vi.fn(async () => null),
       listLatestExtractions: vi.fn(async () => null),
       createProjectContext: vi.fn(async (name) => {
         const projectContextId =
@@ -1052,11 +1053,13 @@ describe('two-account project and source API isolation', () => {
       [`/api/project-contexts/${ids.projectB}/chat`, {}],
       [`/api/project-contexts/${ids.projectB}/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entries: [entry] }) }],
       [`/api/project-contexts/${ids.projectB}/chat/${ids.operationB}`, { method: 'DELETE' }],
+      [`/api/project-contexts/${ids.projectB}/chat`, { method: 'DELETE' }],
     ] as const)
       await expectPrivateNotFound(await api(fixture, ids.accountA, pathname, init), forbiddenB)
     expect(aliceStore.listProjectChatEntries).toHaveBeenCalledWith(ids.projectB, 1000)
     expect(aliceStore.appendProjectChatEntries).toHaveBeenCalledWith(ids.projectB, [entry])
     expect(aliceStore.deleteProjectChatEntry).toHaveBeenCalledWith(ids.projectB, ids.operationB)
+    expect(aliceStore.clearProjectChatEntries).toHaveBeenCalledWith(ids.projectB)
   })
 
   it('rejects cross-owner ingest and deletion before staging, a workflow, or mutation', async () => {

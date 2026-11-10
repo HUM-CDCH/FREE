@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RailChat, { type RailChatProps } from './RailChat'
 import { useSchemaChat } from './useSchemaChat'
@@ -66,6 +66,29 @@ describe('RailChat', () => {
     fireEvent.click(within(folded).getByRole('button', { name: 'Show the Generate template step' }))
     expect(screen.getByRole('region', { name: 'Generate template' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Generate template, set aside' })).not.toBeInTheDocument()
+  })
+
+  it('clears the whole conversation once confirmed, and the Generate template step asks afresh', async () => {
+    const onGenerate = vi.fn()
+    renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
+    // Nothing said yet: nothing to clear.
+    expect(screen.queryByRole('button', { name: 'Clear conversation' })).not.toBeInTheDocument()
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on senders' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(within(screen.getByRole('region', { name: 'Generate template' })).getByRole('textbox'), { key: 'Escape' })
+    expect(screen.getByRole('region', { name: 'Generate template, set aside' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear conversation' }))
+    const dialog = screen.getByRole('dialog', { name: 'Clear the conversation?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear conversation' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByText('Focus on senders')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clear conversation' })).not.toBeInTheDocument()
+    // The step set aside is asked again, now with no instruction kept.
+    const step = screen.getByRole('region', { name: 'Generate template' })
+    fireEvent.click(within(step).getByRole('button', { name: 'Generate template' }))
+    expect(onGenerate).toHaveBeenCalledExactlyOnceWith('')
   })
 
   it('saves the Record Scope from its step and folds the answer into the conversation', () => {

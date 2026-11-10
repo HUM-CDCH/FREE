@@ -1100,6 +1100,9 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     projectChatEntryId: string,
   ): Promise<boolean | null>
+  /** Removes every entry of the chat, so it starts again from position 1; the number removed, or null when the account
+   *  does not own the Project Context. */
+  clearProjectChatEntries(projectContextId: string): Promise<number | null>
   /** One round of an owned Project Context, or null. */
   getEvaluationRound(
     projectContextId: string,
@@ -2416,6 +2419,14 @@ export function createResearcherProjectStore(
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
         return null
       return (await database.orm.public.ProjectChatEntry.where({ id: projectChatEntryId, projectContextId }).deleteCount()) > 0
+    },
+    async clearProjectChatEntries(projectContextId) {
+      // On the project's row, like an append: one waiting meanwhile lands after the clear, from position 1.
+      return database.transaction(async (transaction) => {
+        if (!(await lockOwnedProjectContextRow(transaction, researcherAccountId, projectContextId)))
+          return null
+        return transaction.orm.public.ProjectChatEntry.where({ projectContextId }).deleteCount()
+      })
     },
     async getEvaluationRound(projectContextId, evaluationRoundId) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))

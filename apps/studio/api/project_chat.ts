@@ -30,11 +30,11 @@ const entries = (stored: readonly StoredEntry[]) => stored.flatMap(({ projectCha
 
 /**
  * A Project Context's chat, kept with the project so it outlives the page that showed it: GET reads its latest entries,
- * POST appends, DELETE removes the one entry a researcher can take back (a kept instruction). Owner-scoped like every
- * project read.
+ * POST appends, DELETE on an entry removes the one kind a researcher can take back (a kept instruction), and DELETE on
+ * the chat clears it all. Owner-scoped like every project read.
  */
 export function createResearcherApiHandlers(
-  store: Pick<ResearcherProjectStore, 'listProjectChatEntries' | 'appendProjectChatEntries' | 'deleteProjectChatEntry'>,
+  store: Pick<ResearcherProjectStore, 'listProjectChatEntries' | 'appendProjectChatEntries' | 'deleteProjectChatEntry' | 'clearProjectChatEntries'>,
 ): Readonly<Record<string, (request: Request) => Response | Promise<Response>>> {
   const unavailable = (cause: unknown): never => { throw persistenceUnavailable(cause) }
   return {
@@ -65,7 +65,11 @@ export function createResearcherApiHandlers(
     DELETE: async (request) => {
       try {
         const { projectContextId, entryId } = target(request)
-        if (entryId === null) throw new ApiError(404, 'not_found', 'Project chat route was not found.')
+        if (entryId === null) {
+          const cleared = await store.clearProjectChatEntries(projectContextId).catch(unavailable)
+          if (cleared === null) throw missing()
+          return new Response(null, { status: 204, headers: noStore })
+        }
         const removed = await store.deleteProjectChatEntry(projectContextId, entryId).catch(unavailable)
         if (removed === null) throw missing()
         if (!removed) throw new ApiError(404, 'not_found', 'Chat entry was not found.')

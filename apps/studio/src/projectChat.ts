@@ -51,6 +51,11 @@ async function appendProjectChat(projectContextId: string, entries: readonly { p
   if (!response.ok) throw new Error(`The chat could not be saved (HTTP ${response.status}).`)
 }
 
+async function clearProjectChat(projectContextId: string) {
+  const response = await authenticatedFetch(url(projectContextId), { method: 'DELETE' })
+  if (!response.ok) throw new Error(`The conversation could not be cleared (HTTP ${response.status}).`)
+}
+
 async function deleteProjectChatEntry(projectContextId: string, entryId: string) {
   const response = await authenticatedFetch(url(projectContextId, entryId), { method: 'DELETE' })
   // Already gone is what was asked.
@@ -65,6 +70,9 @@ export type ProjectChatLog = {
   /** Keeps entries after everything kept before them, in order; each keeps the ID given. */
   keep(entries: readonly { id: string; entry: ProjectChatEntry }[]): void
   remove(id: string): void
+  /** Clears the stored chat once every write before it is done; what is queued unsent never goes. Rejects, keeping
+   *  the stored chat, when the clear fails. Without a project there is nothing stored to clear. */
+  clear(): Promise<void>
 }
 
 /**
@@ -121,5 +129,21 @@ export function useProjectChatLog(projectContextId: string | null): ProjectChatL
     writing.current = writing.current.then(() => deleteProjectChatEntry(projectContextId, id).catch(() => setUnsaved(true)))
   }, [projectContextId])
 
-  return { loaded: projectContextId ? loaded : null, unsaved, keep, remove }
+  const clear = useCallback(async () => {
+    if (!projectContextId) return
+    // Drops what was never sent; a write on its way finishes first, so nothing lands after the clear.
+    const dropped = queue.current.splice(0)
+    const cleared = writing.current.then(() => clearProjectChat(projectContextId))
+    writing.current = cleared.catch(() => {})
+    try {
+      await cleared
+    } catch (error) {
+      // Still stored: what was dropped goes with the next write.
+      queue.current.unshift(...dropped)
+      throw error
+    }
+    setUnsaved(false)
+  }, [projectContextId])
+
+  return { loaded: projectContextId ? loaded : null, unsaved, keep, remove, clear }
 }
