@@ -338,7 +338,6 @@ request with the version 9 scope and shared-qualification classification. Its
 synthetic controls cover primary tables, internal tables, indices repeated in
 prose and nested requested records. Each printed line is a synthetic passage;
 this tests discovery and ownership, not canonical table cells or field accuracy.
-The optional original candidate preserves the earlier scope-only alternative.
 Replay requires identical requests and never falls back to inference.
 
 `experiments.extraction.table_discovery_full` runs the actual configured method
@@ -351,9 +350,8 @@ normalization, with no punctuation removal.
 
 The full runner retains final serialized HTTP attempts after adapter/template
 construction, successful responses, loaded application hashes, image identities
-and available model/tokenizer cache revisions. Headers and credential URLs are
-excluded. Cache availability does not prove which revision a server loaded;
-missing serving metadata is recorded as unavailable. The module docstrings give
+and the model revisions each server reports. Headers and credential URLs are
+excluded; missing serving metadata is recorded as unavailable. The module docstrings give
 the commands and input formats. Keep source documents, captures, annotations
 and results outside tracked files. These bounded development checks and repeated
 greedy runs do not establish general accuracy or deterministic model output.

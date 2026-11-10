@@ -304,9 +304,13 @@ def _render(window: Window, texts: dict[str, str], kinds: dict[str, str]) -> tup
     return "\n\n".join(parts) + "\n\nReturn the JSON object now.", labels
 
 
+def _kinds(shared_context: bool) -> list[str]:
+    return ["record", "other", "context"] if shared_context else ["record", "other"]
+
+
 def _reply(labels: list[str], *, shared_context: bool = False) -> dict:
     place = {"type": "array", "prefixItems": [{"type": "string", "enum": labels},
-                                              {"type": "string", "enum": ["record", "other", "context"] if shared_context else ["record", "other"]},
+                                              {"type": "string", "enum": _kinds(shared_context)},
                                               {"type": ["string", "null"]}, {"type": "string"}],
              "items": False, "minItems": 3, "maxItems": 4}
     return {"type": "object", "properties": {
@@ -353,7 +357,7 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
     unplaced: set[int] = set()
     for place in places:
         if not isinstance(place, list) or len(place) not in (3, 4) or place[0] not in labels or \
-                place[1] not in (("record", "other", "context") if shared_context else ("record", "other")):
+                place[1] not in _kinds(shared_context):
             return None
         line_label, kind, label, text = (*place, None)[:4]
         index = labels.index(line_label)
@@ -386,8 +390,9 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
             same = {(kind, label) for at, kind, label in found[index] if at == offset}
             kinds = {kind for kind, _ in same}
             labels_at = {label for _, label in same if label is not None}
-            kind = "record" if "record" in kinds else "context" if "context" in kinds else "other"  # a record and an `other` at one spot are the record: a
-            # heading read as both begins it rather than leaving it unresolved
+            # a record and an `other` at one spot are the record: a heading read as both begins it rather than
+            # leaving it unresolved
+            kind = "record" if "record" in kinds else "context" if "context" in kinds else "other"
             located.append((index, offset, kind, labels_at.pop() if len(labels_at) == 1 else None))
     return _Seen(window, True, located, begins, ends)
 
@@ -457,7 +462,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         calls: list = []
         issues: list[Issue] = []
         answer = ask(None, system, user, _reply(labels, shared_context=shared_context), calls, issues)
-        observed = _observe(answer, window, texts, labels, issues, nearby=nearby, shared_context=shared_context) if answer is not None else None
+        observed = _observe(answer, window, texts, labels, issues, nearby=nearby,
+                            shared_context=shared_context) if answer is not None else None
         if heading_context and observed is not None and len(window.primary) > 1 and depth < splits and \
                 any(kind == "unresolved" for _, _, kind, _ in observed.places):
             return None, calls, issues  # the halves replace this reading, including its provisional progress
@@ -718,7 +724,10 @@ def table_notes(body: dict, evidence: Evidence) -> dict:
     for entry in body['entries']:
         segments = {r['segment'] for r in entry['ranges']}
         extra = notes.get(next(iter(segments)), []) if len(segments) == 1 and 'parent' not in entry else []
-        entries.append({**entry, 'context': [*entry['context'], *extra]} if extra else entry)
+        # a note inside the table may already precede the entry, one range per line of the merged ledger row
+        held = [c for c in entry['context'] if not any(
+            c['segment'] == r['segment'] and r['start'] <= c['start'] and c['end'] <= r['end'] for r in extra)]
+        entries.append({**entry, 'context': [*held, *extra]} if extra else entry)
     return {**body, 'entries': entries}
 
 

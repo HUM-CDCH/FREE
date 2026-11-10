@@ -277,8 +277,10 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": {7: 9, 8: 10, 9: 11}.get(options.defaults, PROMPT_VERSION if options.defaults > 9 else 8),
-            "discovery_version": {7: 10, 8: 11, 9: 12}.get(options.defaults, discovery.VERSION if options.defaults > 9 else 8),
+            "models": chat.models,
+            "prompt_version": {7: 9, 8: 10, 9: 11}.get(options.defaults, PROMPT_VERSION if options.defaults > 9 else 8),
+            "discovery_version": {7: 10, 8: 11, 9: 12}.get(options.defaults,
+                                                           discovery.VERSION if options.defaults > 9 else 8),
             **({"entry_version": ENTRY_VERSION} if options.defaults >= 7 else {}),
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}

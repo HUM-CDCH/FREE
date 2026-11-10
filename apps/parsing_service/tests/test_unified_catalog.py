@@ -2039,6 +2039,24 @@ def test_table_qualifications_are_shared_context_not_record_text(defaults, insid
     assert_accounted(source, result)
 
 
+@pytest.mark.parametrize('lines', [1, 2, 4])  # 4: more than the CONTEXT_UNITS lines an entry keeps before it
+def test_a_table_qualification_between_entries_is_shared_once(lines):
+    notes = [f'Note {i} applies to every entry.' for i in range(lines)]
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 1, (
+        passage('p1_s0', '\n'.join(['Entry\tMaterial', '1. Alpha.\twood', *notes, '2. Beta.\tstone']), label='Table'),))
+    def boundaries(user):
+        return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'context', None],
+                           [f'L{3 + lines}', 'record', '2.']],
+                'begins_inside_record': False, 'ends_inside_record': False}
+    result, chat = extract(source, Model(source, discovery=boundaries), defaults=9)
+    reads = [c for c in chat.calls if c['system'].startswith('You extract structured')]
+    assert len(reads) == 2
+    for call in reads:
+        context = section(call['user'], 'CONTEXT (not part of the record)')
+        assert [context.count(note) for note in notes] == [1] * lines
+    assert_accounted(source, result)
+
+
 @pytest.mark.parametrize('ordinary_first', [False, True])
 def test_ordinary_text_ends_table_qualifications_at_its_exact_range(ordinary_first):
     note, later_note = 'Units apply to the preceding entries.', 'Later shared qualifications.'

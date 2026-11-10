@@ -13,8 +13,7 @@ REFERENCE supplies independently annotated entries (id, exact ranges, resolved e
 Use --replay PREVIOUS/report.json to re-score saved replies against a corrected reference without inference;
 the report records the amendment and original digest, and refuses changed model requests.
 Use --cases to select controls. Nested-record controls also run the existing children discovery pass.
-The default candidate uses version 9's refined scope and explicit shared-qualification reply kind;
---candidate original retains the first, summary-duplicating scope-only arm.
+The candidate uses version 9's refined scope and explicit shared-qualification reply kind.
 Field extraction and durable execution are outside this experiment.
 """
 from __future__ import annotations
@@ -31,14 +30,6 @@ from collections import Counter
 from pathlib import Path
 
 
-ORIGINAL_SCOPE = (
-    " The record definition determines the unit to separate, even inside a larger container. "
-    "When the defined records are entries in a table, every matching data row starts its own record; "
-    "the table title and column headers are shared context, not a record containing those entries. "
-    "Keep a record's internal headings, tables, citations and numbered list items with that record "
-    "only when they do not themselves match the requested record definition. "
-    "Use other only for text outside every record, not sections inside one."
-)
 LINE = re.compile(r"^\[(L\d+)(?: (heading|table row))?\] (.*)$", re.MULTILINE)
 CASE_NAMES = ("captured-full-document", "synthetic-table", "internal-tables", "summary-before-prose",
               "parents-and-nested-finds", "primary-summary-table")
@@ -61,18 +52,24 @@ def cases(span, discovery_prompt, baseline_scope, reference):
                 raise ValueError("reference range is outside the captured source")
     score([], expected)  # validate reference identities and resolved ends before asking a model
 
-    def synthetic(name, description, rows, starts):
+    def synthetic(name, description, rows, owners, parents=None):
+        """`owners` maps each record's start line to the whole lines it owns; `parents` names nested records'."""
         user = "### WINDOW\n" + "\n".join(f"[L{i} {kind}] {text}" if kind else f"[L{i}] {text}"
                                          for i, (kind, text) in enumerate(rows, 1))
+        entries = [{"id": f"L{start}@0", "end": "validated",
+                    "ranges": [{"segment": f"L{i}", "start": 0, "end": len(rows[i - 1][1])} for i in owned],
+                    **({"parent": parents[f"L{start}@0"]} if f"L{start}@0" in (parents or {}) else {})}
+                   for start, owned in owners.items()]
         return {"name": name, "description": description,
                 "system": discovery_prompt.format(description=description + baseline_scope),
-                "user": user + "\n\nReturn the JSON object now.", "expected": [[f"L{i}", 0] for i in starts]}
+                "user": user + "\n\nReturn the JSON object now.", "expected_entries": entries,
+                **({"parents": parents} if parents else {})}
 
     table = synthetic("synthetic-table", "One record is a port entry: its name, region and year.", [
         ("heading", "Survey of ports"), ("table row", "Table A. Port entries"),
         ("table row", "Port\tRegion\tYear"),
         *(("table row", f"Port {chr(65 + i)}\t{'West' if i % 2 else 'East'}\t{1700 + i}") for i in range(8)),
-        ("", "End of port survey.")], range(4, 12))
+        ("", "End of port survey.")], {i: [i] for i in range(4, 12)})
     primary_summary = {**table, "name": "primary-summary-table", "user": table["user"].replace(
         "Survey of ports", "Summary of ports").replace("Table A. Port entries", "Summary table of port entries")}
     parents = synthetic("internal-tables", "One record is a grave, including all its finds and measurements.", [
@@ -82,16 +79,14 @@ def cases(span, discovery_prompt, baseline_scope, reference):
         ("heading", "Grave 2"), ("", "Orientation: east-west."),
         ("table row", "Find\tMaterial\tCount"), ("table row", "Ring\tIron\t1"),
         ("table row", "Pot\tClay\t2"), ("", "Length: 170 cm."),
-        ("heading", "Bibliography"), ("", "Synthetic report reference.")], [2, 9])
-    parents["must_own"] = [[f"L{i}", "L2"] for i in range(2, 9)] + [[f"L{i}", "L9"] for i in range(9, 15)]
+        ("heading", "Bibliography"), ("", "Synthetic report reference.")], {2: range(2, 9), 9: range(9, 15)})
     summary = synthetic("summary-before-prose", "One record is a grave, including all its finds and measurements.", [
         ("heading", "Index of graves"), ("table row", "Grave\tOrientation\tLength"),
         ("table row", "Grave 1\tNorth-south\t180 cm"), ("table row", "Grave 2\tEast-west\t170 cm"),
         ("heading", "Detailed grave descriptions"), ("heading", "Grave 1"),
         ("", "Orientation: north-south. Finds: three glass beads and a bronze pin."), ("", "Length: 180 cm."),
         ("heading", "Grave 2"), ("", "Orientation: east-west. Finds: one iron ring and two clay pots."),
-        ("", "Length: 170 cm."), ("heading", "Bibliography")], [6, 9])
-    summary["must_own"] = [[f"L{i}", "L6"] for i in range(6, 9)] + [[f"L{i}", "L9"] for i in range(9, 12)]
+        ("", "Length: 170 cm."), ("heading", "Bibliography")], {6: range(6, 9), 9: range(9, 12)})
     nested = synthetic("parents-and-nested-finds",
         "One record is a grave or an individually identified find within a grave. Keep the grave's own "
         "description and measurements distinct from the finds it contains.", [
@@ -101,24 +96,10 @@ def cases(span, discovery_prompt, baseline_scope, reference):
         ("heading", "Grave 2"), ("", "Orientation: east-west."),
         ("table row", "Find\tMaterial\tCount"), ("table row", "Find B1\tIron\t1"),
         ("table row", "Find B2\tClay\t2"), ("", "Grave 2 length: 170 cm. Depth: 50 cm."),
-        ("heading", "Bibliography")], [2, 5, 6, 8, 11, 12])
+        ("heading", "Bibliography")], {2: (2, 3, 4, 7), 5: [5], 6: [6], 8: (8, 9, 10, 13), 11: [11], 12: [12]},
+        {"L5@0": "L2@0", "L6@0": "L2@0", "L11@0": "L8@0", "L12@0": "L8@0"})
     nested["children"] = True
-    nested["parents"] = {"L5@0": "L2@0", "L6@0": "L2@0", "L11@0": "L8@0", "L12@0": "L8@0"}
-    nested["must_own"] = [[f"L{i}", "L2"] for i in (2, 3, 4, 7)] + [
-        [f"L{i}", "L8"] for i in (8, 9, 10, 13)] + [[f"L{i}", f"L{i}"] for i in (5, 6, 11, 12)]
     captured_case = {"name": "captured-full-document", **captured, "expected_entries": expected}
-    table["must_own"] = [[f"L{i}", f"L{i}"] for i in range(4, 12)]
-    primary_summary["must_own"] = table["must_own"]
-    for case in (table, parents, summary, nested, primary_summary):
-        texts = {m[1]: m[3] for m in LINE.finditer(case["user"])}
-        ranges = {}
-        for label, owner in case["must_own"]:
-            ranges.setdefault(f"{owner}@0", []).append({"segment": label, "start": 0, "end": len(texts[label])})
-        case["expected_entries"] = [{"id": f"{label}@{offset}", "ranges": ranges[f"{label}@{offset}"],
-                                     "end": "validated", **({"parent": case["parents"][f"{label}@{offset}"]}
-                                     if f"{label}@{offset}" in case.get("parents", {}) else {})}
-                                    for label, offset in case.pop("expected")]
-        del case["must_own"]
     return [captured_case, table, parents, summary, nested, primary_summary]
 
 
@@ -181,7 +162,6 @@ def worker(payload):
     from kei_exp.kie.extract import discovery, llm, unified
 
     span = payload["span"]
-    candidate_scope = ORIGINAL_SCOPE if payload["candidate"] == "original" else unified.DISCOVERY_SCOPE_V9
     prepared = cases(span, discovery.DISCOVERY, unified.DISCOVERY_SCOPE, payload["reference"])
     prepared = [case for case in prepared if not payload.get("cases") or case["name"] in payload["cases"]]
     if not prepared or payload.get("cases") and {c["name"] for c in prepared} != set(payload["cases"]):
@@ -193,8 +173,7 @@ def worker(payload):
             for name, module in (("discovery", discovery), ("llm", llm), ("unified", unified))}
     print(json.dumps({"protocol": {"repeats": payload["repeats"], "temperature": 0, "max_tokens": 4096,
           "model": chat.model, "implementation": pins, "baseline_scope": unified.DISCOVERY_SCOPE,
-          "candidate_scope": candidate_scope,
-          "candidate_shared_context": payload["candidate"] == "refined", "cases": prepared,
+          "candidate_scope": unified.DISCOVERY_SCOPE_V9, "candidate_shared_context": True, "cases": prepared,
           "reference": payload["reference"], "replay_sha256": digest(payload["replay"]) if payload["replay"] else None,
           "recorded_baseline": span["attributes"]["llm.output_messages.0.message.content"],
           "trace_id": span["context"]["trace_id"], "span_id": span["context"]["span_id"]}}), flush=True)
@@ -207,11 +186,9 @@ def worker(payload):
             # Alternate order between repetitions, preserving the exact source and reply budget in both arms.
             arms = ["baseline", "candidate"] if repeat % 2 == 0 else ["candidate", "baseline"]
             for arm in arms:
+                shared_context = arm == "candidate"
                 system = case["system"] if arm == "baseline" else case["system"].replace(
-                    unified.DISCOVERY_SCOPE, candidate_scope, 1)
-                shared_context = arm == "candidate" and payload["candidate"] == "refined"
-                if shared_context:
-                    system += discovery.SHARED_CONTEXT
+                    unified.DISCOVERY_SCOPE, unified.DISCOVERY_SCOPE_V9, 1) + discovery.SHARED_CONTEXT
                 schema = discovery._reply([m[1] for m in LINE.finditer(case["user"])], shared_context=shared_context)
                 request = chat.request_body(system=system, user=case["user"], schema=schema, max_tokens=4096)
                 row = {"case": case["name"], "arm": arm, "repeat": repeat + 1,
@@ -259,6 +236,18 @@ def worker(payload):
                 print(json.dumps({"result": row}, ensure_ascii=False), flush=True)
 
 
+def remote(host, container, source, payload):
+    """Send `payload` to `source --worker` in an existing container over SSH; yield each JSON line it prints."""
+    command = shlex.join(["docker", "exec", "-i", container, "python", "-c", source, "--worker"])
+    with subprocess.Popen(["ssh", "-o", "BatchMode=yes", host, command], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, text=True) as process:
+        process.stdin.write(json.dumps(payload))
+        process.stdin.close()
+        yield from map(json.loads, process.stdout)
+        if process.wait() != 0:
+            raise RuntimeError("experiment worker failed; partial evidence retained")
+
+
 def main():
     if sys.argv[1:] == ["--worker"]:
         worker(json.load(sys.stdin))
@@ -271,7 +260,6 @@ def main():
     parser.add_argument("--replay", type=Path)
     parser.add_argument("--container", default="free-parsing_worker-1")
     parser.add_argument("--repeats", type=int, default=3)
-    parser.add_argument("--candidate", choices=["original", "refined"], default="refined")
     parser.add_argument("--cases", nargs="+", choices=CASE_NAMES)
     args = parser.parse_args()
     if args.repeats < 1:
@@ -284,31 +272,21 @@ def main():
     (args.output / "runner.py").write_text(source)
     replay = json.loads(args.replay.read_text()) if args.replay else None
     case_count = len(args.cases) if args.cases else len(CASE_NAMES)
-    command = shlex.join(["docker", "exec", "-i", args.container, "python", "-c", source, "--worker"])
     rows = []
-    with subprocess.Popen(["ssh", "-o", "BatchMode=yes", args.ssh_host, command], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, text=True) as process:
-        process.stdin.write(json.dumps({"span": spans[0], "repeats": args.repeats,
-                                       "reference": json.loads(args.reference.read_text()),
-                                       "replay": replay, "cases": args.cases,
-                                       "candidate": args.candidate}))
-        process.stdin.close()
-        for line in process.stdout:
-            item = json.loads(line)
-            if "protocol" in item:
-                protocol = {**item["protocol"], "runner_sha256": hashlib.sha256(source.encode()).hexdigest()}
-                (args.output / "protocol.json").write_text(json.dumps(protocol, ensure_ascii=False, indent=2))
-            else:
-                row = item["result"]
-                rows.append(row)
-                name = f"{row['case']}-{row['arm']}-{row['repeat']}.json"
-                (args.output / name).write_text(json.dumps(row, ensure_ascii=False, indent=2))
-                print(json.dumps({k: row.get(k) for k in ("case", "arm", "repeat", "seconds", "error")} |
-                                 {"score": {k: row["score"].get(k) for k in
-                                            ("records", "expected", "matched", "pass")} |
-                                  {"ownership_errors": len(row["score"].get("ownership_errors", []))}}), flush=True)
-        if process.wait() != 0:
-            raise RuntimeError("experiment worker failed; partial evidence retained")
+    for item in remote(args.ssh_host, args.container, source, {
+            "span": spans[0], "repeats": args.repeats, "reference": json.loads(args.reference.read_text()),
+            "replay": replay, "cases": args.cases}):
+        if "protocol" in item:
+            protocol = {**item["protocol"], "runner_sha256": hashlib.sha256(source.encode()).hexdigest()}
+            (args.output / "protocol.json").write_text(json.dumps(protocol, ensure_ascii=False, indent=2))
+        else:
+            row = item["result"]
+            rows.append(row)
+            name = f"{row['case']}-{row['arm']}-{row['repeat']}.json"
+            (args.output / name).write_text(json.dumps(row, ensure_ascii=False, indent=2))
+            print(json.dumps({k: row.get(k) for k in ("case", "arm", "repeat", "seconds", "error")} |
+                             {"score": {k: row["score"].get(k) for k in ("records", "expected", "matched", "pass")} |
+                              {"ownership_errors": len(row["score"].get("ownership_errors", []))}}), flush=True)
     if len(rows) != args.repeats * case_count * 2 or len({(r["case"], r["arm"], r["repeat"]) for r in rows}) != len(rows):
         raise RuntimeError("experiment did not return every distinct planned comparison")
     report = {"rows": rows, "candidate_passes": sum(r["score"]["pass"] for r in rows if r["arm"] == "candidate"),

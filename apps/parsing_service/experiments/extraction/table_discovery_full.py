@@ -8,8 +8,8 @@ REQUEST names runId, generation and the actual {schema, options} request. GOLD o
 worker image to validate its implementation; historical method versions keep their own prompts.
 
 The runner captures final HTTP attempts without headers or credential URLs, loaded application source hashes,
-worker/model images, and available model/tokenizer cache revisions and file identities. Unavailable serving
-metadata is reported explicitly; greedy execution is not a promise of byte-identical future output.
+worker/model image ids and the served model revisions. Unavailable serving metadata is reported explicitly;
+greedy execution is not a promise of byte-identical future output.
 No result is published to product state.
 """
 from __future__ import annotations
@@ -32,28 +32,9 @@ from unittest.mock import patch
 
 
 def container_identity(host, container):
-    """Keep immutable images and available model/tokenizer artifacts, without reading credentials or environment dumps."""
+    """Keep the immutable image id, without reading credentials or environment dumps."""
     inspect = shlex.join(["docker", "inspect", "--format", "{{json .Image}}", container])
-    image = json.loads(subprocess.check_output(["ssh", "-o", "BatchMode=yes", host, inspect], text=True))
-    program = '''import hashlib,json,sys
-from pathlib import Path
-from huggingface_hub.constants import HF_HUB_CACHE
-snapshots=[]
-for repo in sorted(Path(HF_HUB_CACHE).glob("models--*")):
- for snapshot in sorted((repo/"snapshots").glob("*")):
-  files={}
-  for f in snapshot.rglob("*"):
-   if not f.is_file(): continue
-   if f.suffix in (".json",".jinja",".model"):
-    files[str(f.relative_to(snapshot))]={"sha256":hashlib.sha256(f.read_bytes()).hexdigest()}
-   elif f.is_symlink():
-    files[str(f.relative_to(snapshot))]={"blob":f.resolve().name}
-  snapshots.append({"repository":repo.name.removeprefix("models--").replace("--","/"),
-                    "revision":snapshot.name,"files":files})
-print(json.dumps({"python":sys.version,"cache_snapshots":snapshots}))'''
-    command = shlex.join(["docker", "exec", container, "python3", "-c", program])
-    metadata = json.loads(subprocess.check_output(["ssh", "-o", "BatchMode=yes", host, command], text=True))
-    return {"image": image, **metadata}
+    return {"image": json.loads(subprocess.check_output(["ssh", "-o", "BatchMode=yes", host, inspect], text=True))}
 
 
 @contextmanager
@@ -110,7 +91,7 @@ def assess_records(result, reference):
         fields = {key: {"expected": value, "actual": actual.get(key)} for key, value in expected.items()
                   if normalized(value) != normalized(actual.get(key))}
         if fields:
-            errors.append({"row": number, "port": expected["port"], "fields": fields})
+            errors.append({"row": number, "fields": fields})
     return {**verdict, "field_result": {"rows_correct": len(reference["records"]) - len(errors),
             "cells_correct": sum(len(r) for r in reference["records"]) - sum(len(e["fields"]) for e in errors),
             "cells_total": sum(len(r) for r in reference["records"]), "errors": errors}}
@@ -174,6 +155,7 @@ def main():
     if sys.argv[1:] == ["--worker"]:
         worker(json.load(sys.stdin))
         return
+    from experiments.extraction.table_discovery import remote  # host side: the container has no experiments package
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("request", type=Path)
     parser.add_argument("output", type=Path)
@@ -191,34 +173,29 @@ def main():
     runtime = {}
     for role, container in {"worker": args.container, **containers}.items():
         runtime[role] = container_identity(args.ssh_host, container)
-    command = shlex.join(["docker", "exec", "-i", args.container, "python", "-c", source, "--worker"])
     final = False
-    with subprocess.Popen(["ssh", "-o", "BatchMode=yes", args.ssh_host, command], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, text=True) as process:
-        process.stdin.write(json.dumps({"config": json.loads(args.request.read_text()), "runtime": runtime}))
-        process.stdin.close()
-        with (args.output / "captures.jsonl").open("w") as captures:
-            for line in process.stdout:
-                item = json.loads(line)
-                if "capture" in item:
-                    captures.write(line)
-                    captures.flush()
-                    c = item["capture"]
-                    print(json.dumps({"roles": c["roles"], "status": c.get("status"),
-                                      "seconds": c["seconds"]}), flush=True)
-                elif "protocol" in item:
-                    item["protocol"]["runner_sha256"] = hashlib.sha256(source.encode()).hexdigest()
-                    (args.output / "protocol.json").write_text(json.dumps(item["protocol"], indent=2))
-                else:
-                    if args.reference:
-                        item["assessment"] = assess_records(item["result"], json.loads(args.reference.read_text()))
-                    (args.output / "result.json").write_text(json.dumps(item, ensure_ascii=False, indent=2))
-                    final = True
-                    print(json.dumps({"records": len(item["result"]["records"]), "seconds": item["seconds"],
-                                      "canonical_unchanged": item["canonical_unchanged"]}), flush=True)
-        if process.wait() != 0 or not final:
-            raise RuntimeError("full extraction failed; partial evidence retained")
-
+    with (args.output / "captures.jsonl").open("w") as captures:
+        payload = {"config": json.loads(args.request.read_text()), "runtime": runtime}
+        for item in remote(args.ssh_host, args.container, source, payload):
+            if "capture" in item:
+                captures.write(json.dumps(item, ensure_ascii=False) + "\n")
+                captures.flush()
+                c = item["capture"]
+                print(json.dumps({"roles": c["roles"], "status": c.get("status"), "seconds": c["seconds"]}), flush=True)
+            elif "protocol" in item:
+                item["protocol"]["runner_sha256"] = hashlib.sha256(source.encode()).hexdigest()
+                (args.output / "protocol.json").write_text(json.dumps(item["protocol"], indent=2))
+            else:
+                result = args.output / "result.json"
+                result.write_text(json.dumps(item, ensure_ascii=False, indent=2))  # before scoring can fail
+                final = True
+                print(json.dumps({"records": len(item["result"]["records"]), "seconds": item["seconds"],
+                                  "canonical_unchanged": item["canonical_unchanged"]}), flush=True)
+                if args.reference:
+                    item["assessment"] = assess_records(item["result"], json.loads(args.reference.read_text()))
+                    result.write_text(json.dumps(item, ensure_ascii=False, indent=2))
+    if not final:
+        raise RuntimeError("full extraction failed; partial evidence retained")
 
 if __name__ == "__main__":
     main()
