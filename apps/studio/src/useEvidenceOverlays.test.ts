@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import parsedFixture from './assets/parsed_document.v2.json'
-import { useEvidenceOverlays } from './useEvidenceOverlays'
+import { useEvidenceOverlays, type MarkInfo, type RailMarks } from './useEvidenceOverlays'
 import { verifiedEvidenceBbox } from './evidenceNavigation'
 
 afterEach(() => {
@@ -308,7 +308,9 @@ describe('marks select their values', () => {
     const marks = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
     expect(marks).toHaveLength(anchor.producer_observations.length)
     const mark = marks[0]!
-    expect(mark.getAttribute('aria-label')).toBe('title: Alpha, Approved; subtitle: Beta')
+    expect(mark.getAttribute('aria-label')).toBe('title: Alpha, linked by rule, Approved; subtitle: Beta, linked by rule')
+    // The same words are the pointer's tooltip.
+    expect(mark.title).toBe(mark.getAttribute('aria-label'))
     expect(mark.getAttribute('aria-current')).toBe('true')
     expect(mark.className).toMatch(/\brule\b/)
     expect(mark.className).toMatch(/\bselected\b/)
@@ -524,22 +526,28 @@ describe('value marks', () => {
     document.body.append(container)
     const listeners = new Map<string, () => void>()
     const viewer = { scrollPageIntoView: vi.fn(), eventBus: { on: (event: string, paint: () => void) => listeners.set(event, paint), off: (event: string) => listeners.delete(event) } }
-    const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]), selected, onSelect: vi.fn(),
+    const marks: RailMarks = { describe: new Map<string, MarkInfo>([[key, { name: 'title', value: 'Alpha', word: null, style: 'link', anchorId: anchor.anchor_id }]]), selected, onSelect: vi.fn(),
       savedLinks: [{ key, link: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision, valueBoxes } }] }
-    const hook = renderHook((props: { marks: typeof marks; active?: boolean }) => useEvidenceOverlays({
-      containerRef: { current: container }, viewerRef: { current: viewer as never }, parsedDocument, attempt: { extractionId: 'run' }, active: props.active ?? true, marks: props.marks,
-    }), { initialProps: { marks } as { marks: typeof marks; active?: boolean } })
-    return { ...hook, marks, container, listeners, values: () => container.querySelectorAll<HTMLElement>('.parsed-evidence-value') }
+    // jsdom lays nothing out: the document is given a height, so the overview has one to place its ticks in.
+    const overview = document.createElement('div')
+    Object.defineProperty(container, 'scrollHeight', { value: 1000 })
+    // One ref object for the hook's life, as the workspace's are: a new one would rightly drop the marks.
+    const containerRef = { current: container }, viewerRef = { current: viewer as never }, overviewRef = { current: overview }
+    const hook = renderHook((props: { marks: RailMarks; active?: boolean }) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument, attempt: { extractionId: 'run' }, active: props.active ?? true, marks: props.marks, overviewRef,
+    }), { initialProps: { marks } as { marks: RailMarks; active?: boolean } })
+    return { ...hook, marks, container, listeners, overview, values: () => container.querySelectorAll<HTMLElement>('.parsed-evidence-value') }
   }
 
   it('draws one inert element per box for the selected value, beside its block mark, and repaints on a page render', () => {
     const second = { ...inside, y0: bbox.y0 + 9, y1: bbox.y0 + 16 }
     const { container, values, listeners } = paint([inside, second])
     expect(values()).toHaveLength(2)
+    expect(container.querySelectorAll('button.evidence-mark.valued').length).toBeGreaterThan(0)
     values().forEach((mark) => {
+      expect(mark!.classList.contains('selected')).toBe(true)
       expect(mark.tagName).toBe('DIV')
       expect(mark.getAttribute('aria-hidden')).toBe('true')
-      expect(mark.style.pointerEvents).toBe('none')
     })
     expect(container.querySelectorAll('button.evidence-mark')).toHaveLength(anchor.producer_observations.length)
     container.querySelector('.page')!.querySelectorAll('.parsed-evidence-value').forEach((mark) => mark.remove())
@@ -547,21 +555,85 @@ describe('value marks', () => {
     expect(values()).toHaveLength(2)
   })
 
-  it('draws nothing for an unselected value, for page-only precision, or when a box lies outside its anchor', () => {
-    expect(paint([inside], 'segment', null).values()).toHaveLength(0)
+  it('draws an unselected value too, quieter, and lights it with its hovered value', () => {
+    const { rerender, marks, values, container } = paint([inside], 'segment', null)
+    expect(values()).toHaveLength(1)
+    expect(values()[0]!.classList.contains('selected')).toBe(false)
+    rerender({ marks: { ...marks, hovered: [key] } })
+    expect(values()[0]!.classList.contains('hovered')).toBe(true)
+    expect(container.querySelector('.evidence-mark.valued')).not.toBeNull()
+  })
+
+  it('picks its one value in Results on a click, lights only that value, and stays the same element as it repaints', () => {
+    const { rerender, marks, values } = paint([inside], 'segment', null)
+    const onHover = vi.fn(), hoverable = { ...marks, onHover }
+    rerender({ marks: hoverable })
+    const mark = values()[0]!
+    expect(mark.style.pointerEvents).toBe('auto')
+    expect(mark.title).toBe('title: Alpha')
+    mark.click()
+    expect(marks.onSelect).toHaveBeenCalledWith([key], mark)
+    mark.dispatchEvent(new MouseEvent('mouseenter'))
+    expect(onHover).toHaveBeenLastCalledWith([key])
+    rerender({ marks: { ...hoverable, hovered: [key] } })
+    expect(values()[0]).toBe(mark)
+    // A value the rail does not name has nothing to pick.
+    rerender({ marks: { ...hoverable, describe: new Map() } })
+    expect(values()[0]!.style.pointerEvents).toBe('none')
+    expect(values()[0]!.title).toBe('')
+  })
+
+  it('carries its own link in its underline, thinner once decided, and leaves its block without one', () => {
+    const { rerender, marks, values, container } = paint([inside], 'segment', null)
+    expect([...values()[0]!.classList]).toContain('link')
+    rerender({ marks: { ...marks, describe: new Map([[key, { ...marks.describe.get(key)!, style: 'doubtful', word: 'Approved' }]]) } })
+    expect([...values()[0]!.classList]).toEqual(expect.arrayContaining(['doubtful', 'decided']))
+    const block = container.querySelector<HTMLElement>('button.evidence-mark')!
+    expect(block.classList.contains('valued')).toBe(true)
+    expect(block.title).toBe('title: Alpha, uncertain, Approved')
+  })
+
+  it('keeps the block underline for a value with no mark of its own, and gives a block of several fields a neutral colour', () => {
+    const { rerender, marks, values, container } = paint([inside], 'segment', null)
+    const other = JSON.stringify(['records', 0, 'subtitle'])
+    rerender({ marks: { ...marks,
+      describe: new Map([[key, { ...marks.describe.get(key)!, color: '#e15759' }], [other, { name: 'subtitle', value: 'Beta', word: null, style: 'rule', anchorId: anchor.anchor_id, color: '#59a14f' }]]),
+      savedLinks: [...marks.savedLinks!, { key: other, link: { resultPath: ['records', 0, 'subtitle'], evidenceAnchorId: anchor.anchor_id, precision: 'segment' } }] } })
+    const block = container.querySelector<HTMLElement>('button.evidence-mark')!
+    expect(block.classList.contains('valued')).toBe(false)
+    expect(block.classList.contains('rule')).toBe(true)
+    expect(block.style.getPropertyValue('--color-ev')).toBe('var(--color-ink-faint)')
+    expect(values()[0]!.style.getPropertyValue('--color-ev')).toBe('#e15759')
+  })
+
+  it('ticks each block mark in the overview, the selected one marked, and clears them when the rail goes inactive', () => {
+    const { rerender, marks, overview, container } = paint([inside])
+    const blocks = container.querySelectorAll('.parsed-evidence-highlight').length
+    expect(overview.querySelectorAll('.evidence-tick')).toHaveLength(blocks)
+    expect(overview.querySelectorAll('.evidence-tick.selected').length).toBeGreaterThan(0)
+    rerender({ marks: { ...marks, selected: null } })
+    expect(overview.querySelectorAll('.evidence-tick.selected')).toHaveLength(0)
+    rerender({ marks, active: false })
+    expect(overview.children).toHaveLength(0)
+  })
+
+  it('draws nothing for page-only precision, or when a box lies outside its anchor', () => {
     expect(paint([inside], 'input').values()).toHaveLength(0)
+    expect(paint(undefined).container.querySelector('.evidence-mark.valued')).toBeNull()
     expect(paint([inside, { ...inside, x1: bbox.x1 + 3 }]).values()).toHaveLength(0)
     expect(paint([{ ...inside, y0: bbox.y0 - 3 }]).values()).toHaveLength(0)
     // A box within 2pt of the anchor's edge still counts.
     expect(paint([{ ...inside, x1: bbox.x1 + 2 }]).values()).toHaveLength(1)
   })
 
-  it('removes the value mark when the selection changes, the rail goes inactive, or the hook unmounts', () => {
+  it('keeps the value mark, unselected, when the selection changes; removes it when the rail goes inactive or the hook unmounts', () => {
     const { rerender, marks, values, unmount, container } = paint([inside])
     rerender({ marks: { ...marks, selected: 'other' } })
-    expect(values()).toHaveLength(0)
+    expect(values()).toHaveLength(1)
+    expect(values()[0]!.classList.contains('selected')).toBe(false)
     rerender({ marks })
     expect(values()).toHaveLength(1)
+    expect(values()[0]!.classList.contains('selected')).toBe(true)
     rerender({ marks, active: false })
     expect(values()).toHaveLength(0)
     rerender({ marks })
@@ -576,7 +648,7 @@ describe('value marks', () => {
       return this.classList.contains('parsed-evidence-value') ? new DOMRect(10, 900, 20, 10)
         : this.classList.contains('parsed-evidence-focus') ? new DOMRect(10, 3000, 100, 40) : new DOMRect(0, 0, 500, 600)
     })
-    act(() => result.current(anchor, marks.savedLinks[0]!.link))
+    act(() => result.current(anchor, marks.savedLinks![0]!.link))
     expect(values()).toHaveLength(1)
     expect(container.scrollTo).toHaveBeenCalledTimes(1)
     const valueTop = (vi.mocked(container.scrollTo).mock.calls[0]![0] as ScrollToOptions).top

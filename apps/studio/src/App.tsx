@@ -798,6 +798,7 @@ export function DocumentWorkspace({
   const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
   const hovered = useSyncExternalStore(selection.subscribe, () => selection.snapshot().hover)
   const markdownContainerRef = useRef<HTMLDivElement>(null)
+  const evidenceOverviewRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
   // A value link asks Results for its value once per arrival, as soon as its Extraction is known. Leaving it, or
   // another value, withdraws an ask not taken yet; a layout effect, so before Results' effects in the same commit.
@@ -834,6 +835,7 @@ export function DocumentWorkspace({
     marks,
     active: effectiveRailOpen && railView === 'results',
     dimLink: marks ? publishedDim : null,
+    overviewRef: evidenceOverviewRef,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
@@ -1311,6 +1313,8 @@ export function DocumentWorkspace({
                 <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
+                {/* Where the Evidence sits in the whole document: ticks over the PDF's scrollbar (pdf-viewer.css). */}
+                <div ref={evidenceOverviewRef} className="evidence-overview" aria-hidden="true" />
                 {/* Over the PDF, which stays mounted with its marks and position. The Markdown's marks show only while the
                     rail is open. */}
                 {documentView === 'markdown' && (

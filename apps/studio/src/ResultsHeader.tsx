@@ -84,7 +84,7 @@ export default function ResultsHeader({
   const fraction = (count: number) => counts.required === 0 ? 0 : count / counts.required * 100
   const chipList: Array<{ value: ValueFilter; label: string; count?: number }> = [
     { value: 'check', label: 'To check' },
-    { value: 'doubt', label: 'Doubtful', count: counts.doubtful },
+    { value: 'doubt', label: 'Uncertain', count: counts.doubtful },
     { value: 'notrev', label: 'Not reviewable', count: counts.notReviewable },
     { value: 'all', label: 'All' },
   ]

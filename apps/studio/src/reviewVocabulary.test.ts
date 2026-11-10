@@ -1,11 +1,22 @@
 import { expect, it } from 'vitest'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import { evidenceCheck } from './reviewVocabulary'
+import { evidenceCheck, passageOnly } from './reviewVocabulary'
 
-it('a doubtful link: not found, or found elsewhere; none after an edit or rejection', () => {
-  expect(evidenceCheck({ verbatim: false })).toBe('Value not found in the linked passage')
-  expect(evidenceCheck({ verbatim: true, lexicalHits: 3 })).toBe('Value also appears in 2 other passages')
+it('an uncertain passage: not printed word for word, or printed elsewhere too; none after an edit or rejection', () => {
+  expect(evidenceCheck({ verbatim: false })).toBe('Value not printed word for word.')
+  expect(evidenceCheck({ verbatim: true, lexicalHits: 3 })).toBe('Also printed in 2 other passages.')
+  expect(evidenceCheck({ verbatim: true, lexicalHits: 2 })).toBe('Also printed in 1 other passage.')
+  expect(evidenceCheck({ verbatim: true, lexicalHits: 1 })).toBeNull()
   expect(evidenceCheck({ verbatim: false }, 'EDITED')).toBeNull()
+})
+
+it('says a link is located to its passage only when no value mark can be drawn; a page or cell link says its own', () => {
+  const link = { resultPath: ['title'], evidenceAnchorId: 'a' } as EvidenceLink
+  expect(passageOnly(link)).toBe(' · passage only')
+  expect(passageOnly({ ...link, precision: 'segment', valueBoxes: [{ x0: 0, y0: 0, x1: 1, y1: 1 }] })).toBe('')
+  expect(passageOnly({ ...link, precision: 'input' })).toBe('')
+  expect(passageOnly({ ...link, precision: 'cell' })).toBe('')
+  expect(passageOnly(null)).toBe('')
 })
 
 it('says what tied a recipe value to its field, until it is edited or rejected', async () => {

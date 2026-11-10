@@ -380,18 +380,21 @@ test('the selected value shows its value mark inside its block mark',async({page
     await openRailView(page,'Results')
     const block=page.locator(`.parsed-evidence-highlight[data-occurrence-id="${occurrence.occurrence_id}"]`),value=page.locator('.evidence-value-mark')
     await expect(block).toHaveCount(1)
-    // No value is selected yet: the block mark alone.
-    await expect(value).toHaveCount(0)
-    await block.click()
+    // No value is selected yet: its printing is marked already, quietly; selecting it makes the mark the strong one.
     await expect(value).toHaveCount(1)
+    await expect(value).not.toHaveClass(/selected/)
+    await block.click()
+    await expect(value).toHaveClass(/selected/)
     const outer=(await block.boundingBox())!,inner=(await value.boundingBox())!
     expect(Math.abs((inner.x-outer.x)/outer.width-0.25)).toBeLessThan(0.03)
     expect(Math.abs(inner.width/outer.width-0.25)).toBeLessThan(0.03)
     expect(Math.abs((inner.y-outer.y)/outer.height-0.25)).toBeLessThan(0.05)
     expect(Math.abs(inner.height/outer.height-0.5)).toBeLessThan(0.05)
-    // The block mark stays the button: the value mark takes no pointer hits and is not announced.
+    // The block mark stays the button; the value mark is not announced, and the pointer picks its value with it.
     await expect(value).toHaveAttribute('aria-hidden','true')
-    await expect(value).toHaveCSS('pointer-events','none')
+    await expect(value).toHaveCSS('pointer-events','auto')
+    await value.click()
+    await expect(value).toHaveClass(/selected/)
     await page.screenshot({path:'test-results/value-mark.png'})
   } finally {await fixture.close()}
 })

@@ -247,9 +247,9 @@
   color: var(--editor-toolbar-hover-fg-color);
 }
 
-/* Evidence marks: one Evidence colour; dotted for a rule link, dashed for a doubtful
-   one; a decided value keeps its fill with a 1px border, so every used passage stays visible; the selected value an
-   ev-soft fill and an accent outline. */
+/* Evidence marks: one Evidence colour; dotted for a rule link, dashed for an uncertain passage (`doubtful`); a decided
+   value keeps its fill with a 1px border, so every used passage stays visible; the selected value an ev-soft fill and
+   an accent outline. */
 .evidence-mark {
   padding: 0;
   border: 0;
@@ -267,16 +267,38 @@
 /* A value under the pointer, here or on its Results row: its marks get the ev-soft fill and an Evidence outline; the
    selected one keeps its accent outline. */
 .evidence-mark.hovered { background: var(--color-ev-soft); outline: 2px solid var(--color-ev); outline-offset: 1px; }
-.evidence-mark.hovered.selected { outline-color: var(--color-accent); }
+.evidence-mark.hovered.selected { outline-color: var(--color-accent); outline-offset: 0; }
 /* The "Evidence marks" switch hides every mark but the selected one. */
 .evidence-marks-off .evidence-mark:not(.selected) { display: none; }
 /* On the PDF a mark lies over the page's own text, so an alpha fill of a pale token washes the ink out. Multiply
    tints the paper and never lightens the ink, however many marks stack. */
 .pdf-viewer .evidence-mark,
 .pdf-viewer .parsed-evidence-focus { mix-blend-mode: multiply; }
-.pdf-viewer .evidence-mark { background: var(--color-ev-soft); }
-.pdf-viewer .evidence-mark.hovered { background: color-mix(in srgb, var(--color-ev) 30%, var(--color-ev-soft)); }
-.pdf-viewer .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev) 20%, var(--color-ev-soft)); }
-/* The selected value's printing, drawn inside its block mark in the same colours but stronger; it takes no pointer hits
-   and is not announced, so the block mark stays the button. */
-.pdf-viewer .evidence-value-mark { border-bottom: 2px solid var(--color-ev); background: color-mix(in srgb, var(--color-ev) 35%, var(--color-ev-soft)); pointer-events: none; mix-blend-mode: multiply; }
+/* Block fills stay pale so the value's own printing, stacked on its block, is what reads. */
+.pdf-viewer .evidence-mark { background: color-mix(in srgb, var(--color-ev-soft) 60%, white); }
+/* A block whose every value is marked inside it recedes to a whisper with no underline: the value marks say where to
+   look and how each value is linked, the block only that the passage is Evidence and can be picked. */
+.pdf-viewer .evidence-mark.valued { background: color-mix(in srgb, var(--color-ev-soft) 30%, white); border-color: transparent; }
+/* An outlined mark shows one edge only: its own underline would run inside the outline as a second line. */
+.pdf-viewer .evidence-mark:is(.hovered, .selected) { background: var(--color-ev-soft); border-color: transparent; outline-offset: 0; }
+/* The selected mark already carries the accent outline and fill: a focus overlay on its page would draw a second
+   border and darken it, so it stays in the layout as the scroll target but is not drawn. */
+.pdf-viewer .page:has(.evidence-mark.selected) .parsed-evidence-focus { visibility: hidden; }
+/* A value's printing, drawn inside its block mark in its field's colour: every placed value as a highlighter stroke,
+   the selected or hovered one stronger. Its underline is its own link's, as a block's is: dotted by rule, dashed for an
+   uncertain passage, 1px once decided. The pointer picks its one value in Results (the painter sets `pointer-events`);
+   it is not announced, so the block mark stays the button, and its name says the same in words. */
+.pdf-viewer .evidence-value-mark { border-bottom: 2px solid var(--color-ev); background: color-mix(in srgb, var(--color-ev) 12%, var(--color-ev-soft)); cursor: pointer; mix-blend-mode: multiply; }
+.pdf-viewer .evidence-value-mark.rule { border-bottom-style: dotted; }
+.pdf-viewer .evidence-value-mark:is(.doubtful, .preview) { border-bottom-style: dashed; }
+.pdf-viewer .evidence-value-mark.decided { border-bottom-width: 1px; }
+.pdf-viewer .evidence-value-mark:is(.hovered, .selected) { background: color-mix(in srgb, var(--color-ev) 30%, var(--color-ev-soft)); }
+.evidence-marks-off .evidence-value-mark:not(.selected) { display: none; }
+/* The overview: one tick per Evidence mark over the PDF's scrollbar, at the mark's place in the whole document and in
+   its colour, so a long source shows where its Evidence sits; the selected value's tick is the accent one. It takes no
+   pointer hits (the scrollbar under it keeps working) and lies under the Markdown view (z-10). */
+.evidence-overview { position: absolute; inset-block: 0; right: 0; z-index: 5; width: 6px; pointer-events: none; }
+.evidence-tick { position: absolute; inset-inline: 0; min-height: 3px; border-radius: 1px; background: var(--color-ev); opacity: 0.55; }
+.evidence-tick.hovered { opacity: 1; }
+.evidence-tick.selected { left: -4px; z-index: 1; background: var(--color-accent); opacity: 1; }
+.pdf-viewer.evidence-marks-off ~ .evidence-overview .evidence-tick:not(.selected) { display: none; }

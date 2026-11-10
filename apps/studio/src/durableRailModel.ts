@@ -70,6 +70,10 @@ export const fieldColor = (fields: readonly string[], name: string) => {
   const index = fields.indexOf(name)
   return index < 0 ? undefined : FIELD_COLORS[index % FIELD_COLORS.length]
 }
+/** The colour of a mark several values share: their field's while they agree, else a neutral ink, so a passage that
+ *  supports values of several fields claims none of them. Each value's own mark and row keep its field's colour. */
+export const sharedColor = (colors: readonly (string | undefined)[]) =>
+  colors.every(color => color === colors[0]) ? colors[0] : 'var(--color-ink-faint)'
 /** The Evidence tokens a field's colour overrides on its marks and rail rows; none keeps the one Evidence colour. */
 export const evidenceColorVars = (color: string | undefined): Record<string, string> => color ? {'--color-ev': color,
   '--color-ev-soft': `color-mix(in srgb, ${color} 24%, white)`, '--color-ev-ghost': `color-mix(in srgb, ${color} 12%, white)`} : {}
@@ -101,7 +105,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     } : null,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'readings differ' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
-      : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · doubtful' : ''}`,
+      : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · uncertain' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
     evidence: disagreement ? {label:'Readings differ',detail:'Choose one, edit or reject it.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
       detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'
