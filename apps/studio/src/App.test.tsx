@@ -3,7 +3,7 @@ import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { StrictMode } from 'react'
+import { Profiler, StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
@@ -35,6 +35,7 @@ const {
   getDocument,
   ResponseException,
   scrollPageIntoView,
+  updateScale,
 } = vi.hoisted(() => {
   class ResponseException extends Error {
     readonly status: number
@@ -53,6 +54,7 @@ const {
     })),
     ResponseException,
     scrollPageIntoView: vi.fn(),
+    updateScale: vi.fn(),
   }
 })
 
@@ -186,7 +188,9 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
       this.currentScale = this.scale / 2
     }
 
-    updateScale({ scaleFactor }: { scaleFactor: number }) {
+    updateScale(options: { scaleFactor: number; drawingDelay?: number }) {
+      updateScale(options)
+      const { scaleFactor } = options
       this.currentScale = this.scale * scaleFactor
     }
 
@@ -269,6 +273,7 @@ afterEach(() => {
   getDocument.mockClear()
   destroyLoadingTask.mockClear()
   scrollPageIntoView.mockClear()
+  updateScale.mockClear()
   saved.refresh.mockReset()
   saved.refresh.mockImplementation(savedRefresh)
 })
@@ -1036,6 +1041,32 @@ describe('reopened Source Document workspace', () => {
     }
   })
 
+  it('updates the rail width during a drag and commits React state only on release', async () => {
+    await renderReopened()
+    cleanup()
+    const commits = vi.fn()
+    render(<Profiler id="workspace" onRender={commits}><DocumentWorkspace {...reopened} /></Profiler>)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    const rail = screen.getByRole('complementary', { name: 'Chat, template and results' })
+    const separator = document.querySelector('[title="Drag to resize"]')!
+    commits.mockClear()
+    fireEvent.mouseDown(separator, { clientX: 500 })
+    for (let i = 1; i <= 20; i++) fireEvent.mouseMove(window, { clientX: 500 - i })
+    expect(commits.mock.calls.length).toBe(0)
+    fireEvent.mouseUp(window)
+    expect(commits.mock.calls.length).toBe(1)
+    expect(rail).toHaveStyle({ width: 'var(--rail-width)' })
+    expect(rail.style.getPropertyValue('--rail-width')).toBe('364px')
+    expect(document.body.style.cursor).toBe('')
+  })
+
+  it('defers wheel-zoom raster drawing while keeping cursor-centred scale updates immediate', async () => {
+    await renderReopened()
+    fireEvent.wheel(document.querySelector('.pdf-viewer')!, { ctrlKey: true, deltaY: -50, clientX: 120, clientY: 80 })
+    expect(updateScale).toHaveBeenCalledExactlyOnceWith({ drawingDelay: 150,
+      scaleFactor: Math.exp(50 * 0.0015), origin: [120, 80] })
+  })
+
   it('does not reload Source Document resources when only its name changes', async () => {
     let renamed = false
     const pending = new Promise<Response>(() => undefined)
@@ -1135,7 +1166,7 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(screen.getByTitle('Collapse panel'))
 
-    expect(rail).toHaveStyle({ width: '46px' })
+    expect(rail.style.getPropertyValue('--rail-width')).toBe('46px')
     expect(rail.className).not.toContain(mobileDrawerWidth)
 
     fireEvent.click(screen.getByTitle('Expand panel'))
@@ -1380,7 +1411,8 @@ describe('reopened Source Document workspace', () => {
       return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: cut.snapshotVersion, feedbackVersion: 0 })
         ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
     }))
-    render(<DocumentWorkspace {...reopened} />)
+    const commits = vi.fn()
+    render(<Profiler id="workspace-hover" onRender={commits}><DocumentWorkspace {...reopened} /></Profiler>)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
     const view = within(screen.getByRole('group', { name: 'Document view' }))
@@ -1391,6 +1423,7 @@ describe('reopened Source Document workspace', () => {
     expect(document.querySelectorAll('[data-evidence-linked]')).toHaveLength(2)
     // Hover links the two sides: a row lights its passage, the passage lights its rows.
     const passage = screen.getByRole('button', { name: /place: Harlow/ })
+    commits.mockClear()
     fireEvent.mouseMove(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
     expect(passage).toHaveClass('hovered')
     fireEvent.mouseLeave(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
@@ -1399,6 +1432,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.mouseLeave(passage)
     expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(0)
     expect(passage).not.toHaveClass('hovered')
+    expect(commits.mock.calls.length).toBe(0)
 
     saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
     const parish = await screen.findByRole('button', { name: /^To check parish Elmbrook/ })

@@ -59,8 +59,8 @@ describe('the Markdown view', () => {
     }]]), selected: null, onSelect: vi.fn() }
     const { rerender } = render(<DocumentMarkdown markdown={markdown} document={document} marks={marks} />)
     expect(screen.getByRole('button', { name: /orientation: NE–SW; axis \(preview, not verified\)/ }).classList.contains('preview')).toBe(true)
-    marks.describe.set(previewKey, { ...describe_.get(key)!, name: 'axis' })
-    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={marks} />)
+    const verified = new Map(marks.describe).set(previewKey, { ...describe_.get(key)!, name: 'axis' })
+    rerender(<DocumentMarkdown markdown={markdown} document={document} marks={{ ...marks, describe: verified }} />)
     expect(screen.getByRole('button', { name: 'orientation: NE–SW; axis: NE–SW' })).toHaveClass('link')
   })
 

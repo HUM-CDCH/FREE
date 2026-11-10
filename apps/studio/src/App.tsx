@@ -66,6 +66,8 @@ const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
 // highlight annotation, which left nothing for the browser's native copy to
 // act on. Flip this back to true to restore highlight creation once that's
 // worth the copy/paste tradeoff again.
+// pdf.js's `.page:has(.annotationEditorLayer.nonEditing) … .editorAnnotation` rule is inert while this is off.
+// Re-profile overlay painting before enabling highlights: this dependency selector can invalidate the page's styles.
 const HIGHLIGHT_ANNOTATIONS_ENABLED = false
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
@@ -311,6 +313,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
+  const railElement = useRef<HTMLElement>(null)
   const [railView, setRailView] = useState<RailView>(() => routedValue ? 'results' : 'chat')
   // The History tab follows one value when set, until "Whole document"; it belongs to the document it was opened on.
   const [valueScope, setValueScope] = useState<{ sourceDocumentId: string; extractionId: string; valueId: string; name: string } | null>(null)
@@ -425,6 +428,7 @@ export function DocumentWorkspace({
         // as ctrlKey wheel events with small deltas, so scale smoothly.
         const lineHeight = event.deltaMode === 1 ? 25 : event.deltaMode === 2 ? 120 : 1
         pdfViewer.updateScale({
+          drawingDelay: 150,
           scaleFactor: Math.exp(-event.deltaY * 0.0015 * lineHeight),
           origin: [event.clientX, event.clientY],
         })
@@ -627,15 +631,18 @@ export function DocumentWorkspace({
     resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = railWidth
+    let width = startWidth
     const onMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX
-      setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
+      width = Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx))
+      railElement.current?.style.setProperty('--rail-width', `${width}px`)
     }
     const onUp = () => {
       controller.abort()
       if (resizeControllerRef.current === controller)
         resizeControllerRef.current = null
       document.body.style.cursor = ''
+      setRailWidth(width)
     }
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove, { signal: controller.signal })
@@ -796,7 +803,6 @@ export function DocumentWorkspace({
   const [selection] = useState(createSelectionChannel)
   const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
   const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
-  const hovered = useSyncExternalStore(selection.subscribe, () => selection.snapshot().hover)
   const markdownContainerRef = useRef<HTMLDivElement>(null)
   const evidenceOverviewRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
@@ -813,7 +819,6 @@ export function DocumentWorkspace({
   // a row's marks light here.
   const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
     ...publishedMarks,
-    hovered,
     onHover: selection.hover,
     onSelect: (keys: string[]) => {
       // A passage holding the selection keeps it; else it picks a part of the selected value there (also from a sibling
@@ -826,7 +831,7 @@ export function DocumentWorkspace({
       setRailView('results')
       selection.select(key, false, publishedMarks.extractionId, keys)
     },
-  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
+  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection])
   const selectPdfEvidence = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
@@ -836,6 +841,7 @@ export function DocumentWorkspace({
     active: effectiveRailOpen && railView === 'results',
     dimLink: marks ? publishedDim : null,
     overviewRef: evidenceOverviewRef,
+    hoverChannel: selection,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
@@ -1095,7 +1101,8 @@ export function DocumentWorkspace({
     )}
     {/* max-[860px] is `width < 860px`, AppFrame's narrowViewport: the rail overlays exactly while the nav does. */}
     <aside
-      style={{ width: effectiveRailWidth }}
+      ref={railElement}
+      style={{ width: 'var(--rail-width)', '--rail-width': `${effectiveRailWidth}px` } as React.CSSProperties}
       className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[860px]:absolute max-[860px]:inset-y-0 max-[860px]:right-0 max-[860px]:z-30 ${
         // No `100%`: portaled into AppFrame's chat column, whose width is 0 while the rail overlays, it made the rail 0 wide.
         effectiveRailOpen
@@ -1317,7 +1324,7 @@ export function DocumentWorkspace({
                     rail is open. */}
                 {documentView === 'markdown' && (
                   <div ref={markdownContainerRef} className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} hoverChannel={selection} />
                   </div>
                 )}
               </div>

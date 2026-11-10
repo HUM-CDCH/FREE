@@ -14,6 +14,19 @@ import {
 import { scrollWithinPane } from './scrollWithinPane'
 import { evidenceColorVars, markValueId, ownsMark, sharedColor } from './durableRailModel'
 import { fieldWords } from './reviewVocabulary'
+import { observeEvidenceHover, type HoverChannel, type HoverTarget } from './evidenceHover'
+
+type PageRender = { pageNumber: number; cssTransform?: boolean; isDetailView?: boolean }
+type PageMap = ReadonlyMap<number, HTMLElement>
+
+/** Page lookup is once per paint, never once per mark through pdf.js's text layers. */
+function pageMap(container: HTMLElement, pageNumber?: number): PageMap {
+  const pages = pageNumber === undefined ? [...container.querySelectorAll<HTMLElement>('.page')]
+    : [container.querySelector<HTMLElement>(`.page[data-page-number="${pageNumber}"]`)].filter((page): page is HTMLElement => page !== null)
+  return new Map(pages.map(page => [Number(page.dataset.pageNumber), page]))
+}
+
+const transformOnly = (event?: PageRender) => event?.cssTransform || event?.isDetailView
 
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral' | 'preview'; anchorId: string; precision?: EvidenceLink['precision']; color?: string }
@@ -75,7 +88,7 @@ function followPointer(mark: HTMLElement, name: string, onHover: ((over: boolean
 }
 
 function appendOverlay(
-  container: HTMLElement,
+  pages: PageMap,
   parsedDocument: ParsedDocument,
   occurrence: EvidenceOccurrence,
   options: {
@@ -89,10 +102,8 @@ function appendOverlay(
     mark?: { label: string; name: string; current: boolean; onClick: (element: HTMLElement) => void; onHover?: (over: boolean) => void }
   },
 ): HTMLElement | null {
-  const page = container.querySelector(
-    `.page[data-page-number="${occurrence.page_number}"]`,
-  )
-  if (!(page instanceof HTMLElement)) return null
+  const page = pages.get(occurrence.page_number)
+  if (!page) return null
   const bbox = verifiedEvidenceBbox(parsedDocument, occurrence)
   const pageMeta = parsedDocument.pages.find(
     (candidate) => candidate.page_number === occurrence.page_number,
@@ -127,8 +138,7 @@ function appendOverlay(
     borderRadius: '2px',
     zIndex: options.border ? '5' : '4',
   })
-  if (getComputedStyle(page).position === 'static')
-    page.style.position = 'relative'
+  // pdf.js owns `.pdfViewer .page { position: relative }`.
   if (overlay.parentElement !== page) page.append(overlay)
   return overlay
 }
@@ -136,9 +146,9 @@ function appendOverlay(
 /** Dims the page of a passage's first occurrence around each of its occurrences there:
  *  canvas-coloured rectangles at 45% outside every bbox grown by 24pt, so the page reads through at .55 and the
  *  passage stays clear, both places of a paragraph continued in the next column included; they take no pointer hits. */
-function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, occurrences: readonly EvidenceOccurrence[]) {
+function appendDimming(pages: PageMap, parsedDocument: ParsedDocument, occurrences: readonly EvidenceOccurrence[]) {
   const number = occurrences[0]?.page_number
-  const page = container.querySelector(`.page[data-page-number="${number}"]`)
+  const page = number === undefined ? undefined : pages.get(number)
   const meta = parsedDocument.pages.find((candidate) => candidate.page_number === number)
   if (!(page instanceof HTMLElement) || !meta) return
   const holes = occurrences
@@ -169,7 +179,6 @@ function appendDimming(container: HTMLElement, parsedDocument: ParsedDocument, o
       width: pct(right - left, meta.width_pt), height: pct(bottom - top, meta.height_pt),
       background: 'var(--color-canvas)', opacity: '0.45', pointerEvents: 'none', zIndex: '6',
     })
-    if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
     page.append(shade)
   }
 }
@@ -190,9 +199,11 @@ function placedValueBoxes(parsedDocument: ParsedDocument, occurrences: readonly 
 
 /** A page holding the selected mark says so by class, so its focus overlay is not drawn over that mark (pdf-viewer.css).
  *  The paint sets it: a `:has()` rule restyled the whole page once for every mark a repaint touched. */
-function flagSelectedPages(container: HTMLElement | null) {
-  const holding = new Set<Element | null>([...container?.querySelectorAll('.evidence-mark.selected') ?? []].map((mark) => mark.parentElement))
-  container?.querySelectorAll('.page').forEach((page) => page.classList.toggle('holds-selected-mark', holding.has(page)))
+function flagSelectedPages(pages: PageMap) {
+  for (const page of pages.values()) {
+    const selected = page.querySelector('.evidence-mark.selected') !== null
+    if (page.classList.contains('holds-selected-mark') !== selected) page.classList.toggle('holds-selected-mark', selected)
+  }
 }
 
 function removeOverlays(container: HTMLElement | null, className: string) {
@@ -215,6 +226,7 @@ export function useEvidenceOverlays({
   dimLink = null,
   marks = null,
   overviewRef,
+  hoverChannel,
 }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewerRef: RefObject<PDFViewer | null>
@@ -227,6 +239,7 @@ export function useEvidenceOverlays({
   marks?: RailMarks | null
   /** The strip over the document's scrollbar: it gets one tick per block mark, at the mark's place in the document. */
   overviewRef?: RefObject<HTMLElement | null>
+  hoverChannel?: HoverChannel
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
   const focusedAnchor = useRef<string | null>(null)
@@ -254,7 +267,12 @@ export function useEvidenceOverlays({
     const anchor = parsedDocument.evidence_index.anchors.find((candidate) => candidate.anchor_id === dimLink.evidenceAnchorId)
     const occurrences = anchor ? anchorOccurrences(anchor) : []
     if (occurrences.length === 0) return
-    const paint = () => { removeOverlays(container, 'evidence-dim'); appendDimming(container, parsedDocument, occurrences) }
+    const paint = (event?: PageRender) => {
+      if (transformOnly(event) || event && event.pageNumber !== occurrences[0]?.page_number) return
+      const pages = pageMap(container, occurrences[0]!.page_number)
+      for (const page of pages.values()) removeOverlays(page, 'evidence-dim')
+      appendDimming(pages, parsedDocument, occurrences)
+    }
     viewer?.eventBus?.on('pagerendered', paint)
     paint()
     return () => {
@@ -275,7 +293,7 @@ export function useEvidenceOverlays({
     ) {
       removeOverlays(container, 'parsed-evidence-highlight')
       removeOverlays(container, 'parsed-evidence-value')
-      flagSelectedPages(container)
+      if (container) flagSelectedPages(pageMap(container))
       overviewRef?.current?.replaceChildren()
       return
     }
@@ -286,34 +304,88 @@ export function useEvidenceOverlays({
         anchor,
       ]),
     )
-    const paint = () => {
-      const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
-        .map((element) => [element.dataset.occurrenceId!, element]))
-      // One mark per occurrence, its block's box, carrying every value its passage supports: never narrowed to a quote.
-      // Every placed value's printing is drawn apart, inside its block mark (ADR 0031); placed first, so a block
-      // that holds one can recede behind it.
-      const placedValues = evidenceLinks.flatMap(({ link, key, occurrenceIds }) => {
-        const anchor = anchors.get(link.evidenceAnchorId)
-        if (!link.valueBoxes || link.precision === 'input' || !anchor) return []
-        const occurrences = anchorOccurrences(anchor).filter((occurrence) => !occurrenceIds || occurrenceIds.includes(occurrence.occurrence_id))
-        return placedValueBoxes(parsedDocument, occurrences, link.valueBoxes).map((placed) => ({ ...placed, link, key }))
-      })
-      const placedKeys = new Map<string, Set<string>>()
-      for (const { occurrence, key } of placedValues) placedKeys.set(occurrence.occurrence_id, (placedKeys.get(occurrence.occurrence_id) ?? new Set()).add(key))
-      const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
-      for (const {link,key,occurrenceIds} of evidenceLinks) {
-        if (link.precision === 'input') continue
-        const anchor = anchors.get(link.evidenceAnchorId)
-        if (!anchor) continue
-        for (const occurrence of anchorOccurrences(anchor)) {
-          // Correction Evidence names its explicitly selected occurrences; model Evidence marks every occurrence.
-          if (occurrenceIds && !occurrenceIds.includes(occurrence.occurrence_id)) continue
-          const entry = byOccurrence.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [],resultPath:link.resultPath }
-          if (!entry.keys.includes(key)) entry.keys.push(key)
-          byOccurrence.set(occurrence.occurrence_id, entry)
-        }
+    // One mark per occurrence, its block's box, carrying every value its passage supports: never narrowed to a quote.
+    // Every placed value's printing is drawn apart, inside its block mark (ADR 0031); placed first, so a block
+    // that holds one can recede behind it.
+    const placedValues = evidenceLinks.flatMap(({ link, key, occurrenceIds }) => {
+      const anchor = anchors.get(link.evidenceAnchorId)
+      if (!link.valueBoxes || link.precision === 'input' || !anchor) return []
+      const occurrences = anchorOccurrences(anchor).filter((occurrence) => !occurrenceIds || occurrenceIds.includes(occurrence.occurrence_id))
+      return placedValueBoxes(parsedDocument, occurrences, link.valueBoxes).map((placed) => ({ ...placed, link, key }))
+    })
+    const placedKeys = new Map<string, Set<string>>()
+    for (const { occurrence, key } of placedValues) placedKeys.set(occurrence.occurrence_id, (placedKeys.get(occurrence.occurrence_id) ?? new Set()).add(key))
+    const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
+    for (const {link,key,occurrenceIds} of evidenceLinks) {
+      if (link.precision === 'input') continue
+      const anchor = anchors.get(link.evidenceAnchorId)
+      if (!anchor) continue
+      for (const occurrence of anchorOccurrences(anchor)) {
+        // Correction Evidence names its explicitly selected occurrences; model Evidence marks every occurrence.
+        if (occurrenceIds && !occurrenceIds.includes(occurrence.occurrence_id)) continue
+        const entry = byOccurrence.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [],resultPath:link.resultPath }
+        if (!entry.keys.includes(key)) entry.keys.push(key)
+        byOccurrence.set(occurrence.occurrence_id, entry)
       }
+    }
+    const hoverTargets = new Map<HTMLElement, readonly string[]>()
+    const ticks = new Map<string, HTMLElement>()
+    const tickLocations = new Map<HTMLElement, { pageNumber: number; top: number; height: number }>()
+    overviewRef?.current?.replaceChildren()
+    let stopHover = () => {}
+    const bindHover = () => {
+      stopHover()
+      stopHover = observeEvidenceHover(hoverChannel, [...hoverTargets].map(([element, keys]): HoverTarget => ({ element, keys })))
+    }
+    const paintOverview = (pages: PageMap) => {
+      // The overview: one tick per block mark over the scrollbar, at the mark's place and height in the whole document
+      // and in its colour. Every rectangle is read before a tick is attached, so the page is laid out once.
+      const overview = overviewRef?.current, height = container.scrollHeight
+      if (overview && height > 0) {
+        const top = container.getBoundingClientRect().top - container.scrollTop
+        const blocks = [...pages.values()].flatMap(page => [...page.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')])
+        const rects = blocks.map(block => block.getBoundingClientRect())
+        blocks.forEach((block, index) => {
+          const rect = rects[index]!, id = block.dataset.occurrenceId!
+          const tick = ticks.get(id) ?? window.document.createElement('div')
+          ticks.set(id, tick)
+          tickLocations.set(tick, { pageNumber: Number(block.parentElement!.dataset.pageNumber),
+            top: parseFloat(block.style.top) / 100, height: parseFloat(block.style.height) / 100 })
+          tick.className = `evidence-tick${block.classList.contains('selected') ? ' selected' : ''}${block.classList.contains('hovered') ? ' hovered' : ''}`
+          tick.style.top = `${((rect.top - top) / height) * 100}%`
+          tick.style.height = `${(rect.height / height) * 100}%`
+          const color = block.style.getPropertyValue('--color-ev')
+          if (color) tick.style.setProperty('--color-ev', color)
+          else tick.style.removeProperty('--color-ev')
+          hoverTargets.set(tick, hoverTargets.get(block) ?? [])
+          if (tick.parentElement !== overview) overview.append(tick)
+        })
+      }
+    }
+    // Scaling can drop overlays on off-screen pages, which will not render yet. Keep their ticks and place them from
+    // the same page-relative percentages as their marks. Read each page once before changing any tick styles.
+    const scaleOverview = () => {
+      const height = container.scrollHeight
+      if (!overviewRef?.current || height <= 0) return
+      const top = container.getBoundingClientRect().top - container.scrollTop
+      const layouts = new Map([...pageMap(container)].map(([number, page]) => [number, {
+        top: page.getBoundingClientRect().top + page.clientTop, height: page.clientHeight,
+      }]))
+      for (const [tick, location] of tickLocations) {
+        const page = layouts.get(location.pageNumber)
+        if (!page) continue
+        tick.style.top = `${((page.top + location.top * page.height - top) / height) * 100}%`
+        tick.style.height = `${((location.height * page.height) / height) * 100}%`
+      }
+    }
+    const paint = (event?: PageRender) => {
+      if (transformOnly(event)) return
+      const pages = pageMap(container, event?.pageNumber)
+      const elements = (selector: string) => [...pages.values()].flatMap(page => [...page.querySelectorAll<HTMLElement>(selector)])
+      const previous = new Map(elements('.parsed-evidence-highlight')
+        .map((element) => [element.dataset.occurrenceId!, element]))
       for (const { occurrence, anchorId, keys,resultPath } of byOccurrence.values()) {
+        if (!pages.has(occurrence.page_number)) continue
         const element = previous.get(occurrence.occurrence_id)
         previous.delete(occurrence.occurrence_id)
         // A value's correction Evidence in its own model passage names it once; two values that read alike stay two.
@@ -331,7 +403,7 @@ export function useEvidenceOverlays({
         const current = marks?.selected !== null && marks?.selected !== undefined && keys.some((key) => ownsMark(marks.selected!, key))
         const hovered = keys.some((key) => marks?.hovered?.some((each) => ownsMark(each, key)))
         const selectable = keys.filter((key) => marks?.describe.has(key))
-        const painted = appendOverlay(container, parsedDocument, occurrence, {
+        const painted = appendOverlay(pages, parsedDocument, occurrence, {
           element,
           className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${valued ? ' valued' : ''}${current ? ' selected' : ''}${hovered ? ' hovered' : ''}`,
           evidenceAnchorId: anchorId,
@@ -344,17 +416,18 @@ export function useEvidenceOverlays({
         })
         // The mark takes its field's colour, the one Evidence colour, or a neutral one when its values' fields differ.
         const colors = evidenceColorVars(sharedColor(infos.map((info) => info.color)))
+        if (painted) hoverTargets.set(painted, keys)
         if (painted) for (const name of ['--color-ev', '--color-ev-soft', '--color-ev-ghost'])
           if (colors[name]) painted.style.setProperty(name, colors[name]); else painted.style.removeProperty(name)
       }
-      previous.forEach((element) => element.remove())
-      flagSelectedPages(container)
+      previous.forEach((element) => { hoverTargets.delete(element); element.remove() })
+      flagSelectedPages(pages)
       // A value mark is kept across paints, as a block mark is: the one under the pointer is not replaced as its own
       // hover repaints.
-      const previousValues = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-value')]
+      const previousValues = new Map(elements('.parsed-evidence-value')
         .map((element) => [element.dataset.valueMark!, element]))
       for (const [index, { occurrence, box, link, key }] of placedValues.entries()) {
-        const page = container.querySelector(`.page[data-page-number="${occurrence.page_number}"]`)
+        const page = pages.get(occurrence.page_number)
         const meta = parsedDocument.pages.find((candidate) => candidate.page_number === occurrence.page_number)
         if (!(page instanceof HTMLElement) || !meta) continue
         const id = `${occurrence.occurrence_id}|${key}|${index}`
@@ -384,39 +457,36 @@ export function useEvidenceOverlays({
         const colors = evidenceColorVars(info?.color)
         for (const name of ['--color-ev', '--color-ev-soft', '--color-ev-ghost'])
           if (colors[name]) mark.style.setProperty(name, colors[name]); else mark.style.removeProperty(name)
-        if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
+        hoverTargets.set(mark, [key])
         if (mark.parentElement !== page) page.append(mark)
       }
-      previousValues.forEach((element) => element.remove())
-      // The overview: one tick per block mark over the scrollbar, at the mark's place and height in the whole document
-      // and in its colour. Every rectangle is read before a tick is attached, so the page is laid out once.
-      const overview = overviewRef?.current, height = container.scrollHeight
-      if (overview && height > 0) {
-        const top = container.getBoundingClientRect().top - container.scrollTop
-        overview.replaceChildren(...[...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')].map((block) => {
-          const rect = block.getBoundingClientRect(), tick = window.document.createElement('div')
-          tick.className = `evidence-tick${block.classList.contains('selected') ? ' selected' : ''}${block.classList.contains('hovered') ? ' hovered' : ''}`
-          tick.style.top = `${((rect.top - top) / height) * 100}%`
-          tick.style.height = `${(rect.height / height) * 100}%`
-          const color = block.style.getPropertyValue('--color-ev')
-          if (color) tick.style.setProperty('--color-ev', color)
-          return tick
-        }))
-      }
+      previousValues.forEach((element) => { hoverTargets.delete(element); element.remove() })
+      for (const element of hoverTargets.keys()) if (!container.contains(element) && !overviewRef?.current?.contains(element)) hoverTargets.delete(element)
+      paintOverview(pages)
+      bindHover()
     }
 
+    // Marks may arrive before pdf.js has created its page divs. Seed every page once they exist, including off-screen
+    // pages whose first raster render can be much later; subsequent renders stay scoped to their own page.
+    const paintAll = () => paint()
+    viewer?.eventBus?.on('pagesinit', paintAll)
     viewer?.eventBus?.on('pagerendered', paint)
+    viewer?.eventBus?.on('scalechanging', scaleOverview)
     // Painting never navigates: only an explicit selection from the rail owns document navigation.
     paint()
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
+      viewer?.eventBus?.off('scalechanging', scaleOverview)
+      viewer?.eventBus?.off('pagesinit', paintAll)
+      stopHover()
     }
-  }, [active, attempt, containerRef, marks, overviewRef, parsedDocument, viewerRef])
+  }, [active, attempt, containerRef, hoverChannel, marks, overviewRef, parsedDocument, viewerRef])
 
   // Marks outlive a repaint (a hover, a selection), block and value alike, and go with their Extraction or document.
   useEffect(() => () => {
     removeOverlays(containerRef.current, 'parsed-evidence-highlight')
     removeOverlays(containerRef.current, 'parsed-evidence-value')
+    if (containerRef.current) flagSelectedPages(pageMap(containerRef.current))
   }, [active, attempt?.extractionId, containerRef, parsedDocument])
 
   useEffect(
@@ -450,11 +520,13 @@ export function useEvidenceOverlays({
         return
       }
       // pdf.js resets an unrendered page's children; retain the selection through that render and later zooms.
-      const paintFocus = () => {
-        removeOverlays(container, 'parsed-evidence-focus')
+      const paintFocus = (event?: PageRender) => {
+        if (transformOnly(event)) return null
+        const pages = pageMap(container, event?.pageNumber)
+        for (const page of pages.values()) removeOverlays(page, 'parsed-evidence-focus')
         let firstFocus: HTMLElement | null = null
         for (const occurrence of occurrences) {
-          const focus = appendOverlay(container, parsedDocument, occurrence, {
+          const focus = appendOverlay(pages, parsedDocument, occurrence, {
             className: 'parsed-evidence-focus',
             border: '2px solid var(--color-accent)',
             background: 'var(--color-ev-soft)',

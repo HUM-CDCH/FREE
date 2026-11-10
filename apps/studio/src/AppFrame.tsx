@@ -150,6 +150,7 @@ export default function AppFrame({
   const [navOpen, setNavOpen] = useState(true)
   const [narrowNavOpen, setNarrowNavOpen] = useState(false)
   const [navWidth, setNavWidth] = useState(212)
+  const navElement = useRef<HTMLDivElement>(null)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
   const providerTrigger = useRef<HTMLButtonElement>(null)
@@ -403,13 +404,17 @@ export default function AppFrame({
     resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = navWidth
-    const onMove = (moveEvent: MouseEvent) =>
-      setNavWidth(clampNavWidth(startWidth + moveEvent.clientX - startX))
+    let width = startWidth
+    const onMove = (moveEvent: MouseEvent) => {
+      width = clampNavWidth(startWidth + moveEvent.clientX - startX)
+      navElement.current?.style.setProperty('--nav-width', `${width}px`)
+    }
     const onUp = () => {
       controller.abort()
       if (resizeControllerRef.current === controller)
         resizeControllerRef.current = null
       document.body.style.cursor = ''
+      setNavWidth(width)
     }
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove, { signal: controller.signal })
@@ -452,7 +457,8 @@ export default function AppFrame({
       )}
       <div
         data-project-rail
-        style={{ width: effectiveNavWidth }}
+        ref={navElement}
+        style={{ width: 'var(--nav-width)', '--nav-width': `${effectiveNavWidth}px` } as React.CSSProperties}
         className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200 motion-reduce:transition-none ${
           narrowViewport
             ? 'fixed inset-y-0 left-0 z-46 shadow-xl'
