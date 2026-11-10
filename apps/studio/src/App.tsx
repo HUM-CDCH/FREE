@@ -801,8 +801,6 @@ export function DocumentWorkspace({
   // Results and the document pane talk through one channel: value requests go to Results; its marks and one-by-one's
   // dimming come back.
   const [selection] = useState(createSelectionChannel)
-  const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
-  const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
   const markdownContainerRef = useRef<HTMLDivElement>(null)
   const evidenceOverviewRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
@@ -814,34 +812,22 @@ export function DocumentWorkspace({
     const seq = selection.select(routedKey, true, routedExtractionId)
     return () => selection.consume(seq)
   }, [selection, routedKey, routedExtractionId])
-  // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
-  // reveals its linked fields directly in Results, including shared Evidence. Hovering a mark lights its rows there, and
-  // a row's marks light here.
-  const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
-    ...publishedMarks,
-    onHover: selection.hover,
-    onSelect: (keys: string[]) => {
-      // A passage holding the selection keeps it; else it picks a part of the selected value there (also from a sibling
-      // part), else keeps that value by its correction Evidence there.
-      const selected = publishedMarks.selected, value = selected && markValueId(selected)
-      const key = selected && keys.includes(selected) ? selected
-        : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
-      if (!key) return
-      setRailOpen(true)
-      setRailView('results')
-      selection.select(key, false, publishedMarks.extractionId, keys)
-    },
-  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection])
+  const selectMark = useCallback((keys: string[]) => {
+    const published = selection.snapshot().marks
+    if (!published || published.extractionId !== inspectedAttempt?.extractionId) return
+    // Prefer the chosen part or its correction when a passage supports several values.
+    const selected = published.selected, value = selected && markValueId(selected)
+    const key = selected && keys.includes(selected) ? selected
+      : keys.find(each => value && each.startsWith(`${value}#[`)) ?? keys.find(each => value && each === `${value}#correction`) ?? keys[0]
+    if (!key) return
+    setRailOpen(true)
+    setRailView('results')
+    selection.select(key, false, published.extractionId, keys)
+  }, [selection, inspectedAttempt?.extractionId])
   const selectPdfEvidence = useEvidenceOverlays({
-    containerRef,
-    viewerRef: pdfViewerRef,
-    parsedDocument:inspectionDocument,
-    attempt: inspectedAttempt,
-    marks,
-    active: effectiveRailOpen && railView === 'results',
-    dimLink: marks ? publishedDim : null,
-    overviewRef: evidenceOverviewRef,
-    hoverChannel: selection,
+    containerRef, viewerRef: pdfViewerRef, parsedDocument: inspectionDocument,
+    extractionId: inspectedAttempt?.extractionId ?? null, selection, onSelect: selectMark,
+    active: effectiveRailOpen && railView === 'results', marksShown, overviewRef: evidenceOverviewRef,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
@@ -1324,7 +1310,7 @@ export function DocumentWorkspace({
                     rail is open. */}
                 {documentView === 'markdown' && (
                   <div ref={markdownContainerRef} className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} hoverChannel={selection} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} selection={selection} extractionId={inspectedAttempt?.extractionId ?? null} active={effectiveRailOpen} marksShown={marksShown} onSelect={selectMark} />
                   </div>
                 )}
               </div>

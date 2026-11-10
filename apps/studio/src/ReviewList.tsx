@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
-import { observeEvidenceHover, type HoverTarget } from './evidenceHover'
+import { observeEvidenceHover } from './evidenceHover'
 import { markValueId } from './durableRailModel'
 import type { SelectionChannel } from './selectionChannel'
 
@@ -41,15 +41,7 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   const root = useRef<HTMLDivElement>(null)
   // Subscribe here, not in Results or the workspace. Hover changes only the affected wrappers and collapsed headers;
   // it never renders a value row again. Rebind after React changes the list or opens a record.
-  useLayoutEffect(() => {
-    const targets = [...root.current?.querySelectorAll<HTMLElement>('[data-hover-keys]') ?? []]
-      .map((element): HoverTarget => ({ element, keys: JSON.parse(element.dataset.hoverKeys!) as string[] }))
-    return observeEvidenceHover(selection, targets, { wholeValues: true, change: (element, hovered) => {
-      if (element.classList.contains('hovered') !== hovered) element.classList.toggle('hovered', hovered)
-      if (hovered && element.dataset.evidenceHovered !== 'true') element.dataset.evidenceHovered = 'true'
-      else if (!hovered && element.hasAttribute('data-evidence-hovered')) delete element.dataset.evidenceHovered
-    } })
-  })
+  useLayoutEffect(() => observeEvidenceHover(selection, [root.current], true))
   const rowsOf = (rows: readonly RailRow[]) => rows.flatMap((row) => {
     const passes = passesFilter(row, filter)
     const linked = linkedKeys.has(row.key)

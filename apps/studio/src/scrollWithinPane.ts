@@ -1,6 +1,6 @@
 /** Reveal a linked item without moving the workspace or an adjacent pane. */
-export function scrollWithinPane(container: HTMLElement, element: HTMLElement) {
-  const view = container.getBoundingClientRect(), target = element.getBoundingClientRect()
+export function scrollWithinPane(container: HTMLElement, element: HTMLElement | DOMRect) {
+  const view = container.getBoundingClientRect(), target = element instanceof HTMLElement ? element.getBoundingClientRect() : element
   if (!view.width || !view.height) return
   if (target.top >= view.top && target.bottom <= view.bottom && target.left >= view.left && target.right <= view.right) return
   const deltaY = target.top - view.top - Math.max(8, (view.height - target.height) / 2)

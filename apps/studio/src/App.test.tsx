@@ -1428,9 +1428,9 @@ describe('reopened Source Document workspace', () => {
     expect(passage).toHaveClass('hovered')
     fireEvent.mouseLeave(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
     fireEvent.mouseMove(passage)
-    expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-result-key].hovered')).toHaveLength(2)
     fireEvent.mouseLeave(passage)
-    expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-result-key].hovered')).toHaveLength(0)
     expect(passage).not.toHaveClass('hovered')
     expect(commits.mock.calls.length).toBe(0)
 

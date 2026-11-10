@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, renderHook } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import parsedFixture from './assets/parsed_document.v2.json'
-import { useEvidenceOverlays, type RailMarks } from './useEvidenceOverlays'
+import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
 import DocumentMarkdown from './DocumentMarkdown'
 import { createSelectionChannel } from './selectionChannel'
 import ReviewList from './ReviewList'
@@ -21,9 +22,9 @@ function source() {
     anchor_id: `a${i}`, markdown_span: { start: i * 10, end: i * 10 + 9 },
     producer_observations: [{ ...template.producer_observations[0]!, occurrence_id: `o${i}`, page_number: i < 150 ? 1 : 2 }],
   }))
-  const marks: RailMarks = { selected: 'v0', onSelect: vi.fn(),
-    describe: new Map(parsedDocument.evidence_index.anchors.map((anchor, i) => [`v${i}`, {
-      name: 'field', value: String(i), word: null, style: 'link', anchorId: anchor.anchor_id,
+  const marks: RailMarkState = { selected: 'v0',
+    describe: new Map(parsedDocument.evidence_index.anchors.map((_, i) => [`v${i}`, {
+      name: 'field', value: String(i), word: null, style: 'link',
     }])),
     savedLinks: parsedDocument.evidence_index.anchors.map((anchor, i) => ({ key: `v${i}`, link: {
       resultPath: ['records', i, 'field'], evidenceAnchorId: anchor.anchor_id, precision: 'segment',
@@ -47,12 +48,13 @@ function overlays(deferredPages = false) {
   } }
   const containerRef = { current: container }, viewerRef = { current: viewer as never }, overviewRef = { current: overview }
   const hoverChannel = createSelectionChannel()
+  hoverChannel.publish({ marks: { ...marks, extractionId: 'repaint' }, dim: marks.savedLinks[0]!.link })
   const hook = renderHook(() => useEvidenceOverlays({ containerRef, viewerRef, overviewRef, parsedDocument,
-    attempt: { extractionId: 'repaint' }, active: true, marks, dimLink: marks.savedLinks![0]!.link, hoverChannel }))
+    extractionId: 'repaint', active: true, onSelect: vi.fn(), selection: hoverChannel }))
   return { ...hook, container, overview, listeners, scales, initializers, parsedDocument, hoverChannel }
 }
 
-it('seeds off-screen marks and ticks when page divs arrive after the saved values', () => {
+it('seeds off-screen marks and ticks when page divs arrive after the saved values', async () => {
   const { container, overview, initializers } = overlays(true)
   expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(0)
   container.innerHTML = pageDivs
@@ -61,7 +63,7 @@ it('seeds off-screen marks and ticks when page divs arrive after the saved value
   expect(overview.children).toHaveLength(152)
 })
 
-it('lights only affected marks and ticks on hover without layout reads or repainting', () => {
+it('lights only affected marks and ticks on hover without layout reads or repainting', async () => {
   const { container, overview, hoverChannel } = overlays()
   const tick = overview.firstChild
   const computed = vi.spyOn(window, 'getComputedStyle'), rect = vi.spyOn(Element.prototype, 'getBoundingClientRect')
@@ -81,7 +83,7 @@ it('lights only affected marks and ticks on hover without layout reads or repain
   expect(rect).not.toHaveBeenCalled()
 })
 
-it('paints 150 values without per-mark page queries or computed-style reads', () => {
+it('paints 150 values without per-mark page queries or computed-style reads', async () => {
   const computed = vi.spyOn(window, 'getComputedStyle')
   const query = vi.spyOn(Element.prototype, 'querySelector')
   const { container } = overlays()
@@ -91,7 +93,7 @@ it('paints 150 values without per-mark page queries or computed-style reads', ()
   expect(computed).not.toHaveBeenCalled()
 })
 
-it('repaints only the rendered page, retaining other marks, focus, dimming and overview ticks', () => {
+it('repaints only the rendered page, retaining other marks, focus, dimming and overview ticks', async () => {
   const { container, overview, listeners, result, parsedDocument } = overlays()
   act(() => result.current(parsedDocument.evidence_index.anchors[0]!))
   const page2 = container.querySelector('[data-page-number="2"]')!
@@ -107,7 +109,7 @@ it('repaints only the rendered page, retaining other marks, focus, dimming and o
   expect(overview.lastChild).toBe(tick)
 })
 
-it('ignores CSS-transform-only page render events for marks, dimming and focus', () => {
+it('ignores CSS-transform-only page render events for marks, dimming and focus', async () => {
   const { container, overview, listeners, result, parsedDocument } = overlays()
   act(() => result.current(parsedDocument.evidence_index.anchors[0]!))
   const before = container.innerHTML, tick = overview.firstChild
@@ -118,7 +120,7 @@ it('ignores CSS-transform-only page render events for marks, dimming and focus',
   expect(computed).not.toHaveBeenCalled()
 })
 
-it('keeps off-screen overview ticks through a zoom that resets their page before it renders', () => {
+it('keeps off-screen overview ticks through a zoom that resets their page before it renders', async () => {
   const { container, overview, scales, listeners } = overlays()
   const ticks = [...overview.children]
   container.querySelector('[data-page-number="2"]')!.replaceChildren()
@@ -131,17 +133,20 @@ it('keeps off-screen overview ticks through a zoom that resets their page before
   expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(152)
 })
 
-it('retains Markdown encoding and spans through selection and parent renders', () => {
+it('retains Markdown encoding and spans through selection and parent renders', async () => {
   const { markdown, parsedDocument, marks } = source()
   const encode = vi.spyOn(TextEncoder.prototype, 'encode')
-  const { rerender } = render(<DocumentMarkdown markdown={markdown} document={parsedDocument} marks={marks} />)
+  const selection = createSelectionChannel(), onSelect = vi.fn()
+  selection.publish({ marks: { ...marks, extractionId: 'markdown' } })
+  const { rerender } = render(<DocumentMarkdown markdown={markdown} document={parsedDocument} selection={selection} extractionId="markdown" onSelect={onSelect} />)
   encode.mockClear()
-  rerender(<DocumentMarkdown markdown={markdown} document={parsedDocument} marks={{ ...marks, selected: 'v1' }} />)
-  rerender(<DocumentMarkdown markdown={markdown} document={parsedDocument} marks={{ ...marks, selected: 'v2' }} />)
+  await act(async () => selection.publish({ marks: { ...marks, extractionId: 'markdown', selected: 'v1' } }))
+  await act(async () => selection.publish({ marks: { ...marks, extractionId: 'markdown', selected: 'v2' } }))
+  rerender(<DocumentMarkdown markdown={markdown} document={parsedDocument} selection={selection} extractionId="markdown" onSelect={onSelect} />)
   expect(encode.mock.calls.length).toBe(0)
 })
 
-it('lights Results rows and collapsed headers directly, including a hovered part, without rendering rows', () => {
+it('lights Results rows and collapsed headers directly, including a hovered part, without rendering rows', async () => {
   const rows: RailRow[] = Array.from({ length: 150 }, (_, i) => ({ key: `v${i}`, name: 'field', value: i, extracted: i,
     resultPath: ['records', 0, 'field'], kind: 'to-check', link: null, decision: null, chip: null, evidence: null, doubt: null, changed: false, page: 1 }))
   const model: RailModel = { document: [], records: [{ index: 0, key: 'record', label: 'Record 1', state: 'finished', page: 1, rows, toCheck: 150 }],
@@ -152,10 +157,111 @@ it('lights Results rows and collapsed headers directly, including a hovered part
   const { container, rerender } = render(<ReviewList {...props} isOpen={() => true} />)
   renderRow.mockClear()
   act(() => selection.hover(['v1#["part"]']))
-  expect(container.querySelector('[data-result-key="v1"]')?.getAttribute('data-evidence-hovered')).toBe('true')
+  expect(container.querySelector('[data-result-key="v1"]')?.classList.contains('hovered')).toBe(true)
   expect(renderRow.mock.calls.length).toBe(0)
   rerender(<ReviewList {...props} isOpen={() => false} />)
-  expect(container.querySelector('[aria-expanded="false"]')?.getAttribute('data-evidence-hovered')).toBe('true')
+  expect(container.querySelector('[aria-expanded="false"]')?.classList.contains('hovered')).toBe(true)
   act(() => selection.hover(null))
-  expect(container.querySelector('[data-evidence-hovered]')).toBeNull()
+  expect(container.querySelector('.hovered')).toBeNull()
+})
+
+
+it('updates saved marks and dimming through the channel without rendering their workspace owner', async () => {
+  const { parsedDocument, marks } = source()
+  const container = document.createElement('div'), overview = document.createElement('div')
+  container.innerHTML = pageDivs
+  document.body.append(container, overview)
+  const selection = createSelectionChannel(), renders = vi.fn(), onSelect = vi.fn()
+  const refs = { containerRef: { current: container }, viewerRef: { current: null }, overviewRef: { current: overview } }
+  function Workspace() {
+    renders()
+    useEvidenceOverlays({ ...refs, parsedDocument, extractionId: 'source', active: true, selection, onSelect })
+    return null
+  }
+  render(<Workspace />)
+  renders.mockClear()
+  await act(async () => selection.publish({ marks: { ...marks, extractionId: 'source' } }))
+  const selected = container.querySelector('.evidence-mark.selected')!
+  await act(async () => selection.publish({ marks: { ...marks, selected: 'v1', extractionId: 'source' }, dim: marks.savedLinks[1]!.link }))
+  expect(renders).not.toHaveBeenCalled()
+  expect(selected.classList.contains('selected')).toBe(false)
+  expect(container.querySelectorAll('.evidence-mark.selected')).toHaveLength(1)
+  expect(container.querySelectorAll('.evidence-dim').length).toBeGreaterThan(0)
+})
+
+it('honors an initial Evidence navigation from a child effect before the source presenter subscribes', async () => {
+  const { parsedDocument } = source()
+  const container = document.createElement('div')
+  container.innerHTML = pageDivs
+  document.body.append(container)
+  const selection = createSelectionChannel(), onSelect = vi.fn()
+  const refs = { containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never } }
+  function InitialNavigation({ locate }: { locate: ReturnType<typeof useEvidenceOverlays> }) {
+    useEffect(() => locate(parsedDocument.evidence_index.anchors[0]!), [locate])
+    return null
+  }
+  function Workspace() {
+    const locate = useEvidenceOverlays({ ...refs, parsedDocument, extractionId: 'source', active: true, selection, onSelect })
+    return <InitialNavigation locate={locate} />
+  }
+  render(<Workspace />)
+  expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+})
+
+
+it('combines one-by-one marks, dimming and navigation into one source paint', async () => {
+  const { container, hoverChannel: selection, result, parsedDocument } = overlays()
+  const marks = selection.snapshot().marks!, link = marks.savedLinks[1]!.link
+  const query = vi.spyOn(container, 'querySelectorAll')
+  await act(async () => {
+    selection.publish({ marks: { ...marks, selected: 'v1' } })
+    selection.publish({ dim: link })
+    result.current(parsedDocument.evidence_index.anchors[1]!, link)
+  })
+  expect(query.mock.calls.filter(([selector]) => selector === '.page')).toHaveLength(1)
+  expect(container.querySelectorAll('.evidence-mark.selected')).toHaveLength(1)
+  expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
+})
+
+it('retires hover when layout moves a mark away from a stationary pointer', () => {
+  const { container, hoverChannel: selection } = overlays()
+  const mark = container.querySelector<HTMLElement>('.parsed-evidence-value')!
+  mark.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+  expect(selection.snapshot().hover).toEqual(['v0'])
+  // Browsers send mouseout when scrolling changes the hit target, even though the pointer did not move.
+  mark.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: mark.parentElement }))
+  expect(selection.snapshot().hover).toBeNull()
+  expect(container.querySelector('.evidence-mark-name')).toBeNull()
+})
+
+it('honors explicit Evidence navigation after a queued selection clear in the same turn', async () => {
+  const { container, hoverChannel: selection, result, parsedDocument } = overlays()
+  await act(async () => {
+    selection.publish({ marks: { ...selection.snapshot().marks!, selected: null } })
+    result.current(parsedDocument.evidence_index.anchors[0]!)
+  })
+  expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+  expect(container.querySelectorAll('.evidence-mark.selected')).toHaveLength(0)
+})
+
+
+it('retires the channel hover when a visible mark becomes decorative focus', async () => {
+  const { parsedDocument, marks } = source()
+  const container = document.createElement('div')
+  container.innerHTML = pageDivs
+  document.body.append(container)
+  const selection = createSelectionChannel(), onSelect = vi.fn()
+  selection.publish({ marks: { ...marks, selected: null, extractionId: 'source' } })
+  const refs = { containerRef: { current: container }, viewerRef: { current: null } }
+  const { result, rerender } = renderHook(({ marksShown }) => useEvidenceOverlays({
+    ...refs, parsedDocument, extractionId: 'source', active: true, marksShown, selection, onSelect,
+  }), { initialProps: { marksShown: true } })
+  act(() => result.current(parsedDocument.evidence_index.anchors[0]!))
+  const mark = container.querySelector<HTMLElement>('.parsed-evidence-focus')!
+  mark.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+  expect(selection.snapshot().hover).toEqual(['v0'])
+  await act(async () => rerender({ marksShown: false }))
+  expect(selection.snapshot().hover).toBeNull()
+  expect(container.querySelector('.evidence-mark-name')).toBeNull()
+  expect(container.querySelector('.parsed-evidence-focus')?.tagName).toBe('DIV')
 })
