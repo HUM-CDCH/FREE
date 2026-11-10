@@ -39,7 +39,9 @@ of 11,780 table cells, and 36,125 of the 38,941 OCR-read values its text rule co
 values print under no text layer that agrees with them.
 
 For those, a second reader of the page image was then measured (amended 2026-11-10): Tesseract's word boxes on the
-block's crop, aligned with canonical text. On 14 block crops of real scans from four works (8 on pages with no text
+block's crop, aligned with canonical text. The OCR model itself has none to give: Surya 2 (surya-ocr 0.22.1) is one
+generative model that writes a block's HTML, where the earlier Surya read lines with character and word boxes, and
+asked on the deployed server for a box per word or per line it answered as for its trained prompts. On 14 block crops of real scans from four works (8 on pages with no text
 layer), 98 whole-word stand-in values had their ink marked on the pixels by readers who saw no prediction. The rule
 below placed 52 (26 of the 56 on pages with no text layer): 50 covered at least 99% of their reference ink and no
 ink outside it, and the two others were looked at on the pixels by an independent reviewer, who found the mark on
