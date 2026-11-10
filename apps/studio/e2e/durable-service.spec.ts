@@ -4,6 +4,7 @@ import {readFile,writeFile} from 'node:fs/promises'
 import {expect,test,type Page} from '@playwright/test'
 import {withPoolClientTransaction} from 'db'
 import {initializeDurableExtraction} from 'extraction/durable'
+import type {DurableValue} from 'extraction/durable-contract'
 import type {SchemaNode} from 'extraction/schema'
 import {E2E_ORIGIN,loginResearcher} from './auth.js'
 import {cataloguePdf,numberedCataloguePdf,startRealService,textPdf} from './realService.js'
@@ -213,8 +214,13 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(correction.candidate.grounded).toBe(false)
     expect(correction.included).toBe(true)
     const exampleContext=JSON.parse(correction.candidate.sourceContext)
+    // Drawing metadata stays on saved Evidence, outside model guidance (ADRs 0029 and 0031).
+    const modelEvidence=value.evidence.map(({producer,...link}:DurableValue['evidence'][number])=>({
+      ...link,producer:Object.fromEntries(Object.entries(producer).filter(([key])=>key!=='location'&&key!=='value_boxes_pt')),
+    }))
     expect(exampleContext).toMatchObject({sourceRevisionId:headA.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue,
-      correctionEvidence:[],modelEvidence:value.evidence,modelGrounding:value.grounding})
+      correctionEvidence:[],modelGrounding:value.grounding})
+    expect(exampleContext.modelEvidence).toEqual(modelEvidence)
     const pinnedA=await (await page.request.get(`/api/extractions/${extractionA}/durable/source`)).json()
     if(exampleContext.source.scope==='document')expect(exampleContext.source.text).toBe(pinnedA.markdown)
     else expect(exampleContext.source.excerpts.length).toBeGreaterThan(0)
@@ -271,6 +277,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       expect(later.request.body.system).not.toContain('Researcher guidance sentinel')
     }
     const retainedA=(await (await page.request.get(valueUrl)).json()).values[0]
+    expect(retainedA.evidence).toEqual(value.evidence)
     expect(retainedA.correction.decision.value).toEqual(corrected)
     expect(retainedA.correction.included).toBe(false)
     await openRailView(page,'Results')

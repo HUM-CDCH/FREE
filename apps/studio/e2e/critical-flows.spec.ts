@@ -74,6 +74,9 @@ test('template instruction editor retains clipboard ownership in a reopened Sour
   await page.route('**/api/generate_schema', (route) =>
     route.fulfill({ json: schemaResponse }),
   )
+  await page.route('**/api/schema_chat', (route) =>
+    route.fulfill({ json: { kind: 'instruction' } }),
+  )
   await page.route('**/api/schema-revisions', (route) => {
     const { recordDescription, recordScope, schemaNodes } = route.request().postDataJSON() as {
       recordDescription: string
@@ -151,11 +154,13 @@ test('template instruction editor retains clipboard ownership in a reopened Sour
   await chatInput.focus()
   await page.keyboard.type('Extract the grave name')
   await page.keyboard.press('Enter')
-  await expect(page.getByText('Extract the grave name', { exact: true })).toBeVisible()
+  await expect(page.getByRole('note', { name: 'Instruction 1', exact: true })).toContainText('Extract the grave name')
+  const generated = page.waitForRequest('**/api/generate_schema')
   await activateWithKeyboard(
     page,
-    page.getByRole('button', { name: 'Generate template' }),
+    page.getByRole('button', { name: 'Generate template (1 instruction)', exact: true }),
   )
+  expect((await generated).postData()).toContain('Extract the grave name')
   // The generated template's fields show in its view, opened from the chat (ADR 0026).
   await openRailView(page, 'Template')
   await expect(page.getByText('graves', { exact: true })).toBeVisible()
