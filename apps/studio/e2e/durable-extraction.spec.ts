@@ -388,7 +388,15 @@ test('the selected value shows its value mark inside its block mark',async({page
     // No value is selected yet: its printing is marked already, quietly; selecting it makes the mark the strong one.
     await expect(value).toHaveCount(1)
     await expect(value).not.toHaveClass(/selected/)
-    await block.click()
+    // Every value of the block has its own mark, so the block leaves the pointer to it: one pointer target per value.
+    await expect(block).toHaveCSS('pointer-events','none')
+    // Under the pointer the mark names its field in a tag of its own, never in a browser tooltip.
+    await value.hover()
+    await expect(page.locator('.evidence-mark-name')).toHaveText(/^title$/i)
+    await expect(value).not.toHaveAttribute('title')
+    await expect(block).not.toHaveAttribute('title')
+    await value.click()
+    await expect(page.locator('.evidence-mark-name')).toHaveCount(0)
     await expect(value).toHaveClass(/selected/)
     const outer=(await block.boundingBox())!,inner=(await value.boundingBox())!
     expect(Math.abs((inner.x-outer.x)/outer.width-0.25)).toBeLessThan(0.03)
