@@ -1390,6 +1390,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     calls = [_call_of(call) for call in found["calls"]] + \
         [call for work in (*entries, *([document] if document else [])) for call in work.calls]
     unresolved = [row for row in found["ledger"] if row["disposition"] == "unresolved"]
+    unread = [row for row in found["ledger"] if row["disposition"] == "withheld"]
     processing = {
         "discovery": {"windows": len(found["windows"]), "failed": sum(not window["ok"] for window in found["windows"])
                       + found.get("children", {}).get("failed", 0),
@@ -1399,12 +1400,16 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "verification": {"enabled": execution["effective"]["verification"],
                          "undecided": sum(each.undecided for each in entries)},
         "document": {"applicable": document is not None, "windows": document.windows if document else 0,
-                     "failed": document.failed if document else 0}}
+                     "failed": document.failed if document else 0},
+        "source": {"unread": len(unread)}}
     completeness = {
         "accounting": True,  # every nonblank canonical range has one disposition in the ledger
         "boundaries": not unresolved and all(entry["end"] in ("validated", "source_end") for entry in found["entries"]),
+        # Withheld text the engine never read was extracted from by no stage, wherever in the source it lies: a run
+        # over it is as incomplete as a failed call. Unread is `_unread_after`'s rule, any nonblank withheld line:
+        # there is no recipe here whose figure labels could excuse a skipped segment that carries text.
         "processing": not any(processing[stage]["failed"] for stage in ("discovery", "entries", "document"))
-        and not processing["verification"]["undecided"],
+        and not processing["verification"]["undecided"] and not unread,
         "evidence": not ungrounded and not any(each.kind == "proposed" for entry in entries for each in entry.found)
         and not any(contest["outcome"] == "unresolved" for entry in entries for contest in entry.contest),
         "recall": "unmeasured"}

@@ -150,6 +150,8 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
 
 
 def processing_complete(result):
+    if any(issue.get("code") == "source_unread" for issue in result.get("issues", [])):
+        return False
     return result.get("completeness", {}).get("processing",
         all(call.get("ok") or call.get("recovered") for call in result.get("calls", [])))
 

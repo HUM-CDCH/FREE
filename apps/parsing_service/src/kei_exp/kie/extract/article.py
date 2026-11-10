@@ -218,7 +218,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
         result["completion"] = {
             "processing": all(call.ok or call.recovered for call in calls),
-            "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "record") else "partial",
+            "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "record")
+            and not any(issue["code"] == "source_unread" for issue in result["issues"]) else "partial",
             "grounding": "disabled" if method.grounding == "off" else (
                 "complete" if not result["ungrounded"] and not disagreeing else "partial"),
             "record_recall": "unmeasured", "document_fields": "unverified" if schema.document_nodes else "not_applicable"}
