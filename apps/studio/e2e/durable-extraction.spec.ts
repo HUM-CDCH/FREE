@@ -395,6 +395,16 @@ test('the selected value shows its value mark inside its block mark',async({page
     await expect(value).toHaveCSS('pointer-events','auto')
     await value.click()
     await expect(value).toHaveClass(/selected/)
+    // Choosing the value in Results brings its mark back into view from the far end of the document. Its open row
+    // closes on a click, so it is closed first.
+    const row=page.getByRole('button',{name:/^To check title Unit 7/})
+    await row.click()
+    await expect(value).not.toHaveClass(/selected/)
+    await page.locator('.pdf-viewer').evaluate(element=>element.scrollTo({top:element.scrollHeight,behavior:'instant'}))
+    await expect(value).not.toBeInViewport()
+    await row.click()
+    await expect(value).toHaveClass(/selected/)
+    await expect(value).toBeInViewport({ratio:1})
     await page.screenshot({path:'test-results/value-mark.png'})
   } finally {await fixture.close()}
 })
