@@ -6,6 +6,7 @@ import pytest
 
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.retained import processing_complete
 from kei_exp.kie.extract.llm import Reply
 from experiments.extraction.legacy_article import inventory
 from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered
@@ -72,11 +73,15 @@ def test_article_names_the_source_the_engine_never_read(monkeypatch):
     def named(result):
         return [issue["detail"] for issue in result["issues"] if issue["code"] == "source_unread"]
     assert named(extracted(())) == []
+    assert processing_complete(extracted(()))
+    assert processing_complete(extracted((dataclasses.replace(unread, text='   '),)))
     result = extracted((unread,))
+    assert not processing_complete(result)
     assert named(result) == ["1 segment(s) the engine did not read: p9_s0"]
     method = {"article": {"context": "bounded", "grounding": "semantic"}}
     assert extracted((), **method)["completion"]["source_coverage"] == "attempted"
     assert extracted((unread,), **method)["completion"]["source_coverage"] == "partial"
+    assert not processing_complete(extracted((unread,), **method))
 
 
 def test_article_grounding_does_not_lexically_accept_another_samples_unique_measurement():

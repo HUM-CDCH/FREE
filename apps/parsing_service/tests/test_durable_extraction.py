@@ -1009,3 +1009,17 @@ def test_a_disagreements_retained_values_do_not_depend_on_start_page():
             if saved["coverage"].get("processingComplete")))
     assert any("disagreement" in value for value in finals[0])
     assert all(each == finals[0] for each in finals)
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+@pytest.mark.parametrize("unread", [False, True])
+def test_final_publication_never_completes_unread_source(explicit, unread):
+    lease = MemoryLease({"recordDescription": "document", "schemaNodes": []})
+    result = {"records": [], "calls": [{"ok": True}],
+              "issues": [{"code": "source_unread", "detail": "Unread segment"}] if unread else []}
+    if explicit:
+        result["completeness"] = {"processing": True}
+    assert retained.processing_complete(result) is not unread
+    publish_final(lease, result)
+    final = next(iter(lease.publications.values()))
+    assert final["coverage"]["finalizedAttempt"]["complete"] is not unread
