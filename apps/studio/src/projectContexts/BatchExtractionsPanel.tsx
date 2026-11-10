@@ -1,3 +1,4 @@
+import { stopBatchExtraction } from '../stopBatchExtraction'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ExportChoices, ExportFormat } from 'extraction-result-export'
 import type { NavigableRoute } from '../projectNavigation'
@@ -43,6 +44,7 @@ import {
   BatchRequestError,
   listBatchExtractions,
   listBatchSchemaSuggestions,
+  stopBatchSchemaSuggestion,
   openBatchExtraction,
 } from './batchExtractions'
 import type { ProjectContext } from './transport'
@@ -223,6 +225,21 @@ export default function BatchExtractionsPanel({
   // The account's saved method: a start submits what it saw, and admission refuses it if an Apply changed it since.
   const saved = useSavedMethod()
   const [runFailure, setRunFailure] = useState<string | null>(null)
+  const [stoppingBatch, setStoppingBatch] = useState(false)
+  const [stoppingSuggestion, setStoppingSuggestion] = useState(false)
+  /** Stops the open Batch Extraction: each member still at work, as its own Stop would. */
+  const stopOpenBatch = async (batch: BatchExtraction) => {
+    setStoppingBatch(true)
+    setRunFailure(null)
+    try {
+      await stopBatchExtraction([batch])
+    } catch (error) {
+      setRunFailure(error instanceof Error ? error.message : 'The Batch Extraction could not be stopped.')
+    } finally {
+      setStoppingBatch(false)
+      setReload((value) => value + 1)
+    }
+  }
   // A start refused because the saved settings changed after the summary was shown: nothing started.
   const [methodConflict, setMethodConflict] = useState<string | null>(null)
   // Set when `runFailure` came from a known API error code (e.g.
@@ -313,6 +330,17 @@ export default function BatchExtractionsPanel({
     },
   })
   const activeSuggestion = suggestion.context.suggestion
+  /** Stops the running field suggestion; it then shows as interrupted, with its Retry. */
+  const stopSuggestion = async (batchSchemaSuggestionId: string) => {
+    setStoppingSuggestion(true)
+    try {
+      sendSuggestion({ type: 'suggestion.updated', suggestion: await stopBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) })
+    } catch (error) {
+      setRunFailure(error instanceof Error ? error.message : 'The suggestion could not be stopped.')
+    } finally {
+      setStoppingSuggestion(false)
+    }
+  }
   // A suggested-batch Run refused the same way is shown with the summary, not as the suggestion's failure.
   const suggestionMethodConflict =
     suggestion.context.runFailureCode !== null && METHOD_REFUSALS.has(suggestion.context.runFailureCode)
@@ -1426,9 +1454,17 @@ export default function BatchExtractionsPanel({
                   </Button>
                 )}
                 {suggestingFields && (
-                  <p className="text-xs text-ink-muted" aria-busy="true">
-                    Suggesting common fields…
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-ink-muted" aria-busy="true">
+                      Suggesting common fields…
+                    </p>
+                    {activeSuggestion && suggestion.matches('suggesting') && (
+                      <Button size="sm" variant="danger" disabled={stoppingSuggestion}
+                        onClick={() => void stopSuggestion(activeSuggestion.batchSchemaSuggestionId)}>
+                        {stoppingSuggestion ? 'Stopping…' : 'Stop'}
+                      </Button>
+                    )}
+                  </div>
                 )}
                 {(activeSuggestion?.failure || (suggestion.context.error && !suggestionMethodConflict)) && (
                   <div className="space-y-2">
@@ -1574,6 +1610,8 @@ export default function BatchExtractionsPanel({
               setPinnedBatchSchemaReload((value) => value + 1)
             }
             onRunAgain={() => void runOpenBatchAgain(openBatch)}
+            onStop={() => void stopOpenBatch(openBatch)}
+            stopping={stoppingBatch}
             onOpenGridReview={() =>
               onNavigate({ kind: 'project', projectContextId, tab: 'extractions', batchExtractionId: openBatch.batchExtractionId, view: 'grid' })
             }

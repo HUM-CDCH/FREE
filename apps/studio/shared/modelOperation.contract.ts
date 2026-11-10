@@ -6,6 +6,8 @@ import { sourceCoverageSchema } from './schemaSuggestionSource.contract'
 
 /** A generation or edit operation's workflow ID (spec, *Workflows*); full match, no `m` flag. */
 export const MODEL_OPERATION_WORKFLOW_ID = new RegExp(`^(suggestion|edit):(${CANONICAL_UUID_PATTERN})$`)
+/** A chat question's workflow ID: never listed or recovered, only stopped while it runs. */
+export const CHAT_OPERATION_WORKFLOW_ID = new RegExp(`^chat:(${CANONICAL_UUID_PATTERN})$`)
 
 const failureSchema = z.object({ code: z.string(), message: z.string() }).strict()
 const common = {

@@ -45,6 +45,7 @@ import { exportableResults, type ProjectDocument } from './chatGuide'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import type { ExportChoices, ExportFormat } from 'extraction-result-export'
 import { useProjectBatches } from './useProjectBatches'
+import { batchStoppable, stopBatchExtraction } from './stopBatchExtraction'
 import { renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
 import { strategyOf } from 'extraction/schema'
@@ -1032,6 +1033,22 @@ export function DocumentWorkspace({
     }
   }
 
+  /** Stops the project's running Batch Extraction from the chat: every member still at work stops, as its own Stop
+   *  would; finished members keep their results. */
+  async function stopProjectBatch() {
+    if (projectBusy || !project || !projectBatches) return
+    setProjectBusy(true)
+    setProjectError(null)
+    try {
+      await stopBatchExtraction(projectBatches.filter(batchStoppable))
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'The batch extraction could not be stopped.')
+    } finally {
+      project.refresh()
+      setProjectBusy(false)
+    }
+  }
+
   const runExtractionUnavailable =
     savingForRun ||
     !extraction.canRun ||
@@ -1139,6 +1156,7 @@ export function DocumentWorkspace({
             busy: projectBusy || approvingSchema, error: projectError },
           start: (kind, ids) => void startProjectBatch(kind, ids),
           approve: () => setApprovingSchema(true),
+          stopBatch: () => void stopProjectBatch(),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
             extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId ?? undefined }),
           export: (ids) => setExporting(ids),

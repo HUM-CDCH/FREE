@@ -159,6 +159,8 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   const [asking, setAsking] = useState<string | null>(null)
   const [askError, setAskError] = useState<string | null>(null)
   const askAbortRef = useRef<AbortController | null>(null)
+  /** The running question's operation ID: Stop cancels it on the server, not only the wait for it. */
+  const askOperationRef = useRef<string | null>(null)
   useEffect(() => () => {
     abortRef.current?.abort()
     abortRef.current = null
@@ -331,6 +333,10 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   function stopAsking() {
     // The reply is not waited for, so nothing is recorded: the message returns ahead of anything typed since.
     if (asking === null) return
+    const operationId = askOperationRef.current
+    askOperationRef.current = null
+    // Already answered, or gone: there is nothing left to stop.
+    if (operationId) void deleteModelOperation(`chat:${operationId}`).catch(() => {})
     askAbortRef.current?.abort()
     askAbortRef.current = null
     setAsking(null)
@@ -354,12 +360,14 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     askAbortRef.current = controller
     setAskError(null)
     setAsking(text)
+    const operationId = crypto.randomUUID()
+    askOperationRef.current = operationId
     try {
       const reply = await requestSchemaChat(
         { projectContextId, sourceRepresentationRevisionId: sourceRepresentationId },
         text,
         controller.signal,
-        crypto.randomUUID(),
+        operationId,
         boundedHistory(instructions.history),
       )
       if (askAbortRef.current !== controller) return
@@ -372,6 +380,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     } finally {
       if (askAbortRef.current === controller) {
         askAbortRef.current = null
+        askOperationRef.current = null
         setAsking(null)
       }
     }

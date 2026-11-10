@@ -124,3 +124,18 @@ describe('the settled batch outcome', () => {
     expect(screen.queryByRole('status', { name: 'Batch Extraction outcome' })).not.toBeInTheDocument()
   })
 })
+
+it('offers Stop while a member is still at work, and none once every member finished or failed', () => {
+  const props = { pinnedSchemaFailure: null, hasSuccessfulResult: true, coverageMessage: null, opening: false, canRunAgain: false,
+    runAgainRefusal: null, runAgainMethod: null, documentName: (id: string) => id, exportSchemaNodes: [], onExport: vi.fn(),
+    onRetrySchema: vi.fn(), onRunAgain: vi.fn(), onOpenGridReview: vi.fn(), onOpenMember: vi.fn() }
+  const onStop = vi.fn()
+  const view = render(<BatchExtractionMembers batch={batch} {...props} onStop={onStop} />)
+  fireEvent.click(screen.getByRole('button', { name: '■ Stop' }))
+  expect(onStop).toHaveBeenCalledOnce()
+  view.rerender(<BatchExtractionMembers batch={batch} {...props} onStop={onStop} stopping />)
+  expect(screen.getByRole('button', { name: 'Stopping…' })).toBeDisabled()
+  const settled = { ...batch, members: batch.members.filter((member) => member.executionStatus !== 'PAUSED') }
+  view.rerender(<BatchExtractionMembers batch={settled} {...props} onStop={onStop} />)
+  expect(screen.queryByRole('button', { name: '■ Stop' })).not.toBeInTheDocument()
+})

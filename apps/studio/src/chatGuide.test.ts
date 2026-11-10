@@ -89,7 +89,9 @@ describe('nextStep', () => {
       options: [{ action: 'pause', label: '❚❚ Pause extraction', description: 'Pause.' }, { action: 'stop', label: '■ Stop' }] })
     expect(actions({ latest: latest('PAUSED') })).toEqual(['resume', 'stop'])
     expect(actions({ latest: latest('FAILED') })).toEqual(['retry', 'stop'])
-    expect(nextStep({ ...base, latest: latest('PAUSING') })).toMatchObject({ notice: 'Pausing…', options: [] })
+    // Pausing waits for the call under way: Stop still ends the extraction.
+    expect(nextStep({ ...base, latest: latest('PAUSING') })).toMatchObject({ notice: 'Pausing…', options: [{ action: 'stop', tone: 'danger' }] })
+    expect(nextStep({ ...base, latest: latest('STOPPING') })).toMatchObject({ notice: 'Stopping…', options: [] })
     expect(nextStep({ ...base, latest: latest('RUNNING'), control: null })?.key).toBe('run:extraction-1')
   })
 
@@ -112,6 +114,12 @@ describe('nextStep', () => {
   it('offers a run again once the template changed since the last one', () => {
     expect(nextStep({ ...base, latest: latest('COMPLETED', 'revision-1') })).toMatchObject({ key: 'run:extraction-1', title: 'Run extraction again' })
     expect(nextStep({ ...base, latest: latest('STOPPED') })?.title).toBe('Run extraction again')
+  })
+
+  it('offers Stop while the template is generated again, the saved one staying in view', () => {
+    expect(nextStep({ ...base, generating: true })).toMatchObject({ title: 'Template Suggestion', busy: true,
+      options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] })
+    expect(nextStep({ ...base, view: 'generating', generating: true })?.options).toEqual([expect.objectContaining({ action: 'stop-generation' })])
   })
 
   it('says the template changed only once the last run\'s revision is compared and found to define another one', () => {
@@ -175,6 +183,17 @@ describe('nextStep in a project', () => {
   const project = (overrides: Partial<ProjectGuideInput> = {}): ProjectGuideInput => ({
     summary: summary(), documents, currentDocumentId: 'b', batches: [], latest: null, roundId: null, busy: false, error: null, ...overrides })
   const step = (overrides: Partial<ProjectGuideInput> = {}, input: Partial<GuideInput> = {}) => nextStep({ ...base, project: project(overrides), ...input })
+
+  it('stops a running Batch Extraction from the chat while a member is at work', () => {
+    const running = { ...member('b'), executionStatus: 'RUNNING' as const, completed: false }
+    const waiting = { summary: summary({ runningBatch: { completedMemberCount: 1, memberCount: 2 } }) }
+    expect(step({ ...waiting, batches: [batch([member('a'), running])] })).toMatchObject({ key: 'project-running', busy: true,
+      options: [{ action: 'stop-batch', label: '■ Stop batch extraction', tone: 'danger', disabled: false }] })
+    expect(step({ ...waiting, batches: [batch([member('a'), running])], busy: true })?.options[0]).toMatchObject({ disabled: true })
+    // Every member finished, or the batches not read yet: nothing to stop.
+    expect(step({ ...waiting, batches: [batch([member('a')])] })?.options).toEqual([])
+    expect(step({ ...waiting, batches: null })?.options).toEqual([])
+  })
 
   it('pilots a ready template on this document and the next ones, with a run of this document alone beside it', () => {
     expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the template',

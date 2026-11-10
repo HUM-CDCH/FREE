@@ -418,3 +418,36 @@ describe('Batch Schema Suggestion APIs', () => {
     expect(retryBatchSchemaSuggestion).toHaveBeenCalledWith(projectContextId, suggestionId, 1)
   })
 })
+
+describe('POST /api/batch-schema-suggestions/:id/stop', () => {
+  const stopRequest = () => new Request(
+    `http://test/api/batch-schema-suggestions/${suggestionId}/stop?projectContextId=${projectContextId}`, { method: 'POST' })
+  function stopHandler(states: BatchSchemaSuggestionRecord['executionStatus'][]) {
+    const reads = states.map((executionStatus) => ({ ...suggestion, attempt: 2, executionStatus,
+      failure: executionStatus === 'FAILED' ? { code: 'interrupted', message: 'Interrupted.' } : null }))
+    const getBatchSchemaSuggestion = vi.fn(async () => reads.shift() ?? null)
+    const client = { cancelWorkflow: vi.fn<(workflowId: string) => Promise<void>>(async () => {}) }
+    runtime.createResearcherExtractions.mockReturnValue(moduleForSuggestedBatch())
+    const { POST } = createResearcherApiHandlers({ researcherAccountId, getBatchSchemaSuggestion } as unknown as ResearcherProjectStore,
+      () => client)
+    return { POST, client, getBatchSchemaSuggestion }
+  }
+
+  it('cancels the running attempt\'s workflow and answers the suggestion as it now reads', async () => {
+    const { POST, client } = stopHandler(['RUNNING', 'FAILED'])
+    const response = await POST(stopRequest())
+    expect(response.status).toBe(200)
+    expect(client.cancelWorkflow).toHaveBeenCalledExactlyOnceWith(`suggest:${suggestionId}:2`)
+    expect(await response.json()).toMatchObject({ batchSchemaSuggestion: { executionStatus: 'FAILED' } })
+  })
+
+  it('leaves a finished suggestion as it is, and refuses one the account does not own', async () => {
+    const finished = stopHandler(['COMPLETED'])
+    expect((await finished.POST(stopRequest())).status).toBe(200)
+    expect(finished.client.cancelWorkflow).not.toHaveBeenCalled()
+
+    const missing = stopHandler([])
+    expect((await missing.POST(stopRequest())).status).toBe(404)
+    expect(missing.client.cancelWorkflow).not.toHaveBeenCalled()
+  })
+})

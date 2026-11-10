@@ -3,7 +3,7 @@ import { executionOf, INTERRUPTED_FAILURE, LIVE_WORKFLOW_STATUSES } from 'db'
 import { z } from 'zod'
 import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { studioDbos } from '../server/dbos.js'
-import { MODEL_OPERATION_WORKFLOW_ID, type ModelOperation } from '../shared/modelOperation.contract.js'
+import { CHAT_OPERATION_WORKFLOW_ID, MODEL_OPERATION_WORKFLOW_ID, type ModelOperation } from '../shared/modelOperation.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { ApiError, json, noStore, noStoreError, persistenceUnavailable } from './_http.js'
 import type { ModelOperationClient, OperationResult } from './_model_operation.js'
@@ -99,7 +99,9 @@ export function createModelOperationHandlers(
       try {
         const workflowId = decodedTail(new URL(request.url).pathname)
         const match = workflowId === null ? null : MODEL_OPERATION_WORKFLOW_ID.exec(workflowId)
-        if (!match || workflowId === null) throw notFound()
+        // A chat question is stopped like a generation or an edit; it has nothing to discard once finished.
+        const chat = workflowId !== null && CHAT_OPERATION_WORKFLOW_ID.test(workflowId)
+        if ((!match && !chat) || workflowId === null) throw notFound()
         const client = operations()
         const recorded = await client.getWorkflow(workflowId).catch((cause) => { throw unavailable(cause) })
         const projectContextId = recorded?.attributes?.projectContextId
@@ -108,7 +110,7 @@ export function createModelOperationHandlers(
           || !(await inScope(projectContextId, extractionSchemaId))) throw notFound()
         if (LIVE_WORKFLOW_STATUSES.has(recorded.status)) {
           await client.cancelWorkflow(workflowId).catch((cause) => { throw unavailable(cause) })
-        } else if (match[1] === 'edit' && recorded.status === 'SUCCESS' && (recorded.output as OperationResult<SchemaEditProposed> | undefined)?.ok) {
+        } else if (match?.[1] === 'edit' && recorded.status === 'SUCCESS' && (recorded.output as OperationResult<SchemaEditProposed> | undefined)?.ok) {
           // Discard persists: this proposal and every older finished one on its base go, so an older one cannot reappear
           // and a newer one from another tab survives. Finished history is settled, so deleting it is safe at once.
           const base = (recorded.input?.[0] as SchemaEditInput).baseSchemaRevisionId

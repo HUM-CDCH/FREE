@@ -101,6 +101,7 @@ describe('eager API dispatcher', () => {
         '/api/batch-schema-suggestions/suggestion/retry',
         'batch_schema_suggestions',
       ],
+      ['/api/batch-schema-suggestions/suggestion/stop', 'batch_schema_suggestions'],
       [
         '/api/batch-schema-suggestions/from-spreadsheet',
         'batch_schema_suggestions',

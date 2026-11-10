@@ -29,6 +29,8 @@ export type RailChatProps = {
     guide: ProjectGuideInput
     start: (kind: 'pilot' | 'batch', sourceDocumentIds: readonly string[]) => void
     approve: () => void
+    /** Stops the project's running Batch Extraction: every member still at work. */
+    stopBatch: () => void
     open: (target: NonNullable<StepOption['target']>) => void
     /** Exports the ticked documents' results, once their options and format are chosen. */
     export: (sourceDocumentIds: readonly string[]) => void
@@ -74,6 +76,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
 
   const guide: GuideInput = {
     view: snap.view,
+    generating: snap.generating,
     generationError: snap.generationError,
     readOnly: readOnly || snap.historicalPreview !== null,
     canGenerate: !!onGenerate,
@@ -142,6 +145,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       resume: () => control?.command('resume'),
       retry: () => control?.command('retry'),
       stop: () => control?.command('stop'),
+      'stop-batch': () => project?.stopBatch(),
       pilot: () => project?.start('pilot', ids),
       batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),

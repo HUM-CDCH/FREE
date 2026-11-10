@@ -4,6 +4,7 @@ import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExt
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
 import { guidedWorkflow } from './projectContexts/guidedWorkflow'
+import { batchStoppable } from './stopBatchExtraction'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
 /** What the researcher can do from a step: the rail chat carries each key out (RailChat.tsx). */
@@ -22,6 +23,7 @@ export type StepAction =
   | 'resume'
   | 'retry'
   | 'stop'
+  | 'stop-batch'
   | 'pilot'
   | 'batch'
   | 'approve'
@@ -86,6 +88,8 @@ export type ProjectGuideInput = {
 
 export type GuideInput = {
   view: SchemaEditorSnapshot['view']
+  /** A generation runs: the first (`view` is generating) or a regeneration while the saved template stays shown. */
+  generating?: boolean
   generationError: string | null
   /** A historical preview or a read-only inspection: the chat offers no schema step; runs follow `run` and `control`. */
   readOnly: boolean
@@ -156,7 +160,8 @@ function controlStep(input: GuideInput): StepCard | null {
     : latest.status === 'FAILED' ? [continuing('retry', '↻ Retry extraction'), stop]
       : latest.status === 'QUEUED' || latest.status === 'RUNNING'
         ? [{ action: 'pause', label: '❚❚ Pause extraction', tone: 'secondary', disabled: control.busy, description: control.pauseDescription }, stop]
-        : []
+        // Pausing waits for the call under way; Stop still ends the extraction.
+        : latest.status === 'PAUSING' ? [stop] : []
   return {
     key: `extraction:${latest.extractionId}`,
     title: 'Extraction',
@@ -233,7 +238,12 @@ function projectStep(input: GuideInput): StepCard | null {
   if (!project) return null
   const { summary, documents, batches, currentDocumentId } = project
   const workflow = guidedWorkflow(summary)
-  if (workflow.waiting) return { key: 'project-running', title: 'Batch extraction', notice: workflow.waiting, busy: true, options: [] }
+  if (workflow.waiting) {
+    const running = (batches ?? []).filter(batchStoppable)
+    return { key: 'project-running', title: 'Batch extraction', notice: workflow.waiting, busy: true, error: project.error ?? undefined,
+      options: running.length === 0 ? [] : [{ action: 'stop-batch', label: '■ Stop batch extraction', tone: 'danger', disabled: project.busy,
+        description: 'Stop every document still being extracted; finished ones keep their results' }] }
+  }
   const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
   // A schema saved here moves the phase on before the project's summary is read again.
   const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Pilot extraction', action: 'pilot' as const } : workflow.next
@@ -402,6 +412,10 @@ function schemaStep(input: GuideInput): StepCard | null {
   if (input.view === 'generating')
     return { key: 'generating', title: 'Template Suggestion', notice: 'Producing template from the document…', busy: true,
       options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
+  // A regeneration keeps the saved template in view while it runs: the chat offers its Stop all the same.
+  if (input.view === 'editing' && input.generating)
+    return { key: 'generating', title: 'Template Suggestion', notice: 'Producing a new template from the document; the current one stays until it is ready…',
+      busy: true, options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
   if (input.view === 'empty' || input.view === 'failed') {
     if (!input.canGenerate) return null
     const kept = input.instructionCount > 0 ? ` (${plural(input.instructionCount, 'instruction')})` : ''

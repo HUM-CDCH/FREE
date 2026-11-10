@@ -278,6 +278,22 @@ export async function runBatchSchemaSuggestion(
   ).batchSchemaSuggestion
 }
 
+/** Stops the suggestion's running attempt: it then reads as interrupted, to be tried again. */
+export async function stopBatchSchemaSuggestion(
+  projectContextId: string,
+  batchSchemaSuggestionId: string,
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion> {
+  const query = new URLSearchParams({ projectContextId })
+  return batchSchemaSuggestionResponseSchema.parse(
+    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/stop?${query}`, {
+      method: 'POST',
+      headers: { accept: 'application/json' },
+      signal,
+    }),
+  ).batchSchemaSuggestion
+}
+
 /** Starts the attempt after `expectedAttempt` over every surviving pin. Repeating the POST (an uncertain answer)
  *  returns that same successor rather than starting another; an older attempt answers 409 attempt_conflict. */
 export async function retryBatchSchemaSuggestion(

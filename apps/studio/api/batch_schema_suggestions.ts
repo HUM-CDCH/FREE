@@ -1,7 +1,10 @@
-import type {
-  BatchSchemaSuggestionRecord,
-  ResearcherProjectStore,
+import {
+  suggestWorkflowId,
+  type BatchSchemaSuggestionRecord,
+  type ResearcherProjectStore,
 } from 'db'
+import { studioDbos } from '../server/dbos.js'
+import type { ModelOperationClient } from './_model_operation.js'
 import { ExtractionError } from 'extraction'
 import {
   batchSchemaSuggestionCreateFromSpreadsheetRequestSchema,
@@ -38,6 +41,7 @@ const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
 const DRAFT_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/draft$/
 const RUN_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/run$/
 const RETRY_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/retry$/
+const STOP_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/stop$/
 
 
 function failureDto(value: unknown) {
@@ -99,6 +103,7 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
  */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
+  operations: () => Pick<ModelOperationClient, 'cancelWorkflow'> = () => studioDbos().admission,
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
@@ -377,6 +382,23 @@ export function createResearcherApiHandlers(
     return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
   }
 
+  /** Stops the suggestion's running attempt: its workflow is cancelled, so it reads as interrupted and can be tried
+   *  again. One already finished is answered as it is. */
+  const stop = async (url: URL, id: string) => {
+    const read = () => store.getBatchSchemaSuggestion(projectId(url), id).catch((cause) => {
+      throw persistenceUnavailable(cause)
+    })
+    const suggestion = await read()
+    if (!suggestion)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    if (suggestion.executionStatus !== 'QUEUED' && suggestion.executionStatus !== 'RUNNING')
+      return json(suggestionDto(suggestion), { headers: noStore })
+    await operations().cancelWorkflow(suggestWorkflowId(id, suggestion.attempt)).catch((cause) => {
+      throw persistenceUnavailable(cause, 'Model operations are unavailable.')
+    })
+    return json(suggestionDto((await read()) ?? suggestion), { headers: noStore })
+  }
+
   const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
@@ -395,6 +417,9 @@ export function createResearcherApiHandlers(
       const retryMatch = RETRY_ROUTE.exec(url.pathname)
       if (request.method === 'POST' && retryMatch)
         return await retry(request, url, retryMatch[1])
+      const stopMatch = STOP_ROUTE.exec(url.pathname)
+      if (request.method === 'POST' && stopMatch)
+        return await stop(url, stopMatch[1])
       const item = ITEM_ROUTE.exec(url.pathname)
       if (request.method === 'GET' && item) return await read(url, item[1])
       throw new ApiError(404, 'not_found', 'API route not found.')

@@ -9,6 +9,7 @@ import {
 } from '../../shared/batchExtraction.contract'
 import { Button, Pill } from '../ui'
 import { memberStatus, type StatusTone } from './batchExtractionStatus'
+import { batchStoppable } from '../stopBatchExtraction'
 
 const statusInk: Record<StatusTone, string> = {
   neutral: 'text-ink-muted',
@@ -271,6 +272,8 @@ export function BatchExtractionMembers({
   onRunAgain,
   onOpenGridReview,
   onOpenMember,
+  onStop,
+  stopping = false,
 }: {
   batch: BatchExtraction
   pinnedSchemaFailure: string | null
@@ -292,6 +295,9 @@ export function BatchExtractionMembers({
   /** Opens the review grid: every completed member's values, one row per record. */
   onOpenGridReview(): void
   onOpenMember(sourceDocumentId: string, extractionId: string): void
+  /** Stops every member still at work; offered while one is. */
+  onStop?(): void
+  stopping?: boolean
 }) {
   const status = batchStatus(batch)
   const outcome = batchOutcome(batch)
@@ -304,6 +310,12 @@ export function BatchExtractionMembers({
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
+          {onStop && batchStoppable(batch) && (
+            <Button size="sm" variant="danger" disabled={stopping} onClick={onStop}
+              title="Stop every document still being extracted; finished ones keep their results">
+              {stopping ? 'Stopping…' : '■ Stop'}
+            </Button>
+          )}
           <Button size="sm" variant="secondary" disabled={!hasSuccessfulResult} onClick={onOpenGridReview}
             title="Review every completed document's values side by side, one row per record">
             <GridIcon />

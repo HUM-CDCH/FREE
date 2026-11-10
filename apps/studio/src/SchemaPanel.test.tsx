@@ -2514,6 +2514,8 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
     expect(screen.queryByText('Instruction 1 of 1 · for generation')).not.toBeInTheDocument()
     expect(requestSchemaChat.mock.calls[0]![2]).toHaveProperty('aborted', true)
+    // The question is stopped where it runs, not only no longer waited for.
+    expect(deleteModelOperation).toHaveBeenCalledWith(`chat:${requestSchemaChat.mock.calls[0]![3]}`)
   })
 
   it('an edit chat question is answered in the conversation, with no proposal', async () => {
