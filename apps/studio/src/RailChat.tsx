@@ -7,6 +7,7 @@ import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
+import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { SchemaInstructionsChat } from './SchemaInstructions'
@@ -60,6 +61,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ready = snap.view === 'editing'
   const editable = ready && snap.historicalPreview === null
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
+  // The last run's template against the current one, compared by content, not only by revision.
+  const sameTemplate = useSameTemplateAsRun(schema, latest?.schemaRevisionId ?? null)
 
   const guide: GuideInput = {
     view: snap.view,
@@ -85,7 +88,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     run: run && { unavailableReason: run.unavailableReason, available: run.available },
     control: control && { busy: control.busy, continueBlocked: control.continueBlocked,
       continueDescription: control.continueDescription, pauseDescription: control.pauseDescription },
-    latest,
+    latest: latest && { ...latest, sameTemplate },
     resultsShown,
     templateShown,
     dismissed,

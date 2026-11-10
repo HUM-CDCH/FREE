@@ -99,6 +99,38 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, latest: latest('STOPPED') })?.title).toBe('Run extraction again')
   })
 
+  it('says the template changed only once the last run\'s revision is compared and found to define another one', () => {
+    const question = (status: Parameters<typeof latest>[0], schemaRevisionId: string, sameTemplate?: boolean | null) =>
+      nextStep({ ...base, latest: { ...latest(status, schemaRevisionId), sameTemplate } })?.question
+    expect(question('COMPLETED', 'revision-1', false)).toBe('The template changed since the last run. Run the extraction again?')
+    // Not compared yet, or not readable: another revision, nothing more.
+    expect(question('COMPLETED', 'revision-1', null)).toBe('The last run used another template revision. Run the extraction again?')
+    expect(question('COMPLETED', 'revision-1')).toBe('The last run used another template revision. Run the extraction again?')
+    // A stopped run of the current template asks to run again for that reason alone.
+    expect(question('STOPPED', 'revision-2')).toBe('The last extraction was stopped. Run it again?')
+    expect(question('STOPPED', 'revision-1', true)).toBe('The last extraction was stopped. Run it again?')
+    expect(question('STOPPED', 'revision-1', false)).toBe('The last extraction was stopped, and the template changed since. Run it again?')
+    expect(question('STOPPED', 'revision-1', null)).toBe('The last extraction was stopped, and it used another template revision. Run it again?')
+  })
+
+  it('leads with View template once the template is another than the last run\'s, and with the run otherwise', () => {
+    const options = (input: Partial<GuideInput>) => nextStep({ ...base, ...input })?.options.map(({ action, tone }) => [action, tone])
+    for (const sameTemplate of [false, null])
+      expect(options({ latest: { ...latest('COMPLETED', 'revision-1'), sameTemplate } }))
+        .toEqual([['review-schema', 'positive'], ['run', 'secondary'], ['dismiss', 'dismiss']])
+    // Already in view: nothing to open, the run leads.
+    expect(options({ latest: { ...latest('COMPLETED', 'revision-1'), sameTemplate: false }, templateShown: true }))
+      .toEqual([['run', 'positive'], ['dismiss', 'dismiss']])
+    // A stopped run of the same template, or the first run: the run leads, the template after it.
+    expect(options({ latest: latest('STOPPED') })).toEqual([['run', 'positive'], ['review-schema', 'secondary'], ['dismiss', 'dismiss']])
+    expect(options({ latest: null })).toEqual([['run', 'positive'], ['review-schema', 'secondary'], ['dismiss', 'dismiss']])
+  })
+
+  it('reads a finished run of another revision defining the same template as finished on it', () => {
+    expect(nextStep({ ...base, latest: { ...latest('COMPLETED', 'revision-1'), sameTemplate: true } }))
+      .toMatchObject({ key: 'finished:extraction-1', title: 'Extraction finished' })
+  })
+
   it('keeps a dismissed step away until its key changes', () => {
     expect(nextStep({ ...base, dismissed: new Set(['run:first']) })).toBeNull()
     expect(nextStep({ ...base, view: 'empty', instructionCount: 1, dismissed: new Set(['generate:0']) })?.key).toBe('generate:1')
