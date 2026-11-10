@@ -14,6 +14,8 @@ stays the whole Source OCR block, usually a paragraph. That costs precision, not
 locatable Evidence under the product contract (item 4), and an Evidence Anchor needs no visual geometry.
 [0029](0029-article-evidence-locates-its-value.md) has since removed that text-layer narrowing: every mark stays the
 whole block, text layer or not, until Printed Lines narrow it.
+[0031](0031-a-value-mark-is-placed-from-the-source-pdf.md) has since marked the value inside its block where the PDF
+carries a text layer the page image confirms; a scan without one still waits for Printed Lines.
 
 Nothing finer exists. Surya (surya-ocr 0.22.1), the default OCR model, returns one box per block; on 3 pages probed
 its full-page output held no nested line boxes. A segment Surya read keeps that one box (`PageSegment` in

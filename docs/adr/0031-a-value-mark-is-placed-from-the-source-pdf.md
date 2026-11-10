@@ -52,7 +52,8 @@ box. The anchor's own mark is unchanged.
 - **Which links.** A version 1 link's `location`; a version 2 link's `spans`; a version 3 link's `spans` when its
   support is `literal`. Every span must lie in the link's own segment. A cell link is placed inside its cell's box
   from the cell's own text. Not placed: a `supporting` passage (it does not print the value), an `input`-precision
-  link (it has no box to draw in), a whole table, and anything on a rotated page.
+  link (it has no box to draw in), a whole table, and anything on a rotated page. A table the OCR model read is
+  always a whole table: only the PDF's own text yields cells (`transcription/native.py`).
 - **Only where the printing and its surroundings print once.** The characters whose middle lies in the anchor's box,
   within 1 pt (every box of a block printed in several places), are compared with the segment's text after both are folded: no
   white space, hyphens or NULs, since two readers break lines differently; ligatures unfolded; one quotation mark.
@@ -61,7 +62,7 @@ box. The anchor's own mark is unchanged.
   the text ends before 8 characters, nothing else may print before, or after, under the box. No match, two matches
   or an unanchored edge leaves the link without boxes. The match is never a search for the value alone.
 - **One box per printed line**, from the boxes of the value's own characters, and each must lie inside the anchor's
-  box, or none is written. A link with several spans gets boxes only if every span is placed.
+  box within 2 pt, or none is written. A link with several spans gets boxes only if every span is placed.
 - **Scanned pages only through a text layer the page image confirms.** A block the OCR model read is placed the same
   way when the PDF carries a text layer that prints the value and its surroundings as the model read them. The
   position is then the text layer's, and some scans carry one shifted against the image. So the page is rendered and
@@ -104,6 +105,13 @@ box. The anchor's own mark is unchanged.
   `location`.
 - Printed Lines (0024) stay the way to narrow a scan without a text layer. How their line boxes would reach a link
   written before they exist is not decided here.
+- What that leaves unmarked, counted on the deployed parse results on 2026-11-10 (576 results of 557 distinct PDFs;
+  every token of an OCR-read block a stand-in value; pages counted per result): 125 PDFs carry no text layer on any
+  page (612 pages, 171,908 values, none placed). Another 405 pages in 106 PDFs have too few tokens to judge: their
+  OCR-read blocks are all crops, 383 pages with no text under them, and the text rule places 210 of their 14,820
+  values, so a lower threshold would not help. 13 pages in 2 PDFs are refused as not registered. The 532 registered
+  pages, in 18 PDFs, place 148,386 of 170,513 values. No table the OCR model read has cells (31 tables), so no
+  OCR-read cell is ever placed.
 - *Value mark* enters CONTEXT.md when this is accepted.
 - Rejected: Docling's cells written to the page file at parse time (a canonical change, a new parse of every Source
   Document, and the one geometry the probe saw on the wrong words); the same cells from a second Docling pass after
