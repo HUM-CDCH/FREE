@@ -63,7 +63,7 @@ it('shows every saved table row and absent cell in list and one-by-one review',a
     expect(within(table).getAllByText('No value')).toHaveLength(3)
   }
   checkTable()
-  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   await screen.findByRole('table',{name:'parts'})
   checkTable()
 })
@@ -553,10 +553,32 @@ it('opens an open value\'s history from its review, read-only too, and offers no
   const attempt={extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt
   const view=render(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly onValueHistory={onValueHistory}/>)
   fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
-  fireEvent.click(screen.getByRole('button',{name:'History of this value'}))
+  fireEvent.click(screen.getByRole('button',{name:'More result actions'}))
+  fireEvent.click(screen.getByRole('menuitem',{name:'History of this value'}))
   expect(onValueHistory).toHaveBeenCalledExactlyOnceWith('extraction','value','title')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   view.rerender(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
-  expect(screen.queryByRole('button',{name:'History of this value'})).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'More result actions'}))
+  expect(screen.getByRole('menu')).toBeVisible()
+  expect(screen.queryByRole('menuitem',{name:'History of this value'})).not.toBeInTheDocument()
+})
+
+it('says how far the review is in one line, offers no empty filter, and leaves nothing of a row to a tooltip',async()=>{
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:{...reviewPage(),reviewCounts:{required:3,toCheck:2,approved:1,edited:0,rejected:0}}} as never)
+  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  const row=await screen.findByRole('button',{name:/To check b Second title/})
+  expect(screen.getByText('of 3 checked')).toBeVisible()
+  expect(screen.queryByText(/approved ·/)).toBeNull()
+  const filters=()=>within(screen.getByRole('group',{name:'Show values'})).getAllByRole('button').map(chip=>chip.textContent)
+  expect(filters()).toEqual(['To check','All'])
+  expect(view.container.querySelector('[data-result-key] [title]')).toBeNull()
+  // The open row has no second way into one by one and no tooltip; what tied the value to its passage waits in a disclosure.
+  fireEvent.click(row)
+  expect(screen.queryByRole('button',{name:'Review from here'})).toBeNull()
+  expect(view.container.querySelector('[data-result-key] [title]')).toBeNull()
+  // One by one opens on the value already open, not on the first one to check.
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
+  expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
 })
 
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
@@ -781,11 +803,11 @@ it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false valu
   vi.mocked(durableRequest).mockResolvedValue({revision: 1})
   render(<Results attempt={{extractionId: 'extraction', strategy} as ExtractionAttempt} document={null}
     currentSchema={null} onEvidence={() => {}} />)
-  expect(await screen.findByRole('button', {name: /To check leather_material false/})).toBeVisible()
+  expect(await screen.findByRole('button', {name: /To check leather material false/})).toBeVisible()
   expect(screen.getByRole('button', {name: /To check painted true/})).toBeVisible()
   expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
-  fireEvent.click(screen.getByRole('button', {name: /To check leather_material/}))
-  expect(within(screen.getByRole('region', {name: 'Review leather_material'})).getByText('No Evidence linked')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', {name: /To check leather material/}))
+  expect(within(screen.getByRole('region', {name: 'Review leather material'})).getByText('No Evidence linked')).toBeVisible()
   fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
   expect(screen.getByRole('combobox', {name: 'Reviewed value'})).toHaveValue('false')
   fireEvent.change(screen.getByRole('combobox', {name: 'Reviewed value'}), {target: {value: 'true'}})
@@ -795,7 +817,7 @@ it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false valu
   fireEvent.click(screen.getByRole('button', {name: 'Save edit'}))
   await waitFor(() => expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/leather_material',
     {expectedRevision: 0, snapshotVersion: 1, action: 'EDITED', value: true, included: true, evidence: []}))
-  expect(await screen.findByRole('button', {name: /Edited leather_material true/})).toBeVisible()
+  expect(await screen.findByRole('button', {name: /Edited leather material true/})).toBeVisible()
   expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name: /To check painted/}))
   page = {...page, feedbackVersion: 2, values: [{...painted, correction: {revision: 1,
@@ -917,11 +939,14 @@ it('lights the rows of values hovered on the page, a collapsed record\'s header 
   expect(row.closest('[data-result-key]')).toHaveAttribute('data-evidence-hovered')
   expect(record).not.toHaveAttribute('data-evidence-hovered')
   act(()=>selection.hover(null))
+  // A row that scrolls in under a still pointer gets `mouseover` and no `mousemove`: it is not lit.
   fireEvent.mouseOver(row)
-  expect(selection.snapshot().hover).toEqual(['a'])
-  fireEvent.mouseOver(record)
   expect(selection.snapshot().hover).toBeNull()
-  fireEvent.mouseOver(row)
+  fireEvent.mouseMove(row)
+  expect(selection.snapshot().hover).toEqual(['a'])
+  fireEvent.mouseMove(record)
+  expect(selection.snapshot().hover).toBeNull()
+  fireEvent.mouseMove(row)
   view.unmount()
   expect(selection.snapshot().hover).toBeNull()
 })
@@ -992,7 +1017,7 @@ it('saves the review of the latest results once nothing is left to check',async(
   fireEvent.click(screen.getByRole('button',{name:'Save review'}))
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize',{snapshotVersion:1,feedbackVersion:2}))
   expect(await screen.findByText('Review saved.')).toBeVisible()
-  expect(screen.getByText(/rejected · review saved/)).toBeVisible()
+  expect(screen.getByText(/checked · review saved/)).toBeVisible()
   expect(screen.queryByRole('button',{name:'Save review'})).toBeNull()
 })
 
@@ -1025,7 +1050,7 @@ it('opens an explicit finalized cut and names the later live work beside it',asy
   vi.mocked(readValues).mockResolvedValue(historical)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} initialCut={{snapshotVersion:1,feedbackVersion:2}}
     document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
-  expect(await screen.findByText(/rejected · review saved/)).toBeVisible()
+  expect(await screen.findByText(/checked · review saved/)).toBeVisible()
   expect(readValues).toHaveBeenCalledWith('extraction',{snapshotVersion:1,feedbackVersion:2},expect.any(AbortSignal))
   expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:'Show the latest results'}))
@@ -1088,7 +1113,7 @@ it('shows both unselected readings, offers no Approve, ignores A, and saves the 
   expect(screen.getByRole('button',{name:'Edit'})).toBeVisible()
   expect(screen.getByRole('button',{name:'Reject'})).toBeVisible()
   expect(screen.getByRole('button',{name:'Use Article title'})).toHaveAttribute('aria-pressed','false')
-  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   fireEvent.keyDown(screen.getByRole('heading',{name:'Article title or Cited title'}),{key:'a'})
   expect(durableRequest).not.toHaveBeenCalledWith(expect.stringContaining('/values/'),expect.anything())
   fireEvent.click(screen.getByRole('button',{name:'Use Article title'}))
@@ -1172,7 +1197,7 @@ it('lets a part be picked in a saved review',async()=>{
 it('lets a part be picked while a decision saves; the decisions and moves wait',async()=>{
   const {marks}=await openSkelet()
   vi.mocked(durableRequest).mockReturnValue(new Promise(()=>{}))
-  fireEvent.click(screen.getByRole('button',{name:'Review from here'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
   await screen.findByText('Saving your decision…')
   const note=screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})

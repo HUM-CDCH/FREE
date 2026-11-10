@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import { evidenceCheck, passageOnly } from './reviewVocabulary'
+import { evidenceCheck, fieldWords, passageOnly } from './reviewVocabulary'
 
 it('an uncertain passage: not printed word for word, or printed elsewhere too; none after an edit or rejection', () => {
   expect(evidenceCheck({ verbatim: false })).toBe('Value not printed word for word.')
@@ -32,4 +32,13 @@ it('never calls a single-pass unified link verified', async () => {
     grounding: { linkedBy: 'lexical', support, textSpans: [], alternatives: [], precision: 'segment', raw: 'x', itemSpans: null } }) as unknown as EvidenceLink
   expect(groundingDetail(located('literal'))).toBe('Located by code; the value is printed in the entry')
   expect(groundingDetail(located('supporting'))).toBe('Located by code in a supporting passage; no verifier checked it')
+})
+
+it('reads a field name as words, leaving its path, its acronyms and its capitals alone', () => {
+  expect(fieldWords('site_name')).toBe('site name')
+  expect(fieldWords('siteName')).toBe('site name')
+  expect(fieldWords('graves › 2 › grave_type')).toBe('graves › 2 › grave type')
+  expect(fieldWords('ISBN')).toBe('ISBN')
+  expect(fieldWords('journalID')).toBe('journalID')
+  expect(fieldWords('title')).toBe('title')
 })

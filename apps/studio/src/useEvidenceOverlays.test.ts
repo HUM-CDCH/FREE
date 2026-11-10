@@ -309,8 +309,8 @@ describe('marks select their values', () => {
     expect(marks).toHaveLength(anchor.producer_observations.length)
     const mark = marks[0]!
     expect(mark.getAttribute('aria-label')).toBe('title: Alpha, linked by rule, Approved; subtitle: Beta, linked by rule')
-    // The same words are the pointer's tooltip.
-    expect(mark.title).toBe(mark.getAttribute('aria-label'))
+    // No browser tooltip: the pointer gets the mark's name tag instead.
+    expect(mark.title).toBe('')
     expect(mark.getAttribute('aria-current')).toBe('true')
     expect(mark.className).toMatch(/\brule\b/)
     expect(mark.className).toMatch(/\bselected\b/)
@@ -338,10 +338,21 @@ describe('marks select their values', () => {
     }), { initialProps: { marks } })
     const mark = container.querySelector<HTMLButtonElement>('button.evidence-mark')!
     expect(mark.className).not.toMatch(/\bhovered\b/)
+    // A mark that scrolls in under a still pointer gets `mouseenter` and no `mousemove`: it lights and names nothing.
+    onHover.mockClear()
     mark.dispatchEvent(new MouseEvent('mouseenter'))
+    expect(onHover).not.toHaveBeenCalled()
+    expect(container.querySelector('.evidence-mark-name')).toBeNull()
+    // The pointer's own movement does, once per mark, with the field's name beside it.
+    mark.dispatchEvent(new MouseEvent('mousemove'))
+    mark.dispatchEvent(new MouseEvent('mousemove'))
+    expect(onHover).toHaveBeenCalledTimes(1)
     expect(onHover).toHaveBeenLastCalledWith([key])
+    expect(container.querySelectorAll('.evidence-mark-name')).toHaveLength(1)
+    expect(container.querySelector('.evidence-mark-name')!.textContent).toBe('title')
     mark.dispatchEvent(new MouseEvent('mouseleave'))
     expect(onHover).toHaveBeenLastCalledWith(null)
+    expect(container.querySelector('.evidence-mark-name')).toBeNull()
     rerender({ marks: { ...marks, hovered: [key] } })
     expect(container.querySelector('button.evidence-mark')).toBe(mark)
     expect(mark.className).toMatch(/\bhovered\b/)
@@ -570,11 +581,15 @@ describe('value marks', () => {
     rerender({ marks: hoverable })
     const mark = values()[0]!
     expect(mark.style.pointerEvents).toBe('auto')
-    expect(mark.title).toBe('title: Alpha')
+    expect(mark.title).toBe('')
     mark.click()
     expect(marks.onSelect).toHaveBeenCalledWith([key], mark)
-    mark.dispatchEvent(new MouseEvent('mouseenter'))
+    mark.dispatchEvent(new MouseEvent('mousemove'))
     expect(onHover).toHaveBeenLastCalledWith([key])
+    expect(mark.parentElement!.querySelector('.evidence-mark-name')!.textContent).toBe('title')
+    // Picking the value takes its name tag away: Results now shows it.
+    mark.click()
+    expect(mark.parentElement!.querySelector('.evidence-mark-name')).toBeNull()
     rerender({ marks: { ...hoverable, hovered: [key] } })
     expect(values()[0]).toBe(mark)
     // A value the rail does not name has nothing to pick.
@@ -590,7 +605,7 @@ describe('value marks', () => {
     expect([...values()[0]!.classList]).toEqual(expect.arrayContaining(['doubtful', 'decided']))
     const block = container.querySelector<HTMLElement>('button.evidence-mark')!
     expect(block.classList.contains('valued')).toBe(true)
-    expect(block.title).toBe('title: Alpha, uncertain, Approved')
+    expect(block.getAttribute('aria-label')).toBe('title: Alpha, uncertain, Approved')
   })
 
   it('keeps the block underline for a value with no mark of its own, and gives a block of several fields a neutral colour', () => {

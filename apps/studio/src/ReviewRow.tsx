@@ -2,9 +2,9 @@ import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, groundingDetail, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, fieldWords, groundingDetail, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import {
-  ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
+  ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
 } from './ui/icons'
 import { Button } from './ui'
@@ -40,9 +40,9 @@ function ProgressRow({ row }: { row: RailRow }) {
     <div className={`${grid} animate-fadeup`}>
       <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
       <span className="min-w-0">
-        <span className="block truncate font-mono text-compact text-ink-faint" title={row.name}>{row.name}</span>
+        <span className="block truncate text-compact text-ink-faint first-letter:uppercase">{fieldWords(row.name)}</span>
         {row.kind === 'checking'
-          ? <span className="line-clamp-2 text-content font-medium text-ink-faint italic [overflow-wrap:anywhere]" title="Candidate · being checked against the source">{rowText(row)}</span>
+          ? <span className="line-clamp-2 text-content font-medium text-ink-faint italic [overflow-wrap:anywhere]">{rowText(row)}</span>
           : <span role="img" aria-label={row.kind === 'reading' ? 'Reading' : 'Queued'} className="mt-1 block h-3 w-24 rounded-sm bg-line motion-safe:animate-pulse" />}
       </span>
       {row.kind === 'checking' ? <span className="h-5.5 text-compact font-medium text-ink-muted">checking</span> : <span />}
@@ -66,7 +66,6 @@ export type ReviewRowProps = {
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
-  onReviewFromHere?: () => void
   onTypedEdit?: (value: unknown) => void
   /** The open value's parts, each pickable to show only its Evidence. */
   pick?: PartPick
@@ -76,7 +75,7 @@ export type ReviewRowProps = {
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, canDecide, saved, editing, node,
-  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit, pick, locked = false }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onTypedEdit, pick, locked = false }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -87,16 +86,21 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   const precision = row.link?.precision === 'input' ? ' · page only' : row.link?.precision === 'cell' ? ' · a table cell' : ''
   const source = row.retained?.source ?? `${row.kind === 'edited' || row.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${row.page === null ? '' : `p.${row.page} · `}${origin}${precision}${passageOnly(row.link)}`
   const style = row.chip?.style ?? 'neutral'
+  const grounding = row.link && row.decision ? groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action) : null
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
-        aria-label={`${stateLabel(row)} ${row.name} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
-        className={`${grid} min-h-7.5 cursor-pointer outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
+        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
+        className={`${grid} min-h-7.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
-          {/* The colour key: a linked value's swatch is the colour of its marks on the page. */}
-          <span className="block truncate font-mono text-compact text-ink-faint" title={row.name}>{row.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{row.name}</span>
-          <span className="line-clamp-2 text-content font-medium text-ink [overflow-wrap:anywhere]" title={rowText(row)}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
+          {/* The colour key: a linked value's swatch is the colour of its marks on the page. The open row shows its
+              name and value whole, so nothing is left to a tooltip. */}
+          <span className="flex items-baseline gap-1.5 text-compact text-ink-faint">
+            {row.link && <span aria-hidden="true" className="size-2 shrink-0 rounded-sm bg-ev" />}
+            <span className={`min-w-0 first-letter:uppercase ${selected ? '[overflow-wrap:anywhere]' : 'truncate'}`}>{fieldWords(row.name)}</span>
+          </span>
+          <span className={`text-content font-medium text-ink [overflow-wrap:anywhere] ${selected ? 'block' : 'line-clamp-2'}`}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
         </span>
@@ -112,10 +116,13 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
           {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>
-              <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
-              {row.link && row.decision && groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action) &&
-                <p className="m-0 text-compact text-ink-muted">{groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action)}</p>}
               {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Uncertain passage.</b> {row.doubt}</span></p>}
+              {/* How the value was tied to its passage: for the researcher who asks, not for every row. */}
+              <details className="text-compact text-ink-muted">
+                <summary className="w-fit cursor-pointer rounded outline-none hover:text-ink">Source details</summary>
+                <p className="m-0 mt-1 flex items-center gap-1 font-semibold text-ink"><EvidenceGlyph />{source}</p>
+                {grounding && <p className="m-0 mt-1">{grounding}</p>}
+              </details>
             </>
           )}
           {!linked && row.evidence && (
@@ -135,7 +142,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
             </fieldset>
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
-              <div role="group" aria-label={`Decision for ${row.name}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">
+              <div role="group" aria-label={`Decision for ${fieldWords(row.name)}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">
                 {!row.disagreement && <button type="button" onClick={() => onDecide('APPROVED')} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
                   <ApprovedGlyph />Approve</button>}
                 <button type="button" onClick={onEdit} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
@@ -143,9 +150,6 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
                 <button type="button" onClick={() => onDecide('REJECTED')} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
                   <RejectedGlyph />Reject</button>
               </div>
-              {onReviewFromHere && (
-                <Button variant="ghost" className="ml-auto @max-[300px]:ml-0 @max-[300px]:basis-full" onClick={onReviewFromHere}><OneByOneGlyph />Review from here</Button>
-              )}
             </div>
           ) : decided && saved ? (
             <p className="m-0 text-secondary font-semibold text-ink">{word} · saved</p>

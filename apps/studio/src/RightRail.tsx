@@ -1,3 +1,4 @@
+import type { MenuItem } from './ResultsMenu'
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SelectionChannel } from './selectionChannel'
@@ -60,8 +61,8 @@ type RightRailProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   recordScope?: SchemaPanelProps['recordScope']
   boundaries?: SchemaPanelProps['boundaries']
-  /** Controls the Results header shows beside the attempt details: "Open latest reviewed". */
-  resultsHeaderExtras?: ReactNode
+  /** Entries the workspace adds to the Results header's ⋯ menu: "Open latest reviewed". */
+  resultsMenuItems?: readonly MenuItem[]
   /** The document's Extractions, above the shown one's own History; read only while `visible`. */
   documentHistory?: (visible: boolean) => ReactNode
   /** Set while Results shows an Extraction that is not the document's latest: opens the latest. */
@@ -169,7 +170,7 @@ function RightRail({
   onRenameSchema,
   recordScope,
   boundaries,
-  resultsHeaderExtras,
+  resultsMenuItems,
   documentHistory,
   onOpenLatest = null,
   onValueHistory,
@@ -372,7 +373,7 @@ function RightRail({
           readOnly={inspection.readOnly}
           onEvidence={selectNativeEvidence}
           selection={selection}
-          headerExtras={resultsHeaderExtras}
+          menuItems={resultsMenuItems}
           onOpenLatest={onOpenLatest}
           onValueHistory={onValueHistory}
           onReviewProgress={onReviewProgress}

@@ -3,7 +3,7 @@ import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { QueueItem } from './reviewQueue'
 import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, fieldWords, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -81,7 +81,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   const decided = current.kind !== 'to-check'
   const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
   const precision = current.link?.precision === 'input' ? ' · page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
-  const trail = article ? current.name : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${current.name}`
+  const trail = article ? fieldWords(current.name) : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${fieldWords(current.name)}`
   const source = `${current.retained?.source ?? `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}${passageOnly(current.link)}`}${precision}`
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
@@ -90,7 +90,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
           {items.map((item) => (
             <li key={item.key}>
               <button type="button" disabled={locked} aria-current={item.key === current.key ? 'step' : undefined} onClick={() => onGo(item.key)}
-                aria-label={`${item.row.name}, ${stateLabel(item.row).toLowerCase()}${item.row.doubt ? ', uncertain' : ''}`}
+                aria-label={`${fieldWords(item.row.name)}, ${stateLabel(item.row).toLowerCase()}${item.row.doubt ? ', uncertain' : ''}`}
                 className={`flex size-6 cursor-pointer items-center justify-center rounded border ${item.row.doubt && item.row.kind === 'to-check' ? 'border-dashed border-ev' : 'border-line'} ${item.key === current.key ? 'outline-2 outline-accent' : ''}`}>
                 <QueueGlyph row={item.row} />
               </button>
@@ -101,7 +101,10 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {position && <span className="text-compact text-ink-muted tabular-nums">{article ? `${position.at} of ${position.of}` : `Record ${position.record} of ${position.records} · ${position.at} of ${position.of} in this record`}</span>}
       </div>
       <div>
-        <p className="m-0 mb-1 truncate font-mono text-secondary text-ink-faint" title={trail}>{current.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{trail}</p>
+        <p className="m-0 mb-1 flex items-baseline gap-1.5 text-secondary text-ink-faint">
+          {current.link && <span aria-hidden="true" className="size-2 shrink-0 rounded-sm bg-ev" />}
+          <span className="min-w-0 [overflow-wrap:anywhere] first-letter:uppercase">{trail}</span>
+        </p>
         {editing ? (
           <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
             <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
@@ -117,12 +120,17 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted [overflow-wrap:anywhere]">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
-      <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
+      {current.page !== null && <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />Page {current.page}</p>}
       {current.doubt && (
         <div className="flex items-start gap-1.5 rounded-md border border-dashed border-ev px-2.5 py-2 text-secondary text-ink">
           <DoubtGlyph /><span><b>Uncertain passage.</b> {current.doubt}</span>
         </div>
       )}
+      {/* How the value was tied to its passage: for the researcher who asks, not for every value. */}
+      <details className="text-compact text-ink-muted">
+        <summary className="w-fit cursor-pointer rounded outline-none hover:text-ink">Source details</summary>
+        <p className="m-0 mt-1 font-semibold text-ink">{source}</p>
+      </details>
       <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0">
         {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
         {!decided && !editing && (
@@ -150,7 +158,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         <Overline as="p" className="m-0 mb-1 block">Up next</Overline>
         {upNext.length === 0 ? <p className="m-0 text-secondary text-ink-muted">Nothing else to check after this one.</p> : upNext.map((item) => (
           <div key={item.key} className="flex items-baseline justify-between gap-2 py-0.5 text-secondary">
-            <span className="min-w-0 truncate" title={`${item.row.name} · ${rowText(item.row)}`}><span className="font-mono text-ink-faint">{item.row.name}</span> · {rowText(item.row)}</span>
+            <span className="min-w-0 truncate first-letter:uppercase"><span className="text-ink-faint">{fieldWords(item.row.name)}</span> · {rowText(item.row)}</span>
             <span className="shrink-0 text-ink-muted">{item.row.doubt ? 'uncertain' : item.row.chip?.style === 'rule' ? 'linked by rule' : item.row.page === null ? '' : `p.${item.row.page}`}</span>
           </div>
         ))}

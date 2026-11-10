@@ -82,6 +82,11 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
   }
 }
 
+/** A field's name as the researcher reads it in Results and on a mark: `site_name` and `siteName` as "site name" (its
+ *  element capitalises the first letter). The Template keeps the name as written. */
+export const fieldWords = (name: string) =>
+  name.replace(/_+/g, ' ').replace(/([a-z\d])([A-Z])(?=[a-z])/g, (_, before: string, capital: string) => `${before} ${capital.toLowerCase()}`).trim()
+
 /** Preserve the shape of typed composite values while showing absent values clearly. */
 export const shownValue = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'No value'

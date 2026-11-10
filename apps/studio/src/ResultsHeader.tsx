@@ -13,8 +13,6 @@ export type StatusLine = {
   mark: StatusMark
   word: string
   rest: string
-  /** "Schema rev {r}" after the rest, a link to the drawer's Schema section. */
-  schemaRevision?: number
   /** "Why?" after the rest, a link to the drawer's Extraction section. */
   why?: boolean
   /** Opens the document's latest Extraction while another one is shown. */
@@ -50,20 +48,20 @@ export type HeaderActions = {
  * line, the count block and the filter chips (a select at 264px).
  */
 export default function ResultsHeader({
-  status, extras, schemaNote, alert, counts, running, readOnlyNote, actions, breakdown, chips, filter, onFilter,
-  detailsOpen, menuOpen, detailsRef, menuRef, exportButton, onDetails, onMenu, onSchema, onWhy, onShowDetails,
+  status, schemaNote, alert, counts, running, reviewSaved = false, readOnlyNote, actions, chips, filter, onFilter,
+  detailsOpen, menuOpen, detailsRef, menuRef, exportButton, onDetails, onMenu, onWhy, onShowDetails,
   onOneByOne, onSaveReview, onList,
 }: {
   status: StatusLine
-  extras?: ReactNode
   schemaNote?: { revision: number; current: number } | null
   alert?: ReactNode
   counts: RailCounts
   running: boolean
+  /** The review of the results shown is saved: said beside the count, whatever the run's own status. */
+  reviewSaved?: boolean
   /** In the saved and read-only states the number line gives way to this note; null hides the count's number line. */
   readOnlyNote: string | null | undefined
   actions: HeaderActions
-  breakdown: ReactNode
   chips: boolean
   filter: ValueFilter
   onFilter: (filter: ValueFilter) => void
@@ -74,7 +72,6 @@ export default function ResultsHeader({
   exportButton?: ReactNode
   onDetails: () => void
   onMenu: () => void
-  onSchema: () => void
   onWhy: () => void
   onShowDetails: () => void
   onOneByOne: () => void
@@ -82,29 +79,28 @@ export default function ResultsHeader({
   onList: () => void
 }) {
   const fraction = (count: number) => counts.required === 0 ? 0 : count / counts.required * 100
-  const chipList: Array<{ value: ValueFilter; label: string; count?: number }> = [
+  const checked = counts.approved + counts.edited + counts.rejected
+  const progress = `of ${checked + counts.toCheck} checked${running ? ' so far' : ''}${reviewSaved ? ' · review saved' : ''}`
+  // A filter with nothing behind it is not offered, unless it is the one in use.
+  const chipList = ([
     { value: 'check', label: 'To check' },
     { value: 'doubt', label: 'Uncertain', count: counts.doubtful },
     { value: 'notrev', label: 'Not reviewable', count: counts.notReviewable },
     { value: 'all', label: 'All' },
-  ]
+  ] satisfies Array<{ value: ValueFilter; label: string; count?: number }>).filter((chip) => chip.count !== 0 || chip.value === filter)
   return (
     <div className="@container flex shrink-0 flex-col gap-2 border-b border-line bg-surface px-3 pt-1 pb-2">
       <div className="flex min-h-8 flex-wrap items-center gap-1.5 text-secondary">
         <Mark mark={status.mark} />
         <p role="status" aria-atomic="true" className="m-0 flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1" title={status.title}>
           <b className="text-content text-ink">{status.word}</b>
-          {status.rest && <span className="text-ink-muted tabular-nums">{status.mark === 'completed'
-            ? <><span className="@max-[344px]:hidden">{status.rest}</span><span className="hidden @max-[344px]:inline">{status.rest.replace(/^· Catalog /, '').replace(/ ·$/, '')}</span></>
-            : status.rest}</span>}
-          {status.schemaRevision !== undefined && <button type="button" className={linkButton} onClick={onSchema}>Template rev {status.schemaRevision}</button>}
+          {status.rest && <span className="text-ink-muted tabular-nums">{status.rest}</span>}
           {status.onLatest && <button type="button" className={linkButton} onClick={status.onLatest}>Open latest</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
         {/* Snapshot, export and revision controls take a second row when the status would be squeezed. */}
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 empty:hidden @max-[344px]:order-last @max-[344px]:w-full [&>select]:min-w-0 [&>select]:max-w-full">
           {schemaNote && <Pill tone="stale" outline>Rev {schemaNote.revision} · current is {schemaNote.current}</Pill>}
-          {extras}
           {exportButton}
         </div>
         <button ref={detailsRef} type="button" aria-label="Run details" aria-expanded={detailsOpen} className={iconButton} onClick={onDetails}><InfoGlyph /></button>
@@ -123,9 +119,8 @@ export default function ResultsHeader({
         <div className="min-w-40 flex-1">
           <p className="m-0 mb-1 flex flex-wrap items-baseline gap-x-2 text-secondary text-ink-muted">
             {readOnlyNote === undefined
-              ? <span><b className="mr-1 text-display text-ink tabular-nums">{counts.toCheck}</b>{running ? 'to check so far' : 'to check'}</span>
-              : readOnlyNote && <span>{readOnlyNote}</span>}
-            <span aria-live="off" className="text-compact tabular-nums">{breakdown}</span>
+              ? <span className="tabular-nums"><b className="mr-1 text-display text-ink">{checked}</b>{progress}</span>
+              : <>{readOnlyNote && <span>{readOnlyNote}</span>}<span className="text-compact tabular-nums">{checked} {progress}</span></>}
           </p>
           <div role="img" className="flex h-1.5 overflow-hidden rounded-full bg-line"
             aria-label={`${counts.approved} approved, ${counts.edited} edited, ${counts.rejected} rejected, ${counts.toCheck} to check, of ${counts.required}`}>
@@ -144,7 +139,7 @@ export default function ResultsHeader({
             // Checking each value against its source is the review's main action: filled while any is left.
             <Button size="md" variant={actions.oneByOne.disabled === null ? 'positive' : 'secondary'} className="h-8 font-semibold"
               disabled={actions.oneByOne.disabled !== null}
-              title={actions.oneByOne.disabled ?? 'Check each value against its highlighted source, one at a time'}
+              title={actions.oneByOne.disabled ?? undefined}
               onClick={onOneByOne}><OneByOneGlyph />Review one by one</Button>
           )}
           {actions.saveReview && (

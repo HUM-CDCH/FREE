@@ -104,12 +104,16 @@ test('results identify an older template and a new Article admission survives re
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`extractionId=${admitted}`))
-    await expect(page.getByRole('button',{name:'Template rev 3',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'More result actions',exact:true}).click()
+    await expect(page.getByRole('menuitem',{name:'Template revision 3',exact:true})).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.reload()
     await openRailView(page,'Results')
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
-    await expect(page.getByRole('button',{name:'Template rev 3',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'More result actions',exact:true}).click()
+    await expect(page.getByRole('menuitem',{name:'Template revision 3',exact:true})).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.screenshot({path:testInfo.outputPath('new-article-after-reload.png')})
   } finally {await fixture.close()}
 })
@@ -242,7 +246,8 @@ test('saved live review survives reload, rejects another owner and exports its f
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
     await page.reload()
     await openRailView(page,'Results')
-    await expect(page.getByText(/1 approved · 1 edited · 0 rejected · review saved/)).toBeVisible()
+    await expect(page.getByRole('img',{name:/^1 approved, 1 edited, 0 rejected/})).toBeVisible()
+    await expect(page.getByText(/checked · review saved/)).toBeVisible()
     // The paused Extraction's controls are the chat's step (ADR 0026).
     const extractionStep=page.getByRole('region',{name:'Extraction',exact:true})
     await expect(extractionStep.getByRole('button',{name:'▶ Resume extraction',exact:true})).toBeVisible()
@@ -641,7 +646,7 @@ test('every native lifecycle shows retained review and running keyboard edits ke
         expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
         continue
       }
-      await rail.getByRole('button',{name:'Review from here',exact:true}).click()
+      await rail.getByRole('button',{name:'Review one by one',exact:true}).click()
       for(const name of ['More result actions','Run details']) {
         const overlay=rail.getByRole('button',{name});await overlay.click()
         const target=name==='More result actions'?rail.getByRole('menuitem',{name:'Export…'}):overlay
@@ -796,7 +801,7 @@ test('retained Catalog review fits actual 344px and 264px rails and a narrow vie
       await page.screenshot({path:testInfo.outputPath(`durable-rail-${width}.png`)})
     }
     await rail.getByRole('button',{name:/To check title A retained record/}).click()
-    await rail.getByRole('button',{name:'Review from here',exact:true}).click()
+    await rail.getByRole('button',{name:'Review one by one',exact:true}).click()
     await page.keyboard.press('e')
     await expect(rail.getByRole('textbox',{name:'Reviewed value'})).toBeVisible()
     await assertGeometry()
@@ -900,7 +905,8 @@ for(const source of ['same source','new source revision'] as const) {
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await openRailView(page,'Results')
       } else {
-        await page.getByRole('button',{name:'Open latest reviewed',exact:true}).click()
+        await page.getByRole('button',{name:'More result actions',exact:true}).click()
+        await page.getByRole('menuitem',{name:'Open latest reviewed',exact:true}).click()
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await openRailView(page,'Results')
       }
@@ -934,7 +940,8 @@ test('an open value\'s History lists its latest reading in each Extraction, open
     await savedExtraction(fixture,nodes,['Current title'],'PAUSED',{schemaRevisionId:earlier.schemaRevisionId})
     await fixture.open();await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title Current title/}).click()
-    await page.getByRole('button',{name:'History of this value',exact:true}).click()
+    await page.getByRole('button',{name:'More result actions',exact:true}).click()
+    await page.getByRole('menuitem',{name:'History of this value',exact:true}).click()
     const readings=page.getByRole('list',{name:'Readings of title'}).getByRole('listitem')
     await expect(readings).toHaveCount(2)
     await expect(readings.first()).toContainText('Current title')
@@ -967,7 +974,7 @@ test('a late post-save page response keeps the newer field and its unsaved brows
     await review.getByRole('button',{name:'Edit',exact:true}).click()
     await review.getByRole('textbox',{name:'Reviewed value'}).fill('Keep this unsaved draft')
     held.resolve()
-    await expect(page.getByText(/0 approved · 1 edited · 0 rejected/)).toBeVisible()
+    await expect(page.getByRole('img',{name:/^0 approved, 1 edited, 0 rejected/})).toBeVisible()
     await expect(review.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Keep this unsaved draft')
     const saved=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()).values
     expect(saved.find((value:{id:string})=>value.id==='title').correction.decision.value).toBe('Saved title')
@@ -1017,7 +1024,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     const csv=await readFile((await (await download).path())!,'utf8')
     expect(csv).toContain('title,title (review),title (alternatives)\r\n,Readings differ,')
     expect(csv).toContain('Article title');expect(csv).toContain('Cited title')
-    await page.getByRole('button',{name:'Review from here'}).click()
+    await page.getByRole('button',{name:'Review one by one'}).click()
     await page.getByRole('heading',{name:'Article title or Cited title'}).press('a')
     expect((await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(1)
     await page.getByRole('button',{name:'Use Article title'}).click()
