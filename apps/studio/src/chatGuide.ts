@@ -12,6 +12,7 @@ export type StepAction =
   | 'stop-generation'
   | 'apply'
   | 'review-schema'
+  | 'continue'
   | 'discard'
   | 'scope:records'
   | 'scope:document'
@@ -118,6 +119,8 @@ export type GuideInput = {
   resultsShown: boolean
   /** The Template view is already open: the steps after a generation need no way to it. */
   templateShown?: boolean
+  /** A generation has just finished and the researcher has not yet chosen to go on: the chat stops at Template ready. */
+  templateReady?: boolean
   dismissed: ReadonlySet<string>
   project?: ProjectGuideInput | null
 }
@@ -412,7 +415,7 @@ function schemaStep(input: GuideInput): StepCard | null {
       options: [
         { action: 'generate', label: `Generate template${kept}`, tone: 'positive', disabled: input.asking },
         // Not like this: say how, in the step itself.
-        { ...notYet, label: 'Or say what to focus on, or ask about the document…' },
+        { ...notYet, label: 'Tell me what to focus on, or ask about the document…' },
       ],
     }
   }
@@ -432,6 +435,20 @@ function schemaStep(input: GuideInput): StepCard | null {
       ],
     }
   }
+  // Each generation stops here before anything runs: look at the template, or go on to its next step.
+  if (input.view === 'editing' && input.templateReady)
+    return {
+      key: `template-ready:${input.revision.id ?? 'unsaved'}`,
+      title: 'Template ready',
+      question: input.templateShown ? 'Continue once the template looks right.' : 'Look at the template before going on?',
+      detail: [['Template', plural(input.revision.fieldCount, 'field')],
+        ...input.recordScope ? [['Strategy', input.recordScope === 'records' ? 'Catalog' : 'Article'] as const] : []],
+      options: [
+        ...viewTemplate(input).map((option) => ({ ...option, tone: 'positive' as const })),
+        { action: 'continue', label: 'Continue', tone: input.templateShown ? 'positive' : 'secondary' },
+        { ...notYet, label: 'Or describe a change to the template…' },
+      ],
+    }
   if (input.view === 'editing' && input.recordScope === null)
     return {
       key: 'scope',

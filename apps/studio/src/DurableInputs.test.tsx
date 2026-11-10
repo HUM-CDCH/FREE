@@ -31,7 +31,7 @@ it.each([
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{catalogRecipe:recipe}},pendingSelection:null} as unknown as DurableRead
   vi.mocked(durableRequest).mockResolvedValue(state)
   const onSaved=vi.fn()
-  render(<DurableInputs attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={onSaved} onEdited={async()=>{}}/>)
+  render(<DurableInputs attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={onSaved} onEdited={async()=>{}} onCancel={vi.fn()}/>)
   const save=await screen.findByRole('button',{name:'Save pending inputs'})
   expect(screen.queryByRole('alert')).toBeNull()
   expect(save).toBeEnabled()
@@ -48,7 +48,7 @@ it.each([
 it('an Extraction recorded without Article settings previews what Save sends: no article until the draft changes',async()=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}},pendingSelection:null} as unknown as DurableRead
-  render(<DurableInputs attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={vi.fn()} onEdited={async()=>{}}/>)
+  render(<DurableInputs attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={vi.fn()} onEdited={async()=>{}} onCancel={vi.fn()}/>)
   await screen.findByRole('button',{name:'Save pending inputs'})
   const view=screen.getByRole('combobox',{name:'Article setting'})
   const show=(title:string)=>fireEvent.change(view,{target:{value:(within(view).getAllByRole('option') as HTMLOptionElement[]).find(option=>option.textContent===title||option.textContent?.startsWith(`${title}: `))!.value}})
@@ -66,9 +66,9 @@ const inputs=(id:string,context_tokens:number)=>({id,schemaRevisionId:'schema',m
 const active=inputs('active',8192)
 const read=(controlVersion:number,pendingSelection:unknown,selection:unknown=active)=>({controlVersion,selection,pendingSelection}) as unknown as DurableRead
 /** The editor as "Change inputs" opens it: under the editing acknowledgement `state` was read at. It returns a poll. */
-const open=(state:DurableRead,{onSaved=vi.fn(),onEdited=vi.fn(async()=>{})}={})=> {
+const open=(state:DurableRead,{onSaved=vi.fn(),onEdited=vi.fn(async()=>{}),onCancel=vi.fn()}={})=> {
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
-  const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,acknowledged:state.controlVersion,currentSchema:'schema',onSaved,onEdited}
+  const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,acknowledged:state.controlVersion,currentSchema:'schema',onSaved,onEdited,onCancel}
   const view=render(<DurableInputs {...props} state={state}/>)
   return (next:DurableRead)=>view.rerender(<DurableInputs {...props} state={next}/>)
 }
@@ -134,5 +134,15 @@ it('keeps the draft and shows the server’s message when Save conflicts',async(
   fireEvent.click(save())
   expect(await screen.findByRole('alert')).toHaveTextContent('The Extraction changed. Reload to review the saved state.')
   expect(ceiling()).toHaveValue('9000')
+  expect(onSaved).not.toHaveBeenCalled()
+})
+
+it('closes without saving on Cancel, keeping whatever was edited out of the Extraction',async()=>{
+  const onSaved=vi.fn(),onCancel=vi.fn()
+  open(read(4,active),{onSaved,onCancel})
+  fireEvent.change(ceiling(),{target:{value:'9000'}})
+  fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
+  expect(onCancel).toHaveBeenCalledOnce()
+  expect(durableRequest).not.toHaveBeenCalled()
   expect(onSaved).not.toHaveBeenCalled()
 })

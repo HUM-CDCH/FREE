@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RailChat, { type RailChatProps } from './RailChat'
 import { useSchemaChat } from './useSchemaChat'
@@ -40,11 +40,28 @@ describe('RailChat', () => {
     expect(screen.getByText('Generate template (1 instruction)', { selector: 'span' })).toBeInTheDocument()
   })
 
+  it('stops at Template ready once a generation finishes, until the researcher goes on', async () => {
+    // A generation joins a durable chain: this one initializes it.
+    const schema = createSchemaEditorController({ ...localSchemaPersistence({ onEdit: () => {} }),
+      initialize: async (definition) => ({ schemaRevisionId: 'revision-1', extractionSchemaId: 'schema-1', revisionNumber: 1, recordScope: null,
+        origin: 'suggestion', createdAt: '2026-11-10T00:00:00.000Z', stabilisedAt: null, ...definition }) as never })
+    const all = renderChat({ schema, onGenerate: vi.fn() })
+    await act(async () => { await schema.generate(async () => ({ _description: 'One letter.', sender: 'string' })) })
+    const step = screen.getByRole('region', { name: 'Template ready' })
+    expect(within(step).getByText('Look at the template before going on?')).toBeVisible()
+    // Viewing the template keeps the step; Continue ends it.
+    fireEvent.click(within(step).getByRole('button', { name: /View template/ }))
+    expect(all.onShowView).toHaveBeenCalledWith('schema')
+    expect(screen.getByRole('region', { name: 'Template ready' })).toBeInTheDocument()
+    fireEvent.click(within(screen.getByRole('region', { name: 'Template ready' })).getByRole('button', { name: /Continue/ }))
+    expect(screen.queryByRole('region', { name: 'Template ready' })).not.toBeInTheDocument()
+  })
+
   it('takes an instruction typed into the Generate template step, and Esc still closes it', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
     const step = screen.getByRole('region', { name: 'Generate template' })
-    const tell = within(step).getByRole('textbox', { name: 'Or say what to focus on, or ask about the document…' })
+    const tell = within(step).getByRole('textbox', { name: 'Tell me what to focus on, or ask about the document…' })
     fireEvent.keyDown(step, { key: '2' })
     expect(tell).toHaveFocus()
     fireEvent.change(tell, { target: { value: 'Focus on senders' } })

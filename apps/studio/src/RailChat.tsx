@@ -61,6 +61,14 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ready = snap.view === 'editing'
   const editable = ready && snap.historicalPreview === null
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
+  // A generation that has just finished holds the chat at Template ready until the researcher goes on; generating again
+  // or leaving the template's editor ends it.
+  const [seenView, setSeenView] = useState(snap.view)
+  const [templateReady, setTemplateReady] = useState(false)
+  if (snap.view !== seenView) {
+    setSeenView(snap.view)
+    setTemplateReady(seenView === 'generating' && snap.view === 'editing')
+  }
   // The last run's template against the current one, compared by content, not only by revision.
   const sameTemplate = useSameTemplateAsRun(schema, latest?.schemaRevisionId ?? null)
 
@@ -91,6 +99,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     latest: latest && { ...latest, sameTemplate },
     resultsShown,
     templateShown,
+    templateReady,
     dismissed,
     project: project?.guide ?? null,
   }
@@ -111,6 +120,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       void (preSchema ? chat.ask(said) : chat.send(said))
     } else if (option.action !== 'review-schema')
       chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
+    // Template ready waits for a way on: viewing the template keeps it, any other choice ends it.
+    if (card.key.startsWith('template-ready:') && option.action !== 'review-schema') setTemplateReady(false)
     // The extract step answers one request: any choice ends it.
     if (card.key.startsWith('extract:')) {
       chat.clearExtractRequest()
@@ -121,6 +132,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       'stop-generation': () => schema.cancelGeneration(),
       apply: chat.apply,
       'review-schema': () => onShowView('schema'),
+      continue: () => {},
       discard: chat.discard,
       'scope:records': () => recordScope?.onChange('records'),
       'scope:document': () => recordScope?.onChange('document'),

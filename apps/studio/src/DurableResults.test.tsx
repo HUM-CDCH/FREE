@@ -723,6 +723,24 @@ it('acknowledges editing once per inputs edit session and saves the draft under 
     ['/api/extractions/extraction/durable/control',{id:expect.any(String),expectedVersion:4,action:'editing'}]])
 })
 
+it('closes the inputs editor on Cancel, saving nothing, and offers Change inputs again',async()=>{
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}}
+  const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={{schemaRevisionId:'schema',revisionNumber:1}} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'More result actions'}))
+  vi.mocked(readDurable).mockResolvedValue({state:{...state,controlVersion:5},page} as never)
+  fireEvent.click(screen.getByRole('menuitem',{name:'Change inputs'}))
+  const editor=await screen.findByRole('region',{name:'Revised inputs'})
+  fireEvent.click(within(editor).getByRole('button',{name:'Cancel'}))
+  expect(screen.queryByRole('region',{name:'Revised inputs'})).toBeNull()
+  expect(vi.mocked(durableRequest).mock.calls.some(([url])=>url.endsWith('/selection'))).toBe(false)
+  fireEvent.click(screen.getByRole('button',{name:'More result actions'}))
+  expect(screen.getByRole('menuitem',{name:'Change inputs'})).toBeInTheDocument()
+})
+
 it('keeps the last explicitly selected snapshot when an older selection finishes late',async()=> {
   const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
     node:{id:'title',name:'title',type:'string'},modelValue:'New version',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}

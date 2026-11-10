@@ -2847,6 +2847,9 @@ describe('reopened Source Document workspace', () => {
       expect(selector).toHaveValue('')
       // The chat asks for the scope before it offers Run.
       expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
+      // Each generation stops at Template ready until the researcher goes on.
+      const ready = await screen.findByRole('region', { name: 'Template ready' })
+      fireEvent.click(within(ready).getByRole('button', { name: /Continue/ }))
 
       fireEvent.change(selector, { target: { value: 'document' } })
       await waitFor(() => expect(written).toHaveLength(2))

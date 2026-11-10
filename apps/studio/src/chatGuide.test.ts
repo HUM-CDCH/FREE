@@ -49,6 +49,21 @@ describe('nextStep', () => {
     expect(step?.options.map(({ action, disabled }) => [action, !!disabled])).toEqual([['apply', true], ['review-schema', false], ['discard', false]])
   })
 
+  it('stops at Template ready after a generation, before the Record Scope or a run', () => {
+    const step = nextStep({ ...base, templateReady: true, recordScope: null })
+    expect(step).toMatchObject({ title: 'Template ready', question: 'Look at the template before going on?', detail: [['Template', '6 fields']] })
+    expect(step?.options.map(({ action, tone }) => [action, tone])).toEqual([['review-schema', 'positive'], ['continue', 'secondary'], ['dismiss', 'dismiss']])
+    expect(nextStep({ ...base, templateReady: true })?.detail).toEqual([['Template', '6 fields'], ['Strategy', 'Catalog']])
+    // A finished run on the same template waits too: the generation is looked at first.
+    expect(nextStep({ ...base, templateReady: true, latest: latest('COMPLETED') })?.title).toBe('Template ready')
+  })
+
+  it('leads Template ready with Continue once the template is in view, and keeps a proposal first', () => {
+    expect(actions({ templateReady: true, templateShown: true })).toEqual(['continue', 'dismiss'])
+    expect(nextStep({ ...base, templateReady: true, templateShown: true })?.options[0]?.tone).toBe('positive')
+    expect(nextStep({ ...base, templateReady: true, proposal: { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true } })?.key).toBe('proposal')
+  })
+
   it('asks for the Record Scope before a run', () => {
     expect(actions({ recordScope: null })).toEqual(['scope:records', 'scope:document', 'review-schema'])
   })

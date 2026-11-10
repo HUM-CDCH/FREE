@@ -628,7 +628,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
           {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV'} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
         </p>}
     </div>}
-    {(detailsOpen||shownError||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
+    {(detailsOpen||shownError||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="max-h-[60%] shrink-0 space-y-2 overflow-y-auto border-b border-line p-3">
       {detailsOpen&&<div className="space-y-1 text-secondary">
         <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 [&>dd]:m-0 [&>dt]:text-ink-muted">
           {attempt.createdAt&&<><dt>Started</dt><dd>{savedAt(attempt.createdAt)}</dd></>}
@@ -644,7 +644,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       </div><details><summary className="cursor-pointer">Reprocess completed values (optional)</summary><p className="text-compact text-ink-muted">Selected values receive new model versions. Earlier versions and corrections remain saved.</p>
         {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/>{v.node.name} · {v.recordId.slice(0,8)}</label>)}
       </details></div>}
-      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema?.schemaRevisionId??null} onSaved={saved} onEdited={reader.refresh}/>}
+      {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema?.schemaRevisionId??null} onSaved={saved} onEdited={reader.refresh} onCancel={()=>setEditing(null)}/>}
       {shownError&&<p role="alert" className="text-secondary text-danger">{shownError}</p>}
       {reconnect}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
