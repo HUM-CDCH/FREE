@@ -1238,7 +1238,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
     expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
-    expect(screen.getByText('Service defaults, version 6')).toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 9')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     setting('Input token ceiling')
     const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })

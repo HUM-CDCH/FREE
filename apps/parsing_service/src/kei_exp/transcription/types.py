@@ -36,7 +36,8 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # surya 1: OCR HTML exported as UTF-8; a guessed encoding could read superscripts (cm⁻¹) as Shift JIS.
 # surya 2: an input whose full-page generation produced looping or token-capped text and whose final recognition
 # holds no text (before artwork ownership filtering) is incomplete, not an empty success. Hybrid recipes record it.
-TEXT_RULES: dict[str, int] = {"native": 4, "hybrid": 4, "surya": 2}
+# native 5: a learned table grid must agree with native word alignment before it becomes canonical text.
+TEXT_RULES: dict[str, int] = {"native": 5, "hybrid": 4, "surya": 2}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {

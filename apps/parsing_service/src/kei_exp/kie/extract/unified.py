@@ -66,7 +66,7 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 10  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 11  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6 (defaults 5): verification may correct a scalar, with its complete source quote.
 # 7 (defaults 6): the entry call shows the requested value structure and asks for complete values.
@@ -74,6 +74,7 @@ PROMPT_VERSION = 10  # 3: compact discovery places; 4: discovery WINDOW labels n
 # 9 (defaults 7): ordered heading excerpts, counted selection and literal scalar inheritance.
 # 10 (defaults 8): a child record's entry and verification calls read it beside its enclosing record's text
 # (`CHILD`, `VERIFY_CHILD`).
+# 11 (defaults 9): schema-defined peer records versus containers/indices, and complete text expressions.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -152,14 +153,17 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
                 "heading_context": True, "candidates": discovery.CANDIDATES},
             8: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "nearby": True, "children": True}}
+                "nearby": True, "children": True},
+            9: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
+                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
+                "nearby": True, "children": True, "complete_text": True}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8]
+    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -268,13 +272,15 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
                if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass", "heading_context",
-                           "nearby", "children")}
+                           "nearby", "children", "complete_text")}
             | ({"candidates": options.setting("candidates")} if options.defaults >= 7 else {})
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
-            "models": chat.models, "prompt_version": {7: 9, 8: 10}.get(options.defaults, PROMPT_VERSION if options.defaults > 8 else 8),
-            "discovery_version": {7: 10, 8: 11}.get(options.defaults, discovery.VERSION if options.defaults > 8 else 8),
+            "models": chat.models,
+            "prompt_version": {7: 9, 8: 10, 9: 11}.get(options.defaults, PROMPT_VERSION if options.defaults > 9 else 8),
+            "discovery_version": {7: 10, 8: 11, 9: 12}.get(options.defaults,
+                                                           discovery.VERSION if options.defaults > 9 else 8),
             **({"entry_version": ENTRY_VERSION} if options.defaults >= 7 else {}),
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -362,16 +368,19 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             raise NeedsCall() from None
 
     def discover() -> tuple[dict, bool]:
-        description = schema.record_description + (DISCOVERY_SCOPE if options.defaults >= 5 else "")
+        description = schema.record_description + (DISCOVERY_SCOPE_V9 if options.defaults >= 9 else
+                                                       DISCOVERY_SCOPE if options.defaults >= 5 else "")
         body = discovery.discover(evidence, description, partial(budget.fits, "discovery"),
                                   ask, overlap=effective["overlap"],
                                   splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
                                   progress=partial(discovering, chat), frontier=pipelined,
                                   unanswered=(NeedsCall,) if durable else (),
                                   heading_context=effective.get("heading_context", False),
-                                  nearby=effective.get("nearby", False))
+                                  nearby=effective.get("nearby", False), shared_context=options.defaults >= 9)
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
+        if options.defaults >= 9:
+            body = discovery.table_notes(body, evidence)
         if effective.get("children") and body.get("complete", True):
             try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
                 body = discovery.children(body, evidence, schema.record_description,
@@ -728,11 +737,28 @@ class _Checker:
         return found
 
 
-# --- prompts -------------------------------------------------------------------------------------------------------
+# --- prompts (pinned versions stay byte-identical) -----------------------------------------------------------------
 
 DISCOVERY_SCOPE = (" Keep each record whole: its internal headings, tables, citations and numbered list items belong to it; "
                    "they are neither new records nor record-free text. Only entries matching the record definition are peers. "
                    "Use other only for text outside every record, not sections inside one.")
+# Defaults 9: the schema fixes granularity; indices are not duplicate records, and children stay nested.
+DISCOVERY_SCOPE_V9 = (
+    ' The record definition sets the unit to separate. A table title or section is not an enclosing record '
+    'unless it itself matches that definition. When the requested records are presented as table entries '
+    'without a requested enclosing record, each matching data row starts its own record; mark the shared '
+    'title and column headers as other. An index, concordance or summary that only lists records described '
+    'elsewhere is other, not additional record starts. Keep each requested enclosing record whole in this '
+    'pass: its internal headings, tables, citations and numbered items belong to it, including separately '
+    'identified entities printed inside it; they do not start peer records. Use other only for text '
+    'outside every requested record, not sections inside one.'
+)
+COMPLETE_TEXT_V9 = ("\nFor each text field, return the complete source expression that answers it, including qualifying "
+                    "phrases, parentheses and appositions that belong to the value. Do not shorten it to a familiar "
+                    "name or a normalized fragment unless the field explicitly asks for normalization or labels. "
+                    "Distinguish value from quote: the quote copies the source exactly, including adjoining note "
+                    "markers; the value excludes markers explicitly defined as notes in the shown source, unless "
+                    "the field requests them. Preserve punctuation that belongs to the value itself.")
 ENTRY = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
          "Answer every field with null when the record does not give it, or with an object: \"value\" (typed as the "
          "field) and \"quote\" (the exact text of the record that states or supports the value, copied character "
@@ -978,6 +1004,8 @@ class _Run:
         single = self.effective.get("single_pass", False)
         if single:
             system += SINGLE_PASS
+        if self.effective.get("complete_text", False):
+            system += COMPLETE_TEXT_V9
         replies = self._read("entry", number, units, system, candidates_schema(self.nodes), "RECORD", heading, out,
                              parent=parent)
         view = _view(units, self.texts)
