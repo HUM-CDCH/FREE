@@ -198,7 +198,7 @@ export function StudioHome({
 
         {listState.status === 'error' ? (
           <EmptyState
-            className="max-w-sm bg-surface"
+            className="max-w-sm bg-surface [overflow-wrap:anywhere]"
             title="Could not load your projects"
             description={listState.failure.message}
             tone="danger"
@@ -257,13 +257,13 @@ export function StudioHome({
                         <span className="min-w-0">
                           <h2
                             id={`project-${project.projectContextId}-name`}
-                            className="break-words text-secondary font-semibold text-ink"
+                            className="text-secondary font-semibold text-ink [overflow-wrap:anywhere]"
                           >
                             {project.name}
                           </h2>
                           <span
                             id={`project-${project.projectContextId}-count`}
-                            className="mt-1 block break-words text-[11px] text-ink-faint"
+                            className="mt-1 block text-[11px] text-ink-faint [overflow-wrap:anywhere]"
                           >
                             {metaLine(project)}
                           </span>
@@ -312,7 +312,7 @@ export function StudioHome({
                           <span className="text-secondary text-ink">
                             {eventLabels[event.kind]}
                           </span>
-                          <span className="text-compact leading-relaxed text-ink-faint">
+                          <span className="text-compact leading-relaxed text-ink-faint [overflow-wrap:anywhere]">
                             <span className="group-hover:underline">
                               {event.projectContextName}
                             </span>

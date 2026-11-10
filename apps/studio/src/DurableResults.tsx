@@ -119,7 +119,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     {newer&&<p role="status" className="mx-3 text-compact text-stale-ink">A newer version of this value was saved. Close this one and open the value again to review it.</p>}
     {onHistory&&<p className="mx-3 text-compact"><button type="button" className={linkClass} onClick={onHistory}>History of this value</button></p>}
     {value.historicalCorrection&&<p className="mx-3 text-compact"><a className={linkClass} href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open the earlier correction</a></p>}
-    {state.context.error&&<div className="mx-3 space-y-2"><p role="alert" className="text-secondary text-danger">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
+    {state.context.error&&<div className="mx-3 space-y-2"><p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
     {(state.context.error||state.context.comparing)&&<section aria-label="Compare saved value and draft" className="mx-3 space-y-2 rounded-md border border-line p-3 text-secondary">
       <p className="text-compact text-ink-muted">Save replaces the whole field. Compare the saved value with your draft before retrying. Reinspect reordered arrays and changed shapes.</p>
       <dl className="space-y-1"><dt className="font-semibold">Saved value in this view</dt><dd className="m-0 break-words">{JSON.stringify(row.value)}</dd>
@@ -174,7 +174,7 @@ function HistoryAudit({id}:{id:string}) {
     void readDurableHistory(id,controller.signal).then(setHistory,e=>{if(!controller.signal.aborted)setError(e.message)})
     return()=>controller.abort()
   },[id])
-  if(!history)return <p role={error?'alert':'status'} className="pt-2 text-compact text-ink-muted">{error??'Loading…'}</p>
+  if(!history)return <p role={error?'alert':'status'} className="pt-2 text-compact text-ink-muted [overflow-wrap:anywhere]">{error??'Loading…'}</p>
   return <div className="space-y-3 pt-2">
     {history.selections.map(selection=><details key={selection.id}>
       <summary className="cursor-pointer">Input selection {selection.ordinal} · template {selection.schemaRevisionId.slice(0,8)}</summary>
@@ -186,7 +186,7 @@ function HistoryAudit({id}:{id:string}) {
     {history.captures?.map(capture=><details key={capture.id}>
       <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
       <p className="text-compact text-ink-muted">This call keeps its captured guidance even when a correction is later excluded or superseded.</p>
-      <p className="text-compact text-ink-muted">{capture.outputDigest?'Saved output':'No saved output'} · capture {capture.id}</p>
+      <p className="text-compact text-ink-muted [overflow-wrap:anywhere]">{capture.outputDigest?'Saved output':'No saved output'} · capture {capture.id}</p>
       <details><summary className="cursor-pointer">{capture.invoked?'Consumed guidance and omitted candidates':'Captured guidance and omitted candidates'}</summary>
         <p className="text-compact text-ink-muted">Omissions are evaluated for this call’s target and budget.</p>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({examples:capture.request?.examples??[],omissions:capture.request?.omissions??[],budget:capture.request?.budget??null,candidates:capture.candidates},null,2)}</pre>
@@ -217,7 +217,7 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
   },[id,shown,open,history])
   return <details open={open} className="rounded-md border border-line bg-surface p-3" onToggle={event=>setOpen(event.currentTarget.open)}>
     <summary className="cursor-pointer text-secondary font-semibold">This extraction</summary>
-    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+    {error&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{error}</p>}
     {history&&<div className="space-y-3 pt-2 text-secondary">
       {history.finalizations.length>0&&<section aria-label="Finalized reviews"><h3 className="m-0 text-compact font-semibold">Finalized reviews</h3>
         <ul className="m-0 list-none space-y-1 p-0">{[...history.finalizations].reverse().map(finalization=><li key={finalization.id} className="flex items-center justify-between gap-2">
@@ -229,7 +229,7 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
           const effective=history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined
           const previous=history.selections.find(each=>each.ordinal===selection.ordinal-1)
           const producingSchema=history.schemaRevisions?.find(revision=>revision.schemaRevisionId===selection.schemaRevisionId)
-          return <li key={selection.id}>
+          return <li key={selection.id} className="[overflow-wrap:anywhere]">
             {selection.ordinal===1?'First inputs':`Changed inputs (version ${selection.ordinal})`}
             <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · template changed':''}{producingSchema&&` · ${resultSchemaLabel(producingSchema)}`}</span>
           </li>})}</ul></section>}
@@ -508,9 +508,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     read()
     return()=>{controller.abort();clearTimeout(retry)}
   },[id])
-  if(!state||!latestPage||!page||!attempt||!id||!model||!reader) return <><p role={shownError?'alert':'status'} className="p-3 text-secondary">{shownError??'Loading saved extraction results…'}</p>
+  if(!state||!latestPage||!page||!attempt||!id||!model||!reader) return <><p role={shownError?'alert':'status'} className="p-3 text-secondary [overflow-wrap:anywhere]">{shownError??'Loading saved extraction results…'}</p>
     {reconnect&&<div className="px-3 pb-3">{reconnect}</div>}
-    {historySlot&&createPortal(<p className="p-3 text-secondary">{shownError??'Loading…'}</p>,historySlot)}</>
+    {historySlot&&createPortal(<p className="p-3 text-secondary [overflow-wrap:anywhere]">{shownError??'Loading…'}</p>,historySlot)}</>
   const terminal=state.status==='STOPPED'||state.status==='STOPPING'
   const active=ACTIVE.has(state.status)
   const idle=['PAUSED','FAILED','COMPLETED'].includes(state.status)
@@ -623,14 +623,14 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       onExport={(format,choices)=>{setExportOpen(false);void exportSaved(format,choices)}}/>
     {exportState&&<div className="shrink-0 border-b border-line p-3 text-secondary">
       {exportState.status==='failed'
-        ? <p role="alert" className="m-0 text-danger">{exportState.message}</p>
+        ? <p role="alert" className="m-0 text-danger [overflow-wrap:anywhere]">{exportState.message}</p>
         : <p role="status" aria-label="Export progress" className="m-0">
           {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV'} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
         </p>}
     </div>}
     {(detailsOpen||shownError||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="max-h-[60%] shrink-0 space-y-2 overflow-y-auto border-b border-line p-3">
       {detailsOpen&&<div className="space-y-1 text-secondary">
-        <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 [&>dd]:m-0 [&>dt]:text-ink-muted">
+        <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 [&>dd]:m-0 [&>dd]:min-w-0 [&>dd]:[overflow-wrap:anywhere] [&>dt]:text-ink-muted">
           {attempt.createdAt&&<><dt>Started</dt><dd>{savedAt(attempt.createdAt)}</dd></>}
           {quiet&&<><dt>Template</dt><dd>{resultSchemaLabel(quiet)}</dd></>}
           <dt>Inputs</dt><dd>version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}</dd>
@@ -642,10 +642,10 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         <Button variant="positive" disabled={!idle||busy||state.pendingSelection.id===state.selection.id} onClick={()=> {setBusy(true);void durableRequest(`${durableRoot(id)}/adopt`,{expectedVersion:state.controlVersion,selectionId:state.pendingSelection.id,reprocessValueIds:[...reprocess]}).then(()=>{setReprocess(new Set());saved()}).catch(e=>setError(e.message)).finally(()=>setBusy(false))}}>Apply changes</Button>
         <Button disabled={busy} onClick={()=>void command('discard')}>Discard changes</Button>
       </div><details><summary className="cursor-pointer">Reprocess completed values (optional)</summary><p className="text-compact text-ink-muted">Selected values receive new model versions. Earlier versions and corrections remain saved.</p>
-        {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/>{v.node.name} · {v.recordId.slice(0,8)}</label>)}
+        {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" className="shrink-0" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/><span className="min-w-0 [overflow-wrap:anywhere]">{v.node.name} · {v.recordId.slice(0,8)}</span></label>)}
       </details></div>}
       {editing!==null&&<DurableInputs attempt={attempt} state={state} acknowledged={editing} currentSchema={currentSchema?.schemaRevisionId??null} onSaved={saved} onEdited={reader.refresh} onCancel={()=>setEditing(null)}/>}
-      {shownError&&<p role="alert" className="text-secondary text-danger">{shownError}</p>}
+      {shownError&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{shownError}</p>}
       {reconnect}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       {state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}

@@ -56,6 +56,7 @@ export function RoutePicker({
       groups={groups}
       reset={{ value: '', label: unset }}
       onChange={(value) => onChange(decodeRoute(value))}
+      displayTitle={route ? `${route.modelId} · ${connection?.name ?? 'Unknown connection'}` : unset}
       display={
         route ? (
           <>
@@ -110,6 +111,7 @@ export function ListingPicker({
       groups={[{ key: 'deployment', label: group, note: choices ? undefined : 'This deployment could not list its models.', options }]}
       reset={{ value: '', label: fallback }}
       onChange={onChange}
+      displayTitle={value ? `${nameOf(value)}${unlisted && choices ? ` ${NOT_OFFERED}` : ''}` : fallback}
       display={
         value ? (
           <>

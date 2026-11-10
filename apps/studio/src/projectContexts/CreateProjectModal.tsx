@@ -99,7 +99,7 @@ export function CreateProjectModal({
         {(failure || validationError) && (
           <p
             id="create-project-context-error"
-            className="text-[11px] leading-snug text-danger"
+            className="text-[11px] leading-snug text-danger [overflow-wrap:anywhere]"
             role="alert"
           >
             {failure ?? validationError}

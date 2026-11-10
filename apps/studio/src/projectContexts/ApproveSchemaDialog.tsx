@@ -64,7 +64,7 @@ export default function ApproveSchemaDialog({
         </p>
       )}
       {failure && (
-        <p className="mt-3 text-[11px] text-danger" role="alert">
+        <p className="mt-3 text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
           {failure}
         </p>
       )}

@@ -329,7 +329,7 @@ function RightRail({
           while open, so expanding announces its alert. */}
       {open&&shown&&(extraction.admitting||extraction.retryAdmission)&&<p role="status" className="m-0 shrink-0 border-b border-line px-3 py-2 text-compact text-ink-muted">A new extraction has not been acknowledged yet. These are previous results.</p>}
       {open && statusError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
-        <p role="alert" className="m-0 text-compact text-danger">{statusError}</p>
+        <p role="alert" className="m-0 max-w-full text-compact text-danger [overflow-wrap:anywhere]">{statusError}</p>
         <div className="flex flex-wrap gap-2">
           <Button onClick={extraction.monitorError ? extraction.reconnect : () => void latestReader?.refresh()}>Reconnect</Button>
           {extraction.retryAdmission&&<Button onClick={()=>void extraction.retryAdmission?.()}>Retry original request</Button>}
@@ -388,7 +388,7 @@ function RightRail({
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
             {schemaReady ? 'Run extraction to apply the template across the source document.' : 'Create a template in the chat first, then run extraction.'}
           </p>
-          {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'The chat offers Run extraction as its next step.'}</p>}
+          {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 max-w-full text-compact font-semibold text-ink [overflow-wrap:anywhere]">{runUnavailableReason ?? 'The chat offers Run extraction as its next step.'}</p>}
         </div>}
       </div>
       {historyAvailable && <div id="rail-panel-history" role="region" aria-label="History" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto" hidden={activeView !== 'history'}>

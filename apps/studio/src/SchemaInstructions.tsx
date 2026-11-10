@@ -29,21 +29,21 @@ export function SchemaInstructionsChat({
             <span className="min-w-0 flex-1">{`Instruction ${numbers.get(instruction.id)} of ${instructions.count} · for generation`}</span>
             <button type="button" className={removeClass} title="Remove this instruction" onClick={() => instructions.remove(instruction.id)}>✗</button>
           </div>
-          <p className="pr-2 pb-0.5 text-secondary leading-relaxed whitespace-pre-wrap text-ink">{instruction.text}</p>
+          <p className="pr-2 pb-0.5 text-secondary leading-relaxed whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">{instruction.text}</p>
         </div>
       ) : (
         <div key={instruction.id} className="flex flex-col gap-1">
-          <div className={messageClass('user')}>{instruction.text}</div>
+          <div className={`${messageClass('user')} [overflow-wrap:anywhere]`}>{instruction.text}</div>
           <div className="flex items-center gap-1.5 self-end pr-1 text-overline text-ink-faint">
             <span>Question · not used for generation</span>
             <button type="button" className={removeClass} title="Remove this question" onClick={() => instructions.remove(instruction.id)}>✗</button>
           </div>
-          <div className={`${messageClass('assistant')} whitespace-pre-wrap`}>{instruction.answer}</div>
+          <div className={`${messageClass('assistant')} whitespace-pre-wrap [overflow-wrap:anywhere]`}>{instruction.answer}</div>
         </div>
       ))}
       {asking !== null && (
         <div className="flex flex-col gap-1">
-          <div className={messageClass('user')}>{asking}</div>
+          <div className={`${messageClass('user')} [overflow-wrap:anywhere]`}>{asking}</div>
           <div className={`${messageClass('assistant')} text-ink-faint`}>Reading the document…</div>
         </div>
       )}
@@ -69,7 +69,7 @@ export function SchemaInstructionsDrawer({
                 key={instruction.id}
                 className="flex items-start gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-compact leading-snug text-ink"
               >
-                <span className="min-w-0 flex-1">{instruction.text}</span>
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{instruction.text}</span>
                 <button
                   type="button"
                   className="shrink-0 cursor-pointer font-semibold text-ink-faint outline-none hover:text-danger"

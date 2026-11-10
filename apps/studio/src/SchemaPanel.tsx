@@ -265,11 +265,11 @@ function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCan
           {editing.allowedValues && editing.allowedValues.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {editing.allowedValues.map((value) => (
-                <span key={value} className="flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-overline text-ink">
-                  {value}
+                <span key={value} className="flex min-w-0 max-w-full items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-overline text-ink">
+                  <span className="min-w-0 truncate" title={value}>{value}</span>
                   <button
                     type="button"
-                    className="cursor-pointer text-ink-faint outline-none hover:text-danger"
+                    className="shrink-0 cursor-pointer text-ink-faint outline-none hover:text-danger"
                     aria-label={`Remove ${value}`}
                     onClick={() => removeValue(value)}
                   >✕</button>
@@ -291,7 +291,7 @@ function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCan
           </div>
         </div>
       )}
-      {error && <span className="text-overline font-semibold text-danger" role="alert">{error}</span>}
+      {error && <span className="text-overline font-semibold text-danger [overflow-wrap:anywhere]" role="alert">{error}</span>}
     </div>
   )
 }
@@ -325,7 +325,7 @@ function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCan
       {notes.length > 0 && (
         <ul className="flex flex-col gap-0.5">
           {notes.map((note, i) => (
-            <li key={i} className="text-compact leading-snug text-ink">{note}</li>
+            <li key={i} className="text-compact leading-snug text-ink [overflow-wrap:anywhere]">{note}</li>
           ))}
         </ul>
       )}
@@ -982,12 +982,12 @@ function SchemaPanelView({
           <div className="min-w-0 flex-1 text-content font-semibold text-ink">
             {schemaName && ready ? (
               editorReadOnly || !onRenameSchema ? (
-                <h2 className="h-7 truncate leading-7">{schemaName}</h2>
+                <h2 className="h-7 truncate leading-7" title={schemaName}>{schemaName}</h2>
               ) : (
                 <SchemaNameEditor name={schemaName} nameAs="h2" onSubmit={onRenameSchema} />
               )
             ) : (
-              <h2 className="h-7 truncate leading-7">{sourceDocumentName}</h2>
+              <h2 className="h-7 truncate leading-7" title={sourceDocumentName}>{sourceDocumentName}</h2>
             )}
           </div>
           {ready && (
@@ -1024,11 +1024,11 @@ function SchemaPanelView({
               </span>
             )}
             {boundaries && (
-              <label className="inline-flex items-center gap-1">
+              <label className="inline-flex min-w-0 max-w-full items-center gap-1">
                 Boundaries
                 <select
                   aria-label="Boundaries"
-                  className="min-h-6 cursor-pointer appearance-none bg-transparent text-ink outline-none disabled:cursor-default"
+                  className="min-h-6 min-w-0 cursor-pointer appearance-none bg-transparent text-ink outline-none disabled:cursor-default"
                   value={boundaries.value}
                   disabled={boundaries.disabled}
                   title="How catalogue entries are found: by the model, or by a numbered-catalogue recipe with source-backed evidence"
@@ -1048,7 +1048,7 @@ function SchemaPanelView({
           below, and not scrolling away with the fields. ── */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
+          {historyError && <p role="alert" className="mb-2 text-xs text-danger [overflow-wrap:anywhere]">{historyError}</p>}
           {snap.historicalPreview && (
             // A column: the text reads across the panel and the commands wrap beneath it, at the 264px rail too.
             <div
@@ -1075,17 +1075,17 @@ function SchemaPanelView({
           )}
           {ready && snap.sourceCoverage && snap.sourceCoverage.sourceRepresentationRevisionId === sourceRepresentationId && (
             <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
-              <p className="text-compact text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
+              <p className="text-compact text-ink-muted [overflow-wrap:anywhere]">{sourceCoverageNotice(snap.sourceCoverage)}</p>
             </div>
           )}
           {ready && snap.generationError && (
             <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-              <p className="text-compact text-danger">Regeneration failed: {snap.generationError} The current saved template is unchanged.</p>
+              <p className="text-compact text-danger [overflow-wrap:anywhere]">Regeneration failed: {snap.generationError} The current saved template is unchanged.</p>
             </div>
           )}
           {snap.cancellationError && (
             <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-              <p className="text-compact text-danger">{snap.cancellationError}</p>
+              <p className="text-compact text-danger [overflow-wrap:anywhere]">{snap.cancellationError}</p>
             </div>
           )}
           {snap.save?.status === 'conflict' && (
@@ -1119,7 +1119,7 @@ function SchemaPanelView({
                   </p>
                 ) : (
                   <div className="flex flex-col items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-                    <p className="text-compact leading-snug text-danger">{snap.generationError}</p>
+                    <p className="text-compact leading-snug text-danger [overflow-wrap:anywhere]">{snap.generationError}</p>
                   </div>
                 )}
               </div>
@@ -1127,7 +1127,7 @@ function SchemaPanelView({
             <div className={`flex min-h-full flex-col gap-2 ${instructions.items.length === 0 && asking === null && runningCount === 0 ? 'justify-center' : ''}`}>
               {runningRows}
               <SchemaInstructionsChat instructions={instructions} messageClass={msgCls} asking={asking} />
-              {askError && <p className="text-compact text-danger" role="alert">{askError}</p>}
+              {askError && <p className="text-compact text-danger [overflow-wrap:anywhere]" role="alert">{askError}</p>}
               {snap.view === 'empty' && instructions.items.length === 0 && asking === null && (
                 <p className="mx-auto max-w-[34ch] text-center text-secondary leading-relaxed text-ink-muted">
                   Generate now, or add instructions or ask about the document in the chat below first.
@@ -1139,7 +1139,7 @@ function SchemaPanelView({
                 </Button>
               ) : (
                 <div className="flex flex-col items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-                  <p className="text-compact leading-snug text-danger">{snap.generationError}</p>
+                  <p className="text-compact leading-snug text-danger [overflow-wrap:anywhere]">{snap.generationError}</p>
                   <Button onClick={() => onGenerateInstructions?.(instructions.text)}>Retry</Button>
                 </div>
               )}
@@ -1149,13 +1149,13 @@ function SchemaPanelView({
               {snap.view === 'empty' && <EmptyState title="No template yet" />}
               {snap.view === 'failed' && (
                 <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
-                  <p className="text-content leading-snug text-danger">{snap.generationError}</p>
+                  <p className="text-content leading-snug text-danger [overflow-wrap:anywhere]">{snap.generationError}</p>
                 </div>
               )}
             </>
           )}
           {snap.view === 'empty' && mutationError && (
-            <p className="mt-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>
+            <p className="mt-2 text-compact font-semibold text-danger [overflow-wrap:anywhere]" role="alert">{mutationError}</p>
           )}
 
           {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
@@ -1188,7 +1188,7 @@ function SchemaPanelView({
                     spellCheck={false}
                   />
                   {jsonEditError && (
-                    <p className="text-compact text-danger">{jsonEditError}</p>
+                    <p className="text-compact text-danger [overflow-wrap:anywhere]">{jsonEditError}</p>
                   )}
                   <div className="flex gap-1.5">
                     <Button
@@ -1224,7 +1224,7 @@ function SchemaPanelView({
               <label className="mb-3 block">
                 <span className="text-compact font-semibold text-ink-muted">What one record is</span>
                 {editorReadOnly ? (
-                  <p className="mt-1 text-secondary leading-relaxed text-ink-muted">{recordDescriptionDraft}</p>
+                  <p className="mt-1 text-secondary leading-relaxed text-ink-muted [overflow-wrap:anywhere]">{recordDescriptionDraft}</p>
                 ) : (
                   <textarea
                     ref={descriptionRef}
@@ -1237,7 +1237,7 @@ function SchemaPanelView({
                   />
                 )}
               </label>
-              {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
+              {mutationError && <p className="mb-2 text-compact font-semibold text-danger [overflow-wrap:anywhere]" role="alert">{mutationError}</p>}
               {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
               <div ref={fieldListRef} role="list" aria-label="Template fields" className="-mx-2 flex flex-col px-2">
                 {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
@@ -1358,7 +1358,7 @@ function SchemaPanelView({
                 <span className="block text-secondary font-semibold text-ink">
                   Revision {revision.revisionNumber}{revision.revisionNumber === snap.currentRevisionNumber ? ' · Current' : ''}
                 </span>
-                <span className="block text-compact text-ink-muted">{revision.origin} · {revision.summary}</span>
+                <span className="block text-compact text-ink-muted [overflow-wrap:anywhere]">{revision.origin} · {revision.summary}</span>
                 <span className="block text-overline text-ink-faint">{new Date(revision.createdAt).toLocaleString()}</span>
               </button>
             ))}
@@ -1387,10 +1387,10 @@ function SchemaPanelView({
       {dragging && (
         <div
           style={{ position: 'fixed', left: dragX + 18, top: dragY - 16, pointerEvents: 'none', zIndex: 9999 }}
-          className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-secondary font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap"
+          className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-secondary font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap max-w-80"
         >
-          <span className="text-sm">{dragMode === 'indent' ? '→' : dragMode === 'outdent' ? '←' : '⠿'}</span>
-          {dragging.name}
+          <span className="shrink-0 text-sm">{dragMode === 'indent' ? '→' : dragMode === 'outdent' ? '←' : '⠿'}</span>
+          <span className="min-w-0 truncate">{dragging.name}</span>
         </div>
       )}
     </div>

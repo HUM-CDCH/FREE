@@ -57,7 +57,7 @@ const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px
  *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
  *  row (the 264px rail, nested rows) would squeeze them under a pill's width: there they start on the line below the
  *  name, at its full width, and the name's line holds the name alone. From 240px, where the actions still overlay the
- *  first line, that line is as tall as the overlay (28px; a line height, so a long name still ellipsizes), and the
+ *  first line, that line is as tall as the overlay (28px; a line height, so a long name wrapping onto more lines keeps it), and the
  *  pills start below it: 3 + 28 + 2 = 33px down, under the overlay's bottom at 29px. Under 240px the actions are in
  *  the flow instead and the name's line keeps its own height. Either way the name, not a control, may run under the
  *  actions (its full text is its title). The row line is the size container (`@container`). */
@@ -122,8 +122,9 @@ function AcceptanceControl({ id, name, accepted, onChange }: {
   )
 }
 
-/** Never shrunk for its pills, which wrap under it instead; only a name longer than the whole line ellipsizes. */
-const NAME = 'font-mono text-content font-semibold shrink-0 truncate'
+/** Never shrunk for its pills, which wrap under it instead; a name longer than the whole line wraps onto more lines,
+ *  breaking anywhere (field names run unspaced), so it is always shown in full. */
+const NAME = 'font-mono text-content font-semibold shrink-0 [overflow-wrap:anywhere]'
 
 function FieldChangeLabel({ node, change, impliedRemoved, underActions }: {
   node: SchemaNode
@@ -140,9 +141,9 @@ function FieldChangeLabel({ node, change, impliedRemoved, underActions }: {
       <>
         {nameChanged ? (
           <>
-            <span className="min-w-0 truncate font-mono text-content font-semibold text-danger line-through">{change.before.name}</span>
+            <span className="min-w-0 font-mono text-content font-semibold text-danger line-through [overflow-wrap:anywhere]">{change.before.name}</span>
             <span className="shrink-0 text-overline text-ink-faint" aria-hidden="true">→</span>
-            <span className="min-w-0 truncate font-mono text-content font-semibold text-green">{change.after.name}</span>
+            <span className="min-w-0 font-mono text-content font-semibold text-green [overflow-wrap:anywhere]">{change.after.name}</span>
           </>
         ) : (
           <span className={`${NAME} max-w-full text-ink`} title={change.after.name}>{change.after.name}</span>
@@ -238,7 +239,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           ))}
           <ChangeBadge change={change} outcome={outcome} />
           {intoGroup && !isDiff && (
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">into {node.name}</span>
+            <span className="min-w-0 max-w-full truncate rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white" title={`into ${node.name}`}>into {node.name}</span>
           )}
           {/* In the pills' flow: an overlay on the row line (absolute, the row line positions it), or below the pills on
               a narrow row line. */}
@@ -258,7 +259,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         )}
       </div>
       {isDiff && change && change.before?.description !== change.after?.description && (
-        <div className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug whitespace-pre-line`}>
+        <div className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug whitespace-pre-line [overflow-wrap:anywhere]`}>
           {change.before?.description && change.before.description !== change.after?.description && (
             <p className="text-danger line-through" aria-label="Previous note">{change.before.description}</p>
           )}
@@ -271,10 +272,10 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         </div>
       )}
       {node.description && !isDiff && (readOnly ? (
-        <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line`}>{node.description}</p>
+        <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere]`}>{node.description}</p>
       ) : (
         <button type="button" onClick={onAddNote} disabled={editDisabled}
-          className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>
+          className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere] outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>
           {node.description}
         </button>
       ))}

@@ -61,7 +61,7 @@ export default function ModalDialog({
   return (
     <dialog
       ref={dialogRef}
-      className={className}
+      className={`break-words ${className}`}
       aria-label={ariaLabel}
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}

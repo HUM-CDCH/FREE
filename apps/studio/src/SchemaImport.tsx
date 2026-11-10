@@ -81,7 +81,7 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
               const upload = event.target.files?.[0]; if (!upload) return
               close(); base.current = schema.snapshot().draftVersion; setFile(upload); void preview(upload, null); event.target.value = ''
             }} />
-          <span className="min-w-0 truncate text-ink-muted">{file ? file.name : 'An .xlsx workbook of at most 5 MiB'}</span>
+          <span className="min-w-0 text-ink-muted [overflow-wrap:anywhere]">{file ? file.name : 'An .xlsx workbook of at most 5 MiB'}</span>
         </div>
         {file && <>
           <p className="mt-2 text-compact text-ink-muted">The workbook and column data are transient. Closing or reloading an unconfirmed preview requires re-upload.</p>
@@ -117,13 +117,13 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
                   </tr>
                 })}</tbody>
               </table>
-            {validation && <p role="alert" className="text-danger">{validation}</p>}
-            {definition && <ul aria-label="Fields to import" className="rounded-[3px] border border-line bg-canvas p-2 font-mono text-compact">
+            {validation && <p role="alert" className="text-danger [overflow-wrap:anywhere]">{validation}</p>}
+            {definition && <ul aria-label="Fields to import" className="rounded-[3px] border border-line bg-canvas p-2 font-mono text-compact [overflow-wrap:anywhere]">
               {importedFields(definition.schemaNodes, separator).map(({ id, path, node }) => <li key={id}>{path} — {fieldTypeWords(node)}</li>)}
             </ul>}
           </fieldset>}
         </>}
-        {error && <p role="alert" className="mt-2 text-compact text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-compact text-danger [overflow-wrap:anywhere]">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <Button onClick={dismiss} disabled={confirming}>Cancel</Button>
           {file && columns.length > 0 && (

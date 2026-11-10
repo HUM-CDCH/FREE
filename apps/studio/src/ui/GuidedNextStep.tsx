@@ -31,7 +31,7 @@ export default function GuidedNextStep({
     >
       <div className="pointer-events-auto w-full max-w-md rounded-card border border-accent/40 bg-surface p-6 shadow-lg">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-base font-bold text-ink">{title}</p>
+          <p className="min-w-0 text-base font-bold text-ink [overflow-wrap:anywhere]">{title}</p>
           <button
             type="button"
             aria-label="Dismiss"
@@ -42,7 +42,7 @@ export default function GuidedNextStep({
             <span aria-hidden="true">×</span>
           </button>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted [overflow-wrap:anywhere]">
           {description}
         </p>
         <div className="mt-4 flex justify-end gap-2">

@@ -290,7 +290,7 @@ export function ProjectContextRail({
           </p>
         )}
         {listState.status === 'error' && (
-          <p className="py-6 pr-2 text-xs leading-relaxed text-danger">
+          <p className="py-6 pr-2 text-xs leading-relaxed text-danger [overflow-wrap:anywhere]">
             {listState.failure.message}{' '}
             <button
               className="font-semibold underline"
@@ -579,10 +579,10 @@ export function ProjectContextRail({
         <DeleteDialog
           title="Delete Source Document"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{deletingSource.name}” permanently removes its
               annotations and extractions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={() =>
             deleteSourceDocument(
@@ -599,11 +599,11 @@ export function ProjectContextRail({
         <DeleteDialog
           title="Delete project"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{deletingProject.name}” permanently removes its Source
               Documents, Annotations, Extraction Template, Extractions, and
               Review Decisions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={async () => {
             const rejected = await deleteProject(

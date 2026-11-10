@@ -1257,8 +1257,10 @@ export function DocumentWorkspace({
                 <PagePager page={currentPage} pageCount={loadState.pageCount}
                   onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }} />
               ) : (
-                <p role="status" aria-live="polite" className={`text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
-                  {loadState.status === 'loading' ? 'Loading PDF…' : loadState.message}
+                <p role="status" aria-live="polite" className={`min-w-0 truncate text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
+                  <span title={loadState.status === 'error' ? loadState.message : undefined}>
+                    {loadState.status === 'loading' ? 'Loading PDF…' : loadState.message}
+                  </span>
                 </p>
               )}
               {loadState.status === 'ready' && (
@@ -1330,7 +1332,7 @@ export function DocumentWorkspace({
                   this z-40 competes with the rail's z-30 directly. */}
               {toast && (
                 <div className="pointer-events-none absolute inset-x-4 top-3 z-40 flex justify-center">
-                  <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
+                  <Toast key={toast.id} wrap className="[overflow-wrap:anywhere]" message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
                 </div>
               )}
             </div>

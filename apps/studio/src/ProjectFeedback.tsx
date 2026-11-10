@@ -31,7 +31,7 @@ function FeedbackResource({projectId,url,revision,preview,onIncompatible,initial
     <summary className="cursor-pointer text-secondary font-semibold">{preview?'Corrections for the pending inputs':'Corrections the model learns from'}{open?` · ${rows.filter(r=>r.active&&r.included).length} in use${incompatible?` · ${incompatible} don’t fit`:''}`:''}</summary>
     {incompatible>0&&<p role="status" className="my-2 text-secondary"><a className="text-accent underline" href={`#${incompatibleId}`}>{incompatible} {incompatible===1?'correction doesn’t':'corrections don’t'} fit</a> {preview?'the pending':'this'} template. They stay saved but aren’t shown to the model.</p>}
     <p className="my-2 text-compact text-ink-muted">Your edits are shown to the model as examples in later runs. Stop using one to leave it out.</p>
-    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+    {error&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{error}</p>}
     <div className="space-y-2">{rows.map(row=><article key={row.id} id={row.id===firstIncompatible?incompatibleId:undefined} className="border-t border-line py-2 text-secondary">
       <p className="m-0 break-words">{row.candidate.node&&<span className="font-semibold">{row.candidate.node.name}: </span>}{typeof row.candidate.value==='string'?row.candidate.value:JSON.stringify(row.candidate.value)}</p>
       <p className="m-0 text-compact text-ink-muted">{[!row.active?'Replaced by a newer edit':row.included?'In use':'Not used',

@@ -96,7 +96,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
         <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified} unifiedDefaults={pinned}
           extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'} unrecordedArticle={'article' in used.settings&&used.settings.article===null}/>
       </>}
-      {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger">{issue.message}</p>)}
+      {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{issue.message}</p>)}
       {stale&&<p role="status" className="text-secondary">The Extraction changed after this draft started.{' '}
         <Button onClick={()=>void reload()}>Reload draft</Button></p>}
       <div className="flex flex-wrap gap-2">
@@ -104,6 +104,6 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
         <Button onClick={onCancel}>Cancel</Button>
       </div>
     </fieldset>
-    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+    {error&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{error}</p>}
   </section>
 }

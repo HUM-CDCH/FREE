@@ -127,7 +127,7 @@ function RenameForm({
       {failure && (
         <p
           id="rename-project-context-error"
-          className="basis-full text-[11px] leading-snug text-danger"
+          className="basis-full text-[11px] leading-snug text-danger [overflow-wrap:anywhere]"
           role="alert"
         >
           {failure}
@@ -238,7 +238,7 @@ function ProjectSection({ title, description, open, onToggle, children }: {
           <span aria-hidden="true" className={`inline-block text-[10px] text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
           <span className="shrink-0 text-xs font-bold text-ink">{title}</span>
         </button>
-        <span id={descriptionId} className="ml-4.5 block truncate text-[11px] font-normal text-ink-faint">{description}</span>
+        <span id={descriptionId} className="ml-4.5 block truncate text-[11px] font-normal text-ink-faint" title={description}>{description}</span>
       </h2>
       {open && <div id={bodyId}>{children}</div>}
     </section>
@@ -444,10 +444,10 @@ function SchemaFieldsPreviewDialog({
       onDismiss={onDismiss}
     >
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <h2 id={titleId} className="text-sm font-bold text-ink">
+        <h2 id={titleId} className="min-w-0 text-sm font-bold text-ink [overflow-wrap:anywhere]">
           {schemaName} — fields
         </h2>
-        <Button ref={closeRef} size="sm" onClick={onDismiss}>
+        <Button ref={closeRef} size="sm" className="shrink-0" onClick={onDismiss}>
           Close
         </Button>
       </div>
@@ -458,7 +458,7 @@ function SchemaFieldsPreviewDialog({
           </p>
         )}
         {state.status === 'error' && (
-          <p className="p-4 text-xs text-danger" role="alert">
+          <p className="p-4 text-xs text-danger [overflow-wrap:anywhere]" role="alert">
             {state.message}
           </p>
         )}
@@ -874,7 +874,7 @@ export default function ProjectContextPage({
       <div className="flex h-full items-center justify-center p-8">
         <div className="flex flex-col items-center gap-4">
           <EmptyState
-            className="max-w-sm bg-surface"
+            className="max-w-sm bg-surface [overflow-wrap:anywhere]"
             icon="▢"
             title={
               branch.failure.code === 'not_found'
@@ -918,8 +918,8 @@ export default function ProjectContextPage({
               }}
             />
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold text-ink">
+            <div className="flex items-center gap-2">
+              <h1 className="min-w-0 text-lg font-bold text-ink [overflow-wrap:anywhere]">
                 {project?.name ?? 'Project'}
               </h1>
               <button
@@ -930,7 +930,7 @@ export default function ProjectContextPage({
                   }
                   renameTrigger.current = button
                 }}
-                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink disabled:opacity-60"
+                className="shrink-0 rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink disabled:opacity-60"
                 type="button"
                 aria-label="Rename"
                 title="Rename"
@@ -942,7 +942,7 @@ export default function ProjectContextPage({
               <span className="flex-1" />
               <button
                 ref={deleteTrigger}
-                className="rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 disabled:opacity-60"
+                className="shrink-0 rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 disabled:opacity-60"
                 type="button"
                 aria-label="Delete project"
                 title="Delete project"
@@ -1085,7 +1085,7 @@ export default function ProjectContextPage({
             </div>
 
             {downloadFailure && (
-              <p className="mt-3 text-xs text-danger" role="alert">
+              <p className="mt-3 text-xs text-danger [overflow-wrap:anywhere]" role="alert">
                 {downloadFailure}
               </p>
             )}
@@ -1121,11 +1121,11 @@ export default function ProjectContextPage({
                   >
                     <PdfIcon />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-semibold text-ink">
+                      <span className="block truncate text-xs font-semibold text-ink" title={sourceName(source)}>
                         {sourceName(source)}
                       </span>
                       {source.status === 'failed' ? (
-                        <span className="block text-[11px] leading-snug text-danger">
+                        <span className="block text-[11px] leading-snug text-danger [overflow-wrap:anywhere]">
                           {source.failure}
                         </span>
                       ) : (
@@ -1152,11 +1152,11 @@ export default function ProjectContextPage({
                   >
                     <PdfIcon />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-semibold text-ink">
+                      <span className="block truncate text-xs font-semibold text-ink" title={ingestion.name}>
                         {ingestion.name}
                       </span>
                       {ingestion.status === 'failed' ? (
-                        <span className="block text-[11px] leading-snug text-danger">
+                        <span className="block text-[11px] leading-snug text-danger [overflow-wrap:anywhere]">
                           {ingestion.failure.message}
                           {dismissFailures[ingestion.workflowId] && (
                             <span className="block">{dismissFailures[ingestion.workflowId]}</span>
@@ -1215,7 +1215,7 @@ export default function ProjectContextPage({
                     >
                       <PdfIcon />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold text-ink">
+                        <span className="block truncate text-xs font-semibold text-ink" title={document.name}>
                           {document.name}
                         </span>
                         <span className="block text-[11px] text-ink-faint">
@@ -1304,7 +1304,7 @@ export default function ProjectContextPage({
               queued.length === 0 &&
               serverIngestions.length === 0 &&
               (filter ? (
-                <p className="py-8 text-center text-xs text-ink-muted">
+                <p className="py-8 text-center text-xs text-ink-muted [overflow-wrap:anywhere]">
                   No sources match “{filter}”.
                 </p>
               ) : (
@@ -1463,7 +1463,7 @@ export default function ProjectContextPage({
                                 </p>
                               ) : history.status === 'error' ? (
                                 <p
-                                  className="text-[11px] text-danger"
+                                  className="text-[11px] text-danger [overflow-wrap:anywhere]"
                                   role="alert"
                                 >
                                   {history.message}
@@ -1511,7 +1511,7 @@ export default function ProjectContextPage({
                 )
               ) : schemaList?.status === 'error' ? (
                 <div className="flex flex-col items-center gap-3 py-6 text-center">
-                  <p className="text-xs text-danger" role="alert">
+                  <p className="text-xs text-danger [overflow-wrap:anywhere]" role="alert">
                     Could not load templates. {schemaList.message}
                   </p>
                   <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
@@ -1595,12 +1595,12 @@ export default function ProjectContextPage({
                   )}
 
                   {spreadsheet.status === 'error' && (
-                    <p className="text-[11px] text-danger" role="alert">
+                    <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                       Could not load this project's spreadsheet. {spreadsheet.message}
                     </p>
                   )}
                   {spreadsheet.status === 'ready' && spreadsheet.version && (
-                    <p className="text-[11px] text-ink-faint">
+                    <p className="text-[11px] text-ink-faint [overflow-wrap:anywhere]">
                       Current spreadsheet:{' '}
                       <span className="font-semibold text-ink">
                         {spreadsheet.version.originalFilename}
@@ -1702,7 +1702,7 @@ export default function ProjectContextPage({
                   </div>
 
                   {spreadsheetError && (
-                    <p className="text-[11px] text-danger" role="alert">
+                    <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                       {spreadsheetError}
                     </p>
                   )}
@@ -1712,7 +1712,7 @@ export default function ProjectContextPage({
                     </p>
                   )}
                   {spreadsheetSuggestion.context.error && (
-                    <p className="text-[11px] text-danger" role="alert">
+                    <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                       {spreadsheetSuggestion.context.error}
                     </p>
                   )}
@@ -1824,11 +1824,11 @@ export default function ProjectContextPage({
         <DeleteDialog
           title="Delete project"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{project.name}” permanently removes its Source
               Documents, Annotations, Extraction Template, Extractions, and Review
               Decisions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={async () => {
             const rejected = await deleteProject(projectContextId)
@@ -1859,10 +1859,10 @@ export default function ProjectContextPage({
         <DeleteDialog
           title="Delete Source Document"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{deletingSource.name}” permanently removes its
               annotations and extractions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={() =>
             deleteSourceDocument(
@@ -1879,17 +1879,17 @@ export default function ProjectContextPage({
           title="Delete template"
           description={
             deletingSchema.blocked ? (
-              <>
+              <span className="[overflow-wrap:anywhere]">
                 “{deletingSchema.name}” has Extractions run against it.
                 Deleting it anyway also permanently deletes those
                 Extractions, along with its version history. This cannot be
                 undone.
-              </>
+              </span>
             ) : (
-              <>
+              <span className="[overflow-wrap:anywhere]">
                 Deleting “{deletingSchema.name}” permanently removes it and
                 its version history. This cannot be undone.
-              </>
+              </span>
             )
           }
           confirmLabel={deletingSchema.blocked ? 'Delete anyway' : undefined}

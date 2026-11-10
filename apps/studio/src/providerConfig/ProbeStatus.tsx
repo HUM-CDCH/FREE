@@ -16,7 +16,7 @@ export function ProbeDot({ probe }: { probe: ProbeView | undefined }) {
 export function ProbeStatusLine({ probe }: { probe: ProbeView | undefined }) {
   const failed = probeTone(probe) === 'failed'
   return (
-    <p className={`flex items-center gap-1.5 text-[11.5px] whitespace-pre-line ${failed ? 'text-danger' : 'text-ink-muted'}`}>
+    <p className={`flex min-w-0 items-center gap-1.5 text-[11.5px] whitespace-pre-line [overflow-wrap:anywhere] ${failed ? 'text-danger' : 'text-ink-muted'}`}>
       <ProbeDot probe={probe} />
       {probeText(probe)}
     </p>

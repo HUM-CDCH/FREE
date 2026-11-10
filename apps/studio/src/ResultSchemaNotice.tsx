@@ -7,7 +7,7 @@ export function ResultSchemaNotice({onSchema,...shown}:ShownSchema&{onSchema?:()
   const {ids,producing,mismatch,active,pending,continuing,sameScope,quiet}=resultSchemaFacts(shown)
   if(ids.length===0||quiet)return null
   const label=(revision:ResultSchemaRevision)=>`${current?.extractionSchemaId&&current.extractionSchemaId!==revision.extractionSchemaId?`${revision.name} · `:''}${resultSchemaLabel(revision)}`
-  return <div className={`shrink-0 space-y-1 border-b border-line px-3 py-2 text-compact ${mismatch?'bg-stale-soft text-stale-ink':'text-ink-muted'}`} aria-label="Results template">
+  return <div className={`shrink-0 space-y-1 border-b border-line px-3 py-2 text-compact [overflow-wrap:anywhere] ${mismatch?'bg-stale-soft text-stale-ink':'text-ink-muted'}`} aria-label="Results template">
     <p className="m-0">{producing.some(revision=>!revision)?'The producing template revision could not be read.'
       :producing.length>1?`These results contain values from multiple template revisions: ${producing.map(revision=>label(revision!)).join(', ')}.`
         :`${mismatch?'These results use':'Made with'} ${label(producing[0]!)}.`}</p>

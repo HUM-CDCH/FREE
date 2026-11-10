@@ -120,7 +120,7 @@ function EmptyWorkspace({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
       <EmptyState
-        className="max-w-sm bg-surface"
+        className="max-w-sm bg-surface [overflow-wrap:anywhere]"
         icon="▢"
         title={title}
         description={description}

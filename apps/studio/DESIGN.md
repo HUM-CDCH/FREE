@@ -63,6 +63,7 @@ In the right rail only four sizes are used, as the tokens `--text-content` (13),
 
 - Keep panel typography compact and scannable.
 - Use mono for schema fields, JSON, and machine-readable values.
+- Long text never runs out of its box. Where the whole text matters it wraps and shows in full (`min-w-0` with `[overflow-wrap:anywhere]`, since file and field names run unspaced): a page's subject heading, dialog and toast text, errors and notices, chat messages, values and evidence under review, definition values, a field's name in the Template editor, and the rail's project and document names. Elsewhere — compact chrome such as header lines, tab and chip labels, list rows, menu items, buttons, table headers and status lines — it keeps one line and ends in an ellipsis (`truncate`, with `min-w-0` up its flex chain), its full text in the `title`. A control beside the text keeps its size (`shrink-0`); the text gives way.
 
 ## 4. Spacing & Layout
 
@@ -125,7 +126,7 @@ The shared primitives are exported from [`src/ui/index.ts`](src/ui/index.ts).
 - Toast — message plus one optional action; float shadow; 8 s when an action is offered, 6 s for some run errors and notices, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.
 
 ### Field Row
-- Field row — grip, disclosure, mono name (never truncated by its metadata: the type and values pills wrap under it when the line is too narrow), then the worded actions "Edit", "Note" and "Delete" (Delete in danger; no tooltips, their accessible names say which field) as an overlay on the right end of the first line, shown on hover and focus-within and stepping aside while a pill has keyboard focus. Hidden, the overlay takes no pointer hits.
+- Field row — grip, disclosure, mono name (never truncated: the type and values pills wrap under it when the line is too narrow, and a name longer than the whole line wraps onto more lines), then the worded actions "Edit", "Note" and "Delete" (Delete in danger; no tooltips, their accessible names say which field) as an overlay on the right end of the first line, shown on hover and focus-within and stepping aside while a pill has keyboard focus. Hidden, the overlay takes no pointer hits.
 - No pill sits under the actions, so a pointer on a pill always reaches it; only the name may run under them (its full text is its title). A narrow row starts its pills on the line below the name, so they are never squeezed under their own width; at the narrowest (every row at the 264px rail) the actions take their own line below the pills, kept at rest so no row moves under a click. `src/FieldRow.tsx` holds the widths and breakpoints.
 - A field's note starts where its name starts.
 - The row itself (not the slot above it or its children) is the drop target for "into <group>".

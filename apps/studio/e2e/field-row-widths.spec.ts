@@ -400,8 +400,8 @@ test('a nested row\'s pills sit below the actions overlay, and a click at a pill
       await expect(row, `${what}: the row is back`).toBeVisible()
     }
   }
-  // The taller name line still ellipsizes a name longer than its line (its full text is its title): a copy of layer's
-  // name, made long, in the same line and with the same classes.
+  // A name longer than its line wraps and shows in full, never ellipsized: a copy of layer's name, made long, in the
+  // same line and with the same classes.
   const layerName = page.getByRole('listitem', { name: 'layer', exact: true }).getByText('layer', { exact: true })
   const long = await layerName.evaluate((element) => {
     const copy = element.cloneNode() as HTMLElement
@@ -409,15 +409,15 @@ test('a nested row\'s pills sit below the actions overlay, and a click at a pill
     element.after(copy)
     const style = getComputedStyle(copy)
     const reading = {
-      display: style.display, textOverflow: style.textOverflow, overflowX: style.overflowX, whiteSpace: style.whiteSpace,
+      textOverflow: style.textOverflow, whiteSpace: style.whiteSpace,
       clipped: copy.scrollWidth > copy.clientWidth,
       inside: copy.getBoundingClientRect().right <= element.parentElement!.getBoundingClientRect().right + 0.5,
-      height: copy.getBoundingClientRect().height,
+      wrapped: copy.getBoundingClientRect().height > 28,
     }
     copy.remove()
     return reading
   })
-  expect(long).toEqual({ display: 'block', textOverflow: 'ellipsis', overflowX: 'hidden', whiteSpace: 'nowrap', clipped: true, inside: true, height: 28 })
+  expect(long).toEqual({ textOverflow: 'clip', whiteSpace: 'normal', clipped: false, inside: true, wrapped: true })
 })
 
 test('at rest the hidden row actions take no hits, at 344px and 264px @deterministic', async ({ page }) => {

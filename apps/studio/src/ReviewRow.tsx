@@ -40,9 +40,9 @@ function ProgressRow({ row }: { row: RailRow }) {
     <div className={`${grid} animate-fadeup`}>
       <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
       <span className="min-w-0">
-        <span className="block truncate font-mono text-compact text-ink-faint">{row.name}</span>
+        <span className="block truncate font-mono text-compact text-ink-faint" title={row.name}>{row.name}</span>
         {row.kind === 'checking'
-          ? <span className="line-clamp-2 text-content font-medium text-ink-faint italic" title="Candidate · being checked against the source">{rowText(row)}</span>
+          ? <span className="line-clamp-2 text-content font-medium text-ink-faint italic [overflow-wrap:anywhere]" title="Candidate · being checked against the source">{rowText(row)}</span>
           : <span role="img" aria-label={row.kind === 'reading' ? 'Reading' : 'Queued'} className="mt-1 block h-3 w-24 rounded-sm bg-line motion-safe:animate-pulse" />}
       </span>
       {row.kind === 'checking' ? <span className="h-5.5 text-compact font-medium text-ink-muted">checking</span> : <span />}
@@ -95,8 +95,8 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
           {/* The colour key: a linked value's swatch is the colour of its marks on the page. */}
-          <span className="block truncate font-mono text-compact text-ink-faint">{row.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{row.name}</span>
-          <span className="line-clamp-2 text-content font-medium text-ink" title={rowText(row)}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
+          <span className="block truncate font-mono text-compact text-ink-faint" title={row.name}>{row.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{row.name}</span>
+          <span className="line-clamp-2 text-content font-medium text-ink [overflow-wrap:anywhere]" title={rowText(row)}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
         </span>
@@ -109,7 +109,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
           {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} path={row.resultPath} pick={pick} />}
-          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
+          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>
               <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>

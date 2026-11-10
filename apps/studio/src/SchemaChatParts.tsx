@@ -19,7 +19,7 @@ export function RunningRequests({ recovery }: { recovery: SchemaChat['recovery']
       key={operation.workflowId}
       className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-secondary text-ink-muted"
     >
-      <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{`Still working on an earlier request: “${operation.instruction}”`}</span>
       <button
         type="button"
         className="min-h-6 shrink-0 cursor-pointer text-compact text-ink underline"
@@ -52,10 +52,10 @@ export function ChatTranscript({ chat, empty, before }: { chat: SchemaChat; empt
         // An answered step folds to one line: what was asked and what the researcher chose.
         <p key={index} className="flex min-w-0 items-baseline gap-1.5 self-stretch text-compact text-ink-muted">
           <span aria-hidden="true" className="text-green">✓</span>
-          <span className="min-w-0 truncate"><span className="font-semibold text-ink">{message.title}</span> · {message.choice}</span>
+          <span className="min-w-0 truncate" title={`${message.title} · ${message.choice}`}><span className="font-semibold text-ink">{message.title}</span> · {message.choice}</span>
         </p>
       ) : (
-        <div key={index} className={chatMessageClass(message.role)}>{message.text}</div>
+        <div key={index} className={`${chatMessageClass(message.role)} [overflow-wrap:anywhere]`}>{message.text}</div>
       ))}
       {chat.unsaved && (
         <p role="status" className="text-compact text-ink-muted">Part of this conversation is not saved yet; it is saved with the next message.</p>

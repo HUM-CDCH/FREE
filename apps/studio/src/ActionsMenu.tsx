@@ -94,7 +94,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
           role="menu"
           aria-label={label}
           onMouseDown={(event) => event.preventDefault()}
-          className={`absolute top-full z-30 mt-1 min-w-56 rounded-xl border border-line bg-surface py-1 shadow-float ${align === 'left' ? 'left-0' : 'right-0'}`}
+          className={`absolute top-full z-30 mt-1 min-w-56 max-w-[min(20rem,calc(100vw-1rem))] rounded-xl border border-line bg-surface py-1 shadow-float ${align === 'left' ? 'left-0' : 'right-0'}`}
         >
           {items.map((item) => (
             <li key={item.id} role="none" className={item.divider ? 'mt-1 border-t border-line pt-1' : ''}>
@@ -111,7 +111,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
                   item.onSelect()
                 }}
               >
-                {item.label}
+                <span className="min-w-0 truncate" title={item.label}>{item.label}</span>
               </button>
             </li>
           ))}

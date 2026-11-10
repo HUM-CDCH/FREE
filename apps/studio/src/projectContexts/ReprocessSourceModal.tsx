@@ -27,7 +27,7 @@ export function ReprocessSourceModal({
       dismissDisabled={loading}
       onDismiss={onClose}
     >
-      <h2 id="reprocess-title" className="text-sm font-bold">
+      <h2 id="reprocess-title" className="text-sm font-bold [overflow-wrap:anywhere]">
         Reprocess {source.name}
       </h2>
       <p id="reprocess-description" className="mt-2 text-xs text-ink-muted">
@@ -75,7 +75,7 @@ export function ReprocessSourceModal({
           <option value="spreads">Two-page spreads</option>
         </select>
         {failure && (
-          <p role="alert" className="text-xs text-danger">
+          <p role="alert" className="text-xs text-danger [overflow-wrap:anywhere]">
             {failure}
           </p>
         )}

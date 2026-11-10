@@ -25,7 +25,7 @@ export default function ReviewedValueDisplay({ node, value, path = [], pick }: {
     const fields = value as Record<string, unknown>
     return <dl className="m-0 space-y-2 text-content text-ink">
       {node.children.map(child => <div key={child.id}>
-        <dt className="font-mono text-compact text-ink-muted">{child.name}</dt>
+        <dt className="truncate font-mono text-compact text-ink-muted" title={child.name}>{child.name}</dt>
         <dd className="m-0"><ReviewedValueDisplay node={child} value={fields[child.name]} path={[...path, child.name]} pick={pick} /></dd>
       </div>)}
     </dl>

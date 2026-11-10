@@ -988,7 +988,7 @@ export default function BatchExtractionsPanel({
     </p>
   ) : batches.failure ? (
     <div className="flex flex-col items-center gap-3 py-6 text-center">
-      <p className="text-xs text-danger" role="alert">
+      <p className="text-xs text-danger [overflow-wrap:anywhere]" role="alert">
         Could not load Batch Extractions. {batches.failure}
       </p>
       <Button
@@ -1122,7 +1122,7 @@ export default function BatchExtractionsPanel({
                 </span>
               </span>
             ) : (
-              <p className="truncate text-sm font-semibold text-ink">{heading}</p>
+              <p className="min-w-0 truncate text-sm font-semibold text-ink" title={heading}>{heading}</p>
             )}
           </div>
           {/* On `prepare` these only reopen the screen already shown. */}
@@ -1154,7 +1154,7 @@ export default function BatchExtractionsPanel({
       )}
       {runFailure && (
         <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
-          <p className="text-[11px] leading-snug text-danger" role="alert">
+          <p className="min-w-0 text-[11px] leading-snug text-danger [overflow-wrap:anywhere]" role="alert">
             {runFailure}
           </p>
           {runFailureCode === 'schema_not_stabilised' && (
@@ -1165,7 +1165,7 @@ export default function BatchExtractionsPanel({
         </div>
       )}
       {runNotice && (
-        <p className="mb-3 shrink-0 text-[11px] leading-snug text-ink-muted" role="status">
+        <p className="mb-3 shrink-0 text-[11px] leading-snug text-ink-muted [overflow-wrap:anywhere]" role="status">
           {runNotice}
         </p>
       )}
@@ -1227,7 +1227,7 @@ export default function BatchExtractionsPanel({
               </div>
             </div>
             {filtered.length === 0 ? (
-              <p className="py-6 text-center text-xs text-ink-muted">
+              <p className="py-6 text-center text-xs text-ink-muted [overflow-wrap:anywhere]">
                 {sourceDocuments.length === 0
                   ? 'No Source Documents yet. Add Source Documents on the Sources tab.'
                   : `No Source Documents match “${filter}”.`}
@@ -1256,7 +1256,7 @@ export default function BatchExtractionsPanel({
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="block truncate text-xs font-semibold text-ink">
+                          <span className="block min-w-0 truncate text-xs font-semibold text-ink" title={document.name}>
                             {document.name}
                           </span>
                           {alreadyReviewed.has(document.sourceDocumentId) && (
@@ -1388,7 +1388,7 @@ export default function BatchExtractionsPanel({
               )}
             </div>
             {schemas.failure && (
-              <p className="mb-3 text-[11px] text-danger" role="alert">
+              <p className="mb-3 text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                 {schemas.failure}
               </p>
             )}
@@ -1469,7 +1469,7 @@ export default function BatchExtractionsPanel({
                 {(activeSuggestion?.failure || (suggestion.context.error && !suggestionMethodConflict)) && (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[11px] text-danger" role="alert">
+                      <p className="min-w-0 text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                         {activeSuggestion?.failure
                           ? suggestionFailureText(activeSuggestion.failure)
                           : suggestion.context.error}
@@ -1512,7 +1512,7 @@ export default function BatchExtractionsPanel({
                   </div>
                 )}
                 {excerptNotices.map((notice) => (
-                  <p key={notice.sourceDocumentId} className="text-[11px] text-ink-muted" role="note">
+                  <p key={notice.sourceDocumentId} className="text-[11px] text-ink-muted [overflow-wrap:anywhere]" role="note">
                     {notice.text}
                   </p>
                 ))}
@@ -1551,7 +1551,7 @@ export default function BatchExtractionsPanel({
             )}
             <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
               {runBlocker && (
-                <p className="text-[11px] leading-snug text-ink-muted" role="status">
+                <p className="min-w-0 text-[11px] leading-snug text-ink-muted [overflow-wrap:anywhere]" role="status">
                   {runBlocker}
                 </p>
               )}
@@ -1698,7 +1698,7 @@ function SavedSchemaEditor({
       </section>
       {failure && (
         <div className="-mt-3 mb-5 flex flex-wrap items-center gap-2">
-          <p className="text-[11px] text-danger" role="alert">
+          <p className="min-w-0 text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
             {failure}
           </p>
           <Button onClick={retrySave}>

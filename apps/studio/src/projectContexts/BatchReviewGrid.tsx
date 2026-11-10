@@ -263,7 +263,7 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
                   const pending = columnValues(column)
                   return (
                     <th key={column.fieldId} className="group sticky top-0 z-10 min-w-[10rem] border-b border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted">
-                      <span className="flex min-w-0 items-center gap-1">
+                      <span className="flex min-w-0 max-w-[16rem] items-center gap-1">
                         <span className="min-w-0 truncate" title={column.document ? `${column.name} (one per document)` : column.name}>{column.name}</span>
                         <BulkBadge tone="approve" label={`Approve ${pending.length} to check in ${column.name}`} count={busy ? 0 : pending.length}
                           onClick={() => decide(pending)}><CheckIcon size={8} /></BulkBadge>
@@ -283,12 +283,12 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
                   return (
                     <tr key={member.extractionId}>
                       <td className="sticky left-0 z-10 min-w-[14rem] border-r border-line bg-surface px-3 py-2 align-top">
-                        <button type="button" className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:underline" onClick={openDocument}>{name}</button>
+                        <button type="button" title={name} className="block min-w-0 max-w-[16rem] truncate text-left text-[12px] font-semibold text-ink outline-none hover:underline" onClick={openDocument}>{name}</button>
                         <div className="mt-1"><StatusPill tone={status.tone} label={status.label} /></div>
                       </td>
                       <td className="px-3 py-2 text-ink-faint" colSpan={Math.max(columns.length, 1)}>
                         {row.state?.status === 'loading' ? <Spinner label="Loading…" />
-                          : row.state?.status === 'error' ? <><span className="text-danger">{row.state.message}</span>{' '}
+                          : row.state?.status === 'error' ? <><span className="text-danger [overflow-wrap:anywhere]">{row.state.message}</span>{' '}
                             <button type="button" className="font-semibold text-accent outline-none hover:underline" onClick={() => grid.retry(member.extractionId)}>Retry</button></>
                           : member.reviewable ? 'Shown here once it completes. Open it to review its saved values meanwhile.'
                           : 'No saved values to review.'}
@@ -302,13 +302,14 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
                 const rowPending = state.saving ? [] : recordValues.filter(bulkApprovable)
                 const rowDecided = state.saving ? [] : recordValues.filter(decided)
                 const page = state.page
+                const label = `${name}${row.span > 1 ? ` · Record ${record.index + 1}` : ''}`
                 return (
                   <tr key={`${id}:${record.key}`} className="group">
                     <td className="sticky left-0 z-10 min-w-[14rem] border-r border-line bg-surface px-3 py-2 align-top">
-                      <div className="flex min-w-0 items-center gap-1">
-                        <button type="button" title="Open document" onClick={openDocument}
+                      <div className="flex min-w-0 max-w-[16rem] items-center gap-1">
+                        <button type="button" title={`${label} — Open document`} onClick={openDocument}
                           className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:underline">
-                          {name}{row.span > 1 ? ` · Record ${record.index + 1}` : ''}
+                          {label}
                         </button>
                         {editingCell === null && <>
                           <BulkBadge tone="approve" label={`Approve ${rowPending.length} to check in this row`} count={rowPending.length}
@@ -329,7 +330,7 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
                           )}
                         </div>
                       )}
-                      {row.first && state.error && <p role="alert" className="mt-1 text-[10.5px] text-danger">{state.error}</p>}
+                      {row.first && state.error && <p role="alert" className="mt-1 max-w-[16rem] text-[10.5px] text-danger [overflow-wrap:anywhere]">{state.error}</p>}
                     </td>
                     {columns.map((column) => {
                       if (column.document && !row.first) return null

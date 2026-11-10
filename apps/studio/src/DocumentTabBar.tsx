@@ -41,7 +41,7 @@ function ProjectChip({ name, onNavigateProject, onBackToBatch }: {
         aria-label={`Open project ${name}`}
         onClick={onNavigateProject}
       >
-        <span className="truncate">{name}</span>
+        <span className="min-w-0 truncate" title={name}>{name}</span>
       </button>
       {onBackToBatch ? (
         <ActionsMenu

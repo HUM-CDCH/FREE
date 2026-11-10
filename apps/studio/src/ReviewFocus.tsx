@@ -81,6 +81,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   const decided = current.kind !== 'to-check'
   const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
   const precision = current.link?.precision === 'input' ? ' · page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
+  const trail = article ? current.name : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${current.name}`
   const source = `${current.retained?.source ?? `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}${passageOnly(current.link)}`}${precision}`
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
@@ -100,7 +101,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {position && <span className="text-compact text-ink-muted tabular-nums">{article ? `${position.at} of ${position.of}` : `Record ${position.record} of ${position.records} · ${position.at} of ${position.of} in this record`}</span>}
       </div>
       <div>
-        <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{current.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{article ? current.name : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${current.name}`}</p>
+        <p className="m-0 mb-1 truncate font-mono text-secondary text-ink-faint" title={trail}>{current.link && <span aria-hidden="true" className="mr-1.5 inline-block size-2 rounded-sm bg-ev align-baseline" />}{trail}</p>
         {editing ? (
           <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
             <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
@@ -114,7 +115,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
           </>
         )}
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
-        {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
+        {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted [overflow-wrap:anywhere]">Extracted value: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
       <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />{source}</p>
       {current.doubt && (
@@ -149,7 +150,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         <Overline as="p" className="m-0 mb-1 block">Up next</Overline>
         {upNext.length === 0 ? <p className="m-0 text-secondary text-ink-muted">Nothing else to check after this one.</p> : upNext.map((item) => (
           <div key={item.key} className="flex items-baseline justify-between gap-2 py-0.5 text-secondary">
-            <span className="min-w-0 truncate" title={rowText(item.row)}><span className="font-mono text-ink-faint">{item.row.name}</span> · {rowText(item.row)}</span>
+            <span className="min-w-0 truncate" title={`${item.row.name} · ${rowText(item.row)}`}><span className="font-mono text-ink-faint">{item.row.name}</span> · {rowText(item.row)}</span>
             <span className="shrink-0 text-ink-muted">{item.row.doubt ? 'uncertain' : item.row.chip?.style === 'rule' ? 'linked by rule' : item.row.page === null ? '' : `p.${item.row.page}`}</span>
           </div>
         ))}

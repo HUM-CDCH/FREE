@@ -257,7 +257,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const instructionsConversation = instructions.items.length > 0 || chat.asking !== null || chat.askError ? (
     <>
       <SchemaInstructionsChat instructions={instructions} messageClass={chatMessageClass} asking={chat.asking} />
-      {chat.askError && <p className="text-compact text-danger" role="alert">{chat.askError}</p>}
+      {chat.askError && <p className="text-compact text-danger [overflow-wrap:anywhere]" role="alert">{chat.askError}</p>}
     </>
   ) : undefined
 
@@ -354,7 +354,7 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
         {card.busy
           ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
           : <span aria-hidden="true" className="text-accent">⏵</span>}
-        <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink">{card.title}</span>
+        <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink" title={card.title}>{card.title}</span>
         {dismiss && (
           <button type="button" aria-label="Not yet" title="Not yet (Esc)" onClick={() => onChoose(dismiss)}
             className="shrink-0 cursor-pointer rounded-md px-1 leading-none text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink">
@@ -373,9 +373,9 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
             ))}
           </dl>
         )}
-        {card.error && <p role="alert" className="text-compact leading-snug text-danger">{card.error}</p>}
-        {card.notice && <p role="status" className="text-compact leading-snug text-ink-muted">{card.notice}</p>}
-        {card.question && <p className="text-secondary font-semibold text-ink">{card.question}</p>}
+        {card.error && <p role="alert" className="text-compact leading-snug text-danger [overflow-wrap:anywhere]">{card.error}</p>}
+        {card.notice && <p role="status" className="text-compact leading-snug text-ink-muted [overflow-wrap:anywhere]">{card.notice}</p>}
+        {card.question && <p className="text-secondary font-semibold text-ink [overflow-wrap:anywhere]">{card.question}</p>}
         {card.picker && picked && (
           <fieldset className="scrollbar-subtle flex max-h-44 min-w-0 flex-col gap-0.5 overflow-y-auto rounded-[3px] border border-line bg-surface-muted px-2 py-1.5">
             <legend className="sr-only">Documents</legend>
@@ -411,7 +411,7 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
                 className={`flex min-h-7 cursor-pointer items-baseline gap-2 rounded-[3px] border px-2 py-1 text-left text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[option.tone]}`}
                 onClick={() => onChoose(option)}>
                 <span aria-hidden="true" className="w-3 shrink-0 font-mono opacity-70">{index + 1}</span>
-                <span className="min-w-0">
+                <span className="min-w-0 [overflow-wrap:anywhere]">
                   {option.label}
                   {option.hint && <span className="block font-normal opacity-80">{option.hint}</span>}
                 </span>

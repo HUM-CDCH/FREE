@@ -26,6 +26,7 @@ export function ModelPicker({
   ariaLabel,
   value,
   display,
+  displayTitle,
   groups,
   reset,
   onChange,
@@ -33,6 +34,8 @@ export function ModelPicker({
   ariaLabel: string
   value: string
   display: ReactNode
+  /** `display` as plain text: the trigger truncates it, and this shows it whole on hover. */
+  displayTitle?: string
   groups: PickerGroup[]
   reset?: { value: string; label: string }
   onChange(value: string): void
@@ -170,8 +173,8 @@ export function ModelPicker({
         onClick={() => (open ? close(true) : show())}
         className={TRIGGER_CLASS}
       >
-        <span id={`${baseId}-value`} className="min-w-0 truncate">{display}</span>
-        <span aria-hidden="true" className="text-[10px] text-ink-faint">▾</span>
+        <span id={`${baseId}-value`} className="min-w-0 truncate" title={displayTitle}>{display}</span>
+        <span aria-hidden="true" className="shrink-0 text-[10px] text-ink-faint">▾</span>
       </button>
       {open && (
         <div ref={menu} className="fixed z-30 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-float">
@@ -203,7 +206,7 @@ export function ModelPicker({
           >
             {resetRow && (
               <PickerRow row={resetRow} value={value} active={active} onPick={choose}>
-                <span className="text-ink-muted">{reset?.label}</span>
+                <span className="min-w-0 text-ink-muted [overflow-wrap:anywhere]">{reset?.label}</span>
               </PickerRow>
             )}
             {shown.map(({ group, groupIndex, options, free }) => {
@@ -218,10 +221,10 @@ export function ModelPicker({
                       className="flex items-center gap-1.5 px-3 pt-1.5 pb-1 text-[10.5px] font-bold tracking-[0.08em] text-ink-faint uppercase"
                     >
                       {group.status}
-                      {group.label}
+                      <span className="min-w-0 truncate" title={group.label}>{group.label}</span>
                     </li>
                     {group.note && (
-                      <li role="presentation" id={note} className="px-3 pb-1 text-[11px] whitespace-pre-line text-ink-faint">{group.note}</li>
+                      <li role="presentation" id={note} className="px-3 pb-1 text-[11px] whitespace-pre-line text-ink-faint [overflow-wrap:anywhere]">{group.note}</li>
                     )}
                     {options.map((item) => (
                       <PickerRow key={item.id} row={item} value={value} active={active} onPick={choose}>

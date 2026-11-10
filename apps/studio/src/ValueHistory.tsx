@@ -69,7 +69,7 @@ export default function ValueHistory({ projectContextId, sourceDocumentId, extra
         <button type="button" className="shrink-0 cursor-pointer text-compact text-accent underline" onClick={onBack}>Whole document</button>
       </div>
       <p className="m-0 text-compact text-ink-muted">Latest reading from each Extraction</p>
-      {error && <p role="alert" className="text-danger">{error}</p>}
+      {error && <p role="alert" className="text-danger [overflow-wrap:anywhere]">{error}</p>}
       {!history && !error && <p className="m-0 pt-2 text-ink-muted">Loading…</p>}
       {history && <div className="space-y-2 pt-2">
         <ol aria-label={`Readings of ${name}`} className="m-0 list-none space-y-2 p-0">
@@ -82,8 +82,8 @@ export default function ValueHistory({ projectContextId, sourceDocumentId, extra
                 ref={(row) => { if (row) rows.current.set(reading.extractionId, row); else rows.current.delete(reading.extractionId) }}>
                 <span className="min-w-0">
                   <span className="block break-words text-ink">{reading.decision?.action === 'REJECTED' ? <s>{text}</s> : text}</span>
-                  {edited && <span className="block text-compact text-ink-muted">Extracted: <s>{reviewedValueSummary(reading.node, reading.modelValue)}</s></span>}
-                  <span className="block text-compact text-ink-muted">
+                  {edited && <span className="block text-compact text-ink-muted [overflow-wrap:anywhere]">Extracted: <s>{reviewedValueSummary(reading.node, reading.modelValue)}</s></span>}
+                  <span className="block text-compact text-ink-muted [overflow-wrap:anywhere]">
                     {[at(reading.createdAt), decisionWord(reading), `template rev ${reading.schemaRevision.revisionNumber}`,
                       reading.node.name !== name && `named ${reading.node.name}`].filter(Boolean).join(' · ')}
                   </span>

@@ -141,7 +141,7 @@ function RetainedBatchExport({disabled,primary=false,schemaNodes,onExport}:{disa
   return <div className="space-y-1">
     <Button ref={trigger} variant={primary?'positive':'secondary'} disabled={disabled||busy} aria-busy={busy} aria-expanded={open} aria-haspopup="dialog" onClick={()=>setOpen(true)}>{busy?'Exporting…':'Export'}</Button>
     <ExtractionResultExportControl open={open} schemaNodes={schemaNodes} returnFocusRef={trigger} onDismiss={()=>setOpen(false)} onExport={(format,choices)=>void download(format,choices)}/>
-    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+    {error&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{error}</p>}
   </div>
 }
 
@@ -217,7 +217,7 @@ export function BatchExtractionHistory({
                     </span>
                   )}
                 </span>
-                <span className="mt-1 block text-[11px] text-ink-muted">
+                <span className="mt-1 block truncate text-[11px] text-ink-muted" title={batchSchemaLine(batch)}>
                   {batchSchemaLine(batch)}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
@@ -305,7 +305,7 @@ export function BatchExtractionMembers({
   return (
     <>
       <div className="mb-5 flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="min-w-0 text-[11px] text-ink-faint">
+        <p className="min-w-0 text-[11px] text-ink-faint [overflow-wrap:anywhere]">
           {batchSchemaLine(batch)} · {selectionLine(batch)}
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -344,14 +344,14 @@ export function BatchExtractionMembers({
         </div>
       )}
       {runAgainRefusal && (
-        <p id={runAgainRefusalId} className="mb-4 text-[11.5px] leading-snug text-ink-muted">
+        <p id={runAgainRefusalId} className="mb-4 text-[11.5px] leading-snug text-ink-muted [overflow-wrap:anywhere]">
           {runAgainRefusal}
         </p>
       )}
       <div className="mb-4">{runAgainMethod}</div>
       {pinnedSchemaFailure && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <p className="text-[11.5px] leading-snug text-danger" role="alert">
+          <p className="min-w-0 text-[11.5px] leading-snug text-danger [overflow-wrap:anywhere]" role="alert">
             {pinnedSchemaFailure}
           </p>
           <Button size="sm" variant="secondary" onClick={onRetrySchema}>
@@ -361,7 +361,7 @@ export function BatchExtractionMembers({
       )}
       {coverageMessage && (
         <p
-          className="mb-4 text-[11.5px] leading-snug text-ink-muted"
+          className="mb-4 text-[11.5px] leading-snug text-ink-muted [overflow-wrap:anywhere]"
           role="status"
         >
           {coverageMessage}
@@ -390,13 +390,13 @@ export function BatchExtractionMembers({
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-2 text-ink-faint">
                     <DocumentIcon />
-                    <span className="min-w-0 truncate text-[12.5px] font-semibold text-ink">
+                    <span className="min-w-0 truncate text-[12.5px] font-semibold text-ink" title={documentName(member.sourceDocumentId)}>
                       {documentName(member.sourceDocumentId)}
                     </span>
                   </span>
                   {memberState.message && (
                     <span
-                      className={`mt-1 block pl-[21px] text-[11px] leading-snug ${statusInk[memberState.tone]}`}
+                      className={`mt-1 block pl-[21px] text-[11px] leading-snug [overflow-wrap:anywhere] ${statusInk[memberState.tone]}`}
                     >
                       {memberState.message}
                     </span>
