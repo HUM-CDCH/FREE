@@ -19,6 +19,7 @@ from kei_exp.kie.extract.acceptance import Outcome
 from kei_exp.kie.extract.assembly import link_json
 from kei_exp.kie.extract.catalog_result import evidence_link
 from kei_exp.kie.extract.grounding import _Candidate, _link, _location
+from kei_exp.kie.extract import scan_mark
 from kei_exp.kie.extract.value_mark import CONTEXT, folded, on_ink, place, place_links, value_boxes
 from kei_exp.kie.blocks import Span
 from kei_exp.kie.passages import Evidence, Passage, load
@@ -32,6 +33,13 @@ from tests.test_unified_catalog import Model, request as unified_request
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "value-mark-link.json").read_text())
 SIZE, ADVANCE, HEIGHT = 10.0, 6.0, 792.0  # Courier at 10 pt on a US Letter page
 LIGATURE = "\xae"  # StandardEncoding's fi, the built-in encoding of the standard Courier
+
+
+@pytest.fixture(autouse=True)
+def no_reader(monkeypatch):
+    """These cases hold the text layer's rule alone, with Tesseract installed or not; a scan that rule does not place
+    is read from its page image in test_scan_mark.py."""
+    monkeypatch.setattr(scan_mark, "available", lambda: False)
 
 
 def write_pdf(path: Path, pages: list[list[tuple[float, float, str]]], rotate: int = 0,
@@ -427,7 +435,7 @@ def test_article_links_carry_their_value_marks_while_running_and_when_final(tmp_
     assert running and {tuple(link["path"]) for link in producers} >= {("records", 0, "site"), ("records", 0, "year")}
     assert_marked(producers, evidence)
     assert_marked(result["evidence"], evidence)
-    assert "value marks: 2 links with spans, 2 placed, refused {}" in caplog.messages
+    assert "value marks: 2 links with spans, 2 placed (0 from the page image), refused {}" in caplog.messages
     # Without a run directory (tests, experiments) the same extraction simply has none.
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     result = finish(lease, CountingChat(answer), lambda router, counter: run.dispatch(

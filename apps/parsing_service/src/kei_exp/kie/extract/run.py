@@ -205,8 +205,9 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     from kei_exp.kie.extract.value_mark import place_links
     counts = place_links(result.get("evidence", []), evidence.passages,
                          None if run_dir is None else run_dir / "input.pdf")
-    refused = {reason: count for reason, count in sorted(counts.items()) if reason not in ("spans", "placed")}
-    logger.info("value marks: %d links with spans, %d placed, refused %s", counts["spans"], counts["placed"], refused)
+    refused = {reason: count for reason, count in sorted(counts.items()) if reason not in ("spans", "placed", "scan")}
+    logger.info("value marks: %d links with spans, %d placed (%d from the page image), refused %s", counts["spans"],
+                counts["placed"], counts["scan"], refused)
     return result
 
 

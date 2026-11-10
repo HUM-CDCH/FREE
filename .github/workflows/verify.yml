@@ -89,6 +89,14 @@ jobs:
           pnpm install --frozen-lockfile
           wait
 
+      # The reader of value marks on scans (ADR 0031), with the language models the worker image installs (the
+      # runner's Tesseract is Ubuntu's, the image's Debian's): with it here the Parsing Service's unit tests place a
+      # value with Tesseract itself instead of skipping that case.
+      - name: Install Tesseract
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-dan tesseract-ocr-deu tesseract-ocr-fra
+
       # The Parsing Service's PostgreSQL tests create and drop their own free_test_parsing_* databases from this one.
       - name: Create the extraction and parsing integration databases
         run: |
