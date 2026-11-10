@@ -6,7 +6,11 @@ import { z } from 'zod'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
 const span = z.object({ segment: z.string().regex(/^p\d+_s\d+$/), start: z.number().int().nonnegative(), end: z.number().int().positive() })
-/** kei-exp's `Link`, with `path` and `bbox_pt` as lists; versions 2 and 3 extend it. */
+const finite = z.number().finite()
+/** A box in PDF points from the top-left of the displayed page, as `bbox_pt` is. */
+const valueBox = z.tuple([finite, finite, finite, finite]).refine(([x0, y0, x1, y1]) => x0 < x1 && y0 < y1, { message: 'a value box must have positive area' })
+/** kei-exp's `Link`, with `path` and `bbox_pt` as lists; versions 2 and 3 extend it. `value_boxes_pt` (ADR 0031): where the
+ *  value prints on the link's page, one box per printed line; absent when nothing was placed. */
 const linkSchema = z.object({
   path,
   segment: z.string().regex(/^p\d+_s\d+$/),
@@ -21,6 +25,7 @@ const linkSchema = z.object({
     .nullable()
     .optional(),
   precision: z.enum(['cell', 'segment', 'input']).optional(),
+  value_boxes_pt: z.array(valueBox).min(1).max(64).optional(),
 })
 /** One grounded value's evidence (version 1). An Article link may carry `location`: the value's unique printing in its
  *  segment, as code-point spans and the printed text. */
@@ -59,6 +64,9 @@ export const unifiedEvidenceSchema = linkSchema.extend({
 export const evidenceAnchorIdOf = (link: { segment: string; cell?: string | null }): string =>
   `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
 
+const valueBoxes = (link: { value_boxes_pt?: [number, number, number, number][] }) =>
+  link.value_boxes_pt ? { valueBoxes: link.value_boxes_pt.map(([x0, y0, x1, y1]) => ({ x0, y0, x1, y1 })) } : {}
+
 /** A version 3 link as the Extraction keeps it: a located value with its spans (`VerifiedGrounding`). */
 export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string) {
   return {
@@ -67,6 +75,7 @@ export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>,
       linkedBy: link.linked_by, support: link.support, textSpans: link.spans, alternatives: link.alternatives,
       precision: link.precision, raw: link.raw, itemSpans: link.item,
     },
+    ...valueBoxes(link),
   }
 }
 
@@ -79,6 +88,7 @@ export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidence
     ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
     // A display location only: never `grounding`, which names a version 2 or 3 rule and its review wording.
     ...(link.location ? { location: { textSpans: link.location.spans, raw: link.location.raw } } : {}),
+    ...valueBoxes(link),
   }
 }
 /** The recipe's rule attribution is independent of a verifier's support. */
@@ -94,5 +104,6 @@ export function groundedEvidenceLink(link: z.infer<typeof groundedEvidenceSchema
         keySpan: link.normalized.key_span, expansionSpan: link.normalized.expansion_span,
       },
     },
+    ...valueBoxes(link),
   }
 }

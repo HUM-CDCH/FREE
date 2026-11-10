@@ -9,9 +9,12 @@ deployment and model processes; Studio is the only web UI.
 
 Preserve canonical page/manifest hashes, immutable parse generations and source
 evidence identities. Extraction reads canonical results only; debug artifacts are
-diagnostics. Keep database-backed and model-backed tests out of the fast test
-command. Test databases must pass the explicit disposable-target guard before
-connecting. A change to a workflow's steps goes behind `DBOS.patch()`
+diagnostics. The one exception is a value mark: the linker reads the run's own
+`input.pdf` to place a printing canonical text already located, and for nothing
+else (ADR 0031, `kie/extract/value_mark.py`). Keep database-backed and
+model-backed tests out of the fast test command. Test databases must pass the
+explicit disposable-target guard before connecting. A change to a workflow's
+steps goes behind `DBOS.patch()`
 (`enable_patching` is on); `kei@1` changes only after draining.
 
 Durable planning reads in turn, on one thread: a planning round never waits on

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { durableValueSchema } from './durable-contract.js'
-import { plainEvidenceLink } from './kei-evidence.js'
+import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 test('retained model Evidence preserves leaf attribution and rejects a different value or anchor',()=> {
   const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,hits:1,
@@ -56,6 +56,19 @@ test('an Article version-1 link keeps its location as a plain producer and proje
     { spans: [{ ...span, start: -1 }], raw }, { spans: [], raw }, { spans: [span, span], raw },
     { spans: [span], raw: '' }, { spans: [span] }, { spans: [{ ...span, page: 1 }], raw }, { spans: [span], raw, boxes: [] },
   ]) assert.equal(producerSchema.safeParse({ ...fixture.with_location, location }).success, false, JSON.stringify(location))
+})
+
+test('a producer link keeps the value boxes the Parsing Service writes and projects them as valueBoxes', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../apps/parsing_service/tests/fixtures/contracts/value-mark-link.json', import.meta.url), 'utf8'))
+  const producerSchema = durableValueSchema.shape.evidence.element.shape.producer
+  for (const name of ['article', 'unified', 'without']) assert.deepEqual(producerSchema.parse(fixture[name]), fixture[name], name)
+  const boxes = ([x0, y0, x1, y1]: number[]) => ({ x0, y0, x1, y1 })
+  const article = plainEvidenceLink(producerSchema.parse(fixture.article) as Parameters<typeof plainEvidenceLink>[0], 'a_p1_s3')
+  assert.deepEqual(article.valueBoxes, fixture.article.value_boxes_pt.map(boxes))
+  assert.equal('valueBoxes' in plainEvidenceLink(producerSchema.parse(fixture.without) as Parameters<typeof plainEvidenceLink>[0], 'a_p1_s3'), false)
+  assert.deepEqual(unifiedEvidenceLink(producerSchema.parse(fixture.unified) as Parameters<typeof unifiedEvidenceLink>[0], 'a_p2_s5').valueBoxes,
+    fixture.unified.value_boxes_pt.map(boxes))
+  assert.equal(producerSchema.safeParse({ ...fixture.article, value_boxes_pt: [[1, 1, 1, 2]] }).success, false)
 })
 
 test('Value Disagreements retain typed alternatives at null places addressed by child id',()=> {

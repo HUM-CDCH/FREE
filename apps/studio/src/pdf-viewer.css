@@ -277,3 +277,6 @@
 .pdf-viewer .evidence-mark { background: var(--color-ev-soft); }
 .pdf-viewer .evidence-mark.hovered { background: color-mix(in srgb, var(--color-ev) 30%, var(--color-ev-soft)); }
 .pdf-viewer .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev) 20%, var(--color-ev-soft)); }
+/* The selected value's printing, drawn inside its block mark in the same colours but stronger; it takes no pointer hits
+   and is not announced, so the block mark stays the button. */
+.pdf-viewer .evidence-value-mark { border-bottom: 2px solid var(--color-ev); background: color-mix(in srgb, var(--color-ev) 35%, var(--color-ev-soft)); pointer-events: none; mix-blend-mode: multiply; }

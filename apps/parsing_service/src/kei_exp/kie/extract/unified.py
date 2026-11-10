@@ -317,11 +317,12 @@ def work_order(entries: list[dict], pages: dict[str, int], start_page: int | Non
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1) -> dict:
     """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`; the execution,
-    discovery and entry records live only in the artifact (`run_dir` is not read). Entries run `chunks` at a time,
-    nearest `options.start_page` first (`work_order`), assembled in source order. Pipelined (defaults 3), a durable
-    run's planning reads the entries of the windows already read while discovery still waits on later ones
-    (`NeedsCall`), publishing them under `unified-prefix`, and verifies them once discovery is complete; a run that is
-    not durable reads discovery whole first, so its artifact is the same."""
+    discovery and entry records live only in the artifact (`run_dir` is read only for the PDF the retained links'
+    value marks are placed from, ADR 0031). Entries run `chunks` at a time, nearest `options.start_page` first
+    (`work_order`), assembled in source order. Pipelined (defaults 3), a durable run's planning reads the entries of
+    the windows already read while discovery still waits on later ones (`NeedsCall`), publishing them under
+    `unified-prefix`, and verifies them once discovery is complete; a run that is not durable reads discovery whole
+    first, so its artifact is the same."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -338,6 +339,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                      frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
     from kei_exp.kie.extract.durable import Boundary, NeedsCall
     from kei_exp.kie.extract.retained import discovering, plan_execution, plan_records, saved_record
+    from kei_exp.kie.extract.value_mark import place_links
+    pdf = None if run_dir is None else run_dir / "input.pdf"
     # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose
     # record changed (a deploy, a served context) adds a row instead of conflicting with the first.
     plan_execution(chat, f"unified-execution:{execution_sha256[:16]}", execution)
@@ -410,9 +413,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             if not work.failed and not work.undecided:
                 # A finished entry's accepted values are verified: their links are the final artifact's, so the
                 # researcher sees them on the source while the other entries are still read.
-                saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
-                             links=[_link(each, number, passages, linked_by) for each in work.found
-                                      if each.kind == "accepted"])
+                links = [_link(each, number, passages, linked_by) for each in work.found if each.kind == "accepted"]
+                place_links(links, evidence.passages, pdf)  # as `run.dispatch` places the artifact's
+                saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"], links=links)
                 if place is not None:
                     tokens.keep_compiled(place, work)
             return work

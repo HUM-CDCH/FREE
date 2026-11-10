@@ -67,6 +67,15 @@ test('an Article link\'s location never reaches correction guidance: its bytes m
   assert.equal(located,guidance(producer))
   assert.ok(!located.includes('location'))
 })
+test('value boxes never reach correction guidance: the bytes match those of a link without them',()=> {
+  const anchor=source.evidence_index.anchors[0]
+  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,hits:1,linked_by:'model' as const}
+  const guidance=(evidence:DurableValue['evidence'][number]['producer'])=>JSON.stringify(correctionSourceContext(source,'Full source',
+    {...saved,evidence:[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:evidence}]},[]))
+  const placed=guidance({...producer,value_boxes_pt:[[1,2,30,12]]})
+  assert.equal(placed,guidance(producer))
+  assert.ok(!placed.includes('value_boxes'))
+})
 test('compatibility preserves renames and excludes changed meaning or type for each target', () => {
   const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'A corrected title',sourceContext:'Own source',grounded:false,node:text}
   const select = (node:SchemaNode) => selectFeedback({nodes:[node],candidates:[candidate],fits:()=>true})

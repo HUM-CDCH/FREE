@@ -98,10 +98,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
 
     The result is exactly one record, the document's root (`run.dispatch` holds it to that); when no value context
     answered the root, `RootUnanswered` is raised before grounding instead. Both roles need a served context size:
-    `counter` is one counter per role, by default the counter of each role's endpoint. `chunks` and `run_dir` are
-    not used: Article runs unsplit and publishes nothing itself; each answered value context is handed to the durable
-    retained-result producer (`retained.saved_record`). `options.start_page` orders bounded value contexts, nearest
-    first."""
+    `counter` is one counter per role, by default the counter of each role's endpoint. `chunks` is not used: Article
+    runs unsplit and publishes nothing itself; each answered value context is handed to the durable retained-result
+    producer (`retained.saved_record`), its links with value marks placed from `run_dir`'s PDF (ADR 0031).
+    `options.start_page` orders bounded value contexts, nearest first."""
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
@@ -167,8 +167,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         # retains nothing; the last snapshot stands.
         if grounded:
             from kei_exp.kie.extract.retained import saved_record
-            saved_record(chat, extracted.slices[0][1], "document", links=[link_json(link) for link in grounded],
-                         disagreements=extracted.disagreements)
+            from kei_exp.kie.extract.value_mark import place_links
+            links = [link_json(link) for link in grounded]
+            place_links(links, evidence.passages, None if run_dir is None else run_dir / "input.pdf")  # as `dispatch`
+            saved_record(chat, extracted.slices[0][1], "document", links=links, disagreements=extracted.disagreements)
     try:
         support = ground_records(extracted.slices, schema, chat, budget=options.record_chars,
             counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,

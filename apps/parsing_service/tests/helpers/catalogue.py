@@ -101,4 +101,4 @@ def _segment(item: dict, unit: int, crop: int | None, crop_box, box, native: boo
         bbox_px = tuple(round((v - o) * 4.0, 3) for v, o in zip(box, (crop_box[0], crop_box[1]) * 2, strict=True))
     return PageSegment(text=text, html=html, markdown=None, label=item.get("label", "Text"), confidence=None,
                        status=item.get("status", "ok"), unit=unit, crop=crop, bbox_px=bbox_px, bbox_pt=box,
-                       extent="block")
+                       extent="block", boxes_pt=item.get("boxes_pt"))

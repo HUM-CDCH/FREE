@@ -51,6 +51,9 @@ export const verifiedGroundingSchema = z
   })
   .strict()
 
+const valueBoxSchema = z.object({ x0: z.number().finite(), y0: z.number().finite(), x1: z.number().finite(), y1: z.number().finite() }).strict()
+  .refine(box => box.x0 < box.x1 && box.y0 < box.y1, { message: 'a value box must have positive area' })
+
 export const evidenceLinkSchema = z
   .object({
     resultPath: resultPathSchema,
@@ -65,6 +68,8 @@ export const evidenceLinkSchema = z
     grounding: z.union([evidenceGroundingSchema, verifiedGroundingSchema]).optional(),
     // An Article (version 1) link's value printing, for drawing only; never a `grounding`.
     location: z.object({ textSpans: z.array(textSpanSchema).length(1), raw: z.string().min(1) }).strict().optional(),
+    // Where the value prints on its page (ADR 0031), for drawing only; Studio checks each box against its anchor.
+    valueBoxes: z.array(valueBoxSchema).min(1).max(64).optional(),
   })
   .strict()
 

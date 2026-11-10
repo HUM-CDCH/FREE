@@ -1,0 +1,44 @@
+{
+  "article": {
+    "path": ["records", 0, "site_name"],
+    "segment": "p1_s3",
+    "page": 1,
+    "bbox_pt": [34.0, 100.5, 170.75, 116.5],
+    "verbatim": true,
+    "hits": 1,
+    "linked_by": "model",
+    "cell": null,
+    "precision": "segment",
+    "location": {"spans": [{"segment": "p1_s3", "start": 14, "end": 23}], "raw": "Cedar Bay"},
+    "value_boxes_pt": [[118.2, 103.0, 168.4, 114.2]]
+  },
+  "unified": {
+    "path": ["records", 0, "find_year"],
+    "segment": "p2_s5",
+    "page": 2,
+    "bbox_pt": [40.0, 200.0, 300.0, 260.0],
+    "verbatim": true,
+    "hits": 1,
+    "linked_by": "verification",
+    "cell": null,
+    "precision": "segment",
+    "support": "literal",
+    "spans": [{"segment": "p2_s5", "start": 30, "end": 34}],
+    "alternatives": [],
+    "raw": "1962",
+    "item": null,
+    "value_boxes_pt": [[250.0, 214.0, 271.5, 224.0], [40.0, 226.0, 52.5, 236.0]]
+  },
+  "without": {
+    "path": ["records", 0, "site_name"],
+    "segment": "p1_s3",
+    "page": 1,
+    "bbox_pt": [34.0, 100.5, 170.75, 116.5],
+    "verbatim": true,
+    "hits": 1,
+    "linked_by": "model",
+    "cell": null,
+    "precision": "segment",
+    "location": {"spans": [{"segment": "p1_s3", "start": 14, "end": 23}], "raw": "Cedar Bay"}
+  }
+}
