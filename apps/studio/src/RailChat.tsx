@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -179,14 +179,27 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     : chat.messages.length > 0 || instructions.items.length > 0 || pending ? { title: 'Show conversation' } : null
   // A message sent from another view is answered in the conversation: the home shows it.
   const reveal = () => { if (mode === 'step') onShowView('chat') }
-  const ask = () => { reveal(); void chat.ask() }
-  const send = () => { reveal(); void chat.send(chat.input) }
+  // A step with a way past it carries the composer as its last numbered option: sending from it says something else
+  // instead, so it sets the step aside as choosing that option does.
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const sayOption = step?.options.find((option) => option.action === 'dismiss')
+  const sayInCard = !!step && !!sayOption
+  const setAside = () => {
+    if (!sayInCard || !step) return
+    if (step.key.startsWith('template-ready:')) setTemplateReady(false)
+    if (step.key.startsWith('results-ready:')) setResultsReady(null)
+    if (step.key.startsWith('extract:')) chat.clearExtractRequest()
+    else setDismissed((current) => new Set(current).add(step.key))
+  }
+  const ask = () => { if (!instructions.draft.trim()) return; reveal(); setAside(); void chat.ask() }
+  const send = () => { if (!chat.input.trim()) return; reveal(); setAside(); void chat.send(chat.input) }
 
   const blocked = !!pending || chat.loading
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
-  const card = step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
-    onChoose={(option, text) => choose(step, option, text)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
+  const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
+    onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
+    composer={composer} onSay={() => composerRef.current?.focus()} />
   // The Generate template step set aside: folded to its title line, generating stays one click away and the title
   // brings the whole step back.
   const generate = !step && preSchema && (
@@ -209,10 +222,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   )
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
+  // In a card the composer is its way past the step, and says so; else what the conversation takes now.
+  const composerHint = sayInCard && (preSchema || editable) ? sayOption!.label
+    : preSchema ? 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'
+      : editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'
   const composer = preSchema ? (
     <>
-      <textarea className={composerClass} rows={3}
-        placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
+      <textarea ref={composerRef} className={composerClass} rows={sayInCard ? 2 : 3} aria-label={composerHint} placeholder={composerHint} value={instructions.draft}
         onChange={(event) => instructions.setDraft(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} />
       {chat.asking !== null ? (
@@ -225,8 +241,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     </>
   ) : (
     <>
-      <textarea className={composerClass} rows={3}
-        placeholder={editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'} value={chat.input} disabled={!editable || blocked}
+      <textarea ref={composerRef} className={composerClass} rows={sayInCard ? 2 : 3} aria-label={composerHint} placeholder={composerHint} value={chat.input} disabled={!editable || blocked}
         onChange={(event) => chat.setInput(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
@@ -246,11 +261,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     </>
   ) : undefined
 
+  // While a step offers a way past it, the composer is drawn in the card and the drawer has none of its own.
+  const shownCard = step && (sayInCard ? card(composer) : card(null))
   return (
     <>
       <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
-        title="Conversation" label={card || generate} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
-        bar={card || generate || undefined} composer={composer}>
+        title="Conversation" label={shownCard || generate} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
+        bar={shownCard || generate || undefined} composer={sayInCard ? null : composer}>
         <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
       </ChatDrawer>
       {confirmingClear && (
@@ -307,21 +324,21 @@ function SetAsideStepView({ title, summary, expandLabel, onExpand, action }: {
 }
 
 /** The next step: a permission card with numbered options. 1–9 choose while it has focus. A step that acts on
- *  documents lists the project's to tick. The way past it (`dismiss`) is a line to type in: its number focuses it,
- *  Enter sends what is typed and sets the step aside; Esc, or the header's ×, sets it aside unsaid. */
-export function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick }: {
-  card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption, text?: string) => void
+ *  documents lists the project's to tick. The way past it (`dismiss`) is the chat's composer, drawn as the card's last
+ *  numbered option: its number focuses it (`onSay`), and sending from it says something else instead and sets the step
+ *  aside; Esc, or the header's ×, sets it aside unsaid. */
+function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay }: {
+  card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
+  composer: ReactNode; onSay: () => void
 }) {
-  const [told, setTold] = useState('')
-  const tellRef = useRef<HTMLInputElement>(null)
   const count = picked?.size ?? 0
   const options = card.options.map((option) =>
     scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
       : option.picks ? { ...option, label: pickedLabel(option, count), disabled: option.disabled || !pickable(card, count) } : option)
   const dismiss = options.find(({ action }) => action === 'dismiss')
   return (
-    <section aria-label={card.title} className="mx-4 my-2 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface"
+    <section aria-label={card.title} className={`mx-4 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface ${dismiss ? 'mt-2 mb-3' : 'my-2'}`}
       onKeyDown={(event) => {
         // Typing goes to the field; only Esc still closes the step from there.
         if ((event.target as HTMLElement).matches('textarea, input') && event.key !== 'Escape') return
@@ -330,7 +347,7 @@ export function StepCardView({ card, scopeDisabled = false, sayDisabled = false,
         const option = Number.isInteger(index) && index >= 0 ? options[index] : escape ? dismiss : undefined
         if (!option) return
         event.preventDefault()
-        if (option.action === 'dismiss' && !escape) tellRef.current?.focus()
+        if (option.action === 'dismiss' && !escape) onSay()
         else onChoose(option)
       }}>
       <div className="flex items-center gap-2 border-b border-line px-2.5 py-1.5">
@@ -382,19 +399,12 @@ export function StepCardView({ card, scopeDisabled = false, sayDisabled = false,
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
             {options.map((option, index) => option.action === 'dismiss' ? (
-              <label key={option.action}
-                className={`flex min-h-7 items-baseline gap-2 rounded-[3px] border border-line bg-surface px-2 py-1 text-compact focus-within:border-ink-faint ${sayDisabled ? 'opacity-50' : ''}`}>
-                <span aria-hidden="true" className="w-3 shrink-0 font-mono font-semibold text-ink opacity-70">{index + 1}</span>
-                <input ref={tellRef} type="text" aria-label={option.label} placeholder={option.label} value={told} disabled={sayDisabled}
-                  className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-muted"
-                  onChange={(event) => setTold(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter' || !told.trim()) return
-                    event.preventDefault()
-                    onChoose(option, told)
-                    setTold('')
-                  }} />
-              </label>
+              // The way past the step is the chat's composer itself, numbered as the card's last option.
+              <div key={option.action}
+                className={`flex items-end gap-2 rounded-[3px] border border-line bg-surface px-2 py-1.5 focus-within:border-ink-faint ${sayDisabled ? 'opacity-60' : ''}`}>
+                <span aria-hidden="true" className="w-3 shrink-0 self-start pt-0.5 font-mono text-compact font-semibold text-ink opacity-70">{index + 1}</span>
+                {composer}
+              </div>
             ) : (
               <button key={option.action} type="button" disabled={option.disabled}
                 title={option.description} aria-description={option.description}

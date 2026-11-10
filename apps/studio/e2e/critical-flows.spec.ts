@@ -129,8 +129,9 @@ test('template instruction editor retains clipboard ownership in a reopened Sour
   await page.mouse.up()
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('Unit 7')
 
+  // The composer's own hint, or the Generate template step's, whose card carries it.
   const chatInput = page.getByPlaceholder(
-    /Add a generation instruction/,
+    /Add a generation instruction|Tell me what to focus on, or ask about the document…/,
   )
   const canceled = await chatInput.evaluate((target) =>
     ['copy', 'cut', 'paste'].map((type) => {

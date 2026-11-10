@@ -10,6 +10,8 @@ import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+/** The chat's composer: its own hint, or the way past the step whose card carries it. */
+const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
 // The run action is "▶ Run extraction" until the document has an Extraction, then "↻ Re-run extraction".
 const RUN_EXTRACTION = /^(▶ Run|↻ Re-run) extraction$/
@@ -422,7 +424,7 @@ describe('reopened Source Document workspace', () => {
 
     it('runs the documents ticked when a chat message asks to extract, as a pilot before the approval', async () => {
       const { opened, onNavigate } = await renderInProject(summary(), [])
-      const input = screen.getByPlaceholderText('Describe a change to the template…')
+      const input = chatInput()
       fireEvent.change(input, { target: { value: 'Generate the results for the other letters' } })
       fireEvent.keyDown(input, { key: 'Enter' })
       const step = await screen.findByRole('region', { name: 'Extract' })
@@ -2150,9 +2152,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     openRailView('Template')
-    const input = screen.getByPlaceholderText(
-      'Describe a change to the template…',
-    )
+    const input = chatInput()
     fireEvent.change(input, { target: { value: 'Rename place' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 

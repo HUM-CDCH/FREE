@@ -33,7 +33,8 @@ export default function ChatDrawer({ open, onCollapse, onExpand, title, label, d
         {actions && <div className="flex shrink-0 items-center justify-end gap-1.5 px-4 pt-1.5">{actions}</div>}
         <div ref={bodyRef} className="scrollbar-subtle min-h-16 flex-1 overflow-y-auto px-4 py-2.5">{children}</div>
         {bar}
-        <ChatComposer>{composer}</ChatComposer>
+        {/* A step card can carry the composer itself (its way past the step); the drawer then draws none. */}
+        {composer != null && <ChatComposer>{composer}</ChatComposer>}
       </section>
     )
   return (
@@ -71,10 +72,12 @@ export function ChatComposer({ standalone = false, label, leading, children }: {
   return (
     <div className={`flex shrink-0 flex-col gap-1.5 px-4 pb-3 pt-2.5 ${standalone ? 'border-t border-line bg-surface-muted' : ''}`}>
       {label}
-      <div className="flex min-w-0 items-end gap-2">
-        {leading}
-        <div className="chat-composer flex min-w-0 flex-1 items-end gap-2 rounded-[12px] border border-line-strong bg-surface px-3 py-2.5 shadow-sm focus-within:border-ink-faint">{children}</div>
-      </div>
+      {children != null ? (
+        <div className="flex min-w-0 items-end gap-2">
+          {leading}
+          <div className="chat-composer flex min-w-0 flex-1 items-end gap-2 rounded-[12px] border border-line-strong bg-surface px-3 py-2.5 shadow-sm focus-within:border-ink-faint">{children}</div>
+        </div>
+      ) : leading}
     </div>
   )
 }

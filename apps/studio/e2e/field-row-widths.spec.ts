@@ -567,7 +567,7 @@ test('the Undo toast sits clear of the composer and the footer at 344px and 264p
     const toast = page.getByText('Field removed').locator('..')
     await expect(toast).toBeVisible()
     const toastBox = (await toast.boundingBox())!
-    const composer = (await page.getByPlaceholder('Describe a change to the template…').locator('..').boundingBox())!
+    const composer = (await page.getByPlaceholder(/^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/).locator('..').boundingBox())!
     const footer = (await rail(page).locator('footer').boundingBox())!
     expect(overlaps(toastBox, composer), `${width}px: the toast clear of the composer`).toBe(false)
     expect(overlaps(toastBox, footer), `${width}px: the toast clear of the footer`).toBe(false)

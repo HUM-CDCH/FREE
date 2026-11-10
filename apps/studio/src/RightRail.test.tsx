@@ -21,6 +21,8 @@ import {
   localSchemaPersistence,
   type SchemaEditorController,
 } from './currentSchemaRevision'
+/** The chat's composer: its own hint, or the way past the step whose card carries it. */
+const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
 vi.mock('./DurableResults', () => ({ DurableResults: vi.fn(() => <p>Durable results</p>) }))
 vi.mock('./api', async (importOriginal) => ({ ...await importOriginal<typeof import('./api')>(), requestSchemaEdit: vi.fn() }))
@@ -300,7 +302,7 @@ describe('RightRail developer UI visibility', () => {
 describe('RightRail collapsed', () => {
   it('keeps every body mounted, hidden beside the strip, and the same nodes once expanded', () => {
     const view = renderRail({ view: 'results', extraction: { ...defaultController, attempt } })
-    const body = screen.getByText('Durable results'), chat = screen.getByPlaceholderText('Describe a change to the template…')
+    const body = screen.getByText('Durable results'), chat = chatInput()
     const slot = results().historySlot
     view.setOpen(false)
     expect(screen.getByText('Project chat · Results')).toBeVisible()
@@ -314,7 +316,7 @@ describe('RightRail collapsed', () => {
     // Nothing was mounted again: one-by-one, drafts, an input edit, an export and a chat request go on.
     expect(screen.getByText('Durable results')).toBe(body)
     expect(screen.getByText('Durable results')).toBeVisible()
-    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBe(chat)
+    expect(chatInput()).toBe(chat)
     expect(screen.queryByText('Project chat · Results')).not.toBeInTheDocument()
     expect(results().railOpen).toBe(true)
     expect(results().historySlot).toBe(slot)
@@ -363,7 +365,7 @@ describe('RightRail collapsed', () => {
   it('keeps the template chat\'s composer under every view, not only the chat', () => {
     renderRail({ view: 'results', extraction: { ...defaultController, attempt } })
     expect(document.getElementById('rail-panel-schema')).not.toBeVisible()
-    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBeVisible()
+    expect(chatInput()).toBeVisible()
   })
 
   it('keeps a template chat request running through a collapse', async () => {
@@ -371,7 +373,7 @@ describe('RightRail collapsed', () => {
     vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema', schemaRevisionId: 'revision' })
     vi.mocked(requestSchemaEdit).mockReturnValue(new Promise(() => {}))
     const view = renderRail({ schema })
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    const input = chatInput()
     fireEvent.change(input, { target: { value: 'Check fields' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
@@ -391,7 +393,7 @@ describe('RightRail asked to extract in the chat', () => {
   const documents = [{ id: 'here', name: 'test.pdf' }, { id: 'b', name: 'b.pdf' }, { id: 'c', name: 'c.pdf' }]
 
   async function ask(text: string) {
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    const input = chatInput()
     fireEvent.change(input, { target: { value: text } })
     fireEvent.keyDown(input, { key: 'Enter' })
     return screen.findByRole('region', { name: 'Extract' })
@@ -429,7 +431,7 @@ describe('RightRail asked to extract in the chat', () => {
       schemaRevisionId: schema.snapshot().extractableSchemaRevisionId as string })
     vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'proposed', fields: {}, additions: [], issues: [] })
     renderRail({ schema })
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    const input = chatInput()
     fireEvent.change(input, { target: { value: 'keep it' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(await screen.findByText(/That leaves the template as it is/)).toBeInTheDocument()

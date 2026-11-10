@@ -40,7 +40,7 @@ async function regenerate(page: Page, instruction: string) {
 
 /** Asks the edit chat for one change. */
 async function requestEdit(page: Page, instruction: string) {
-  const input = page.getByPlaceholder('Describe a change to the template…')
+  const input = page.getByPlaceholder(/^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/)
   await input.fill(instruction)
   await input.press('Enter')
 }
