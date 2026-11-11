@@ -2141,6 +2141,30 @@ def test_a_prefix_carves_only_the_entries_whose_children_windows_are_read():
     assert carve(unanswered=(Pending,)) == whole
 
 
+def test_a_line_that_fits_no_children_request_undoes_nothing_an_earlier_prefix_carved():
+    """Found by review: a record found later (a label too long for any request) must not change the records a durable
+    run of defaults 10 has already listed and saved. Defaults 8 and 9, which carve once, then ask no window."""
+    lines = [line for n in range(1, 5) for line in (f"Grave {n}. Inhumation.", "Finds:", f"1. Bowl {n}.", f"2. Pin {n}.")]
+    source, body = one_window(lines, [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
+
+    def ask(record, system, user, schema, calls, issues):
+        return {"children": [[label, label, text.split()[0]] for label, text in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
+                             if re.match(r"\d+\. ", text)]}
+
+    def carve(entries, **options):  # nothing of record 4 fits a request; four lines a window otherwise
+        return discovery.children({**body, "entries": body["entries"][:entries]}, source, "One grave or find.",
+                                  lambda _s, user, _r: "RECORD 4" not in user and user.count("[L") <= 4, ask, **options)
+    early = carve(3, pipelined=True, prefix=True)  # before record 4 is found: graves 1 and 2 are read, 3 may grow
+    late = carve(4, pipelined=True, prefix=True)
+    final = carve(4, pipelined=True)
+    assert len(early["entries"]) == 6 and early["entries"] == late["entries"] == final["entries"][:6]
+    assert [entry["label"] for entry in final["entries"]][6:] == ["Grave 3", "1.", "2.", "Grave 4"]
+    assert final["children"] == {"windows": 3, "failed": 1} and [issue.code for issue in final["issues"]] == [
+        "children_window_failed"]
+    legacy = carve(4)
+    assert legacy["children"] == {"windows": 0, "failed": 1} and len(legacy["entries"]) == 4
+
+
 def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_found():
     from kei_exp.kie.extract.discovery import Window, _Seen, record_starts
     from kei_exp.kie.extract.windows import Unit

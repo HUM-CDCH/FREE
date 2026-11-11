@@ -324,6 +324,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   holding its lines, and each one before, is answered, and a table entry also once
   the notes after its table are read. A children call is admitted before the next
   discovery window, and the windows left when discovery ends are asked together.
+  The one difference in what is asked: a record line that fits no children request
+  leaves the windows before it asked and carved, where defaults 8 and 9 then ask
+  none, so that a record found later never undoes one already saved.
   Defaults 8 and 9 keep reading no entry before the whole discovery.
   Studio admits defaults 10 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's

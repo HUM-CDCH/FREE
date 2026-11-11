@@ -176,10 +176,12 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = (),
-         candidates: int = CANDIDATES, heading_context: bool = False) -> list[Window] | None:
+         candidates: int = CANDIDATES, heading_context: bool = False, whole: bool = True) -> list[Window] | None:
     """Consecutive windows over `units`; `lead` and `trail` are the units just outside. Defaults 7 (`heading_context`)
     fixes primary windows and overlap before selecting whole headings newest first, skipping those that do not fit;
-    at most `candidates` are measured individually. None when not even one code point fits beside the instructions."""
+    at most `candidates` are measured individually. None when not even one code point fits beside the instructions;
+    unless `whole`, the windows before that unit instead: each depends only on the units from its start on, so
+    they are the same however many units follow."""
     if heading and heading_context:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
         if windows is None:
@@ -209,7 +211,7 @@ def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], 
         if not fits(Window((pieces[start],))):
             cut = windows_of([pieces[start]], texts, lambda part: fits(Window(tuple(part))), overlap=False)
             if cut is None:
-                return None
+                return None if whole else windows
             pieces[start:start + 1] = [piece for part in cut for piece in part]
 
         def window(end: int, dropped: tuple[str, ...] = (), start=start) -> Window:
@@ -552,8 +554,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
 
 def children(body: dict, evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *,
-             progress: Callable[[list[dict], list[dict]], None] | None = None, prefix: bool = False,
-             unanswered: tuple[type[BaseException], ...] = ()) -> dict:
+             progress: Callable[[list[dict], list[dict]], None] | None = None, pipelined: bool = False,
+             prefix: bool = False, unanswered: tuple[type[BaseException], ...] = ()) -> dict:
     """Defaults 8: the completed discovery body with the records printed inside its records (a numbered find in a
     grave's list) carved out of them, read top to bottom: (1) which entry owns each of the entries' lines; (2) counted
     windows over those lines, shown under their record's heading; (3) one call per window lists the entities inside
@@ -563,7 +565,9 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     ledger rows are cut to match. A failed reply is an issue and a failed window, never retried. Before each call,
     `progress` is given the discovered record starts and the lines the window labels, as in `discover`.
 
-    Defaults 10 carves while discovery still reads. `unanswered` are the exceptions an `ask` raises for a call whose
+    Defaults 10 (`pipelined`) carves while discovery still reads, so nothing a later record brings may undo what an
+    earlier round carved: a line that fits no request leaves the windows before it as they were, where defaults 8 and
+    9 then ask none; its record and those after it stay whole. `unanswered` are the exceptions an `ask` raises for a call whose
     reply is not there yet (as in `discover`): none is raised, and every window is still asked, so their calls run at
     once. A `prefix` body (`discover`, not yet complete) leaves its last window unasked: the windows are packed
     greedily from the start, so the records found later only grow that one. While a window is not read, the body is
@@ -610,11 +614,13 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     def fits(window: Window) -> bool:
         user, _, reply = render(window)
         return fits_budget(system, user, reply)
-    windows = plan([unit for unit, _ in owned], texts, fits, overlap=0) if owned else []
+    windows = plan([unit for unit, _ in owned], texts, fits, overlap=0, whole=not pipelined) if owned else []
     calls, issues, found, failed, claimed = [], [], [], 0, set()
-    if windows is None:  # a line that fit a discovery request beside its longer instructions fits this one
+    # a line that fit a discovery request beside its longer instructions fits this one
+    if windows is None or owned and (not windows or (windows[-1].primary[-1].segment, windows[-1].primary[-1].end)
+                                     != (owned[-1][0].segment, owned[-1][0].end)):
         issues.append(Issue("children_window_failed", "a record line fits no children request"))
-        windows, failed = [], 1
+        windows, failed = windows or [], 1
 
     # (3) Ask each window; keep each listed child that is whole lines of one record after its first line.
     ids = {entry["id"] for entry in entries}

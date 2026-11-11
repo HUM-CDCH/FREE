@@ -711,7 +711,9 @@ queue.
       every window holding its lines, and each before, is answered, and a
       table entry also once the notes after its table are read. A children
       call is admitted before the next discovery window, and the windows left
-      when discovery ends are asked together.
+      when discovery ends are asked together. A line that fits no children
+      request keeps the windows before it (defaults 8 and 9 then ask none):
+      a later record never undoes a saved one.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
       `NeedsCall`. The round visits every known entry in start-page priority,
