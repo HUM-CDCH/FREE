@@ -5,13 +5,14 @@ import { evidenceColorVars, ownsMark, sharedColor } from './durableRailModel'
 import { fieldWords } from './reviewVocabulary'
 import { observeEvidenceHover } from './evidenceHover'
 import type { SelectionChannel } from './selectionChannel'
+import { recordBlockName, recordBlockTag, recordSpans } from './recordBlocks'
 
 type SelectMark = (keys: string[], element: HTMLElement) => void
 
 /**
  * The parsed Markdown in the document pane: a page-shaped text with the rail's values
  * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting and lighting their values
- * as the page's marks do.
+ * as the page's marks do. A running Catalog's record blocks are outlined at their own lines of text, under the marks.
  */
 function DocumentMarkdown({ markdown, document, selection, extractionId, active = true, marksShown = true, onSelect }: {
   markdown: string | null; document: ParsedDocument | null; selection: SelectionChannel; extractionId: string | null
@@ -23,6 +24,8 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   const bytes = useMemo(() => new TextEncoder().encode(markdown ?? ''), [markdown])
   const root = useRef<HTMLPreElement>(null)
   const describe = marks?.describe, savedLinks = marks?.savedLinks
+  const blocks = marksShown ? marks?.records : undefined
+  const records = useMemo(() => document && blocks?.length ? recordSpans(document, bytes, blocks) : [], [document, bytes, blocks])
   useLayoutEffect(() => observeEvidenceHover(selection, [root.current]))
   if (!markdown) return (
     <div className="mx-auto max-w-[34ch] pt-16 text-center">
@@ -44,14 +47,31 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
     .sort((a, b) => a.start - b.start)
     .filter((span, index, all) => index === 0 || span.start >= all[index - 1]!.end)
   const parts: React.ReactNode[] = []
-  let at = 0
+  let at = 0, record = 0
+  /** The text of these bytes, each record block's part of it in its outline; asked for in reading order. */
+  const outlined = (from: number, to: number) => {
+    const pieces: React.ReactNode[] = []
+    for (; record < records.length && records[record]!.from < to; record += 1) {
+      const span = records[record]!, start = Math.max(span.from, from), end = Math.min(span.to, to)
+      if (end > start) {
+        pieces.push(decode(from, start), <span key={`record:${start}`} role="group" aria-label={recordBlockName(span.state, span.labels)}
+          className={`record-block ${span.state}`}
+          data-record-label={start === span.from && (span.first || span.labels.length > 1) ? recordBlockTag(span.labels) : undefined}>{decode(start, end)}</span>)
+        from = end
+      }
+      // The rest of it lies in the text asked for next.
+      if (span.to > to) break
+    }
+    pieces.push(decode(from, to))
+    return pieces
+  }
   for (const span of spans) {
     if (span.end > bytes.length) break
-    parts.push(decode(at, span.start))
+    parts.push(...outlined(at, span.start))
     const keys = span.keys.filter(key => describe?.has(key))
     const infos = describeMarks(keys, describe).map(({ info }) => info)
     const selected = marks?.selected != null && keys.some(key => ownsMark(marks.selected!, key))
-    const text = decode(span.start, span.end)
+    const text = outlined(span.start, span.end)
     parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{text}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{text}</span>
       : <button key={span.start} type="button" style={evidenceColorVars(sharedColor(infos.map(info => info.color)))}
@@ -61,7 +81,7 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
         onClick={event => onSelect(keys, event.currentTarget)} onMouseMove={() => selection.hover(keys)} onMouseLeave={() => selection.hover(null)}>{text}</button>)
     at = span.end
   }
-  parts.push(decode(at, bytes.length))
+  parts.push(...outlined(at, bytes.length))
   return <pre ref={root} aria-label="Parsed Markdown" className="mx-auto m-0 max-w-[816px] bg-surface px-10 py-8 font-mono text-secondary whitespace-pre-wrap text-ink shadow-page">
     {parts}
   </pre>

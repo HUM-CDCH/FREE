@@ -1,5 +1,5 @@
 import { canonicalPackageStore, pool, type ResearcherProjectStore } from 'db'
-import { correctionSourceContext, createDurableRepository, DurableConflict, DurableInvalid, DurableNotFound, setFeedbackIncluded } from 'extraction/durable'
+import { correctionSourceContext, createDurableRepository, DurableConflict, DurableInvalid, DurableNotFound, setFeedbackIncluded, sourceRange, type SourceRange } from 'extraction/durable'
 import { ExtractionError } from 'extraction'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { z } from 'zod'
@@ -9,10 +9,24 @@ import { ApiError, json, noStore, noStoreError, parseJsonRequest, persistenceUna
 import { requestDurableReconciliation } from '../server/durable-extraction-workflow.js'
 import { studioDbos } from '../server/dbos.js'
 
-type DiscoveryRun={found:{segment:string;label:string|null}[];windows:{capture:string;lines:{segment:string}[]}[]}
-/** The record starts discovery has found while the run still looks for its records: the worker's progress events
- *  (the windows read, then the places each window being read has generated so far, by its own lines). Display only,
- *  so a missing run reads as none; an unreadable window or malformed place leaves the other starts visible. */
+type DiscoveryRun={found:{segment:string;label:string|null;ranges?:unknown}[];windows:{capture:string;lines:{segment:string}[]}[]}
+/** Consecutive lines as the text they cover, one range for each run in a segment; none unless every line says where
+ *  its text lies (an earlier worker's line names its segment alone). */
+function linesBlock(lines:readonly unknown[]) {
+  if(!lines.length||!lines.every(sourceRange))return undefined
+  const ranges:SourceRange[]=[]
+  for(const {segment,start,end} of lines) {
+    const last=ranges.at(-1)
+    if(last?.segment===segment&&start>=last.end)last.end=end
+    else ranges.push({segment,start,end})
+  }
+  return ranges
+}
+/** The records discovery has found while the run still looks for them, each with the text it seems to own so far: the
+ *  worker's progress events (the windows read, then the places each window being read has generated so far, by its own
+ *  lines). A record's block runs to the line before the next place of its window; the place being generated has its
+ *  start line alone. These are previews, whose limits can still change. Display only, so a missing run reads as none;
+ *  an unreadable window or malformed place leaves the other records visible. */
 export async function discoveryProgress(attempt:{id:string;workflowId:string}|null,
   client?:Pick<ReturnType<typeof studioDbos>['kei'],'getEvent'>) {
   if(!attempt)return null
@@ -24,17 +38,27 @@ export async function discoveryProgress(attempt:{id:string;workflowId:string}|nu
       try {return await events.getEvent<unknown>(`kei-call:${attempt.id}:${window.capture}`,'places',0)}
       catch {return null}
     }))
+    const found=run.found.map(({segment,label,ranges})=> {
+      const block=linesBlock(Array.isArray(ranges)?ranges:[])
+      return {segment,label,...(block?{ranges:block}:{})}
+    })
     const starts=run.windows.flatMap((window,index)=> {
       const places=streamed[index]
-      return (Array.isArray(places)?places:[]).flatMap(place=> {
+      const read=(Array.isArray(places)?places:[]).flatMap(place=> {
         if(!Array.isArray(place) || (place.length!==3&&place.length!==4) || typeof place[0]!=='string'
           || !/^L[1-9]\d*$/.test(place[0]) || (place[2]!==null&&typeof place[2]!=='string')
           || (place.length===4&&typeof place[3]!=='string'))return []
-        const line=window.lines[Number(place[0].slice(1))-1]
-        return line&&place[1]==='record'?[{segment:line.segment,label:typeof place[2]==='string'?place[2]:null}]:[]
+        return [{line:Number(place[0].slice(1)),record:place[1]==='record',label:typeof place[2]==='string'?place[2]:null}]
+      })
+      return read.flatMap((place,at)=> {
+        const line=window.lines[place.line-1]
+        if(!line||!place.record)return []
+        const next=read[at+1]?.line
+        const block=linesBlock(window.lines.slice(place.line-1,next!==undefined&&next>place.line?next-1:place.line))
+        return [{segment:line.segment,label:place.label,...(block?{ranges:block}:{})}]
       })
     })
-    return {found:[...run.found,...starts]}
+    return {found:[...found,...starts]}
   } catch {return null}
 }
 
@@ -69,7 +93,7 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
       if(request.method==='GET') {
         if(!action) {
           const state=await repository.read(id)
-          // While discovery still looks for the records, the ones it has found so far show on the source.
+          // While discovery still looks for the records, the ones it has found so far show on the source as previews.
           return json(state.status==='RUNNING'&&state.strategy==='CATALOG'&&!state.recordsFinal?{...state,discovery:await discoveryProgress(state.attempt)}:state,{headers:noStore})
         }
         if(action==='source') {

@@ -552,7 +552,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
 
 def children(body: dict, evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *,
-             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
+             progress: Callable[[list[dict], list[dict]], None] | None = None, prefix: bool = False,
+             unanswered: tuple[type[BaseException], ...] = ()) -> dict:
     """Defaults 8: the completed discovery body with the records printed inside its records (a numbered find in a
     grave's list) carved out of them, read top to bottom: (1) which entry owns each of the entries' lines; (2) counted
     windows over those lines, shown under their record's heading; (3) one call per window lists the entities inside
@@ -560,7 +561,14 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     children, without the entry's own printed label; (4) each kept child becomes an entry owning its lines and naming
     its enclosing entry as `parent`, whose remaining ranges are the child's `context`; the parent's ranges and the
     ledger rows are cut to match. A failed reply is an issue and a failed window, never retried. Before each call,
-    `progress` is given the discovered record starts and the lines the window labels, as in `discover`."""
+    `progress` is given the discovered record starts and the lines the window labels, as in `discover`.
+
+    Defaults 10 carves while discovery still reads. `unanswered` are the exceptions an `ask` raises for a call whose
+    reply is not there yet (as in `discover`): none is raised, and every window is still asked, so their calls run at
+    once. A `prefix` body (`discover`, not yet complete) leaves its last window unasked: the windows are packed
+    greedily from the start, so the records found later only grow that one. While a window is not read, the body is
+    not `complete` and holds only the entries whose children are all known, final as the complete body's: those
+    before the entry owning the first line not read."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     system = CHILDREN.format(description=description)
@@ -610,12 +618,21 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
 
     # (3) Ask each window; keep each listed child that is whole lines of one record after its first line.
     ids = {entry["id"] for entry in entries}
-    record_starts_ = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"]} for entry in entries]
-    for window in windows:
+    record_starts_ = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"],
+                       "ranges": _spans(entry["ranges"])} for entry in entries]
+    asked = windows[:-1] if prefix else windows
+    read = len(asked)  # the windows read from the start on: the entries are carved in source order
+    for number, window in enumerate(asked):
         user, labels, reply = render(window)
         if progress is not None:
             progress(record_starts_, ranges_json(window.primary))
-        answer = ask(None, system, user, reply, calls, issues)
+        try:
+            answer = ask(None, system, user, reply, calls, issues)
+        except unanswered:
+            read = min(read, number)
+            continue
+        if number > read:
+            continue
         rows = answer.get("children") if isinstance(answer, dict) else None
         if not isinstance(rows, list):
             issues.append(Issue("children_window_failed", f"no valid children reply for {_where(window)}"))
@@ -640,6 +657,11 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
                 continue
             claimed.update(lines)
             found.append((parent, lines, label))
+
+    if read < len(windows):
+        body = {**body, "complete": False}
+        entries = entries[:owner(windows[read].primary[0])]
+        found = [each for each in found if each[0] < len(entries)]
 
     # (4) Carve: each child owns its lines; its parent's ranges and the ledger rows are cut around them.
     carved = [dict(entry) for entry in entries]
@@ -682,22 +704,51 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:
-    """The record starts the windows read so far found, each by its segment and printed label."""
-    return [{"segment": each.window.primary[index].segment, "label": label}
-            for each in seen for index, _, kind, label in each.places if kind == "record"]
+    """The record starts the windows read so far found, each by its segment and printed label, with the text up to
+    its window's next place: a preview of the record, whose end a later window or the children pass may still move."""
+    found = []
+    for each in seen:
+        units = each.window.primary
+        for at, (index, offset, kind, label) in enumerate(each.places):
+            last, stop = each.places[at + 1][:2] if at + 1 < len(each.places) else (len(units) - 1, units[-1].end)
+            if kind == "record":
+                found.append({"segment": units[index].segment, "label": label, "ranges": _spans(ranges_json(
+                    [Unit(unit.segment, offset if number == index else unit.start, stop if number == last else unit.end)
+                     for number, unit in enumerate(units[index:last + 1], index)]))})
+    return found
 
 
-def table_notes(body: dict, evidence: Evidence) -> dict:
+def _spans(ranges: Sequence[dict]) -> list[dict]:
+    """`ranges` with one segment's consecutive lines joined, the empty ones left out: for display, never a scope."""
+    spans: list[dict] = []
+    for each in ranges:
+        if each["end"] <= each["start"]:
+            continue
+        if spans and spans[-1]["segment"] == each["segment"]:
+            spans[-1]["end"] = each["end"]
+        else:
+            spans.append(dict(each))
+    return spans
+
+
+def table_notes(body: dict, evidence: Evidence, complete: bool = True) -> dict:
     """Share following record-free table qualifications with its entries, without making them record text.
 
     Headers precede entries, while units, abbreviations and reference-marker definitions often follow them.
     Only ranges explicitly classified as shared qualifications are eligible; a heading, another table, a record
     or ordinary record-free text ends following notes. The counted request budget bounds what the field call can
     read. Child records retain their separately defined parent context.
+
+    A body that is not `complete` (a prefix, `discover`) keeps only the entries before the first one of a table whose
+    notes are not all read: its context could still grow, so it is not final yet. The last segment read may be read
+    in part, so it counts as not read.
     """
     by_segment = {}
     for row in body['ledger']:
         by_segment.setdefault(row['segment'], []).append(row)
+    edge = None if complete else max((index for index, passage in enumerate(evidence.passages)
+                                      if passage.id in by_segment and passage.label not in FURNITURE), default=-1)
+    unsettled = set()
 
     def reference(row):
         return {k: row[k] for k in ('segment', 'start', 'end')}
@@ -707,7 +758,9 @@ def table_notes(body: dict, evidence: Evidence) -> dict:
         if passage.label != 'Table':
             continue
         following = [reference(row) for row in by_segment.get(passage.id, []) if row.get('shared_context')]
-        for after in evidence.passages[index + 1:]:
+        if edge is not None and index >= edge:
+            unsettled.add(passage.id)
+        for position, after in enumerate(evidence.passages[index + 1:], index + 1):
             if after.label in FURNITURE:
                 continue
             if after.label in HEADINGS or after.label == 'Table':
@@ -717,13 +770,20 @@ def table_notes(body: dict, evidence: Evidence) -> dict:
                 if not row.get('shared_context'):
                     break
                 following.append(reference(row))
-            if not rows or any(not row.get('shared_context') for row in rows):
+            if any(not row.get('shared_context') for row in rows):
+                break
+            if edge is not None and position >= edge:  # more notes may follow what is read of it
+                unsettled.add(passage.id)
+            if not rows or passage.id in unsettled:
                 break
         notes[passage.id] = following
     entries = []
     for entry in body['entries']:
         segments = {r['segment'] for r in entry['ranges']}
-        extra = notes.get(next(iter(segments)), []) if len(segments) == 1 and 'parent' not in entry else []
+        table = next(iter(segments)) if len(segments) == 1 and 'parent' not in entry else None
+        if table in unsettled:
+            break
+        extra = notes.get(table, [])
         # a note inside the table may already precede the entry, one range per line of the merged ledger row
         held = [c for c in entry['context'] if not any(
             c['segment'] == r['segment'] and r['start'] <= c['start'] and c['end'] <= r['end'] for r in extra)]

@@ -5,11 +5,10 @@ import { extractionMethod, keiMethodOptions, canonicalIntent } from './extractio
 import { parseExtractionSchema, type RecordScope, type SchemaNode } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
-  durableSelectionSchema, durableStatus, durableValueSchema, type DurableHead, type DurableValue } from './durable-contract.js'
+  durableSelectionSchema, durableStatus, durableValueSchema, plannedRecords, type DurableHead, type DurableValue } from './durable-contract.js'
 import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
-import { segmentPage } from './parsed-document.js'
 import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 export class DurableConflict extends Error {
@@ -72,12 +71,6 @@ async function documentWindow(client: PoolClient, owner: string, projectId: stri
     .map(row=>{const head=durableHeadSchema.parse(row);return [head.id,head] as const}))
   return {truncated:rows.length>DOCUMENT_HISTORY_LIMIT,shown,heads}
 }
-/** The canonical segment and page a planned record starts on, kept after discovery for source markers. */
-function recordStart(scope: unknown): { segment: string | null; page: number | null } {
-  const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
-  return { segment: typeof segment === 'string' ? segment : null, page: segmentPage(segment) }
-}
-
 /** No connection outlives this short transaction. READ COMMITTED plus the
  * locked feedback head gives admission its latest committed publication. */
 export async function runtimeTransaction<T>(source: Pool, work: (client: PoolClient) => Promise<T>, isolation:'READ COMMITTED'|'REPEATABLE READ'='READ COMMITTED'): Promise<T> {
@@ -157,7 +150,8 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       // The Catalog records the current selection reads, once discovery has found them, and those with a model call
       // still unanswered: the rail lists each as queued, reading or read while the run goes on. A pipelined unified
       // Catalog (defaults 3) lists the records of the windows its attempt has read so far, each final, before
-      // discovery ends: `recordsFinal` says whether the list is whole.
+      // discovery ends: `recordsFinal` says whether the list is whole. Each keeps the source text it owns (`ranges`),
+      // which the source shows as its closed block.
       type Listed = {units:{ordinal:number;scope:unknown}[]}
       const plan = (await client.query(`SELECT manifest FROM extraction_runtime.plan WHERE "extractionId"=$1
         AND stage IN ('unified-records','generic-records','recipe-records') AND manifest->>'selectionId'=$2
@@ -170,7 +164,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         WHERE c."extractionId"=$1 AND c."selectionId"=$2 AND o.id IS NULL AND jsonb_typeof(i.request->'body'->'record')='number'`,
         [id, head.selectionId])).rows.map(row => row.record as number)
       const listed = plan ?? partial
-      const records = listed ? listed.units.map(unit => ({ ordinal: unit.ordinal, ...recordStart(unit.scope) })) : null
+      const records = listed ? plannedRecords(listed.units) : null
       const feedbackVersion = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0]?.version as number ?? 0
       return { protocol:1 as const, projectId:head.projectId, extractionId:id, strategy:head.strategy, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, schemaRevisions:await resultSchemaRevisions(client,head),source:head.sourcePin,

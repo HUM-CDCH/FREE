@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { durableValueSchema } from './durable-contract.js'
+import { durableValueSchema, plannedRecords } from './durable-contract.js'
 import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 test('retained model Evidence preserves leaf attribution and rejects a different value or anchor',()=> {
@@ -101,4 +101,33 @@ test('chosen readings are optional and only allowed on approvals', async()=> {
   assert.equal(durableCorrectionSchema.safeParse({...plain,choices:[{...choices[0],id:'a'}]}).success,false)
   for(const action of ['EDITED','REJECTED','PENDING'])
     assert.equal(durableCorrectionSchema.safeParse({...plain,action,choices}).success,false)
+})
+
+test('a planned record keeps the text it owns, its lines read as one where no other record lies between them',()=> {
+  const line=(segment:string,start:number,end:number)=>({segment,start,end})
+  const records=plannedRecords([
+    // A parent whose child was carved out of the same block keeps the hole; its next block is a separate range.
+    {ordinal:0,scope:[line('p1_s0',0,10),line('p1_s0',11,20),line('p1_s0',41,50),line('p1_s1',0,8)]},
+    {ordinal:1,scope:[line('p1_s0',21,30),line('p1_s0',31,40)]},
+    // Unowned lines between a record's own lines do not split it.
+    {ordinal:2,scope:[line('p2_s0',0,5),line('p2_s0',30,35)]},
+  ])
+  assert.deepEqual(records,[
+    {ordinal:0,segment:'p1_s0',page:1,ranges:[line('p1_s0',0,20),line('p1_s0',41,50),line('p1_s1',0,8)]},
+    {ordinal:1,segment:'p1_s0',page:1,ranges:[line('p1_s0',21,40)]},
+    {ordinal:2,segment:'p2_s0',page:2,ranges:[line('p2_s0',0,35)]},
+  ])
+})
+
+test('a planned record whose scope is not its exact lines keeps its start alone',()=> {
+  assert.deepEqual(plannedRecords([
+    {ordinal:0,scope:[{segment:'p3_s9'}]},
+    {ordinal:1,scope:[{segment:'p4_s0',start:0,end:4},{segment:'p4_s1',start:'0',end:4}]},
+    {ordinal:2,scope:[{segment:'p5_s0',start:4,end:4}]},
+    {ordinal:3,scope:{pages:[1,2]}},
+    {ordinal:4,scope:[]},
+  ]),[
+    {ordinal:0,segment:'p3_s9',page:3},{ordinal:1,segment:'p4_s0',page:4},{ordinal:2,segment:'p5_s0',page:5},
+    {ordinal:3,segment:null,page:null},{ordinal:4,segment:null,page:null},
+  ])
 })

@@ -303,6 +303,28 @@ button.evidence-mark[data-name].hovered:hover::after { content: attr(data-name);
 .pdf-viewer .evidence-value-mark:is(.doubtful, .preview) { border-bottom-style: dashed; }
 .pdf-viewer .evidence-value-mark:is(.hovered, .selected) { background: color-mix(in srgb, var(--color-ev) 30%, var(--color-ev-soft)); }
 .evidence-marks-off .evidence-value-mark:not(.selected) { display: none; }
+/* A Catalog record's block while its run goes on: an outline in ink, never an Evidence colour, under every mark and
+   taking no pointer. Dashed with a "Preview" tag while the record's limits can still change, solid with its record's
+   name once they are settled. Only the region where a record begins has a top edge and only its last a bottom one, so a
+   record running over columns or pages reads as one block; its tag sits on the edge where it begins. */
+.pdf-viewer .record-block { position: absolute; z-index: 3; box-sizing: border-box; border: 0 solid var(--color-ink-muted);
+  border-inline-width: 1.5px; border-radius: 2px; pointer-events: none; }
+.pdf-viewer .record-block.preview { border-style: dashed; }
+.pdf-viewer .record-block.start { border-top-width: 1.5px; }
+.pdf-viewer .record-block.end { border-bottom-width: 1.5px; }
+.record-block[data-record-label]::before { content: attr(data-record-label); padding: 0 4px; border: 1px solid var(--color-ink-muted);
+  border-radius: 2px; background: var(--color-ink-muted); color: var(--color-surface); font: 600 9px/1.4 var(--font-sans);
+  white-space: nowrap; user-select: none; }
+.record-block.preview[data-record-label]::before { border-style: dashed; background: var(--color-surface); color: var(--color-ink-muted); }
+.pdf-viewer .record-block[data-record-label]::before { position: absolute; left: -1.5px; bottom: 100%; }
+/* A preview and a closed record on one block: the preview's tag keeps to the other corner. */
+.pdf-viewer .record-block.preview[data-record-label]::before { left: auto; right: -1.5px; }
+/* In the Markdown view a block is the record's own lines of text: the outline follows them and its tag leads them. */
+span.record-block { outline: 1.5px solid var(--color-ink-muted); outline-offset: -1px; }
+span.record-block.preview { outline-style: dashed; }
+span.record-block[data-record-label]::before { margin-right: 4px; }
+/* The "Evidence marks" switch clears the page of the outlines too (the Markdown view then draws none). */
+.pdf-viewer.evidence-marks-off .record-block { display: none; }
 /* The overview: one tick per Evidence mark over the PDF's scrollbar, at the mark's place in the whole document and in
    its colour, so a long source shows where its Evidence sits; the selected value's tick is the accent one. It takes no
    pointer hits (the scrollbar under it keeps working) and lies under the Markdown view (z-10). */

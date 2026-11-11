@@ -135,6 +135,10 @@ NEAR = 40
 # Switching verification on judges the fixed candidates (`VERIFY`); nothing re-extracts them.
 # Unplaceable discovery boundaries use the existing split bound; superseded replies retain calls and issues,
 # while only final readings own source text (discovery version 10). Defaults 1–6 keep discovery version 8.
+# 10: version 9 with its children pass pipelined too (`"children": "pipelined"`): the same windows, requests and
+# artifact, asked earlier. A durable run carves the records found so far while discovery still reads
+# (`discovery.children`, a prefix), reads each entry once its ranges and context are final, and admits a children call
+# before the next discovery window (`retained.ahead`). Versions 8 and 9 still read no entry before the whole discovery.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
@@ -156,14 +160,17 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
                 "nearby": True, "children": True},
             9: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "nearby": True, "children": True, "complete_text": True}}
+                "nearby": True, "children": True, "complete_text": True},
+            10: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
+                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
+                 "nearby": True, "children": "pipelined", "complete_text": True}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9]
+    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -344,7 +351,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     budget = _Budget(chat, counters, effective["stages"],
                      frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
     from kei_exp.kie.extract.durable import Boundary, NeedsCall
-    from kei_exp.kie.extract.retained import discovering, plan_execution, plan_records, saved_record
+    from kei_exp.kie.extract.retained import ahead, discovering, plan_execution, plan_records, saved_record
     from kei_exp.kie.extract.value_mark import place_links
     pdf = None if run_dir is None else run_dir / "input.pdf"
     # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose
@@ -379,12 +386,16 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                                   nearby=effective.get("nearby", False), shared_context=options.defaults >= 9)
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
+        complete, early = body.get("complete", True), durable and effective.get("children") == "pipelined"
         if options.defaults >= 9:
-            body = discovery.table_notes(body, evidence)
-        if effective.get("children") and body.get("complete", True):
+            body = discovery.table_notes(body, evidence, complete)
+        if effective.get("children") and (complete or early):
             try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
-                body = discovery.children(body, evidence, schema.record_description,
-                                          partial(budget.fits, "discovery"), ask, progress=partial(discovering, chat))
+                with ahead(chat):  # carving the records found goes before looking for more
+                    body = discovery.children(body, evidence, schema.record_description,
+                                              partial(budget.fits, "discovery"), ask, prefix=not complete,
+                                              progress=partial(discovering, chat) if complete else None,
+                                              unanswered=(NeedsCall,) if early else ())
             except NeedsCall:
                 if stopped:  # a pause or stop, not a call still to make
                     raise stopped[0] from None
@@ -460,7 +471,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         if raised:
             raise raised[min(raised)]
         return works
-    if not complete and effective.get("children"):
+    if not complete and effective.get("children") is True:  # defaults 8 and 9
         raise stopped[0] if stopped else NeedsCall()  # children carved later change the prefix entries' ranges
     if not complete:
         # Each entry of the windows read so far is final, so its number is: it is read and listed now.

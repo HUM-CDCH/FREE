@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from uuid import uuid4
@@ -79,6 +80,18 @@ class CapturePlanner:
         with self._lock:
             self.discovery = None if found is None else {"found": found, "windows": (self.discovery or {}).get("windows", {})}
         self._lines.value = lines
+
+    @contextmanager
+    def ahead(self):
+        """The calls captured inside go before the ones this round captured earlier: the workflow admits pending
+        calls in order (durable_extract), so a reading that settles records already found (the unified Catalog's
+        children pass) is not held behind the windows that look for more. Never part of a call's identity."""
+        earlier = dict(self.pending)
+        self.pending.clear()
+        try:
+            yield
+        finally:
+            self.pending.update(earlier)
 
     def plan_records(self, stage, scopes, *, partial=False):
         """The records the run reads, as Studio lists them. A `partial` list (the unified Catalog's entries found so far,

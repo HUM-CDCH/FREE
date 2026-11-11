@@ -139,7 +139,7 @@ it('follows the latest saved results while the run reads its records, and keeps 
   } finally {vi.useRealTimers()}
 })
 
-it('shows the record starts discovery has found on the source while it still looks for the records',async()=>{
+it('shows the records discovery has found on the source as previews while it still looks for the records',async()=>{
   const empty={snapshotVersion:0,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:0,feedbackVersion:0,
     selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:1,inFlight:1},records:null,reading:[],
@@ -150,9 +150,52 @@ it('shows the record starts discovery has found on the source while it still loo
   expect(await screen.findByText('Finding records')).toBeVisible()
   expect(screen.getByText('· 2 found so far')).toBeVisible()
   expect(screen.getByText('Finding the records in the source…')).toBeVisible()
-  await waitFor(()=>expect(selection.snapshot().marks?.savedLinks?.map(saved=>saved.link.evidenceAnchorId)).toEqual(['a_p1_s0','a_p1_s2']))
-  // Starts are never values: their marks select nothing.
+  // An earlier worker's event names each start alone: a preview of that block.
+  await waitFor(()=>expect(selection.snapshot().marks?.records).toEqual([
+    {key:'preview:0',state:'preview',label:'Preview · 1',segment:'p1_s0',ranges:[]},{key:'preview:1',state:'preview',label:'Preview',segment:'p1_s2',ranges:[]}]))
+  // A record block is never a value or its Evidence: nothing links to it and nothing selects it.
+  expect(selection.snapshot().marks!.savedLinks).toEqual([])
   expect(selection.snapshot().marks!.describe.size).toBe(0)
+  expect(screen.getByRole('note')).toHaveTextContent('Dashed outline: a record still being found, its limits may change. Solid outline: a record with settled limits. Highlights are Evidence.')
+})
+
+it('draws each closed record over the preview it settles, apart from the Evidence, and drops every block once the run settles',async()=>{
+  const line=(segment:string,start:number,end:number)=>({segment,start,end})
+  const link={resultPath:['records',0,'title'],evidenceAnchorId:'a_p1_s0',precision:'segment'}
+  const value={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Early title',evidence:[],links:[link],grounding:'grounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[value.node]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:2,inFlight:1},
+    // The plan has closed the first record; discovery still shows it, the next one (whose end the plan's second record
+    // has since taken) and one no plan holds yet.
+    records:[{ordinal:0,page:1,segment:'p1_s0',ranges:[line('p1_s0',0,40)]},{ordinal:1,page:1,segment:'p1_s1',ranges:[line('p1_s1',20,30)]}],recordsFinal:false,reading:[0],
+    discovery:{found:[{segment:'p1_s0',label:'1',ranges:[line('p1_s0',0,25)]},{segment:'p1_s1',label:'2',ranges:[line('p1_s1',0,30)]},
+      {segment:'p2_s0',label:null,ranges:[line('p2_s0',0,9)]}]}}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  const selection=createSelectionChannel()
+  vi.useFakeTimers()
+  try {
+    await act(async()=>{render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)})
+    const marks=selection.snapshot().marks!
+    expect(marks.records).toEqual([
+      {key:'record:0',state:'closed',label:'Record 1',segment:'p1_s0',ranges:[line('p1_s0',0,40)]},
+      {key:'record:1',state:'closed',label:'Record 2',segment:'p1_s1',ranges:[line('p1_s1',20,30)]},
+      {key:'preview:1',state:'preview',label:'Preview · 2',segment:'p1_s1',ranges:[line('p1_s1',0,20)]},
+      {key:'preview:2',state:'preview',label:'Preview',segment:'p2_s0',ranges:[line('p2_s0',0,9)]}])
+    // The value's Evidence is the only link, the value the only thing to select or review.
+    expect(marks.savedLinks).toEqual([{key:'value',link}])
+    expect([...marks.describe.keys()]).toEqual(['value'])
+    // A poll that says the same publishes the same blocks: the source places them once.
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,counts:{saved:3,inFlight:1}},page} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(selection.snapshot().marks!.records).toBe(marks.records)
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'COMPLETED',recordsFinal:true,discovery:undefined},page} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(selection.snapshot().marks!.records).toEqual([])
+    expect(selection.snapshot().marks!.savedLinks).toEqual([{key:'value',link}])
+    expect(screen.queryByRole('note')).toBeNull()
+  } finally {vi.useRealTimers()}
 })
 
 it.each(['ARTICLE','CATALOG'] as const)('shows provisional %s values on the document and replaces previews with verified links',async strategy=>{
@@ -188,7 +231,7 @@ it.each(['ARTICLE','CATALOG'] as const)('shows provisional %s values on the docu
   } finally {vi.useRealTimers()}
 })
 
-it('keeps discovered record starts on the source while their values are still being read',async()=>{
+it('keeps the closed records on the source while their values are still being read',async()=>{
   const empty={snapshotVersion:0,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:0,feedbackVersion:0,
     selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[]},resolved:{startPage:null}},pendingSelection:null,counts:{saved:1,inFlight:1},
@@ -197,7 +240,10 @@ it('keeps discovered record starts on the source while their values are still be
   const selection=createSelectionChannel()
   render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} selection={selection}/>)
   expect(await screen.findByText('Reading records')).toBeVisible()
-  await waitFor(()=>expect(selection.snapshot().marks?.savedLinks?.map(saved=>saved.link.evidenceAnchorId)).toEqual(['a_p1_s0','a_p2_s0']))
+  // A plan that names each record's start alone still shows its block.
+  await waitFor(()=>expect(selection.snapshot().marks?.records).toEqual([
+    {key:'record:0',state:'closed',label:'Record 1',segment:'p1_s0',ranges:[]},{key:'record:1',state:'closed',label:'Record 2',segment:'p2_s0',ranges:[]}]))
+  expect(selection.snapshot().marks!.savedLinks).toEqual([])
   expect(selection.snapshot().marks!.describe.size).toBe(0)
 })
 
@@ -217,7 +263,7 @@ it('lists the records found so far, with no total, while a pipelined run reads t
   expect(screen.getByText('Early title')).toBeVisible()
   expect(screen.getByRole('region',{name:'Record 2, Reading…'})).toBeVisible()
   expect(screen.getByRole('region',{name:'Record 3, Queued'})).toBeVisible()
-  await waitFor(()=>expect(selection.snapshot().marks?.savedLinks?.filter(saved=>saved.key.startsWith('found:'))).toHaveLength(4))
+  await waitFor(()=>expect(selection.snapshot().marks?.records?.filter(block=>block.state==='preview')).toHaveLength(4))
 })
 
 it('follows the reader from Pausing to Paused, then no longer at the run\'s pace, and names a record of missing values',async()=>{
