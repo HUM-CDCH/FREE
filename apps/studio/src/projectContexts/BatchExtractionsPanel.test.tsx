@@ -2493,7 +2493,6 @@ const pilotSummary = (overrides: Record<string, unknown> = {}) => ({
   reviewedSourceDocumentCount: 1,
   staleSourceDocumentCount: 0,
   pendingExtractionSourceDocumentCount: 0,
-  schemaDraftCount: 0,
   currentSchemaRevisionId: schemaRevisionId,
   schemaStabilised: false,
   currentSchemaRevisionReviewed: true,

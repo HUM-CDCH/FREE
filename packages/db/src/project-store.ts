@@ -262,7 +262,6 @@ export type ProjectContextActivitySummary = {
   staleSourceDocumentCount: number
   /** Source Documents whose latest Extraction is missing, on another revision than the current one, or stale. */
   pendingExtractionSourceDocumentCount: number
-  schemaDraftCount: number
   /** The Current Schema Revision of the project's newest Extraction Schema, or null when absent. */
   currentSchemaRevisionId: string | null
   /** The Current Schema Revision is approved (stabilised) for Batch Extraction. */
@@ -305,7 +304,6 @@ export function emptyProjectContextActivitySummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     pendingExtractionSourceDocumentCount: 0,
-    schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
     currentSchemaRevisionReviewed: false,
@@ -1048,6 +1046,17 @@ export type ResearcherProjectStore = {
     sourceCoverage?: unknown,
     recordScope?: RecordScope | null,
   ): Promise<AppendSchemaRevisionResult | null>
+  /**
+   * A new Extraction Schema, named `EXTRACTION_SCHEMA_INITIAL_NAME`, whose revision 1 is `schemaTree` with no Record
+   * Scope: the template an import starts, beside any the project has. The caller mints `extractionSchemaId`, so a
+   * repeated request answers the schema the first one created. Null when the Project Context is not owned, or the ID
+   * names another project's schema.
+   */
+  createExtractionSchema(
+    projectContextId: string,
+    extractionSchemaId: string,
+    schemaTree: unknown,
+  ): Promise<SchemaRevisionRecord | null>
   listExtractionSchemas(
     projectContextId: string,
     limit: number,
@@ -1554,7 +1563,7 @@ export function createResearcherProjectStore(
       const suggestions = await database.orm.public.BatchSchemaSuggestion.where(
         (suggestion) => suggestion.projectContextId.in(projectIds),
       )
-        .select('projectContextId', 'confirmedSchemaRevisionId', 'createdAt')
+        .select('projectContextId', 'createdAt')
         .all()
       const batches = await database.orm.public.BatchExtraction.where((batch) =>
         batch.projectContextId.in(projectIds),
@@ -1595,7 +1604,6 @@ export function createResearcherProjectStore(
             reviewedRevisionIds: new Set<string>(),
             staleDocuments: new Set<string>(),
             documentIds: [] as string[],
-            schemaDraftCount: 0,
             hasSchemaRevision: false,
             hasReviewedExtraction: false,
             hasStabilisedRevision: false,
@@ -1695,9 +1703,7 @@ export function createResearcherProjectStore(
           state.reviewedRevisionIds.has(state.currentRevisionId)
       }
       for (const suggestion of suggestions) {
-        const state = project.get(suggestion.projectContextId)
-        if (!state) continue
-        if (suggestion.confirmedSchemaRevisionId == null) state.schemaDraftCount += 1
+        if (!project.has(suggestion.projectContextId)) continue
         bump(suggestion.projectContextId, suggestion.createdAt)
       }
       const completedMembers = new Map<string, number>()
@@ -1770,7 +1776,6 @@ export function createResearcherProjectStore(
             reviewedSourceDocumentCount: state.reviewedDocuments.size,
             staleSourceDocumentCount: state.staleDocuments.size,
             pendingExtractionSourceDocumentCount,
-            schemaDraftCount: state.schemaDraftCount,
             currentSchemaRevisionId: state.currentRevisionId,
             schemaStabilised: state.schemaStabilised,
             currentSchemaRevisionReviewed: state.currentRevisionReviewed,
@@ -2633,6 +2638,24 @@ export function createResearcherProjectStore(
           status: 'created' as const,
           revision: schemaRevision(created as StoredSchemaRevision),
         }
+      })
+    },
+    async createExtractionSchema(projectContextId, extractionSchemaId, schemaTree) {
+      return database.transaction(async ({ orm }) => {
+        // Locked, so a repeated request waits for the first and answers what it created.
+        if (!(await lockOwnedProjectContext(orm, researcherAccountId, projectContextId))) return null
+        const existing = await orm.public.ExtractionSchema.select('projectContextId').first({ id: extractionSchemaId })
+        if (existing && existing.projectContextId !== projectContextId) return null
+        if (!existing) {
+          await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: EXTRACTION_SCHEMA_INITIAL_NAME })
+          await orm.public.SchemaRevision.create({
+            extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT', schemaTree, recordScope: null,
+          })
+        }
+        const first = await orm.public.SchemaRevision.where({ extractionSchemaId, revisionNumber: 1 })
+          .select(...revisionFields)
+          .first()
+        return first ? schemaRevision(first as StoredSchemaRevision) : null
       })
     },
     async listExtractionSchemas(projectContextId, limit) {

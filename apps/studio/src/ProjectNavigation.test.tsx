@@ -261,7 +261,6 @@ function projectSummary(
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
     pendingExtractionSourceDocumentCount: number
-    schemaDraftCount: number
     currentSchemaRevisionId: string | null
     schemaStabilised: boolean
     currentSchemaRevisionReviewed: boolean
@@ -276,7 +275,6 @@ function projectSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     pendingExtractionSourceDocumentCount: 1,
-    schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
     currentSchemaRevisionReviewed: false,
@@ -1331,7 +1329,7 @@ describe('Project Context navigation', () => {
   })
 
   it('imports an Excel codebook from the Templates tab as a new Extraction Template named after the workbook', async () => {
-    const extractionSchemaId = '51000000-0000-4000-8003-000000000009'
+    let extractionSchemaId = ''
     const column = { id: 'site-column', column: 1, name: 'site', type: 'string', include: true,
       examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
     const writes: Array<{ url: string; method: string; body: Record<string, unknown> }> = []
@@ -1341,13 +1339,14 @@ describe('Project Context navigation', () => {
       const url = String(input)
       if (url.startsWith('/api/schema_import_preview?'))
         return Response.json({ worksheets: ['Codebook'], columns: url.includes('worksheet=') ? [column] : [] })
-      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+      if (url === '/api/extraction-schemas' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>
         writes.push({ url, method: 'POST', body })
+        extractionSchemaId = String(body.extractionSchemaId)
         return Response.json({ revision: {
           schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
           origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
-          recordDescription: body.recordDescription, recordScope: 'document', schemaNodes: body.schemaNodes,
+          recordDescription: body.recordDescription, recordScope: null, schemaNodes: body.schemaNodes,
         } }, { status: 201 })
       }
       if (init?.method === 'PATCH') {
@@ -1370,8 +1369,9 @@ describe('Project Context navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
 
     await waitFor(() => expect(writes).toHaveLength(2))
+    // A new schema every import, under an ID minted for the request: never a revision of the project's newest schema.
     expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
-    expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
+    expect(extractionSchemaId).toMatch(/^[0-9a-f-]{36}$/)
     expect(writes[1]).toMatchObject({
       url: `/api/extraction-schemas/${extractionSchemaId}`,
       body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Template' },

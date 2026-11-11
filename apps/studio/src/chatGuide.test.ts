@@ -181,7 +181,7 @@ describe('nextStep', () => {
 describe('nextStep in a project', () => {
   const summary = (overrides: Partial<ProjectContextActivitySummary> = {}): ProjectContextActivitySummary => ({
     phase: 'pilot', extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0, staleSourceDocumentCount: 0,
-    pendingExtractionSourceDocumentCount: 4, schemaDraftCount: 0, currentSchemaRevisionId: 'revision-2', schemaStabilised: false,
+    pendingExtractionSourceDocumentCount: 4, currentSchemaRevisionId: 'revision-2', schemaStabilised: false,
     currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides,
   })
   const documents = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: `${id}.pdf` }))

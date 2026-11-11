@@ -743,7 +743,6 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
       pendingExtractionSourceDocumentCount: 0,
-      schemaDraftCount: 0,
       currentSchemaRevisionId: null,
       schemaStabilised: false,
       currentSchemaRevisionReviewed: false,
@@ -752,7 +751,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     })
   })
 
-  it('stays on schema until a Schema Revision exists, counting drafts', async () => {
+  it('stays on schema until a Schema Revision exists; a suggestion is activity', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     // No Schema Revision yet: the researcher is still creating the schema.
@@ -764,7 +763,6 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )?.summary
     assert.equal(chattingSummary?.phase, 'schema')
     assert.equal(chattingSummary?.currentSchemaRevisionId, null)
-    assert.equal(chattingSummary?.schemaDraftCount, 0)
 
     database.tables.BatchSchemaSuggestion = [
       {
@@ -779,19 +777,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const readySummary = ready.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    // A ready suggestion is still a draft: confirming it is part of creating the schema.
     assert.equal(readySummary?.phase, 'schema')
-    assert.equal(readySummary?.schemaDraftCount, 1)
     assert.deepEqual(readySummary?.lastActivityAt, new Date('2026-08-02T09:00:00Z'))
-
-    // A confirmed suggestion is no longer a draft.
-    database.tables.BatchSchemaSuggestion[0].confirmedSchemaRevisionId = REVISION_1
-    const confirmed = await store.listProjectContexts(20)
-    const confirmedSummary = confirmed.find(
-      (item) => item.projectContextId === PROJECT,
-    )?.summary
-    assert.equal(confirmedSummary?.phase, 'schema')
-    assert.equal(confirmedSummary?.schemaDraftCount, 0)
   })
 
   it('summarizes extraction, review, and staleness from the latest Extraction', async () => {

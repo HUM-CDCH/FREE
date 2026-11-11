@@ -48,7 +48,6 @@ export const projectContextActivitySummarySchema = z
     staleSourceDocumentCount: nonNegativeCount,
     /** Source Documents whose latest Extraction is missing, on another revision than the current one, or stale. */
     pendingExtractionSourceDocumentCount: nonNegativeCount,
-    schemaDraftCount: nonNegativeCount,
     currentSchemaRevisionId: canonicalUuidSchema.nullable(),
     /** The Current Schema Revision is approved for Batch Extraction. */
     schemaStabilised: z.boolean(),

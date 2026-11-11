@@ -12,7 +12,7 @@ import {
   getSchemaRevision,
   listExtractionSchemas,
   listSchemaRevisions,
-  initializeSchemaRevision,
+  createExtractionSchema,
   renameExtractionSchema,
 } from '../schemaRevisions'
 import { SchemaImport, type SchemaImportTarget } from '../SchemaImport'
@@ -794,7 +794,7 @@ export default function ProjectContextPage({
     operationScope: () => ({ projectContextId, extractionSchemaId: null }),
     snapshot: () => ({ draftVersion: 0, extractionSchemaId: null }),
     async confirmDefinition(definition) {
-      const revision = await initializeSchemaRevision(projectContextId, definition)
+      const revision = await createExtractionSchema(projectContextId, definition)
       importedSchemaId.current = revision.extractionSchemaId
     },
   }

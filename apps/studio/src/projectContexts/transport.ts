@@ -46,7 +46,6 @@ export function provisionalSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     pendingExtractionSourceDocumentCount: sourceDocumentCount,
-    schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
     currentSchemaRevisionReviewed: false,

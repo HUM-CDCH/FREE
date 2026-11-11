@@ -9,6 +9,7 @@ import {
   createDeleteExtractionSchema,
   createGetExtractionSchemas,
   createPatchExtractionSchema,
+  createPostExtractionSchema,
 } from './extraction_schemas.js'
 
 const PROJECT = '51000000-0000-4000-8000-000000000001'
@@ -77,6 +78,51 @@ describe('GET /api/extraction-schemas', () => {
     ).GET(valid())
     expect(unavailable.status).toBe(503)
     expect(await unavailable.text()).not.toContain('secret')
+  })
+})
+
+describe('POST /api/extraction-schemas', () => {
+  const definition = {
+    recordDescription: 'One record per place.',
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' as const }],
+  }
+  const request = (body: unknown) =>
+    new Request('http://test/api/extraction-schemas', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  it('creates a schema whose revision 1 is the definition, under the requested ID', async () => {
+    const createExtractionSchema = vi.fn(async (_project: string, schema: string, tree: unknown) => ({
+      schemaRevisionId: REVISION,
+      extractionSchemaId: schema,
+      revisionNumber: 1,
+      origin: 'researcher-edit' as const,
+      schemaTree: tree,
+      recordScope: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      stabilisedAt: null,
+    }))
+    const POST = createPostExtractionSchema({ createExtractionSchema })
+    const response = await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, ...definition }))
+
+    expect(response.status).toBe(201)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    await expect(response.json()).resolves.toMatchObject({
+      revision: { schemaRevisionId: REVISION, extractionSchemaId: SCHEMA, revisionNumber: 1, ...definition },
+    })
+    expect(createExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA, definition)
+  })
+
+  it('refuses invalid requests and answers 404 for a project or ID it does not own', async () => {
+    const createExtractionSchema = vi.fn(async () => null)
+    const POST = createPostExtractionSchema({ createExtractionSchema })
+
+    expect((await POST(request({ projectContextId: PROJECT, ...definition }))).status).toBe(422)
+    expect((await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, schemaNodes: [], recordDescription: 'x', extra: 1 }))).status).toBe(422)
+    expect(createExtractionSchema).not.toHaveBeenCalled()
+    expect((await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, ...definition }))).status).toBe(404)
   })
 })
 

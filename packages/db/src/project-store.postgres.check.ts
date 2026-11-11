@@ -272,6 +272,24 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     )
     assert.equal(await store.deleteProjectContext(declared.projectContextId), true)
   })
+  await t.test('an imported template is a new Extraction Schema beside a revisioned one, and a repeat answers it', async () => {
+    const importedId = '52000000-0000-4000-8000-0000000000c1'
+    const created = await store.createExtractionSchema(project.projectContextId, importedId, policySchema)
+    assert.equal(created?.extractionSchemaId, importedId)
+    assert.equal(created?.revisionNumber, 1)
+    assert.equal(created?.origin, 'researcher-edit')
+    assert.equal(created?.recordScope, null)
+    assert.deepEqual(created?.schemaTree, policySchema)
+    assert.deepEqual(await store.createExtractionSchema(project.projectContextId, importedId, { recordDescription: 'other', schemaNodes: [] }), created)
+    assert.ok((await store.getSchemaRevision(project.projectContextId, schema.id, appliedRevision.id)), 'the existing schema is untouched')
+
+    const foreign = await survivorStore.createProjectContext('Foreign')
+    assert.equal(await survivorStore.createExtractionSchema(project.projectContextId, '52000000-0000-4000-8000-0000000000c2', policySchema), null)
+    assert.equal(await survivorStore.createExtractionSchema(foreign.projectContextId, importedId, policySchema), null)
+    assert.equal(await db.orm.public.ExtractionSchema.select('id').first({ id: '52000000-0000-4000-8000-0000000000c2' }), null)
+    assert.equal(await survivorStore.deleteProjectContext(foreign.projectContextId), true)
+    assert.deepEqual(await store.deleteExtractionSchema(project.projectContextId, importedId), { status: 'deleted' })
+  })
   const extraction = await db.orm.public.Extraction.create({
     sourceDocumentId: document.id,
     schemaRevisionId: appliedRevision.id,
