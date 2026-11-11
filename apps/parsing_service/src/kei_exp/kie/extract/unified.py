@@ -1378,7 +1378,7 @@ def _link(found: _Found, number: int, passages: dict, linked_by: str = "verifica
     `lexical`, code alone, which located the model's quote and the value in it (a single pass with verification off)."""
     shared = evidence_link(Outcome("accepted", ("records", number, *found.path), found.value, spans=found.spans,
                                    alternatives=found.alternatives), passages, {})
-    keep = ("path", "segment", "page", "bbox_pt", "cell", "precision", "hits", "spans", "alternatives", "raw")
+    keep = ("path", "segment", "page", "bbox_pt", "cell", "precision", "spans", "alternatives", "raw")
     return {**{key: shared[key] for key in keep}, "verbatim": found.support == "literal", "support": found.support,
             "linked_by": linked_by,
             "item": [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None}

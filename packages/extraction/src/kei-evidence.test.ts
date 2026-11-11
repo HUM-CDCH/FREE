@@ -4,7 +4,7 @@ import {
   evidenceAnchorIdOf, evidenceSchema, groundedEvidenceLink, groundedEvidenceSchema, plainEvidenceLink, unifiedEvidenceLink, unifiedEvidenceSchema,
 } from './kei-evidence.js'
 
-const plain = { path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true, hits: 2, linked_by: 'lexical' as const }
+const plain = { path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true, linked_by: 'lexical' as const }
 const span = { segment: 'p1_s0', start: 4, end: 8 }
 
 test('a producer link names its segment anchor, or its cell anchor inside a table', () => {
@@ -14,7 +14,7 @@ test('a producer link names its segment anchor, or its cell anchor inside a tabl
 
 test('each producer version projects onto the rail link without inventing precision or grounding', () => {
   assert.deepEqual(plainEvidenceLink(plain, 'a_p1_s0'),
-    { resultPath: plain.path, evidenceAnchorId: 'a_p1_s0', verbatim: true, lexicalHits: 2, linkedBy: 'lexical' })
+    { resultPath: plain.path, evidenceAnchorId: 'a_p1_s0', verbatim: true, linkedBy: 'lexical' })
   assert.equal('precision' in plainEvidenceLink({ ...plain, linked_by: 'model' }, 'a_p1_s0'), false)
   const grounded = groundedEvidenceSchema.parse({ ...plain, linked_by: 'key', spans: [span], alternatives: [], provenance: 'token',
     key_spans: [span], heading: null, precision: 'segment', raw: 'Book', normalized: null })
@@ -30,6 +30,22 @@ test('each producer version projects onto the rail link without inventing precis
     precision: 'segment', raw: 'Book', item: [span] })
   assert.deepEqual(unifiedEvidenceLink(located, 'a_p1_s0').grounding,
     { linkedBy: 'lexical', support: 'literal', textSpans: [span], alternatives: [], precision: 'segment', raw: 'Book', itemSpans: [span] })
+})
+
+test('all producer versions accept new links without counts and historical counts without projecting them', () => {
+  const grounded = { ...plain, linked_by: 'key', spans: [span], alternatives: [[span]], provenance: 'token',
+    key_spans: [span], heading: null, precision: 'segment', raw: 'Book', normalized: null }
+  const unified = { ...plain, support: 'literal', spans: [span], alternatives: [[span]],
+    precision: 'segment', raw: 'Book', item: null }
+  for (const [schema, link, project] of [
+    [evidenceSchema, plain, plainEvidenceLink], [groundedEvidenceSchema, grounded, groundedEvidenceLink],
+    [unifiedEvidenceSchema, unified, unifiedEvidenceLink]] as const) {
+    const current = schema.parse(link) as never
+    const historical = schema.parse({ ...link, hits: 12 }) as never
+    assert.deepEqual(project(current, 'a_p1_s0'), project(historical, 'a_p1_s0'))
+    assert.equal('lexicalHits' in project(historical, 'a_p1_s0'), false)
+    for (const hits of [-1, 1.5, null, '12']) assert.equal(schema.safeParse({ ...link, hits }).success, false)
+  }
 })
 
 test('value boxes project on every producer version as valueBoxes, and no key when absent', () => {

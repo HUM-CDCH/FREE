@@ -50,13 +50,23 @@ test('an ungrounded correction retains the entire source without manufacturing l
 })
 test('model-anchor context remains separate from optional researcher Evidence',()=> {
   const anchor=source.evidence_index.anchors[0]
-  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:{path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:[1,2,3,4] as [number,number,number,number],verbatim:true,hits:1,linked_by:'lexical' as const}}]
+  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:{path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:[1,2,3,4] as [number,number,number,number],verbatim:true,linked_by:'lexical' as const}}]
   const context=correctionSourceContext(source,'Full source',{...saved,evidence:modelEvidence},[])
   assert.equal(context.source.scope,'model-anchors')
   assert.equal(context.source.excerpts?.[0].text,'Unit 7')
   assert.deepEqual(context.modelEvidence,modelEvidence)
   assert.deepEqual(context.correctionEvidence,[])
   assert.equal(context.modelGrounding,'ungrounded')
+})
+test('new correction guidance is identical for historical repetition counts and count-free model Evidence',()=> {
+  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,linked_by:'model' as const}
+  const guidance=(evidence:DurableValue['evidence'][number]['producer'])=>JSON.stringify(correctionSourceContext(source,'Full source',
+    {...saved,evidence:[{anchorId:source.evidence_index.anchors[0].anchor_id,occurrenceIds:[],producer:evidence}]},[]))
+  const current=guidance(producer)
+  assert.equal(guidance({...producer,hits:12}),current)
+  assert.equal(guidance({...producer,hits:12,location:{spans:[{segment:'p1_s0',start:0,end:4}],raw:'Unit'},
+    value_boxes_pt:[[1,2,30,12]]}),current)
+  assert.ok(!current.includes('hits'))
 })
 test('an Article link\'s location never reaches correction guidance: its bytes match the unlocated link\'s',()=> {
   const anchor=source.evidence_index.anchors[0]

@@ -2,12 +2,15 @@ import { expect, it } from 'vitest'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { evidenceCheck, fieldWords, passageOnly } from './reviewVocabulary'
 
-it('an uncertain passage: not printed word for word, or printed elsewhere too; none after an edit or rejection', () => {
+it('an uncertain passage is non-verbatim; historical repetition counts never create doubt', () => {
   expect(evidenceCheck({ verbatim: false })).toBe('Value not printed word for word.')
-  expect(evidenceCheck({ verbatim: true, lexicalHits: 3 })).toBe('Also printed in 2 other passages.')
-  expect(evidenceCheck({ verbatim: true, lexicalHits: 2 })).toBe('Also printed in 1 other passage.')
-  expect(evidenceCheck({ verbatim: true, lexicalHits: 1 })).toBeNull()
+  const historical: EvidenceLink = { resultPath: ['title'], evidenceAnchorId: 'a', verbatim: true, lexicalHits: 12 }
+  expect(evidenceCheck(historical)).toBeNull()
+  expect(evidenceCheck({ verbatim: true })).toBeNull()
+  expect(evidenceCheck({})).toBeNull()
   expect(evidenceCheck({ verbatim: false }, 'EDITED')).toBeNull()
+  expect(evidenceCheck({ verbatim: false }, 'REJECTED')).toBeNull()
+  expect(evidenceCheck({ verbatim: false }, 'APPROVED')).toBe('Value not printed word for word.')
 })
 
 it('says a link is located to its passage only when no value mark can be drawn; a page or cell link says its own', () => {
@@ -23,6 +26,7 @@ it('says what tied a recipe value to its field, until it is edited or rejected',
   const { groundingDetail } = await import('./reviewVocabulary')
   const link = { resultPath: ['records', 0, 'sheet'], evidenceAnchorId: 'a', grounding: { linkedBy: 'key', alternatives: [{}], normalized: { value: 'Grab' } } } as unknown as EvidenceLink
   expect(groundingDetail(link)).toBe('Read after its printed key · 1 other match in the entry · glossary: Grab')
+  expect(evidenceCheck({ ...link, verbatim: true })).toBeNull()
   expect(groundingDetail(link, 'EDITED')).toBeNull()
 })
 

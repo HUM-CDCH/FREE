@@ -81,7 +81,7 @@ def evidence_link(outcome: Outcome, texts: dict, expansions: dict[str, GlossaryE
     cell = cells[0] if len(cells) == 1 else None
     return {"path": list(outcome.path), "segment": first.id, "page": first.page,
             "bbox_pt": list(cell.bbox_pt if cell else first.bbox_pt), "cell": cell.cell_id if cell else None,
-            "verbatim": True, "hits": 1 + len(outcome.alternatives), "linked_by": outcome.linked_by,
+            "verbatim": True, "linked_by": outcome.linked_by,
             "spans": spans_json(outcome.spans), "alternatives": [spans_json(spans) for spans in outcome.alternatives],
             "provenance": outcome.provenance, "key_spans": spans_json(outcome.key_spans), "heading": outcome.heading,
             "precision": "cell" if cell else first.precision, "raw": _raw(outcome.spans, texts),

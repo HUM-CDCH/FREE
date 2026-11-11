@@ -50,14 +50,15 @@ A value's **printing** is one place where its text, or for a number one spelling
   quote also prints the value whole, that printing is taken, and a keyed field whose value follows its key only in
   such a form reports `key_context_missing`.
 - **Local to the candidate.** `location` says where the value prints inside the passage or cell grounding chose. It
-  does not change which candidate was chosen, nor `hits` (an ambiguous value is still ambiguous) or `verbatim`. A
+  does not change which candidate was chosen or `verbatim`. The repetition diagnostic retained here was later
+  retired by [ADR 0033](0033-repetition-does-not-make-evidence-uncertain.md). A
   link to a whole table, not to one of its cells, is never located: the table's text holds its caption, which its
   box leaves out.
 - **Beside grounding, not in it.** `plainEvidenceLink` projects it to `EvidenceLink.location` (`textSpans`, `raw`),
   never into `grounding`: grounding records how a value was accepted, which a version 1 link does not, and `location`
   would only refine how its anchor's box is drawn. Evidence is still located by its anchor's identity, as
   [0005](0005-parsed-document-v2-canonical-content-stream.md) requires, and a value's Evidence status is unchanged.
-  The strict link schemas on both sides accept it as optional and validate its shape; the evidence union's order is
+  The link readers on both sides accept it as optional and validate its shape; the evidence union's order is
   unchanged. Producer and readers share `apps/parsing_service/tests/fixtures/contracts/article-location-link.json`.
 - **Carried, not drawn, by Studio.** Studio accepts and validates `location` but narrows no mark with it, nor with
   `grounding.textSpans`: every mark is its Evidence Anchor's block box, for every link version. Narrowing a mark to
