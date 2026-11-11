@@ -57,6 +57,11 @@ import { extractionSchemaInitialName } from '../shared/schemaRevision.contract'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
+/** The largest decoded image pdf.js keeps per page, in RGBA bytes (about 8 megapixels); its worker downscales anything
+ *  larger. A 600 dpi A3 scan decodes to 70 megapixels (279 MB), which every repaint then resamples onto a canvas of
+ *  under 2. 8 megapixels still covers an A3 page at 200% zoom, or at 100% on a 2x display. */
+const DECODED_IMAGE_BYTES = 2 ** 25
+
 const COLLAPSED_WIDTH = 46
 const RAIL_MIN = 264
 const RAIL_MAX = 560
@@ -463,6 +468,7 @@ export function DocumentWorkspace({
         loadingTask = pdfjsLib.getDocument({
           url: browserStudioPath(pdfUrl),
           wasmUrl: browserStudioPath('/assets/pdfjs-wasm/'),
+          canvasMaxAreaInBytes: DECODED_IMAGE_BYTES,
         })
         const pdf = await loadingTask.promise
         if (abortController.signal.aborted) {

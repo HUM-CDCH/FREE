@@ -1148,6 +1148,7 @@ describe('reopened Source Document workspace', () => {
     expect(getDocument).toHaveBeenNthCalledWith(2, {
       url: `/sources/${nextSourceRepresentationId}/pdf`,
       wasmUrl: '/assets/pdfjs-wasm/',
+      canvasMaxAreaInBytes: 2 ** 25,
     })
     expect(
       screen.getByRole('status', { name: 'Loading Source Document' }),
@@ -1240,6 +1241,7 @@ describe('reopened Source Document workspace', () => {
         expect(getDocument).toHaveBeenCalledWith({
           url: `/free${reopened.pdfUrl}`,
           wasmUrl: '/free/assets/pdfjs-wasm/',
+          canvasMaxAreaInBytes: 2 ** 25,
         }),
       )
       expect(
