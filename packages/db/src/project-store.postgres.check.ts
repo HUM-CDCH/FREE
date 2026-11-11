@@ -281,6 +281,20 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     assert.deepEqual(created?.schemaTree, policySchema)
     assert.ok((await store.getSchemaRevision(project.projectContextId, schema.id, appliedRevision.id)), 'the existing schema is untouched')
 
+    assert.equal((await db.orm.public.ExtractionSchema.select('name').first({ id: created.extractionSchemaId }))?.name,
+      'Extraction Template')
+    const named = await store.createExtractionSchema(project.projectContextId, policySchema, '  Codebook  ')
+    assert.ok(named)
+    assert.equal((await db.orm.public.ExtractionSchema.select('name').first({ id: named.extractionSchemaId }))?.name, 'Codebook')
+    assert.equal((await store.getSchemaRevision(project.projectContextId, named.extractionSchemaId, named.schemaRevisionId))?.revisionNumber, 1)
+    for (const name of ['', ' ', 'x'.repeat(513)])
+      await assert.rejects(store.createExtractionSchema(project.projectContextId, policySchema, name))
+    const beforeFailure = (await db.orm.public.ExtractionSchema.select('id').all()).length
+    await assert.rejects(store.createExtractionSchema(project.projectContextId, { invalidJson: 1n }, 'Failed import'))
+    assert.equal((await db.orm.public.ExtractionSchema.select('id').all()).length, beforeFailure,
+      'a revision failure rolls back the named Extraction Schema too')
+    assert.deepEqual(await store.deleteExtractionSchema(project.projectContextId, named.extractionSchemaId), { status: 'deleted' })
+
     const schemaCount = (await db.orm.public.ExtractionSchema.select('id').all()).length
     assert.equal(await survivorStore.createExtractionSchema(project.projectContextId, policySchema), null)
     assert.equal((await db.orm.public.ExtractionSchema.select('id').all()).length, schemaCount)

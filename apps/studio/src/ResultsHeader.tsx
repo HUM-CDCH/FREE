@@ -1,7 +1,7 @@
-import type { ReactNode, Ref } from 'react'
+import type { Ref } from 'react'
 import { createPortal } from 'react-dom'
 import type { RailCounts, ValueFilter } from './reviewVocabulary'
-import { Button, Pill } from './ui'
+import { Button } from './ui'
 import { ApprovedGlyph, InfoGlyph, ListGlyph, MoreGlyph, OneByOneGlyph, RejectedGlyph, SpinnerGlyph } from './ui/icons'
 
 const iconButton = 'inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted outline-none hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent aria-expanded:bg-surface-muted aria-expanded:text-ink'
@@ -14,14 +14,10 @@ export type StatusLine = {
   mark: StatusMark
   word: string
   rest: string
-  /** "Why?" after the rest, a link to the drawer's Extraction section. */
-  why?: boolean
   /** Opens the document's latest Extraction while another one is shown. */
   onLatest?: () => void
   /** A failed run's message, on a second line with "Show details". */
   failure?: string
-  /** The date of a saved review, as the line's title. */
-  title?: string
 }
 
 function Mark({ mark }: { mark: StatusLine['mark'] }) {
@@ -45,18 +41,15 @@ export type HeaderActions = {
 }
 
 /**
- * The rail's one header, the same in every phase: the status line, a transient alert
- * line, the progress bar, and the filter chips (a select where they do not fit) beside the actions. In the rail the
+ * The rail's one header, the same in every phase: the status line, the progress bar, and the filter chips (a select where they do not fit) beside the actions. In the rail the
  * status line is drawn in the rail's own header (`slot`).
  */
 export default function ResultsHeader({
-  status, schemaNote, alert, counts, running, reviewSaved = false, readOnlyNote, actions, chips, filter, onFilter,
-  detailsOpen, menuOpen, detailsRef, menuRef, exportButton, slot = null, onDetails, onMenu, onWhy, onShowDetails,
+  status, counts, running, reviewSaved = false, readOnlyNote, actions, chips, filter, onFilter,
+  detailsOpen, menuOpen, menuRef, slot = null, onDetails, onMenu, onShowDetails,
   onOneByOne, onSaveReview, onList,
 }: {
   status: StatusLine
-  schemaNote?: { revision: number; current: number } | null
-  alert?: ReactNode
   counts: RailCounts
   running: boolean
   /** The review of the results shown is saved: said beside the count, whatever the run's own status. */
@@ -69,14 +62,11 @@ export default function ResultsHeader({
   onFilter: (filter: ValueFilter) => void
   detailsOpen: boolean
   menuOpen: boolean
-  detailsRef?: Ref<HTMLButtonElement>
   menuRef?: Ref<HTMLButtonElement>
-  exportButton?: ReactNode
   /** The rail header's free width: the status line and ⓘ ⋯ are drawn there, leaving the panel to the values. */
   slot?: HTMLElement | null
   onDetails: () => void
   onMenu: () => void
-  onWhy: () => void
   onShowDetails: () => void
   onOneByOne: () => void
   onSaveReview: () => void
@@ -102,11 +92,10 @@ export default function ResultsHeader({
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
         <div className="flex items-center gap-1.5 text-secondary">
           <Mark mark={status.mark} />
-          <p role="status" aria-atomic="true" className="m-0 flex flex-wrap items-baseline gap-x-1" title={status.title}>
+          <p role="status" aria-atomic="true" className="m-0 flex flex-wrap items-baseline gap-x-1">
             <b className="text-content text-ink">{status.word}</b>
             {status.rest && <span className="text-ink-muted tabular-nums">{status.rest}</span>}
             {status.onLatest && <button type="button" className={linkButton} onClick={status.onLatest}>Open latest</button>}
-            {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
           </p>
         </div>
         <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-compact text-ink-muted">
@@ -115,7 +104,7 @@ export default function ResultsHeader({
             : <>{readOnlyNote && <span>{readOnlyNote}</span>}<span className="tabular-nums">{checked} {progress}</span></>}
         </p>
       </div>
-      <button ref={detailsRef} type="button" aria-label="Run details" aria-expanded={detailsOpen} className={iconButton} onClick={onDetails}><InfoGlyph /></button>
+      <button type="button" aria-label="Run details" aria-expanded={detailsOpen} className={iconButton} onClick={onDetails}><InfoGlyph /></button>
       <button ref={menuRef} type="button" aria-label="More result actions" aria-haspopup="menu" aria-expanded={menuOpen} className={iconButton} onClick={onMenu}><MoreGlyph /></button>
     </>
   )
@@ -125,12 +114,6 @@ export default function ResultsHeader({
       {status.failure && (
         <p className="m-0 text-secondary text-ink-muted">{status.failure} <button type="button" className={linkButton} onClick={onShowDetails}>Show details</button></p>
       )}
-      {schemaNote && (
-        <p className="m-0 text-secondary text-ink-muted">
-          This review applies to Template revision {schemaNote.revision}. Run extraction again to use revision {schemaNote.current}; this review stays saved.
-        </p>
-      )}
-      {alert}
       <div role="img" className="flex h-1.5 shrink-0 overflow-hidden rounded-full bg-line"
         aria-label={`${counts.approved} approved, ${counts.edited} edited, ${counts.rejected} rejected, ${counts.toCheck} to check, of ${counts.required}`}>
         <span className="bg-green" style={{ width: `${fraction(counts.approved)}%` }} />
@@ -156,11 +139,6 @@ export default function ResultsHeader({
             </select>
           </>
         )}
-        {/* Snapshot, export and revision controls. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5 empty:hidden [&>select]:min-w-0 [&>select]:max-w-full">
-          {schemaNote && <Pill tone="stale" outline>Rev {schemaNote.revision} · current is {schemaNote.current}</Pill>}
-          {exportButton}
-        </div>
         <div className="flex flex-wrap gap-2 empty:hidden">
           {actions.list && (
             <Button size="md" className="h-8 font-semibold" aria-label="Leave one-by-one review, back to the list" onClick={onList}>

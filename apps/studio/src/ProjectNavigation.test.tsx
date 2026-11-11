@@ -1367,13 +1367,11 @@ describe('Project Context navigation', () => {
     fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
 
-    await waitFor(() => expect(writes).toHaveLength(2))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument())
+    expect(writes).toHaveLength(1)
     // A new schema every import: never a revision of the project's newest schema.
-    expect(writes[0]).toMatchObject({ url: '/api/extraction-schemas', body: { projectContextId, recordDescription: 'One site.' } })
-    expect(writes[1]).toMatchObject({
-      url: `/api/extraction-schemas/${extractionSchemaId}`,
-      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Template' },
-    })
+    expect(writes[0]).toMatchObject({ url: '/api/extraction-schemas', method: 'POST',
+      body: { projectContextId, recordDescription: 'One site.', name: 'Site codebook' } })
     expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
   })
 

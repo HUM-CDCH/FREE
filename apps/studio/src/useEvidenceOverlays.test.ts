@@ -3,7 +3,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import parsedFixture from './assets/parsed_document.v2.json'
 import { useEvidenceOverlays, type MarkInfo, type RailMarkState } from './useEvidenceOverlays'
 import { useLayoutEffect, useState } from 'react'

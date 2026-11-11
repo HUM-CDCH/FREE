@@ -133,6 +133,7 @@ export const appendSchemaRevisionRequestSchema = z
 export const extractionSchemaCreateRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
+    name: extractionSchemaNameSchema.optional(),
     ...schemaDefinitionSchema.shape,
   })
   .strict()

@@ -1,4 +1,4 @@
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import type { RailMarkState } from './useEvidenceOverlays'
 
 /** A value the workspace asks Results to select, for one Extraction: a value link's (`navigate`, which shows its

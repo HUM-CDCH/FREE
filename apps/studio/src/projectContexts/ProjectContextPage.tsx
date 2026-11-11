@@ -29,8 +29,6 @@ import {
 } from './batchExtractions'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
-// Hidden for now with its use on the Extractions tab below.
-// import { ProjectFeedback } from '../ProjectFeedback'
 import ProjectStatus from './ProjectStatus'
 import { useOpenDocumentTabs } from '../useOpenDocumentTabs'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
@@ -502,7 +500,6 @@ export default function ProjectContextPage({
   // unless opened, or unless this project already has spreadsheet work.
   const [spreadsheetExpanded, setSpreadsheetExpanded] = useState<boolean | null>(null)
   const [codebookOpen, setCodebookOpen] = useState(false)
-  const importedSchemaId = useRef<string | null>(null)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -764,27 +761,11 @@ export default function ProjectContextPage({
   const codebookTarget: SchemaImportTarget = {
     operationScope: () => ({ projectContextId, extractionSchemaId: null }),
     snapshot: () => ({ draftVersion: 0, extractionSchemaId: null }),
-    async confirmDefinition(definition) {
-      const revision = await createExtractionSchema(projectContextId, definition)
-      importedSchemaId.current = revision.extractionSchemaId
+    async confirmDefinition(definition, workbookName) {
+      await createExtractionSchema(projectContextId, definition, defaultSchemaName(workbookName))
+      setSchemaRetry((attempt) => attempt + 1)
+      refreshProjects()
     },
-  }
-
-  async function nameImportedSchema(workbookName: string) {
-    const extractionSchemaId = importedSchemaId.current
-    importedSchemaId.current = null
-    // Named after the workbook as a generated schema is after its document;
-    // a refused name leaves the default, which can still be renamed inline.
-    if (extractionSchemaId)
-      await renameExtractionSchema(
-        projectContextId,
-        extractionSchemaId,
-        defaultSchemaName(workbookName),
-        undefined,
-        'Extraction Template',
-      ).catch(() => null)
-    setSchemaRetry((attempt) => attempt + 1)
-    refreshProjects()
   }
 
   const spreadsheetShown =
@@ -1511,7 +1492,6 @@ export default function ProjectContextPage({
                 disabled={false}
                 open={codebookOpen}
                 onClose={() => setCodebookOpen(false)}
-                onImported={(workbookName) => void nameImportedSchema(workbookName)}
               />
             </section>
 
@@ -1689,9 +1669,6 @@ export default function ProjectContextPage({
           open={tab === 'extractions'}
           onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'extractions' : 'sources' })}
         >
-          <>
-          {/* Hidden for now: "Corrections the model learns from". Restore with the import above.
-          <ProjectFeedback projectId={projectContextId}/> */}
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
             // continuation of what this panel currently shows.
@@ -1717,7 +1694,6 @@ export default function ProjectContextPage({
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
           />
-          </>
         </ProjectSection>
       </div>
 

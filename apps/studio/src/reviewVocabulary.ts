@@ -1,4 +1,4 @@
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import type { SchemaNode } from 'extraction/schema'
 
 /** A researcher's decision on a value, as the rail shows it. */
@@ -44,8 +44,8 @@ export type RailRow = {
   /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
   disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
   page: number | null
-  /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
-  retained?: { reviewable: boolean; source?: string; attribution?: string }
+  /** Retained values can be reviewed without a model Evidence link. */
+  retained?: { reviewable: boolean; attribution?: string }
 }
 
 export type RailRecord = {

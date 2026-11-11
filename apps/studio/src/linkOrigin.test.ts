@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import { sourceEvidenceLinks } from './evidenceNavigation'
 import { linkOrigin } from './linkOrigin'
 import { evidenceCheck } from './reviewVocabulary'

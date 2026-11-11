@@ -564,3 +564,6 @@ export async function collectDeletedDurableGraphs(statuses:(ids:readonly string[
   }
   return removed
 }
+
+/** The successful write acknowledgement; its id names the correction, not the value. */
+export type DurableCorrectionReceipt = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['saveCorrection']>>

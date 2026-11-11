@@ -16,6 +16,7 @@ it('preview and cancel save nothing; explicit confirmation keeps renamed IDs and
     stabilisedAt: null }))
   const schema = createSchemaEditorController(durableSchemaPersistence({ projectContextId: 'project', initial: null,
     initialize, append: vi.fn(), listRevisions: async () => [], getRevision: vi.fn() }))
+  const confirm = vi.spyOn(schema, 'confirmDefinition')
   const column = { id: 'stable-import-id', column: 1, name: 'filename', type: 'string', include: true,
     examples: ['0012'], kinds: ['text'], choices: ['A', 'B'], suggestedType: 'string' }
   authenticatedFetch.mockImplementation(async (_url: string) => Response.json({ worksheets: ['Codebook'],
@@ -51,6 +52,7 @@ it('preview and cancel save nothing; explicit confirmation keeps renamed IDs and
     schemaNodes: [{ id: column.id, name: 'identifier', type: 'string' }] })
   await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
   expect(onImported).toHaveBeenCalledOnce()
+  expect(confirm).toHaveBeenCalledWith(initialize.mock.calls[0]![0], 'codebook.xlsx')
   expect(schema.snapshot().extractableSchemaRevisionId).toBe('revision')
   schema.dispose()
 })

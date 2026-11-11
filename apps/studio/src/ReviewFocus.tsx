@@ -20,27 +20,20 @@ function QueueGlyph({ row }: { row: RailRow }) {
   }
 }
 
-export type EndCard =
-  | { kind: 'record'; label: string; line: string; next: { index: number } | null }
-  | { kind: 'caught-up'; line: string; next: { index: number } | null }
-  | { kind: 'saved'; line: string }
-
 /**
  * One by one: the same rail as a card for the current value, its record's queue,
- * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card.
+ * its Evidence, the decision and what comes next.
  */
-export default function ReviewFocus({ article, items, position, current, recordLabel, label, editing, node, upNext, end,
-  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit, pick, locked = false }: {
+export default function ReviewFocus({ article, items, position, current, recordLabel, editing, node, upNext,
+  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onTypedEdit, pick, locked = false }: {
   article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
-  current: RailRow | null
+  current: RailRow
   recordLabel: string
-  label: string
   editing: boolean
   node: SchemaNode | null
   upNext: readonly QueueItem[]
-  end: EndCard | null
   headingRef: Ref<HTMLHeadingElement>
   onDecide: (action: ReviewAction, value?: unknown) => void
   onChoose?: (choices: { path: string[]; value: unknown }[]) => void
@@ -50,35 +43,14 @@ export default function ReviewFocus({ article, items, position, current, recordL
   onNext: () => void
   onPrevious: () => void
   onGo: (key: string) => void
-  onContinue: (index: number) => void
-  onBack: () => void
   onTypedEdit?: (value: unknown) => void
   /** The open value's parts, each pickable to show only its Evidence. */
   pick?: PartPick
   /** A decision is saving or the review is a saved one: decisions and moves wait, picking a part never does. */
   locked?: boolean
 }) {
-  if (end || !current) {
-    const card = end ?? { kind: 'caught-up' as const, line: '', next: null }
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-4 py-6 text-center">
-        <ApprovedGlyph className="size-10! text-green" />
-        <h2 ref={headingRef} tabIndex={-1} className="m-0 text-content font-bold text-ink outline-none">
-          {card.kind === 'saved' ? 'Review saved' : card.kind === 'record' ? `${article ? 'Document' : card.label} is checked` : 'You’re caught up'}
-        </h2>
-        {card.line && <p className="m-0 max-w-75 text-secondary text-ink-muted">{card.line}</p>}
-        <div className="flex flex-wrap justify-center gap-2">
-          {card.kind !== 'saved' && card.next && (
-            <Button variant="outline-positive" size="md" onClick={() => onContinue(card.next!.index)}>{article ? 'Continue checking' : `Continue with record ${card.next.index + 1}`}</Button>
-          )}
-          {!article && card.kind === 'record' && !card.next && <Button variant="outline-positive" size="md" disabled>Continue with record</Button>}
-          <Button size="md" onClick={onBack}>Back to list</Button>
-        </div>
-      </div>
-    )
-  }
   const decided = current.kind !== 'to-check'
-  const trail = article ? fieldWords(current.name) : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${fieldWords(current.name)}`
+  const trail = article ? fieldWords(current.name) : `${recordLabel} › ${fieldWords(current.name)}`
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">

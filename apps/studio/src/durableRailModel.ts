@@ -1,7 +1,7 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import type { DurableState } from './durableExtractionApi'
@@ -92,9 +92,6 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
   const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
   const origin = link ? linkOrigin(link) : null
-  // A linked scalar keeps the shared row's own words ("p.{n} · Verifier-supported"), also while the run goes on.
-  const source = disagreement ? 'Readings differ · not checked' : link ? !part && (value.node.type === 'array' || value.node.type === 'object') ? 'Evidence links parts of this value' : undefined
-    : value.grounding === 'provisional' ? 'Evidence is still being checked' : 'No Evidence linked'
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
@@ -111,7 +108,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
       detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'
         : value.processing === 'absent' ? 'No value was extracted.' : 'It can be reviewed once the run saves it.'} : null,
     doubt, changed: false, disagreement, page,
-    retained: {reviewable: value.processing === 'saved', source,
+    retained: {reviewable: value.processing === 'saved',
       attribution: value.historicalCorrection ? 'An earlier correction does not fit this value; it stays saved.' : undefined},
   }
 }

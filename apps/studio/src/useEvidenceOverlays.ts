@@ -4,7 +4,7 @@ import type {
   ParsedDocument,
   ParsedEvidenceAnchor,
 } from 'extraction/parsed-document'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import {
   anchorOccurrences,
   type EvidenceOccurrence,

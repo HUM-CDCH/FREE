@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appendSchemaRevision,
+  createExtractionSchema,
   getSchemaRevision,
   initializeSchemaRevision,
   listExtractionSchemas,
@@ -115,6 +116,18 @@ describe('template revision client', () => {
       fetch.mock.calls.every(([, init]) => init.credentials === 'same-origin'),
     ).toBe(true)
     expect(fetch.mock.calls[3][1]).toMatchObject({ method: 'POST' })
+  })
+
+  it('sends the initial import name in creation and omits an unspecified name', async () => {
+    const fetch = vi.fn().mockImplementation(async () => Response.json({ revision }, { status: 201 }))
+    vi.stubGlobal('fetch', fetch)
+    await createExtractionSchema(PROJECT, definition, 'Workbook')
+    await createExtractionSchema(PROJECT, definition)
+    expect(fetch.mock.calls.map(([url, init]) => [url, init.method, JSON.parse(init.body)]))
+      .toEqual([
+        ['/api/extraction-schemas', 'POST', { projectContextId: PROJECT, ...definition, name: 'Workbook' }],
+        ['/api/extraction-schemas', 'POST', { projectContextId: PROJECT, ...definition }],
+      ])
   })
 
   it('writes a revision’s source declaration only when the write names one', async () => {
