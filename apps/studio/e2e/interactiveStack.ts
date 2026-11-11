@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import type { RecordScope } from 'extraction/schema'
 import { createCanonicalPackageStore, packCanonicalPackage } from '../../../packages/db/src/artifact-store.js'
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
@@ -66,7 +67,7 @@ export type InteractiveDocument = {
  */
 export async function prepareInteractiveDocument(
   page: Page,
-  options: { hasKey: boolean; key?: string; schema?: 'seeded' | 'none'; sourceDocument?: ParsedDocument },
+  options: { hasKey: boolean; key?: string; schema?: 'seeded' | 'none'; sourceDocument?: ParsedDocument; recordScope?: RecordScope | null },
 ): Promise<InteractiveDocument> {
   const model = await startScriptedModelServer()
   const accountId = randomUUID()
@@ -120,7 +121,7 @@ export async function prepareInteractiveDocument(
       revisionNumber: 1,
       origin: 'RESEARCHER_EDIT',
       schemaTree: { recordDescription: 'One interactive record.', schemaNodes: INTERACTIVE_SCHEMA_NODES },
-      recordScope: 'document',
+      recordScope: options.recordScope === undefined ? 'document' : options.recordScope,
     })
   }
 
@@ -140,7 +141,7 @@ export async function prepareInteractiveDocument(
       // The rail lands on the chat (ADR 0026), whose Template line counts the current template's fields once it loads
       // (a spec may have saved a later revision than the seeded one).
       if (extractionSchemaId) await expect(workspaceRail(target).getByRole('button', {
-        name: /^Open template: [1-9]\d* fields? · (Article|Catalog)$/,
+        name: /^Open template: [1-9]\d* fields?( · (Article|Catalog))?$/,
       })).toBeVisible({ timeout: 20_000 })
     },
     async schemaRevisions() {

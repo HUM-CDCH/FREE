@@ -461,6 +461,7 @@ test('the record description grows with its text, and the code view scrolls long
   await openSchema(page)
   await resizeRail(page, 264)
   // §5: two rows at rest, growing with its wrapped text (not only its line breaks) to six, without hiding any of it.
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
     ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
@@ -473,6 +474,7 @@ test('the record description grows with its text, and the code view scrolls long
   expect(grown.hidden).toBe(false)
   await description.fill('One grave. '.repeat(60))
   expect((await fit()).rows).toBe(6)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('button', { name: 'Code', exact: true }).click()
   const code = rail(page).locator('pre')
   const reading = await code.evaluate((element) => ({
@@ -492,6 +494,13 @@ test('the record description grows with its text, and the code view scrolls long
   expect(editing).toEqual({ overflowX: 'auto', whiteSpace: 'pre', scrolls: true })
   for (const name of ['Save', 'Cancel'])
     expect((await rail(page).getByRole('button', { name, exact: true }).boundingBox())!.height, name).toBeGreaterThanOrEqual(24)
+  const input = await editor.inputValue()
+  await editor.fill(input + ' ')
+  await editor.press('Escape')
+  await expect(editor).toBeVisible()
+  await expect(editor).toHaveValue(input + ' ')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Template actions' })).toBeFocused()
   const panel = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(panel[0]).toBeLessThanOrEqual(panel[1]!)
 })
@@ -501,6 +510,7 @@ test('the record description re-measures its rows when the rail is resized or th
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
     ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
@@ -515,6 +525,10 @@ test('the record description re-measures its rows when the rail is resized or th
   expect(narrow.hidden, 'narrowed: no text hidden').toBe(false)
   await resizeRail(page, 344)
   await expect.poll(async () => (await fit()).rows, 'widened: back to its rows').toBe(wide)
+  await expect(page.getByRole('combobox', { name: 'Record scope' })).toBeDisabled()
+  await rail(page).getByRole('button', { name: 'Back to chat' }).click()
+  await expect(rail(page).getByRole('button', { name: 'Extract this document', exact: true })).toBeDisabled()
+  await expect(rail(page).getByRole('button', { name: 'Generate the template again from the document', exact: true })).toBeDisabled()
   // Narrowed while the Schema view is hidden: measured once it shows again.
   await openRailView(page, 'Results')
   await resizeRail(page, 264)
@@ -552,6 +566,71 @@ test('a history preview at 264px reads across the panel, its commands beneath an
   }
   const overflow = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(overflow[0]).toBeLessThanOrEqual(overflow[1]!)
+  const code = rail(page).getByRole('button', { name: 'Code', exact: true })
+  await expect(code, 'History shares the panel presentation selector').toHaveCount(1)
+  await code.click()
+  await expect(rail(page).locator('pre')).toContainText('One excavation report.')
+  await expect(rail(page).getByRole('list', { name: 'Template fields' })).toHaveCount(0)
+  await rail(page).getByRole('button', { name: 'Fields', exact: true }).click()
+  await expect(rail(page).getByRole('listitem', { name: 'title', exact: true })).toBeVisible()
+})
+
+test('the workspace refuses a project pilot while its description input is unfinished @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  let admissions = 0
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/batch-extractions')) admissions += 1
+  })
+  await openSchema(page)
+  await page.getByRole('button', { name: 'Edit description', exact: true }).click()
+  await page.getByLabel('What one record is').fill('Unfinished description to retain.')
+  await rail(page).getByRole('button', { name: 'Back to chat' }).click()
+  await rail(page).getByRole('button', { name: 'Run pilot on 1 document', exact: true }).click()
+  await expect(rail(page).getByRole('alert')).toContainText('Save or Cancel the open edit first.')
+  expect(admissions).toBe(0)
+  await openRailView(page, 'Template')
+  await expect(page.getByLabel('What one record is')).toHaveValue('Unfinished description to retain.')
+})
+
+test('Move chooses one parent and position at the minimum rail width @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await resizeRail(page, 264)
+  const order = () => page.getByRole('list', { name: 'Template fields' }).getByRole('listitem').evaluateAll(
+    elements => elements.map(element => element.getAttribute('aria-label')),
+  )
+  for (const [position, expected] of [
+    ['Before title', ['sex', 'title', 'archaeological_context', 'findings', 'kind', 'deposit', 'layer']],
+    ['Before findings', rows],
+  ] as const) {
+    await page.getByRole('button', { name: 'Move sex', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Move field', exact: true })
+    await expect(dialog).toHaveCount(1)
+    await dialog.getByLabel('Destination parent').selectOption({ label: 'Root' })
+    await dialog.getByLabel('Insertion position').selectOption({ label: position })
+    await dialog.getByRole('button', { name: 'Move', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    await expect.poll(order).toEqual(expected)
+  }
+})
+
+test('batch preparation blocks Strategy and Run while an edit is unfinished @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await loginResearcher(page, id.object)
+  await page.goto(`/projects/${id.project}/extractions`)
+  await page.getByRole('button', { name: 'Custom Batch Extraction', exact: true }).click()
+  const strategy = page.getByRole('combobox', { name: 'Batch extraction strategy', exact: true })
+  const run = page.getByRole('button', { name: 'Run 1 Source Document', exact: true })
+  await expect(strategy).toBeEnabled()
+  await expect(run).toBeEnabled()
+  const editor = page.getByRole('region', { name: 'Extraction Template fields', exact: true })
+  await editor.getByRole('button', { name: 'Edit description', exact: true }).click()
+  await expect(strategy).toBeDisabled()
+  await expect(run).toBeDisabled()
+  await expect(strategy).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(strategy).toBeEnabled()
+  await expect(run).toBeEnabled()
 })
 
 test('the Undo toast sits clear of the composer and the footer at 344px and 264px @deterministic', async ({ page }) => {
@@ -626,7 +705,7 @@ async function dragAbove(page: Page, name: string, above: string, rest: RowGeome
     expect(row.actions!.visibility, `264px, ${name}'s grip pressed: ${row.name}'s actions hidden`).toBe('hidden')
     expect(row.actions!.inert, `264px, ${name}'s grip pressed: ${row.name}'s actions inert`).toBe(true)
   }
-  await expect(page.getByRole('button', { name: /^(Edit|Add note to|Delete) / }), 'no row action is in the accessibility tree during a drag')
+  await expect(page.getByRole('list', { name: 'Template fields' }).getByRole('button', { name: /^(Edit|Add note to|Delete) / }), 'no row action is in the accessibility tree during a drag')
     .toHaveCount(0)
   const targetY = slot.y + slot.height / 2
   const startY = grip.y + grip.height / 2

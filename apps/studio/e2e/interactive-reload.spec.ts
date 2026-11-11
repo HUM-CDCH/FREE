@@ -47,9 +47,10 @@ async function requestEdit(page: Page, instruction: string) {
 
 /** Edits the record description, which the workspace saves as a new revision after its debounce. */
 async function describeRecord(page: Page, text: string) {
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   await description.fill(text)
-  await description.blur()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
 }
 
 const revisionCount = () => stack!.schemaRevisions().then((revisions) => revisions.length)
@@ -65,10 +66,9 @@ test('a scalar note edited through template chat is reviewed, saved and retained
 
   await title.hover()
   await title.getByRole('button', { name: 'Add note to title', exact: true }).click()
-  const noteInput = page.getByPlaceholder('Describe this field for the extraction model…')
+  const noteInput = page.getByRole('textbox', { name: 'Field notes' })
   await noteInput.fill(oldNote)
-  await noteInput.press('Enter')
-  await page.getByPlaceholder('Add another note…').press('Escape')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(title.getByText(oldNote, { exact: true })).toBeVisible()
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
   stack.model.reply({ text: JSON.stringify({
@@ -158,14 +158,14 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toHaveCount(0, { timeout: 20_000 })
   await openRailView(page, 'Template')
   // The generation's base moved: it is dropped, the page adopts the newer revision and shows no error.
-  await expect(page.getByLabel('What one record is')).toHaveValue('One edited record.', { timeout: 20_000 })
+  await expect(page.getByText('One edited record.', { exact: true })).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(3_000)
   expect(await revisionCount()).toBe(2)
   await expect(page.getByText('heading', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
-test('a surviving tab keeps saving through its acknowledged head, including edits during generation @deterministic', async ({ page }) => {
+test('a surviving tab keeps saving and refuses a generation whose input changed @deterministic', async ({ page }) => {
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
@@ -179,10 +179,14 @@ test('a surviving tab keeps saving through its acknowledged head, including edit
 
   stack.model.release()
 
-  await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('alert')).toContainText('The template changed during generation.')
+  await expect(page.getByText('One edited record.', { exact: true })).toBeVisible()
+  expect(await revisionCount()).toBe(2)
+  await expect(page.getByText('heading', { exact: true })).toHaveCount(0)
+  await describeRecord(page, 'Another edited record.')
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
   await expect(page.getByText('The Current Template Revision changed elsewhere.')).toHaveCount(0)
-  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByText('Another edited record.', { exact: true })).toBeVisible()
 })
 
 test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists across another reload @deterministic', async ({ page }) => {

@@ -347,6 +347,8 @@ async function expectBatchRunClearOfSession(page: Page): Promise<void> {
   const run = panel(page).getByRole('button', {
     name: 'Run 2 Source Documents',
   })
+  // The loading Run is replaced by PreparedTemplate once its revision and settings arrive.
+  await expect(run).toBeEnabled()
   await run.scrollIntoViewIfNeeded()
   const scrollRegion = page
     .getByRole('region', { name: 'Project' })

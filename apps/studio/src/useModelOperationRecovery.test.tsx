@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SchemaNode } from 'extraction/schema'
 import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
-import { createSchemaEditorController, durableSchemaPersistence, localSchemaPersistence } from './currentSchemaRevision'
+import { createSchemaEditorController, durableSchemaPersistence } from './currentSchemaRevision'
 import { useModelOperationRecovery } from './useModelOperationRecovery'
 import type { SchemaProposalReview } from './useSchemaProposalReview'
 
@@ -41,7 +40,6 @@ function proposal(n: number, status: ModelOperation['status'], over: Partial<Pro
 }
 const KEY_MISSING = { code: 'model_key_required', message: 'Send the key.' }
 
-const nodes: SchemaNode[] = [{ id: 'title', name: 'title', type: 'string' }]
 const revision = (revisionNumber: number, name: string): SchemaRevision => ({
   schemaRevisionId: revisionNumber === 1 ? R1 : revisionNumber === 2 ? R2 : `rev-${revisionNumber}`,
   extractionSchemaId: 'schema-1', revisionNumber, origin: 'researcher-edit', createdAt: '2026-08-01T12:00:00.000Z',
@@ -283,12 +281,13 @@ describe('useModelOperationRecovery', () => {
     expect(hook.result.current.running).toEqual([running])
   })
 
-  it('local drafts list nothing', async () => {
-    const stub = stubFetch([[generation(1, 'RUNNING')]])
-    const schema = createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }), { initialDraft: { recordDescription: 'One record.', schemaNodes: nodes } })
-    renderRecovery(schema)
-    await tick(5_000)
-    expect(stub.requests).toEqual([])
+  it('a durable editor before its first revision recovers project operations without a schema identity', async () => {
+    const running = generation(1, 'RUNNING', { baseSchemaRevisionId: null })
+    const stub = stubFetch([[running]])
+    const { hook } = renderRecovery(durableSchema(null).schema)
+    await tick(0)
+    expect(stub.requests[0]).toBe('GET /api/model-operations?projectContextId=51000000-0000-4000-8000-000000000001')
+    expect(hook.result.current.running).toEqual([running])
   })
 
   it('stop cancels the operation on the server', async () => {

@@ -240,18 +240,16 @@ function RightRail({
   // Each workflow line's own action, reachable whatever step the chat is on: (re)generating the template, or (re)running
   // this document's extraction. What blocks one is said on it.
   const readOnly = inspection.readOnly
-  const [regenerating, setRegenerating] = useState(false)
+  const [regenerating, setRegenerating] = useState<number | null>(null)
   const generateAction: WorkflowAction | null = !onGenerateInstructions || readOnly ? null
     : schemaSnap.generating
       ? { label: 'Stop', name: 'Stop the template generation', tone: 'danger', disabled: false, reason: null, run: () => schema.cancelGeneration() }
       : (() => {
-          const reason = chat.asking !== null || chat.loading ? 'wait for the reply'
-            : chat.proposalReview.pending ? 'apply or discard the proposed changes first'
-              : schemaSnap.historicalPreview !== null ? 'leave the History preview first' : null
+          const reason = schemaSnap.useBlockedReason ?? (chat.asking !== null || chat.loading ? 'wait for the reply' : null)
           return schemaReady
             // Generating again asks first, as the Template view's Regenerate does.
             ? { label: <AgainIcon />, name: 'Generate the template again from the document', tone: 'secondary', disabled: reason !== null, reason,
-                run: () => setRegenerating(true) }
+                run: () => setRegenerating(schemaSnap.replacementVersion) }
             : { label: 'Generate', name: 'Generate the template from the document', tone: 'positive', disabled: reason !== null, reason,
                 run: () => onGenerateInstructions(chat.instructions.text) }
         })()
@@ -357,7 +355,9 @@ function RightRail({
           onRenameSchema={onRenameSchema}
           recordScope={recordScope}
           boundaries={boundaries}
-          chat={chat}
+          proposalReview={chat.proposalReview}
+          revealed={chat.revealed}
+          onRegenerate={() => setRegenerating(schemaSnap.replacementVersion)}
         />
       </div>
       <div id="rail-panel-results" role="region" aria-label="Results" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'results'}>
@@ -425,9 +425,9 @@ function RightRail({
         onShowView={onViewChange}
         mode={activeView === 'chat' ? 'full' : 'step'}
       />
-      {regenerating && onGenerateInstructions && schemaReady && (
+      {regenerating === schemaSnap.replacementVersion && onGenerateInstructions && schemaReady && (
         <RegenerateDialog instructions={chat.instructions} nodes={schemaSnap.draft!.schemaNodes} generating={schemaSnap.generating}
-          onCancel={() => setRegenerating(false)} onRegenerate={onGenerateInstructions} />
+          onCancel={() => setRegenerating(null)} onRegenerate={onGenerateInstructions} />
       )}
     </div>
     </>

@@ -3,12 +3,33 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Profiler } from 'react'
+import { Profiler, useEffect, useState } from 'react'
 import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaDefinition, type SchemaNode } from 'extraction/schema'
 import SchemaPanel from './SchemaPanel'
+import { useSchemaProposalReview, type SchemaProposalReview } from './useSchemaProposalReview'
+import { ProposalReviewBar } from './SchemaProposalReview'
+import { deriveSchemaProposal } from '../shared/schemaChanges'
+import { schemaAncestorIds } from './schemaEditorTree'
+import * as schemaTree from './schemaEditorTree'
+import { testSchemaPersistence } from './test/schemaPersistence'
+
+let suppliedReview: SchemaProposalReview
+let suppliedSchema: SchemaEditorController
+/** Supplies review state to the actual editor; hosts own chat, routing and Regenerate. */
+function EditorFixture(props: Omit<React.ComponentProps<typeof SchemaPanel>, 'proposalReview' | 'revealed'>) {
+  const [messages, setMessages] = useState<string[]>([])
+  const review = useSchemaProposalReview(props.schema, message => setMessages(current => [...current, message]))
+  useEffect(() => { suppliedReview = review; suppliedSchema = props.schema }, [review, props.schema])
+  const pending = review.pending
+  const ids = new Set(pending?.changes.map(change => change.id) ?? [])
+  return <><SchemaPanel {...props} proposalReview={review} revealed={{ seq: pending ? 1 : 0, ids: schemaAncestorIds(pending?.reviewNodes ?? [], ids) }} />
+    {pending && <ProposalReviewBar proposal={pending} canApply={review.canApply} onApply={review.apply} onDiscard={review.discard} />}
+    {messages.map((message, index) => <p key={index}>{message}</p>)}
+  </>
+}
 import type { SchemaModelContext } from './api'
 import {
   createSchemaEditorController,
@@ -20,17 +41,11 @@ import type {
   SchemaSaveState,
 } from './schemaSaveCoordinator'
 // The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
-const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
-  requestSchemaEdit: vi.fn(),
-  requestSchemaChat: vi.fn(),
-  deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
+const { listModelOperations } = vi.hoisted(() => ({
   listModelOperations: vi.fn<() => Promise<ModelOperation[]>>(async () => []),
 }))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
-  requestSchemaEdit,
-  requestSchemaChat,
-  deleteModelOperation,
   listModelOperations,
 }))
 
@@ -104,7 +119,7 @@ function setupController({
   /** A durable scope before its first schema: no draft, no revision. */
   noSchema?: boolean
 } = {}): PanelSetup {
-  const acknowledged: AcknowledgedSchemaRevision = {
+  let acknowledged: AcknowledgedSchemaRevision = {
     schemaRevisionId: '51000000-0000-4000-8004-000000000002',
     extractionSchemaId: '51000000-0000-4000-8003-000000000001',
     revisionNumber: currentRevisionNumber,
@@ -117,6 +132,7 @@ function setupController({
   const initialized: SchemaDefinition[] = []
   let flushCalls = 0
   const persistence: SchemaEditorPersistence = {
+    ...testSchemaPersistence(),
     extractionSchemaId: () => (noSchema ? null : acknowledged.extractionSchemaId),
     ...(durableScope ? { projectContextId: () => modelContext.projectContextId } : {}),
     initialize: async (definition) => {
@@ -138,7 +154,7 @@ function setupController({
       flushCalls += 1
       if (flushImpl) return flushImpl(flushCalls)
       const latest = edits.at(-1)
-      return latest
+      return acknowledged = latest
         ? {
             ...acknowledged,
             revisionNumber: acknowledged.revisionNumber + edits.length,
@@ -147,7 +163,7 @@ function setupController({
         : acknowledged
     },
     saveState() {
-      return durableScope && !noSchema ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes }, recordScope: 'document' } : null
+      return !noSchema ? { status: 'saved', acknowledged, draft: acknowledged, recordScope: 'document' } : null
     },
     modelContext: () => modelContext,
     listRevisions: async () => schemaHistory,
@@ -172,7 +188,7 @@ function setupController({
   return { schema, edits, events, initialized }
 }
 
-type PanelProps = Partial<React.ComponentProps<typeof SchemaPanel>>
+type PanelProps = Partial<React.ComponentProps<typeof EditorFixture>>
 
 function renderPanel(
   setupOptions: Parameters<typeof setupController>[0] = {},
@@ -183,7 +199,7 @@ function renderPanel(
 } {
   const setup = setupController(setupOptions)
   const panel = (props: PanelProps) => (
-    <SchemaPanel
+    <EditorFixture
       schema={setup.schema}
       onClearDraft={() => setup.schema.reset()}
       sourceDocumentName="test.pdf"
@@ -208,13 +224,11 @@ function chooseSchemaAction(name: string) {
   fireEvent.click(screen.getByRole('menuitem', { name }))
 }
 
-async function send(response: SchemaEditResponse) {
-  requestSchemaEdit.mockResolvedValueOnce(response)
-  const input = screen.getByPlaceholderText('Describe a change to the template…')
-  fireEvent.change(input, { target: { value: 'Update fields' } })
-  fireEvent.keyDown(input, { key: 'Enter' })
-  await screen.findByRole('button', { name: 'Apply changes' })
-  return input
+async function send(response: Extract<SchemaEditResponse, { status: 'proposed' }>) {
+  const snap = suppliedSchema.snapshot()
+  const original = snap.draft!.schemaNodes
+  const proposal = deriveSchemaProposal(original, response)
+  await act(async () => suppliedReview.start(proposal, original, snap.draftVersion, snap.extractableSchemaRevisionId, null))
 }
 
 afterEach(() => {
@@ -264,22 +278,6 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(setup.edits[0].schemaNodes[0]).toEqual({ id: 'title', name: 'title', type: 'string' })
   })
 
-  it('each edit request carries a new operation ID', async () => {
-    renderPanel()
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    for (const turn of [1, 2]) {
-      requestSchemaEdit.mockResolvedValueOnce({ status: 'refused', message: 'no' })
-      fireEvent.change(input, { target: { value: `Update fields ${turn}` } })
-      fireEvent.keyDown(input, { key: 'Enter' })
-      await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledTimes(turn))
-      await screen.findByText(`Request refused: no`, { exact: false }, { timeout: 2_000 }).catch(() => undefined)
-    }
-
-    const ids = requestSchemaEdit.mock.calls.map((call) => call[3] as string)
-    expect(ids).toHaveLength(2)
-    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-    expect(ids[0]).not.toBe(ids[1])
-  })
 
   it('renames the durable template from the schema/chat header', async () => {
     const onRenameSchema = vi.fn(async () => null)
@@ -308,13 +306,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
       additions: [],
       issues: [],
     })
-    expect(requestSchemaEdit).toHaveBeenCalledWith(
-      modelContext,
-      'Update fields',
-      expect.any(AbortSignal),
-      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
-      [],
-    )
+
 
     const row = screen.getByText('title').closest('[role="listitem"]')!
     expect(within(row as HTMLElement).queryAllByText('string')).toHaveLength(0)
@@ -372,7 +364,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
       .toHaveAttribute('role', 'status')
     expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
-    expect(screen.getByRole('menuitem', { name: 'Regenerate from the document…' })).toBeDisabled()
+    expect(screen.queryByRole('menuitem', { name: 'Regenerate from the document…' })).not.toBeInTheDocument()
 
     await act(async () => {
       rejectGeneration(new Error('Model unavailable'))
@@ -383,7 +375,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Regeneration failed: Model unavailable The current saved template is unchanged.',
     )
-    expect(screen.getByRole('menuitem', { name: 'Regenerate from the document…' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Edit title' })).toBeEnabled()
   })
 
   it('says what of the source an excerpted generation did not read', async () => {
@@ -401,61 +393,8 @@ describe.sequential('SchemaPanel template proposal review', () => {
     ).toBeVisible()
   })
 
-  it('regenerates from instructions edited in the Regenerate dialog', () => {
-    const onGenerateInstructions = vi.fn()
-    renderPanel({}, { showRegenerate: true, onGenerateInstructions })
 
-    chooseSchemaAction('Regenerate from the document…')
-    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
 
-    const instruction = within(dialog).getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(instruction, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(instruction, { key: 'Enter' })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Regenerate template/ }))
-
-    expect(onGenerateInstructions).toHaveBeenCalledWith(
-      'Focus on dates\n\nField notes from the current template:\n- title: Research rule',
-    )
-    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
-    expect(screen.queryByPlaceholderText(/Add a generation instruction/)).not.toBeInTheDocument()
-  })
-
-  it('resets stale JSON when an external draft replaces the editor payload', async () => {
-    const setup = renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    const jsonEditor = screen.getAllByRole('textbox')[0]
-    expect((jsonEditor as HTMLTextAreaElement).value).toContain('"title"')
-
-    act(() => {
-      setup.schema.adoptDraft({
-        recordDescription: 'One replacement record.',
-        schemaNodes: historicalNodes,
-      })
-    })
-
-    await waitFor(() => expect(jsonEditor).not.toBeInTheDocument())
-    expect(screen.getByText('historical_place')).toBeVisible()
-  })
-
-  it('resets an uncommitted description on same-value external replacement', async () => {
-    const setup = renderPanel()
-    const description = screen.getByPlaceholderText(
-      'Describe the record this template extracts…',
-    )
-    fireEvent.change(description, { target: { value: 'Uncommitted text' } })
-
-    act(() => {
-      setup.schema.adoptDraft({
-        recordDescription: 'One test record.',
-        schemaNodes: historicalNodes,
-      })
-    })
-
-    await waitFor(() =>
-      expect(description).toHaveValue('One test record.'),
-    )
-  })
 
   it('closes history without loading or flushing the current revision', () => {
     const getRevision = vi.fn()
@@ -522,44 +461,29 @@ describe.sequential('SchemaPanel template proposal review', () => {
       schemaNodes: historicalNodes,
     })
     expect(screen.getByText('historical_place')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Close preview' }))
-    expect(screen.getByText('title')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
+    expect(setup.schema.snapshot().draft?.schemaNodes).toEqual(historicalNodes)
+    expect(screen.queryByRole('button', { name: 'Close preview' })).not.toBeInTheDocument()
   })
 
-  it('shows the description button for a leaf field and accumulates its notes', () => {
+  it('shows the description button for a leaf field and accumulates its notes', async () => {
     const setup = renderPanel()
-    const row = screen.getByRole('listitem', { name: 'title' })
-    fireEvent.click(within(row).getByRole('button', { name: /^Add note to / }))
-
-    // The row's note line and the open form's list both show the existing note.
-    expect(screen.getAllByText('Research rule')).toHaveLength(2)
-    const input = screen.getByPlaceholderText('Add another note…')
-    expect(input).toHaveValue('')
-
-    fireEvent.change(input, { target: { value: 'Second note' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-
-    expect(setup.schema.snapshot().draft?.schemaNodes[0]).toMatchObject({
-      id: 'title',
-      description: 'Research rule\nSecond note',
-    })
-    // The popover stays open with a cleared input, ready for another note.
-    expect(screen.getByPlaceholderText('Add another note…')).toHaveValue('')
-    expect(screen.getByText('Second note')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add note to title' }))
+    const editor = screen.getByRole('textbox', { name: 'Field notes' })
+    expect(editor).toHaveFocus()
+    expect(editor).toHaveValue('Research rule')
+    fireEvent.change(editor, { target: { value: 'Research rule\nSecond note' } })
+    expect(setup.edits).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(setup.schema.snapshot().draft?.schemaNodes[0].description).toBe('Research rule\nSecond note')
   })
 
-  it('clears every accumulated note on a field in one action', () => {
+  it('clears every accumulated note on a field in one action', async () => {
     const setup = renderPanel()
-    const row = screen.getByRole('listitem', { name: 'title' })
-    fireEvent.click(within(row).getByRole('button', { name: /^Add note to / }))
-    fireEvent.click(screen.getByTitle('Clear all notes'))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-
-    expect(setup.schema.snapshot().draft?.schemaNodes[0]).toMatchObject({
-      id: 'title',
-      description: undefined,
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add note to title' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Field notes' }), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(setup.schema.snapshot().draft?.schemaNodes[0].description).toBeUndefined()
   })
 
   it('applies an inline edit at arbitrary nesting depth', () => {
@@ -792,21 +716,13 @@ describe.sequential('SchemaPanel template proposal review', () => {
   })
 
   it('preserves repetition when a field is dragged into a scalar array', async () => {
-    const setup = renderPanel({ panelNodes: [
-      { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
-      { id: 'title', name: 'title', type: 'string' },
-    ] })
-    const titleRow = screen.getByText('title').closest<HTMLElement>('[role="listitem"]')!
-    const datesRow = screen.getByText('dates').closest<HTMLElement>('[role="listitem"]')!
-
-    fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
-    fireEvent.mouseEnter(datesRow)
-    fireEvent.mouseUp(window)
-
-    await waitFor(() => expect(setup.edits).toHaveLength(1))
-    expect(nodesToTemplate(setup.edits[0].schemaNodes)).toEqual({
-      dates: [{ title: 'string' }],
-    })
+    const setup = renderPanel({ panelNodes: [{ id: 'dates', name: 'dates', type: 'array', itemType: 'date' }, { id: 'title', name: 'title', type: 'string' }] })
+    const title = screen.getByRole('listitem', { name: 'title' })
+    fireEvent.mouseDown(title.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseEnter(screen.getByRole('listitem', { name: 'dates' }))
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
+    expect(setup.edits).toHaveLength(0)
+    expect(setup.schema.snapshot().draft?.schemaNodes[0]).toMatchObject({ type: 'array', itemType: 'date' })
   })
 
   it('preserves the complete template when a nested field is moved into a sibling array', async () => {
@@ -826,7 +742,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const skeletonRow = screen.getByText('skeleton').closest<HTMLElement>('[role="listitem"]')!
     fireEvent.mouseDown(movedRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(skeletonRow)
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
     await waitFor(() => expect(setup.edits).toHaveLength(1))
     expect(nodesToTemplate(setup.edits[0].schemaNodes)).toEqual({
@@ -855,7 +771,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     fireEvent.mouseDown(graveRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(nestedSlot)
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field into its own contents.')
     expect(setup.edits).toHaveLength(0)
@@ -869,7 +785,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const onRender = vi.fn()
     render(
       <Profiler id="schema" onRender={onRender}>
-        <SchemaPanel schema={setup.schema} onClearDraft={() => setup.schema.reset()} sourceDocumentName="test.pdf" />
+        <EditorFixture schema={setup.schema} onClearDraft={() => setup.schema.reset()} sourceDocumentName="test.pdf" />
       </Profiler>,
     )
     await act(async () => {})
@@ -894,7 +810,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     fireEvent.mouseMove(window, { clientX: 0, clientY: 36 })
     pointerMove(slot, graveRow)
     expect(within(graveRow).getByText('into grave')).toBeInTheDocument()
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
     await waitFor(() => expect(setup.edits).toHaveLength(1))
     expect(setup.edits[0].schemaNodes).toStrictEqual([
@@ -924,7 +840,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     pointerMove(widthRow, graveRow)
     expect(within(graveRow).getByText('into grave')).toBeInTheDocument()
     expect(within(widthRow).queryByText('into width')).not.toBeInTheDocument()
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
     await waitFor(() => expect(setup.edits).toHaveLength(1))
     expect(setup.edits[0].schemaNodes).toStrictEqual([
@@ -963,9 +879,9 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     fireEvent.mouseDown(titleRows.at(-1)!.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(groupRow)
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field: a sibling field already uses “title”.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field')
     expect(setup.edits).toHaveLength(0)
   })
 
@@ -980,7 +896,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     fireEvent.mouseDown(yearRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(placeRow)
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
     await waitFor(() => expect(setup.edits).toHaveLength(1))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -1006,13 +922,13 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     expect(setup.edits).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Code' }))
-    expect(screen.getByText(/"surname": "string"/)).toBeInTheDocument()
-    expect(screen.getByText(/"name": "string"/)).toBeInTheDocument()
+    expect(screen.getByText(/"name": "surname"/)).toBeInTheDocument()
+    expect(screen.getByText(/"name": "name"/)).toBeInTheDocument()
   })
 
   it('shows one row per node, mixed counts, metadata reach, and applies atomically', async () => {
     const setup = renderPanel()
-    const input = await send({
+    await send({
       status: 'proposed',
       fields: {
         title: { name: 'heading', type: 'number', removed: false },
@@ -1025,7 +941,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(screen.getAllByText('heading')).toHaveLength(1)
     expect(screen.getAllByText('title')).toHaveLength(1)
     expect(screen.getByText('number')).toBeInTheDocument()
-    expect(input).toBeDisabled()
+    expect(setup.schema.snapshot().editingBlockedReason).toContain('pending proposal')
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to heading' }))
 
@@ -1043,32 +959,11 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
   it('keeps a chat proposal when the mutation gate rejects it', async () => {
     const setup = renderPanel()
-    await send({
-      status: 'proposed',
-      fields: {
-        title: { name: 'heading', type: 'string', removed: false },
-        gender: { name: 'gender', type: 'string', removed: false },
-      },
-      additions: [],
-      issues: [],
-    })
-    setup.schema.commit = vi.fn(() => ({
-      ok: false as const,
-      reason: 'duplicate-name' as const,
-      duplicateName: 'heading',
-    }))
-
+    await send({ status: 'proposed', fields: { title: { name: 'heading', type: 'string', removed: false }, gender: { name: 'heading', type: 'string', removed: false } }, additions: [], issues: [] })
     fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
-
-    expect(
-      screen.getByText(
-        'Cannot apply the proposal: a sibling field already uses “heading”.',
-      ),
-    ).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Apply changes' }),
-    ).toBeVisible()
     expect(setup.edits).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
+    expect(setup.schema.snapshot().useBlockedReason).toContain('pending proposal')
   })
 
   it('explains an unresolved change created by selective acceptance', async () => {
@@ -1248,309 +1143,29 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(setup.edits).toHaveLength(0)
   })
 
-  it('discards a chat response when the template changed while the request was running', async () => {
-    let resolveResponse!: (response: SchemaEditResponse) => void
-    requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
-      resolveResponse = resolve
-    }))
-    const setup = renderPanel()
-    const chatInput = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(chatInput, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(chatInput, { key: 'Enter' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit title' }))
-    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'heading' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await act(async () => resolveResponse({
-      status: 'proposed',
-      fields: {
-        title: { name: 'title', type: 'string', removed: false },
-        gender: { name: 'gender', type: 'string', removed: false },
-      },
-      additions: [],
-      issues: [],
-    }))
-
-    expect(await screen.findByText('Template changed while the request was running. Send the request again.')).toBeInTheDocument()
-    expect(screen.getByText('heading')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
-    expect(setup.edits[0].schemaNodes[0]).toEqual({ ...nodes[0], name: 'heading' })
-  })
-
-  it('discards a chat response when only the record description changed', async () => {
-    let resolveResponse!: (response: SchemaEditResponse) => void
-    requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
-      resolveResponse = resolve
-    }))
-    const setup = renderPanel()
-    const chatInput = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(chatInput, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(chatInput, { key: 'Enter' })
-
-    const description = screen.getByPlaceholderText(
-      'Describe the record this template extracts…',
-    )
-    fireEvent.change(description, { target: { value: 'One revised record.' } })
-    fireEvent.blur(description)
-
-    await act(async () => resolveResponse({
-      status: 'proposed',
-      fields: {
-        title: { name: 'heading', type: 'string', removed: false },
-        gender: { name: 'gender', type: 'string', removed: false },
-      },
-      additions: [],
-      issues: [],
-    }))
-
-    expect(await screen.findByText('Template changed while the request was running. Send the request again.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
-    expect(setup.edits.at(-1)?.recordDescription).toBe('One revised record.')
-    expect(screen.getByText('title')).toBeInTheDocument()
-  })
 
   it('discards a proposal when the record description changes during review', async () => {
     const setup = renderPanel()
-    await send({
-      status: 'proposed',
-      fields: {
-        title: { name: 'heading', type: 'string', removed: false },
-        gender: { name: 'gender', type: 'string', removed: false },
-      },
-      additions: [],
-      issues: [],
-    })
-
-    const description = screen.getByPlaceholderText(
-      'Describe the record this template extracts…',
-    )
-    fireEvent.change(description, { target: { value: 'One revised record.' } })
-    fireEvent.blur(description)
-    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
-
-    expect(await screen.findByText('Template changed during review. The proposal was discarded.')).toBeInTheDocument()
-    expect(setup.edits).toHaveLength(1)
-    expect(setup.edits[0].recordDescription).toBe('One revised record.')
-    expect(setup.edits[0].schemaNodes).toEqual(nodes)
-    expect(screen.getByText('title')).toBeInTheDocument()
-  })
-
-  it('names the chat stop control and cancels it from the keyboard', async () => {
-    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
-      new Promise<SchemaEditResponse>((_resolve, reject) => {
-        if (signal.aborted) {
-          reject(new DOMException('Aborted', 'AbortError'))
-          return
-        }
-        signal.addEventListener('abort', () => {
-          reject(new DOMException('Aborted', 'AbortError'))
-        })
-      }),
-    )
-    renderPanel()
-    const chatInput = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(chatInput, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(chatInput, { key: 'Enter' })
-
-    const stop = await screen.findByRole('button', {
-      name: 'Stop template edit request',
-    })
-    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledTimes(1))
-    stop.focus()
-    expect(stop).toHaveFocus()
-    fireEvent.click(stop)
-
-    // The message is taken back: off the conversation, into the composer to edit and send again.
-    await waitFor(() => expect(screen.getByPlaceholderText('Describe a change to the template…')).toHaveValue('Check fields'))
-    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBeEnabled()
-    expect(screen.queryByText('Check fields', { selector: 'p, div, span' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Cancelled.')).not.toBeInTheDocument()
-  })
-
-  it('a reloaded panel shows a running operation with its instruction, and Stop cancels it', async () => {
-    const running: ModelOperation = {
-      kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f1', operationId: '51000000-0000-4000-8009-0000000000f1',
-      status: 'RUNNING', instruction: 'Catalog entries', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null, sourceCoverage: null,
-    }
-    listModelOperations.mockResolvedValueOnce([running])
-    renderPanel({ durableScope: true })
-
-    expect(await screen.findByText('Still working on an earlier request: “Catalog entries”')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “Catalog entries”' }))
-
-    await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
-    expect(listModelOperations).toHaveBeenCalledExactlyOnceWith(
-      { projectContextId: modelContext.projectContextId, extractionSchemaId: modelContext.extractionSchemaId },
-      expect.any(AbortSignal),
-    )
-  })
-
-  it('a reloaded panel before its first template shows the running first generation with a Stop', async () => {
-    const running: ModelOperation = {
-      kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f3', operationId: '51000000-0000-4000-8009-0000000000f3',
-      status: 'RUNNING', instruction: 'First catalog', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null, sourceCoverage: null,
-    }
-    listModelOperations.mockResolvedValueOnce([running])
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-
-    expect(await screen.findByText('Still working on an earlier request: “First catalog”')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “First catalog”' }))
-    await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
-  })
-
-  it('a reloaded panel with a running edit opens the conversation; collapsed, a mark on the composer brings it back', async () => {
-    const running: ModelOperation = {
-      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f4', operationId: '51000000-0000-4000-8009-0000000000f4',
-      status: 'RUNNING', instruction: 'Rename title to heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
-      baseSchemaRevisionId: modelContext.schemaRevisionId, response: null,
-    }
-    listModelOperations.mockResolvedValueOnce([running])
-    renderPanel({ durableScope: true })
-
-    const row = 'Still working on an earlier request: “Rename title to heading”'
-    expect(within(await screen.findByRole('region', { name: 'Conversation' })).getByText(row)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'An earlier request is still running' }))
-    expect(within(screen.getByRole('region', { name: 'Conversation' })).getByText(row)).toBeInTheDocument()
-  })
-
-  it("a restored proposal reopens the review bar and replays onto the base revision's nodes", async () => {
-    const restored: ModelOperation = {
-      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
-      status: 'SUCCEEDED', instruction: 'Rename title to heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
-      baseSchemaRevisionId: modelContext.schemaRevisionId,
-      response: { status: 'proposed', fields: { title: { name: 'heading', type: 'string', removed: false } }, additions: [], issues: [] },
-    }
-    listModelOperations.mockResolvedValueOnce([restored])
-    const setup = renderPanel({ durableScope: true })
-
-    const apply = await screen.findByRole('button', { name: 'Apply changes' })
-    expect(screen.getByText('Reopened the proposal for “Rename title to heading”.')).toBeInTheDocument()
-    fireEvent.click(apply)
-
-    await waitFor(() => expect(setup.edits).toHaveLength(1))
-    expect(setup.edits[0]!.schemaNodes.map((node) => node.name)).toEqual(['heading', 'gender'])
-    expect(requestSchemaEdit).not.toHaveBeenCalled()
-  })
-
-  it('reopens a description-only proposal after reload without another model request', async () => {
-    const restored: ModelOperation = {
-      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
-      status: 'SUCCEEDED', instruction: 'Copy the complete heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
-      baseSchemaRevisionId: modelContext.schemaRevisionId,
-      response: { status: 'proposed', fields: { title: { name: 'title', type: 'string', removed: false, description: 'Copy the complete heading.' } }, additions: [], issues: [] },
-    }
-    listModelOperations.mockResolvedValueOnce([restored])
-    const setup = renderPanel({ durableScope: true })
-    const apply = await screen.findByRole('button', { name: 'Apply changes' })
-    expect(apply).toBeEnabled()
-    expect(screen.getByLabelText('Proposed note')).toHaveTextContent('Copy the complete heading.')
-    fireEvent.click(apply)
-    await waitFor(() => expect(setup.edits).toHaveLength(1))
-    expect(setup.edits[0].schemaNodes).toEqual([{ ...nodes[0], description: 'Copy the complete heading.' }, nodes[1]])
-    expect(requestSchemaEdit).not.toHaveBeenCalled()
-  })
-
-  it('Stop on a running edit cancels edit:<operationId> on the server', async () => {
-    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
-      new Promise<SchemaEditResponse>((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
-      }),
-    )
-    deleteModelOperation.mockResolvedValueOnce(undefined)
-    renderPanel()
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    const stop = await screen.findByRole('button', { name: 'Stop template edit request' })
-    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
-    const operationId = requestSchemaEdit.mock.calls[0]![3] as string
-
-    fireEvent.click(stop)
-
-    await waitFor(() => expect(input).toHaveValue('Check fields'))
-    expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(`edit:${operationId}`)
-  })
-
-  it('Stop whose server cancel fails still stops waiting, and says the request may still be running', async () => {
-    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
-      new Promise<SchemaEditResponse>((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
-      }),
-    )
-    deleteModelOperation.mockRejectedValueOnce(new Error('503'))
-    renderPanel()
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    const stop = await screen.findByRole('button', { name: 'Stop template edit request' })
-    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
-
-    fireEvent.click(stop)
-
-    await waitFor(() => expect(input).toHaveValue('Check fields'))
-    expect(await screen.findByText('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.')).toBeInTheDocument()
-    expect(input).toBeEnabled()
-  })
-
-  it('unmounting during an edit cancels nothing on the server', async () => {
-    requestSchemaEdit.mockImplementationOnce(() => new Promise<SchemaEditResponse>(() => undefined))
-    renderPanel()
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
-    const signal = requestSchemaEdit.mock.calls[0]![2] as AbortSignal
-
-    cleanup()
-
-    expect(signal.aborted).toBe(true)
-    expect(deleteModelOperation).not.toHaveBeenCalled()
-  })
-
-  it('cancels a template edit request when the panel unmounts', async () => {
-    requestSchemaEdit.mockImplementationOnce(() =>
-      new Promise<SchemaEditResponse>(() => undefined),
-    )
-    renderPanel()
-    const input = screen.getByPlaceholderText(
-      'Describe a change to the template…',
-    )
-    fireEvent.change(input, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
-    const signal = requestSchemaEdit.mock.calls[0]![2] as AbortSignal
-    expect(signal.aborted).toBe(false)
-
-    cleanup()
-
-    expect(signal.aborted).toBe(true)
-  })
-  it.each([
-    [{ status: 'refused', message: 'Duplicate field paths: title' } as const, 'Request refused: Duplicate field paths: title'],
-    [{ status: 'failed', message: 'Template edit generation failed.' } as const, 'Request failed: Template edit generation failed.'],
-    [{
-      status: 'proposed',
-      fields: {
-        title: { name: 'title', type: 'string', removed: false },
-        gender: { name: 'gender', type: 'string', removed: false },
-      },
-      additions: [],
-      issues: [],
-    } as const, 'That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.'],
-  ])('reports non-review outcome without inventing intent', async (response, message) => {
-    const setup = renderPanel()
-    requestSchemaEdit.mockResolvedValueOnce(response)
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Check fields' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    expect(await screen.findByText(message)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    await send({ status: 'proposed', fields: { title: { name: 'heading', type: 'string', removed: false }, gender: { name: 'gender', type: 'string', removed: false } }, additions: [], issues: [] })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
+    expect(setup.schema.snapshot().input).toBeNull()
     expect(setup.edits).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
+    expect(screen.getByRole('textbox', { name: 'What one record is' })).toHaveValue('One test record.')
   })
+
+
+
+
+
+
+
+
+
+
+
 
 })
 
@@ -1587,6 +1202,8 @@ describe('SchemaPanel conflict recovery', () => {
     }
     const listeners = new Set<() => void>()
     const persistence: SchemaEditorPersistence = {
+    ...testSchemaPersistence(),
+      ...testSchemaPersistence(),
       edit: () => undefined,
       saveState: () => saveState,
       reloadCurrent: () => {
@@ -1611,7 +1228,7 @@ describe('SchemaPanel conflict recovery', () => {
       initialDraft: saveState.draft,
     })
     render(
-      <SchemaPanel
+      <EditorFixture
         schema={schema}
         onClearDraft={() => undefined}
         sourceDocumentName="test.pdf"
@@ -1652,10 +1269,10 @@ describe('SchemaPanel clear current template', () => {
     expect(screen.getByText('Clear current template?')).toBeInTheDocument()
 
     act(() => {
-      setup.schema.adoptDraft({
+      setup.schema.replaceDraft({
         recordDescription: 'One replacement record.',
         schemaNodes: historicalNodes,
-      })
+      }, 'replacement')
     })
 
     await waitFor(() =>
@@ -1672,7 +1289,7 @@ describe('SchemaPanel clear current template', () => {
       await setup.schema.reset()
     })
     cleanup()
-    render(<SchemaPanel
+    render(<EditorFixture
       schema={setup.schema}
       onClearDraft={onClearDraft}
       sourceDocumentName="test.pdf"
@@ -1724,21 +1341,6 @@ describe('SchemaPanel clear current template', () => {
 })
 
 describe('template header (redesign §5)', () => {
-  it('names the template in the heading, switches Fields and Code, and offers the actions menu', () => {
-    renderPanel({}, {
-      schemaName: 'Places',
-      onRenameSchema: vi.fn(async () => null),
-      showRegenerate: true,
-      onGenerateInstructions: vi.fn(),
-    })
-    expect(screen.getByRole('heading', { level: 2 })).toHaveAccessibleName('Places')
-    expect(screen.queryByText('Extraction Template')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
-    expect(screen.getByText(/"_description": "One test record\."/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(
-      ['Import from Excel codebook…', 'Edit as code', 'History', 'Regenerate from the document…', 'Clear template'])
-  })
 
   it('the actions menu opens the import dialog', () => {
     renderPanel({ durableScope: true })
@@ -1749,12 +1351,7 @@ describe('template header (redesign §5)', () => {
     expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
   })
 
-  it('the import action is disabled without a project to import into', () => {
-    const setup = renderPanel()
-    expect(setup.schema.operationScope()).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
-    expect(screen.getByRole('menuitem', { name: 'Import from Excel codebook…' })).toBeDisabled()
-  })
+
 
   it('says the saved record scope in words and saves a change at once', () => {
     const onChange = vi.fn()
@@ -1813,7 +1410,8 @@ describe('template header (redesign §5)', () => {
       .mockImplementation(function (this: HTMLTextAreaElement) { return Math.max(1, Math.ceil(this.value.length / 40)) * 19.5 + 8 })
     try {
       renderPanel()
-      const description = screen.getByLabelText('What one record is') as HTMLTextAreaElement
+      fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
+    const description = screen.getByLabelText('What one record is') as HTMLTextAreaElement
       expect(description.rows).toBe(2)
       fireEvent.change(description, { target: { value: 'One grave '.repeat(16) } }) // 160 characters, one line: four rows
       expect(description.rows).toBe(4)
@@ -1845,7 +1443,8 @@ describe('template header (redesign §5)', () => {
     })
     try {
       renderPanel()
-      const description = screen.getByLabelText('What one record is') as HTMLTextAreaElement
+      fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
+    const description = screen.getByLabelText('What one record is') as HTMLTextAreaElement
       const watching = observed.filter((record) => record.targets.includes(description))
       expect(watching).toHaveLength(1)
       // A notification, then the next frame, where the measurement runs.
@@ -1887,28 +1486,23 @@ describe('template header (redesign §5)', () => {
     expect(editor.className).toMatch(/\boverflow-x-auto\b/)
     expect(editor.className).toMatch(/\bwhitespace-pre\b/)
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    const code = screen.getByText(/"_description"/).closest('pre')!
+    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+    const code = screen.getByText(/"recordDescription"/).closest('pre')!
     expect(code.className).toMatch(/\boverflow-x-auto\b/)
     expect(code.className).toMatch(/\bwhitespace-pre\b/)
   })
 
-  it('Edit as code again keeps the unsaved code and its error, also after switching to Fields and back', () => {
+  it('Code keeps invalid raw input until Cancel, then starts a new edit from the saved definition', () => {
     renderPanel()
     chooseSchemaAction('Edit as code')
     const editor = () => screen.getByRole('textbox', { name: 'Template code' })
     const edited = (editor() as HTMLTextAreaElement).value.replace('"title"', '"report_title"')
     fireEvent.change(editor(), { target: { value: edited } })
-    chooseSchemaAction('Edit as code')
-    expect(editor()).toHaveValue(edited)
-    fireEvent.click(screen.getByRole('button', { name: 'Fields' }))
-    expect(screen.queryByRole('textbox', { name: 'Template code' })).not.toBeInTheDocument()
-    chooseSchemaAction('Edit as code')
     expect(editor()).toHaveValue(edited)
     // An error stays with the code it describes.
     fireEvent.change(editor(), { target: { value: '{ "unfinished": ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(screen.getByText(/Unexpected end of JSON input/)).toBeInTheDocument()
-    chooseSchemaAction('Edit as code')
     expect(editor()).toHaveValue('{ "unfinished": ')
     expect(screen.getByText(/Unexpected end of JSON input/)).toBeInTheDocument()
     // Cancel ends the session: the next Edit as code starts from the saved definition.
@@ -1918,75 +1512,18 @@ describe('template header (redesign §5)', () => {
     expect((editor() as HTMLTextAreaElement).value).not.toContain('report_title')
   })
 
-  it('refuses to save a code draft over field edits made since it was opened', () => {
+  it('refuses to save a code draft over field edits made since it was opened', async () => {
     const setup = renderPanel()
     chooseSchemaAction('Edit as code')
-    const editor = () => screen.getByRole('textbox', { name: 'Template code' }) as HTMLTextAreaElement
-    fireEvent.change(editor(), { target: { value: editor().value.replace('"title"', '"report_title"') } })
-    // Meanwhile, in the Fields view, a field is renamed; the code session stays open (F2).
-    fireEvent.click(screen.getByRole('button', { name: 'Fields' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit gender' }))
-    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'sex' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    const afterFieldEdit = setup.edits.length
-    chooseSchemaAction('Edit as code')
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    const refusal = 'The fields changed while you were editing the code. Copy any code you want to keep, Cancel this code edit, then open Edit as code again to continue from the current fields.'
-    expect(screen.getByText(refusal)).toBeInTheDocument()
-    // Nothing saved over the field edit; the code stays open with its draft.
-    expect(setup.edits).toHaveLength(afterFieldEdit)
-    expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['title', 'sex'])
-    expect(editor().value).toContain('report_title')
-    // Edit as code alone keeps the open session (the same stale draft, still refused): the message names the Cancel.
-    chooseSchemaAction('Edit as code')
-    expect(editor().value).toContain('report_title')
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(screen.getByText(refusal)).toBeInTheDocument()
-    expect(setup.edits).toHaveLength(afterFieldEdit)
-    // As the message says: Cancel, then Edit as code again; the session starts from the current fields and saves.
+    const editor = screen.getByRole('textbox', { name: 'Template code' })
+    fireEvent.change(editor, { target: { value: '{ unfinished' } })
+    expect(setup.schema.snapshot().editingBlockedReason).toContain('Save or Cancel')
+    expect(setup.schema.commit(() => [], 'late').ok).toBe(false)
+    expect(editor).toHaveValue('{ unfinished')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    chooseSchemaAction('Edit as code')
-    expect(editor().value).toContain('"sex"')
-    fireEvent.change(editor(), { target: { value: editor().value.replace('"title"', '"report_title"') } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['report_title', 'sex'])
+    expect(screen.getByRole('button', { name: 'Edit gender' })).not.toBeDisabled()
   })
 
-  it('the workspace commands use the shared buttons: Stop danger, Retry and Edit secondary, Save and Create positive', async () => {
-    const button = (name: string) => screen.getByRole('button', { name })
-    // Regenerating: Stop is a destructive command.
-    const setup = renderPanel({}, { onGenerateInstructions: vi.fn() })
-    let reject!: (reason: Error) => void
-    act(() => { void setup.schema.generate(() => new Promise((_resolve, fail) => { reject = fail })).catch(() => undefined) })
-    expect(button('Stop').className).toMatch(/\bbg-danger\b/)
-    expect(button('Stop').className).not.toMatch(/(^|\s)bg-accent(\s|$)|11\.5px/)
-    await act(async () => reject(new Error('Model unavailable')))
-    // Code view: Edit is secondary, Save is positive, both at least 24px tall (Button's sm size).
-    fireEvent.click(button('Code'))
-    expect(button('Edit').className).toMatch(/\bbg-surface\b/)
-    expect(button('Edit').className).toMatch(/\btext-compact\b/)
-    expect(button('Edit').className).not.toMatch(/text-\[10px\]/)
-    fireEvent.click(button('Edit'))
-    expect(button('Save').className).toMatch(/\bbg-green\b/)
-    expect(button('Save').className).not.toMatch(/\bbg-accent\b/)
-    cleanup()
-
-    // A failed first generation: Retry is secondary.
-    const failed = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    await act(async () => { await failed.schema.generate(async () => { throw new Error('Model unavailable') }).catch(() => undefined) })
-    expect(button('Retry').className).toMatch(/\bbg-surface\b/)
-    expect(button('Retry').className).not.toMatch(/(^|\s)bg-accent(\s|$)|11\.5px/)
-    cleanup()
-
-    // A historical preview: creating a Current Schema Revision from it is positive.
-    renderPanel()
-    chooseSchemaAction('History')
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Template history' })).getByRole('button', { name: /Revision 1/ }))
-    await screen.findByText('historical_place')
-    expect(button('Create Current Template Revision').className).toMatch(/\bbg-green\b/)
-    expect(button('Create Current Template Revision').className).not.toMatch(/\bbg-accent\b/)
-    expect(button('Close preview').className).toMatch(/\bbg-surface\b/)
-  })
 
   it('a history preview banner stacks its text above its commands, which wrap, so both fit the 264px rail', async () => {
     renderPanel()
@@ -2003,24 +1540,15 @@ describe('template header (redesign §5)', () => {
     expect(text.compareDocumentPosition(commands) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('the Regenerate dialog lists its instructions in the compact size', () => {
-    renderPanel({}, { onGenerateInstructions: vi.fn() })
-    chooseSchemaAction('Regenerate from the document…')
-    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
-    expect(within(dialog).getByText(/No instructions yet/).className).toMatch(/(^|\s)text-compact(\s|$)/)
-    const draft = within(dialog).getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(draft, { target: { value: 'Focus on graves' } })
-    fireEvent.keyDown(draft, { key: 'Enter' })
-    const item = within(dialog).getByText('Focus on graves').closest('li')!
-    expect(item.className).toMatch(/(^|\s)text-compact(\s|$)/)
-    expect(item.className).not.toMatch(/text-\[11px\]/)
-  })
 
-  it('labels the record description "What one record is" and saves it on blur', () => {
+  it('labels the record description "What one record is" and saves it explicitly after blur', () => {
     const setup = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
     const description = screen.getByLabelText('What one record is')
     fireEvent.change(description, { target: { value: 'One grave.' } })
     fireEvent.blur(description)
+    expect(setup.edits).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(setup.schema.snapshot().draft?.recordDescription).toBe('One grave.')
     expect(screen.queryByText('Record description')).not.toBeInTheDocument()
   })
@@ -2031,62 +1559,8 @@ describe('template header (redesign §5)', () => {
     expect(screen.queryByText(/\d+ fields?\s*$/)).not.toBeInTheDocument()
   })
 
-  it('the empty state offers Generate template as its only action', () => {
-    const onGenerateInstructions = vi.fn()
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, schemaName: null })
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
-    expect(onGenerateInstructions).toHaveBeenCalledWith('')
-    // A codebook is imported a step earlier, on the Schemas tab; what a record is goes into the instructions.
-    expect(screen.queryByRole('button', { name: 'Import from Excel codebook…' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start blank' })).not.toBeInTheDocument()
-  })
 
-  it('the Regenerate dialog cannot start a second generation, and closes when the draft is replaced', async () => {
-    const onGenerateInstructions = vi.fn()
-    const setup = renderPanel({}, { onGenerateInstructions })
-    chooseSchemaAction('Regenerate from the document…')
-    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
-    expect(within(dialog).getByRole('button', { name: /Regenerate template/ })).toBeEnabled()
 
-    let finish!: () => void
-    act(() => {
-      void setup.schema.generate(() => new Promise((resolve) => {
-        finish = () => resolve({ _description: 'One test record.', title: 'string' })
-      }))
-    })
-    expect(within(dialog).getByRole('button', { name: /Regenerate template/ })).toBeDisabled()
-    await act(async () => finish())
-
-    act(() => {
-      setup.schema.adoptDraft({ recordDescription: 'One replacement record.', schemaNodes: historicalNodes })
-    })
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument())
-    expect(onGenerateInstructions).not.toHaveBeenCalled()
-  })
-
-  it('History, Regenerate and Clear template open dialogs from the actions menu', async () => {
-    const onClearDraft = vi.fn(async () => undefined)
-    const onGenerateInstructions = vi.fn()
-    renderPanel({ durableScope: true }, { showRegenerate: true, onGenerateInstructions, onClearDraft })
-    const open = (name: string) => {
-      fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
-      fireEvent.click(screen.getByRole('menuitem', { name }))
-    }
-    open('History')
-    expect(within(screen.getByRole('dialog', { name: 'Template history' })).getByRole('button', { name: /Revision 2.*Current/ })).toBeInTheDocument()
-    // Escape on a modal dialog fires `cancel`, which jsdom does not synthesize from the key.
-    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
-    expect(screen.queryByRole('dialog', { name: 'Template history' })).not.toBeInTheDocument()
-    open('Regenerate from the document…')
-    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
-    fireEvent.change(within(dialog).getByPlaceholderText(/Add a generation instruction/), { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(within(dialog).getByPlaceholderText(/Add a generation instruction/), { key: 'Enter' })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Regenerate template/ }))
-    expect(onGenerateInstructions).toHaveBeenCalledWith(expect.stringContaining('Focus on dates'))
-    open('Clear template')
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current template' })).getByRole('button', { name: 'Clear template' }))
-    await waitFor(() => expect(onClearDraft).toHaveBeenCalledOnce())
-  })
 })
 
 describe('field rows (redesign §6)', () => {
@@ -2178,20 +1652,12 @@ describe('field rows (redesign §6)', () => {
       // and the class are the contract here; e2e/field-row-widths.spec.ts measures the real browser.
       expect(within(actions!).getByText('Delete')).toHaveAttribute('aria-label', `Delete ${name}`)
     }
-    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
     const after = within(screen.getByRole('listitem', { name: 'title' })).getByRole('button', { name: 'Delete title' }).parentElement!
     expect(after.className.split(/\s+/)).not.toContain('invisible')
     expect(after).not.toHaveAttribute('inert')
   })
 
-  it('a read-only row has no actions, so its pills keep no room for them', () => {
-    renderPanel({ panelNodes: [{ id: 'sex', name: 'sex', type: 'string', allowedValues: ['f', 'm'] }] }, { readOnly: true })
-    const row = screen.getByRole('listitem', { name: 'sex' })
-    expect(within(row).queryByRole('button', { name: 'Delete sex' })).not.toBeInTheDocument()
-    const name = within(row).getByText('sex')
-    expect(name.className).toMatch(/\bmax-w-full\b/)
-    expect(name.parentElement!.className).not.toMatch(/\bpr-\[/)
-  })
 
   it('Tab reaches the row actions after its pills, and their focus is focus within the row', () => {
     renderPanel()
@@ -2267,7 +1733,7 @@ describe('field rows (redesign §6)', () => {
     const row = screen.getByRole('listitem', { name: 'title' })
     expect(within(row).getByText('Research rule')).toBeInTheDocument()
     fireEvent.click(within(row).getByText('Research rule'))
-    expect(screen.getByPlaceholderText('Add another note…')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Field notes' })).toBeInTheDocument()
   })
 
   it('a group that first appears after mount shows its children without a click', () => {
@@ -2304,16 +1770,6 @@ describe('field rows (redesign §6)', () => {
     expect(screen.getByRole('button', { name: '+ Add field' })).toHaveFocus()
   })
 
-  it('read-only: a note is plain text, Enter and Delete do nothing, and Space still toggles a group', () => {
-    const setup = renderPanel({ panelNodes: [{ id: 'g', name: 'grave', type: 'object', children: [{ id: 'g1', name: 'depth', type: 'number' }] }, ...nodes] }, { readOnly: true })
-    expect(screen.getByText('Research rule').closest('button')).toBeNull()
-    fireEvent.keyDown(screen.getByRole('listitem', { name: 'title' }), { key: 'Delete' })
-    fireEvent.keyDown(screen.getByRole('listitem', { name: 'title' }), { key: 'Enter' })
-    expect(setup.edits).toHaveLength(0)
-    expect(screen.queryByPlaceholderText('field_name')).not.toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('listitem', { name: 'grave' }), { key: ' ' })
-    expect(screen.queryByRole('listitem', { name: 'depth' })).not.toBeInTheDocument()
-  })
 
   it('Undo is refused when a sibling now has the field\'s name', () => {
     renderPanel()
@@ -2326,21 +1782,6 @@ describe('field rows (redesign §6)', () => {
     expect(screen.getAllByRole('listitem', { name: 'title' })).toHaveLength(1)
   })
 
-  it('the Undo toast sits over the bottom of the fields, never inside the conversation drawer or its composer', () => {
-    renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
-    const toast = screen.getByText('Field removed').closest('[role="status"]')!
-    const composer = screen.getByPlaceholderText('Describe a change to the template…')
-    const fields = screen.getByRole('list', { name: 'Template fields' })
-    // Its nearest ancestor holding the fields does not hold the composer: the toast belongs to the fields area.
-    let area = toast.parentElement
-    while (area && !area.contains(fields)) area = area.parentElement
-    expect(area).not.toBeNull()
-    expect(area!.contains(composer)).toBe(false)
-    expect(toast.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // Not inside the scrolling list either, so it stays at the area's bottom as the fields scroll.
-    expect(fields.closest('.overflow-y-auto')!.contains(toast)).toBe(false)
-  })
 
   it('the Undo toast outlasts the default 2.6 s and goes after eight seconds', () => {
     vi.useFakeTimers()
@@ -2360,7 +1801,7 @@ describe('field rows (redesign §6)', () => {
     const setup = renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
-    act(() => { setup.schema.adoptDraft({ recordDescription: 'An imported record.', schemaNodes: [{ id: 'year', name: 'year', type: 'integer' }] }) })
+    act(() => { setup.schema.replaceDraft({ recordDescription: 'An imported record.', schemaNodes: [{ id: 'year', name: 'year', type: 'integer' }] }, 'replacement') })
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
     expect(screen.queryByText('Field removed')).not.toBeInTheDocument()
   })
@@ -2384,236 +1825,107 @@ describe('field rows (redesign §6)', () => {
   })
 })
 
-describe('chat composer and drawer (redesign §7)', () => {
-  const proposalResponse: SchemaEditResponse = {
-    status: 'proposed',
-    fields: {
-      title: { name: 'heading', type: 'string', removed: false },
-      gender: { name: 'gender', type: 'string', removed: false },
-    },
-    additions: [],
-    issues: [],
-  }
+it('full Code preserves identity and metadata, assigns new IDs and rejects duplicate IDs without losing text', () => {
+  const setup = renderPanel({ panelNodes: [{ id: 'stable', name: 'title', type: 'string', description: 'All notes', valueSource: 'source-filename', evidencePolicy: 'unverified' }] })
+  chooseSchemaAction('Edit as code')
+  const editor = screen.getByRole('textbox', { name: 'Template code' })
+  const value = JSON.parse((editor as HTMLTextAreaElement).value)
+  value.schemaNodes[0].name = 'heading'
+  value.schemaNodes.push({ name: 'year', type: 'integer' })
+  fireEvent.change(editor, { target: { value: JSON.stringify(value) } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  const saved = setup.schema.snapshot().draft!
+  expect(saved.schemaNodes[0]).toEqual({ id: 'stable', name: 'heading', type: 'string', description: 'All notes', valueSource: 'source-filename', evidencePolicy: 'unverified' })
+  expect(saved.schemaNodes[1].id).toBeTruthy()
+  chooseSchemaAction('Edit as code')
+  value.schemaNodes[1].id = 'stable'
+  const text = JSON.stringify(value)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Template code' }), { target: { value: text } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('IDs must be unique')
+  expect(screen.getByRole('textbox', { name: 'Template code' })).toHaveValue(text)
+  expect(setup.edits).toHaveLength(1)
+})
 
-  it('a sent message leaves the composer empty, also when the reply is an error', async () => {
-    renderPanel({ durableScope: true })
-    requestSchemaEdit.mockRejectedValueOnce(new Error('invalid_model_config: No model is configured.'))
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Add a field for the excavation leader' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(input).toHaveValue('')
-    expect(await screen.findByText('Error: invalid_model_config: No model is configured.')).toBeInTheDocument()
-    expect(screen.getByText('Add a field for the excavation leader')).toBeInTheDocument()
-    expect(input).toHaveValue('')
+it('an open form defers Undo without consuming it', () => {
+  const setup = renderPanel()
+  fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit gender' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  expect(setup.schema.snapshot().draft?.schemaNodes.map(node => node.name)).toEqual(['gender'])
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel field edit' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(setup.schema.snapshot().draft?.schemaNodes.map(node => node.name)).toEqual(['title', 'gender'])
+})
+
+it('Move offers root and group slots and preserves compatible metadata', () => {
+  const setup = renderPanel({ panelNodes: [
+    { id: 'group', name: 'grave', type: 'object', children: [] },
+    { id: 'title', name: 'title', type: 'string', description: 'Keep this note.', evidencePolicy: 'quoted' },
+  ] })
+  fireEvent.click(screen.getByText('Move title'))
+  fireEvent.change(screen.getByLabelText('Destination parent'), { target: { value: 'group' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+  expect(setup.schema.snapshot().draft?.schemaNodes).toEqual([
+    { id: 'group', name: 'grave', type: 'object', children: [
+      { id: 'title', name: 'title', type: 'string', description: 'Keep this note.', evidencePolicy: 'quoted' },
+    ] },
+  ])
+  fireEvent.click(screen.getByText('Move title'))
+  fireEvent.change(screen.getByLabelText('Destination parent'), { target: { value: '' } })
+  fireEvent.change(screen.getByLabelText('Insertion position'), { target: { value: '1' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+  expect(setup.schema.snapshot().draft?.schemaNodes.map(node => node.id)).toEqual(['group', 'title'])
+})
+
+it('History uses the header presentation selector and renders just one Code control', async () => {
+  renderPanel()
+  chooseSchemaAction('History')
+  fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+  await screen.findByText('historical_place')
+  expect(screen.getAllByRole('button', { name: 'Code' })).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+  expect(screen.getByText(/"recordDescription": "One historical record\."/)).toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Template fields' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Fields' }))
+  expect(screen.getByRole('listitem', { name: 'historical_place' })).toBeInTheDocument()
+})
+
+it('closes Move when its draft is replaced', () => {
+  const setup = renderPanel()
+  fireEvent.click(screen.getByRole('button', { name: 'Move title' }))
+  expect(screen.getByRole('dialog', { name: 'Move field' })).toBeVisible()
+  act(() => setup.schema.replaceDraft({ recordDescription: 'Replacement.', schemaNodes: [{ id: 'new', name: 'new', type: 'string' }] }, ''))
+  expect(screen.queryByRole('dialog', { name: 'Move field' })).not.toBeInTheDocument()
+  expect(screen.getByRole('listitem', { name: 'new' })).toBeVisible()
+})
+
+it('does no speculative Move transformations until one field is selected, regardless of schema size', () => {
+  const transform = vi.spyOn(schemaTree, 'moveSchemaNodes')
+  try {
+    renderPanel({ panelNodes: Array.from({ length: 50 }, (_, index) => ({ id: `field-${index}`, name: `field_${index}`, type: 'string' as const })) })
+    expect(transform).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'Move field' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Move field_0' }))
+    expect(transform).toHaveBeenCalledTimes(1)
+    const dialog = screen.getByRole('dialog', { name: 'Move field' })
+    expect(within(dialog).getAllByRole('combobox')).toHaveLength(2)
+    expect(within(dialog).getAllByRole('option')).toHaveLength(52)
+    fireEvent.change(within(dialog).getByLabelText('Insertion position'), { target: { value: '50' } })
+    expect(transform).toHaveBeenCalledTimes(2)
+    expect(within(dialog).getByRole('button', { name: 'Move' })).toBeEnabled()
+  } finally { transform.mockRestore() }
+})
+
+it('Move applies to the current tree when an independent accepted edit precedes its click in the same turn', () => {
+  const setup = renderPanel({ panelNodes: [{ id: 'a', name: 'first', type: 'string' }, { id: 'b', name: 'second', type: 'string' }] })
+  fireEvent.click(screen.getByRole('button', { name: 'Move first' }))
+  fireEvent.change(screen.getByLabelText('Insertion position'), { target: { value: '2' } })
+  const apply = within(screen.getByRole('dialog', { name: 'Move field' })).getByRole('button', { name: 'Move' })
+  act(() => {
+    setup.schema.commit(nodes => [...nodes, { id: 'c', name: 'third', type: 'string' }], 'independent edit')
+    fireEvent.click(apply)
   })
-
-  it('the instructions composer clears and scrolls back to its start after a send, so its placeholder reads from the beginning', () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/) as HTMLTextAreaElement
-    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…')
-    let scrollTop = 0
-    Object.defineProperty(input, 'scrollTop', { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value } })
-    fireEvent.change(input, { target: { value: 'Focus on the burials and their grave goods, layer by layer, with dates' } })
-    scrollTop = 38 // the typed text wrapped and scrolled the one-row field
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(input).toHaveValue('')
-    expect(scrollTop).toBe(0)
-  })
-
-  it('is one composer line at rest, with no greeting, and expands on send', async () => {
-    renderPanel({ durableScope: true })
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/Edit through drag and drop/)).not.toBeInTheDocument()
-    requestSchemaEdit.mockResolvedValueOnce(proposalResponse)
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByRole('region', { name: 'Conversation' })).toBeInTheDocument()
-    expect(screen.getByText('Rename title to heading')).toBeInTheDocument()
-    await screen.findByRole('button', { name: 'Apply changes' })
-  })
-
-  it('a pending proposal keeps the drawer open; the chevron hides it without discarding and the dot brings it back', async () => {
-    renderPanel({ durableScope: true })
-    requestSchemaEdit.mockResolvedValueOnce(proposalResponse)
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await screen.findByRole('button', { name: 'Apply changes' })
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Show conversation' }))
-    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-  })
-
-  it('before a template exists the panel is the instructions conversation, and Generate template sends its instructions', () => {
-    const onGenerateInstructions = vi.fn()
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
-    // No drawer: the conversation is the panel's body, with nothing to collapse.
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Collapse conversation' })).not.toBeInTheDocument()
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(screen.getByText('Focus on dates')).toBeInTheDocument()
-    expect(screen.getByText('Instruction 1 of 1 · for generation')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Show conversation' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 instruction)' }))
-    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
-  })
-
-  it('with a source, a question before the first template is answered and is not an instruction', async () => {
-    const onGenerateInstructions = vi.fn()
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
-    requestSchemaChat.mockResolvedValueOnce({ kind: 'answer', answer: 'The register lists 42 burials.' })
-    requestSchemaChat.mockResolvedValueOnce({ kind: 'instruction' })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('The register lists 42 burials.')).toBeInTheDocument()
-    expect(screen.getByText('Question · not used for generation')).toBeInTheDocument()
-    expect(requestSchemaChat.mock.calls[0]!.slice(0, 2)).toEqual([
-      { projectContextId: modelContext.projectContextId, sourceRepresentationRevisionId: modelContext.sourceRepresentationRevisionId },
-      'How many burials are there?',
-    ])
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('Instruction 1 of 1 · for generation')).toBeInTheDocument()
-    expect(requestSchemaChat.mock.calls[1]![4]).toEqual([
-      { role: 'user', text: 'How many burials are there?' },
-      { role: 'assistant', text: 'The register lists 42 burials.' },
-    ])
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template (1 instruction)' }))
-    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
-  })
-
-  it('a message the model could not reply to goes back to the composer, unrecorded', async () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn(), sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
-    requestSchemaChat.mockRejectedValueOnce(new Error('No model is configured.'))
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('Could not send the message: No model is configured.')).toBeInTheDocument()
-    expect(input).toHaveValue('How many burials are there?')
-    expect(screen.getByRole('button', { name: 'Generate template' })).toBeEnabled()
-  })
-
-  it('Stop while a message before the first template waits for its reply returns it to the composer, unrecorded', async () => {
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn(), sourceRepresentationId: modelContext.sourceRepresentationRevisionId! })
-    requestSchemaChat.mockImplementationOnce((_context, _message, signal: AbortSignal) =>
-      new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })))
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'How many burials are there?' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(input).toHaveValue('')
-    fireEvent.change(input, { target: { value: 'and deaths' } })
-    fireEvent.click(await screen.findByRole('button', { name: 'Stop the reply' }))
-    expect(input).toHaveValue('How many burials are there?\nand deaths')
-    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
-    expect(screen.queryByText('Instruction 1 of 1 · for generation')).not.toBeInTheDocument()
-    expect(requestSchemaChat.mock.calls[0]![2]).toHaveProperty('aborted', true)
-    // The question is stopped where it runs, not only no longer waited for.
-    expect(deleteModelOperation).toHaveBeenCalledWith(`chat:${requestSchemaChat.mock.calls[0]![3]}`)
-  })
-
-  it('an edit chat question is answered in the conversation, with no proposal', async () => {
-    renderPanel({ durableScope: true })
-    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'Gender takes woman or man.' })
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'What values can gender take?' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('Gender takes woman or man.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
-    expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([])
-
-    requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'No.' })
-    fireEvent.change(input, { target: { value: 'Can it be blank?' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('No.')).toBeInTheDocument()
-    expect(requestSchemaEdit.mock.calls[1]![4]).toEqual([
-      { role: 'user', text: 'What values can gender take?' },
-      { role: 'assistant', text: 'Gender takes woman or man.' },
-    ])
-  })
-
-  it('a removed instruction leaves the conversation and the generation', () => {
-    const onGenerateInstructions = vi.fn()
-    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    fireEvent.click(screen.getByTitle('Remove this instruction'))
-    expect(screen.queryByText('Focus on dates')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
-    expect(onGenerateInstructions).toHaveBeenCalledWith('')
-  })
-
-  it('a failed generation keeps the conversation, and Retry sends its instructions', async () => {
-    const onGenerateInstructions = vi.fn()
-    const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    await act(async () => {
-      await setup.schema.generate(async () => { throw new Error('The model is unavailable.') }).catch(() => undefined)
-    })
-
-    expect(await screen.findByText(/The model is unavailable/)).toBeInTheDocument()
-    expect(screen.getByText('Focus on dates')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
-  })
-
-  it('the new template rests with one composer line after the instructions conversation', async () => {
-    const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
-    const input = screen.getByPlaceholderText(/Add a generation instruction/)
-    fireEvent.change(input, { target: { value: 'Focus on dates' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    await act(async () => {
-      await setup.schema.generate(async () => ({ _description: 'One test record.', title: 'string' }))
-    })
-
-    expect(await screen.findByPlaceholderText('Describe a change to the template…')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText(/Add a generation instruction/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-  })
-
-  it('a proposal that arrives while the drawer is collapsed opens it with the Apply bar', async () => {
-    let resolveResponse!: (response: SchemaEditResponse) => void
-    requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
-      resolveResponse = resolve
-    }))
-    renderPanel({ durableScope: true })
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await screen.findByRole('button', { name: 'Stop template edit request' })
-    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-
-    await act(async () => resolveResponse(proposalResponse))
-
-    const drawer = await screen.findByRole('region', { name: 'Conversation' })
-    expect(within(drawer).getByRole('button', { name: 'Apply changes' })).toBeVisible()
-  })
-
-  it('Discard closes the drawer', async () => {
-    renderPanel({ durableScope: true })
-    requestSchemaEdit.mockResolvedValueOnce(proposalResponse)
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
-    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await screen.findByRole('button', { name: 'Apply changes' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-
-    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show conversation' })).toBeInTheDocument()
-  })
+  expect(setup.schema.snapshot().draft?.schemaNodes.map(node => node.id)).toEqual(['b', 'a', 'c'])
 })

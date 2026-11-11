@@ -300,3 +300,29 @@ describe('durable template source declaration', () => {
     expect(vi.mocked(revisions.initializeSchemaRevision).mock.calls.map((call) => call[2])).toEqual([EXCERPTED])
   })
 })
+
+it('keeps the incomplete-source warning while recovering, saving and reopening an unsaved description edit', async () => {
+  const sourceCoverage: SourceCoverage = { complete: false, sourceCharacters: 100, omitted: [{ page: 1, start: 20, end: 40 }] }
+  const initial = { ...revision(1), sourceCoverage }
+  const saved = { ...revision(2, 'Recovered description.'), sourceCoverage }
+  vi.mocked(revisions.appendSchemaRevision).mockResolvedValue(saved as never)
+  const first = renderHook(() => useDurableCurrentSchemaRevision(scope(initial)))
+  act(() => {
+    const base = first.result.current.snapshot().draft!
+    first.result.current.beginInput('description', 'Recovered description.', recordDescription => ({ ...base, recordDescription })).save()
+    captureSessionRecovery()
+  })
+  first.unmount()
+  setSessionRecoveryAccount(ACCOUNT_ID)
+  const recovered = renderHook(() => useDurableCurrentSchemaRevision(scope(initial)))
+  expect(recovered.result.current.snapshot().sourceCoverage).toEqual(sourceCoverage)
+  expect(recovered.result.current.snapshot().draft?.recordDescription).toBe('Recovered description.')
+  await act(() => recovered.result.current.flush())
+  expect(recovered.result.current.snapshot().sourceCoverage).toEqual(sourceCoverage)
+  // An ordinary edit inherits provenance, so the append does not send a clearing declaration.
+  for (const call of vi.mocked(revisions.appendSchemaRevision).mock.calls) expect(call[4]).toBeUndefined()
+  recovered.unmount()
+  const reopened = renderHook(() => useDurableCurrentSchemaRevision(scope(saved)))
+  expect(reopened.result.current.snapshot().sourceCoverage).toEqual(sourceCoverage)
+  reopened.unmount()
+})

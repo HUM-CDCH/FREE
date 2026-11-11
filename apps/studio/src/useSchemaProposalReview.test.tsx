@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
+import { testSchemaPersistence } from './test/schemaPersistence'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaNode } from 'extraction/schema'
 import { deriveSchemaProposal } from '../shared/schemaChanges'
-import { createSchemaEditorController, localSchemaPersistence } from './currentSchemaRevision'
+import { createSchemaEditorController } from './currentSchemaRevision'
 import { useSchemaProposalReview } from './useSchemaProposalReview'
 
 const { deleteModelOperation } = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ const rename = deriveSchemaProposal(original, {
 const WORKFLOW = 'edit:51000000-0000-4000-8009-0000000000f1'
 
 function setup() {
-  const schema = createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }), {
+  const schema = createSchemaEditorController(testSchemaPersistence(), {
     initialDraft: { recordDescription: 'One record.', schemaNodes: original },
   })
   const messages: string[] = []
@@ -62,4 +63,43 @@ describe('useSchemaProposalReview and the proposal workflow', () => {
     act(() => hook.result.current.discard())
     expect(deleteModelOperation).not.toHaveBeenCalled()
   })
+})
+
+
+it('an old reset cannot release the proposal that replaced it', () => {
+  const { schema, hook } = setup()
+  act(() => hook.result.current.start(rename, original, schema.snapshot().draftVersion, null, null))
+  const oldReset = hook.result.current.reset
+  act(() => hook.result.current.start(rename, original, schema.snapshot().draftVersion, null, null))
+  act(() => oldReset())
+  expect(hook.result.current.pending).not.toBeNull()
+  expect(schema.snapshot().useBlockedReason).toContain('pending proposal')
+  act(() => hook.result.current.discard())
+  expect(schema.snapshot().useBlockedReason).toBeNull()
+})
+
+it('uses the same controller predicate to disable Apply and refuse it during History, then discards stale authority', async () => {
+  const historical = Promise.withResolvers<import('../shared/schemaRevision.contract').SchemaRevision>()
+  const revision = {
+    extractionSchemaId: 'schema-1', schemaRevisionId: 'revision-1', revisionNumber: 1,
+    origin: 'researcher-edit' as const, createdAt: '2026-11-10T00:00:00.000Z', stabilisedAt: null,
+    recordScope: 'document' as const, recordDescription: 'One record.', schemaNodes: original,
+  }
+  const schema = createSchemaEditorController(testSchemaPersistence({ getRevision: () => historical.promise, flush: async () => revision }), { initialDraft: revision })
+  const messages: string[] = []
+  const hook = renderHook(() => useSchemaProposalReview(schema, message => messages.push(message)))
+  let creating!: ReturnType<typeof schema.createCurrentRevisionFromHistory>
+  act(() => { creating = schema.createCurrentRevisionFromHistory('historical') })
+  act(() => hook.result.current.start(rename, original, schema.snapshot().draftVersion, null, null))
+  expect(hook.result.current.canApply).toBe(false)
+  act(() => expect(hook.result.current.apply()).toBe(false))
+  expect(messages).toEqual(['A historical revision is being applied.'])
+  expect(hook.result.current.pending).not.toBeNull()
+  await act(async () => { historical.resolve(revision); await creating })
+  expect(hook.result.current.canApply).toBe(false)
+  act(() => expect(hook.result.current.apply()).toBe(false))
+  expect(messages.at(-1)).toBe('Template changed during review. The proposal was discarded.')
+  expect(hook.result.current.pending).toBeNull()
+  expect(schema.snapshot().draft?.schemaNodes).toEqual(original)
+  schema.dispose()
 })

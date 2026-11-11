@@ -282,3 +282,28 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
     </div>
   )
 }
+
+/** Shared tree geometry for editing, proposal review and verbatim historical reading. Hosts supply row actions only. */
+export function SchemaTree({ nodes, expanded, renderRow, renderSlot, removed, parentId = null, ancestorRemoved = false }: {
+  nodes: readonly SchemaNode[]
+  expanded(node: SchemaNode): boolean
+  renderRow(node: SchemaNode, parentId: string | null, index: number, ancestorRemoved: boolean): React.ReactNode
+  renderSlot?(parentId: string | null, index: number): React.ReactNode
+  removed?(node: SchemaNode): boolean
+  parentId?: string | null
+  ancestorRemoved?: boolean
+}) {
+  return <>
+    {nodes.map((node, index) => <div key={node.id} data-schema-node-id={node.id}>
+      {renderSlot?.(parentId, index)}
+      {renderRow(node, parentId, index, ancestorRemoved)}
+      {node.children !== undefined && expanded(node) && (node.children.length > 0 || renderSlot) && (
+        <div role="list" aria-label={`Fields of ${node.name}`} className="-mr-2 ml-4 mt-0.5 border-l border-line pl-3 pr-2">
+          <SchemaTree nodes={node.children} expanded={expanded} renderRow={renderRow} renderSlot={renderSlot} removed={removed}
+            parentId={node.id} ancestorRemoved={ancestorRemoved || !!removed?.(node)} />
+        </div>
+      )}
+    </div>)}
+    {renderSlot?.(parentId, nodes.length)}
+  </>
+}

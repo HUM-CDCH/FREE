@@ -202,7 +202,9 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   await requestEdit(page, 'Rename title to heading')
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 30_000 })
   expect(stack.model.calls()).toHaveLength(2)
-  // The proposal stays open: Discard would delete its history before the sweep inspects it.
+  // Apply releases proposal ownership and preserves its workflow for the sweep; Discard would delete that history.
+  await page.getByRole('button', { name: 'Apply changes' }).click()
+  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
 
   // A generation: refused once (a new operation follows), then answered.
   stack.model.reply(refusal, { text: TEMPLATE, headers: echo })
@@ -210,7 +212,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   await expect(page.getByRole('alert').filter({ hasText: 'Regeneration failed' })).toBeVisible({ timeout: 30_000 })
   await regenerate(page, 'Catalog entries')
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 30_000 })
-  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
+  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
   expect(stack.model.calls()).toHaveLength(4)
 
   // A Batch Schema Suggestion over one document: refused once, then answered. A lone source needs no merge call.

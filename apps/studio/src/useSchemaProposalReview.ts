@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { deleteModelOperation } from './api'
 import type { SchemaEditorController } from './currentSchemaRevision'
@@ -10,10 +10,9 @@ import {
 
 export type PendingSchemaProposal = DerivedProposal & {
   original: SchemaNode[]
-  originalDraftVersion: number
-  originalSchemaRevisionId: string | null
   /** The proposal's `edit:` workflow, when Studio recorded one: Discard deletes it so a reload cannot reopen it. */
   workflowId: string | null
+  ownership: ReturnType<SchemaEditorController['markProposal']>
 }
 
 export type SchemaProposalReview = {
@@ -40,6 +39,9 @@ export function useSchemaProposalReview(
   schema: SchemaEditorController,
   appendMessage: (message: string) => void,
 ): SchemaProposalReview {
+  useSyncExternalStore(schema.subscribe, schema.snapshot)
+  const marker = useRef<ReturnType<SchemaEditorController['markProposal']> | null>(null)
+  useEffect(() => () => marker.current?.release(), [schema])
   const [pending, setPending] = useState<PendingSchemaProposal | null>(null)
   const [acceptedChangeIds, setAcceptedChangeIds] = useState<Set<string>>(
     new Set(),
@@ -57,9 +59,12 @@ export function useSchemaProposalReview(
   )
 
   const reset = useCallback(() => {
+    if (!pending || marker.current !== pending.ownership) return
+    pending.ownership.release()
+    marker.current = null
     setPending(null)
     setAcceptedChangeIds(new Set())
-  }, [])
+  }, [pending])
 
   const start = useCallback(
     (
@@ -69,16 +74,17 @@ export function useSchemaProposalReview(
       originalSchemaRevisionId: string | null,
       workflowId: string | null,
     ) => {
+      marker.current?.release()
+      marker.current = schema.markProposal({ draftVersion: originalDraftVersion, schemaRevisionId: originalSchemaRevisionId })
       setAcceptedChangeIds(new Set(proposal.changes.map(({ id }) => id)))
       setPending({
         ...proposal,
         original,
-        originalDraftVersion,
-        originalSchemaRevisionId,
         workflowId,
+        ownership: marker.current,
       })
     },
-    [],
+    [schema],
   )
 
   const toggle = useCallback((changeId: string) => {
@@ -89,26 +95,16 @@ export function useSchemaProposalReview(
   }, [pending])
 
   const apply = useCallback(() => {
-    if (!pending || !replay?.hasChanges) return false
-    const current = schema.snapshot()
-    if (
-      current.draftVersion !== pending.originalDraftVersion ||
-      current.extractableSchemaRevisionId !== pending.originalSchemaRevisionId
-    ) {
-      appendMessage('Template changed during review. The proposal was discarded.')
-      reset()
-      return false
-    }
-    const result = schema.commit(
+    if (!pending || marker.current !== pending.ownership || !replay?.hasChanges) return false
+    const result = pending.ownership.apply(
       () => replay.nodes,
       '✦ Template updated via chat',
     )
     if (!result.ok) {
-      appendMessage(
-        result.reason === 'duplicate-name'
-          ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
-          : 'Cannot apply the proposal because no template draft is open.',
-      )
+      if (result.reason === 'stale') { appendMessage(result.message); reset() }
+      else appendMessage(result.reason === 'duplicate-name'
+        ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
+        : result.reason === 'no-draft' ? 'Cannot apply the proposal because no template draft is open.' : result.message)
       return false
     }
     appendMessage(
@@ -116,10 +112,10 @@ export function useSchemaProposalReview(
     )
     reset()
     return true
-  }, [appendMessage, pending, replay, reset, schema])
+  }, [appendMessage, pending, replay, reset])
 
   const discard = useCallback(() => {
-    if (!pending) return
+    if (!pending || marker.current !== pending.ownership) return
     // Discard persists: the proposal's workflow goes, so a reload cannot bring it back. Apply does not delete — the
     // base moves, so the proposal no longer restores.
     if (pending.workflowId)
@@ -134,7 +130,7 @@ export function useSchemaProposalReview(
     pending,
     acceptedChangeIds,
     replay,
-    canApply: replay?.hasChanges ?? false,
+    canApply: (replay?.hasChanges ?? false) && (pending?.ownership.validity().ok ?? false),
     start,
     toggle,
     apply,

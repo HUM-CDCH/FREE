@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -201,12 +201,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const blocked = !!pending || chat.loading
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
-  const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
+  const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} scopeBlockedReason={snap.editingBlockedReason} sayDisabled={!canSay}
     onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
     composer={composer} onSay={() => composerRef.current?.focus()} onFold={mode === 'step' ? () => setUnfolded(null) : undefined} />
   // Folded, the step keeps its options beside its title, but for those that need documents ticked or something said.
   const foldedStep = folded && step && (
     <SetAsideStepView label={step.title} title={step.title} busy={step.busy}
+      description={recordScope?.disabled && step.options.some(option => option.action.startsWith('scope:')) ? snap.editingBlockedReason : null}
       summary={[step.detail?.[0]?.[1], step.notice].filter(Boolean).join(' · ')} live={!!step.notice}
       expandLabel={`Show the ${step.title} step`} onExpand={() => setUnfolded(step.key)}
       actions={step.options.filter((option) => option.action !== 'dismiss' && !option.picks).map((option) => ({
@@ -318,11 +319,12 @@ const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.
 
 /** A step folded to the card's title line (set aside, or under another view): the same left edge and ⏵, a summary, and
  *  its actions, which take further lines where the rail is narrow. The title brings the whole step back. */
-function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, summary, live = false, expandLabel, onExpand, actions }: {
+function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, summary, description, live = false, expandLabel, onExpand, actions }: {
   /** `live`: the summary carries the step's notice, announced as it changes. */
-  title: string; label?: string; busy?: boolean; summary: string; live?: boolean; expandLabel: string; onExpand: () => void
+  title: string; label?: string; busy?: boolean; summary: string; description?: string | null; live?: boolean; expandLabel: string; onExpand: () => void
   actions: readonly { label: string; name: string; title?: string; tone?: StepOption['tone']; disabled: boolean; run: () => void }[]
 }) {
+  const descriptionId = useId()
   return (
     <section aria-label={label} className="mx-4 my-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
       <button type="button" aria-label={expandLabel} title={expandLabel} onClick={onExpand}
@@ -335,11 +337,12 @@ function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, 
       {/* Outside the button, whose content is not announced; it also keeps the actions at the line's end. */}
       <span role={live ? 'status' : undefined} title={summary} className="min-w-0 flex-[1_1_4rem] truncate text-compact text-ink-faint">{summary && `· ${summary}`}</span>
       {actions.map((action) => (
-        <button key={action.name} type="button" aria-label={action.name} title={action.title ?? action.name} disabled={action.disabled} onClick={action.run}
+        <button key={action.name} type="button" aria-label={action.name} title={action.title ?? action.name} aria-describedby={action.disabled && description ? descriptionId : undefined} disabled={action.disabled} onClick={action.run}
           className={`max-w-full cursor-pointer truncate rounded-[3px] border px-2 py-0.5 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[action.tone ?? 'positive']}`}>
           {action.label}
         </button>
       ))}
+      {description && <p id={descriptionId} className="basis-full text-compact leading-snug text-ink-muted">{description}</p>}
     </section>
   )
 }
@@ -348,13 +351,15 @@ function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, 
  *  documents lists the project's to tick. The way past it (`dismiss`) is the chat's composer, drawn as the card's last
  *  numbered option: its number focuses it (`onSay`), and sending from it says something else instead and sets the step
  *  aside; Esc, or the header's ×, sets it aside unsaid. */
-function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay, onFold }: {
-  card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption) => void
+function StepCardView({ card, scopeDisabled = false, scopeBlockedReason = null, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay, onFold }: {
+  card: StepCard; scopeDisabled?: boolean; scopeBlockedReason?: string | null; sayDisabled?: boolean; onChoose: (option: StepOption) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
   composer: ReactNode; onSay: () => void
   /** Under another view: folds the step back to its title line. */
   onFold?: () => void
 }) {
+  const scopeDescriptionId = useId()
+  const scopeDescription = scopeDisabled && card.options.some(option => option.action.startsWith('scope:')) ? scopeBlockedReason : null
   const count = picked?.size ?? 0
   const options = card.options.map((option) =>
     scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
@@ -425,6 +430,7 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
         {card.picker && count > card.picker.limit && (
           <p role="status" className="text-compact leading-snug text-danger">At most {plural(card.picker.limit, 'document')} at once.</p>
         )}
+        {scopeDescription && <p id={scopeDescriptionId} className="text-compact leading-snug text-ink-muted">{scopeDescription}</p>}
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
             {options.map((option, index) => option.action === 'dismiss' ? (
@@ -436,6 +442,7 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
               </div>
             ) : (
               <button key={option.action} type="button" disabled={option.disabled}
+                aria-describedby={scopeDescription && option.action.startsWith('scope:') ? scopeDescriptionId : undefined}
                 title={option.description} aria-description={option.description}
                 className={`flex min-h-7 cursor-pointer items-baseline gap-2 rounded-[3px] border px-2 py-1 text-left text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[option.tone]}`}
                 onClick={() => onChoose(option)}>

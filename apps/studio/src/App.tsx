@@ -852,9 +852,8 @@ export function DocumentWorkspace({
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
-      const revision = await schema.flush()
+      const revision = await schema.prepareUse()
       if (!stillHere()) return
-      if (!revision) throw new Error('Save the Current Template Revision before extraction.')
       // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the template header before extraction.')
       const strategy = strategyOf(revision.recordScope)
@@ -997,8 +996,7 @@ export function DocumentWorkspace({
     setProjectBusy(true)
     setProjectError(null)
     try {
-      const revision = await schema.flush()
-      if (!revision) throw new Error('Save the Current Template Revision first.')
+      const revision = await schema.prepareUse()
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog first.')
       const strategy = strategyOf(revision.recordScope)
       let opened: Awaited<ReturnType<typeof openBatchExtraction>> | null = null
@@ -1044,6 +1042,7 @@ export function DocumentWorkspace({
   }
 
   const runExtractionUnavailable =
+    schemaSnap.useBlockedReason !== null ||
     savingForRun ||
     !extraction.canRun ||
     !sourceRepresentationId ||
@@ -1058,7 +1057,7 @@ export function DocumentWorkspace({
   // strategy's.
   const runUnavailableReason: string | null = running || !runExtractionUnavailable
     ? null
-    : !sourceRepresentationCurrent
+    : schemaSnap.useBlockedReason ? schemaSnap.useBlockedReason : !sourceRepresentationCurrent
       ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
       : schemaSnap.save?.status === 'error'
         ? 'The template is not saved. Retry the save first.'
@@ -1141,7 +1140,7 @@ export function DocumentWorkspace({
         onReviewProgress={setDurableReviewProgress}
         onReviewFinalized={onReviewFinalized}
         schemaName={schemaName}
-        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
+        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun || schemaSnap.editingBlockedReason !== null }}
         // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
