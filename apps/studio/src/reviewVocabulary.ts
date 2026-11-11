@@ -78,7 +78,7 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
     case 'reading': return 'Reading'
     case 'checking': return 'Checking'
     case 'queued': return 'Queued'
-    default: return row.evidence?.label ?? 'Not reviewable'
+    default: return row.evidence?.label ?? 'Can\'t be checked'
   }
 }
 
@@ -119,10 +119,10 @@ export const passesFilter = (row: RailRow, filter: ValueFilter) =>
 
 /** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
  *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
- *  name (`doubt`, `doubtful`); the researcher reads "Uncertain passage". */
+ *  name (`doubt`, `doubtful`); the researcher reads "Not an exact match, please double check". */
 export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
-  if (link.verbatim === false) return 'Value not printed word for word.'
+  if (link.verbatim === false) return 'Not an exact match, please double check'
   return null
 }
 

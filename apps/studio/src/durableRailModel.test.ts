@@ -74,7 +74,7 @@ it('marks a missing value as missing while the run goes on and after it, never a
     const row=durableRailRow(value({modelValue:null,processing:'absent',grounding}),null)
     expect(row.kind).toBe('missing')
     expect(row.chip).toEqual({text:'missing',style:'neutral'})
-    expect(row.evidence).toEqual({label:'No value',detail:'No value was extracted.'})
+    expect(row.evidence).toEqual({label:'No value',detail:'Nothing found in the document.'})
   }
 })
 
@@ -92,7 +92,7 @@ it('keeps disagreements to check with their readings, and shows a chosen reading
   const saved=value({modelValue:null,disagreement:[{path:[],alternatives:[{value:false,segments:['p3_s0']},{value:true,segments:['p3_s0']}]}]})
   const row=durableRailRow(saved,null)
   expect(row.kind).toBe('to-check')
-  expect(row.chip?.text).toBe('readings differ')
+  expect(row.chip?.text).toBe('different readings')
   expect(row.disagreement).toEqual([{part:'',path:[],alternatives:[{value:false,pages:'p. 3'},{value:true,pages:'p. 3'}]}])
   expect(rowText(row)).toBe('false or true')
   const approved={...saved,correction:{decision:{action:'APPROVED',value:false,choices:[{path:[],value:false}]}} as RetainedValue['correction']}
@@ -115,7 +115,7 @@ it('names each scalar part of a composite value with its own link, and keys it b
   expect(markValueId(key)).toBe('v1')
   expect([ownsMark('v1',key),ownsMark('v1','v10'),ownsMark(key,'v1')]).toEqual([true,false,false])
   // A part's row is that part's Evidence; the decision stays the whole value's.
-  expect(durableRailRow(saved,null,parts[0]).chip?.text).toBe('no evidence')
+  expect(durableRailRow(saved,null,parts[0]).chip?.text).toBe('no source')
   expect(durableRailRow(saved,null,parts[2]).link).toBe(cell)
   expect(durableRailRow(saved,null,parts[0]).decision?.evidenceAnchorId).toBe('a_p1_s2_r1_c1')
   expect(valueParts(value())).toEqual([])
@@ -128,7 +128,7 @@ it('shows a single-pass list leaf code located as rule-linked, and an uncited le
   const saved=value({id:'v1',fieldId:'finds',path:['records',0,'finds'],node,modelValue:[{nr:'x1',note:'Bowl'}],links:[located]})
   const [nr,note]=valueParts(saved)
   expect(durableRailRow(saved,null,nr).chip).toEqual({text:'linked',style:'rule'})
-  expect(durableRailRow(saved,null,note).chip?.text).toBe('no evidence')
+  expect(durableRailRow(saved,null,note).chip?.text).toBe('no source')
 })
 
 it('links an edited value\'s parts only where the model read the same item at the same path',()=> {

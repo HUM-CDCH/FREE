@@ -336,7 +336,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     expect(retained.values.find((v:{id:string})=>v.id==='names').correction.decision.value).toEqual(['Ada','Bea'])
     await page.getByRole('button',{name:'All',exact:true}).click()
     await page.getByRole('button',{name:/Edited work/}).click()
-    await expect(page.getByText('Extracted value:',{exact:false})).toBeVisible()
+    await expect(page.getByText('Original:',{exact:false})).toBeVisible()
     await page.screenshot({path:'test-results/durable-composite-review.png',fullPage:true})
   } finally {await fixture.close()}
 })
@@ -1021,7 +1021,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],[null],'COMPLETED',{disagreement:{title:[{path:[],alternatives}]}})
     await fixture.open();await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
-    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByText('Different readings',{exact:true})).toBeVisible()
     await expect(page.getByText('read in p. 3 · not checked')).toHaveCount(2)
     await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0)
     const headers={Origin:new URL(page.url()).origin},root=`/api/extractions/${id}/durable`

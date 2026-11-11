@@ -61,6 +61,30 @@ describe('RailChat', () => {
     expect(screen.getByRole('region', { name: 'Template ready' })).toBeInTheDocument()
   })
 
+  it('runs the current template again once the halted Extraction on an earlier one has stopped, once', async () => {
+    const schema = createSchemaEditorController({ ...testSchemaPersistence(),
+      initialize: async (definition) => ({ schemaRevisionId: 'revision-2', extractionSchemaId: 'schema-1', revisionNumber: 2, recordScope: null,
+        origin: 'suggestion', createdAt: '2026-11-11T00:00:00.000Z', stabilisedAt: null, ...definition }) as never })
+    const command = vi.fn()
+    const start = vi.fn()
+    const props = { schema, sourceDocumentName: 'letters.pdf', onShowView: vi.fn(), recordScope: { value: 'document' as const, onChange: vi.fn() },
+      onGenerate: vi.fn(), control: { command, busy: false, continueBlocked: null, continueDescription: 'Continue.', pauseDescription: 'Pause.' } }
+    const at = (status: 'FAILED' | 'STOPPING' | 'STOPPED', available = false) => ({
+      ...props, run: { start, available, unavailableReason: null },
+      latest: { extractionId: 'extraction-1', schemaRevisionId: 'revision-1', status, progress: null, toCheck: null } })
+    const view = render(<Harness {...at('FAILED')} />)
+    await act(async () => { await schema.generate(async () => ({ _description: 'One letter.', sender: 'string' })) })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Template ready' })).getByRole('button', { name: /Continue/ }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Extraction' })).getByRole('button', { name: /Run again with the current template/ }))
+    expect(command).toHaveBeenCalledExactlyOnceWith('stop')
+    view.rerender(<Harness {...at('STOPPING')} />)
+    expect(start).not.toHaveBeenCalled()
+    view.rerender(<Harness {...at('STOPPED', true)} />)
+    expect(start).toHaveBeenCalledOnce()
+    view.rerender(<Harness {...at('STOPPED', true)} />)
+    expect(start).toHaveBeenCalledOnce()
+  })
+
   it('stops at Results ready once a run seen at work completes, until the researcher goes on', () => {
     const schema = schemaWithFields()
     const onShowView = vi.fn()

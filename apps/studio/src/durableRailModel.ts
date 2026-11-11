@@ -101,15 +101,15 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
       reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
     // A missing value has no Evidence to check, during the run or after it.
-    chip: {text: disagreement ? 'readings differ' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
-      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · uncertain' : ''}`,
+    chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
+      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
-    evidence: disagreement ? {label:'Readings differ',detail:'Choose one, edit or reject it.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
-      detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'
-        : value.processing === 'absent' ? 'No value was extracted.' : 'It can be reviewed once the run saves it.'} : null,
+    evidence: disagreement ? {label:'Different readings',detail:'Pick one, or edit.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'Source not found' : 'Not read yet',
+      detail: value.processing === 'saved' ? 'Please check it in the document.'
+        : value.processing === 'absent' ? 'Nothing found in the document.' : 'Can be checked once it is read.'} : null,
     doubt, changed: false, disagreement, page,
     retained: {reviewable: value.processing === 'saved',
-      attribution: value.historicalCorrection ? 'An earlier correction does not fit this value; it stays saved.' : undefined},
+      attribution: value.historicalCorrection ? 'Your earlier decision no longer fits this value.' : undefined},
   }
 }
 

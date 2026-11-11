@@ -333,7 +333,7 @@ it('cancels editing before leaving one-by-one and restores heading keyboard focu
   expect(screen.queryByRole('textbox',{name:'Reviewed value'})).toBeNull()
   expect(screen.getByRole('heading',{name:'First title'})).toHaveFocus()
   fireEvent.keyDown(screen.getByRole('heading',{name:'First title'}),{key:'e'})
-  const save=screen.getByRole('button',{name:'Save edit and next'});save.focus()
+  const save=screen.getByRole('button',{name:'Save and next'});save.focus()
   fireEvent.keyDown(save,{key:'j'})
   expect(screen.getByRole('textbox',{name:'Reviewed value'})).toBeVisible()
   fireEvent.keyDown(save,{key:'Escape'})
@@ -771,7 +771,7 @@ it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false valu
   expect(screen.getByRole('button', {name: /To check painted true/})).toBeVisible()
   expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name: /To check leather material/}))
-  expect(within(screen.getByRole('region', {name: 'Review leather material'})).getByText('No Evidence linked')).toBeVisible()
+  expect(within(screen.getByRole('region', {name: 'Review leather material'})).getByText('Source not found')).toBeVisible()
   fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
   expect(screen.getByRole('combobox', {name: 'Reviewed value'})).toHaveValue('false')
   fireEvent.change(screen.getByRole('combobox', {name: 'Reviewed value'}), {target: {value: 'true'}})
@@ -804,7 +804,7 @@ it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachabl
   fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
   fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 to check/})).toBeVisible()
-  expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
+  expect(screen.queryByText(/All saved values are checked/)).toBeNull()
   expect(screen.getByRole('region',{name:'Review title'})).toBeVisible()
   expect(screen.getByRole('button',{name:/Approve and next/})).toBeEnabled()
 })
@@ -841,7 +841,7 @@ it('offers the unchecked list after saving and undoing an edit, then cancelling 
   fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
   fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 approved, 0 edited, 0 rejected, 1 to check/})).toBeVisible()
-  expect(screen.queryByText(/You’re caught up with the saved values/)).toBeNull()
+  expect(screen.queryByText(/All saved values are checked/)).toBeNull()
   expect(screen.getByRole('region',{name:'Review samples'})).toBeVisible()
   expect(screen.getByRole('button',{name:/Approve and next/})).toBeEnabled()
   expect(screen.getByText('10')).toBeVisible()
@@ -1071,7 +1071,7 @@ it('shows both unselected readings, offers no Approve, ignores A, and saves the 
   vi.mocked(durableRequest).mockResolvedValue({id:'correction',revision:1,feedbackVersion:1,included:false})
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
   fireEvent.click(await screen.findByRole('button',{name:/To check title Article title or Cited title/}))
-  expect(screen.getByText('Readings differ',{exact:true})).toBeVisible()
+  expect(screen.getByText('Different readings',{exact:true})).toBeVisible()
   expect(screen.getAllByText('read in p. 3 · not checked')).toHaveLength(2)
   expect(screen.queryByRole('button',{name:'Approve'})).toBeNull()
   expect(screen.getByRole('button',{name:'Edit'})).toBeVisible()
@@ -1141,7 +1141,7 @@ it('picks a part of a composite value: its mark, its Evidence, and back to the w
   expect(note()).toHaveAttribute('aria-pressed','true')
   expect(marks().selected).toBe(tooth)
   // A part with no link shows none; picking the chosen part again chooses the whole value.
-  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1'})).toHaveAttribute('title','No Evidence linked')
+  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1'})).toHaveAttribute('title','Source not found')
   fireEvent.click(note())
   expect(marks().selected).toBe('v1')
   // A part's mark selects its value and that part.
@@ -1196,7 +1196,7 @@ it('offers an edited value\'s parts to pick, linked only where the model read th
   const {onEvidence,marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Animal',dele:[{nr:'1',note:'Tooth'}]},included:true,
     evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
   // The edited art has no link; its model link stays the whole value's mark.
-  expect(screen.getByRole('button',{name:'skelet › art: Animal'})).toHaveAttribute('title','No Evidence linked')
+  expect(screen.getByRole('button',{name:'skelet › art: Animal'})).toHaveAttribute('title','Source not found')
   expect(marks().savedLinks!.find(saved=>saved.link===skeletArt)!.key).toBe('v1')
   const tooth=marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key
   expect(tooth).not.toBe('v1')
@@ -1405,7 +1405,7 @@ it('does not reopen locally approved values while the page refresh is pending',a
     await act(async()=>{})
   }
   expect(screen.queryByRole('button',{name:/Approve and next/})).toBeNull()
-  expect(screen.getByText(/caught up/)).toBeVisible()
+  expect(screen.getByText(/All (saved values are )?checked/)).toBeVisible()
   expect(vi.mocked(durableRequest).mock.calls.map(call=>call[0])).toEqual([
     '/api/extractions/extraction/durable/values/a',
     '/api/extractions/extraction/durable/values/b',
@@ -1427,12 +1427,12 @@ it('uses acknowledged eligibility for Skip, Up next and re-entry while reads are
   expect(screen.queryByText('First title')).toBeNull()
   expect(screen.getByText('c').parentElement).toHaveTextContent('Third title')
   expect(screen.getByText('2 of 2')).toBeVisible()
-  fireEvent.click(screen.getByRole('button',{name:/Skip for now/}))
+  fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:/Leave one-by-one review/}))
   fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
-  fireEvent.click(screen.getByRole('button',{name:/Skip for now/}))
+  fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   // The complete queue still anchors Previous after the acknowledged revision is observed.
   const saved={...page,feedbackVersion:1,values:page.values.map(value=>value.id==='a'?{...value,
@@ -1440,7 +1440,7 @@ it('uses acknowledged eligibility for Skip, Up next and re-entry while reads are
   await act(async()=>reload.resolve({state:pausedState,page:saved}))
   fireEvent.click(screen.getByRole('button',{name:/Previous/}))
   expect(screen.getByRole('heading',{name:'First title'})).toBeVisible()
-  expect(screen.getByRole('button',{name:'Undo this decision'})).toBeEnabled()
+  expect(screen.getByRole('button',{name:'Undo'})).toBeEnabled()
   expect(durableRequest).toHaveBeenCalledTimes(1)
 })
 
@@ -1457,19 +1457,19 @@ it('retains the response revision after conflict recovery and ignores older read
   fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
   fireEvent.click(screen.getByRole('button',{name:/^Edit/}))
   fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:'My corrected title'}})
-  fireEvent.click(screen.getByRole('button',{name:'Save edit and next'}))
+  fireEvent.click(screen.getByRole('button',{name:'Save and next'}))
   await screen.findByRole('alert')
   expect(screen.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('My corrected title')
   fireEvent.click(screen.getByRole('button',{name:'Reload saved decision · keep my draft'}))
   await screen.findByRole('region',{name:'Compare saved value and draft'})
-  await waitFor(()=>expect(screen.getByRole('button',{name:'Save edit and next'})).toBeEnabled())
-  fireEvent.click(screen.getByRole('button',{name:'Save edit and next'}))
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Save and next'})).toBeEnabled())
+  fireEvent.click(screen.getByRole('button',{name:'Save and next'}))
   expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
   expect(durableRequest).toHaveBeenLastCalledWith(expect.stringContaining('/values/a'),expect.objectContaining({expectedRevision:1}))
   await act(async()=>older.resolve({state:pausedState,page:{...page,feedbackVersion:1,values:[revision1,...page.values.slice(1)]}}))
   fireEvent.click(screen.getByRole('button',{name:/Previous/}))
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
-  fireEvent.click(screen.getByRole('button',{name:/Skip for now/}))
+  fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
   const revision2={...revision1,correction:{...revision1.correction!,revision:2}}
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:{...page,feedbackVersion:2,values:[revision2,...page.values.slice(1)]}} as never)
@@ -1477,7 +1477,7 @@ it('retains the response revision after conflict recovery and ignores older read
   fireEvent.click(screen.getByRole('button',{name:/Previous/}))
   fireEvent.click(screen.getByRole('button',{name:/Previous/}))
   expect(screen.getByRole('heading',{name:'First title'})).toBeVisible()
-  expect(screen.getByRole('button',{name:'Undo this decision'})).toBeEnabled()
+  expect(screen.getByRole('button',{name:'Undo'})).toBeEnabled()
 })
 
 it('keeps Undo to PENDING protected through stale reads, then makes the value reviewable again',async()=>{
@@ -1573,14 +1573,14 @@ it('protects decisions on a pinned live snapshot until its own read catches up, 
   expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
   await act(async()=>{await reader.refresh()})
   expect(screen.queryByText('First title')).toBeNull()
-  fireEvent.click(screen.getByRole('button',{name:/Skip for now/}))
+  fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
   await act(async()=>pinnedRead.resolve({...page,feedbackVersion:1,values:[approved,...page.values.slice(1)]}))
-  fireEvent.click(screen.getByRole('button',{name:/Skip for now/}))
+  fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:/Previous/}))
   expect(screen.getByRole('heading',{name:'First title'})).toBeVisible()
-  expect(screen.getByRole('button',{name:'Undo this decision'})).toBeEnabled()
+  expect(screen.getByRole('button',{name:'Undo'})).toBeEnabled()
 })
 
 it.each(['pending','failed'] as const)('keeps the shown live page protected while a historical read is %s',async outcome=>{
@@ -1610,7 +1610,7 @@ it.each(['pending','failed'] as const)('keeps the shown live page protected whil
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   expect(screen.queryByText('First title')).toBeNull()
   expect(screen.queryByText(/Showing saved results 1/)).toBeNull()
-  fireEvent.click(screen.getByRole('button',{name:/Skip for now/}))
+  fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
   expect(durableRequest).toHaveBeenCalledOnce()
   // Only an accepted historical response can replace the shown page and its review policy.

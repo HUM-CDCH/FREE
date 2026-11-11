@@ -339,7 +339,7 @@ describe('marks select their values', () => {
     const marks = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
     expect(marks).toHaveLength(anchor.producer_observations.length)
     const mark = marks[0]!
-    expect(mark.getAttribute('aria-label')).toBe('title: Alpha, linked by rule, Approved; subtitle: Beta, linked by rule')
+    expect(mark.getAttribute('aria-label')).toBe('title: Alpha, matched by rule, Approved; subtitle: Beta, matched by rule')
     // No browser tooltip: the pointer gets the mark's name tag instead.
     expect(mark.title).toBe('')
     expect(mark.getAttribute('aria-current')).toBe('true')
@@ -665,7 +665,7 @@ describe('value marks', () => {
     expect([...values()[0]!.classList]).toEqual(expect.arrayContaining(['doubtful', 'decided']))
     const block = container.querySelector<HTMLElement>('button.evidence-mark')!
     expect(block.classList.contains('valued')).toBe(true)
-    expect(block.getAttribute('aria-label')).toBe('title: Alpha, uncertain, Approved')
+    expect(block.getAttribute('aria-label')).toBe('title: Alpha, not an exact match, Approved')
   })
 
   it('keeps the block underline for a value with no mark of its own, and gives a block of several fields a neutral colour', async () => {

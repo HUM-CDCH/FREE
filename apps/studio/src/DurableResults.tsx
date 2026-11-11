@@ -619,7 +619,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
     onKeyDown={event=>{if((!focus||readOnly||!review)&&event.key==='Escape'&&menuOpen&&!event.defaultPrevented&&!event.repeat&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.currentTarget.closest('[hidden]')){event.preventDefault();setMenuOpen(false)}}}>
     <ResultsHeader status={status} slot={headerSlot}
-      counts={counts} running={active} reviewSaved={Boolean(page.finalization)} readOnlyNote={readOnly?'Read-only: a saved review.':undefined}
+      counts={counts} running={active} reviewSaved={Boolean(page.finalization)} readOnlyNote={readOnly?'Saved review, view only.':undefined}
       actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):nextToCheck(queue,null,blocked)===null?'Nothing left to check here':null}:null,
         saveReview:canSave?'Save review':null,list:focus}}
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
@@ -678,7 +678,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       <RunDiagnostics page={page}/>
       {review&&(focus||!inline)&&<div data-result-key={review.value.id} style={evidenceColorVars(fieldColor(fieldOrder,review.value.node.name))} className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
-      {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
+      {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">All saved values are checked. New ones show up here as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
           selectedKey={review?.value.id??null} linkedKeys={linkedKeys} selection={selection} isOpen={isOpen}

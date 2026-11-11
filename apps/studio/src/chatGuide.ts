@@ -14,6 +14,7 @@ export type StepAction =
   | 'apply'
   | 'review-schema'
   | 'continue'
+  | 'restart'
   | 'discard'
   | 'scope:records'
   | 'scope:document'
@@ -159,8 +160,16 @@ function controlStep(input: GuideInput): StepCard | null {
     description: 'Stop the extraction; its saved values and decisions stay' }
   const continuing = (action: 'resume' | 'retry', label: string): StepOption => ({ action, label, tone: 'positive',
     disabled: control.busy || control.continueBlocked !== null, description: control.continueDescription })
-  const options: StepOption[] = latest.status === 'PAUSED' ? [continuing('resume', '▶ Resume extraction'), stop]
-    : latest.status === 'FAILED' ? [continuing('retry', '↻ Retry extraction'), stop]
+  // Halted on an earlier template than the current one: continuing would keep that template, so running the current one
+  // again leads, and Resume or Retry follows.
+  const halted = latest.status === 'PAUSED' || latest.status === 'FAILED'
+  const earlierTemplate = halted && !!input.run && input.revision.id !== null
+    && latest.schemaRevisionId !== input.revision.id && latest.sameTemplate !== true
+  const restart: StepOption = { action: 'restart', label: '▶ Run again with the current template', tone: 'positive', disabled: control.busy,
+    description: `Stops this extraction (its saved values and decisions stay), then runs ${input.revision.number !== null ? `template revision ${input.revision.number}` : 'the current template'}` }
+  const lead = (option: StepOption): StepOption[] => earlierTemplate ? [restart, { ...option, tone: 'secondary' }] : [option]
+  const options: StepOption[] = latest.status === 'PAUSED' ? [...lead(continuing('resume', '▶ Resume extraction')), stop]
+    : latest.status === 'FAILED' ? [...lead(continuing('retry', '↻ Retry extraction')), stop]
       : latest.status === 'QUEUED' || latest.status === 'RUNNING'
         ? [{ action: 'pause', label: '❚❚ Pause extraction', tone: 'secondary', disabled: control.busy, description: control.pauseDescription }, stop]
         // Pausing waits for the call under way; Stop still ends the extraction.
@@ -169,6 +178,7 @@ function controlStep(input: GuideInput): StepCard | null {
     key: `extraction:${latest.extractionId}`,
     title: 'Extraction',
     notice: latest.status === 'PAUSING' ? 'Pausing…' : latest.status === 'STOPPING' ? 'Stopping…' : latest.progress ?? 'Working…',
+    question: earlierTemplate ? `It ran with an earlier template. ${latest.status === 'FAILED' ? 'Retry' : 'Resume'} keeps that one; run the current template instead?` : undefined,
     error: latest.status === 'PAUSED' || latest.status === 'FAILED' ? control.continueBlocked ?? undefined : undefined,
     busy: ACTIVE.has(latest.status),
     options,

@@ -97,7 +97,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
           </span>
           <span className={`text-content font-medium text-ink [overflow-wrap:anywhere] ${selected ? 'block' : 'line-clamp-2'}`}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
-          {row.changed && <span className="block text-compact text-stale-ink">changed after you reviewed it</span>}
+          {row.changed && <span className="block text-compact text-stale-ink">Changed since you checked it, please check again</span>}
         </span>
         {row.chip && (
           <span className={`inline-flex h-5.5 items-center gap-1 rounded border px-1.5 text-compact whitespace-nowrap ${chipStyles[style]}`}>
@@ -108,17 +108,17 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
           {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} path={row.resultPath} pick={pick} />}
-          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Extracted value: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
+          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Original: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && (
             <>
-              {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Uncertain passage.</b> {row.doubt}</span></p>}
+              {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{row.doubt}</span></p>}
             </>
           )}
           {!linked && row.evidence && (
             <>
               <p className="m-0 text-compact font-semibold text-ink">{row.evidence.label}</p>
               <p className="m-0 text-secondary text-ink">{row.evidence.detail}</p>
-              {!reviewable && <p className="m-0 text-secondary text-ink-muted">Not part of the review. It stays in the result and the export as extracted.</p>}
+              {!reviewable && <p className="m-0 text-secondary text-ink-muted">Not reviewed, exported as extracted.</p>}
             </>
           )}
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
