@@ -81,6 +81,23 @@ describe('RailChat', () => {
     expect(screen.queryByRole('region', { name: 'Results ready' })).not.toBeInTheDocument()
   })
 
+  it('shows each instruction where it was said, between the steps answered around it', () => {
+    renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate: vi.fn() })
+    const say = (text: string) => {
+      const input = screen.getByRole('textbox')
+      fireEvent.change(input, { target: { value: text } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+    }
+    say('Focus on senders')
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Generate template' }), { key: 'Escape' })
+    say('Also the dates')
+    const first = screen.getByRole('note', { name: 'Instruction 1' })
+    const step = screen.getByText('Generate template', { selector: 'span.font-semibold' })
+    const second = screen.getByRole('note', { name: 'Instruction 2' })
+    expect(first.compareDocumentPosition(step) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(step.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('takes an instruction typed into the composer the Generate template step carries, and Esc still closes it', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })

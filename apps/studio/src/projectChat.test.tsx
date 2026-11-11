@@ -145,12 +145,14 @@ describe('useSchemaChat kept with its project', () => {
     const { kept } = server(stored)
     requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'It has 3 senders.' })
     const { result } = renderChat({ projectContextId, sourceDocumentId: documentB, name: 'b.pdf' })
-    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    await waitFor(() => expect(result.current.messages).toHaveLength(5))
     expect(result.current.instructions.items).toEqual([{ id: id(1), text: 'Focus on dates' }])
+    // The instruction is shown where it was said: first, ahead of the turn to a.pdf.
+    expect(result.current.messages.slice(0, 2)).toEqual([{ role: 'instruction', id: id(1) }, { role: 'document', sourceDocumentId: documentA, name: 'a.pdf' }])
 
     await act(() => result.current.send('How many senders?'))
 
-    expect(result.current.messages.slice(4)).toEqual([
+    expect(result.current.messages.slice(5)).toEqual([
       { role: 'document', sourceDocumentId: documentB, name: 'b.pdf' },
       { role: 'user', text: 'How many senders?' },
       { role: 'assistant', text: 'It has 3 senders.' },
@@ -176,7 +178,7 @@ describe('useSchemaChat kept with its project', () => {
     requestSchemaEdit.mockImplementationOnce((_context, _message, signal: AbortSignal) =>
       new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })))
     const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
-    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    await waitFor(() => expect(result.current.messages).toHaveLength(5))
     let sending!: Promise<void>
     act(() => { sending = result.current.send('Never mind') })
     await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
@@ -191,7 +193,7 @@ describe('useSchemaChat kept with its project', () => {
     const { cleared, kept } = server(stored)
     requestSchemaEdit.mockResolvedValueOnce({ status: 'answered', answer: 'Three.' })
     const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
-    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    await waitFor(() => expect(result.current.messages).toHaveLength(5))
     await act(() => result.current.clearConversation())
     expect(cleared).toEqual([0])
     expect(result.current.messages).toEqual([])
@@ -210,9 +212,9 @@ describe('useSchemaChat kept with its project', () => {
   it('keeps the conversation shown when the clear fails', async () => {
     server(stored, 0, 1)
     const { result } = renderChat({ projectContextId, sourceDocumentId: documentA, name: 'a.pdf' })
-    await waitFor(() => expect(result.current.messages).toHaveLength(4))
+    await waitFor(() => expect(result.current.messages).toHaveLength(5))
     await act(() => expect(result.current.clearConversation()).rejects.toThrow('could not be cleared'))
-    expect(result.current.messages).toHaveLength(4)
+    expect(result.current.messages).toHaveLength(5)
     expect(result.current.instructions.items).toHaveLength(1)
   })
 

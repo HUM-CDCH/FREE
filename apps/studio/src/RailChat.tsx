@@ -10,7 +10,7 @@ import { ChatTranscript } from './SchemaChatParts'
 import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
-import { SchemaInstructionsChat } from './SchemaInstructions'
+import { PendingAsk } from './SchemaInstructions'
 import type { SchemaChat } from './useSchemaChat'
 
 const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
@@ -254,9 +254,10 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     </>
   )
 
-  const instructionsConversation = instructions.items.length > 0 || chat.asking !== null || chat.askError ? (
+  // The instructions and questions show where they were said, in the transcript; a reply still coming follows it.
+  const pendingAsk = (chat.asking !== null || chat.askError) ? (
     <>
-      <SchemaInstructionsChat instructions={instructions} messageClass={chatMessageClass} asking={chat.asking} />
+      {chat.asking !== null && <PendingAsk asking={chat.asking} messageClass={chatMessageClass} />}
       {chat.askError && <p className="text-compact text-danger [overflow-wrap:anywhere]" role="alert">{chat.askError}</p>}
     </>
   ) : undefined
@@ -268,7 +269,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
         title="Conversation" label={shownCard || generate} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
         bar={shownCard || generate || undefined} composer={sayInCard ? null : composer}>
-        <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
+        <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} after={pendingAsk} />
       </ChatDrawer>
       {confirmingClear && (
         <DeleteDialog title="Clear the conversation?" confirmLabel="Clear conversation" returnFocusRef={clearRef}
