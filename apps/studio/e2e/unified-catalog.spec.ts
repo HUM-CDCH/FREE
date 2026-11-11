@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION } from 'extraction/extraction-method'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
 import { activateWithKeyboard, expectOperableInViewport, REQUIRED_VIEWPORTS } from './accessibility.js'
@@ -42,7 +43,7 @@ async function showPage(dialog: Locator, title: string): Promise<void> {
 test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found by keyboard; Apply saves it', async ({ page }) => {
   await signIn(page)
   const dialog = await openCatalogSettings(page)
-  await expect(dialog.getByText('Service defaults, version 6')).toBeVisible()
+  await expect(dialog.getByText(`Service defaults, version ${UNIFIED_CATALOG_DEFAULTS_VERSION}`)).toBeVisible()
   await expect(dialog.getByText('Generic Catalog')).toHaveCount(0)
   await expect(dialog.getByText('Recipe Catalog')).toHaveCount(0)
   await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Customize' }))
@@ -63,7 +64,7 @@ test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found
   await showPage(dialog, 'Catalog: Pro mode')
   await expect(dialog.getByText(/Off reads each value once/)).toBeVisible()
   await dialog.getByRole('switch', { name: 'Pro mode' }).click()
-  await expect(dialog.getByText(/Pro mode runs defaults version 5/)).toBeVisible()
+  await expect(dialog.getByText(`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}`)).toBeVisible()
   const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/model_config' &&
     response.request().method() === 'PUT')
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
