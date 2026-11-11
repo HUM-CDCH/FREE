@@ -531,7 +531,6 @@ export default function ProjectContextPage({
   // unless opened, or unless this project already has spreadsheet work.
   const [spreadsheetExpanded, setSpreadsheetExpanded] = useState<boolean | null>(null)
   const [codebookOpen, setCodebookOpen] = useState(false)
-  const importedSchemaId = useRef<string | null>(null)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -793,27 +792,11 @@ export default function ProjectContextPage({
   const codebookTarget: SchemaImportTarget = {
     operationScope: () => ({ projectContextId, extractionSchemaId: null }),
     snapshot: () => ({ draftVersion: 0, extractionSchemaId: null }),
-    async confirmDefinition(definition) {
-      const revision = await createExtractionSchema(projectContextId, definition)
-      importedSchemaId.current = revision.extractionSchemaId
+    async confirmDefinition(definition, workbookName) {
+      await createExtractionSchema(projectContextId, definition, defaultSchemaName(workbookName))
+      setSchemaRetry((attempt) => attempt + 1)
+      refreshProjects()
     },
-  }
-
-  async function nameImportedSchema(workbookName: string) {
-    const extractionSchemaId = importedSchemaId.current
-    importedSchemaId.current = null
-    // Named after the workbook as a generated schema is after its document;
-    // a refused name leaves the default, which can still be renamed inline.
-    if (extractionSchemaId)
-      await renameExtractionSchema(
-        projectContextId,
-        extractionSchemaId,
-        defaultSchemaName(workbookName),
-        undefined,
-        'Extraction Template',
-      ).catch(() => null)
-    setSchemaRetry((attempt) => attempt + 1)
-    refreshProjects()
   }
 
   const spreadsheetShown =
@@ -1540,7 +1523,6 @@ export default function ProjectContextPage({
                 disabled={false}
                 open={codebookOpen}
                 onClose={() => setCodebookOpen(false)}
-                onImported={(workbookName) => void nameImportedSchema(workbookName)}
               />
             </section>
 

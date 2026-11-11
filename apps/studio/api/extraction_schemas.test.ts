@@ -93,7 +93,7 @@ describe('POST /api/extraction-schemas', () => {
       body: JSON.stringify(body),
     })
 
-  it('creates a schema whose revision 1 is the definition', async () => {
+  it.each([undefined, '  Workbook name  '])('creates revision 1 with an optional initial name (%s)', async (name) => {
     const createExtractionSchema = vi.fn(async (_project: string, tree: unknown) => ({
       schemaRevisionId: REVISION,
       extractionSchemaId: SCHEMA,
@@ -105,14 +105,14 @@ describe('POST /api/extraction-schemas', () => {
       stabilisedAt: null,
     }))
     const POST = createPostExtractionSchema({ createExtractionSchema })
-    const response = await POST(request({ projectContextId: PROJECT, ...definition }))
+    const response = await POST(request({ projectContextId: PROJECT, ...definition, ...(name === undefined ? {} : { name }) }))
 
     expect(response.status).toBe(201)
     expect(response.headers.get('cache-control')).toBe('no-store')
     await expect(response.json()).resolves.toMatchObject({
       revision: { schemaRevisionId: REVISION, extractionSchemaId: SCHEMA, revisionNumber: 1, ...definition },
     })
-    expect(createExtractionSchema).toHaveBeenCalledWith(PROJECT, definition)
+    expect(createExtractionSchema).toHaveBeenCalledWith(PROJECT, definition, name?.trim())
   })
 
   it('refuses invalid requests and answers 404 for a project it does not own', async () => {
@@ -121,8 +121,10 @@ describe('POST /api/extraction-schemas', () => {
 
     expect((await POST(request(definition))).status).toBe(422)
     expect((await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, ...definition }))).status).toBe(422)
+    for (const name of ['', '   ', 'x'.repeat(513), 42, null])
+      expect((await POST(request({ projectContextId: PROJECT, ...definition, name }))).status).toBe(422)
     expect(createExtractionSchema).not.toHaveBeenCalled()
-    expect((await POST(request({ projectContextId: PROJECT, ...definition }))).status).toBe(404)
+    expect((await POST(request({ projectContextId: PROJECT, ...definition, name: 'Workbook' }))).status).toBe(404)
   })
 })
 

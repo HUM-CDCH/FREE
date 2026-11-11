@@ -37,7 +37,6 @@ it('reviews saved ungrounded and provisional whole typed values without inventin
   expect(row.kind).toBe('to-check')
   expect(row.retained?.reviewable).toBe(true)
   expect(row.value).toEqual(original)
-  expect(row.retained?.source).toBe('Evidence is still being checked')
   expect(durableRailModel({values:[saved]} as DurablePage,null).records[0].rows).toHaveLength(1)
   expect(durableRailRow(value({processing:'unprocessed'}),null).retained?.reviewable).toBe(false)
 })
@@ -49,7 +48,6 @@ it('keeps a rule link factual and a researcher correction independent of model E
   expect(row.value).toBe(true)
   expect(row.extracted).toBe(false)
   expect(row.kind).toBe('edited')
-  expect(row.retained?.source).toBeUndefined()
   expect(row.chip).toEqual({text:'linked',style:'rule'})
 })
 
@@ -68,7 +66,6 @@ it('non-verbatim Evidence determines the uncertain filter, count and queue',()=>
 it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {
   const row=durableRailRow(value({grounding:'provisional',node:{id:'flag',name:'flag',type:'string'},
     links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',verbatim:true,grounding:{linkedBy:'verification'}}] as never}),null)
-  expect(row.retained?.source).toBeUndefined()
   expect(row.chip).toEqual({text:'linked',style:'link'})
 })
 

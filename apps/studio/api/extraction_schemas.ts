@@ -217,9 +217,9 @@ export function createPostExtractionSchema(
       const parsed = extractionSchemaCreateRequestSchema.safeParse(await parseJsonRequest(request))
       if (!parsed.success)
         throw new ApiError(422, 'invalid_request', 'Extraction Schema request is invalid.')
-      const { projectContextId, ...definition } = parsed.data
+      const { projectContextId, name, ...definition } = parsed.data
       const revision = await store
-        .createExtractionSchema(projectContextId, definition)
+        .createExtractionSchema(projectContextId, definition, name)
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })

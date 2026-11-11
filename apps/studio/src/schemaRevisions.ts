@@ -160,12 +160,12 @@ async function writeSchemaRevision(
 }
 
 /** A new Extraction Schema beside the project's others, whose revision 1 is `definition` with no Record Scope: the
- *  template an import starts. */
-export async function createExtractionSchema(projectContextId: string, definition: SchemaDefinition): Promise<SchemaRevision> {
+ *  template an import starts. An optional initial name is saved with that revision. */
+export async function createExtractionSchema(projectContextId: string, definition: SchemaDefinition, name?: string): Promise<SchemaRevision> {
   const response = await authenticatedFetch('/api/extraction-schemas', {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ projectContextId, ...writtenDefinition(definition, undefined) }),
+    body: JSON.stringify({ projectContextId, ...writtenDefinition(definition, undefined), ...(name === undefined ? {} : { name }) }),
   })
   const value = await body(response)
   if (!response.ok) throw failure(value, response.status)

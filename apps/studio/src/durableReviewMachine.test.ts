@@ -14,13 +14,15 @@ describe('retained value review',()=> {
       if(url.endsWith('/history'))return Response.json({corrections:[{...prior,valueId:'value'}]})
       if(!options?.body)return Response.json({values:[{...value,correction:prior}]})
       requests.push(JSON.parse(String(options.body)))
-      return conflict?Response.json({error:{message:'Another view saved a newer correction.'}},{status:409}):Response.json({revision:3})
+      return conflict?Response.json({error:{message:'Another view saved a newer correction.'}},{status:409}):Response.json({id:'correction-3',revision:3,feedbackVersion:8,included:false})
     }))
     const actor=createActor(durableReviewMachine,{input:{extractionId:'extraction',value,snapshotVersion:7}}).start()
     actor.send({type:'undo'})
     await waitFor(actor,s=>conflict?s.matches('editing')&&s.context.error!==null:s.matches('saved'))
     expect(requests).toEqual([{expectedRevision:2,snapshotVersion:7,action:'EDITED',value:{a:10,b:2},included:false,evidence:[{anchorId:'own',occurrenceIds:['one']}]}])
+    if(!conflict)expect(actor.getSnapshot().context.acknowledgement).toEqual({id:'correction-3',extractionId:'extraction',valueId:'value',revision:3,feedbackVersion:8,included:false,action:'EDITED'})
     if(conflict) {
+      expect(actor.getSnapshot().context.acknowledgement).toBeNull()
       expect(actor.getSnapshot().context.draft.value).toEqual({a:10,b:2})
       expect(actor.getSnapshot().context.error).toContain('newer correction')
     }
@@ -29,17 +31,21 @@ describe('retained value review',()=> {
 
   it('uses PENDING only when Undo has no previous saved decision',async()=>{
     const value={id:'value',modelValue:false,correction:{revision:1,decision:{action:'EDITED',value:true,included:true,evidence:[]}}} as DurablePage['values'][number]
-    const fetcher=vi.fn(async(url:string,options?:RequestInit)=>url.endsWith('/history')?Response.json({corrections:[]}):Response.json(JSON.parse(String(options?.body))))
+    const fetcher=vi.fn(async(url:string,options?:RequestInit)=> {
+      if(options?.body)expect(JSON.parse(String(options.body))).toEqual({expectedRevision:1,snapshotVersion:7,action:'PENDING',value:false,included:false,evidence:[]})
+      return url.endsWith('/history')?Response.json({corrections:[]}):Response.json({id:'undo-correction',revision:2,feedbackVersion:5,included:false})
+    })
     vi.stubGlobal('fetch',fetcher)
     const actor=createActor(durableReviewMachine,{input:{extractionId:'extraction',value,snapshotVersion:7}}).start()
     actor.send({type:'undo'});await waitFor(actor,s=>s.matches('saved'))
-    expect(JSON.parse(String(fetcher.mock.calls[1]![1]!.body))).toEqual({expectedRevision:1,snapshotVersion:7,action:'PENDING',value:false,included:false,evidence:[]})
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(actor.getSnapshot().context.acknowledgement).toEqual({id:'undo-correction',extractionId:'extraction',valueId:'value',revision:2,feedbackVersion:5,included:false,action:'PENDING'})
     actor.stop()
   })
 
   it('keeps incompatible previous decisions in history without saving them on Undo',async()=>{
     const value={id:'value',modelValue:42,correction:{revision:2,decision:{action:'EDITED',value:43,included:true,evidence:[]}}} as DurablePage['values'][number]
-    const fetcher=vi.fn(async(url:string)=>url.endsWith('/history')?Response.json({corrections:[{valueId:'value',revision:1,feedbackVersion:1}]}):Response.json({values:[{...value,correction:null,historicalCorrection:{revision:1}}]}))
+    const fetcher=vi.fn(async(url:string)=>url.endsWith('/history')?Response.json({corrections:[{extractionId:'extraction',valueId:'value',revision:1,feedbackVersion:1}]}):Response.json({values:[{...value,correction:null,historicalCorrection:{revision:1}}]}))
     vi.stubGlobal('fetch',fetcher)
     const actor=createActor(durableReviewMachine,{input:{extractionId:'extraction',value,snapshotVersion:7}}).start()
     actor.send({type:'undo'});await waitFor(actor,s=>s.matches('editing')&&s.context.error!==null)
@@ -60,18 +66,20 @@ describe('retained value review',()=> {
     vi.stubGlobal('fetch',vi.fn(async(_url:string,options?:RequestInit)=> {
       if(!options?.body)return Response.json({values:[{...value,correction:{revision:1,decision:{action:'EDITED',value:false}}}]})
       const body=JSON.parse(String(options.body));requests.push(body)
-      return body.expectedRevision===0?Response.json({error:{message:'Another view saved a newer correction.'}},{status:409}):Response.json({revision:2})
+      return body.expectedRevision===0?Response.json({error:{message:'Another view saved a newer correction.'}},{status:409}):Response.json({id:'correction-2',revision:2,feedbackVersion:7,included:true})
     }))
     const actor=createActor(durableReviewMachine,{input:{extractionId:'extraction',value,snapshotVersion:7}}).start()
     actor.send({type:'edit',draft:{value:true,included:true,evidence:[]}})
     actor.send({type:'save',action:'EDITED'})
     await waitFor(actor,s=>s.matches('editing')&&s.context.error!==null)
     expect(actor.getSnapshot().context.draft.value).toBe(true)
+    expect(actor.getSnapshot().context.acknowledgement).toBeNull()
     actor.send({type:'refresh'})
     await waitFor(actor,s=>s.matches('editing')&&s.context.value.correction?.revision===1)
     expect(actor.getSnapshot().context.draft.value).toBe(true)
     actor.send({type:'save',action:'EDITED'})
     await waitFor(actor,s=>s.matches('saved'))
+    expect(actor.getSnapshot().context.acknowledgement).toEqual({id:'correction-2',extractionId:'extraction',valueId:'value',revision:2,feedbackVersion:7,included:true,action:'EDITED'})
     expect(requests).toEqual([{expectedRevision:0,snapshotVersion:7,action:'EDITED',value:true,included:true,evidence:[]},{expectedRevision:1,snapshotVersion:7,action:'EDITED',value:true,included:true,evidence:[]}])
     actor.stop()
   })

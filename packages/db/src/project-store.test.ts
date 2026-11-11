@@ -703,6 +703,25 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
+  it('creates named templates and revision 1 together, preserving the omitted-name default and ownership', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const definition = { recordDescription: 'One place.', schemaNodes: nodes('place') }
+    for (const name of [undefined, '  Workbook  ']) {
+      const revision = await store.createExtractionSchema(PROJECT, definition, name)
+      assert.ok(revision)
+      assert.equal(revision.revisionNumber, 1)
+      assert.deepEqual(revision.schemaTree, definition)
+      assert.equal(database.tables.ExtractionSchema.find(row => row.id === revision.extractionSchemaId)?.name,
+        name === undefined ? 'Extraction Template' : 'Workbook')
+    }
+    const count = database.tables.ExtractionSchema.length
+    for (const name of ['', ' ', 'x'.repeat(513)])
+      await assert.rejects(store.createExtractionSchema(PROJECT, definition, name))
+    assert.equal(await store.createExtractionSchema(OTHER_PROJECT, definition, 'Not owned'), null)
+    assert.equal(database.tables.ExtractionSchema.length, count)
+  })
+
   it('renames only the named Project Context and refuses an unknown one', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)

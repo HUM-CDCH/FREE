@@ -16,19 +16,23 @@ export function reviewQueue(model: RailModel): QueueItem[] {
   })
 }
 
-const open = (item: QueueItem) => item.row.kind === 'to-check'
-
-/** The next undecided value after `current` (J, or after a decision): wrapping within its record, then the next record
- *  with one. Null when no other value is to check; skipping postpones the current one, which comes back last. */
-export function nextToCheck(queue: readonly QueueItem[], current: string | null): string | null {
+/** Eligible values after `current`: wrap within its record, then through the other records in queue order.
+ *  Acknowledged writes wait for observation, but keep their positions as navigation anchors. */
+export function forwardItems(queue: readonly QueueItem[], current: string | null, blocked: ReadonlySet<string> = new Set()): QueueItem[] {
+  const open = (item: QueueItem) => item.row.kind === 'to-check' && !blocked.has(item.key)
   const at = queue.findIndex((item) => item.key === current)
-  if (at < 0) return queue.find(open)?.key ?? null
+  if (at < 0) return queue.filter(open)
   const record = queue[at]!.record
   const inRecord = queue.filter((item) => item.record === record)
   const position = inRecord.findIndex((item) => item.key === current)
   const around = [...inRecord.slice(position + 1), ...inRecord.slice(0, position)]
   const after = [...queue.slice(at + 1), ...queue.slice(0, at)].filter((item) => item.record !== record)
-  return [...around, ...after].find(open)?.key ?? null
+  return [...around, ...after].filter(open)
+}
+
+/** J, Skip and save advancement all take the first eligible value; the current one is postponed. */
+export function nextToCheck(queue: readonly QueueItem[], current: string | null, blocked?: ReadonlySet<string>): string | null {
+  return forwardItems(queue, current, blocked)[0]?.key ?? null
 }
 
 /** The previous value in the current record's queue, decided or not (K), wrapping within the record. */

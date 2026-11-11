@@ -44,7 +44,8 @@ recoverable.
 - "Regenerate" becomes "Suggest again", which creates another schema.
 - A project now routinely holds several schemas, so a codebook import no longer initializes "the" schema (refused once
   the newest schema had a revision): `POST /api/extraction-schemas` creates a new schema, revision 1 the imported
-  definition.
+  definition. The import supplies its workbook-derived initial name in that creation operation; the name and revision
+  1 commit together. Callers omitting the name retain the default `Extraction Template`.
 - The project summary no longer counts "schema drafts": suggestion drafts no longer exist.
 - A saved suggested schema is deleted like any other. Its suggestion then reads as unsaved, and suggesting fields for
   the same selection saves the same result again, under the same IDs.

@@ -22,13 +22,18 @@ Retire production of `hits` in every extraction method and projection of
 `lexicalHits` onto review links. Studio no longer derives uncertainty from
 either counts or saved alternative locations. It retains the non-verbatim
 hint, absence of Evidence, location precision, value marks, and the saved
-alternative locations and their descriptive detail. Only a researcher's
+alternative-location data. Results no longer shows the descriptive Source details
+disclosure or a "passage only" label; retaining locations does not imply that
+those descriptions remain visible. Only a researcher's
 decision approves a value.
 
-Remove the count from producer schemas, review schemas and exported types.
+Remove the count from producer schemas and exported review types.
 There is no historical-count validator, projection or correction-guidance
-filter. Producer decoders apply their ordinary unknown-field stripping; the
-strict review-link contract rejects undeclared fields. No dedicated reader
+filter. Producer decoders in `packages/extraction/src/kei-evidence.ts`, used by
+`durableValueSchema` when saved values are read, apply their ordinary
+unknown-field stripping. Studio consumes the extraction package's Evidence
+types through type-only imports; it does not execute a second review-link
+validator. No dedicated reader
 or migration is introduced for the retired diagnostic.
 
 This supersedes the repetition-based hint retained by ADR 0029; it does not

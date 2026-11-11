@@ -1074,10 +1074,10 @@ export type ResearcherProjectStore = {
     recordScope?: RecordScope | null,
   ): Promise<AppendSchemaRevisionResult | null>
   /**
-   * A new Extraction Schema, named `EXTRACTION_SCHEMA_INITIAL_NAME`, whose revision 1 is `schemaTree` with no Record
-   * Scope: the template an import starts, beside any the project has. Null when the Project Context is not owned.
+   * A new Extraction Schema with an optional initial name (default `EXTRACTION_SCHEMA_INITIAL_NAME`), whose
+   * revision 1 is `schemaTree` with no Record Scope: the template an import starts, beside any the project has. Null when the Project Context is not owned.
    */
-  createExtractionSchema(projectContextId: string, schemaTree: unknown): Promise<SchemaRevisionRecord | null>
+  createExtractionSchema(projectContextId: string, schemaTree: unknown, name?: string): Promise<SchemaRevisionRecord | null>
   listExtractionSchemas(
     projectContextId: string,
     limit: number,
@@ -2661,11 +2661,12 @@ export function createResearcherProjectStore(
         }
       })
     },
-    async createExtractionSchema(projectContextId, schemaTree) {
+    async createExtractionSchema(projectContextId, schemaTree, name) {
       return database.transaction(async ({ orm }) => {
         if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return null
         const extractionSchemaId = randomUUID()
-        await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: EXTRACTION_SCHEMA_INITIAL_NAME })
+        await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId,
+          name: name === undefined ? EXTRACTION_SCHEMA_INITIAL_NAME : extractionSchemaName(name) })
         const created = await orm.public.SchemaRevision.create({
           extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT', schemaTree, recordScope: null,
         })

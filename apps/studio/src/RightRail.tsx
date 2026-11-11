@@ -1,6 +1,6 @@
 import type { MenuItem } from './ResultsMenu'
 import { isDeveloperUiEnabled } from './developerUi'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import type { SelectionChannel } from './selectionChannel'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
