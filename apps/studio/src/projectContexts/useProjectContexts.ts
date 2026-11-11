@@ -111,6 +111,28 @@ export type ProjectIngestions = {
   stale: boolean
 }
 
+/**
+ * A project's unfinished Source Documents, as one list in two halves: this
+ * tab's items until Studio lists them, then Studio's own Source Ingestions.
+ * A succeeded ingestion is not here: it is the branch's Source Document.
+ */
+export function pendingSources(
+  { ingestingSources, ingestions }: Pick<ProjectContextsValue, 'ingestingSources' | 'ingestions'>,
+  projectContextId: string,
+) {
+  const listed = ingestions[projectContextId]?.ingestions ?? []
+  const listedIds = new Set(listed.map((row) => row.workflowId))
+  return {
+    // An admitted upload can be listed before the machine drops it: the listing wins.
+    queued: ingestingSources.filter(
+      (source) =>
+        source.projectContextId === projectContextId &&
+        (source.kind === 'reprocess' || source.status !== 'admitted' || !listedIds.has(source.workflowId!)),
+    ),
+    listed: listed.filter((row) => row.status !== 'succeeded'),
+  }
+}
+
 export const ProjectContextsContext =
   createContext<ProjectContextsValue | null>(null)
 
