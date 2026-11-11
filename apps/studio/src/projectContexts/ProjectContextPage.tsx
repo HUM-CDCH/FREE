@@ -28,7 +28,7 @@ import {
   uploadProjectSpreadsheet,
 } from './batchExtractions'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
-import { useProjectContexts } from './useProjectContexts'
+import { pendingSources, useProjectContexts } from './useProjectContexts'
 import ProjectStatus from './ProjectStatus'
 import { useOpenDocumentTabs } from '../useOpenDocumentTabs'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
@@ -558,7 +558,6 @@ export default function ProjectContextPage({
   // One list: this tab's uploads until Studio lists them, then Studio's
   // Source Ingestions. A succeeded one is the branch's Source Document.
   const listed = ingestions[projectContextId]
-  const listedIds = new Set(listed?.ingestions.map((row) => row.workflowId) ?? [])
   // The detail read (`branch`) doesn't carry the persisted activity summary
   // (phase, schemaStabilised, …) — that only ever comes from the list read,
   // so it's looked up separately here regardless of which one supplied
@@ -566,12 +565,7 @@ export default function ProjectContextPage({
   const projectSummary = projects.find(
     (candidate) => candidate.projectContextId === projectContextId,
   )?.summary
-  const queued = ingestingSources.filter(
-    (source) =>
-      source.projectContextId === projectContextId &&
-      (source.kind === 'reprocess' || source.status !== 'admitted' || !listedIds.has(source.workflowId!)),
-  )
-  const serverIngestions = (listed?.ingestions ?? []).filter((row) => row.status !== 'succeeded')
+  const { queued, listed: serverIngestions } = pendingSources({ ingestingSources, ingestions }, projectContextId)
   // The ingest step's own unfinished work: a file still sending, or an
   // admitted Source Ingestion still queued or parsing. Terminal failures are
   // not "in flight" — they wait for the researcher, not the other way round.
