@@ -104,7 +104,7 @@ def test_accepted_outcomes_fill_the_record_and_link_their_evidence_with_the_glos
     fundart = Outcome("accepted", ("records", 0, "fundart"), "G", spans=[Span(segment_id=text.id, start=start,
                       end=start + 1)], linked_by="key", provenance="token")
     link = evidence_link(fundart, texts, expansions)
-    assert (link["segment"], link["raw"], link["hits"], link["cell"]) == (text.id, "G", 1, None)
+    assert (link["segment"], link["raw"], link["cell"]) == (text.id, "G", None)
     assert link["spans"] == spans_json(fundart.spans) == [{"segment": text.id, "start": start, "end": start + 1}]
     assert link["normalized"]["value"] == "Grab" and link["normalized"]["key_span"]["end"] == 2
 

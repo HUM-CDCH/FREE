@@ -6,7 +6,7 @@ import { durableValueSchema } from './durable-contract.js'
 import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 test('retained model Evidence preserves leaf attribution and rejects a different value or anchor',()=> {
-  const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,hits:1,
+  const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,
     linked_by:'key',spans:[{segment:'p1_s1',start:7,end:11}],alternatives:[],provenance:'token',key_spans:[{segment:'p1_s1',start:0,end:5}],
     heading:null,precision:'segment',raw:'Book',normalized:null}
   const value={id:'work-value',recordId:'own-source-record',fieldId:'work',path:['records',0,'work'],
@@ -31,7 +31,7 @@ test('Python version-3 producer Evidence satisfies the durable producer contract
 
 test('a single-pass unified link keeps its spans as a lexical producer, not a stripped plain link', () => {
   const span = { segment: 'p1_s0', start: 3, end: 7 }
-  const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true, hits: 1,
+  const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true,
     linked_by: 'lexical', support: 'literal', spans: [span], alternatives: [], precision: 'segment', raw: 'Site', item: null }
   assert.deepEqual(durableValueSchema.shape.evidence.element.shape.producer.parse(link), link)
 })

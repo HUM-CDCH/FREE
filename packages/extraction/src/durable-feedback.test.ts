@@ -50,7 +50,7 @@ test('an ungrounded correction retains the entire source without manufacturing l
 })
 test('model-anchor context remains separate from optional researcher Evidence',()=> {
   const anchor=source.evidence_index.anchors[0]
-  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:{path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:[1,2,3,4] as [number,number,number,number],verbatim:true,hits:1,linked_by:'lexical' as const}}]
+  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:{path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:[1,2,3,4] as [number,number,number,number],verbatim:true,linked_by:'lexical' as const}}]
   const context=correctionSourceContext(source,'Full source',{...saved,evidence:modelEvidence},[])
   assert.equal(context.source.scope,'model-anchors')
   assert.equal(context.source.excerpts?.[0].text,'Unit 7')
@@ -60,7 +60,7 @@ test('model-anchor context remains separate from optional researcher Evidence',(
 })
 test('an Article link\'s location never reaches correction guidance: its bytes match the unlocated link\'s',()=> {
   const anchor=source.evidence_index.anchors[0]
-  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,hits:1,linked_by:'model' as const}
+  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,linked_by:'model' as const}
   const guidance=(evidence:DurableValue['evidence'][number]['producer'])=>JSON.stringify(correctionSourceContext(source,'Full source',
     {...saved,evidence:[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:evidence}]},[]))
   const located=guidance({...producer,location:{spans:[{segment:'p1_s0',start:0,end:4}],raw:'Unit'}})
@@ -69,7 +69,7 @@ test('an Article link\'s location never reaches correction guidance: its bytes m
 })
 test('value boxes never reach correction guidance: the bytes match those of a link without them',()=> {
   const anchor=source.evidence_index.anchors[0]
-  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,hits:1,linked_by:'model' as const}
+  const producer={path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:null,verbatim:true,linked_by:'model' as const}
   const guidance=(evidence:DurableValue['evidence'][number]['producer'])=>JSON.stringify(correctionSourceContext(source,'Full source',
     {...saved,evidence:[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:evidence}]},[]))
   const placed=guidance({...producer,value_boxes_pt:[[1,2,30,12]]})

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { SchemaChat } from './useSchemaChat'
 import { chatMessageClass } from './chatMessageClass'
+import { InstructionItem } from './SchemaInstructions'
 
 /** The label over the chat composer, before and after the first schema alike. */
 export function ChatLabel({ optional = false }: { optional?: boolean }) {
@@ -33,15 +34,19 @@ export function RunningRequests({ recovery }: { recovery: SchemaChat['recovery']
 }
 
 /** The edit chat's conversation: running requests, the messages and answered steps, and a reply on its way. */
-export function ChatTranscript({ chat, empty, before }: { chat: SchemaChat; empty: string; before?: ReactNode }) {
+/** The conversation in the order it was said: messages, answered steps, document turns, and the instructions and
+ *  questions kept for generation where they were said. `after` follows it, e.g. a reply still coming. */
+export function ChatTranscript({ chat, empty, before, after }: { chat: SchemaChat; empty: string; before?: ReactNode; after?: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
       <RunningRequests recovery={chat.recovery} />
       {before}
-      {chat.messages.length === 0 && chat.recovery.running.length === 0 && !chat.loading && !before && (
+      {chat.messages.length === 0 && chat.recovery.running.length === 0 && !chat.loading && !before && !after && (
         <p className="text-secondary leading-relaxed text-ink-faint">{empty}</p>
       )}
-      {chat.messages.map((message, index) => message.role === 'document' ? (
+      {chat.messages.map((message, index) => message.role === 'instruction' ? (
+        <InstructionItem key={message.id} instructions={chat.instructions} id={message.id} messageClass={chatMessageClass} />
+      ) : message.role === 'document' ? (
         // A turn to another Source Document: what follows was said about it.
         <p key={index} className="flex min-w-0 items-center gap-2 self-stretch text-overline font-semibold uppercase tracking-[0.08em] text-ink-faint">
           <span aria-hidden="true" className="h-px flex-1 bg-line" />
@@ -57,6 +62,7 @@ export function ChatTranscript({ chat, empty, before }: { chat: SchemaChat; empt
       ) : (
         <div key={index} className={`${chatMessageClass(message.role)} [overflow-wrap:anywhere]`}>{message.text}</div>
       ))}
+      {after}
       {chat.unsaved && (
         <p role="status" className="text-compact text-ink-muted">Part of this conversation is not saved yet; it is saved with the next message.</p>
       )}

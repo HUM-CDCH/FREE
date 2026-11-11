@@ -82,6 +82,23 @@ describe('RailChat', () => {
     expect(screen.queryByRole('region', { name: 'Results ready' })).not.toBeInTheDocument()
   })
 
+  it('shows each instruction where it was said, between the steps answered around it', () => {
+    renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate: vi.fn() })
+    const say = (text: string) => {
+      const input = screen.getByRole('textbox')
+      fireEvent.change(input, { target: { value: text } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+    }
+    say('Focus on senders')
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Generate template' }), { key: 'Escape' })
+    say('Also the dates')
+    const first = screen.getByRole('note', { name: 'Instruction 1' })
+    const step = screen.getByText('Generate template', { selector: 'span.font-semibold' })
+    const second = screen.getByRole('note', { name: 'Instruction 2' })
+    expect(first.compareDocumentPosition(step) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(step.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('takes an instruction typed into the composer the Generate template step carries, and Esc still closes it', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate })
@@ -178,7 +195,16 @@ describe('RailChat', () => {
   it('shows the step and the composer under another view, and returns home to answer a message', () => {
     const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+    // The step is folded to its title line with its options, leaving the view the rail's height; its title unfolds
+    // it, ⌄ folds it back.
+    const step = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+    const question = 'Is each Source Document one record, or does it hold many?'
+    expect(step.getByRole('button', { name: 'Catalog: many records per document' })).toBeVisible()
+    expect(step.queryByText(question)).not.toBeInTheDocument()
+    fireEvent.click(step.getByRole('button', { name: 'Show the Choose Record Scope step' }))
+    expect(within(screen.getByRole('region', { name: 'Choose Record Scope' })).getByText(question)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Fold the step' }))
+    expect(screen.queryByText(question)).not.toBeInTheDocument()
     const input = screen.getByPlaceholderText('Describe a change to the template…')
     fireEvent.change(input, { target: { value: 'Add a recipient' } })
     fireEvent.keyDown(input, { key: 'Enter' })

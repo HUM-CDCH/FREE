@@ -229,6 +229,8 @@ function RightRail({
   const activeView: RailView = (!showDeveloperUi && view === 'evidence') || (!historyAvailable && view === 'history') ? 'chat' : view
   // Results renders its guidance and saved versions into the History view's body.
   const [historySlot, setHistorySlot] = useState<HTMLDivElement | null>(null)
+  // Results draws its status line and ⓘ ⋯ in the header's free width, where they stand in for the view's title.
+  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
   const scopeWord = recordScope?.value === 'records' ? 'Catalog' : recordScope?.value === 'document' ? 'Article' : null
   const schemaDetail = schemaSnap.view === 'generating' ? 'Generating…'
     : schemaReady ? [`${schemaFieldCount} field${schemaFieldCount === 1 ? '' : 's'}`, scopeWord].filter(Boolean).join(' · ')
@@ -293,7 +295,8 @@ function RightRail({
               className="flex shrink-0 cursor-pointer items-center gap-1 rounded-[3px] px-1.5 py-1 text-compact font-semibold text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink">
               <span aria-hidden="true">←</span> Chat
             </button>
-            <h2 className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-ink">{VIEW_TITLES[activeView]}</h2>
+            <h2 className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-ink has-[+div:not(:empty):not([hidden])]:sr-only">{VIEW_TITLES[activeView]}</h2>
+            <div ref={setHeaderSlot} role="group" aria-label="Results status" hidden={activeView !== 'results'} className="flex min-w-0 flex-1 items-center gap-1" />
           </>
         )}
         {activeView === 'chat' && showDeveloperUi && (
@@ -381,6 +384,7 @@ function RightRail({
           onPinnedDocument={onPinnedDocument}
           railOpen={open}
           historySlot={historySlot}
+          headerSlot={headerSlot}
           historyShown={open && activeView === 'history'}
           onShowResults={() => onViewChange('results')}
           onShowHistory={() => onViewChange('history')}

@@ -15,7 +15,7 @@ export default function ResultsMenu({ items }: { items: readonly MenuItem[] }) {
   }
   return (
     <div ref={ref} role="menu" aria-label="More result actions" onKeyDown={move}
-      className="absolute top-10 right-3 z-20 flex min-w-56 flex-col rounded-md border border-line bg-surface p-1 shadow-float">
+      className="absolute top-1 right-3 z-20 flex min-w-56 flex-col rounded-md border border-line bg-surface p-1 shadow-float">
       {items.map((item) => (
         <button key={item.label} type="button" role="menuitem" disabled={Boolean(item.disabled)} title={item.disabled ?? undefined}
           onClick={item.onSelect}

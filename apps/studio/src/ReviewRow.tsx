@@ -1,8 +1,7 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, fieldWords, groundingDetail, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -82,11 +81,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   const reviewable = row.retained?.reviewable ?? linked
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
   const word = row.decision ? DECISION_WORD[row.decision.action] : ''
-  const origin = row.link && linkOrigin(row.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
-  const precision = row.link?.precision === 'input' ? ' · page only' : row.link?.precision === 'cell' ? ' · a table cell' : ''
-  const source = row.retained?.source ?? `${row.kind === 'edited' || row.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${row.page === null ? '' : `p.${row.page} · `}${origin}${precision}${passageOnly(row.link)}`
   const style = row.chip?.style ?? 'neutral'
-  const grounding = row.link && row.decision ? groundingDetail(row.link, row.kind === 'to-check' ? undefined : row.decision.action) : null
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
@@ -117,12 +112,6 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
           {linked && (
             <>
               {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span><b>Uncertain passage.</b> {row.doubt}</span></p>}
-              {/* How the value was tied to its passage: for the researcher who asks, not for every row. */}
-              <details className="text-compact text-ink-muted">
-                <summary className="w-fit cursor-pointer rounded outline-none hover:text-ink">Source details</summary>
-                <p className="m-0 mt-1 flex items-center gap-1 font-semibold text-ink"><EvidenceGlyph />{source}</p>
-                {grounding && <p className="m-0 mt-1">{grounding}</p>}
-              </details>
             </>
           )}
           {!linked && row.evidence && (

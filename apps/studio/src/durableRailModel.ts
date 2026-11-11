@@ -105,7 +105,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     } : null,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'readings differ' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
-      : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · uncertain' : ''}`,
+      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · uncertain' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
     evidence: disagreement ? {label:'Readings differ',detail:'Choose one, edit or reject it.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
       detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'

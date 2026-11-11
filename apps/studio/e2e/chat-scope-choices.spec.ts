@@ -12,6 +12,9 @@ for (const finish of ['Save', 'Cancel'] as const) {
       await openRailView(page, 'Template')
       await page.getByRole('button', { name: 'Edit description', exact: true }).click()
       await page.getByLabel('What one record is').fill('An unfinished record description.')
+      const folded = page.getByRole('region', { name: 'Choose Record Scope', exact: true })
+      await expect(folded.getByRole('button', { name: /^Article:/ })).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+      await expect(folded.getByText('Save or Cancel the open edit first.')).toBeVisible()
       await workspaceRail(page).getByRole('button', { name: 'Back to chat' }).click()
       const card = page.getByRole('region', { name: 'Choose Record Scope', exact: true })
       for (const name of [/^Article:/, /^Catalog:/]) {

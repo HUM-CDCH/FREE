@@ -27,10 +27,10 @@ FREE's normative product and safety contract is:
    canonical extraction path over the Project Context's source documents.
    Schema suggestion feeds this path; it is not a competing extraction mode.
 4. **Evidence and review.** Every populated extraction value is paired with
-   locatable source evidence or visibly marked ungrounded. Evidence doubts (the
-   value is not found in the linked passage, or it also appears in other
-   passages) are hints for the reviewer, not decisions: FREE derives no
-   confidence score from them, and only a researcher's decision approves a
+   locatable source evidence or visibly marked ungrounded. A value not printed
+   as such in its linked Evidence is a hint for the reviewer, not a decision.
+   Repetition elsewhere does not make the linked passage uncertain. FREE derives
+   no confidence score from this hint, and only a researcher's decision approves a
    value. Approve, reject and typed edit decisions are revisioned corrections
    of stable saved values, saved in numbered Project decision versions; a
    concurrent write reports a conflict instead of overwriting a newer

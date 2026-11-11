@@ -30,7 +30,7 @@ def test_saved_composite_retains_rule_spans_without_claiming_whole_value_grounde
         "children":[{"id":"title", "name":"title", "type":"string"}, {"id":"selected", "name":"selected", "type":"boolean"}]}]}
     lease=MemoryLease(tree)
     link={"path":["records",0,"work","title"], "segment":"p1_s1", "page":1,
-          "bbox_pt":None, "verbatim":True, "hits":1, "linked_by":"key", "spans":[{"segment":"p1_s1","start":7,"end":11}],
+          "bbox_pt":None, "verbatim":True, "linked_by":"key", "spans":[{"segment":"p1_s1","start":7,"end":11}],
           "alternatives":[], "provenance":"token", "key_spans":[{"segment":"p1_s1","start":0,"end":5}],
           "heading":None, "precision":"segment", "raw":"Book", "normalized":None}
     saved=publish_values(lease,{"work":{"title":"Book","selected":False}},"document",links=[link],complete=True)

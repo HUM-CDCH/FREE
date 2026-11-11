@@ -1,7 +1,8 @@
-import { rowText } from './reviewVocabulary'
+import { passesFilter, rowText } from './reviewVocabulary'
 import { expect, it } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
 import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, valueParts, type RetainedValue } from './durableRailModel'
+import { reviewQueue } from './reviewQueue'
 
 const value=(overrides:Partial<RetainedValue>={}):RetainedValue=>({
   id:'saved-value',recordId:'source-bound-record',fieldId:'flag',path:['records',0,'flag'],
@@ -42,20 +43,31 @@ it('reviews saved ungrounded and provisional whole typed values without inventin
 })
 
 it('keeps a rule link factual and a researcher correction independent of model Evidence',()=> {
-  const saved=value({links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',linkedBy:'lexical',verbatim:true,lexicalHits:1}],
+  const saved=value({links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',linkedBy:'lexical',verbatim:true}],
     correction:{revision:1,decision:{action:'EDITED',value:true,evidence:[],included:true}} as RetainedValue['correction']})
   const row=durableRailRow(saved,null)
   expect(row.value).toBe(true)
   expect(row.extracted).toBe(false)
   expect(row.kind).toBe('edited')
-  // A linked value keeps the shared row's own words ("p.{n} · Linked by rule…").
   expect(row.retained?.source).toBeUndefined()
-  expect(row.chip).toEqual({text:'linked · rule',style:'rule'})
+  expect(row.chip).toEqual({text:'linked',style:'rule'})
+})
+
+it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
+  const values=[{id:'ordinary',verbatim:true},{id:'supporting',verbatim:false}]
+    .map(({id,...diagnostic})=>value({id,fieldId:id,path:['records',0,id],node:{id,name:id,type:'string'},modelValue:'7.5',
+      links:[{...diagnostic,resultPath:['records',0,id],evidenceAnchorId:'own-anchor'}]}))
+  const model=durableRailModel({values} as DurablePage,null)
+  const rows=model.records[0].rows
+  expect(rows.map(row=>passesFilter(row,'doubt'))).toEqual([false,true])
+  expect(model.counts.doubtful).toBe(1)
+  expect(rows[0].chip?.style).toBe('link')
+  expect(reviewQueue(model).map(row=>row.key)).toEqual(['supporting','ordinary'])
 })
 
 it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {
   const row=durableRailRow(value({grounding:'provisional',node:{id:'flag',name:'flag',type:'string'},
-    links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',verbatim:true,lexicalHits:1,grounding:{linkedBy:'verification'}}] as never}),null)
+    links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',verbatim:true,grounding:{linkedBy:'verification'}}] as never}),null)
   expect(row.retained?.source).toBeUndefined()
   expect(row.chip).toEqual({text:'linked',style:'link'})
 })
@@ -114,11 +126,11 @@ it('names each scalar part of a composite value with its own link, and keys it b
 
 it('shows a single-pass list leaf code located as rule-linked, and an uncited leaf beside it as without Evidence',()=> {
   const node={id:'finds',name:'finds',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},{id:'note',name:'note',type:'string' as const}]}
-  const located={evidenceAnchorId:'a_p1_s2',resultPath:['records',0,'finds',0,'nr'],verbatim:true,lexicalHits:1,
+  const located={evidenceAnchorId:'a_p1_s2',resultPath:['records',0,'finds',0,'nr'],verbatim:true,
     grounding:{linkedBy:'lexical',support:'literal',textSpans:[],alternatives:[],precision:'segment',raw:'x1',itemSpans:null}} as unknown as RetainedValue['links'][number]
   const saved=value({id:'v1',fieldId:'finds',path:['records',0,'finds'],node,modelValue:[{nr:'x1',note:'Bowl'}],links:[located]})
   const [nr,note]=valueParts(saved)
-  expect(durableRailRow(saved,null,nr).chip).toEqual({text:'linked · rule',style:'rule'})
+  expect(durableRailRow(saved,null,nr).chip).toEqual({text:'linked',style:'rule'})
   expect(durableRailRow(saved,null,note).chip?.text).toBe('no evidence')
 })
 

@@ -117,37 +117,12 @@ export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>
   filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null : isNotReviewable(row.kind))
 
-/** An uncertain passage: why the passage a value is linked to may not be its source, as one short
- *  sentence. The checks describe the extracted value, so none after an edit or a rejection. The code keeps the older
+/** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
+ *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
  *  name (`doubt`, `doubtful`); the researcher reads "Uncertain passage". */
-export function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewAction): string | null {
+export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
   if (link.verbatim === false) return 'Value not printed word for word.'
-  const others = (link.lexicalHits ?? 1) - 1
-  if (link.verbatim && others > 0) return others === 1 ? 'Also printed in 1 other passage.' : `Also printed in ${others} other passages.`
   return null
 }
 
-/** A link located to its passage but not to the value's own words (no value mark, ADR 0031): the row says so, so a
- *  passage without a highlighted value reads as a limit and not a fault. A page-only or cell link says its own. */
-export const passageOnly = (link: EvidenceLink | null) =>
-  link && link.precision !== 'input' && link.precision !== 'cell' && !link.valueBoxes ? ' · passage only' : ''
-
-/** What tied a recipe or unified Catalog value to its field, in the researcher's words; it describes the extracted
- *  value, so none after an edit or a rejection. */
-export function groundingDetail(link: EvidenceLink, action?: ReviewAction): string | null {
-  const grounding = link.grounding
-  if (!grounding || action === 'EDITED' || action === 'REJECTED') return null
-  const literal = 'support' in grounding && grounding.support === 'literal'
-  const parts = ['support' in grounding
-    ? grounding.linkedBy === 'verification'
-      ? (literal ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
-      : (literal ? 'Located by code; the value is printed in the entry' : 'Located by code in a supporting passage; no verifier checked it')
-    : grounding.linkedBy === 'key' ? 'Read after its printed key'
-      : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
-        : 'Entry number from the segmentation']
-  const others = grounding.alternatives.length
-  if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
-  if (!('support' in grounding) && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
-  return parts.join(' · ')
-}

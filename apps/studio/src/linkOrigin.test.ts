@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { sourceEvidenceLinks } from './evidenceNavigation'
 import { linkOrigin } from './linkOrigin'
-import { evidenceCheck, groundingDetail } from './reviewVocabulary'
+import { evidenceCheck } from './reviewVocabulary'
 
 describe('who linked a saved value to its Evidence', () => {
   it('names verifier links and rule-made links apart', () => {
@@ -14,10 +14,9 @@ describe('who linked a saved value to its Evidence', () => {
   })
 
   it('reads an Article link with a location as the model\'s link, as without one', () => {
-    const link: EvidenceLink = { resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_p1_s3', precision: 'segment', verbatim: true, lexicalHits: 1 }
+    const link: EvidenceLink = { resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_p1_s3', precision: 'segment', verbatim: true }
     const located: EvidenceLink = { ...link, location: { textSpans: [{ segment: 'p1_s3', start: 14, end: 23 }], raw: 'Cedar Bay' } }
     expect(linkOrigin(located)).toBe('verifier')
-    expect(groundingDetail(located)).toBeNull()
     expect(evidenceCheck(located)).toBe(evidenceCheck(link))
     expect(sourceEvidenceLinks(located, new Set(['a_p1_s3', 'a_p1_s4']))).toEqual([located])
   })

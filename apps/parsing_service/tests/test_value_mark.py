@@ -103,7 +103,7 @@ def located(passage: Passage, value: str, nth: int = 0, cell: str | None = None)
     for _ in range(nth + 1):
         start = passage.text.index(value, start + 1)
     return {"path": ["records", 0, "site"], "segment": passage.id, "page": passage.page,
-            "bbox_pt": list(passage.bbox_pt), "verbatim": True, "hits": 1, "linked_by": "model", "cell": cell,
+            "bbox_pt": list(passage.bbox_pt), "verbatim": True, "linked_by": "model", "cell": cell,
             "precision": "cell" if cell else "segment",
             "location": {"spans": [{"segment": passage.id, "start": start, "end": start + len(value)}], "raw": value}}
 
@@ -378,7 +378,7 @@ def test_a_placed_link_serialises_in_the_shared_contract(tmp_path):
     lines = [(34, 112, "Survey site:  Cedar Bay")]
     passage = block("Survey site:  Cedar Bay", lines, pid="p1_s3")
     pdf = write_pdf(tmp_path / "input.pdf", [lines])
-    article = link_json(_link(("records", 0, "site_name"), _Candidate(passage), True, 1, "model",
+    article = link_json(_link(("records", 0, "site_name"), _Candidate(passage), True, "model",
                               _location(_Candidate(passage), "Cedar Bay")))
     without = dict(article)
     found = unified._Found(("find_year",), "Cedar Bay", "Cedar Bay", 0, spans=[Span(segment_id="p1_s3", start=14,

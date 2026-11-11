@@ -2307,7 +2307,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/admitted samples/)).not.toBeInTheDocument()
     fireEvent.keyDown(firstPage, { key: 'Escape' })
     expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Page thumbnails' })).toHaveFocus()
   })
 
   it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the template\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
@@ -2718,6 +2718,12 @@ describe('reopened Source Document workspace', () => {
       await renderWith({ ...reopened.extractionSchema!, recordScope: null })
       fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
       fireEvent.change(screen.getByLabelText('What one record is'), { target: { value: 'Kept description.' } })
+      const folded = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+      for (const choice of [/^Article:/, /^Catalog:/]) {
+        expect(folded.getByRole('button', { name: choice })).toBeDisabled()
+        expect(folded.getByRole('button', { name: choice })).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+      }
+      expect(folded.getByText('Save or Cancel the open edit first.')).toBeVisible()
       fireEvent.click(railScope().getByRole('button', { name: 'Back to chat' }))
       const choices = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
       const article = choices.getByRole('button', { name: /^Article:/ })

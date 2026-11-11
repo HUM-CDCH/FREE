@@ -169,7 +169,7 @@ def test_only_a_located_verification_locates():
 def test_link_json_writes_the_shared_contract():
     passage = Passage(id="p1_s3", page=1, index=3, text=FIXTURE["passage_text"], label="Text",
                       bbox_pt=(34.0, 100.5, 170.75, 116.5), extent="block")
-    link = _link(("records", 0, "site_name"), _Candidate(passage), True, 1, "model",
+    link = _link(("records", 0, "site_name"), _Candidate(passage), True, "model",
                  _location(_Candidate(passage), "Cedar Bay"))
     assert link_json(link) == FIXTURE["with_location"] and list(link_json(link)) == list(FIXTURE["with_location"])
     assert link_json(replace(link, location=None)) == FIXTURE["without_location"]
