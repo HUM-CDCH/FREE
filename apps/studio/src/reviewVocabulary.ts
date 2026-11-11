@@ -126,26 +126,3 @@ export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewActio
   return null
 }
 
-/** A link located to its passage but not to the value's own words (no value mark, ADR 0031): the row says so, so a
- *  passage without a highlighted value reads as a limit and not a fault. A page-only or cell link says its own. */
-export const passageOnly = (link: EvidenceLink | null) =>
-  link && link.precision !== 'input' && link.precision !== 'cell' && !link.valueBoxes ? ' · passage only' : ''
-
-/** What tied a recipe or unified Catalog value to its field, in the researcher's words; it describes the extracted
- *  value, so none after an edit or a rejection. */
-export function groundingDetail(link: EvidenceLink, action?: ReviewAction): string | null {
-  const grounding = link.grounding
-  if (!grounding || action === 'EDITED' || action === 'REJECTED') return null
-  const literal = 'support' in grounding && grounding.support === 'literal'
-  const parts = ['support' in grounding
-    ? grounding.linkedBy === 'verification'
-      ? (literal ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
-      : (literal ? 'Located by code; the value is printed in the entry' : 'Located by code in a supporting passage; no verifier checked it')
-    : grounding.linkedBy === 'key' ? 'Read after its printed key'
-      : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
-        : 'Entry number from the segmentation']
-  const others = grounding.alternatives.length
-  if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
-  if (!('support' in grounding) && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
-  return parts.join(' · ')
-}

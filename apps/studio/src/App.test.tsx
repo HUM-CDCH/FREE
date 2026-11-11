@@ -2307,7 +2307,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/admitted samples/)).not.toBeInTheDocument()
     fireEvent.keyDown(firstPage, { key: 'Escape' })
     expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Page thumbnails' })).toHaveFocus()
   })
 
   it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the template\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {

@@ -33,8 +33,9 @@ import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
-import { Button, SegmentedControl, Spinner, Toast } from './ui'
+import { SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
+import { ThumbnailsGlyph } from './ui/icons'
 import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
@@ -1237,10 +1238,13 @@ export function DocumentWorkspace({
           {/* Reserve COLLAPSED_WIDTH for the schema rail when it becomes an overlay. */}
           <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[860px]:mr-[46px]" aria-label="PDF document">
             <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2">
-              <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
-                disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}>
-                <span aria-hidden="true">☰</span> Pages
-              </Button>
+              {/* Above the thumbnail rail it opens; held down while the rail is shown. */}
+              <button ref={pagesToggleRef} type="button" aria-label="Page thumbnails" aria-expanded={pagesOpen} aria-controls={pageNavigationId}
+                title={pagesOpen ? 'Hide page thumbnails' : 'Show page thumbnails'}
+                disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}
+                className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-40 aria-expanded:bg-surface-muted aria-expanded:text-ink">
+                <ThumbnailsGlyph />
+              </button>
               {loadState.status === 'ready' ? (
                 <PagePager page={currentPage} pageCount={loadState.pageCount}
                   onNavigate={(page) => {

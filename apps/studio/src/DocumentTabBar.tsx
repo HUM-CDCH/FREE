@@ -37,13 +37,13 @@ function ProjectChip({ name, onNavigateProject, onBackToBatch }: {
     <div className="flex shrink-0 items-center self-center">
       <button
         type="button"
-        className="flex h-7 max-w-48 cursor-pointer items-center rounded-l-[3px] border border-line bg-surface px-2 text-compact font-semibold text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
+        className={`flex h-7 max-w-48 cursor-pointer items-center border ${onBackToBatch ? 'rounded-l-[3px]' : 'rounded-[3px]'} border-line bg-surface px-2 text-compact font-semibold text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink`}
         aria-label={`Open project ${name}`}
         onClick={onNavigateProject}
       >
         <span className="min-w-0 truncate" title={name}>{name}</span>
       </button>
-      {onBackToBatch ? (
+      {onBackToBatch && (
         <ActionsMenu
           label="Project actions"
           align="left"
@@ -51,8 +51,6 @@ function ProjectChip({ name, onNavigateProject, onBackToBatch }: {
           triggerClassName="rounded-l-none border-l-0"
           items={[{ id: 'batch', label: 'Back to Batch Extraction', onSelect: onBackToBatch }]}
         />
-      ) : (
-        <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-r-[3px] border border-l-0 border-line text-ink-faint">▾</span>
       )}
     </div>
   )

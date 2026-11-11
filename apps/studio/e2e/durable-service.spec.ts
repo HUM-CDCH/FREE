@@ -163,7 +163,7 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     expect(read.size).toBeGreaterThan(0)
     expect([...paused].sort()).toEqual([...read].sort())
     // The chat's step notice says the same: the count is the Results view's.
-    await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
+    await expect(rail.getByRole('group',{name:'Results status'}).getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
     await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
     await expect.poll(async()=>{
       const head=await state()

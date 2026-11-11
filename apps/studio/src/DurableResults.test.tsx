@@ -1429,3 +1429,22 @@ it('shows the run diagnostics of the results shown at their occurrences, and non
     expect(screen.queryByRole('region',{name:'Run diagnostics'})).toBeNull()
   } finally {vi.useRealTimers()}
 })
+
+it('does not reopen locally approved values while the page refresh is pending',async()=>{
+  vi.mocked(readDurable).mockResolvedValueOnce({state:pausedState,page:reviewPage()} as never).mockReturnValue(new Promise(()=>{}))
+  vi.mocked(durableRequest).mockResolvedValue({})
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  for(let index=0;index<3;index++){
+    fireEvent.click(await screen.findByRole('button',{name:/Approve and next/}))
+    await waitFor(()=>expect(durableRequest).toHaveBeenCalledTimes(index+1))
+    await act(async()=>{})
+  }
+  expect(screen.queryByRole('button',{name:/Approve and next/})).toBeNull()
+  expect(screen.getByText(/caught up/)).toBeVisible()
+  expect(vi.mocked(durableRequest).mock.calls.map(call=>call[0])).toEqual([
+    '/api/extractions/extraction/durable/values/a',
+    '/api/extractions/extraction/durable/values/b',
+    '/api/extractions/extraction/durable/values/c',
+  ])
+})
