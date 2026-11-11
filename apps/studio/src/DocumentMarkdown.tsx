@@ -1,4 +1,4 @@
-import type { ParsedDocument } from 'extraction/parsed-document'
+import type { ParsedContentBlock, ParsedDocument, TextEvidenceAnchor } from 'extraction/parsed-document'
 import { memo, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { markLabel, describeMarks, type RailMarkState } from './useEvidenceOverlays'
 import { evidenceColorVars, ownsMark, sharedColor } from './durableRailModel'
@@ -7,11 +7,46 @@ import { observeEvidenceHover } from './evidenceHover'
 import type { SelectionChannel } from './selectionChannel'
 
 type SelectMark = (keys: string[], element: HTMLElement) => void
+type SavedLink = RailMarkState['savedLinks'][number]
+type MarkSpan = { start: number; end: number; anchorId: string; keys: string[] }
+
+/** Saved offsets count code points in the canonical block, not bytes in its Markdown wrapper.
+ * Keep the anchor when that mapping cannot be checked; never search for the value's text. */
+function valueMarks(anchor: TextEvidenceAnchor, block: ParsedContentBlock | undefined, source: string, links: readonly SavedLink[]): MarkSpan[] {
+  const text = block && 'text' in block ? block.text : null
+  const prefix = block?.kind === 'heading' ? `${'#'.repeat(block.level)} `
+    : block?.kind === 'code' ? `\`\`\`${block.language ?? ''}\n` : ''
+  const suffix = block?.kind === 'code' ? '\n```' : ''
+  const points = text !== null && source === prefix + text + suffix ? Array.from(text) : null
+  const encoder = new TextEncoder()
+  const offset = (at: number) => anchor.markdown_span.start + encoder.encode(prefix + points!.slice(0, at).join('')).length
+  const ranges = links.flatMap(({ key, link }) => {
+    const located = link.location ?? (link.grounding && (!('support' in link.grounding) || link.grounding.support === 'literal')
+      ? link.grounding : undefined)
+    const spans = located?.textSpans.filter(span => `a_${span.segment}` === anchor.anchor_id)
+    const precise = points && spans?.length && spans.every(span => Number.isSafeInteger(span.start) && Number.isSafeInteger(span.end)
+      && 0 <= span.start && span.start < span.end && span.end <= points.length)
+    return (precise ? spans.map(span => ({ start: offset(span.start), end: offset(span.end) })) : [anchor.markdown_span])
+      .map(span => ({ ...span, key }))
+  })
+  // Partition overlaps so a shared word selects every value it supports, without nested buttons or lost fields.
+  const boundaries = [...new Set(ranges.flatMap(span => [span.start, span.end]))].sort((a, b) => a - b)
+  const marks: MarkSpan[] = []
+  for (let index = 1; index < boundaries.length; index++) {
+    const start = boundaries[index - 1]!, end = boundaries[index]!
+    const keys = [...new Set(ranges.filter(span => span.start <= start && end <= span.end).map(span => span.key))]
+    if (!keys.length) continue
+    const prior = marks.at(-1)
+    if (prior?.end === start && prior.keys.length === keys.length && prior.keys.every((key, index) => key === keys[index])) prior.end = end
+    else marks.push({ start, end, anchorId: anchor.anchor_id, keys })
+  }
+  return marks
+}
 
 /**
  * The parsed Markdown in the document pane: a page-shaped text with the rail's values
- * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting and lighting their values
- * as the page's marks do.
+ * marked at their saved literal spans when they map to the Markdown, else at their anchors.
+ * Marks select and light their values as the page's marks do.
  */
 function DocumentMarkdown({ markdown, document, selection, extractionId, active = true, marksShown = true, onSelect }: {
   markdown: string | null; document: ParsedDocument | null; selection: SelectionChannel; extractionId: string | null
@@ -31,18 +66,19 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
     </div>
   )
   const decoder = new TextDecoder(), decode = (start: number, end: number) => decoder.decode(bytes.subarray(start, end))
-  const keysByAnchor = new Map<string, string[]>()
-  const links = savedLinks?.map(({ key, link }) => ({ key, anchorId: link.evidenceAnchorId, precision: link.precision })) ?? []
-  for (const { key, anchorId, precision } of links) {
-    if (precision === 'input') continue
-    const keys = keysByAnchor.get(anchorId) ?? []
-    if (!keys.includes(key)) keys.push(key)
-    keysByAnchor.set(anchorId, keys)
+  const linksByAnchor = new Map<string, SavedLink[]>()
+  for (const saved of savedLinks ?? []) {
+    if (saved.link.precision === 'input') continue
+    const anchorId = saved.link.evidenceAnchorId
+    const links = linksByAnchor.get(anchorId) ?? []
+    links.push(saved)
+    linksByAnchor.set(anchorId, links)
   }
-  const spans = (document?.evidence_index.anchors ?? []).flatMap(anchor => anchor.kind === 'text' && keysByAnchor.has(anchor.anchor_id)
-    ? [{ ...anchor.markdown_span, anchorId: anchor.anchor_id, keys: keysByAnchor.get(anchor.anchor_id)! }] : [])
-    .sort((a, b) => a.start - b.start)
-    .filter((span, index, all) => index === 0 || span.start >= all[index - 1]!.end)
+  const blocks = new Map((document?.content_stream ?? []).map(block => [block.block_id, block]))
+  const spans = (document?.evidence_index.anchors ?? []).filter((anchor): anchor is TextEvidenceAnchor => anchor.kind === 'text' && linksByAnchor.has(anchor.anchor_id))
+    .sort((a, b) => a.markdown_span.start - b.markdown_span.start)
+    .filter((anchor, index, all) => index === 0 || anchor.markdown_span.start >= all[index - 1]!.markdown_span.end)
+    .flatMap(anchor => valueMarks(anchor, blocks.get(anchor.block_id), decode(anchor.markdown_span.start, anchor.markdown_span.end), linksByAnchor.get(anchor.anchor_id)!))
   const parts: React.ReactNode[] = []
   let at = 0
   for (const span of spans) {
