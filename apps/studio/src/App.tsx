@@ -248,7 +248,6 @@ export function DocumentWorkspace({
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
     extractionSchema,
-    debounceMs: 1500,
     sourceRepresentationId,
     onCommitMessage: (message) => showToast(message),
   })

@@ -93,14 +93,6 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   }
   assert.deepEqual(await counts(), { extractions: 3, batches: 1, heads: 3, dispatches: 3, queued: 3 })
 
-  const suggestion = await db.orm.public.BatchSchemaSuggestion.create({
-    projectContextId: projectId, selectionKey: randomUUID(), outcome: 'SUCCEEDED', phase: 'READY', draftVersion: 1,
-    draft: { recordDescription: 'One document.', schemaNodes: [{ id: 'suggested-title', name: 'title', type: 'string' }] },
-  })
-  for (const document of documents) await db.orm.public.BatchSchemaSuggestionSource.create({
-    batchSchemaSuggestionId: suggestion.id, sourceDocumentId: document.id, sourceRepresentationRevisionId: document.revisionId,
-  })
-  const suggestedInput = { projectContextId: projectId, batchSchemaSuggestionId: suggestion.id, strategy: 'ARTICLE' as const, method }
   const failing = createResearcherExtractionPersistence(owner, {
     ...execution,
     enqueue: async (client, workflow, input) => {
@@ -108,24 +100,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
       throw new Error('Queue commit refused')
     },
   }, { database: db })
-  const schemaCounts=async()=>(await admin.query(`SELECT
-    (SELECT count(*)::int FROM public."extractionSchema") AS schemas,
-    (SELECT count(*)::int FROM public."schemaRevision") AS revisions`)).rows[0]
-  const suggestionPointers=async()=>db.orm.public.BatchSchemaSuggestion
-    .select('confirmedSchemaRevisionId','batchExtractionId').first({id:suggestion.id})
-  const beforeSuggested={counts:await counts(),schemas:await schemaCounts(),pointers:await suggestionPointers()}
-  await assert.rejects(failing.scheduleSuggestedBatch(suggestedInput),/Queue commit refused/)
-  assert.deepEqual({counts:await counts(),schemas:await schemaCounts(),pointers:await suggestionPointers()},beforeSuggested)
-  assert.deepEqual(beforeSuggested.pointers,{confirmedSchemaRevisionId:null,batchExtractionId:null})
-  await assert.rejects(persistence.scheduleSuggestedBatch({...suggestedInput,method:changedMethod}),{code:'method_changed'})
-  assert.equal(await persistence.scheduleSuggestedBatch({...suggestedInput,projectContextId:otherProject}),null)
-  assert.deepEqual({counts:await counts(),schemas:await schemaCounts(),pointers:await suggestionPointers()},beforeSuggested)
-  const suggested = await persistence.scheduleSuggestedBatch(suggestedInput)
-  assert.equal(suggested?.disposition, 'created')
-  assert.equal(suggested?.batch.members.length, 2)
-  assert.ok(suggested?.batch.members.every(member => member.executionStatus === 'QUEUED' && member.extractionId))
-  assert.equal((await persistence.scheduleSuggestedBatch(suggestedInput))?.disposition, 'replayed')
-  const committed = { extractions: 5, batches: 2, heads: 5, dispatches: 5, queued: 5 }
+  const committed = { extractions: 3, batches: 1, heads: 3, dispatches: 3, queued: 3 }
   assert.deepEqual(await counts(), committed)
 
   await assert.rejects(failing.scheduleExtraction({ ...single, extractionId: randomUUID(), sourceRepresentationRevisionId: spare.revisionId }), /Queue commit refused/)

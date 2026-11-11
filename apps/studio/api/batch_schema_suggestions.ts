@@ -5,41 +5,31 @@ import {
 } from 'db'
 import { studioDbos } from '../server/dbos.js'
 import type { ModelOperationClient } from './_model_operation.js'
-import { ExtractionError } from 'extraction'
 import {
   batchSchemaSuggestionCreateFromSpreadsheetRequestSchema,
   batchSchemaSuggestionCreateRequestSchema,
-  batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
   batchSchemaSuggestionResponseSchema,
   batchSchemaSuggestionRetryRequestSchema,
-  batchSchemaSuggestionRunRequestSchema,
 } from '../shared/batchSchemaSuggestion.contract.js'
 import { batchSourceCoverageSchema, type BatchSourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import type { SpreadsheetColumn } from './_spreadsheet_schema.js'
-import { parseSchemaDefinition } from 'extraction/schema'
+import { parseBatchSuggestionDefinition, parseSchemaDefinition, type SchemaDefinition } from 'extraction/schema'
 import {
   ApiError,
-  boundedValidationDetails,
   json,
   noStore,
   noStoreError,
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import {
-  modelSuggestedDefinition,
-  validateEditableSuggestion,
-} from './_batch_schema_suggestions.js'
+import { modelSuggestedDefinition } from './_batch_schema_suggestions.js'
 import { buildSpreadsheetTemplate, columnFieldIds } from './_spreadsheet_schema.js'
-import { createResearcherExtractions } from './_extractions.js'
-import { methodRefusal } from './_method_refusals.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
 const FROM_SPREADSHEET_ROUTE = '/api/batch-schema-suggestions/from-spreadsheet'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
-const DRAFT_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/draft$/
-const RUN_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/run$/
+const APPLY_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/apply$/
 const RETRY_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/retry$/
 const STOP_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/stop$/
 
@@ -82,12 +72,8 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
           ? null
           : parseSchemaDefinition(suggestion.proposal),
       sourceCoverage: storedSourceCoverage(suggestion.coverage),
-      draft:
-        suggestion.draft === null ? null : parseSchemaDefinition(suggestion.draft),
-      draftVersion: suggestion.draftVersion,
       failure: failureDto(suggestion.failure),
-      confirmedSchemaRevisionId: suggestion.confirmedSchemaRevisionId,
-      batchExtractionId: suggestion.batchExtractionId,
+      savedSchema: suggestion.savedSchema,
       createdAt: suggestion.createdAt.toISOString(),
       sources: suggestion.sources.map((source) => ({
         sourceDocumentId: source.sourceDocumentId,
@@ -97,9 +83,20 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
   })
 }
 
+/** The retained result an apply saves; null while there is none, or when a row written before applies cannot run. */
+function retainedResult(suggestion: BatchSchemaSuggestionRecord): SchemaDefinition | null {
+  if (suggestion.phase !== 'READY' || suggestion.draft === null) return null
+  try {
+    return parseBatchSuggestionDefinition(suggestion.draft)
+  } catch {
+    return null
+  }
+}
+
 /**
  * Durable schema-suggestion HTTP lifecycle. Creation and retry admit an attempt's `suggestSchemaBatch` workflow with
- * its rows and answer 202; the model work runs on DBOS's `suggest` queue. Reads only read: status is derived.
+ * its rows and answer 202; the model work runs on DBOS's `suggest` queue. Reads only read: status is derived. Apply
+ * saves a settled result as an ordinary Extraction Schema, which is then edited and run like any other.
  */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
@@ -107,9 +104,6 @@ export function createResearcherApiHandlers(
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
-  const extractionModule = createResearcherExtractions(
-    store.researcherAccountId,
-  )
   const projectId = (url: URL) => {
     const value = url.searchParams.get('projectContextId')
     if (!value)
@@ -250,103 +244,27 @@ export function createResearcherApiHandlers(
     return json(suggestionDto(suggestion), { headers: noStore })
   }
 
-  const updateDraft = async (request: Request, url: URL, id: string) => {
-    const parsed = batchSchemaSuggestionDraftRequestSchema.safeParse(
-      await parseJsonRequest(request),
-    )
-    if (!parsed.success)
-      throw new ApiError(422, 'invalid_request', 'The Schema Suggestion draft is invalid.')
-    const updated = await store
-      .updateBatchSchemaSuggestionDraft(
-        projectId(url),
-        id,
-        parsed.data.expectedDraftVersion,
-        validateEditableSuggestion({
-          recordDescription: parsed.data.recordDescription,
-          schemaNodes: parsed.data.schemaNodes,
-        }),
-      )
-      .catch((cause) => {
-        throw persistenceUnavailable(cause)
-      })
-    if (!updated)
-      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
-    if (updated.status === 'invalid')
-      throw new ApiError(
-        409,
-        'operation_not_ready',
-        'Only an unconfirmed ready suggestion can be edited.',
-      )
-    if (updated.status === 'conflict')
-      throw new ApiError(
-        409,
-        'draft_conflict',
-        'The saved suggestion draft changed in another tab.',
-      )
-    return json(suggestionDto(updated.suggestion), { headers: noStore })
-  }
-
-  const run = async (request: Request, url: URL, id: string) => {
-    const parsed = batchSchemaSuggestionRunRequestSchema.safeParse(
-      await parseJsonRequest(request),
-    )
-    if (!parsed.success)
-      throw new ApiError(422, 'invalid_request', 'The Batch Extraction strategy is invalid.', {
-        details: boundedValidationDetails('request', parsed.error.issues.map((issue) => ({
-          path: issue.path.map(String).join('.'),
-          message: issue.message,
-        }))),
-      })
+  /** Saves the settled result as an Extraction Schema, once; a repeat answers the schema it saved. */
+  const apply = async (url: URL, id: string) => {
     const projectContextId = projectId(url)
-    // Admission compares the submitted method with the account's saved one; this handler never reads the account.
-    try {
-      await extractionModule.scheduleSuggestedBatch({
-        projectContextId,
-        batchSchemaSuggestionId: id,
-        strategy: parsed.data.strategy,
-        method: parsed.data.method,
-      })
-    } catch (error) {
-      const refused = methodRefusal(error)
-      if (refused) throw refused
-      // A submitted method that does not fit the strategy.
-      if (error instanceof ExtractionError && error.code === 'invalid_request')
-        throw new ApiError(422, 'invalid_request', error.message, { cause: error })
-      if (error instanceof ExtractionError && error.code === 'not_found')
-        throw new ApiError(
-          404,
-          'not_found',
-          'Batch Schema Suggestion was not found.',
-          { cause: error },
-        )
-      if (error instanceof ExtractionError && error.code === 'batch_not_ready')
-        throw new ApiError(
-          409,
-          'operation_not_ready',
-          'The suggested fields are not ready to run.',
-          { cause: error },
-        )
-      if (error instanceof ExtractionError && error.code === 'schema_not_stabilised')
-        throw new ApiError(
-          409,
-          'schema_not_stabilised',
-          'Pilot the suggested fields on at most five Source Documents, review the results and approve the schema for batch extraction before running the full collection.',
-          { cause: error },
-        )
-      throw persistenceUnavailable(error)
-    }
-    const suggestion = await store
-      .getBatchSchemaSuggestion(projectContextId, id)
+    const suggestion = await store.getBatchSchemaSuggestion(projectContextId, id).catch((cause) => {
+      throw persistenceUnavailable(cause)
+    })
+    if (!suggestion)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    const notReady = () => new ApiError(409, 'operation_not_ready', 'The suggested fields are not ready to save.')
+    const definition = retainedResult(suggestion)
+    if (!definition) throw notReady()
+    // The attempt pins the parsed result: the store refuses it once another attempt has started.
+    const applied = await store
+      .applyBatchSchemaSuggestion(projectContextId, id, suggestion.attempt, definition)
       .catch((cause) => {
         throw persistenceUnavailable(cause)
       })
-    if (!suggestion)
-      throw new ApiError(
-        404,
-        'not_found',
-        'Batch Schema Suggestion was not found.',
-      )
-    return json(suggestionDto(suggestion), { status: 202, headers: noStore })
+    if (applied === null)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    if (applied.status === 'not-ready') throw notReady()
+    return json(suggestionDto(applied.suggestion), { headers: noStore })
   }
 
   const retry = async (request: Request, url: URL, id: string) => {
@@ -376,7 +294,7 @@ export function createResearcherApiHandlers(
       throw new ApiError(
         409,
         'operation_not_ready',
-        'The suggestion can be regenerated only after its current attempt finished, before it is run, and while it has a Source Document.',
+        'The suggestion can be regenerated only after its current attempt finished, and while it has a Source Document.',
       )
     // A replay answers the successor this attempt already has, whether or not it finished.
     return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
@@ -408,12 +326,9 @@ export function createResearcherApiHandlers(
         return await create(request)
       if (request.method === 'GET' && url.pathname === ROUTE)
         return await list(url)
-      const draft = DRAFT_ROUTE.exec(url.pathname)
-      if (request.method === 'PATCH' && draft)
-        return await updateDraft(request, url, draft[1])
-      const runMatch = RUN_ROUTE.exec(url.pathname)
-      if (request.method === 'POST' && runMatch)
-        return await run(request, url, runMatch[1])
+      const applyMatch = APPLY_ROUTE.exec(url.pathname)
+      if (request.method === 'POST' && applyMatch)
+        return await apply(url, applyMatch[1])
       const retryMatch = RETRY_ROUTE.exec(url.pathname)
       if (request.method === 'POST' && retryMatch)
         return await retry(request, url, retryMatch[1])
@@ -428,5 +343,5 @@ export function createResearcherApiHandlers(
     }
   }
 
-  return { GET: handle, POST: handle, PATCH: handle }
+  return { GET: handle, POST: handle }
 }

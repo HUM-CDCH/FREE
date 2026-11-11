@@ -202,7 +202,6 @@ type ModelSpies = {
 type ExtractionEffects = {
   singleExecutions: string[]
   batchExecutions: string[]
-  suggestedBatchExecutions: string[]
 }
 
 type TwoAccountStores = {
@@ -448,7 +447,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
       createBatchSchemaSuggestion: vi.fn(async () => null),
       getBatchSchemaSuggestion: vi.fn(async () => null),
       listBatchSchemaSuggestions: vi.fn(async () => null),
-      updateBatchSchemaSuggestionDraft: vi.fn(async () => null),
+      applyBatchSchemaSuggestion: vi.fn(async () => null),
       retryBatchSchemaSuggestion: vi.fn(async () => null),
       createSpreadsheetSchemaSuggestion: vi.fn(async () => null),
       appendProjectSpreadsheetVersion: vi.fn(async () => null),
@@ -616,7 +615,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
   const extractionEffects: ExtractionEffects = {
     singleExecutions: [],
     batchExecutions: [],
-    suggestedBatchExecutions: [],
   }
   const extractionModules: Record<string, ExtractionModule> = {}
   const notFound = () =>
@@ -668,21 +666,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
           throw notFound()
         extractionEffects.batchExecutions.push(input.projectContextId)
         throw new Error('Authorized Batch execution is outside this test.')
-      }),
-      scheduleSuggestedBatch: vi.fn<ExtractionModule['scheduleSuggestedBatch']>(async (input) => {
-        const ownedSuggestionId =
-          accountId === ids.accountA
-            ? ids.batchSuggestionA
-            : ids.batchSuggestionB
-        if (
-          input.projectContextId !== relationship.projectId ||
-          input.batchSchemaSuggestionId !== ownedSuggestionId
-        )
-          throw notFound()
-        extractionEffects.suggestedBatchExecutions.push(
-          input.batchSchemaSuggestionId,
-        )
-        throw new Error('Authorized suggested Batch is outside this test.')
       }),
       listBatches: vi.fn<ExtractionModule['listBatches']>(async (input) => {
         if (input.projectContextId !== relationship.projectId) throw notFound()
@@ -1422,20 +1405,8 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
       await api(
         fixture,
         ids.accountA,
-        `/api/batch-schema-suggestions/${ids.batchSuggestionB}/draft?projectContextId=${ids.projectA}`,
-        jsonRequest('PATCH', {
-          expectedDraftVersion: 1,
-          ...schemaDefinition,
-        }),
-      ),
-      forbiddenB,
-    )
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        `/api/batch-schema-suggestions/${ids.batchSuggestionB}/run?projectContextId=${ids.projectA}`,
-        jsonRequest('POST', { strategy: 'ARTICLE', method: { models: null, settings: { article: null } } }),
+        `/api/batch-schema-suggestions/${ids.batchSuggestionB}/apply?projectContextId=${ids.projectA}`,
+        jsonRequest('POST', {}),
       ),
       forbiddenB,
     )
@@ -1453,13 +1424,11 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
       ids.projectA,
       [ids.documentB],
     )
-    expect(aliceStore.updateBatchSchemaSuggestionDraft).toHaveBeenCalled()
     expect(aliceStore.retryBatchSchemaSuggestion).toHaveBeenCalledWith(
       ids.projectA,
       ids.batchSuggestionB,
       1,
     )
-    expect(fixture.extractionEffects.suggestedBatchExecutions).toEqual([])
   })
 })
 

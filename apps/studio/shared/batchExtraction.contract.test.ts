@@ -5,10 +5,7 @@ import {
   batchExtractionRequestSchema,
   batchExtractionSchema,
 } from './batchExtraction.contract.js'
-import {
-  batchSchemaSuggestionCreateRequestSchema,
-  batchSchemaSuggestionRunRequestSchema,
-} from './batchSchemaSuggestion.contract.js'
+import { batchSchemaSuggestionCreateRequestSchema } from './batchSchemaSuggestion.contract.js'
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
@@ -78,7 +75,6 @@ describe('Batch start methods', () => {
     for (const [strategy, settings] of [['ARTICLE', { article: null }], ['CATALOG', { generic: null }]] as const) {
       const request = { strategy, method: { models: { fields: 'instruct' }, settings } }
       expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(true)
-      expect(batchSchemaSuggestionRunRequestSchema.safeParse(request).success).toBe(true)
     }
     for (const request of [
       { strategy: 'ARTICLE' },
@@ -87,14 +83,13 @@ describe('Batch start methods', () => {
       { strategy: 'CATALOG', method: { models: null, settings: { recipe: null } } },
     ]) {
       expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(false)
-      expect(batchSchemaSuggestionRunRequestSchema.safeParse(request).success).toBe(false)
     }
   })
 
   it('refuses a method that breaks a rule at the field it concerns', () => {
     const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
       prompt: 'reference', grounding: 'semantic' }
-    const parsed = batchSchemaSuggestionRunRequestSchema.safeParse({ strategy: 'ARTICLE', method: { models: null, settings: { article } } })
+    const parsed = batchExtractionRequestSchema.safeParse({ ...selection, strategy: 'ARTICLE', method: { models: null, settings: { article } } })
     expect(parsed.success).toBe(false)
     expect(parsed.error?.issues).toContainEqual(expect.objectContaining({
       path: ['method', 'settings', 'article', 'overlap_passages'], message: 'This choice requires bounded source units.',

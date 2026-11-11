@@ -22,11 +22,6 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       if (!result) throw new ExtractionError('not_found', 'That Project Context was not found.')
       return result
     },
-    async scheduleSuggestedBatch(input) {
-      const result = await persistence.scheduleSuggestedBatch(input)
-      if (!result) throw new ExtractionError('not_found', 'That Schema Suggestion was not found.')
-      return result
-    },
     async stabiliseSchemaRevision(input) {
       const result = await persistence.stabiliseSchemaRevision(input)
       if (result === 'not-found')

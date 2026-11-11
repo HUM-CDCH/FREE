@@ -481,9 +481,7 @@ const suggestionFields = [
   'proposal',
   'coverage',
   'draft',
-  'draftVersion',
   'confirmedSchemaRevisionId',
-  'batchExtractionId',
   'createdAt',
 ] as const
 
@@ -500,9 +498,7 @@ type StoredSuggestion = {
   proposal: unknown
   coverage: unknown
   draft: unknown
-  draftVersion: number
   confirmedSchemaRevisionId: string | null
-  batchExtractionId: string | null
   createdAt: Date
 }
 
@@ -567,10 +563,17 @@ async function loadBatchSchemaSuggestions(
           .all()
     ).map((revision) => [revision.id, revision]),
   )
+  const confirmed = [...rows.values()].flatMap((row) => row.confirmedSchemaRevisionId ? [row.confirmedSchemaRevisionId] : [])
+  // A deleted schema takes its revisions with it: its suggestion then reads as not saved.
+  const savedSchemas = new Map(
+    (confirmed.length === 0 ? [] : await orm.public.SchemaRevision.where((revision) => revision.id.in(confirmed))
+      .select('id', 'extractionSchemaId').all()).map((revision) => [revision.id, revision.extractionSchemaId]),
+  )
   const records: BatchSchemaSuggestionRecord[] = []
   for (const id of ids) {
     const row = rows.get(id)
     if (!row) continue
+    const savedSchemaId = row.confirmedSchemaRevisionId ? savedSchemas.get(row.confirmedSchemaRevisionId) : undefined
     const sources: BatchSchemaSuggestionSourceRecord[] = []
     for (const pin of pins) {
       if (pin.batchSchemaSuggestionId !== id) continue
@@ -596,9 +599,7 @@ async function loadBatchSchemaSuggestions(
       proposal: row.proposal,
       coverage: row.coverage,
       draft: row.draft,
-      draftVersion: row.draftVersion,
-      confirmedSchemaRevisionId: row.confirmedSchemaRevisionId,
-      batchExtractionId: row.batchExtractionId,
+      savedSchema: savedSchemaId ? { extractionSchemaId: savedSchemaId, schemaRevisionId: row.confirmedSchemaRevisionId! } : null,
       createdAt: row.createdAt,
       sources,
     })
@@ -640,6 +641,43 @@ async function lockCurrentAttempt(orm: Orm, batchSchemaSuggestionId: string, att
     confirmedSchemaRevisionId: null,
   }).updateAll({ id: batchSchemaSuggestionId })
   return locked.length === 1
+}
+
+function withoutNodeIds(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const { id: _id, children, ...node } = value as Record<string, unknown>
+  return Array.isArray(children) ? { ...node, children: children.map(withoutNodeIds) } : children === undefined ? node : { ...node, children }
+}
+
+/** A definition without its node ids, which are unstable: what identifies a suggested result. */
+function semanticSuggestionTree(tree: unknown): unknown {
+  if (!tree || typeof tree !== 'object' || Array.isArray(tree)) return tree
+  const { schemaNodes, ...definition } = tree as Record<string, unknown>
+  return Array.isArray(schemaNodes) ? { ...definition, schemaNodes: schemaNodes.map(withoutNodeIds) } : tree
+}
+
+/**
+ * The Extraction Schema a suggestion's result is saved as, created at most once: its ids derive from the suggestion and
+ * the result's fields (the namespaces of the confirmation that preceded applies, so a confirmed row finds its schema).
+ * A schema that already exists is answered as it is, with whatever the researcher saved since. Returns revision 1.
+ */
+async function saveSuggestedSchema(orm: Orm, projectContextId: string, batchSchemaSuggestionId: string, definition: unknown): Promise<string> {
+  const extractionSchemaId = stableUuid(
+    'confirmed-batch-schema-suggestion',
+    `${batchSchemaSuggestionId}:${stableJson(semanticSuggestionTree(definition))}`,
+  )
+  const schemaRevisionId = stableUuid('confirmed-batch-schema-suggestion-revision', extractionSchemaId)
+  if (await orm.public.ExtractionSchema.select('id').first({ id: extractionSchemaId })) return schemaRevisionId
+  await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Suggested fields' })
+  await orm.public.SchemaRevision.create({
+    id: schemaRevisionId,
+    extractionSchemaId,
+    revisionNumber: 1,
+    origin: 'SUGGESTION',
+    schemaTree: definition,
+    recordScope: null,
+  })
+  return schemaRevisionId
 }
 
 function canonicalSourceDocumentIds(ids: readonly string[]): string[] {
@@ -837,12 +875,13 @@ export type BatchSchemaSuggestionRecord = {
   projectSpreadsheetVersionId: string | null
   proposal: unknown | null
   coverage: unknown | null
+  /** The retained result: what an apply saves as revision 1 (a row edited before 2026-11 keeps the researcher's edits). */
   draft: unknown | null
-  draftVersion: number
   /** The current attempt's failure. */
   failure: unknown | null
-  confirmedSchemaRevisionId: string | null
-  batchExtractionId: string | null
+  /** Revision 1 of the Extraction Schema the retained result was saved as; null until it is applied or once that schema
+   *  is deleted. */
+  savedSchema: { extractionSchemaId: string; schemaRevisionId: string } | null
   createdAt: Date
   sources: BatchSchemaSuggestionSourceRecord[]
 }
@@ -853,10 +892,9 @@ export type BatchSchemaSuggestionProposal =
   | { phase: 'READY'; proposal: unknown; coverage: unknown; draft: unknown }
   | { phase: 'HETEROGENEOUS'; coverage?: unknown }
 
-export type UpdateBatchSchemaSuggestionDraftResult =
-  | { status: 'updated'; suggestion: BatchSchemaSuggestionRecord }
-  | { status: 'conflict'; suggestion: BatchSchemaSuggestionRecord }
-  | { status: 'invalid' }
+export type ApplyBatchSchemaSuggestionResult =
+  | { status: 'applied'; suggestion: BatchSchemaSuggestionRecord }
+  | { status: 'not-ready' }
   | null
 
 export type RetryBatchSchemaSuggestionResult =
@@ -977,16 +1015,23 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     limit: number,
   ): Promise<BatchSchemaSuggestionRecord[] | null>
-  updateBatchSchemaSuggestionDraft(
+  /**
+   * Saves the retained result of `attempt` as a new Extraction Schema (revision 1, no Record Scope) and records it, once:
+   * a repeat, another tab or a row confirmed before applies existed answer the same schema. `definition` is Studio's
+   * parse of that attempt's `draft`, which nothing rewrites once the attempt is settled. Refused (`not-ready`) unless
+   * `attempt` is current, settled and READY. Nothing else is created: Run is an ordinary Batch Extraction.
+   */
+  applyBatchSchemaSuggestion(
     projectContextId: string,
     batchSchemaSuggestionId: string,
-    expectedDraftVersion: number,
-    draft: unknown,
-  ): Promise<UpdateBatchSchemaSuggestionDraftResult>
+    attempt: number,
+    definition: unknown,
+  ): Promise<ApplyBatchSchemaSuggestionResult>
   /**
    * Starts the next attempt over every surviving pin, once per `expectedAttempt`: a repeat that finds exactly that
    * attempt's successor replays it, whether or not it finished; any other attempt is a conflict. Refused (`not-ready`)
-   * while the current attempt is active, after confirmation, or with no surviving member.
+   * while the current attempt is active or with no surviving member. An applied result stays the researcher's schema;
+   * the next result is applied as another one.
    */
   retryBatchSchemaSuggestion(
     projectContextId: string,
@@ -2254,6 +2299,9 @@ export function createResearcherProjectStore(
           proposal: definition,
           draft: definition,
         })
+        // Built synchronously and READY, so it is applied at once: the spreadsheet's fields are an ordinary schema.
+        const confirmedSchemaRevisionId = await saveSuggestedSchema(orm, projectContextId, batchSchemaSuggestionId, definition)
+        await orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).updateAll({ confirmedSchemaRevisionId })
         return { batchSchemaSuggestionId } as const
       })
       if (created === 'missing') return null
@@ -2470,64 +2518,37 @@ export function createResearcherProjectStore(
         .all()
       return loadBatchSchemaSuggestions(database.orm, statuses, projectContextId, rows.map((row) => row.id))
     },
-    async updateBatchSchemaSuggestionDraft(
-      projectContextId,
-      batchSchemaSuggestionId,
-      expectedDraftVersion,
-      draft,
-    ) {
-      const result = await database.transaction(async ({ orm }) => {
-        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return 'missing' as const
-        // Under the row lock a retry or Run cannot start between this check and the write.
+    async applyBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, attempt, definition) {
+      const applied = await database.transaction(async ({ orm }) => {
+        // Suggestion admission and source deletion lock the project before suggestions: keep that order.
+        if (!(await lockOwnedProjectContext(orm, researcherAccountId, projectContextId))) return 'missing' as const
         if (!(await lockSuggestionRow(orm, projectContextId, batchSchemaSuggestionId))) return 'missing' as const
-        const suggestion = await orm.public.BatchSchemaSuggestion.select(
-          'attempt',
-          'outcome',
-          'phase',
-          'confirmedSchemaRevisionId',
-        ).first({ id: batchSchemaSuggestionId })
-        if (!suggestion) return 'missing' as const
-        if (suggestion.phase !== 'READY' || suggestion.confirmedSchemaRevisionId !== null) return 'invalid' as const
-        const attemptId = suggestWorkflowId(batchSchemaSuggestionId, suggestion.attempt)
-        // The retained draft is read-only while an attempt runs: its result replaces it.
-        if (
-          suggestion.outcome === null &&
-          suggestionAttemptActive(suggestion.outcome, (await statuses([attemptId])).get(attemptId))
-        )
-          return 'invalid' as const
-        // updateAll retains these guards in the UPDATE; update selects an id first.
-        const updated = await orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-          draftVersion: expectedDraftVersion,
-          phase: 'READY',
-          confirmedSchemaRevisionId: null,
-        }).updateAll({
-          draft,
-          draftVersion: expectedDraftVersion + 1,
-        })
-        return updated.length === 1 ? ('updated' as const) : ('conflict' as const)
+        const row = await orm.public.BatchSchemaSuggestion.select('attempt', 'outcome', 'phase', 'draft')
+          .first({ id: batchSchemaSuggestionId })
+        if (!row || row.attempt !== attempt || row.phase !== 'READY' || row.draft === null) return 'not-ready' as const
+        // An attempt still running replaces the retained result when it publishes. A settled one needs no workflow read.
+        const attemptId = suggestWorkflowId(batchSchemaSuggestionId, attempt)
+        if (row.outcome === null && suggestionAttemptActive(null, (await statuses([attemptId])).get(attemptId)))
+          return 'not-ready' as const
+        const confirmedSchemaRevisionId = await saveSuggestedSchema(orm, projectContextId, batchSchemaSuggestionId, definition)
+        await orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).updateAll({ confirmedSchemaRevisionId })
+        return 'applied' as const
       })
-      if (result === 'missing') return null
-      if (result === 'invalid') return { status: 'invalid' as const }
+      if (applied === 'missing') return null
+      if (applied === 'not-ready') return { status: applied }
       const suggestion = await loadBatchSchemaSuggestion(database.orm, statuses, projectContextId, batchSchemaSuggestionId)
-      if (!suggestion) return null
-      return { status: result, suggestion }
+      return suggestion ? { status: applied, suggestion } : null
     },
     async retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, expectedAttempt) {
       const result = await withPoolClientTransaction(async ({ orm }, client) => {
         if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return 'missing' as const
         // Lock the row first: a concurrent retry, draft edit, Run or source deletion waits.
         if (!(await lockSuggestionRow(orm, projectContextId, batchSchemaSuggestionId))) return 'missing' as const
-        const row = await orm.public.BatchSchemaSuggestion.select(
-          'attempt',
-          'outcome',
-          'confirmedSchemaRevisionId',
-        ).first({ id: batchSchemaSuggestionId })
+        const row = await orm.public.BatchSchemaSuggestion.select('attempt', 'outcome').first({ id: batchSchemaSuggestionId })
         if (!row) return 'missing' as const
         // This request's successor already exists (an uncertain POST repeated): answer it, finished or not.
         if (row.attempt === expectedAttempt + 1) return 'replayed' as const
         if (row.attempt !== expectedAttempt) return 'attempt-conflict' as const
-        if (row.confirmedSchemaRevisionId !== null) return 'not-ready' as const
         const current = suggestWorkflowId(batchSchemaSuggestionId, row.attempt)
         // Allowed only after a terminal attempt: an outcome, or a workflow that stopped without one (interrupted).
         if (row.outcome === null && suggestionAttemptActive(row.outcome, (await statuses([current])).get(current)))
@@ -2539,10 +2560,12 @@ export function createResearcherProjectStore(
         // An empty selection keeps its draft, but there is nothing to suggest from.
         if (members.length === 0) return 'not-ready' as const
         const attempt = row.attempt + 1
+        // The next result is the row's own until applied; an applied one stays the researcher's Extraction Schema.
         await orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).updateAll({
           attempt,
           outcome: null,
           failure: null,
+          confirmedSchemaRevisionId: null,
         })
         await admitSuggestionAttempt(client, { batchSchemaSuggestionId, attempt, projectContextId, members })
         return 'retried' as const
@@ -2986,10 +3009,7 @@ export function createInternalProjectWorkerStore(
     async publishBatchSchemaSuggestion(batchSchemaSuggestionId, attempt, result) {
       return database.transaction(async ({ orm }) => {
         if (!(await lockCurrentAttempt(orm, batchSchemaSuggestionId, attempt))) return 'stopped' as const
-        const row = await orm.public.BatchSchemaSuggestion.select('draftVersion').first({ id: batchSchemaSuggestionId })
-        if (!row) return 'stopped' as const
-        // The read and this write share the lock, and the write repeats the predicate: a second execution of the
-        // publication step finds the outcome and increments nothing.
+        // The write repeats the predicate under the lock: a second execution of the publication step finds the outcome.
         const written = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
           attempt,
@@ -3003,7 +3023,6 @@ export function createInternalProjectWorkerStore(
                 proposal: result.proposal,
                 coverage: result.coverage,
                 draft: result.draft,
-                draftVersion: row.draftVersion + 1,
               }
             : {
                 outcome: 'SUCCEEDED',
@@ -3012,7 +3031,6 @@ export function createInternalProjectWorkerStore(
                 proposal: null,
                 coverage: result.coverage ?? null,
                 draft: null,
-                draftVersion: row.draftVersion + 1,
               },
         )
         return written.length === 1 ? ('published' as const) : ('stopped' as const)
@@ -3021,7 +3039,7 @@ export function createInternalProjectWorkerStore(
     async failBatchSchemaSuggestionAttempt(batchSchemaSuggestionId, attempt, failure) {
       return database.transaction(async ({ orm }) => {
         if (!(await lockCurrentAttempt(orm, batchSchemaSuggestionId, attempt))) return 'stopped' as const
-        // The proposal, draft and draft version stay: a failed attempt replaces nothing.
+        // The proposal, draft and applied schema stay: a failed attempt replaces nothing.
         const written = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
           attempt,

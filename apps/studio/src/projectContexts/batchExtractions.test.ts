@@ -5,8 +5,8 @@ import { setModelKeyAccount } from '../modelKeys/modelKeyHandoff'
 import { saveModelKey } from '../modelKeys/modelKeyStore'
 import {
   createBatchSchemaSuggestion,
+  applyBatchSchemaSuggestion,
   retryBatchSchemaSuggestion,
-  runBatchSchemaSuggestion,
 } from './batchExtractions'
 
 const ACCOUNT = '10000000-0000-4000-8000-000000000001'
@@ -29,11 +29,8 @@ const suggestion = {
   projectSpreadsheetVersionId: null,
   proposal: definition,
   sourceCoverage: null,
-  draft: definition,
-  draftVersion: 1,
   failure: null,
-  confirmedSchemaRevisionId: null,
-  batchExtractionId: null,
+  savedSchema: null,
   createdAt: '2026-08-15T10:00:00.000Z',
   sources: [
     {
@@ -88,11 +85,9 @@ describe('Batch Template Suggestion requests', () => {
     expect(bodies.at(-1)).toEqual({ expectedAttempt: 1 })
   })
 
-  it('running a suggestion starts no Studio model work, sends no keys, and submits the saved method', async () => {
-    const method = { models: { fields: 'instruct' }, settings: { generic: null } }
-    await runBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, 'CATALOG', method)
+  it('applying a suggestion starts no model work and sends no keys: it only saves the settled result', async () => {
+    await applyBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId)
 
-    expect(requests).toEqual([`POST /api/batch-schema-suggestions/${batchSchemaSuggestionId}/run`])
-    expect(bodies.at(-1)).toEqual({ strategy: 'CATALOG', method })
+    expect(requests).toEqual([`POST /api/batch-schema-suggestions/${batchSchemaSuggestionId}/apply`])
   })
 })

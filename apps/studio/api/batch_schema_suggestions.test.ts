@@ -3,17 +3,8 @@ import type {
   BatchSchemaSuggestionRecord,
   ResearcherProjectStore,
 } from 'db'
-import { ExtractionError, type ExtractionModule } from 'extraction'
 import { createResearcherApiHandlers } from './batch_schema_suggestions.js'
 import { batchSchemaSuggestionErrorResponseSchema } from '../shared/batchSchemaSuggestion.contract.js'
-
-const runtime = vi.hoisted(() => ({
-  createResearcherExtractions: vi.fn(),
-}))
-
-vi.mock('./_extractions.js', () => ({
-  createResearcherExtractions: runtime.createResearcherExtractions,
-}))
 
 // The worker store is how a process-local pump claimed work; no route may build or use one.
 const worker = vi.hoisted(() => ({ created: vi.fn() }))
@@ -52,10 +43,8 @@ const suggestion: BatchSchemaSuggestionRecord = {
   proposal: definition,
   coverage: [{ nodeId: 'place', present: 1, total: 1 }],
   draft: definition,
-  draftVersion: 1,
   failure: null,
-  confirmedSchemaRevisionId: null,
-  batchExtractionId: null,
+  savedSchema: null,
   createdAt: now,
   sources: [
     {
@@ -69,49 +58,23 @@ const suggestion: BatchSchemaSuggestionRecord = {
   ],
 }
 
-function moduleForSuggestedBatch() {
-  const module: ExtractionModule = {
-    runSingle: vi.fn<ExtractionModule['runSingle']>(),
-    readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(),
-    readDocumentExtractions:
-      vi.fn<ExtractionModule['readDocumentExtractions']>(),
-    scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>(),
-    scheduleSuggestedBatch:
-      vi.fn<ExtractionModule['scheduleSuggestedBatch']>(async () => ({
-        disposition: 'created',
-        batch: {} as never,
-      })),
-    stabiliseSchemaRevision:
-      vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
-    listBatches: vi.fn<ExtractionModule['listBatches']>(),
-    readBatch: vi.fn<ExtractionModule['readBatch']>(),
-  }
-  return module
-}
-function handlersFor(
-  store: Partial<ResearcherProjectStore>,
-  module: ExtractionModule = moduleForSuggestedBatch(),
-) {
-  runtime.createResearcherExtractions.mockReturnValue(module)
+function handlersFor(store: Partial<ResearcherProjectStore>) {
   return createResearcherApiHandlers({
     researcherAccountId,
     ...store,
   } as ResearcherProjectStore)
 }
-const handlerFor = (store: Partial<ResearcherProjectStore>, module?: ExtractionModule) =>
-  handlersFor(store, module).POST
+const handlerFor = (store: Partial<ResearcherProjectStore>) => handlersFor(store).POST
 
-/** What the start view submits for an account that keeps every service default. */
-const SERVICE_DEFAULTS = { models: null, settings: { article: null } }
-const runRequest = (body: unknown = { strategy: 'ARTICLE', method: SERVICE_DEFAULTS }) =>
+const applyRequest = () =>
   new Request(
-    `http://test/api/batch-schema-suggestions/${suggestionId}/run?projectContextId=${projectContextId}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    },
+    `http://test/api/batch-schema-suggestions/${suggestionId}/apply?projectContextId=${projectContextId}`,
+    { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
   )
+const savedSchema = {
+  extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+  schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+}
 const retryRequest = (body: unknown) =>
   new Request(
     `http://test/api/batch-schema-suggestions/${suggestionId}/retry?projectContextId=${projectContextId}`,
@@ -129,78 +92,44 @@ describe('Batch Schema Suggestion APIs', () => {
     expectTypeOf<ResearcherProjectStore>().not.toHaveProperty('isPackageReferenced')
   })
 
-  it('schedules a suggested batch with the selected Catalog strategy', async () => {
-    const module = moduleForSuggestedBatch()
-    const getBatchSchemaSuggestion = vi.fn(async () => suggestion)
-    const handler = handlerFor({ getBatchSchemaSuggestion }, module)
-    const method = { models: null, settings: { generic: null } }
-    const response = await handler(runRequest({ strategy: 'CATALOG', method }))
+  it('apply saves the attempt\'s settled result through the store and answers the suggestion with its saved schema', async () => {
+    const applyBatchSchemaSuggestion = vi.fn(async () => ({
+      status: 'applied' as const,
+      suggestion: { ...suggestion, savedSchema },
+    }))
+    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion), applyBatchSchemaSuggestion })(applyRequest())
 
-    expect(response.status).toBe(202)
-    expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ strategy: 'CATALOG', method }),
-    )
-  })
-
-  it('hands the submitted method to scheduleSuggestedBatch unchanged; the handler never reads the account', async () => {
-    const module = moduleForSuggestedBatch()
-    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
-      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
-    const method = { models: { fields: 'nuextract' }, settings: { article } }
-    const handler = handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)
-
-    expect((await handler(runRequest({ strategy: 'ARTICLE', method }))).status).toBe(202)
-    expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(expect.objectContaining({ method }))
+    expect(response.status).toBe(200)
+    // The attempt read is the one applied: a retry started since makes the store refuse it.
+    expect(applyBatchSchemaSuggestion).toHaveBeenCalledWith(projectContextId, suggestionId, 1, definition)
+    expect(await response.json()).toMatchObject({ batchSchemaSuggestion: { savedSchema } })
   })
 
   it.each([
-    ['method_changed', 409],
-    ['record_scope_required', 409],
-    ['record_scope_mismatch', 409],
-    ['invalid_identity_fields', 422],
-    ['incompatible_extraction_model', 422],
-    ['invalid_model_config', 500],
-  ] as const)('answers a refused Run %s with %i', async (code, status) => {
-    const module = moduleForSuggestedBatch()
-    vi.mocked(module.scheduleSuggestedBatch).mockRejectedValueOnce(new ExtractionError(code, 'Refused for a reason the researcher can read.'))
-    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)(runRequest())
+    ['still suggesting', { ...suggestion, executionStatus: 'RUNNING' as const, phase: null, draft: null }],
+    ['found no common fields', { ...suggestion, phase: 'HETEROGENEOUS' as const, draft: null }],
+    ['holds a stored result that is no schema definition', { ...suggestion, draft: { recordDescription: 'Nothing.', schemaNodes: 'none' } }],
+  ] satisfies [string, BatchSchemaSuggestionRecord][])('apply refuses a suggestion that %s with 409 operation_not_ready, saving nothing', async (_, read) => {
+    const applyBatchSchemaSuggestion = vi.fn()
+    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => read), applyBatchSchemaSuggestion })(applyRequest())
 
-    expect(response.status).toBe(status)
-    // The browser reads the refusal through the exported contract, so it can offer a refresh rather than a failure.
-    expect(batchSchemaSuggestionErrorResponseSchema.parse(await response.json()).error.code).toBe(code)
+    expect(response.status).toBe(409)
+    expect(batchSchemaSuggestionErrorResponseSchema.parse(await response.json()).error.code).toBe('operation_not_ready')
+    expect(applyBatchSchemaSuggestion).not.toHaveBeenCalled()
   })
 
-  it("refuses a Run without the method, or with a recipe's settings, before admission", async () => {
-    const module = moduleForSuggestedBatch()
-    const handler = handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)
-
-    expect((await handler(runRequest({ strategy: 'ARTICLE' }))).status).toBe(422)
-    // A batch has no recipe, so recipe settings fit neither strategy.
-    for (const strategy of ['ARTICLE', 'CATALOG'])
-      expect((await handler(runRequest({ strategy, method: { models: null, settings: { recipe: null } } }))).status).toBe(422)
-    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
-  })
-
-  it('refuses a rule-breaking Run field by field, in a body the exported error contract reads', async () => {
-    const module = moduleForSuggestedBatch()
-    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
-      prompt: 'reference', grounding: 'semantic' }
-    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)(
-      runRequest({ strategy: 'ARTICLE', method: { models: null, settings: { article } } }))
-
-    expect(response.status).toBe(422)
-    const { error } = batchSchemaSuggestionErrorResponseSchema.parse(await response.json())
-    expect(error.code).toBe('invalid_request')
-    expect(error.details?.issues).toContainEqual({
-      path: 'method.settings.article.overlap_passages', message: 'This choice requires bounded source units.',
-    })
-    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
+  it('apply answers 409 when another attempt started after the read, and 404 for a suggestion the account cannot reach', async () => {
+    const getBatchSchemaSuggestion = vi.fn(async () => suggestion)
+    const stale = await handlerFor({ getBatchSchemaSuggestion, applyBatchSchemaSuggestion: vi.fn(async () => ({ status: 'not-ready' as const })) })(applyRequest())
+    expect(stale.status).toBe(409)
+    expect((await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => null) })(applyRequest())).status).toBe(404)
+    expect((await handlerFor({ getBatchSchemaSuggestion, applyBatchSchemaSuggestion: vi.fn(async () => null) })(applyRequest())).status).toBe(404)
   })
 
   it('creation answers 202 with the admitted attempt', async () => {
     const createBatchSchemaSuggestion = vi.fn(async () => ({
       status: 'created' as const,
-      suggestion: { ...suggestion, executionStatus: 'QUEUED' as const, phase: null, proposal: null, coverage: null, draft: null, draftVersion: 0 },
+      suggestion: { ...suggestion, executionStatus: 'QUEUED' as const, phase: null, proposal: null, coverage: null, draft: null },
     }))
     const response = await handlerFor({ createBatchSchemaSuggestion })(
       new Request('http://test/api/batch-schema-suggestions', {
@@ -225,11 +154,8 @@ describe('Batch Schema Suggestion APIs', () => {
         projectSpreadsheetVersionId: null,
         proposal: null,
         sourceCoverage: null,
-        draft: null,
-        draftVersion: 0,
         failure: null,
-        confirmedSchemaRevisionId: null,
-        batchExtractionId: null,
+        savedSchema: null,
         createdAt: now.toISOString(),
         sources: [{ sourceDocumentId, sourceRepresentationRevisionId: representationRevisionId }],
       },
@@ -266,14 +192,13 @@ describe('Batch Schema Suggestion APIs', () => {
   })
 
   it('the list and read routes answer without starting work', async () => {
-    const module = moduleForSuggestedBatch()
     const store = {
       listBatchSchemaSuggestions: vi.fn(async () => [suggestion]),
       getBatchSchemaSuggestion: vi.fn(async () => suggestion),
       createBatchSchemaSuggestion: vi.fn(),
       retryBatchSchemaSuggestion: vi.fn(),
     }
-    const { GET } = handlersFor(store, module)
+    const { GET } = handlersFor(store)
 
     const listed = await GET(new Request(`http://test/api/batch-schema-suggestions?projectContextId=${projectContextId}`))
     const read = await GET(new Request(`http://test/api/batch-schema-suggestions/${suggestionId}?projectContextId=${projectContextId}`))
@@ -283,7 +208,6 @@ describe('Batch Schema Suggestion APIs', () => {
     expect((await listed.json()).batchSchemaSuggestions).toHaveLength(1)
     expect(store.createBatchSchemaSuggestion).not.toHaveBeenCalled()
     expect(store.retryBatchSchemaSuggestion).not.toHaveBeenCalled()
-    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
   })
 
   it('reads the stored source declaration, and still loads a suggestion stored with schema-path counts', async () => {
@@ -329,7 +253,7 @@ describe('Batch Schema Suggestion APIs', () => {
       attempt: 2,
       executionStatus: 'FAILED',
       failure: { code: 'interrupted' },
-      draft: definition,
+      proposal: definition,
     })
     const outage = await read()
     expect(outage.status).toBe(503)
@@ -376,40 +300,6 @@ describe('Batch Schema Suggestion APIs', () => {
     expect(retryBatchSchemaSuggestion).toHaveBeenCalledTimes(5)
   })
 
-  it('hands a ready suggestion atomically to ExtractionModule before rereading it', async () => {
-    const order: string[] = []
-    const module = moduleForSuggestedBatch()
-    vi.mocked(module.scheduleSuggestedBatch).mockImplementationOnce(async (input) => {
-      order.push('schedule')
-      expect(input).toEqual({
-        projectContextId,
-        batchSchemaSuggestionId: suggestionId,
-        strategy: 'ARTICLE',
-        method: SERVICE_DEFAULTS,
-      })
-      return { disposition: 'created', batch: {} as never }
-    })
-    const getBatchSchemaSuggestion = vi.fn(async () => {
-      order.push('read')
-      return {
-        ...suggestion,
-        confirmedSchemaRevisionId: '51000000-0000-4000-8004-000000000001',
-        batchExtractionId: '51000000-0000-4000-8007-000000000001',
-      }
-    })
-    const handler = handlerFor({ getBatchSchemaSuggestion }, module)
-
-    const response = await handler(runRequest())
-    expect(response.status).toBe(202)
-    expect(order).toEqual(['schedule', 'read'])
-    expect(await response.json()).toMatchObject({
-      batchSchemaSuggestion: {
-        confirmedSchemaRevisionId: '51000000-0000-4000-8004-000000000001',
-        batchExtractionId: '51000000-0000-4000-8007-000000000001',
-      },
-    })
-  })
-
   it('returns not found for an inaccessible suggestion\'s retry', async () => {
     const retryBatchSchemaSuggestion = vi.fn(async () => null)
     const response = await handlerFor({ retryBatchSchemaSuggestion })(retryRequest({ expectedAttempt: 1 }))
@@ -427,7 +317,6 @@ describe('POST /api/batch-schema-suggestions/:id/stop', () => {
       failure: executionStatus === 'FAILED' ? { code: 'interrupted', message: 'Interrupted.' } : null }))
     const getBatchSchemaSuggestion = vi.fn(async () => reads.shift() ?? null)
     const client = { cancelWorkflow: vi.fn<(workflowId: string) => Promise<void>>(async () => {}) }
-    runtime.createResearcherExtractions.mockReturnValue(moduleForSuggestedBatch())
     const { POST } = createResearcherApiHandlers({ researcherAccountId, getBatchSchemaSuggestion } as unknown as ResearcherProjectStore,
       () => client)
     return { POST, client, getBatchSchemaSuggestion }

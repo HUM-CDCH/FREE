@@ -44,18 +44,3 @@ export function sourceSuggestionFailure(error: unknown): {
     return { code: error.code }
   return { code: 'unexpected_failure' }
 }
-
-/** The researcher may edit names, but cannot create duplicate fields at one level. */
-export function validateEditableSuggestion(
-  definition: SchemaDefinition,
-): SchemaDefinition {
-  try {
-    return parseBatchSuggestionDefinition(definition)
-  } catch (error) {
-    throw new ApiError(
-      422,
-      'invalid_request',
-      error instanceof Error ? error.message : 'Common fields are invalid.',
-    )
-  }
-}

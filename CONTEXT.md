@@ -69,7 +69,7 @@ The authoritative declaration, saved with a Schema Revision, of what one Extract
 _Avoid_: cardinality, extraction mode, document type
 
 **Schema Suggestion**:
-A proposed Extraction Schema for researcher review, built from a whole Source Document (read in windows) and the researcher's optional instruction. A Batch Schema Suggestion suggests per Source Document and keeps the fields the documents share; a project spreadsheet's columns can also seed one.
+A proposed Extraction Schema for researcher review, built from a whole Source Document (read in windows) and the researcher's optional instruction. A Batch Schema Suggestion suggests per Source Document and keeps the fields the documents share; a project spreadsheet's columns can also seed one. A Batch Schema Suggestion is an operation, not a second schema: its settled result is saved as an ordinary Extraction Schema, which is then reviewed, edited and run like any other, and a later attempt's result is saved as another. The suggestion stays as that schema's provenance.
 _Avoid_: extraction suggestion, recommendation, prediction, candidate
 
 **Field**:
@@ -77,7 +77,7 @@ A structured value or attribute that can appear in an extraction schema.
 _Avoid_: property, column, metadata
 
 **Extraction Schema**:
-A researcher-approved structure that belongs to exactly one Project Context: a record description and the Fields FREE should extract. Every Extraction applies one of its Schema Revisions, which keeps extraction precise and repeatable.
+A structure that belongs to exactly one Project Context: a record description and the Fields FREE should extract. Every Extraction applies one of its Schema Revisions, which keeps extraction precise and repeatable. Saving a schema, whether written, suggested or imported, does not approve it; the researcher's approval for runs beyond a pilot is the stabilisation of one Schema Revision.
 Studio's interface calls it a *template* (and a Schema Revision a template revision, Schema Suggestion a template suggestion) so the word explains itself to researchers, as the Model Configuration page calls the Interaction Route the *Assistant model*; code, contracts, the API and these documents keep the Extraction Schema terms. Exports keep their column names.
 _Avoid_ (in code and documents): template, which there names NuExtract's own template; extraction target, target list
 
@@ -106,7 +106,7 @@ The immutable schema revision, Extraction Method and resolved settings that prod
 _Avoid_: current schema, mutable run settings
 
 **Batch Extraction**:
-A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document.
+A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document. Admission pins the Schema Revision Run saved and each Source Document's current Source Representation, whatever a Schema Suggestion was generated from.
 _Avoid_: annotation set, combined extraction, project-wide extraction
 
 **Extraction Result**:

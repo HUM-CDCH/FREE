@@ -37,38 +37,6 @@ const schemaTree = {
   ],
 }
 
-function readySuggestionDto(
-  draft = schemaTree,
-  draftVersion = 0,
-) {
-  return {
-    batchSchemaSuggestionId: '74000000-0000-4000-8008-000000000001',
-    projectContextId: id.project,
-    selectionKey: 'a'.repeat(64),
-    attempt: 1,
-    executionStatus: 'COMPLETED',
-    phase: 'READY',
-    sourceKind: 'DOCUMENTS',
-    columnFieldMapping: null,
-    projectSpreadsheetVersionId: null,
-    proposal: schemaTree,
-    sourceCoverage: null,
-    draft,
-    draftVersion,
-    failure: null,
-    confirmedSchemaRevisionId: null,
-    batchExtractionId: null,
-    createdAt: '2026-08-19T10:00:00.000Z',
-    sources: [
-      [id.beretning, id.beretningRevision],
-      [id.fundliste, id.fundlisteRevision],
-    ].map(([sourceDocumentId, sourceRepresentationRevisionId]) => ({
-      sourceDocumentId,
-      sourceRepresentationRevisionId,
-    })),
-  }
-}
-
 const at = (minute: number) => new Date(`2026-08-19T10:${String(minute).padStart(2, '0')}:00.000Z`)
 
 type StudioStore = Pick<
@@ -288,7 +256,6 @@ function batchFixture(nested = false): {
     runSingle: unsupported,
     readExtractionAttempt: unsupported,
     readDocumentExtractions: unsupported,
-    scheduleSuggestedBatch: unsupported,
     stabiliseSchemaRevision: unsupported,
     async scheduleBatch() {
       batch = { batchExtractionId: crypto.randomUUID() } as BatchExtractionSnapshot
@@ -374,50 +341,6 @@ async function openExtractions(page: Page): Promise<void> {
 async function prepareBatch(page: Page): Promise<void> {
   await panel(page).getByRole('button', { name: 'Custom Batch Extraction' }).click()
   await expect(panel(page).getByText('2 selected')).toBeVisible()
-}
-
-async function stubSharedSuggestionDraft(
-  page: Page,
-  shared: { suggestion: ReturnType<typeof readySuggestionDto> },
-): Promise<void> {
-  await page.route('**/api/batch-schema-suggestions**', async (route) => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname
-    if (request.method() === 'GET')
-      return route.fulfill({
-        json: path.endsWith('/api/batch-schema-suggestions')
-          ? { batchSchemaSuggestions: [shared.suggestion] }
-          : { batchSchemaSuggestion: shared.suggestion },
-      })
-    if (request.method() === 'PATCH' && path.endsWith('/draft')) {
-      const body = request.postDataJSON() as {
-        expectedDraftVersion: number
-        recordDescription: string
-        schemaNodes: typeof schemaTree.schemaNodes
-      }
-      if (body.expectedDraftVersion !== shared.suggestion.draftVersion)
-        return route.fulfill({
-          status: 409,
-          json: {
-            error: {
-              code: 'draft_conflict',
-              message: 'The saved suggestion draft changed in another tab.',
-            },
-          },
-        })
-      shared.suggestion = readySuggestionDto(
-        {
-          recordDescription: body.recordDescription,
-          schemaNodes: body.schemaNodes,
-        },
-        body.expectedDraftVersion + 1,
-      )
-      return route.fulfill({
-        json: { batchSchemaSuggestion: shared.suggestion },
-      })
-    }
-    return route.fulfill({ status: 405, body: 'Method not allowed' })
-  })
 }
 
 async function expectBatchRunClearOfSession(page: Page): Promise<void> {
@@ -522,48 +445,3 @@ for (const key of ['Enter', 'Space'] as const) {
     expect(runRequests).toHaveLength(1)
   })
 }
-
-test('two tabs expose and recover a durable Batch Template Suggestion draft conflict @deterministic', async ({
-  page,
-  context,
-}) => {
-  const shared = { suggestion: readySuggestionDto() }
-  const otherPage = await context.newPage()
-  for (const candidate of [page, otherPage]) {
-    await stubStudio(candidate)
-    await stubSharedSuggestionDraft(candidate, shared)
-    await openExtractions(candidate)
-    await prepareBatch(candidate)
-    await candidate
-      .getByRole('combobox', { name: 'Extraction Template', exact: true })
-      .selectOption('__suggest_common_fields__')
-    await expect(candidate.getByText('place', { exact: true })).toBeVisible()
-  }
-
-  const firstSuggestion = page.getByLabel('Suggested common fields')
-  // A row's actions show, and take the pointer, on hover (§6).
-  await firstSuggestion.getByRole('listitem', { name: 'place' }).hover()
-  await firstSuggestion.getByRole('button', { name: 'Edit place', exact: true }).click()
-  await firstSuggestion.getByPlaceholder('field_name').fill('city')
-  await firstSuggestion.getByRole('button', { name: 'Save' }).click()
-  await expect.poll(() => shared.suggestion.draftVersion).toBe(1)
-
-  const secondSuggestion = otherPage.getByLabel('Suggested common fields')
-  await secondSuggestion.getByRole('listitem', { name: 'place' }).hover()
-  await secondSuggestion.getByRole('button', { name: 'Edit place', exact: true }).click()
-  await secondSuggestion.getByPlaceholder('field_name').fill('town')
-  await secondSuggestion.getByRole('button', { name: 'Save' }).click()
-  await expect(
-    otherPage.getByText('This draft changed in another tab.'),
-  ).toBeVisible()
-  await expect(
-    otherPage.getByRole('button', { name: 'Run 2 Source Documents' }),
-  ).toBeDisabled()
-
-  await otherPage.getByRole('button', { name: 'Reload saved draft' }).click()
-  await expect(secondSuggestion.getByText('city', { exact: true })).toBeVisible()
-  await expect(secondSuggestion.getByText('town', { exact: true })).toHaveCount(0)
-  await expect(
-    otherPage.getByRole('button', { name: 'Run 2 Source Documents' }),
-  ).toBeEnabled()
-})

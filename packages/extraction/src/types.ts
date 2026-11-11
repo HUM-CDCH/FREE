@@ -161,14 +161,6 @@ export type ScheduleBatchInput = Readonly<{
   repetition: BatchRepetition
 }>
 
-export type ScheduleSuggestedBatchInput = Readonly<{
-  projectContextId: string
-  batchSchemaSuggestionId: string
-  strategy: ExtractionStrategy
-  /** The saved method the researcher saw at start; one snapshot for the batch and every member. */
-  method: ExtractionMethodIntent
-}>
-
 export type ScheduleBatchResult = Readonly<{
   disposition: BatchDisposition
   batch: BatchExtractionSnapshot
@@ -211,7 +203,6 @@ export interface ExtractionModule {
   readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
-  scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>
   /** Marks a piloted Schema Revision stabilised, unlocking collection-scale Batch Extraction against it.
    *  Requires a finalized durable pilot review of that revision's current result cut. */
   stabiliseSchemaRevision(input: StabiliseSchemaRevisionInput): Promise<StabiliseSchemaRevisionResult>

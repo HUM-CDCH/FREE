@@ -3094,7 +3094,8 @@ describe('routed Source Document reopening', () => {
     [
       'Batch Extraction',
       `/projects/${projectContextId}/extractions/51000000-0000-4000-8007-000000000099`,
-      4,
+      // The batch list; suggestions are read only by a preparation.
+      3,
       'That project no longer exists',
     ],
   ] as const)(

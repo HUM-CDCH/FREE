@@ -26,19 +26,16 @@ import {
 } from '../currentSchemaRevision'
 import { useSchemaEditorController } from '../useCurrentSchemaRevision'
 import { Button, DeleteDialog, ModalDialog, EmptyState } from '../ui'
-import BatchExtractionsPanel, {
-  SuggestedSchemaEditor,
-} from './BatchExtractionsPanel'
+import BatchExtractionsPanel from './BatchExtractionsPanel'
 import {
+  createSpreadsheetBatchSchemaSuggestion,
   getCurrentProjectSpreadsheet,
   uploadProjectSpreadsheet,
 } from './batchExtractions'
-import { useSpreadsheetSchemaSuggestion } from './useSpreadsheetSchemaSuggestion'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
 // Hidden for now with its use on the Extractions tab below.
 // import { ProjectFeedback } from '../ProjectFeedback'
-import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectStatus from './ProjectStatus'
 import { useOpenDocumentTabs } from '../useOpenDocumentTabs'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
@@ -357,7 +354,7 @@ function SpreadsheetFormatExampleDialog({
 
 /** The read-only field editor for one loaded Schema Revision. A no-op,
  *  in-memory `localSchemaPersistence` controller — the same one
- *  `SuggestedSchemaEditor` uses for a not-yet-confirmed draft — lets
+ *  the schema import preview uses — lets
  *  `SchemaPanel` mount without the durable Batch Extraction machinery
  *  `RightRail` normally wires it through. */
 function SchemaFieldsPreview({ revision }: { revision: SchemaRevision }) {
@@ -495,7 +492,6 @@ export default function ProjectContextPage({
   // The saved advanced settings a Batch Extraction pins: the spreadsheet
   // suggestion's "Confirm schema" runs an Article batch, and admission refuses
   // a start whose method is stale.
-  const savedMethod = useSavedMethod()
   const {
     projects,
     branches,
@@ -763,33 +759,25 @@ export default function ProjectContextPage({
     return () => controller.abort()
   }, [projectContextId, schemaRequestKey, tab])
 
-  const [spreadsheetSuggestion, sendSpreadsheetSuggestion, createSchemaFromSpreadsheet] =
-    useSpreadsheetSchemaSuggestion({
-      projectContextId,
-      onSuggestion: () => {},
-      onRun: () => {
-        setSchemaRetry((attempt) => attempt + 1)
-        sendSpreadsheetSuggestion({ type: 'reset' })
-        // Confirming this suggestion just committed a Schema Revision,
-        // moving this project's workflow phase (schema -> pilot) —
-        // refresh the list's persisted summary so the stepper picks it up
-        // instead of showing the pre-approval phase until something else
-        // happens to refetch it.
-        refreshProjects()
-      },
-    })
-  const activeSpreadsheetSuggestion = spreadsheetSuggestion.context.suggestion
-  const spreadsheetDraftConflict = spreadsheetSuggestion.matches('conflict')
-  const spreadsheetSuggestionConfirmed =
-    activeSpreadsheetSuggestion?.confirmedSchemaRevisionId != null
-  const updateSpreadsheetSuggestedDefinition = (
-    update: (definition: NonNullable<typeof spreadsheetSuggestion.context.draft>) => NonNullable<typeof spreadsheetSuggestion.context.draft>,
-  ) => {
-    if (!spreadsheetSuggestion.context.draft) return
-    sendSpreadsheetSuggestion({
-      type: 'proposal.changed',
-      definition: update(spreadsheetSuggestion.context.draft),
-    })
+  // A template from the uploaded spreadsheet is saved as an ordinary Extraction Schema by the request that builds it,
+  // then listed and edited like any other.
+  const [spreadsheetTemplate, setSpreadsheetTemplate] = useState<
+    { status: 'idle' | 'building' | 'saved' } | { status: 'failed'; message: string }
+  >({ status: 'idle' })
+  async function createSchemaFromSpreadsheet(hierarchySeparator: string | undefined) {
+    setSpreadsheetTemplate({ status: 'building' })
+    try {
+      await createSpreadsheetBatchSchemaSuggestion(projectContextId, hierarchySeparator)
+      setSpreadsheetTemplate({ status: 'saved' })
+      setSchemaRetry((attempt) => attempt + 1)
+      // A first template moves the project's workflow phase (schema -> pilot): refresh the stepper's summary.
+      refreshProjects()
+    } catch (error) {
+      setSpreadsheetTemplate({
+        status: 'failed',
+        message: error instanceof Error ? error.message : 'The template could not be built from the spreadsheet.',
+      })
+    }
   }
 
   const allSourceDocuments =
@@ -832,7 +820,7 @@ export default function ProjectContextPage({
     spreadsheetExpanded ??
     ((spreadsheet.status === 'ready' && spreadsheet.version !== null) ||
       spreadsheetUploading ||
-      spreadsheetSuggestion.context.draft != null)
+      spreadsheetTemplate.status !== 'idle')
 
   useEffect(() => {
     if (tab !== 'schemas') return
@@ -1686,13 +1674,10 @@ export default function ProjectContextPage({
                       disabled={
                         spreadsheet.status !== 'ready' ||
                         !spreadsheet.version ||
-                        !(
-                          spreadsheetSuggestion.matches('idle') ||
-                          spreadsheetSuggestion.matches('failed')
-                        )
+                        spreadsheetTemplate.status === 'building'
                       }
                       onClick={() =>
-                        createSchemaFromSpreadsheet(
+                        void createSchemaFromSpreadsheet(
                           separator.trim() || undefined,
                         )
                       }
@@ -1706,76 +1691,21 @@ export default function ProjectContextPage({
                       {spreadsheetError}
                     </p>
                   )}
-                  {spreadsheetSuggestion.matches('creating') && (
+                  {spreadsheetTemplate.status === 'building' && (
                     <p className="text-xs text-ink-muted" aria-busy="true">
                       Building…
                     </p>
                   )}
-                  {spreadsheetSuggestion.context.error && (
+                  {spreadsheetTemplate.status === 'failed' && (
                     <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
-                      {spreadsheetSuggestion.context.error}
+                      {spreadsheetTemplate.message}
                     </p>
                   )}
-                  {spreadsheetDraftConflict && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[11px] text-danger" role="alert">
-                        This draft changed elsewhere. Reload before continuing.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
-                        }
-                      >
-                        Reload
-                      </Button>
-                    </div>
-                  )}
-
-                  {spreadsheetSuggestion.context.draft && (
-                    <>
-                      <div
-                        className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
-                        aria-busy={spreadsheetSuggestion.matches('running')}
-                        inert={spreadsheetSuggestion.matches('running') ? true : undefined}
-                      >
-                        <SuggestedSchemaEditor
-                          key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
-                          proposal={spreadsheetSuggestion.context.draft}
-                          proposalVersion={{
-                            draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
-                            attempt: activeSpreadsheetSuggestion?.attempt ?? 1,
-                          }}
-                          sourceDocumentName="Uploaded spreadsheet"
-                          readOnly={spreadsheetSuggestionConfirmed}
-                          showRegenerate={false}
-                          onProposalEdit={updateSpreadsheetSuggestedDefinition}
-                          onPendingLocalEditChange={() => {}}
-                        />
-                      </div>
-                      {!spreadsheetSuggestionConfirmed && (
-                        <Button
-                          size="sm"
-                          variant="positive"
-                          disabled={savedMethod.state.status !== 'ready'}
-                          onClick={() =>
-                            savedMethod.state.status === 'ready' &&
-                            sendSpreadsheetSuggestion({
-                              type: 'run.requested',
-                              strategy: 'ARTICLE',
-                              method: savedMethodFor(
-                                savedMethod.state,
-                                'ARTICLE',
-                                null,
-                              ),
-                            })
-                          }
-                        >
-                          Confirm template
-                        </Button>
-                      )}
-                    </>
+                  {spreadsheetTemplate.status === 'saved' && (
+                    <p className="text-[11px] text-ink-muted" role="status">
+                      Saved as the Extraction Template “Suggested fields”, listed above. Open it to review or edit its
+                      fields.
+                    </p>
                   )}
                 </div>
               )}

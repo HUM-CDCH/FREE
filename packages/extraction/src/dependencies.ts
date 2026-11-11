@@ -9,7 +9,6 @@ import type {
   RunSingleResult,
   ScheduleBatchInput,
   ScheduleBatchResult,
-  ScheduleSuggestedBatchInput,
   StabiliseSchemaRevisionInput,
   StabiliseSchemaRevisionResult,
 } from './types.js'
@@ -20,7 +19,6 @@ export interface ExtractionPersistence {
   scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult | null>
-  scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult | null>
   /** Marks a piloted Schema Revision stabilised, or reports why not: 'not-found' when the account does not own the
    *  Project Context or revision, 'not-ready' when no durable pilot review of it has been finalized yet. */
   stabiliseSchemaRevision(

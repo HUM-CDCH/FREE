@@ -319,6 +319,31 @@ describe('template save coordinator', () => {
     vi.useRealTimers()
   })
 
+  it('an edit queued behind a save in flight is saved after dispose, each edit its own revision', async () => {
+    vi.useFakeTimers()
+    const first = Promise.withResolvers<SchemaRevision>()
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementation(async (expected: number, draft: SchemaDefinition) => revision(expected + 1, draft.schemaNodes[0].name))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+
+    coordinator.edit(definition('year'))
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(save).toHaveBeenCalledExactlyOnceWith(1, definition('year'))
+    // B waits behind A; leaving now neither drops B nor starts a second save beside A.
+    coordinator.edit(definition('place'))
+    coordinator.dispose()
+    expect(save).toHaveBeenCalledTimes(1)
+
+    first.resolve(revision(2, 'year'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith(2, definition('place'))
+    expect(coordinator.state).toMatchObject({ status: 'saved', acknowledged: { revisionNumber: 3 } })
+    vi.useRealTimers()
+  })
+
   it('retries a failed save on dispose instead of dropping it', async () => {
     const save = vi
       .fn()
