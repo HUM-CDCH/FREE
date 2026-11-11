@@ -63,3 +63,16 @@ describe('useSchemaProposalReview and the proposal workflow', () => {
     expect(deleteModelOperation).not.toHaveBeenCalled()
   })
 })
+
+
+it('an old reset cannot release the proposal that replaced it', () => {
+  const { schema, hook } = setup()
+  act(() => hook.result.current.start(rename, original, schema.snapshot().draftVersion, null, null))
+  const oldReset = hook.result.current.reset
+  act(() => hook.result.current.start(rename, original, schema.snapshot().draftVersion, null, null))
+  act(() => oldReset())
+  expect(hook.result.current.pending).not.toBeNull()
+  expect(schema.snapshot().useBlockedReason).toContain('pending proposal')
+  act(() => hook.result.current.discard())
+  expect(schema.snapshot().useBlockedReason).toBeNull()
+})

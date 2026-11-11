@@ -664,7 +664,7 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot().sourceCoverage).toBeNull()
   })
 
-  it('drops the declaration when a regeneration save conflict adopts a competing revision, and keeps it through a failure', async () => {
+  it('keeps the draft on a regeneration conflict until explicit reload', async () => {
     const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
     await setup.controller.generate(async (_signal, declareSourceCoverage) => {
       declareSourceCoverage(EXCERPTED)
@@ -686,6 +686,8 @@ describe('generation lifecycle', () => {
       return { _description: 'One late record.', late: 'string' }
     })
     expect(setup.controller.snapshot().generationError).not.toBeNull()
+    expect(setup.controller.snapshot().draft!.recordDescription).toBe('One regenerated record.')
+    setup.controller.reloadCurrent()
     expect(setup.controller.snapshot().draft).toEqual(definition('elsewhere'))
     expect(setup.controller.snapshot().sourceCoverage).toBeNull()
   })
@@ -775,9 +777,10 @@ describe('generation lifecycle', () => {
     held.resolve({ _description: 'One generated record.', place: 'string' })
     await generation
 
-    expect(setup.appends.map((append) => append.expected)).toEqual([1, 2])
+    expect(setup.appends.map((append) => append.expected)).toEqual([1])
     expect(setup.saveState()).toBe('saved')
-    expect(setup.controller.snapshot()).toMatchObject({ generating: false, generationError: null, extractableSchemaRevisionId: 'rev-3' })
+    expect(setup.controller.snapshot().generationError).toContain('changed during generation')
+    expect(setup.controller.snapshot()).toMatchObject({ generating: false, extractableSchemaRevisionId: 'rev-2' })
   })
 
   it('operationScope names the durable project and template, and is null for a local draft', () => {
@@ -1084,10 +1087,159 @@ describe('the source declaration across a reopen', () => {
     await tab.generate(generated('late', { complete: true }))
     expect(tab.snapshot().generationError).not.toBeNull()
     expect(tab.snapshot().sourceCoverage).toBeNull()
+    tab.reloadCurrent()
     tab.commit((nodes) => [...nodes, node('year')], '✎ Template updated')
     await tab.flush()
 
     expect(server.chain.map((saved) => saved.sourceCoverage)).toEqual([null, EXCERPTED, EXCERPTED])
     expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
+})
+
+describe('exclusive authoring and acknowledged use', () => {
+  it.each(['field', 'description', 'json'] as const)('retains %s input and blocks writes and use until Save or Cancel', async kind => {
+    const { controller, appends } = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
+    const handle = controller.beginInput(kind, 'unfinished', value => ({ ...definition('site'), recordDescription: value }))
+    expect(() => controller.beginInput('json', '{}', () => definition('other'))).toThrow('Save or Cancel')
+    expect(controller.commit(() => [], 'delete').ok).toBe(false)
+    expect(() => controller.setRecordScope('records')).toThrow('Save or Cancel')
+    await expect(controller.prepareUse()).rejects.toThrow('Save or Cancel')
+    expect(appends).toHaveLength(0)
+    handle.update('One saved record.')
+    expect(handle.save()).toBe(true)
+    const used = await controller.prepareUse()
+    expect(used.recordDescription).toBe('One saved record.')
+    expect(used.schemaRevisionId).toBe('rev-2')
+    expect(Object.isFrozen(used)).toBe(true)
+    expect(Object.isFrozen(used.schemaNodes[0])).toBe(true)
+    handle.update('late')
+    expect(handle.save()).toBe(false)
+    expect(controller.snapshot().input).toBeNull()
+  })
+
+  it('an identical replacement preserves text but permanently invalidates the old handle', () => {
+    const { controller } = setupDurable({ initial: revision(1, 'site') })
+    const old = controller.beginInput('json', '{ invalid', () => definition('changed'))
+    controller.adoptDraft(definition('site'))
+    expect(controller.snapshot().input).toMatchObject({ value: '{ invalid', stale: true })
+    expect(old.save()).toBe(false)
+    old.cancel()
+    const next = controller.beginInput('description', 'next', () => definition('next'))
+    old.cancel(); old.update('late')
+    expect(old.save()).toBe(false)
+    expect(controller.snapshot().input?.value).toBe('next')
+    next.cancel()
+  })
+
+  it('a normal acknowledgement keeps input valid, canonicalization preserves it as stale', async () => {
+    for (const normalize of [false, true]) {
+      const { controller } = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000,
+        normalizeAcknowledgement: sent => normalize ? { ...sent, recordDescription: 'Canonical record.' } : sent })
+      controller.commit(nodes => [...nodes, node('year')], 'edit')
+      const base = controller.snapshot().draft!
+      const handle = controller.beginInput('description', 'My text', value => ({ ...base, recordDescription: value }))
+      await controller.flush()
+      expect(controller.snapshot().input?.stale).toBe(normalize)
+      expect(controller.snapshot().input?.value).toBe('My text')
+      expect(handle.save()).toBe(!normalize)
+      handle.cancel()
+    }
+  })
+
+  it('reserves use synchronously, refuses concurrent use and releases after failure or replacement', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
+    setup.controller.commit(nodes => [...nodes, node('year')], 'edit')
+    const release = setup.holdNextAppend()
+    const use = setup.controller.prepareUse()
+    await expect(setup.controller.prepareUse()).rejects.toThrow('being prepared')
+    expect(setup.controller.commit(() => [], 'delete').ok).toBe(false)
+    setup.controller.adoptDraft(definition('replacement'))
+    release()
+    await expect(use).rejects.toThrow('could not be prepared')
+    expect(setup.controller.snapshot().useBlockedReason).toBeNull()
+  })
+
+  it('proposal ownership cannot be released by an older token and preserves input on arrival', async () => {
+    const { controller } = setupDurable({ initial: revision(1, 'site') })
+    const handle = controller.beginInput('description', 'unfinished', () => definition('changed'))
+    const old = controller.markProposal()
+    const current = controller.markProposal()
+    old.release()
+    expect(current.apply(() => [], 'proposal').ok).toBe(false)
+    expect(controller.snapshot().input?.value).toBe('unfinished')
+    handle.cancel()
+    await expect(controller.prepareUse()).rejects.toThrow('pending proposal')
+    expect(controller.commit(() => [], 'manual').ok).toBe(false)
+    expect(current.apply(() => [], 'proposal').ok).toBe(true)
+    expect(controller.snapshot().useBlockedReason).toBeNull()
+  })
+
+  it('keeps invalid input without a commit', () => {
+    const { controller, appends } = setupDurable({ initial: revision(1, 'site') })
+    const handle = controller.beginInput('json', 'broken', () => { throw new Error('Invalid JSON') })
+    expect(handle.save()).toBe(false)
+    expect(controller.snapshot().input).toMatchObject({ value: 'broken', error: 'Invalid JSON' })
+    expect(appends).toHaveLength(0)
+  })
+})
+
+it('a History acknowledgement cannot overwrite an external replacement during its final save', async () => {
+  const setup = setupDurable({ initial: revision(2, 'site'), debounceMs: 10_000 })
+  const release = setup.holdNextAppend()
+  const creating = setup.controller.createCurrentRevisionFromHistory('rev-1')
+  await vi.advanceTimersByTimeAsync(0)
+  const marker = setup.controller.markProposal()
+  expect(marker.apply(() => [node('proposal')], 'proposal').ok).toBe(false)
+  marker.release()
+  setup.controller.adoptDraft(definition('external'))
+  release()
+  await expect(creating).rejects.toThrow('template changed')
+  expect(setup.controller.snapshot().draft).toEqual(definition('external'))
+})
+
+it('an external replacement during reset survives its delayed flush', async () => {
+  const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
+  setup.controller.commit(nodes => [...nodes, node('year')], 'edit')
+  const release = setup.holdNextAppend()
+  const resetting = setup.controller.reset()
+  setup.controller.adoptDraft(definition('external'))
+  release()
+  await expect(resetting).rejects.toThrow('template changed')
+  expect(setup.controller.snapshot().draft).toEqual(definition('external'))
+  expect(setup.controller.snapshot().useBlockedReason).toBeNull()
+})
+
+it('an acknowledgement that changes evidence policy invalidates the open input', async () => {
+  const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000,
+    normalizeAcknowledgement: sent => ({ ...sent, schemaNodes: sent.schemaNodes.map(node => ({ ...node, evidencePolicy: 'derived' })) }) })
+  setup.controller.commit(nodes => [...nodes, node('year')], 'edit')
+  const base = setup.controller.snapshot().draft!
+  const handle = setup.controller.beginInput('description', 'my text', value => ({ ...base, recordDescription: value }))
+  await setup.controller.flush()
+  expect(setup.controller.snapshot().input).toMatchObject({ stale: true, value: 'my text' })
+  expect(handle.save()).toBe(false)
+})
+
+it('concurrent historical previews keep the latest request even when older responses arrive last', async () => {
+  const older = Promise.withResolvers<SchemaRevision>()
+  const newer = Promise.withResolvers<SchemaRevision>()
+  const controller = createSchemaEditorController({ edit() {}, getRevision: id => id === 'older' ? older.promise : newer.promise }, { initialDraft: definition('site') })
+  const a = controller.previewHistoricalRevision('older')
+  const b = controller.previewHistoricalRevision('newer')
+  newer.resolve(revision(3, 'newer'))
+  await b
+  older.resolve(revision(2, 'older'))
+  await a
+  expect(controller.snapshot().historicalPreview?.schemaRevisionId).toBe('rev-3')
+  expect(controller.snapshot().draft).toEqual(definition('site'))
+})
+
+it.each(['network', 'conflict'])('prepareUse preserves work and releases its reservation on %s failure', async failure => {
+  const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
+  setup.controller.commit(nodes => [...nodes, node('year')], 'edit')
+  setup.failNextAppendWith(failure === 'conflict' ? new SchemaRevisionConflictError(revision(3, 'elsewhere')) : new Error('network'))
+  await expect(setup.controller.prepareUse()).rejects.toThrow()
+  expect(setup.controller.snapshot().draft?.schemaNodes.map(node => node.name)).toEqual(['site', 'year'])
+  expect(setup.controller.snapshot().useBlockedReason).toBeNull()
+  expect(setup.controller.snapshot().extractableSchemaRevisionId).toBeNull()
 })

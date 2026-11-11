@@ -19,12 +19,7 @@ import { SchemaImport, type SchemaImportTarget } from '../SchemaImport'
 import { defaultSchemaName } from '../schemaNames'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import SchemaNameEditor from '../SchemaNameEditor'
-import SchemaPanel from '../SchemaPanel'
-import {
-  createSchemaEditorController,
-  localSchemaPersistence,
-} from '../currentSchemaRevision'
-import { useSchemaEditorController } from '../useCurrentSchemaRevision'
+import SchemaView from '../SchemaView'
 import { Button, DeleteDialog, ModalDialog, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import {
@@ -352,32 +347,8 @@ function SpreadsheetFormatExampleDialog({
   )
 }
 
-/** The read-only field editor for one loaded Schema Revision. A no-op,
- *  in-memory `localSchemaPersistence` controller — the same one
- *  the schema import preview uses — lets
- *  `SchemaPanel` mount without the durable Batch Extraction machinery
- *  `RightRail` normally wires it through. */
 function SchemaFieldsPreview({ revision }: { revision: SchemaRevision }) {
-  const schema = useSchemaEditorController(() =>
-    createSchemaEditorController(
-      localSchemaPersistence({ onEdit: () => {} }),
-      {
-        initialDraft: {
-          recordDescription: revision.recordDescription,
-          schemaNodes: revision.schemaNodes,
-        },
-      },
-    ),
-  )
-  return (
-    <SchemaPanel
-      schema={schema}
-      onClearDraft={() => {}}
-      sourceDocumentName=""
-      readOnly
-      showRegenerate={false}
-    />
-  )
+  return <SchemaView definition={revision} recordScope={revision.recordScope} />
 }
 
 type SchemaFieldsPreviewState =

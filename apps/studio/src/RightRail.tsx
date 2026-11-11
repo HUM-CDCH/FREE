@@ -243,9 +243,9 @@ function RightRail({
     : schemaSnap.generating
       ? { label: 'Stop', name: 'Stop the template generation', tone: 'danger', disabled: false, reason: null, run: () => schema.cancelGeneration() }
       : (() => {
-          const reason = chat.asking !== null || chat.loading ? 'wait for the reply'
+          const reason = schemaSnap.useBlockedReason ?? (chat.asking !== null || chat.loading ? 'wait for the reply'
             : chat.proposalReview.pending ? 'apply or discard the proposed changes first'
-              : schemaSnap.historicalPreview !== null ? 'leave the History preview first' : null
+              : schemaSnap.historicalPreview !== null ? 'leave the History preview first' : null)
           return schemaReady
             // Generating again asks first, as the Template view's Regenerate does.
             ? { label: <AgainIcon />, name: 'Generate the template again from the document', tone: 'secondary', disabled: reason !== null, reason,
@@ -354,7 +354,9 @@ function RightRail({
           onRenameSchema={onRenameSchema}
           recordScope={recordScope}
           boundaries={boundaries}
-          chat={chat}
+          proposalReview={chat.proposalReview}
+          revealed={chat.revealed}
+          onRegenerate={() => setRegenerating(true)}
         />
       </div>
       <div id="rail-panel-results" role="region" aria-label="Results" tabIndex={-1} className="min-h-0 flex-1" hidden={activeView !== 'results'}>

@@ -12,6 +12,8 @@ import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import { SavedMethodSummary } from '../SavedMethodSummary'
 import { savedMethodFor, type useSavedMethod } from '../savedMethod'
 import SchemaPanel from '../SchemaPanel'
+import SchemaConversation from '../SchemaConversation'
+import { useSchemaChat } from '../useSchemaChat'
 import { getSchemaRevision, listExtractionSchemas } from '../schemaRevisions'
 import { sourceCoverageNotice, UNCOMBINED_NOTICE } from '../sourceCoverageNotice'
 import { Button } from '../ui'
@@ -628,6 +630,7 @@ function PreparedTemplate({
 }) {
   const mounted = useMounted()
   const schema = useDurableCurrentSchemaRevision({ projectContextId, extractionSchema: revision })
+  const chat = useSchemaChat({ schema })
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [opening, setOpening] = useState(false)
   const openingRef = useRef(false)
@@ -642,7 +645,7 @@ function PreparedTemplate({
   const methodConflict = refusal?.code && METHOD_REFUSALS.has(refusal.code) ? refusal.message : null
   const collectionGate = selected.size > PILOT_BATCH_SELECTION_LIMIT && stabilisedAt === null
   const overSelectionLimit = selected.size > BATCH_EXTRACTION_SELECTION_LIMIT
-  const blocker = selected.size === 0
+  const blocker = snap.useBlockedReason ?? (selected.size === 0
     ? 'Select at least one Source Document.'
     : overSelectionLimit
       ? null // Already said beside the selection.
@@ -657,7 +660,7 @@ function PreparedTemplate({
               // Run waits for the editor's save; a failed or conflicting one blocks it until the editor recovers.
               : saveStatus === 'error' || saveStatus === 'conflict'
                 ? 'The template has unsaved changes: resolve them above first.'
-                : null
+                : null)
 
   const run = async () => {
     if (openingRef.current || saved.state.status !== 'ready') return
@@ -666,7 +669,7 @@ function PreparedTemplate({
     setOpening(true)
     setRefusal(null)
     try {
-      const admitted = await schema.flush()
+      const admitted = await schema.prepareUse()
       if (!admitted) throw new Error('The template could not be saved.')
       // The saved revision's own scope decides what runs; admission refuses any other.
       if (admitted.recordScope === null) throw new Error('Choose Article or Catalog before running.')
@@ -722,20 +725,22 @@ function PreparedTemplate({
       )}
       {provenance}
       <section
-        className="mb-5 h-[32rem] overflow-hidden rounded-md border border-line bg-surface"
+        className="mb-5 flex h-[32rem] flex-col overflow-hidden rounded-md border border-line bg-surface"
         aria-label="Extraction Template fields"
         aria-busy={opening}
         inert={opening ? true : undefined}
       >
         <SchemaPanel
           schema={schema}
+          proposalReview={chat.proposalReview}
+          revealed={chat.revealed}
           // Clear keeps the record description and empties the fields, saved at once.
           onClearDraft={async () => {
             if (schema.clearDraft('Cleared fields').ok) await schema.flush()
           }}
           sourceDocumentName={`${name} · Template Revision ${acknowledged.revisionNumber}`}
-          showRegenerate={false}
         />
+        <SchemaConversation chat={chat} />
       </section>
       {saveFailure && (
         <div className="-mt-3 mb-5 flex flex-wrap items-center gap-2">

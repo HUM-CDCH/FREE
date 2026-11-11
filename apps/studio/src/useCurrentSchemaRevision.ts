@@ -208,7 +208,7 @@ export function useDurableCurrentSchemaRevision(
     let detach: (() => void) | null = null
     const sync = () => {
       const save = controller.snapshot().save
-      const shouldWarn = save !== null && save.status !== 'saved'
+      const shouldWarn = controller.snapshot().input !== null || (save !== null && save.status !== 'saved')
       if (shouldWarn && detach === null) {
         const warn = (event: BeforeUnloadEvent) => {
           if (!isAuthenticationRedirecting()) event.preventDefault()

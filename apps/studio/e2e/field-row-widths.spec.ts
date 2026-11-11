@@ -461,6 +461,7 @@ test('the record description grows with its text, and the code view scrolls long
   await openSchema(page)
   await resizeRail(page, 264)
   // §5: two rows at rest, growing with its wrapped text (not only its line breaks) to six, without hiding any of it.
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
     ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
@@ -473,6 +474,7 @@ test('the record description grows with its text, and the code view scrolls long
   expect(grown.hidden).toBe(false)
   await description.fill('One grave. '.repeat(60))
   expect((await fit()).rows).toBe(6)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('button', { name: 'Code', exact: true }).click()
   const code = rail(page).locator('pre')
   const reading = await code.evaluate((element) => ({
@@ -492,6 +494,13 @@ test('the record description grows with its text, and the code view scrolls long
   expect(editing).toEqual({ overflowX: 'auto', whiteSpace: 'pre', scrolls: true })
   for (const name of ['Save', 'Cancel'])
     expect((await rail(page).getByRole('button', { name, exact: true }).boundingBox())!.height, name).toBeGreaterThanOrEqual(24)
+  const input = await editor.inputValue()
+  await editor.fill(input + ' ')
+  await editor.press('Escape')
+  await expect(editor).toBeVisible()
+  await expect(editor).toHaveValue(input + ' ')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Template actions' })).toBeFocused()
   const panel = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(panel[0]).toBeLessThanOrEqual(panel[1]!)
 })
@@ -501,6 +510,7 @@ test('the record description re-measures its rows when the rail is resized or th
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
     ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))

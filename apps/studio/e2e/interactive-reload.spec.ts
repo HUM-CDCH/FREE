@@ -47,9 +47,10 @@ async function requestEdit(page: Page, instruction: string) {
 
 /** Edits the record description, which the workspace saves as a new revision after its debounce. */
 async function describeRecord(page: Page, text: string) {
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   await description.fill(text)
-  await description.blur()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
 }
 
 const revisionCount = () => stack!.schemaRevisions().then((revisions) => revisions.length)
@@ -65,10 +66,9 @@ test('a scalar note edited through template chat is reviewed, saved and retained
 
   await title.hover()
   await title.getByRole('button', { name: 'Add note to title', exact: true }).click()
-  const noteInput = page.getByPlaceholder('Describe this field for the extraction model…')
+  const noteInput = page.getByRole('textbox', { name: 'Field notes' })
   await noteInput.fill(oldNote)
-  await noteInput.press('Enter')
-  await page.getByPlaceholder('Add another note…').press('Escape')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(title.getByText(oldNote, { exact: true })).toBeVisible()
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
   stack.model.reply({ text: JSON.stringify({
@@ -158,7 +158,7 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toHaveCount(0, { timeout: 20_000 })
   await openRailView(page, 'Template')
   // The generation's base moved: it is dropped, the page adopts the newer revision and shows no error.
-  await expect(page.getByLabel('What one record is')).toHaveValue('One edited record.', { timeout: 20_000 })
+  await expect(page.getByText('One edited record.', { exact: true })).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(3_000)
   expect(await revisionCount()).toBe(2)
   await expect(page.getByText('heading', { exact: true })).toHaveCount(0)
