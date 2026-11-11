@@ -18,8 +18,6 @@ const linkSchema = z.object({
   page: z.number().int().positive(),
   bbox_pt: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable(),
   verbatim: z.boolean(),
-  // Historical producers counted candidates or alternative locations. New producers omit this diagnostic.
-  hits: z.number().int().nonnegative().optional(),
   linked_by: z.enum(['lexical', 'model']),
   cell: z
     .string()

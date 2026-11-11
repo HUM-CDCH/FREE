@@ -32,7 +32,7 @@ test('each producer version projects onto the rail link without inventing precis
     { linkedBy: 'lexical', support: 'literal', textSpans: [span], alternatives: [], precision: 'segment', raw: 'Book', itemSpans: [span] })
 })
 
-test('all producer versions accept new links without counts and historical counts without projecting them', () => {
+test('producer decoders retain only their declared fields', () => {
   const grounded = { ...plain, linked_by: 'key', spans: [span], alternatives: [[span]], provenance: 'token',
     key_spans: [span], heading: null, precision: 'segment', raw: 'Book', normalized: null }
   const unified = { ...plain, support: 'literal', spans: [span], alternatives: [[span]],
@@ -41,10 +41,9 @@ test('all producer versions accept new links without counts and historical count
     [evidenceSchema, plain, plainEvidenceLink], [groundedEvidenceSchema, grounded, groundedEvidenceLink],
     [unifiedEvidenceSchema, unified, unifiedEvidenceLink]] as const) {
     const current = schema.parse(link) as never
-    const historical = schema.parse({ ...link, hits: 12 }) as never
-    assert.deepEqual(project(current, 'a_p1_s0'), project(historical, 'a_p1_s0'))
-    assert.equal('lexicalHits' in project(historical, 'a_p1_s0'), false)
-    for (const hits of [-1, 1.5, null, '12']) assert.equal(schema.safeParse({ ...link, hits }).success, false)
+    const decoded = schema.parse({ ...link, obsoleteDiagnostic: 'ignored' }) as never
+    assert.deepEqual(decoded, current)
+    assert.deepEqual(project(decoded, 'a_p1_s0'), project(current, 'a_p1_s0'))
   }
 })
 

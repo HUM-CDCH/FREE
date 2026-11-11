@@ -21,8 +21,6 @@ export type EvidenceLink = Readonly<{
   /** The value occurs as a bounded token in the linked anchor. Unified links may instead carry supporting Evidence,
    *  including for boolean values. Absent on older links. */
   verbatim?: boolean
-  /** Historical repetition diagnostic; accepted when reading old links, never produced or used for review. */
-  lexicalHits?: number
   /** How the link was made when not by the grounder: the values call cited
    *  the block and code found the value in it, or code found the value in
    *  exactly one candidate. Absent means the grounder chose the anchor. */

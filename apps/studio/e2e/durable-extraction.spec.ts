@@ -350,7 +350,7 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
-        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,linked_by:'lexical',precision:'segment'}}]}})
     // Direct reopen already chooses the producing source. Hold its real parsed
     // document request while the retained values and PDF become available.
     await page.route(`**/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source?*`,async route=>{
@@ -380,7 +380,7 @@ test('the selected value shows its value mark inside its block mark',async({page
     const box:[number,number,number,number]=[x0+(x1-x0)/4,y0+(y1-y0)/4,x0+(x1-x0)/2,y1-(y1-y0)/4]
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
-        segment:'p1_s0',page:1,bbox_pt:[x0,y0,x1,y1],verbatim:true,hits:1,linked_by:'lexical',precision:'segment',value_boxes_pt:[box]}}]}})
+        segment:'p1_s0',page:1,bbox_pt:[x0,y0,x1,y1],verbatim:true,linked_by:'lexical',precision:'segment',value_boxes_pt:[box]}}]}})
     await page.goto(`${fixture.url}?extractionId=${id}`)
     await openRailView(page,'Results')
     const block=page.locator(`.parsed-evidence-highlight[data-occurrence-id="${occurrence.occurrence_id}"]`),value=page.locator('.evidence-value-mark')
@@ -429,7 +429,7 @@ test('a collapsed rail keeps one-by-one and moves nothing on the page; each togg
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
-        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,linked_by:'lexical',precision:'segment'}}]}})
     await page.goto(`${fixture.url}?extractionId=${id}`)
     await openRailView(page,'Results')
     await expect(page.getByText('/ 6',{exact:true})).toBeVisible()

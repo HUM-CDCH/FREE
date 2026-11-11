@@ -54,16 +54,16 @@ it('keeps a rule link factual and a researcher correction independent of model E
   expect(row.chip).toEqual({text:'linked · rule',style:'rule'})
 })
 
-it('repetition does not affect the uncertain filter, count or queue; non-verbatim Evidence still does',()=> {
-  const values=[{id:'ordinary',verbatim:true},{id:'repeated',verbatim:true,lexicalHits:12},{id:'supporting',verbatim:false}]
+it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
+  const values=[{id:'ordinary',verbatim:true},{id:'supporting',verbatim:false}]
     .map(({id,...diagnostic})=>value({id,fieldId:id,path:['records',0,id],node:{id,name:id,type:'string'},modelValue:'7.5',
       links:[{...diagnostic,resultPath:['records',0,id],evidenceAnchorId:'own-anchor'}]}))
   const model=durableRailModel({values} as DurablePage,null)
   const rows=model.records[0].rows
-  expect(rows.map(row=>passesFilter(row,'doubt'))).toEqual([false,false,true])
+  expect(rows.map(row=>passesFilter(row,'doubt'))).toEqual([false,true])
   expect(model.counts.doubtful).toBe(1)
-  expect(rows[1].chip?.style).toBe('link')
-  expect(reviewQueue(model).map(row=>row.key)).toEqual(['supporting','ordinary','repeated'])
+  expect(rows[0].chip?.style).toBe('link')
+  expect(reviewQueue(model).map(row=>row.key)).toEqual(['supporting','ordinary'])
 })
 
 it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {

@@ -61,8 +61,6 @@ export const evidenceLinkSchema = z
     precision: z.enum(['cell', 'segment', 'input']).optional(),
     // Whether the producer found the value printed as such; absent on older links.
     verbatim: z.boolean().optional(),
-    // Historical repetition diagnostic, retained only for reading saved links.
-    lexicalHits: z.number().int().nonnegative().optional(),
     // Absent means the grounder chose the anchor.
     linkedBy: z.enum(['citation_lexical', 'lexical']).optional(),
     // Present only on version 2 and version 3 results.

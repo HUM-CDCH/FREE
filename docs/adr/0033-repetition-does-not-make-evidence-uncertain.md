@@ -25,26 +25,23 @@ hint, absence of Evidence, location precision, value marks, and the saved
 alternative locations and their descriptive detail. Only a researcher's
 decision approves a value.
 
-Readers accept the historical count as an optional, validated field. Existing
-producer snapshots and projected links remain readable without rewriting
-them. Their presentation follows the new review policy. This supersedes only
-the repetition-based hint retained by ADR 0029; it does not change how a
-printing is located or marked.
+Remove the count from producer schemas, review schemas and exported types.
+There is no historical-count validator, projection or correction-guidance
+filter. Producer decoders apply their ordinary unknown-field stripping; the
+strict review-link contract rejects undeclared fields. No dedicated reader
+or migration is introduced for the retired diagnostic.
 
-New correction guidance omits the retired count from historical and new model
-Evidence alike, alongside display locations. Already saved correction
-examples and finalized captures remain immutable. New guidance can differ
-from guidance created before this decision by the omitted count; this is not
-a promise of byte-identical future prompts across the change.
+This supersedes the repetition-based hint retained by ADR 0029; it does not
+change how a printing is located or marked. Already saved correction examples
+and finalized captures remain immutable.
 
 ## Consequences
 
 No replacement counter, confidence score, approval state or model call is
 introduced. Values, candidate selection, extraction and verification prompts,
 fallback and workflow steps are unchanged. No method-version change or DBOS
-patch is needed for this output-only removal and review policy; readers must
-accept missing counts before producers omit them. No database migration or
-reprocessing of saved results is required.
+patch is needed for this output-only removal and review policy. The count is
+absent from the contract; no database migration or reprocessing is introduced.
 
 The count no longer prioritizes repeated values for review, including in
 generic Catalog. Lack of the hint does not establish unique location or

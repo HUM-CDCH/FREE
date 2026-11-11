@@ -2,10 +2,8 @@ import { expect, it } from 'vitest'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { evidenceCheck, fieldWords, passageOnly } from './reviewVocabulary'
 
-it('an uncertain passage is non-verbatim; historical repetition counts never create doubt', () => {
+it('an uncertain passage is non-verbatim', () => {
   expect(evidenceCheck({ verbatim: false })).toBe('Value not printed word for word.')
-  const historical: EvidenceLink = { resultPath: ['title'], evidenceAnchorId: 'a', verbatim: true, lexicalHits: 12 }
-  expect(evidenceCheck(historical)).toBeNull()
   expect(evidenceCheck({ verbatim: true })).toBeNull()
   expect(evidenceCheck({})).toBeNull()
   expect(evidenceCheck({ verbatim: false }, 'EDITED')).toBeNull()
