@@ -60,10 +60,14 @@ A value's **printing** is one place where its text, or for a number one spelling
   [0005](0005-parsed-document-v2-canonical-content-stream.md) requires, and a value's Evidence status is unchanged.
   The link readers on both sides accept it as optional and validate its shape; the evidence union's order is
   unchanged. Producer and readers share `apps/parsing_service/tests/fixtures/contracts/article-location-link.json`.
-- **Carried, not drawn, by Studio.** Studio accepts and validates `location` but narrows no mark with it, nor with
-  `grounding.textSpans`: every mark is its Evidence Anchor's block box, for every link version. Narrowing a mark to
+- **PDF placement is decided separately.** Studio accepts and validates `location` but does not use it or
+  `grounding.textSpans` to narrow a PDF mark: placement follows [ADR 0031](0031-a-value-mark-is-placed-from-the-source-pdf.md).
+  Narrowing a mark to
   its quote in pdf.js's text layer (`narrowBox`) failed a pre-registered safety gate, since it can mark the wrong
-  text, and is removed; how a mark narrows is decided separately. The Markdown view still marks whole anchors.
+  text, and is removed. The Markdown view uses saved `location` or literal `grounding.textSpans` to mark the value
+  when the canonical block text maps exactly to its Markdown, accounting for heading/code wrappers and converting
+  code-point offsets to UTF-8 bytes. It keeps the whole anchor when that mapping cannot be verified or the Evidence
+  is supporting rather than literal. It never searches the document for the value or requires PDF value boxes.
 - **Never shown to a model.** The correction context (`modelEvidence` in `durable-feedback.ts`) strips `location`,
   so a drawing refinement never changes a prompt.
 - **Written once.** A link is written with its saved value and never rewritten (`retained.py`). Locating it then
@@ -77,8 +81,8 @@ A value's **printing** is one place where its text, or for a number one spelling
 
 ## Consequences
 
-- An Article link carries a `location` only where its value prints once in the chosen passage or cell. No mark
-  narrows yet: every mark, of any link version, is its anchor's block box, as before `narrowBox`.
+- An Article link carries a `location` only where its value prints once in the chosen passage or cell. Markdown
+  can draw that saved range independently of PDF placement; PDF value marks require the gate in ADR 0031.
 - Extractions linked earlier carry no `location`. Nothing backfills: a value gains one only when a later run links it
   afresh; one a later snapshot carries unchanged keeps its saved links.
 - Not decided here:
