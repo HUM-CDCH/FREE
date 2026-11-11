@@ -49,9 +49,8 @@ it('keeps a rule link factual and a researcher correction independent of model E
   expect(row.value).toBe(true)
   expect(row.extracted).toBe(false)
   expect(row.kind).toBe('edited')
-  // A linked value keeps the shared row's own words ("p.{n} · Linked by rule…").
   expect(row.retained?.source).toBeUndefined()
-  expect(row.chip).toEqual({text:'linked · rule',style:'rule'})
+  expect(row.chip).toEqual({text:'linked',style:'rule'})
 })
 
 it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
@@ -131,7 +130,7 @@ it('shows a single-pass list leaf code located as rule-linked, and an uncited le
     grounding:{linkedBy:'lexical',support:'literal',textSpans:[],alternatives:[],precision:'segment',raw:'x1',itemSpans:null}} as unknown as RetainedValue['links'][number]
   const saved=value({id:'v1',fieldId:'finds',path:['records',0,'finds'],node,modelValue:[{nr:'x1',note:'Bowl'}],links:[located]})
   const [nr,note]=valueParts(saved)
-  expect(durableRailRow(saved,null,nr).chip).toEqual({text:'linked · rule',style:'rule'})
+  expect(durableRailRow(saved,null,nr).chip).toEqual({text:'linked',style:'rule'})
   expect(durableRailRow(saved,null,note).chip?.text).toBe('no evidence')
 })
 

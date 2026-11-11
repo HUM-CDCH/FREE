@@ -2,8 +2,7 @@ import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { QueueItem } from './reviewQueue'
-import { linkOrigin } from './linkOrigin'
-import { DECISION_WORD, type ReviewAction, fieldWords, passageOnly, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -79,10 +78,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
     )
   }
   const decided = current.kind !== 'to-check'
-  const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
-  const precision = current.link?.precision === 'input' ? ' · page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
   const trail = article ? fieldWords(current.name) : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${fieldWords(current.name)}`
-  const source = `${current.retained?.source ?? `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}${passageOnly(current.link)}`}${precision}`
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -126,11 +122,6 @@ export default function ReviewFocus({ article, items, position, current, recordL
           <DoubtGlyph /><span><b>Uncertain passage.</b> {current.doubt}</span>
         </div>
       )}
-      {/* How the value was tied to its passage: for the researcher who asks, not for every value. */}
-      <details className="text-compact text-ink-muted">
-        <summary className="w-fit cursor-pointer rounded outline-none hover:text-ink">Source details</summary>
-        <p className="m-0 mt-1 font-semibold text-ink">{source}</p>
-      </details>
       <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0">
         {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
         {!decided && !editing && (

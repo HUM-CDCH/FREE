@@ -183,7 +183,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   // instead, so it sets the step aside as choosing that option does.
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const sayOption = step?.options.find((option) => option.action === 'dismiss')
-  const sayInCard = !!step && !!sayOption
+  // Under another view the step folds to its title line and the composer to one row, so the view keeps the rail's
+  // height: the title unfolds the step, and a step that failed is never folded.
+  const [unfolded, setUnfolded] = useState<string | null>(null)
+  const folded = !!step && mode === 'step' && unfolded !== step.key && !step.error
+  const sayInCard = !!step && !!sayOption && !folded
   const setAside = () => {
     if (!sayInCard || !step) return
     if (step.key.startsWith('template-ready:')) setTemplateReady(false)
@@ -199,15 +203,24 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const canSay = preSchema ? chat.asking === null : editable && !blocked
   const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
     onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
-    composer={composer} onSay={() => composerRef.current?.focus()} />
+    composer={composer} onSay={() => composerRef.current?.focus()} onFold={mode === 'step' ? () => setUnfolded(null) : undefined} />
+  // Folded, the step keeps its options beside its title, but for those that need documents ticked or something said.
+  const foldedStep = folded && step && (
+    <SetAsideStepView label={step.title} title={step.title} busy={step.busy}
+      summary={[step.detail?.[0]?.[1], step.notice].filter(Boolean).join(' · ')} live={!!step.notice}
+      expandLabel={`Show the ${step.title} step`} onExpand={() => setUnfolded(step.key)}
+      actions={step.options.filter((option) => option.action !== 'dismiss' && !option.picks).map((option) => ({
+        label: option.label, name: option.label, title: option.description, tone: option.tone,
+        disabled: !!option.disabled || (!!recordScope?.disabled && option.action.startsWith('scope:')), run: () => choose(step, option) }))} />
+  )
   // The Generate template step set aside: folded to its title line, generating stays one click away and the title
   // brings the whole step back.
   const generate = !step && preSchema && (
     <SetAsideStepView title="Generate template" summary={instructions.count > 0 ? plural(instructions.count, 'instruction') : 'no instructions'}
       expandLabel="Show the Generate template step"
       onExpand={() => setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))}
-      action={{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
-        run: () => onGenerate?.(instructions.text) }} />
+      actions={[{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
+        run: () => onGenerate?.(instructions.text) }]} />
   )
   // The whole conversation cleared, once confirmed: not while a reply or a proposal is on its way.
   const [confirmingClear, setConfirmingClear] = useState(false)
@@ -226,9 +239,10 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const composerHint = sayInCard && (preSchema || editable) ? sayOption!.label
     : preSchema ? 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'
       : editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'
+  const rows = mode === 'step' ? 1 : sayInCard ? 2 : 3
   const composer = preSchema ? (
     <>
-      <textarea ref={composerRef} className={composerClass} rows={sayInCard ? 2 : 3} aria-label={composerHint} placeholder={composerHint} value={instructions.draft}
+      <textarea ref={composerRef} className={composerClass} rows={rows} aria-label={composerHint} placeholder={composerHint} value={instructions.draft}
         onChange={(event) => instructions.setDraft(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} />
       {chat.asking !== null ? (
@@ -241,7 +255,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     </>
   ) : (
     <>
-      <textarea ref={composerRef} className={composerClass} rows={sayInCard ? 2 : 3} aria-label={composerHint} placeholder={composerHint} value={chat.input} disabled={!editable || blocked}
+      <textarea ref={composerRef} className={composerClass} rows={rows} aria-label={composerHint} placeholder={composerHint} value={chat.input} disabled={!editable || blocked}
         onChange={(event) => chat.setInput(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
@@ -262,7 +276,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   ) : undefined
 
   // While a step offers a way past it, the composer is drawn in the card and the drawer has none of its own.
-  const shownCard = step && (sayInCard ? card(composer) : card(null))
+  const shownCard = foldedStep || (step && (sayInCard ? card(composer) : card(null)))
   return (
     <>
       <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
@@ -301,24 +315,30 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 const pickedLabel = (option: StepOption, count: number) => option.label.replace('{n}', plural(count, 'document'))
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
 
-/** A step set aside, folded to the card's title line: the same left edge and ⏵, a summary, and its one action. The
- *  title brings the whole step back. */
-function SetAsideStepView({ title, summary, expandLabel, onExpand, action }: {
-  title: string; summary: string; expandLabel: string; onExpand: () => void
-  action: { label: string; name: string; disabled: boolean; run: () => void }
+/** A step folded to the card's title line (set aside, or under another view): the same left edge and ⏵, a summary, and
+ *  its actions, which take further lines where the rail is narrow. The title brings the whole step back. */
+function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, summary, live = false, expandLabel, onExpand, actions }: {
+  /** `live`: the summary carries the step's notice, announced as it changes. */
+  title: string; label?: string; busy?: boolean; summary: string; live?: boolean; expandLabel: string; onExpand: () => void
+  actions: readonly { label: string; name: string; title?: string; tone?: StepOption['tone']; disabled: boolean; run: () => void }[]
 }) {
   return (
-    <section aria-label={`${title}, set aside`} className="mx-4 my-2 flex shrink-0 items-center gap-2 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
+    <section aria-label={label} className="mx-4 my-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
       <button type="button" aria-label={expandLabel} title={expandLabel} onClick={onExpand}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left outline-none">
-        <span aria-hidden="true" className="text-accent">⏵</span>
+        className="flex max-w-full min-w-0 cursor-pointer items-center gap-2 text-left outline-none">
+        {busy
+          ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
+          : <span aria-hidden="true" className="text-accent">⏵</span>}
         <span className="truncate text-secondary font-bold text-ink">{title}</span>
-        <span className="shrink-0 text-compact text-ink-faint">· {summary}</span>
       </button>
-      <button type="button" aria-label={action.name} title={action.name} disabled={action.disabled} onClick={action.run}
-        className="shrink-0 cursor-pointer rounded-[3px] border border-green bg-green px-2 py-0.5 text-compact font-semibold text-white outline-none transition-colors hover:brightness-108 disabled:cursor-default disabled:opacity-50">
-        {action.label}
-      </button>
+      {/* Outside the button, whose content is not announced; it also keeps the actions at the line's end. */}
+      <span role={live ? 'status' : undefined} title={summary} className="min-w-0 flex-[1_1_4rem] truncate text-compact text-ink-faint">{summary && `· ${summary}`}</span>
+      {actions.map((action) => (
+        <button key={action.name} type="button" aria-label={action.name} title={action.title ?? action.name} disabled={action.disabled} onClick={action.run}
+          className={`max-w-full cursor-pointer truncate rounded-[3px] border px-2 py-0.5 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[action.tone ?? 'positive']}`}>
+          {action.label}
+        </button>
+      ))}
     </section>
   )
 }
@@ -327,10 +347,12 @@ function SetAsideStepView({ title, summary, expandLabel, onExpand, action }: {
  *  documents lists the project's to tick. The way past it (`dismiss`) is the chat's composer, drawn as the card's last
  *  numbered option: its number focuses it (`onSay`), and sending from it says something else instead and sets the step
  *  aside; Esc, or the header's ×, sets it aside unsaid. */
-function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay }: {
+function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay, onFold }: {
   card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
   composer: ReactNode; onSay: () => void
+  /** Under another view: folds the step back to its title line. */
+  onFold?: () => void
 }) {
   const count = picked?.size ?? 0
   const options = card.options.map((option) =>
@@ -355,6 +377,12 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
           ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
           : <span aria-hidden="true" className="text-accent">⏵</span>}
         <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink" title={card.title}>{card.title}</span>
+        {onFold && (
+          <button type="button" aria-label="Fold the step" title="Fold" onClick={onFold}
+            className="shrink-0 cursor-pointer rounded-md px-1 leading-none text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink">
+            <span aria-hidden="true">⌄</span>
+          </button>
+        )}
         {dismiss && (
           <button type="button" aria-label="Not yet" title="Not yet (Esc)" onClick={() => onChoose(dismiss)}
             className="shrink-0 cursor-pointer rounded-md px-1 leading-none text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink">

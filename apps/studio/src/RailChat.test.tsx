@@ -177,7 +177,16 @@ describe('RailChat', () => {
   it('shows the step and the composer under another view, and returns home to answer a message', () => {
     const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+    // The step is folded to its title line with its options, leaving the view the rail's height; its title unfolds
+    // it, ⌄ folds it back.
+    const step = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+    const question = 'Is each Source Document one record, or does it hold many?'
+    expect(step.getByRole('button', { name: 'Catalog: many records per document' })).toBeVisible()
+    expect(step.queryByText(question)).not.toBeInTheDocument()
+    fireEvent.click(step.getByRole('button', { name: 'Show the Choose Record Scope step' }))
+    expect(within(screen.getByRole('region', { name: 'Choose Record Scope' })).getByText(question)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Fold the step' }))
+    expect(screen.queryByText(question)).not.toBeInTheDocument()
     const input = screen.getByPlaceholderText('Describe a change to the template…')
     fireEvent.change(input, { target: { value: 'Add a recipient' } })
     fireEvent.keyDown(input, { key: 'Enter' })

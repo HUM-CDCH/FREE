@@ -255,7 +255,7 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,headerSlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
@@ -275,7 +275,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
    *  rail drops the rest of its document navigation. */
   railOpen?:boolean;
   /** The History tab's body: guidance and saved versions render there, not in Results. */
-  historySlot?:HTMLElement|null;historyShown?:boolean;onShowResults?:()=>void;onShowHistory?:()=>void;
+  historySlot?:HTMLElement|null;headerSlot?:HTMLElement|null;historyShown?:boolean;onShowResults?:()=>void;onShowHistory?:()=>void;
   /** Set while this is not the document's latest Extraction: the status line says so and opens the latest. */
   onOpenLatest?:(()=>void)|null;
   /** Opens one value's history, followed from this Extraction. */
@@ -601,7 +601,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     editing={false} node={page.values.find(value=>value.id===row.key)?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>}</div>
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
     onKeyDown={event=>{if(event.key==='Escape'&&menuOpen&&!event.defaultPrevented){event.preventDefault();setMenuOpen(false)}}}>
-    <ResultsHeader status={status}
+    <ResultsHeader status={status} slot={headerSlot}
       counts={counts} running={active} reviewSaved={Boolean(page.finalization)} readOnlyNote={readOnly?'Read-only: a saved review.':undefined}
       actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):counts.toCheck===0?'Nothing left to check here':null}:null,
         saveReview:canSave?'Save review':null,list:focus}}
