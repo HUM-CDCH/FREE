@@ -49,8 +49,8 @@ def test_a_matching_cell_is_selectable_and_its_parent_is_not(projected):
         return {'C1': 'E4'}
     links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0, projected=projected)
     assert len(calls) == 1 and not issues
-    assert (links[0].cell, links[0].hits, links[0].precision, links[0].bbox_pt, links[0].linked_by) == (
-        'r1_c0', 1, 'cell', (0, 20, 90, 38), 'model')
+    assert (links[0].cell, links[0].precision, links[0].bbox_pt, links[0].linked_by) == (
+        'r1_c0', 'cell', (0, 20, 90, 38), 'model')
 
 
 def test_repeated_cells_require_model_with_row_and_sibling_context():
@@ -60,8 +60,8 @@ def test_repeated_cells_require_model_with_row_and_sibling_context():
         return {'C1': 'E6', 'C2': 'E7'}
     links, calls, issues = verify([passage()], {'entry_no': '7-17', 'site': 'Glass bead'}, SCHEMA, FakeChat(choose), record=0)
     assert len(calls) == 1 and not issues
-    assert (links[0].cell, links[0].hits, links[0].linked_by) == ('r2_c0', 1, 'model')
-    assert (links[1].cell, links[1].hits, links[1].linked_by) == ('r2_c1', 2, 'model')
+    assert (links[0].cell, links[0].linked_by) == ('r2_c0', 'model')
+    assert (links[1].cell, links[1].linked_by) == ('r2_c1', 'model')
 
 
 def test_missing_geometry_stays_coarse_and_wrong_cell_is_rejected():

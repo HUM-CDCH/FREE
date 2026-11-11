@@ -117,14 +117,12 @@ export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>
   filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null : isNotReviewable(row.kind))
 
-/** An uncertain passage: why the passage a value is linked to may not be its source, as one short
- *  sentence. The checks describe the extracted value, so none after an edit or a rejection. The code keeps the older
+/** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
+ *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
  *  name (`doubt`, `doubtful`); the researcher reads "Uncertain passage". */
-export function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewAction): string | null {
+export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
   if (link.verbatim === false) return 'Value not printed word for word.'
-  const others = (link.lexicalHits ?? 1) - 1
-  if (link.verbatim && others > 0) return others === 1 ? 'Also printed in 1 other passage.' : `Also printed in ${others} other passages.`
   return null
 }
 

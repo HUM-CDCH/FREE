@@ -59,9 +59,8 @@ export const evidenceLinkSchema = z
     resultPath: resultPathSchema,
     evidenceAnchorId: z.string().min(1),
     precision: z.enum(['cell', 'segment', 'input']).optional(),
-    // Grounding's lexical checks; absent on booleans and on older links.
+    // Whether the producer found the value printed as such; absent on older links.
     verbatim: z.boolean().optional(),
-    lexicalHits: z.number().int().nonnegative().optional(),
     // Absent means the grounder chose the anchor.
     linkedBy: z.enum(['citation_lexical', 'lexical']).optional(),
     // Present only on version 2 and version 3 results.

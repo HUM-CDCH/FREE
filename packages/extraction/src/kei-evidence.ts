@@ -18,7 +18,6 @@ const linkSchema = z.object({
   page: z.number().int().positive(),
   bbox_pt: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable(),
   verbatim: z.boolean(),
-  hits: z.number().int().nonnegative(),
   linked_by: z.enum(['lexical', 'model']),
   cell: z
     .string()
@@ -29,7 +28,7 @@ const linkSchema = z.object({
   value_boxes_pt: z.array(valueBox).min(1).max(64).optional(),
 })
 /** One grounded value's evidence (version 1). An Article link may carry `location`: the value's unique printing in its
- *  segment, as code-point spans and the printed text. */
+ *  selected candidate, as code-point spans and the printed text. */
 export const evidenceSchema = linkSchema.extend({
   location: z.object({ spans: z.array(span.strict()).length(1), raw: z.string().min(1) }).strict().optional(),
 }).refine(link => link.location?.spans.every(each => each.segment === link.segment && each.start < each.end) ?? true,
@@ -71,7 +70,7 @@ const valueBoxes = (link: { value_boxes_pt?: [number, number, number, number][] 
 /** A version 3 link as the Extraction keeps it: a located value with its spans (`VerifiedGrounding`). */
 export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string) {
   return {
-    resultPath: link.path, evidenceAnchorId, precision: link.precision, verbatim: link.verbatim, lexicalHits: link.hits,
+    resultPath: link.path, evidenceAnchorId, precision: link.precision, verbatim: link.verbatim,
     grounding: {
       linkedBy: link.linked_by, support: link.support, textSpans: link.spans, alternatives: link.alternatives,
       precision: link.precision, raw: link.raw, itemSpans: link.item,
@@ -85,7 +84,7 @@ export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidence
   return {
     resultPath: link.path, evidenceAnchorId,
     ...(link.precision ? { precision: link.precision } : {}),
-    verbatim: link.verbatim, lexicalHits: link.hits,
+    verbatim: link.verbatim,
     ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
     // A display location only: never `grounding`, which names a version 2 or 3 rule and its review wording.
     ...(link.location ? { location: { textSpans: link.location.spans, raw: link.location.raw } } : {}),
@@ -96,7 +95,7 @@ export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidence
 export function groundedEvidenceLink(link: z.infer<typeof groundedEvidenceSchema>, evidenceAnchorId: string) {
   return {
     resultPath: link.path, evidenceAnchorId, precision: link.precision,
-    verbatim: link.verbatim, lexicalHits: link.hits,
+    verbatim: link.verbatim,
     grounding: {
       linkedBy: link.linked_by, provenance: link.provenance, textSpans: link.spans, keySpans: link.key_spans,
       alternatives: link.alternatives, heading: link.heading, precision: link.precision, raw: link.raw,
