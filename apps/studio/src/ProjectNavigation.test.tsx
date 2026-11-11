@@ -1329,7 +1329,7 @@ describe('Project Context navigation', () => {
   })
 
   it('imports an Excel codebook from the Templates tab as a new Extraction Template named after the workbook', async () => {
-    let extractionSchemaId = ''
+    const extractionSchemaId = '51000000-0000-4000-8003-000000000009'
     const column = { id: 'site-column', column: 1, name: 'site', type: 'string', include: true,
       examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
     const writes: Array<{ url: string; method: string; body: Record<string, unknown> }> = []
@@ -1342,7 +1342,6 @@ describe('Project Context navigation', () => {
       if (url === '/api/extraction-schemas' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>
         writes.push({ url, method: 'POST', body })
-        extractionSchemaId = String(body.extractionSchemaId)
         return Response.json({ revision: {
           schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
           origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
@@ -1369,9 +1368,8 @@ describe('Project Context navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
 
     await waitFor(() => expect(writes).toHaveLength(2))
-    // A new schema every import, under an ID minted for the request: never a revision of the project's newest schema.
-    expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
-    expect(extractionSchemaId).toMatch(/^[0-9a-f-]{36}$/)
+    // A new schema every import: never a revision of the project's newest schema.
+    expect(writes[0]).toMatchObject({ url: '/api/extraction-schemas', body: { projectContextId, recordDescription: 'One site.' } })
     expect(writes[1]).toMatchObject({
       url: `/api/extraction-schemas/${extractionSchemaId}`,
       body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Template' },

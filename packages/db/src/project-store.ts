@@ -1048,15 +1048,9 @@ export type ResearcherProjectStore = {
   ): Promise<AppendSchemaRevisionResult | null>
   /**
    * A new Extraction Schema, named `EXTRACTION_SCHEMA_INITIAL_NAME`, whose revision 1 is `schemaTree` with no Record
-   * Scope: the template an import starts, beside any the project has. The caller mints `extractionSchemaId`, so a
-   * repeated request answers the schema the first one created. Null when the Project Context is not owned, or the ID
-   * names another project's schema.
+   * Scope: the template an import starts, beside any the project has. Null when the Project Context is not owned.
    */
-  createExtractionSchema(
-    projectContextId: string,
-    extractionSchemaId: string,
-    schemaTree: unknown,
-  ): Promise<SchemaRevisionRecord | null>
+  createExtractionSchema(projectContextId: string, schemaTree: unknown): Promise<SchemaRevisionRecord | null>
   listExtractionSchemas(
     projectContextId: string,
     limit: number,
@@ -2640,22 +2634,15 @@ export function createResearcherProjectStore(
         }
       })
     },
-    async createExtractionSchema(projectContextId, extractionSchemaId, schemaTree) {
+    async createExtractionSchema(projectContextId, schemaTree) {
       return database.transaction(async ({ orm }) => {
-        // Locked, so a repeated request waits for the first and answers what it created.
-        if (!(await lockOwnedProjectContext(orm, researcherAccountId, projectContextId))) return null
-        const existing = await orm.public.ExtractionSchema.select('projectContextId').first({ id: extractionSchemaId })
-        if (existing && existing.projectContextId !== projectContextId) return null
-        if (!existing) {
-          await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: EXTRACTION_SCHEMA_INITIAL_NAME })
-          await orm.public.SchemaRevision.create({
-            extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT', schemaTree, recordScope: null,
-          })
-        }
-        const first = await orm.public.SchemaRevision.where({ extractionSchemaId, revisionNumber: 1 })
-          .select(...revisionFields)
-          .first()
-        return first ? schemaRevision(first as StoredSchemaRevision) : null
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return null
+        const extractionSchemaId = randomUUID()
+        await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: EXTRACTION_SCHEMA_INITIAL_NAME })
+        const created = await orm.public.SchemaRevision.create({
+          extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT', schemaTree, recordScope: null,
+        })
+        return schemaRevision(created as StoredSchemaRevision)
       })
     },
     async listExtractionSchemas(projectContextId, limit) {

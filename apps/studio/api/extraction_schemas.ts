@@ -206,8 +206,7 @@ if (extractionSchemaNameLimit !== EXTRACTION_SCHEMA_NAME_LIMIT)
 if (extractionSchemaInitialName !== EXTRACTION_SCHEMA_INITIAL_NAME)
   throw new Error('Extraction Schema initial names must match.')
 
-/** Creates an Extraction Schema beside the project's others, as an import starts one; a repeated request (same ID)
- *  answers the schema it created. */
+/** Creates an Extraction Schema beside the project's others, as an import starts one. */
 export function createPostExtractionSchema(
   store: Pick<ResearcherProjectStore, 'createExtractionSchema'>,
 ) {
@@ -218,9 +217,9 @@ export function createPostExtractionSchema(
       const parsed = extractionSchemaCreateRequestSchema.safeParse(await parseJsonRequest(request))
       if (!parsed.success)
         throw new ApiError(422, 'invalid_request', 'Extraction Schema request is invalid.')
-      const { projectContextId, extractionSchemaId, ...definition } = parsed.data
+      const { projectContextId, ...definition } = parsed.data
       const revision = await store
-        .createExtractionSchema(projectContextId, extractionSchemaId, definition)
+        .createExtractionSchema(projectContextId, definition)
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })

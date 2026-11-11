@@ -93,10 +93,10 @@ describe('POST /api/extraction-schemas', () => {
       body: JSON.stringify(body),
     })
 
-  it('creates a schema whose revision 1 is the definition, under the requested ID', async () => {
-    const createExtractionSchema = vi.fn(async (_project: string, schema: string, tree: unknown) => ({
+  it('creates a schema whose revision 1 is the definition', async () => {
+    const createExtractionSchema = vi.fn(async (_project: string, tree: unknown) => ({
       schemaRevisionId: REVISION,
-      extractionSchemaId: schema,
+      extractionSchemaId: SCHEMA,
       revisionNumber: 1,
       origin: 'researcher-edit' as const,
       schemaTree: tree,
@@ -105,24 +105,24 @@ describe('POST /api/extraction-schemas', () => {
       stabilisedAt: null,
     }))
     const POST = createPostExtractionSchema({ createExtractionSchema })
-    const response = await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, ...definition }))
+    const response = await POST(request({ projectContextId: PROJECT, ...definition }))
 
     expect(response.status).toBe(201)
     expect(response.headers.get('cache-control')).toBe('no-store')
     await expect(response.json()).resolves.toMatchObject({
       revision: { schemaRevisionId: REVISION, extractionSchemaId: SCHEMA, revisionNumber: 1, ...definition },
     })
-    expect(createExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA, definition)
+    expect(createExtractionSchema).toHaveBeenCalledWith(PROJECT, definition)
   })
 
-  it('refuses invalid requests and answers 404 for a project or ID it does not own', async () => {
+  it('refuses invalid requests and answers 404 for a project it does not own', async () => {
     const createExtractionSchema = vi.fn(async () => null)
     const POST = createPostExtractionSchema({ createExtractionSchema })
 
-    expect((await POST(request({ projectContextId: PROJECT, ...definition }))).status).toBe(422)
-    expect((await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, schemaNodes: [], recordDescription: 'x', extra: 1 }))).status).toBe(422)
+    expect((await POST(request(definition))).status).toBe(422)
+    expect((await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, ...definition }))).status).toBe(422)
     expect(createExtractionSchema).not.toHaveBeenCalled()
-    expect((await POST(request({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, ...definition }))).status).toBe(404)
+    expect((await POST(request({ projectContextId: PROJECT, ...definition }))).status).toBe(404)
   })
 })
 

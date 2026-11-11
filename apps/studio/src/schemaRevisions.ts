@@ -159,15 +159,13 @@ async function writeSchemaRevision(
   return schemaRevisionResponseSchema.parse(value).revision
 }
 
-/**
- * A new Extraction Schema beside the project's others, whose revision 1 is `definition` with no Record Scope: the
- * template an import starts. The ID is minted once per call, so a resent request answers the schema it created.
- */
+/** A new Extraction Schema beside the project's others, whose revision 1 is `definition` with no Record Scope: the
+ *  template an import starts. */
 export async function createExtractionSchema(projectContextId: string, definition: SchemaDefinition): Promise<SchemaRevision> {
   const response = await authenticatedFetch('/api/extraction-schemas', {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ projectContextId, extractionSchemaId: crypto.randomUUID(), ...writtenDefinition(definition, undefined) }),
+    body: JSON.stringify({ projectContextId, ...writtenDefinition(definition, undefined) }),
   })
   const value = await body(response)
   if (!response.ok) throw failure(value, response.status)

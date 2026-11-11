@@ -465,7 +465,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
             }
           : null
       }),
-      createExtractionSchema: vi.fn(async (projectContextId, _id, schemaTree) => {
+      createExtractionSchema: vi.fn(async (projectContextId, schemaTree) => {
         const relationship = owned(accountId, projectContextId)
         return relationship ? storedRevision(relationship, schemaTree) : null
       }),
@@ -1117,7 +1117,6 @@ describe('two-account schema, revision, suggestion, and editing isolation', () =
         '/api/extraction-schemas',
         jsonRequest('POST', {
           projectContextId: ids.projectB,
-          extractionSchemaId: '30000000-0000-4000-8000-0000000000aa',
           ...schemaDefinition,
         }),
       ),
