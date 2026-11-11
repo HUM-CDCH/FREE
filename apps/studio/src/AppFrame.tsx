@@ -377,8 +377,10 @@ export default function AppFrame({
   const routedDocuments = useMemo(() => routedBranchState?.status === 'ready'
     ? routedBranchState.detail.sourceDocuments.map(({ sourceDocumentId, name }) => ({ id: sourceDocumentId, name }))
     : null, [routedBranchState])
+  // `refresh` is the provider's own, stable across reads: the workspace re-reads the summary when its saved revision
+  // changes, and a callback made anew with each summary would make every read ask for the next one.
   const workspaceProject = useMemo(() => routedSummary && routedDocuments
-    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: () => void refreshProjects() }
+    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: refreshProjects }
     : null, [routedSummary, routedDocuments, backToBatchExtractionId, refreshProjects])
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
