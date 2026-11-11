@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -197,7 +197,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const blocked = !!pending || chat.loading
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
-  const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
+  const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} scopeBlockedReason={snap.editingBlockedReason} sayDisabled={!canSay}
     onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
     composer={composer} onSay={() => composerRef.current?.focus()} />
   // The Generate template step set aside: folded to its title line, generating stays one click away and the title
@@ -327,11 +327,13 @@ function SetAsideStepView({ title, summary, expandLabel, onExpand, action }: {
  *  documents lists the project's to tick. The way past it (`dismiss`) is the chat's composer, drawn as the card's last
  *  numbered option: its number focuses it (`onSay`), and sending from it says something else instead and sets the step
  *  aside; Esc, or the header's ×, sets it aside unsaid. */
-function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay }: {
-  card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption) => void
+function StepCardView({ card, scopeDisabled = false, scopeBlockedReason = null, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay }: {
+  card: StepCard; scopeDisabled?: boolean; scopeBlockedReason?: string | null; sayDisabled?: boolean; onChoose: (option: StepOption) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
   composer: ReactNode; onSay: () => void
 }) {
+  const scopeDescriptionId = useId()
+  const scopeDescription = scopeDisabled && card.options.some(option => option.action.startsWith('scope:')) ? scopeBlockedReason : null
   const count = picked?.size ?? 0
   const options = card.options.map((option) =>
     scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
@@ -396,6 +398,7 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
         {card.picker && count > card.picker.limit && (
           <p role="status" className="text-compact leading-snug text-danger">At most {plural(card.picker.limit, 'document')} at once.</p>
         )}
+        {scopeDescription && <p id={scopeDescriptionId} className="text-compact leading-snug text-ink-muted">{scopeDescription}</p>}
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
             {options.map((option, index) => option.action === 'dismiss' ? (
@@ -407,6 +410,7 @@ function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoo
               </div>
             ) : (
               <button key={option.action} type="button" disabled={option.disabled}
+                aria-describedby={scopeDescription && option.action.startsWith('scope:') ? scopeDescriptionId : undefined}
                 title={option.description} aria-description={option.description}
                 className={`flex min-h-7 cursor-pointer items-baseline gap-2 rounded-[3px] border px-2 py-1 text-left text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[option.tone]}`}
                 onClick={() => onChoose(option)}>

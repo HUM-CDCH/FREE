@@ -2713,6 +2713,36 @@ describe('reopened Source Document workspace', () => {
       expect(selector).toHaveValue('records')
     })
 
+    it.each(['Save', 'Cancel'] as const)('blocks chat scope choices during an unfinished edit and restores them after %s', async finish => {
+      const { writes } = stubWorkspace(undefined, null)
+      await renderWith({ ...reopened.extractionSchema!, recordScope: null })
+      fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
+      fireEvent.change(screen.getByLabelText('What one record is'), { target: { value: 'Kept description.' } })
+      fireEvent.click(railScope().getByRole('button', { name: 'Back to chat' }))
+      const choices = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+      const article = choices.getByRole('button', { name: /^Article:/ })
+      const catalog = choices.getByRole('button', { name: /^Catalog:/ })
+      for (const choice of [article, catalog]) {
+        expect(choice).toBeDisabled()
+        expect(choice).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+      }
+      expect(choices.getByText('Save or Cancel the open edit first.')).toBeVisible()
+      fireEvent.click(article)
+      fireEvent.keyDown(screen.getByRole('region', { name: 'Choose Record Scope' }), { key: '2' })
+      expect(screen.queryByTitle('Choose Record Scope · Article: one record per document')).not.toBeInTheDocument()
+      expect(writes).toHaveLength(0)
+
+      openRailView('Template')
+      fireEvent.click(screen.getByRole('button', { name: finish }))
+      fireEvent.click(railScope().getByRole('button', { name: 'Back to chat' }))
+      const enabled = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+      expect(enabled.getByRole('button', { name: /^Article:/ })).toBeEnabled()
+      expect(enabled.getByRole('button', { name: /^Catalog:/ })).toBeEnabled()
+      expect(enabled.queryByText('Save or Cancel the open edit first.')).not.toBeInTheDocument()
+      fireEvent.click(enabled.getByRole('button', { name: /^Article:/ }))
+      await waitFor(() => expect(writes).toContainEqual(expect.objectContaining({ recordScope: 'document' })))
+    })
+
     it('keeps the scope through a template edit: the append names none and the server keeps the head\'s', async () => {
       const { writes, runs } = stubWorkspace(undefined, 'records')
       await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })

@@ -678,7 +678,6 @@ export function createSchemaEditorController(
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
         if (!(await adoptGenerated(definition, declared, abort.signal))) return
-        sourceCoverage = declared
         generating = false
         publish()
       } catch (error) {

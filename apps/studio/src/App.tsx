@@ -1139,7 +1139,7 @@ export function DocumentWorkspace({
         onReviewProgress={setDurableReviewProgress}
         onReviewFinalized={onReviewFinalized}
         schemaName={schemaName}
-        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
+        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun || schemaSnap.editingBlockedReason !== null }}
         // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
