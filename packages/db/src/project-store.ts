@@ -654,6 +654,32 @@ function semanticSuggestionTree(tree: unknown): unknown {
   return Array.isArray(schemaNodes) ? { ...definition, schemaNodes: schemaNodes.map(withoutNodeIds) } : tree
 }
 
+/** A file name without its extension, as generated and imported templates are named. */
+const fileStem = (name: string) => name.replace(/\.[^./\\]+$/, '').trim().slice(0, 480)
+
+/** What a suggested template is called: after its spreadsheet, or after the Source Documents it was suggested from. */
+async function suggestedSchemaName(orm: Orm, batchSchemaSuggestionId: string): Promise<string> {
+  const row = await orm.public.BatchSchemaSuggestion.select('projectSpreadsheetVersionId').first({ id: batchSchemaSuggestionId })
+  if (row?.projectSpreadsheetVersionId) {
+    const version = await orm.public.ProjectSpreadsheetVersion.select('originalFilename').first({ id: row.projectSpreadsheetVersionId })
+    return fileStem(version?.originalFilename ?? '') || 'Suggested fields'
+  }
+  const sources = await orm.public.BatchSchemaSuggestionSource.where({ batchSchemaSuggestionId }).select('sourceDocumentId').all()
+  const names = sources.length === 0 ? [] : (await orm.public.SourceDocument.where((document) =>
+    document.id.in(sources.map((source) => source.sourceDocumentId))).select('originalName').all())
+    .map((document) => fileStem(document.originalName ?? '')).filter(Boolean).sort((left, right) => left.localeCompare(right))
+  if (names.length === 0) return 'Suggested fields'
+  return `Suggested from ${names[0]}${sources.length > 1 ? ` +${sources.length - 1}` : ''}`
+}
+
+/** `base`, or `base (2)`, `base (3)`… when the project already has a template by that name. */
+async function unusedSchemaName(orm: Orm, projectContextId: string, base: string): Promise<string> {
+  const taken = new Set((await orm.public.ExtractionSchema.where({ projectContextId }).select('name').all()).map((row) => row.name))
+  let name = base
+  for (let suffix = 2; taken.has(name); suffix += 1) name = `${base} (${suffix})`
+  return name
+}
+
 /**
  * The Extraction Schema a suggestion's result is saved as, created at most once: its ids derive from the suggestion and
  * the result's fields (the namespaces of the confirmation that preceded applies, so a confirmed row finds its schema).
@@ -666,7 +692,8 @@ async function saveSuggestedSchema(orm: Orm, projectContextId: string, batchSche
   )
   const schemaRevisionId = stableUuid('confirmed-batch-schema-suggestion-revision', extractionSchemaId)
   if (await orm.public.ExtractionSchema.select('id').first({ id: extractionSchemaId })) return schemaRevisionId
-  await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Suggested fields' })
+  const name = await unusedSchemaName(orm, projectContextId, await suggestedSchemaName(orm, batchSchemaSuggestionId))
+  await orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name })
   await orm.public.SchemaRevision.create({
     id: schemaRevisionId,
     extractionSchemaId,

@@ -15,8 +15,10 @@ refused it (409): a spreadsheet suggestion has no sources.
 ## Decision
 
 1. **A suggestion is an operation that produces a definition.** `POST /api/batch-schema-suggestions/<id>/apply`
-   saves the attempt's settled result as an ordinary Extraction Schema ("Suggested fields") and its revision 1 (origin
-   SUGGESTION, no Record Scope). Under the project and suggestion row locks it requires the attempt the client read,
+   saves the attempt's settled result as an ordinary Extraction Schema and its revision 1 (origin SUGGESTION, no
+   Record Scope). It is named once, at creation, after its sources ("Suggested from <first document> +N") or its
+   spreadsheet's file name, with " (2)", " (3)"… when the project already has that name; "Suggested fields" when no
+   source is left. Under the project and suggestion row locks it requires the attempt the client read,
    phase READY, a valid result and no active attempt. Its IDs are keyed by the suggestion and the result's semantic
    tree, so a repeated or concurrent apply (two tabs, an uncertain POST, a row confirmed by earlier code) returns the
    same schema. It starts no workflow and no batch; `suggestSchemaBatch` is unchanged.

@@ -148,6 +148,10 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
   const failure = { code: 'source_suggestion_failed', message: 'Fields could not be suggested.' }
 
   let suggestionId = ''
+  const schemaName = async (schemaRevisionId: string) => {
+    const revision = await db.orm.public.SchemaRevision.select('extractionSchemaId').first({ id: schemaRevisionId })
+    return (await db.orm.public.ExtractionSchema.select('name').first({ id: revision!.extractionSchemaId }))?.name
+  }
 
   await t.test('creation commits the suggestion, its sorted pins and attempt 1\'s workflow together', async () => {
     const created = await researcher.createBatchSchemaSuggestion(
@@ -305,6 +309,8 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.deepEqual({ ...revision, extractionSchemaId: undefined }, {
       extractionSchemaId: undefined, revisionNumber: 1, origin: 'SUGGESTION', schemaTree: definition('place'), recordScope: null,
     })
+    // Named after its sources: the first by name, then how many more.
+    assert.equal(await schemaName(revisionId), 'Suggested from # Alpha +1')
     // A repeat (another tab, an uncertain POST) answers the same schema and creates nothing.
     const repeated = await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 6, definition('place'))
     assert.ok(repeated && 'suggestion' in repeated)
@@ -320,6 +326,7 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     const again = await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 6, definition('place'))
     assert.ok(again && 'suggestion' in again)
     assert.deepEqual(again.suggestion.savedSchema, applied.suggestion.savedSchema)
+    assert.equal(await schemaName(revisionId), 'Suggested from # Alpha +1')
 
     // An applied result stays the researcher's schema: the next attempt clears the pointer and its result is another one.
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 6))?.status, 'retried')
@@ -330,6 +337,8 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.ok(next && 'suggestion' in next)
     const nextRevision = await db.orm.public.SchemaRevision.select('extractionSchemaId').first({ id: next.suggestion.savedSchema!.schemaRevisionId })
     assert.notEqual(nextRevision?.extractionSchemaId, revision!.extractionSchemaId)
+    // Suggested again from the same sources: the same name, told apart by a number.
+    assert.equal(await schemaName(next.suggestion.savedSchema!.schemaRevisionId), 'Suggested from # Alpha +1 (2)')
     assert.ok(await db.orm.public.SchemaRevision.select('id').first({ id: revisionId }))
   })
 
@@ -346,6 +355,7 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.deepEqual(revision, {
       extractionSchemaId: saved.extractionSchemaId, revisionNumber: 1, origin: 'SUGGESTION', schemaTree: definition('place'), recordScope: null,
     })
+    assert.equal(await schemaName(saved.schemaRevisionId), 'sites')
     // Applying it again (an older client) answers the same schema.
     const applied = await researcher.applyBatchSchemaSuggestion(projectContextId, created.suggestion.batchSchemaSuggestionId, 1, definition('place'))
     assert.ok(applied && 'suggestion' in applied)
@@ -379,7 +389,10 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.deepEqual(await researcher.retryBatchSchemaSuggestion(projectContextId, singleId, 1), { status: 'not-ready' })
     assert.deepEqual(await attempts(singleId), [`suggest:${singleId}:1`])
     // Its result needs no source: it still applies.
-    assert.equal((await researcher.applyBatchSchemaSuggestion(projectContextId, singleId, 1, definition('gamma')))?.status, 'applied')
+    const orphanApplied = await researcher.applyBatchSchemaSuggestion(projectContextId, singleId, 1, definition('gamma'))
+    assert.ok(orphanApplied && 'suggestion' in orphanApplied)
+    // With no source left to name it after, it keeps the generic name.
+    assert.equal(await schemaName(orphanApplied.suggestion.savedSchema!.schemaRevisionId), 'Suggested fields')
   })
 
   await t.test('the worker reads a pinned revision\'s Markdown, and nothing once the revision is gone', async () => {
