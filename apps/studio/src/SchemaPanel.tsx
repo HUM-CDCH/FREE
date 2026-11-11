@@ -1,4 +1,4 @@
-import SchemaView from './SchemaView'
+import { SchemaDefinitionBody } from './SchemaView'
 import { SchemaImport } from './SchemaImport'
 import {
   useCallback,
@@ -335,6 +335,11 @@ function SchemaPanel({
   const [mutationError, setMutationError] = useState<string | null>(null)
   const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast, holdToast: holdPanelToast } = useToast()
   const { pending, acceptedChangeIds, replay } = proposalReview
+  const [moving, setMoving] = useState<{ id: string; parentId: string | null; isGroup: boolean; epoch: number } | null>(null)
+  const [moveParent, setMoveParent] = useState<string | null>(null)
+  const [moveIndex, setMoveIndex] = useState(0)
+  const moveParentId = useId()
+  const movePositionId = useId()
   const [view, setView] = useState<'fields' | 'code'>('fields')
   /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
@@ -387,6 +392,7 @@ function SchemaPanel({
       setCollapsedIds(new Set())
       setHistoryError(null)
       setConfirmingDeleteSchema(false)
+      setMoving(null)
       // A pending Undo belongs to the replaced draft: restoring into the new one would graft an old field onto it.
       draggingRef.current = null
       overTargetRef.current = null
@@ -509,7 +515,7 @@ function SchemaPanel({
       disabled: snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null || snap.previewingRevisionId !== null,
     },
     ...(onRegenerate
-      ? [{ id: 'regenerate', label: 'Regenerate from the document…', onSelect: () => onRegenerate?.(), disabled: snap.generating || snap.input !== null }]
+      ? [{ id: 'regenerate', label: 'Regenerate from the document…', onSelect: () => onRegenerate?.(), disabled: snap.useBlockedReason !== null }]
       : []),
     { id: 'clear', label: 'Clear template', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true), disabled: snap.input !== null },
   ]
@@ -668,9 +674,7 @@ function SchemaPanel({
     const result = schema.commit((current) => removeSchemaNode(current, node.id)[1], '')
     if (!result.ok) {
       setMutationError(
-        result.reason === 'no-draft'
-          ? 'No template draft is open.'
-          : `A sibling field already uses “${result.duplicateName}”.`,
+        result.reason === 'no-draft' ? 'No template draft is open.' : result.reason === 'validation' ? result.message : `A sibling field already uses “${result.duplicateName}”.`,
       )
       return
     }
@@ -752,26 +756,42 @@ function SchemaPanel({
             onDelete={() => deleteField(node, parentId, index)}
           />
 
-        {!editorReadOnly && !isDiff && <details className="text-compact">
-          <summary className="cursor-pointer">Move {node.name}</summary>
-          {[{ id: null, label: 'Root', children: nodes }, ...enumerateFieldPaths(nodes).filter(f => f.node.children !== undefined).map(f => ({ id: f.id, label: f.path.join(' / '), children: f.node.children! }))].flatMap(destination => Array.from({ length: destination.children.length + 1 }, (_, index) => ({ ...destination, index }))).map(destination => {
-            const target = { type: 'slot' as const, parentId: destination.id, index: destination.index }
-            const moved = moveSchemaNodes(nodes, { id: node.id, parentId, isGroup }, target, 0, 0)
-            return <Button key={`${destination.id ?? 'root'}:${destination.index}`} disabled={!moved || snap.input !== null} onClick={() => {
-              const current = schema.snapshot().draft?.schemaNodes
-              const next = current && moveSchemaNodes(current, { id: node.id, parentId, isGroup }, target, 0, 0)
-              if (next) applyMove(next)
-            }}>To {destination.label} · {destination.children[destination.index] ? `before ${destination.children[destination.index]!.name}` : 'end'}</Button>
-          })}
-        </details>}
+        {!editorReadOnly && !isDiff && <Button disabled={editDisabled} onClick={() => {
+          setMoving({ id: node.id, parentId, isGroup, epoch: snap.replacementVersion })
+          setMoveParent(parentId); setMoveIndex(index)
+        }}>Move {node.name}</Button>}
       </>
     )
   }
+
+  const destinations = moving ? [{ id: null, label: 'Root', children: nodes }, ...enumerateFieldPaths(nodes).filter(field => field.node.children !== undefined).map(field => ({ id: field.id, label: field.path.join(' / '), children: field.node.children! }))] : []
+  const destination = destinations.find(item => item.id === moveParent)
+  const selectedMove = moving && moving.epoch === snap.replacementVersion && destination
+    ? moveSchemaNodes(nodes, moving, { type: 'slot', parentId: moveParent, index: moveIndex }, 0, 0) : null
 
   // ────────────────────────────────────────────────────────────────────────
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       {snap.useBlockedReason && <p role="status" className="px-4 text-compact">{snap.useBlockedReason}</p>}
+      {moving && <ModalDialog onDismiss={() => setMoving(null)} className={dialogCls} ariaLabel="Move field">
+        <h2 className="font-semibold">Move field</h2>
+        <label htmlFor={moveParentId}>Destination parent</label>
+        <select id={moveParentId} value={moveParent ?? ''} onChange={event => { setMoveParent(event.target.value || null); setMoveIndex(0) }}>
+          {destinations.map(item => <option key={item.id ?? 'root'} value={item.id ?? ''}>{item.label}</option>)}
+        </select>
+        <label htmlFor={movePositionId}>Insertion position</label>
+        <select id={movePositionId} value={moveIndex} onChange={event => setMoveIndex(Number(event.target.value))}>
+          {Array.from({ length: (destination?.children.length ?? 0) + 1 }, (_, index) => <option key={index} value={index}>{destination?.children[index] ? `Before ${destination.children[index]!.name}` : 'End'}</option>)}
+        </select>
+        {!selectedMove && <p role="status">Choose a different position. Fields must retain unique sibling names and valid source references.</p>}
+        <Button onClick={() => setMoving(null)}>Cancel</Button>
+        <Button variant="positive" disabled={!selectedMove || snap.editingBlockedReason !== null} onClick={() => {
+          const current = schema.snapshot()
+          if (current.replacementVersion !== moving.epoch || current.editingBlockedReason || !current.draft) return
+          const next = moveSchemaNodes(current.draft.schemaNodes, moving, { type: 'slot', parentId: moveParent, index: moveIndex }, 0, 0)
+          if (next) { applyMove(next); setMoving(null) }
+        }}>Move</Button>
+      </ModalDialog>}
       {/* ── Header ── */}
       <header className="flex shrink-0 flex-col gap-1 border-b border-line px-4 pb-2 pt-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -952,7 +972,7 @@ function SchemaPanel({
             return (losesChildren || losesValues || losesItemType) ? <p role="status" className="text-danger">Saving this type will remove {losesChildren ? 'child fields and their metadata' : losesValues ? 'allowed values' : 'the array item type'}.</p> : null
           })()}
           {editing && <FieldEditForm editing={editing} error={editingError} focus={editFocus} onChange={setEditing} onSave={saveEdit} onCancel={cancelEdit} />}
-          {snap.historicalPreview && <SchemaView definition={snap.historicalPreview} recordScope={snap.historicalPreview.recordScope} />}
+          {snap.historicalPreview && <SchemaDefinitionBody view={view} definition={snap.historicalPreview} recordScope={snap.historicalPreview.recordScope} />}
           {ready && !snap.historicalPreview && view === 'fields' && (
             <>
               <div className="mb-3 block">

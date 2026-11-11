@@ -853,7 +853,6 @@ export function DocumentWorkspace({
     try {
       const revision = await schema.prepareUse()
       if (!stillHere()) return
-      if (!revision) throw new Error('Save the Current Template Revision before extraction.')
       // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the template header before extraction.')
       const strategy = strategyOf(revision.recordScope)
@@ -997,7 +996,6 @@ export function DocumentWorkspace({
     setProjectError(null)
     try {
       const revision = await schema.prepareUse()
-      if (!revision) throw new Error('Save the Current Template Revision first.')
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog first.')
       const strategy = strategyOf(revision.recordScope)
       let opened: Awaited<ReturnType<typeof openBatchExtraction>> | null = null

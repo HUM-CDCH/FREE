@@ -1,8 +1,9 @@
+import { testSchemaPersistence } from './test/schemaPersistence'
 // @vitest-environment jsdom
 
 import type { ComponentProps, ReactNode } from 'react'
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import rawDocument from './assets/parsed_document.v2.json'
@@ -18,7 +19,6 @@ import type { DurableReader } from './durableReader'
 import type { CurrentResultSchema } from './resultSchema'
 import {
   createSchemaEditorController,
-  localSchemaPersistence,
   type SchemaEditorController,
 } from './currentSchemaRevision'
 /** The chat's composer: its own hint, or the way past the step whose card carries it. */
@@ -61,7 +61,7 @@ const attempt = {
 
 function testSchema(): SchemaEditorController {
   return createSchemaEditorController(
-    localSchemaPersistence({ onEdit: () => {} }),
+    testSchemaPersistence(),
     {
       initialDraft: {
         recordDescription: 'One record.',
@@ -129,7 +129,8 @@ function renderRail({
     />
   )
   const rendered = render(rail(open))
-  return { ...rendered, setOpen: (next: boolean) => rendered.rerender(rail(next)) }
+  return { ...rendered, setOpen: (next: boolean) => { open = next; rendered.rerender(rail(open)) },
+    setView: (next: RailView) => { view = next; rendered.rerender(rail(open)) } }
 }
 const results = () => vi.mocked(DurableResults).mock.lastCall![0]
 
@@ -231,7 +232,7 @@ describe('RightRail Results', () => {
     const onGenerateInstructions = vi.fn()
     const start = vi.fn()
     // No template yet: Generate leads; Run waits for the template and says so.
-    renderRail({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerateInstructions, run: { start, available: true } })
+    renderRail({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerateInstructions, run: { start, available: true } })
     const empty = within(screen.getByRole('navigation', { name: 'Template and results' }))
     fireEvent.click(empty.getByRole('button', { name: 'Generate the template from the document' }))
     expect(onGenerateInstructions).toHaveBeenCalledExactlyOnceWith('')
@@ -383,6 +384,58 @@ describe('RightRail collapsed', () => {
     expect(signal.aborted).toBe(false)
     view.unmount()
     expect(signal.aborted).toBe(true)
+  })
+})
+
+describe('RightRail owns Regenerate', () => {
+  it('blocks Regenerate from the template menu and workflow while a proposal is pending', () => {
+    const schema = testSchema()
+    const proposal = schema.markProposal()
+    const onGenerateInstructions = vi.fn()
+    const rail = renderRail({ schema, view: 'schema', onGenerateInstructions })
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Regenerate from the document…' })).toBeDisabled()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    rail.setView('chat')
+    expect(screen.getByRole('button', { name: 'Generate the template again from the document' })).toBeDisabled()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+    act(() => proposal.release())
+    expect(screen.getByRole('button', { name: 'Generate the template again from the document' })).toBeEnabled()
+  })
+
+  it('shares one dialog and its instructions between the template menu and chat workflow', () => {
+    const schema = testSchema()
+    schema.commit(nodes => nodes.map(node => node.id === 'title' ? { ...node, description: 'Use the printed title.' } : node), '')
+    const onGenerateInstructions = vi.fn()
+    const rail = renderRail({ schema, view: 'schema', onGenerateInstructions })
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Regenerate from the document…' }))
+    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    const input = within(dialog).getByPlaceholderText(/^Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Keep dates as printed.' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+    rail.setView('chat')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate the template again from the document' }))
+    const reopened = screen.getByRole('dialog', { name: 'Regenerate from the document' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(reopened).getByText('Keep dates as printed.')).toBeVisible()
+    fireEvent.click(within(reopened).getByRole('button', { name: /^Regenerate template/ }))
+    expect(onGenerateInstructions).toHaveBeenCalledExactlyOnceWith('Keep dates as printed.\n\nField notes from the current template:\n- title: Use the printed title.')
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+  })
+
+  it('closes a Regenerate dialog when the current draft is replaced', () => {
+    const schema = testSchema()
+    const onGenerateInstructions = vi.fn()
+    renderRail({ schema, onGenerateInstructions })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate the template again from the document' }))
+    expect(screen.getByRole('dialog', { name: 'Regenerate from the document' })).toBeVisible()
+    act(() => schema.replaceDraft({ recordDescription: 'Replacement.', schemaNodes: [{ id: 'replacement', name: 'replacement', type: 'string' }] }, ''))
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
   })
 })
 

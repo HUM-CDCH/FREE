@@ -165,7 +165,7 @@ test('a reloaded page drops a finished generation when newer work exists @determ
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
-test('a surviving tab keeps saving through its acknowledged head, including edits during generation @deterministic', async ({ page }) => {
+test('a surviving tab keeps saving and refuses a generation whose input changed @deterministic', async ({ page }) => {
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
@@ -179,10 +179,14 @@ test('a surviving tab keeps saving through its acknowledged head, including edit
 
   stack.model.release()
 
-  await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('alert')).toContainText('The template changed during generation.')
+  await expect(page.getByText('One edited record.', { exact: true })).toBeVisible()
+  expect(await revisionCount()).toBe(2)
+  await expect(page.getByText('heading', { exact: true })).toHaveCount(0)
+  await describeRecord(page, 'Another edited record.')
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
   await expect(page.getByText('The Current Template Revision changed elsewhere.')).toHaveCount(0)
-  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByText('Another edited record.', { exact: true })).toBeVisible()
 })
 
 test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists across another reload @deterministic', async ({ page }) => {

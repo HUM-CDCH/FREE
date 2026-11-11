@@ -10,8 +10,6 @@ import {
 
 export type PendingSchemaProposal = DerivedProposal & {
   original: SchemaNode[]
-  originalDraftVersion: number
-  originalSchemaRevisionId: string | null
   /** The proposal's `edit:` workflow, when Studio recorded one: Discard deletes it so a reload cannot reopen it. */
   workflowId: string | null
   ownership: ReturnType<SchemaEditorController['markProposal']>
@@ -41,7 +39,7 @@ export function useSchemaProposalReview(
   schema: SchemaEditorController,
   appendMessage: (message: string) => void,
 ): SchemaProposalReview {
-  const snapshot = useSyncExternalStore(schema.subscribe, schema.snapshot)
+  useSyncExternalStore(schema.subscribe, schema.snapshot)
   const marker = useRef<ReturnType<SchemaEditorController['markProposal']> | null>(null)
   useEffect(() => () => marker.current?.release(), [schema])
   const [pending, setPending] = useState<PendingSchemaProposal | null>(null)
@@ -82,8 +80,6 @@ export function useSchemaProposalReview(
       setPending({
         ...proposal,
         original,
-        originalDraftVersion,
-        originalSchemaRevisionId,
         workflowId,
         ownership: marker.current,
       })
@@ -100,25 +96,15 @@ export function useSchemaProposalReview(
 
   const apply = useCallback(() => {
     if (!pending || marker.current !== pending.ownership || !replay?.hasChanges) return false
-    const current = schema.snapshot()
-    if (
-      current.draftVersion !== pending.originalDraftVersion ||
-      current.extractableSchemaRevisionId !== pending.originalSchemaRevisionId
-    ) {
-      appendMessage('Template changed during review. The proposal was discarded.')
-      reset()
-      return false
-    }
     const result = pending.ownership.apply(
       () => replay.nodes,
       '✦ Template updated via chat',
     )
-    if (!result || !result.ok) {
-      appendMessage(
-        result?.reason === 'duplicate-name'
-          ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
-          : 'Cannot apply the proposal because no template draft is open.',
-      )
+    if (!result.ok) {
+      if (result.reason === 'stale') { appendMessage(result.message); reset() }
+      else appendMessage(result.reason === 'duplicate-name'
+        ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
+        : result.reason === 'no-draft' ? 'Cannot apply the proposal because no template draft is open.' : result.message)
       return false
     }
     appendMessage(
@@ -126,7 +112,7 @@ export function useSchemaProposalReview(
     )
     reset()
     return true
-  }, [appendMessage, pending, replay, reset, schema])
+  }, [appendMessage, pending, replay, reset])
 
   const discard = useCallback(() => {
     if (!pending || marker.current !== pending.ownership) return
@@ -144,7 +130,7 @@ export function useSchemaProposalReview(
     pending,
     acceptedChangeIds,
     replay,
-    canApply: (replay?.hasChanges ?? false) && snapshot.input === null && snapshot.historicalPreview === null && snapshot.previewingRevisionId === null,
+    canApply: (replay?.hasChanges ?? false) && (pending?.ownership.validity().ok ?? false),
     start,
     toggle,
     apply,

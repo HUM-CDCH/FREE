@@ -557,9 +557,10 @@ function SuggestionStatus({
   )
 }
 
-function StrategySelect({ strategy, disabled, onChange }: {
+function StrategySelect({ strategy, disabled, blockedReason, onChange }: {
   strategy: ExtractionStrategy | null
   disabled: boolean
+  blockedReason?: string | null
   onChange?: (strategy: ExtractionStrategy) => void
 }) {
   const unchosen = !disabled && strategy === null
@@ -569,7 +570,7 @@ function StrategySelect({ strategy, disabled, onChange }: {
       <select
         className={`${control} mt-1 block w-full font-normal`}
         aria-label="Batch extraction strategy"
-        aria-describedby={unchosen ? 'batch-extraction-strategy-help' : undefined}
+        aria-describedby={blockedReason || unchosen ? 'batch-extraction-strategy-help' : undefined}
         value={strategy ?? ''}
         disabled={disabled}
         onChange={(event) => onChange?.(event.target.value as ExtractionStrategy)}
@@ -578,8 +579,8 @@ function StrategySelect({ strategy, disabled, onChange }: {
         <option value="ARTICLE">Article</option>
         <option value="CATALOG">Catalog</option>
       </select>
-      {unchosen && (
-        <span id="batch-extraction-strategy-help" className="mt-1 block font-normal">{STRATEGY_HELP}</span>
+      {(blockedReason || unchosen) && (
+        <span id="batch-extraction-strategy-help" className="mt-1 block font-normal">{blockedReason ?? STRATEGY_HELP}</span>
       )}
     </label>
   )
@@ -670,7 +671,6 @@ function PreparedTemplate({
     setRefusal(null)
     try {
       const admitted = await schema.prepareUse()
-      if (!admitted) throw new Error('The template could not be saved.')
       // The saved revision's own scope decides what runs; admission refuses any other.
       if (admitted.recordScope === null) throw new Error('Choose Article or Catalog before running.')
       const runStrategy = strategyOf(admitted.recordScope)
@@ -701,7 +701,8 @@ function PreparedTemplate({
         {templateSelect}
         <StrategySelect
           strategy={strategy}
-          disabled={opening}
+          disabled={opening || snap.editingBlockedReason !== null}
+          blockedReason={snap.editingBlockedReason}
           // A scope change is a schema change: the editor appends a revision with it.
           onChange={(next) => schema.setRecordScope(recordScopeOf(next))}
         />

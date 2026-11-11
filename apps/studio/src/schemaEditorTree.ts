@@ -293,21 +293,25 @@ export function moveSchemaNodes(
   return newSchemaTreeViolation(nodes, output) ? null : output
 }
 
+export type SchemaTreeViolation =
+  | { reason: 'duplicate-name'; duplicateName: string; message: string }
+  | { reason: 'validation'; message: string }
+
 /** Compare violations by stable identity, so repairing an old draft does not require repairing unrelated fields. */
-export function newSchemaTreeViolation(before: readonly SchemaNode[], after: readonly SchemaNode[]): string | null {
+export function newSchemaTreeViolation(before: readonly SchemaNode[], after: readonly SchemaNode[]): SchemaTreeViolation | null {
   function violations(nodes: readonly SchemaNode[]) {
-    const found = new Map<string, string>()
+    const found = new Map<string, SchemaTreeViolation>()
     function level(nodes: readonly SchemaNode[], nested: boolean) {
       const names = new Map<string, string[]>()
       for (const node of nodes) {
         const ids = names.get(node.name) ?? []
         ids.push(node.id)
         names.set(node.name, ids)
-        if (nested && node.valueSource) found.set(`source:${node.id}`, 'valueSource is allowed only on top-level fields.')
+        if (nested && node.valueSource) found.set(`source:${node.id}`, { reason: 'validation', message: 'valueSource is allowed only on top-level fields.' })
         if (node.children) level(node.children, true)
       }
       for (const [name, ids] of names) {
-        if (ids.length > 1) found.set(`siblings:${ids.sort().join(':')}`, `A sibling field already uses “${name}”.`)
+        if (ids.length > 1) found.set(`siblings:${ids.sort().join(':')}`, { reason: 'duplicate-name', duplicateName: name, message: `A sibling field already uses “${name}”.` })
       }
     }
     level(nodes, false)

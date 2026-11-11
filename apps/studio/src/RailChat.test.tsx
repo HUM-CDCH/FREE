@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
+import { testSchemaPersistence } from './test/schemaPersistence'
 
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RailChat, { type RailChatProps } from './RailChat'
 import { useSchemaChat } from './useSchemaChat'
-import { createSchemaEditorController, localSchemaPersistence, type SchemaEditorController } from './currentSchemaRevision'
+import { createSchemaEditorController, type SchemaEditorController } from './currentSchemaRevision'
 
 afterEach(cleanup)
 
 function schemaWithFields(): SchemaEditorController {
-  return createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }), {
+  return createSchemaEditorController(testSchemaPersistence(), {
     initialDraft: { recordDescription: 'One letter.', schemaNodes: [{ id: 'sender', name: 'sender', type: 'string' }] },
   })
 }
@@ -29,7 +30,7 @@ function renderChat(props: Partial<Omit<RailChatProps, 'chat'>> = {}) {
 describe('RailChat', () => {
   it('asks for Generate template before the first template and generates with the kept instructions', () => {
     const onGenerate = vi.fn()
-    renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
+    renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate })
     // No source to ask about: a message is kept as an instruction directly.
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'Focus on senders' } })
@@ -42,7 +43,7 @@ describe('RailChat', () => {
 
   it('stops at Template ready once a generation finishes, until the researcher goes on', async () => {
     // A generation joins a durable chain: this one initializes it.
-    const schema = createSchemaEditorController({ ...localSchemaPersistence({ onEdit: () => {} }),
+    const schema = createSchemaEditorController({ ...testSchemaPersistence(),
       initialize: async (definition) => ({ schemaRevisionId: 'revision-1', extractionSchemaId: 'schema-1', revisionNumber: 1, recordScope: null,
         origin: 'suggestion', createdAt: '2026-11-10T00:00:00.000Z', stabilisedAt: null, ...definition }) as never })
     const all = renderChat({ schema, onGenerate: vi.fn() })
@@ -83,7 +84,7 @@ describe('RailChat', () => {
 
   it('takes an instruction typed into the composer the Generate template step carries, and Esc still closes it', () => {
     const onGenerate = vi.fn()
-    renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
+    renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate })
     const step = screen.getByRole('region', { name: 'Generate template' })
     // The card carries the chat's composer as its last option: the only field there is, which its number focuses.
     const tell = within(step).getByRole('textbox', { name: 'Tell me what to focus on, or ask about the document…' })
@@ -113,7 +114,7 @@ describe('RailChat', () => {
 
   it('clears the whole conversation once confirmed, and the Generate template step asks afresh', async () => {
     const onGenerate = vi.fn()
-    renderChat({ schema: createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} })), onGenerate })
+    renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate })
     // Nothing said yet: nothing to clear.
     expect(screen.queryByRole('button', { name: 'Clear conversation' })).not.toBeInTheDocument()
     const input = screen.getByRole('textbox')

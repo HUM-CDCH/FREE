@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
+import { testSchemaPersistence } from './test/schemaPersistence'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaModelContext } from './api'
 import type { ChatHistory } from '../shared/schemaChat.contract'
 import type { ProjectChatEntry } from '../shared/projectChat.contract'
-import { createSchemaEditorController, localSchemaPersistence } from './currentSchemaRevision'
+import { createSchemaEditorController } from './currentSchemaRevision'
 import { boundedHistory, useProjectChatLog } from './projectChat'
 import { useSchemaChat, type ChatScope } from './useSchemaChat'
 
@@ -133,7 +134,7 @@ describe('useSchemaChat kept with its project', () => {
   ] satisfies { projectChatEntryId: string; entry: ProjectChatEntry }[]
 
   function renderChat(scope: ChatScope) {
-    const schema = createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }), {
+    const schema = createSchemaEditorController(testSchemaPersistence(), {
       initialDraft: { recordDescription: 'One letter.', schemaNodes: [{ id: 'sender', name: 'sender', type: 'string' }] },
     })
     // The local draft has no revision: the model context names none, so the answer is taken as current.

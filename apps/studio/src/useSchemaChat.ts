@@ -246,10 +246,6 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
       }
       const original = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
       const originalDraftVersion = schema.snapshot().draftVersion
-      if (!modelContext) {
-        say('Save this Extraction Template before requesting a model edit.')
-        return
-      }
       const originalSchemaRevisionId = modelContext.schemaRevisionId
       // The conversation goes with the message (the instructions before the first schema, then this chat), its latest
       // part where it is long.

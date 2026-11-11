@@ -1,3 +1,4 @@
+import { testSchemaPersistence } from './test/schemaPersistence'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RecordScope, SchemaDefinition, SchemaNode } from 'extraction/schema'
 import type {
@@ -10,7 +11,6 @@ import type { AcknowledgedSchemaRevision, SchemaSaveState } from './schemaSaveCo
 import {
   createSchemaEditorController,
   durableSchemaPersistence,
-  localSchemaPersistence,
 } from './currentSchemaRevision'
 
 const node = (name: string): SchemaNode => ({
@@ -240,7 +240,7 @@ describe('editor gate', () => {
       }),
     })
 
-    setup.controller.setRecordDescription('One site record. ')
+    setup.controller.beginInput('description', 'One site record. ', recordDescription => ({ ...setup.controller.snapshot().draft!, recordDescription })).save()
     await vi.advanceTimersByTimeAsync(0)
 
     expect(setup.saveState()).toBe('saved')
@@ -288,13 +288,13 @@ describe('editor gate', () => {
     })
   })
 
-  it('setRecordDescription is a no-op when nothing changed', () => {
+  it('description editing saves through the authoritative input', () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
 
-    setup.controller.setRecordDescription('One site record.')
+    setup.controller.beginInput('description', 'One site record.', recordDescription => ({ ...setup.controller.snapshot().draft!, recordDescription })).save()
 
-    expect(setup.edits).toHaveLength(0)
-    expect(setup.messages).toHaveLength(0)
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.messages).toHaveLength(1)
   })
 
   it('distinguishes a missing draft from a duplicate-name rejection', async () => {
@@ -325,7 +325,7 @@ describe('record scope', () => {
     expect(setup.appends).toEqual([{ expected: 1, definition: definition('site'), recordScope: 'records' }])
     expect(setup.controller.snapshot()).toMatchObject({ recordScope: 'records', extractableSchemaRevisionId: 'rev-2' })
 
-    setup.controller.setRecordDescription('One renamed record.')
+    setup.controller.beginInput('description', 'One renamed record.', recordDescription => ({ ...setup.controller.snapshot().draft!, recordDescription })).save()
     await setup.controller.flush()
     expect(setup.appends[1]).not.toHaveProperty('recordScope')
     expect(setup.controller.snapshot()).toMatchObject({ recordScope: 'records', extractableSchemaRevisionId: 'rev-3' })
@@ -783,13 +783,11 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot()).toMatchObject({ generating: false, extractableSchemaRevisionId: 'rev-2' })
   })
 
-  it('operationScope names the durable project and template, and is null for a local draft', () => {
+  it('operationScope names the durable project and template, including before its first revision', () => {
     const durable = setupDurable({ initial: revision(1, 'site') })
     expect(durable.controller.operationScope()).toEqual({ projectContextId: 'project-1', extractionSchemaId: 'schema-1' })
     const fresh = setupDurable()
     expect(fresh.controller.operationScope()).toEqual({ projectContextId: 'project-1', extractionSchemaId: null })
-    const local = createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }))
-    expect(local.operationScope()).toBeNull()
   })
 
   it('keeps durable identity when cancelled initialization still acknowledges', async () => {
@@ -892,66 +890,6 @@ describe('create Current Template Revision from history', () => {
     expect(setup.controller.snapshot().draft!.schemaNodes[0]!.name).toBe(
       'historical',
     )
-  })
-})
-
-describe('local persistence adapter', () => {
-  function setupLocal() {
-    const forwarded: SchemaDefinition[] = []
-    const persistence = localSchemaPersistence({
-      onEdit: (definition) => forwarded.push(definition),
-    })
-    const controller = createSchemaEditorController(persistence, {
-      initialDraft: definition('suggested'),
-    })
-    return { controller, forwarded }
-  }
-
-  it('forwards committed edits and never claims durability', () => {
-    const { controller, forwarded } = setupLocal()
-
-    const result = controller.commit(
-      (current) => [...current, node('extra')],
-      'ignored message',
-    )
-    expect(forwarded).toEqual([
-      {
-        recordDescription: 'One suggested record.',
-        schemaNodes: [node('suggested'), node('extra')],
-      },
-    ])
-    expect(result).toEqual({ ok: true })
-    expect(controller.snapshot().save).toBeNull()
-    expect(controller.snapshot().history).toEqual([])
-    expect(controller.snapshot().currentRevisionNumber).toBeUndefined()
-  })
-
-  it('keeps durable-only capabilities structurally unavailable', async () => {
-    const { controller } = setupLocal()
-
-    await expect(controller.requestModelEdit()).resolves.toBeNull()
-    await expect(
-      controller.previewHistoricalRevision('rev-1'),
-    ).rejects.toThrow('Revision history is unavailable for this draft.')
-    await expect(
-      controller.createCurrentRevisionFromHistory('rev-1'),
-    ).rejects.toThrow('Revision history is unavailable for this draft.')
-    await expect(controller.flush()).resolves.toBeNull()
-    const persistence = localSchemaPersistence({ onEdit: () => {} })
-    expect('flush' in persistence).toBe(false)
-    expect('getRevision' in persistence).toBe(false)
-    expect('initialize' in persistence).toBe(false)
-  })
-
-  it('clears through the gate and adopts external drafts without forwarding', () => {
-    const { controller, forwarded } = setupLocal()
-
-    expect(controller.clearDraft('Cleared fields')).toEqual({ ok: true })
-    expect(forwarded.at(-1)?.schemaNodes).toEqual([])
-
-    controller.adoptDraft(definition('retried'))
-    expect(controller.snapshot().draft).toEqual(definition('retried'))
-    expect(forwarded).toHaveLength(1)
   })
 })
 
@@ -1096,6 +1034,19 @@ describe('the source declaration across a reopen', () => {
   })
 })
 
+it('drops the prior source notice when recovered generation loses to a different revision', async () => {
+  const server = revisionChain()
+  await server.open().generate(generated('excerpted', EXCERPTED))
+  const tab = server.open()
+  await server.open().generate(generated('complete', { complete: true }))
+
+  await expect(tab.restoreGeneration({ _description: 'Late generation.', late: 'string' }, 'rev-1', EXCERPTED)).resolves.toBe(false)
+
+  expect(tab.snapshot().draft?.schemaNodes[0]?.name).toBe('complete')
+  expect(tab.snapshot().sourceCoverage).toBeNull()
+  expect(server.open().snapshot().sourceCoverage).toBeNull()
+})
+
 describe('exclusive authoring and acknowledged use', () => {
   it.each(['field', 'description', 'json'] as const)('retains %s input and blocks writes and use until Save or Cancel', async kind => {
     const { controller, appends } = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
@@ -1108,28 +1059,16 @@ describe('exclusive authoring and acknowledged use', () => {
     handle.update('One saved record.')
     expect(handle.save()).toBe(true)
     const used = await controller.prepareUse()
-    expect(used.recordDescription).toBe('One saved record.')
+    expect(controller.snapshot().draft?.recordDescription).toBe('One saved record.')
+    expect(Object.keys(used).sort()).toEqual(['extractionSchemaId', 'recordScope', 'schemaRevisionId'])
     expect(used.schemaRevisionId).toBe('rev-2')
     expect(Object.isFrozen(used)).toBe(true)
-    expect(Object.isFrozen(used.schemaNodes[0])).toBe(true)
     handle.update('late')
     expect(handle.save()).toBe(false)
     expect(controller.snapshot().input).toBeNull()
   })
 
-  it('an identical replacement preserves text but permanently invalidates the old handle', () => {
-    const { controller } = setupDurable({ initial: revision(1, 'site') })
-    const old = controller.beginInput('json', '{ invalid', () => definition('changed'))
-    controller.adoptDraft(definition('site'))
-    expect(controller.snapshot().input).toMatchObject({ value: '{ invalid', stale: true })
-    expect(old.save()).toBe(false)
-    old.cancel()
-    const next = controller.beginInput('description', 'next', () => definition('next'))
-    old.cancel(); old.update('late')
-    expect(old.save()).toBe(false)
-    expect(controller.snapshot().input?.value).toBe('next')
-    next.cancel()
-  })
+
 
   it('a normal acknowledgement keeps input valid, canonicalization preserves it as stale', async () => {
     for (const normalize of [false, true]) {
@@ -1146,17 +1085,17 @@ describe('exclusive authoring and acknowledged use', () => {
     }
   })
 
-  it('reserves use synchronously, refuses concurrent use and releases after failure or replacement', async () => {
+  it('reserves use synchronously, refuses concurrent use and releases after failure or disposal', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
     setup.controller.commit(nodes => [...nodes, node('year')], 'edit')
     const release = setup.holdNextAppend()
     const use = setup.controller.prepareUse()
     await expect(setup.controller.prepareUse()).rejects.toThrow('being prepared')
     expect(setup.controller.commit(() => [], 'delete').ok).toBe(false)
-    setup.controller.adoptDraft(definition('replacement'))
+    setup.controller.dispose()
     release()
     await expect(use).rejects.toThrow('could not be prepared')
-    expect(setup.controller.snapshot().useBlockedReason).toBeNull()
+    expect(setup.controller.snapshot().useBlockedReason).toBe('This editor is closed.')
   })
 
   it('proposal ownership cannot be released by an older token and preserves input on arrival', async () => {
@@ -1183,31 +1122,9 @@ describe('exclusive authoring and acknowledged use', () => {
   })
 })
 
-it('a History acknowledgement cannot overwrite an external replacement during its final save', async () => {
-  const setup = setupDurable({ initial: revision(2, 'site'), debounceMs: 10_000 })
-  const release = setup.holdNextAppend()
-  const creating = setup.controller.createCurrentRevisionFromHistory('rev-1')
-  await vi.advanceTimersByTimeAsync(0)
-  const marker = setup.controller.markProposal()
-  expect(marker.apply(() => [node('proposal')], 'proposal').ok).toBe(false)
-  marker.release()
-  setup.controller.adoptDraft(definition('external'))
-  release()
-  await expect(creating).rejects.toThrow('template changed')
-  expect(setup.controller.snapshot().draft).toEqual(definition('external'))
-})
 
-it('an external replacement during reset survives its delayed flush', async () => {
-  const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
-  setup.controller.commit(nodes => [...nodes, node('year')], 'edit')
-  const release = setup.holdNextAppend()
-  const resetting = setup.controller.reset()
-  setup.controller.adoptDraft(definition('external'))
-  release()
-  await expect(resetting).rejects.toThrow('template changed')
-  expect(setup.controller.snapshot().draft).toEqual(definition('external'))
-  expect(setup.controller.snapshot().useBlockedReason).toBeNull()
-})
+
+
 
 it('an acknowledgement that changes evidence policy invalidates the open input', async () => {
   const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000,
@@ -1223,7 +1140,7 @@ it('an acknowledgement that changes evidence policy invalidates the open input',
 it('concurrent historical previews keep the latest request even when older responses arrive last', async () => {
   const older = Promise.withResolvers<SchemaRevision>()
   const newer = Promise.withResolvers<SchemaRevision>()
-  const controller = createSchemaEditorController({ edit() {}, getRevision: id => id === 'older' ? older.promise : newer.promise }, { initialDraft: definition('site') })
+  const controller = createSchemaEditorController(testSchemaPersistence({ getRevision: id => id === 'older' ? older.promise : newer.promise }), { initialDraft: definition('site') })
   const a = controller.previewHistoricalRevision('older')
   const b = controller.previewHistoricalRevision('newer')
   newer.resolve(revision(3, 'newer'))
@@ -1242,4 +1159,55 @@ it.each(['network', 'conflict'])('prepareUse preserves work and releases its res
   expect(setup.controller.snapshot().draft?.schemaNodes.map(node => node.name)).toEqual(['site', 'year'])
   expect(setup.controller.snapshot().useBlockedReason).toBeNull()
   expect(setup.controller.snapshot().extractableSchemaRevisionId).toBeNull()
+})
+
+it('replacement invalidates authority even when it keeps the same content, and an old handle cannot touch the next input', () => {
+  const setup = setupDurable({ initial: revision(1, 'site') })
+  const old = setup.controller.beginInput('description', 'copyable', () => definition('changed'))
+  setup.controller.reloadCurrent()
+  expect(setup.controller.snapshot().input).toMatchObject({ value: 'copyable', stale: true })
+  expect(old.save()).toBe(false)
+  old.cancel()
+  const next = setup.controller.beginInput('description', 'next', () => definition('next'))
+  old.cancel(); old.update('late')
+  expect(old.save()).toBe(false)
+  expect(setup.controller.snapshot().input?.value).toBe('next')
+  next.cancel()
+})
+
+it('recovered edits retain source provenance through save and a real revision-chain reopen', async () => {
+  const server = revisionChain('site')
+  await server.open().generate(generated('place', EXCERPTED))
+  const recovered = server.open()
+  const base = recovered.snapshot().draft!
+  recovered.replaceDraft({ ...base, recordDescription: 'Recovered description.' }, 'Recovered unsaved draft')
+  expect(recovered.snapshot().sourceCoverage).toEqual(EXCERPTED)
+  await recovered.flush()
+  expect(recovered.snapshot().sourceCoverage).toEqual(EXCERPTED)
+  expect(server.chain.at(-1)?.sourceCoverage).toEqual(EXCERPTED)
+  expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
+  recovered.reloadCurrent()
+  expect(recovered.snapshot().sourceCoverage).toEqual(EXCERPTED)
+})
+
+it('proposal validity distinguishes temporary History blocking, stale authority and validation failures', async () => {
+  const setup = setupDurable({ initial: revision(2, 'site'), debounceMs: 10_000 })
+  const release = setup.holdNextAppend()
+  const creating = setup.controller.createCurrentRevisionFromHistory('rev-1')
+  const marker = setup.controller.markProposal()
+  expect(marker.validity()).toMatchObject({ ok: false, reason: 'blocked', message: 'A historical revision is being applied.' })
+  expect(marker.apply(() => [], 'proposal')).toMatchObject({ ok: false, reason: 'blocked' })
+  await vi.advanceTimersByTimeAsync(0)
+  release()
+  await creating
+  expect(marker.validity()).toMatchObject({ ok: false, reason: 'stale' })
+  expect(marker.apply(() => [], 'proposal')).toMatchObject({ ok: false, reason: 'stale' })
+  marker.release()
+  const valid = setup.controller.markProposal()
+  expect(valid.validity()).toEqual({ ok: true })
+  expect(valid.apply(nodes => [...nodes, { ...nodes[0]!, id: 'duplicate' }], 'proposal')).toMatchObject({ ok: false, reason: 'duplicate-name' })
+  expect(valid.validity()).toEqual({ ok: true })
+  expect(valid.apply(() => [{ id: 'g', name: 'group', type: 'object', children: [{ ...node('nested'), valueSource: 'source-filename' }] }], 'proposal')).toMatchObject({ ok: false, reason: 'validation', message: 'valueSource is allowed only on top-level fields.' })
+  expect(valid.validity()).toEqual({ ok: true })
+  valid.release()
 })
