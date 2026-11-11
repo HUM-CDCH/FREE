@@ -1703,8 +1703,8 @@ export default function ProjectContextPage({
                   )}
                   {spreadsheetTemplate.status === 'saved' && (
                     <p className="text-[11px] text-ink-muted" role="status">
-                      Saved as the Extraction Template “Suggested fields”, listed above. Open it to review or edit its
-                      fields.
+                      Saved as a new Extraction Template named after the spreadsheet, listed above. Open it to review or
+                      edit its fields.
                     </p>
                   )}
                 </div>
