@@ -261,7 +261,6 @@ function projectSummary(
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
     pendingExtractionSourceDocumentCount: number
-    schemaDraftCount: number
     currentSchemaRevisionId: string | null
     schemaStabilised: boolean
     currentSchemaRevisionReviewed: boolean
@@ -276,7 +275,6 @@ function projectSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     pendingExtractionSourceDocumentCount: 1,
-    schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
     currentSchemaRevisionReviewed: false,
@@ -1341,13 +1339,13 @@ describe('Project Context navigation', () => {
       const url = String(input)
       if (url.startsWith('/api/schema_import_preview?'))
         return Response.json({ worksheets: ['Codebook'], columns: url.includes('worksheet=') ? [column] : [] })
-      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+      if (url === '/api/extraction-schemas' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>
         writes.push({ url, method: 'POST', body })
         return Response.json({ revision: {
           schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
           origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
-          recordDescription: body.recordDescription, recordScope: 'document', schemaNodes: body.schemaNodes,
+          recordDescription: body.recordDescription, recordScope: null, schemaNodes: body.schemaNodes,
         } }, { status: 201 })
       }
       if (init?.method === 'PATCH') {
@@ -1370,8 +1368,8 @@ describe('Project Context navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
 
     await waitFor(() => expect(writes).toHaveLength(2))
-    expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
-    expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
+    // A new schema every import: never a revision of the project's newest schema.
+    expect(writes[0]).toMatchObject({ url: '/api/extraction-schemas', body: { projectContextId, recordDescription: 'One site.' } })
     expect(writes[1]).toMatchObject({
       url: `/api/extraction-schemas/${extractionSchemaId}`,
       body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Template' },
@@ -3094,7 +3092,8 @@ describe('routed Source Document reopening', () => {
     [
       'Batch Extraction',
       `/projects/${projectContextId}/extractions/51000000-0000-4000-8007-000000000099`,
-      4,
+      // The batch list; suggestions are read only by a preparation.
+      3,
       'That project no longer exists',
     ],
   ] as const)(

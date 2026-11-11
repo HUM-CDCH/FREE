@@ -90,7 +90,7 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
       .sort()
   const row = (id: string) =>
     db.orm.public.BatchSchemaSuggestion.select(
-      'attempt', 'outcome', 'failure', 'phase', 'proposal', 'coverage', 'draft', 'draftVersion',
+      'attempt', 'outcome', 'failure', 'phase', 'proposal', 'coverage', 'draft', 'confirmedSchemaRevisionId',
     ).first({ id })
 
   await db.orm.public.ResearcherAccount.create({
@@ -248,7 +248,6 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
 
   await t.test('publication and failure write only the current attempt while it has no outcome', async () => {
     const before = await row(suggestionId)
-    assert.equal(before?.draftVersion, 1)
     assert.deepEqual(before?.draft, definition('place'))
     // Attempt 2 has its outcome: neither a stale attempt nor a second publication of it writes anything.
     assert.equal(await worker.suggestionAttemptState(suggestionId, 2), 'stopped')
@@ -267,11 +266,10 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.equal(await worker.publishBatchSchemaSuggestion(suggestionId, 3, ready('year')), 'published')
     const published = await row(suggestionId)
     assert.equal(published?.outcome, 'SUCCEEDED')
-    assert.equal(published?.draftVersion, 2)
     assert.deepEqual(published?.proposal, definition('year'))
     assert.deepEqual(published?.draft, definition('year'))
     assert.equal(await worker.publishBatchSchemaSuggestion(suggestionId, 3, ready('other')), 'stopped')
-    assert.equal((await row(suggestionId))?.draftVersion, 2)
+    assert.deepEqual((await row(suggestionId))?.draft, definition('year'))
 
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 3))?.status, 'retried')
     assert.equal(await worker.failBatchSchemaSuggestionAttempt(suggestionId, 4, failure), 'published')
@@ -279,41 +277,82 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     const failed = await row(suggestionId)
     assert.equal(failed?.outcome, 'FAILED')
     assert.deepEqual(failed?.failure, failure)
-    // A failed attempt keeps the proposal, draft and draft version it found.
+    // A failed attempt keeps the proposal and draft it found.
     assert.equal(failed?.phase, 'READY')
     assert.deepEqual(failed?.proposal, definition('year'))
     assert.deepEqual(failed?.draft, definition('year'))
-    assert.equal(failed?.draftVersion, 2)
 
-    // A heterogeneous result clears the proposal and draft and still counts as a new version.
+    // A heterogeneous result clears the proposal and draft.
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 4))?.status, 'retried')
     assert.equal(await worker.publishBatchSchemaSuggestion(suggestionId, 5, { phase: 'HETEROGENEOUS' }), 'published')
     const heterogeneous = await row(suggestionId)
     assert.equal(heterogeneous?.phase, 'HETEROGENEOUS')
     assert.equal(heterogeneous?.draft, null)
-    assert.equal(heterogeneous?.draftVersion, 3)
   })
 
-  await t.test('a draft cannot be edited while an attempt is active', async () => {
+  await t.test('apply saves the settled result once as an Extraction Schema; a later result is another schema', async () => {
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 5))?.status, 'retried')
     assert.equal(await worker.publishBatchSchemaSuggestion(suggestionId, 6, ready('place')), 'published')
-    const version = (await row(suggestionId))!.draftVersion
+    // Only the current, settled attempt's result applies.
+    assert.deepEqual(await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 5, definition('place')), { status: 'not-ready' })
+    assert.equal(await researcher.applyBatchSchemaSuggestion(randomUUID(), suggestionId, 6, definition('place')), null)
+    const applied = await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 6, definition('place'))
+    assert.ok(applied && 'suggestion' in applied)
+    const revisionId = applied.suggestion.savedSchema?.schemaRevisionId
+    assert.ok(revisionId)
+    const revision = await db.orm.public.SchemaRevision.select('extractionSchemaId', 'revisionNumber', 'origin', 'schemaTree', 'recordScope')
+      .first({ id: revisionId })
+    assert.deepEqual({ ...revision, extractionSchemaId: undefined }, {
+      extractionSchemaId: undefined, revisionNumber: 1, origin: 'SUGGESTION', schemaTree: definition('place'), recordScope: null,
+    })
+    // A repeat (another tab, an uncertain POST) answers the same schema and creates nothing.
+    const repeated = await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 6, definition('place'))
+    assert.ok(repeated && 'suggestion' in repeated)
+    assert.deepEqual(repeated.suggestion.savedSchema, applied.suggestion.savedSchema)
+    assert.equal((await db.orm.public.SchemaRevision.where({ extractionSchemaId: revision!.extractionSchemaId }).all()).length, 1)
+    assert.equal((await db.orm.public.BatchExtraction.where({ projectContextId }).all()).length, 0)
+
+    // The saved schema is the researcher's to delete; the suggestion then reads as unsaved, and saving it again
+    // recreates the same schema.
+    const extractionSchemaId = applied.suggestion.savedSchema!.extractionSchemaId
+    assert.deepEqual(await researcher.deleteExtractionSchema(projectContextId, extractionSchemaId, false), { status: 'deleted' })
+    assert.equal((await researcher.getBatchSchemaSuggestion(projectContextId, suggestionId))?.savedSchema, null)
+    const again = await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 6, definition('place'))
+    assert.ok(again && 'suggestion' in again)
+    assert.deepEqual(again.suggestion.savedSchema, applied.suggestion.savedSchema)
+
+    // An applied result stays the researcher's schema: the next attempt clears the pointer and its result is another one.
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 6))?.status, 'retried')
-    const edited = definition('edited')
-    assert.deepEqual(
-      await researcher.updateBatchSchemaSuggestionDraft(projectContextId, suggestionId, version, edited),
-      { status: 'invalid' },
-    )
-    assert.deepEqual((await row(suggestionId))?.draft, definition('place'))
-    assert.equal(await worker.failBatchSchemaSuggestionAttempt(suggestionId, 7, failure), 'published')
-    const updated = await researcher.updateBatchSchemaSuggestionDraft(projectContextId, suggestionId, version, edited)
-    assert.equal(updated?.status, 'updated')
-    assert.ok(updated && 'suggestion' in updated)
-    assert.deepEqual(updated.suggestion.draft, edited)
-    assert.equal(updated.suggestion.draftVersion, version + 1)
+    assert.equal((await row(suggestionId))?.confirmedSchemaRevisionId, null)
+    assert.deepEqual(await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 7, definition('place')), { status: 'not-ready' })
+    assert.equal(await worker.publishBatchSchemaSuggestion(suggestionId, 7, ready('year')), 'published')
+    const next = await researcher.applyBatchSchemaSuggestion(projectContextId, suggestionId, 7, definition('year'))
+    assert.ok(next && 'suggestion' in next)
+    const nextRevision = await db.orm.public.SchemaRevision.select('extractionSchemaId').first({ id: next.suggestion.savedSchema!.schemaRevisionId })
+    assert.notEqual(nextRevision?.extractionSchemaId, revision!.extractionSchemaId)
+    assert.ok(await db.orm.public.SchemaRevision.select('id').first({ id: revisionId }))
   })
 
-  await t.test('retry is refused while an attempt is active, after confirmation, and with no surviving member', async () => {
+  await t.test('a spreadsheet template is saved as an Extraction Schema with its suggestion row', async () => {
+    const version = await db.orm.public.ProjectSpreadsheetVersion.create({
+      projectContextId, revisionNumber: 1, originalFilename: 'sites.xlsx', columns: [{ columnName: 'place' }],
+    })
+    const created = await researcher.createSpreadsheetSchemaSuggestion(projectContextId, definition('place'), { place: 'place' }, version.id)
+    assert.ok(created && 'suggestion' in created)
+    const saved = created.suggestion.savedSchema
+    assert.ok(saved)
+    const revision = await db.orm.public.SchemaRevision.select('extractionSchemaId', 'revisionNumber', 'origin', 'schemaTree', 'recordScope')
+      .first({ id: saved.schemaRevisionId })
+    assert.deepEqual(revision, {
+      extractionSchemaId: saved.extractionSchemaId, revisionNumber: 1, origin: 'SUGGESTION', schemaTree: definition('place'), recordScope: null,
+    })
+    // Applying it again (an older client) answers the same schema.
+    const applied = await researcher.applyBatchSchemaSuggestion(projectContextId, created.suggestion.batchSchemaSuggestionId, 1, definition('place'))
+    assert.ok(applied && 'suggestion' in applied)
+    assert.deepEqual(applied.suggestion.savedSchema, saved)
+  })
+
+  await t.test('retry is refused while an attempt is active and with no surviving member', async () => {
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 7))?.status, 'retried')
     assert.deepEqual(await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 8), { status: 'not-ready' })
     assert.deepEqual(await attempts(suggestionId), [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `suggest:${suggestionId}:${n}`))
@@ -327,8 +366,6 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.equal((await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 8))?.status, 'retried')
 
     assert.equal(await worker.publishBatchSchemaSuggestion(suggestionId, 9, ready('place')), 'published')
-    await db.orm.public.BatchSchemaSuggestion.where({ id: suggestionId }).update({ confirmedSchemaRevisionId: randomUUID() })
-    assert.deepEqual(await researcher.retryBatchSchemaSuggestion(projectContextId, suggestionId, 9), { status: 'not-ready' })
 
     // Deleting a member's Source Document deletes only its pin; with none left, retry is refused and the draft stays.
     const single = await researcher.createBatchSchemaSuggestion(projectContextId, [sources[2]!.sourceDocumentId])
@@ -341,6 +378,8 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.deepEqual(orphaned?.draft, definition('gamma'))
     assert.deepEqual(await researcher.retryBatchSchemaSuggestion(projectContextId, singleId, 1), { status: 'not-ready' })
     assert.deepEqual(await attempts(singleId), [`suggest:${singleId}:1`])
+    // Its result needs no source: it still applies.
+    assert.equal((await researcher.applyBatchSchemaSuggestion(projectContextId, singleId, 1, definition('gamma')))?.status, 'applied')
   })
 
   await t.test('the worker reads a pinned revision\'s Markdown, and nothing once the revision is gone', async () => {

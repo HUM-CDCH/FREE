@@ -56,8 +56,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       disposition: 'created',
       batch,
     })),
-    scheduleSuggestedBatch:
-      vi.fn<ExtractionModule['scheduleSuggestedBatch']>(),
     stabiliseSchemaRevision:
       vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
     listBatches: vi.fn<ExtractionModule['listBatches']>(async () => [batch]),

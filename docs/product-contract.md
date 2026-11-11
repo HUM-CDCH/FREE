@@ -183,8 +183,10 @@ the saved method single Run reads after saving the schema
 ([ADR 0015](adr/0015-extraction-method-pinned-at-admission.md)). It starts
 nothing and answers 409 for a method the account has changed since
 (`method_changed`), a Schema Revision with no Record Scope
-(`record_scope_required`), or a strategy that contradicts it
-(`record_scope_mismatch`). A single start is also refused while the newest
+(`record_scope_required`), a strategy that contradicts it
+(`record_scope_mismatch`), or, with the unified Catalog method, a Catalog start
+whose saved settings still carry retired Catalog limits the researcher has not
+reviewed and applied (`catalog_migration_required`). A single start is also refused while the newest
 Extraction on its Source Representation, a Batch Extraction member included,
 is neither Completed nor Stopped (`extraction_in_progress`, naming it;
 [ADR 0020](adr/0020-one-unfinished-extraction-per-source-representation.md)).

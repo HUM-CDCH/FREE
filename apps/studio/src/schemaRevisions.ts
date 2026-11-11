@@ -159,6 +159,19 @@ async function writeSchemaRevision(
   return schemaRevisionResponseSchema.parse(value).revision
 }
 
+/** A new Extraction Schema beside the project's others, whose revision 1 is `definition` with no Record Scope: the
+ *  template an import starts. */
+export async function createExtractionSchema(projectContextId: string, definition: SchemaDefinition): Promise<SchemaRevision> {
+  const response = await authenticatedFetch('/api/extraction-schemas', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ projectContextId, ...writtenDefinition(definition, undefined) }),
+  })
+  const value = await body(response)
+  if (!response.ok) throw failure(value, response.status)
+  return schemaRevisionResponseSchema.parse(value).revision
+}
+
 /**
  * `sourceCoverage`: what the Schema Suggestion behind the definition read of its source, when it made one.
  * `recordScope`: the Article (`document`) or Catalog (`records`) choice; omitted, the revision declares none.

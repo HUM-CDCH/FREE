@@ -272,6 +272,20 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     )
     assert.equal(await store.deleteProjectContext(declared.projectContextId), true)
   })
+  await t.test('an imported template is a new Extraction Schema beside a revisioned one', async () => {
+    const created = await store.createExtractionSchema(project.projectContextId, policySchema)
+    assert.ok(created && created.extractionSchemaId !== schema.id)
+    assert.equal(created?.revisionNumber, 1)
+    assert.equal(created?.origin, 'researcher-edit')
+    assert.equal(created?.recordScope, null)
+    assert.deepEqual(created?.schemaTree, policySchema)
+    assert.ok((await store.getSchemaRevision(project.projectContextId, schema.id, appliedRevision.id)), 'the existing schema is untouched')
+
+    const schemaCount = (await db.orm.public.ExtractionSchema.select('id').all()).length
+    assert.equal(await survivorStore.createExtractionSchema(project.projectContextId, policySchema), null)
+    assert.equal((await db.orm.public.ExtractionSchema.select('id').all()).length, schemaCount)
+    assert.deepEqual(await store.deleteExtractionSchema(project.projectContextId, created!.extractionSchemaId), { status: 'deleted' })
+  })
   const extraction = await db.orm.public.Extraction.create({
     sourceDocumentId: document.id,
     schemaRevisionId: appliedRevision.id,
@@ -314,34 +328,32 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     outcome: 'SUCCEEDED',
     phase: 'READY',
     draft: { name: 'original' },
-    draftVersion: 1,
   })
   await db.orm.public.BatchSchemaSuggestionSource.create({
     batchSchemaSuggestionId: batchSuggestion.id,
     sourceDocumentId: document.id,
     sourceRepresentationRevisionId: newerRepresentation.id,
   })
-  await t.test('simultaneous edits cannot overwrite the same draft revision', async () => {
-    const results = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', batchSuggestion.id, 2,
-      () => Promise.all(['first', 'second'].map((name) => store.updateBatchSchemaSuggestionDraft(
-        project.projectContextId, batchSuggestion.id, 1, { name },
-      ))),
-    )
-    assert.deepEqual(results.map((result) => result?.status).sort(), ['conflict', 'updated'])
-    const winner = results.findIndex((result) => result?.status === 'updated')
-    const saved = await store.getBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id)
-    assert.equal(saved?.draftVersion, 2)
-    assert.deepEqual(saved?.draft, { name: ['first', 'second'][winner] })
+  await t.test('simultaneous applies of one result save one Extraction Schema', async () => {
+    const definition = { recordDescription: 'One record.', schemaNodes: [] }
+    const results = await Promise.all([1, 2].map(() =>
+      store.applyBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id, 1, definition)))
+    assert.deepEqual(results.map((result) => result?.status), ['applied', 'applied'])
+    const [first, second] = results.map((result) => result && 'suggestion' in result ? result.suggestion.savedSchema?.schemaRevisionId : null)
+    assert.ok(first)
+    assert.equal(second, first)
+    const revision = await db.orm.public.SchemaRevision.select('extractionSchemaId').first({ id: first })
+    assert.equal((await db.orm.public.SchemaRevision.where({ extractionSchemaId: revision!.extractionSchemaId }).all()).length, 1)
   })
-  await t.test('two executions of one attempt\'s publication write one outcome and one draft version', async () => {
-    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSuggestion.id }).update({ attempt: 2, outcome: null })
+  await t.test('two executions of one attempt\'s publication write one outcome', async () => {
+    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSuggestion.id }).update({ attempt: 2, outcome: null, confirmedSchemaRevisionId: null })
     const proposal = { phase: 'READY' as const, proposal: { name: 'proposed' }, coverage: [], draft: { name: 'proposed' } }
     const results = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', batchSuggestion.id, 2,
       () => Promise.all([1, 2].map(() => workerStore.publishBatchSchemaSuggestion(batchSuggestion.id, 2, proposal))),
     )
     assert.deepEqual([...results].sort(), ['published', 'stopped'])
-    const saved = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'draft', 'draftVersion').first({ id: batchSuggestion.id })
-    assert.deepEqual(saved, { outcome: 'SUCCEEDED', draft: { name: 'proposed' }, draftVersion: 3 })
+    const saved = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'draft').first({ id: batchSuggestion.id })
+    assert.deepEqual(saved, { outcome: 'SUCCEEDED', draft: { name: 'proposed' } })
     assert.equal(await workerStore.failBatchSchemaSuggestionAttempt(batchSuggestion.id, 2, { code: 'late', message: 'Late.' }), 'stopped')
   })
   assert.equal(await store.deleteProjectContext(project.projectContextId), true)

@@ -5,11 +5,13 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
+  extractionSchemaCreateRequestSchema,
   extractionSchemaInitialName,
   extractionSchemaNameLimit,
   extractionSchemaResponseSchema,
   extractionSchemaWriteRequestSchema,
 } from '../shared/schemaRevision.contract.js'
+import { revisionDto } from './schema_revisions.js'
 import {
   ApiError,
   boundedLimit,
@@ -204,6 +206,31 @@ if (extractionSchemaNameLimit !== EXTRACTION_SCHEMA_NAME_LIMIT)
 if (extractionSchemaInitialName !== EXTRACTION_SCHEMA_INITIAL_NAME)
   throw new Error('Extraction Schema initial names must match.')
 
+/** Creates an Extraction Schema beside the project's others, as an import starts one. */
+export function createPostExtractionSchema(
+  store: Pick<ResearcherProjectStore, 'createExtractionSchema'>,
+) {
+  return async function POST(request: Request): Promise<Response> {
+    try {
+      if (new URL(request.url).pathname !== '/api/extraction-schemas')
+        throw new ApiError(404, 'not_found', 'Extraction Schema route was not found.')
+      const parsed = extractionSchemaCreateRequestSchema.safeParse(await parseJsonRequest(request))
+      if (!parsed.success)
+        throw new ApiError(422, 'invalid_request', 'Extraction Schema request is invalid.')
+      const { projectContextId, ...definition } = parsed.data
+      const revision = await store
+        .createExtractionSchema(projectContextId, definition)
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!revision) throw new ApiError(404, 'not_found', 'Project Context was not found.')
+      return json({ revision: revisionDto(revision) }, { status: 201, headers: noStore })
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
 ): Readonly<
@@ -211,6 +238,7 @@ export function createResearcherApiHandlers(
 > {
   return {
     GET: createGetExtractionSchemas(store),
+    POST: createPostExtractionSchema(store),
     PATCH: createPatchExtractionSchema(store),
     DELETE: createDeleteExtractionSchema(store),
   }

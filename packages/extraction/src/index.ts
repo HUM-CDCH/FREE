@@ -33,5 +33,4 @@ export type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScalarFieldType,
-  ScheduleSuggestedBatchInput,
 } from './types.js'

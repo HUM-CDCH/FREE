@@ -1,14 +1,10 @@
-import { db, isUniqueViolation, type Database } from 'db'
+import { db, type Database } from 'db'
 import type { ExtractionExecution, ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import {
   admitBatchExtraction,
-  admitBatchMember,
   admitInteractiveExtraction,
   METHOD_CHANGED_MESSAGE,
-  refuseUnusableIdentityFields,
-  savedMethodStillCurrent,
-  SUGGESTED_BATCH_KEYS,
 } from './postgres-admission.js'
 import {
   attemptSnapshot,
@@ -18,9 +14,8 @@ import {
   readRuntimeHeads,
   readDurableSummaries,
 } from './postgres-attempts.js'
-import { loadBatch, loadBatches, readBatchForResearcher, snapshot } from './postgres-batches.js'
+import { loadBatches, readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherDocument, ownsResearcherExtraction } from './postgres-ownership.js'
-import { persistSuggestedBatch, semanticSuggestionTree } from './postgres-suggested-batch.js'
 import type {
   BatchExtractionSnapshot,
   DocumentExtractionsSnapshot,
@@ -31,7 +26,6 @@ import type {
   RunSingleResult,
   ScheduleBatchInput,
   ScheduleBatchResult,
-  ScheduleSuggestedBatchInput,
   StabiliseSchemaRevisionInput,
   StabiliseSchemaRevisionResult,
 } from './types.js'
@@ -94,26 +88,6 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     input: ScheduleBatchInput,
   ): Promise<ScheduleBatchResult | null> {
     return admitBatchExtraction(this.database, this.execution, this.researcherAccountId, input)
-  }
-
-  scheduleSuggestedBatch(
-    input: ScheduleSuggestedBatchInput,
-  ): Promise<ScheduleBatchResult | null> {
-    return persistSuggestedBatch(
-      this.database,
-      this.researcherAccountId,
-      input,
-      {
-        execution: this.execution,
-        admitBatchMember,
-        savedMethodStillCurrent,
-        refuseUnusableIdentityFields,
-        loadBatch: (orm, projectContextId, batchExtractionId) => loadBatch(orm, projectContextId, batchExtractionId),
-        replayed: (error) => SUGGESTED_BATCH_KEYS.some((key) => isUniqueViolation(error, key)),
-        semanticSuggestionTree,
-        snapshot,
-      },
-    )
   }
 
   async listBatches(

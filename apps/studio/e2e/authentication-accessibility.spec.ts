@@ -152,7 +152,6 @@ test('switching Entra accounts does not retain the previous project rail @determ
         reviewedSourceDocumentCount: 0,
         staleSourceDocumentCount: 0,
         pendingExtractionSourceDocumentCount: 0,
-        schemaDraftCount: 0,
         currentSchemaRevisionId: null,
         schemaStabilised: false,
         currentSchemaRevisionReviewed: false,

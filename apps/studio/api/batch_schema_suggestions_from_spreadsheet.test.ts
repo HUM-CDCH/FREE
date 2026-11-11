@@ -59,10 +59,12 @@ function baseSuggestion(
       recordDescription: 'Uploaded from a spreadsheet.',
       schemaNodes: [{ id: 'species-node-id', name: 'species', type: 'string' }],
     },
-    draftVersion: 0,
     failure: null,
-    confirmedSchemaRevisionId: null,
-    batchExtractionId: null,
+    // The store saves the template with the row: it is never an unsaved draft.
+    savedSchema: {
+      extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+      schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+    },
     createdAt: now,
     sources: [],
     ...overrides,
@@ -85,7 +87,7 @@ function createRequest(body: Record<string, unknown>) {
 }
 
 describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
-  it('builds a template from the project\'s current spreadsheet and creates a READY suggestion with no sources', async () => {
+  it('builds a template from the project\'s current spreadsheet and answers the READY suggestion with its saved schema', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(async () =>
       currentSpreadsheet([
         { columnName: 'species' },
@@ -106,6 +108,7 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
     expect(body.batchSchemaSuggestion.sourceKind).toBe('SPREADSHEET')
     expect(body.batchSchemaSuggestion.phase).toBe('READY')
     expect(body.batchSchemaSuggestion.sources).toEqual([])
+    expect(body.batchSchemaSuggestion.savedSchema).toEqual(baseSuggestion().savedSchema)
     expect(body.batchSchemaSuggestion.projectSpreadsheetVersionId).toBe(spreadsheetVersionId)
     expect(body.batchSchemaSuggestion.columnFieldMapping).toEqual({
       species: 'species-node-id',

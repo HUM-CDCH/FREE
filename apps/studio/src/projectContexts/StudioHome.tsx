@@ -24,7 +24,7 @@ const phases = [
 /**
  * The quiet one-line card meta from the persisted summary: the Source Document
  * count, then the most decision-relevant state — staleness first, then review
- * progress, then schema drafts still in chat.
+ * progress.
  */
 function metaLine(project: ProjectContext): string {
   const count = project.sourceDocumentCount
@@ -34,10 +34,6 @@ function metaLine(project: ProjectContext): string {
     return `${documents} · ${summary.staleSourceDocumentCount} changed since extraction`
   if (summary.extractedSourceDocumentCount > 0)
     return `${documents} · ${summary.reviewedSourceDocumentCount} of ${summary.extractedSourceDocumentCount} reviewed`
-  if (summary.schemaDraftCount > 0)
-    return `${documents} · ${summary.schemaDraftCount} schema ${
-      summary.schemaDraftCount === 1 ? 'draft' : 'drafts'
-    }`
   return documents
 }
 

@@ -61,7 +61,6 @@ describe('Project Context routes', () => {
             reviewedSourceDocumentCount: 0,
             staleSourceDocumentCount: 0,
             pendingExtractionSourceDocumentCount: 1,
-            schemaDraftCount: 0,
             currentSchemaRevisionId: null,
             lastActivityAt: '2026-07-31T12:01:00.000Z',
             runningBatch: null,

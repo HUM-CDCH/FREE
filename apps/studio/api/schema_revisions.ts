@@ -31,7 +31,7 @@ function identity(url: URL, name: string): string {
   return value
 }
 
-function revisionDto(revision: SchemaRevisionRecord) {
+export function revisionDto(revision: SchemaRevisionRecord) {
   // The stored tree with its revision's record scope beside it: the definition as every boundary reads it.
   const definition = savedSchemaDefinition(revision.schemaTree, revision.recordScope)
   return {

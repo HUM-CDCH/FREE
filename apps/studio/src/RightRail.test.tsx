@@ -388,7 +388,7 @@ describe('RightRail collapsed', () => {
 
 describe('RightRail asked to extract in the chat', () => {
   const summary = { phase: 'pilot' as const, extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0,
-    staleSourceDocumentCount: 0, pendingExtractionSourceDocumentCount: 3, schemaDraftCount: 0, currentSchemaRevisionId: 'revision',
+    staleSourceDocumentCount: 0, pendingExtractionSourceDocumentCount: 3, currentSchemaRevisionId: 'revision',
     schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null }
   const documents = [{ id: 'here', name: 'test.pdf' }, { id: 'b', name: 'b.pdf' }, { id: 'c', name: 'c.pdf' }]
 

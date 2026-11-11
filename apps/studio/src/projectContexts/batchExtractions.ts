@@ -10,11 +10,9 @@ import {
   batchSchemaSuggestionErrorResponseSchema,
   batchSchemaSuggestionCreateFromSpreadsheetRequestSchema,
   batchSchemaSuggestionCreateRequestSchema,
-  batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
   batchSchemaSuggestionResponseSchema,
   batchSchemaSuggestionRetryRequestSchema,
-  batchSchemaSuggestionRunRequestSchema,
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
 } from '../../shared/batchSchemaSuggestion.contract'
@@ -24,7 +22,6 @@ import {
   projectSpreadsheetVersionResponseSchema,
   type ProjectSpreadsheetVersion,
 } from '../../shared/projectSpreadsheet.contract'
-import type { SchemaDefinition } from 'extraction/schema'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import { isRecord } from '../../shared/template'
 
@@ -236,43 +233,18 @@ export async function listBatchSchemaSuggestions(
   ).batchSchemaSuggestions
 }
 
-export async function updateBatchSchemaSuggestionDraft(
+/** Saves the suggestion's settled result as an ordinary Extraction Schema, once: a repeat (another tab, an uncertain
+ *  answer) returns the schema it saved. */
+export async function applyBatchSchemaSuggestion(
   projectContextId: string,
   batchSchemaSuggestionId: string,
-  definition: SchemaDefinition,
-  expectedDraftVersion: number,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })
   return batchSchemaSuggestionResponseSchema.parse(
-    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?${query}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(
-        batchSchemaSuggestionDraftRequestSchema.parse({
-          expectedDraftVersion,
-          ...definition,
-        }),
-      ),
-      signal,
-    }),
-  ).batchSchemaSuggestion
-}
-
-/** Runs the suggestion's draft as a Batch Extraction on the saved method the start view showed. */
-export async function runBatchSchemaSuggestion(
-  projectContextId: string,
-  batchSchemaSuggestionId: string,
-  strategy: ExtractionStrategy,
-  method: ExtractionMethodIntent,
-  signal?: AbortSignal,
-): Promise<BatchSchemaSuggestion> {
-  const query = new URLSearchParams({ projectContextId })
-  return batchSchemaSuggestionResponseSchema.parse(
-    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/run?${query}`, {
+    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/apply?${query}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(batchSchemaSuggestionRunRequestSchema.parse({ strategy, method })),
+      headers: { accept: 'application/json' },
       signal,
     }),
   ).batchSchemaSuggestion

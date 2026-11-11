@@ -376,7 +376,7 @@ describe('reopened Source Document workspace', () => {
     const documents = [here, ...others].map((id, index) => ({ id, name: index === 0 ? 'Beretning.pdf' : `Letter ${index}.pdf` }))
     const summary = (overrides: Partial<NonNullable<DocumentWorkspaceProps['project']>['summary']> = {}) => ({
       phase: 'pilot' as const, extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0, staleSourceDocumentCount: 0,
-      pendingExtractionSourceDocumentCount: 4, schemaDraftCount: 0, currentSchemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      pendingExtractionSourceDocumentCount: 4, currentSchemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides })
     const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: sourceDocumentId.replace('-8001-', '-8006-'), sourceDocumentId,
       sourceRepresentationRevisionId: sourceDocumentId.replace('-8001-', '-8002-'), executionStatus: 'COMPLETED', completed: true, reviewable: true,
