@@ -247,9 +247,8 @@
   color: var(--editor-toolbar-hover-fg-color);
 }
 
-/* Evidence marks: one Evidence colour; dotted for a rule link, dashed for an uncertain passage (`doubtful`); a decided
-   value drops its fill and keeps a 1px underline, so the fills left on a page are what is still to check; the selected
-   value an ev-soft fill and an accent outline. */
+/* Evidence marks: one Evidence colour; dotted for a rule link, dashed for an uncertain passage (`doubtful`); review decisions
+   preserve fill and underline; the selected value has an ev-soft fill and an accent outline. */
 .evidence-mark {
   padding: 0;
   border: 0;
@@ -261,7 +260,6 @@
 .evidence-mark.preview { border: 1px dashed var(--color-ev); background: var(--color-ev-ghost); }
 .evidence-mark.rule { border-bottom-style: dotted; }
 .evidence-mark.doubtful { border-bottom-style: dashed; }
-.evidence-mark.decided { border-bottom-width: 1px; background: transparent; }
 .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev-soft) 70%, transparent); outline: 2px solid var(--color-accent); }
 .evidence-mark:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 /* A value under the pointer, here or on its Results row: its marks get the ev-soft fill and nothing else. The outline
@@ -291,7 +289,6 @@ button.evidence-mark[data-name].hovered:hover::after { content: attr(data-name);
    look and how each value is linked, the block only that the passage is Evidence. It leaves the pointer to them, so a
    value has one pointer target and never a second one under it; the keyboard still reaches the block. */
 .pdf-viewer .evidence-mark.valued { background: color-mix(in srgb, var(--color-ev-soft) 30%, white); border-color: transparent; pointer-events: none; }
-.pdf-viewer .evidence-mark.decided { background: transparent; }
 .pdf-viewer .evidence-mark.hovered { background: var(--color-ev-soft); }
 /* An outlined mark shows one edge only: its own underline would run inside the outline as a second line. */
 .pdf-viewer .evidence-mark.selected { background: var(--color-ev-soft); border-color: transparent; outline-offset: 0; }
@@ -299,12 +296,11 @@ button.evidence-mark[data-name].hovered:hover::after { content: attr(data-name);
 .pdf-viewer .evidence-mark.parsed-evidence-focus { border: 2px solid var(--color-accent); background: var(--color-ev-soft); }
 /* A value's printing, drawn inside its block mark in its field's colour: every placed value as a highlighter stroke,
    the selected or hovered one stronger. Its underline is its own link's, as a block's is: dotted by rule, dashed for an
-   uncertain passage, 1px once decided. The pointer picks its one value in Results (the painter sets `pointer-events`);
+   uncertain passage, unchanged by review decisions. The pointer picks its one value in Results (the painter sets `pointer-events`);
    it is not announced, so the block mark stays the button, and its name says the same in words. */
 .pdf-viewer .evidence-value-mark { border-bottom: 2px solid var(--color-ev); background: color-mix(in srgb, var(--color-ev) 12%, var(--color-ev-soft)); cursor: pointer; mix-blend-mode: multiply; }
 .pdf-viewer .evidence-value-mark.rule { border-bottom-style: dotted; }
 .pdf-viewer .evidence-value-mark:is(.doubtful, .preview) { border-bottom-style: dashed; }
-.pdf-viewer .evidence-value-mark.decided { border-bottom-width: 1px; background: transparent; }
 .pdf-viewer .evidence-value-mark:is(.hovered, .selected) { background: color-mix(in srgb, var(--color-ev) 30%, var(--color-ev-soft)); }
 .evidence-marks-off .evidence-value-mark:not(.selected) { display: none; }
 /* The overview: one tick per Evidence mark over the PDF's scrollbar, at the mark's place in the whole document and in

@@ -658,7 +658,7 @@ describe('value marks', () => {
     expect(values()[0]!.title).toBe('')
   })
 
-  it('carries its own link in its underline, thinner once decided, and leaves its block without one', async () => {
+  it('carries its own link and decision state, and leaves its block without an underline', async () => {
     const { rerender, marks, values, container } = paint([inside], 'segment', null)
     expect([...values()[0]!.classList]).toContain('link')
     await rerender({ marks: { ...marks, describe: new Map([[key, { ...marks.describe.get(key)!, style: 'doubtful', word: 'Approved' }]]) } })
