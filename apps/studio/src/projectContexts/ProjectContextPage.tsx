@@ -34,8 +34,6 @@ import {
 } from './batchExtractions'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
-// Hidden for now with its use on the Extractions tab below.
-// import { ProjectFeedback } from '../ProjectFeedback'
 import ProjectStatus from './ProjectStatus'
 import { useOpenDocumentTabs } from '../useOpenDocumentTabs'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
@@ -1700,9 +1698,6 @@ export default function ProjectContextPage({
           open={tab === 'extractions'}
           onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'extractions' : 'sources' })}
         >
-          <>
-          {/* Hidden for now: "Corrections the model learns from". Restore with the import above.
-          <ProjectFeedback projectId={projectContextId}/> */}
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
             // continuation of what this panel currently shows.
@@ -1728,7 +1723,6 @@ export default function ProjectContextPage({
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
           />
-          </>
         </ProjectSection>
       </div>
 

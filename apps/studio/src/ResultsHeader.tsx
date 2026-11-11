@@ -14,14 +14,10 @@ export type StatusLine = {
   mark: StatusMark
   word: string
   rest: string
-  /** "Why?" after the rest, a link to the drawer's Extraction section. */
-  why?: boolean
   /** Opens the document's latest Extraction while another one is shown. */
   onLatest?: () => void
   /** A failed run's message, on a second line with "Show details". */
   failure?: string
-  /** The date of a saved review, as the line's title. */
-  title?: string
 }
 
 function Mark({ mark }: { mark: StatusLine['mark'] }) {
@@ -50,7 +46,7 @@ export type HeaderActions = {
  */
 export default function ResultsHeader({
   status, counts, running, reviewSaved = false, readOnlyNote, actions, chips, filter, onFilter,
-  detailsOpen, menuOpen, menuRef, slot = null, onDetails, onMenu, onWhy, onShowDetails,
+  detailsOpen, menuOpen, menuRef, slot = null, onDetails, onMenu, onShowDetails,
   onOneByOne, onSaveReview, onList,
 }: {
   status: StatusLine
@@ -71,7 +67,6 @@ export default function ResultsHeader({
   slot?: HTMLElement | null
   onDetails: () => void
   onMenu: () => void
-  onWhy: () => void
   onShowDetails: () => void
   onOneByOne: () => void
   onSaveReview: () => void
@@ -97,11 +92,10 @@ export default function ResultsHeader({
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
         <div className="flex items-center gap-1.5 text-secondary">
           <Mark mark={status.mark} />
-          <p role="status" aria-atomic="true" className="m-0 flex flex-wrap items-baseline gap-x-1" title={status.title}>
+          <p role="status" aria-atomic="true" className="m-0 flex flex-wrap items-baseline gap-x-1">
             <b className="text-content text-ink">{status.word}</b>
             {status.rest && <span className="text-ink-muted tabular-nums">{status.rest}</span>}
             {status.onLatest && <button type="button" className={linkButton} onClick={status.onLatest}>Open latest</button>}
-            {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
           </p>
         </div>
         <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-compact text-ink-muted">

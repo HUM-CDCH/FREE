@@ -11,8 +11,6 @@ import { durableReviewMachine, type ReviewAcknowledgement } from './durableRevie
 import Button from './ui/Button'
 import { DurableInputs } from './DurableInputs'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
-// Hidden for now with its use in the history panel below.
-// import { ProjectFeedback } from './ProjectFeedback'
 import ReviewRow from './ReviewRow'
 import type { PartPick } from './ui/ReviewedValueDisplay'
 import ReviewFocus from './ReviewFocus'
@@ -103,8 +101,8 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   return <section aria-label={`Review ${fieldWords(value.node.name)}`} className="space-y-2">
     <div>
       {focus?<ReviewFocus {...common} article={article} current={row} items={position?.items??[]} position={position}
-        recordLabel={recordLabel} label={recordLabel} upNext={forwardItems(queue,value.id,blocked).slice(0,3)}
-        end={null} headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
+        recordLabel={recordLabel} upNext={forwardItems(queue,value.id,blocked).slice(0,3)}
+        headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
           saved={readOnly}/>}
       {editing&&!readOnly&&document&&<details className="mx-3 mb-2 text-secondary">
@@ -298,8 +296,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // While the rail is open, Results wants the latest values, also while it shows an explicitly opened cut ("Show the
   // latest results"). Collapsed, a read already started finishes and none starts.
   useEffect(()=>railOpen?reader?.wantPages():undefined,[reader,railOpen])
-  // A loaded cut keeps its page and decision policy together; a pending request replaces neither.
-  const [loadedCut,setLoadedCut]=useState<{page:DurablePage;historical:boolean}|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
+  // A loaded cut keeps its identity, page and policy together; pending requests replace none.
+  const [loadedCut,setLoadedCut]=useState<{page:DurablePage;historical:boolean;generation:number}|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
   const [errorsBefore,setErrorsBefore]=useState(state)
   // A stopped reader reads again only when asked, so it is shown first, with its Reconnect; the rail's banner does this
   // for the latest one.
@@ -313,8 +311,6 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const exportRequest=useRef<AbortController|null>(null)
   const menuButton=useRef<HTMLButtonElement>(null)
   useEffect(()=>()=>{exportRequest.current?.abort()},[])
-  // Restore with ProjectFeedback (hidden for now): const [unfit,setUnfit]=useState(0)
-  const [unfit]=useState(0)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
   const document=state&&state.sourceRevisionId!==documentRevisionId
     ? pinnedDocument?.revision===state.sourceRevisionId?pinnedDocument.document:null : currentDocument
@@ -404,7 +400,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     if(!historical&&pending&&!observes(page,pending))return
     selectionFromMark.current=fromMark&&focus?key:null
     setPart(null)
-    const generation=++selectedGeneration.current,cutGeneration=readGenerations.current.snapshot
+    const generation=++selectedGeneration.current,cutGeneration=pinned?loadedCut?.generation??0:0
     const value=page?.values.find(each=>each.id===key)
     if(value)reveal(value.recordId)
     if(value&&page)setReview(previous=>previous?.value.id===key&&previous.version===page.snapshotVersion&&previous.feedbackVersion===page.feedbackVersion?{...previous,cutGeneration}:{value,version:page.snapshotVersion,feedbackVersion:page.feedbackVersion,cutGeneration})
@@ -413,7 +409,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       if(result.values[0]){reveal(result.values[0].recordId);setReview({value:result.values[0],version:result.snapshotVersion,feedbackVersion:result.feedbackVersion,cutGeneration})}
       else setError('That value is not saved in this snapshot.')
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
-  },[page,id,focus,pendingDecisions,historical])
+  },[page,id,focus,pendingDecisions,historical,pinned,loadedCut])
   // Choosing a value in the list, or opening a link to it, shows its Evidence on the source once: in one-by-one the
   // follow does when the value changes what it follows (also once a pending source arrives), else choose does. A
   // mark leaves the source's scroll position alone.
@@ -513,7 +509,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     const controller=new AbortController(),generation=readGenerations.current.snapshot
     let retry:ReturnType<typeof setTimeout>|undefined
     const read=()=>void readValues(id,{snapshotVersion:cut.snapshotVersion,feedbackVersion:cut.feedbackVersion},controller.signal).then(next=> {
-      if(generation===readGenerations.current.snapshot){setLoadedCut({page:next,historical:cut.feedbackVersion!==undefined});setError(null)}
+      if(generation===readGenerations.current.snapshot){setLoadedCut({page:next,historical:cut.feedbackVersion!==undefined,generation});setError(null)}
     },error=> {
       if(controller.signal.aborted)return
       setError(error instanceof Error?error.message:'Unable to load the saved snapshot.')
@@ -536,11 +532,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   }
   const selectPage=async(query:{snapshotVersion:number;feedbackVersion?:number})=> {
     // Keep the shown page's policy while the destination loads, also if that read fails.
-    if(!pinnedRef.current)setLoadedCut({page,historical:false})
+    if(!pinnedRef.current)setLoadedCut({page,historical:false,generation:0})
     pin(true)
     ++selectedGeneration.current
     const generation=++readGenerations.current.snapshot
-    try {const next=await readValues(id,query);if(generation===readGenerations.current.snapshot){setLoadedCut({page:next,historical:query.feedbackVersion!==undefined});return next}
+    try {const next=await readValues(id,query);if(generation===readGenerations.current.snapshot){setLoadedCut({page:next,historical:query.feedbackVersion!==undefined,generation});return next}
       return null}
     catch(error){if(generation===readGenerations.current.snapshot)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.');return null}
   }
@@ -549,7 +545,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const saved=(acknowledgement?:ReviewAcknowledgement)=> {
     if(acknowledgement)setAcknowledgements(previous=>new Map(previous).set(acknowledgement.valueId,acknowledgement))
     const awaiting=new Set([...blocked,...(acknowledgement?[acknowledgement.valueId]:[])])
-    const sameCut=!review||review.cutGeneration===readGenerations.current.snapshot
+    const sameCut=!review||review.cutGeneration===(pinned?loadedCut?.generation??0:0)
     const next=focus&&sameCut?nextToCheck(queue,acknowledgement?.valueId??review?.value.id??null,awaiting):null
     setReview(null);setEditing(null)
     if(!sameCut)setFocus(false)
@@ -627,7 +623,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):nextToCheck(queue,null,blocked)===null?'Nothing left to check here':null}:null,
         saveReview:canSave?'Save review':null,list:focus}}
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
-      onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
+      onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);const first=review&&queue.some(item=>item.key===review.value.id)&&!blocked.has(review.value.id)?null:nextToCheck(queue,null,blocked);if(first)selectValue(first)}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {previews.length>0&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">Preview highlights show matching text. Citations are still being checked.</p>}
     <ResultSchemaNotice page={page} state={state} current={currentSchema} controlled={controlled} readOnly={readOnly} onSchema={onSchema}/>
@@ -676,12 +672,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         <button type="button" className={linkClass} onClick={showLatest}>Show the latest results</button></p>}
     </div>}
     <div ref={resultsContainer} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">
-      {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending template and won’t be shown to the model.{' '}
-        {onShowHistory&&<button type="button" className={linkClass} onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
-        {/* Hidden for now: "Corrections the model learns from". Restore with the import above; while hidden, `unfit`
-            stays 0, so the pending schema's "corrections don't fit" note stays hidden too.
-        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${latestPage.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/> */}
         <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} current={page.snapshotVersion} live={page.feedbackVersion===latestPage.feedbackVersion} review={page.finalization?.id??null} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
