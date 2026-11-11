@@ -43,7 +43,7 @@ const linkClass='cursor-pointer text-accent underline'
 const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
 
 function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,queue,keyboardRoot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick}:{
-  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;
+  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:(decided:boolean)=>void;onClose:()=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
   newer?:boolean;
   focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
@@ -60,7 +60,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   const [editing,setEditing]=useState(false)
   const headingRef=useRef<HTMLHeadingElement>(null)
   useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen&&!exportOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen,exportOpen])
-  useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
+  useEffect(()=> {if(state.matches('saved')) onSaved(state.context.action!=='PENDING')},[state,onSaved])
   const row=durableRailRow(state.context.value,document,part)
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
   const position=queuePosition(queue,value.id)
@@ -249,6 +249,8 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
 /** Whether the results shown hold the same version of a value as the open review's. */
 /** A Value Disagreement's readings at each place, in no particular order, as a decision binds to them. */
 const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,d.alternatives.map(a=>JSON.stringify(a.value)).sort()])).sort()
+/** The revision a save of this value must name, as the review machine does. */
+const savedRevision=(value:Value)=>value.correction?.revision??value.historicalCorrection?.revision??0
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
   &&JSON.stringify(readings(a))===JSON.stringify(readings(b))
 
@@ -337,7 +339,10 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const [pinned,setPinned]=useState(initialCut!==null)
   const pinnedRef=useRef(pinned)
   const pin=(value:boolean)=>{pinnedRef.current=value;setPinned(value)}
+  const pendingDecisions=useRef(new Map<string,number>())
   const page=pinned?cutPage:latestPage
+  useEffect(()=>{pendingDecisions.current.clear()},[id,pinned,cutPage])
+  useEffect(()=>{for(const value of page?.values??[])if(savedRevision(value)>=(pendingDecisions.current.get(value.id)??Infinity))pendingDecisions.current.delete(value.id)},[page])
   // Every accepted state clears the view's command, snapshot and value errors, as every accepted read did; an opened
   // cut that could not be read stays said until it is.
   if(errorsBefore!==state){setErrorsBefore(state);if(page)setError(null)}
@@ -384,6 +389,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // A chosen value shows in its record, whichever way the researcher last toggled it.
   const reveal=(record:string)=>setToggledRecords(previous=>{if(previous.get(record)!==false)return previous;const next=new Map(previous);next.delete(record);return next})
   const selectValue=useCallback((key:string,fromMark=false)=> {
+    // Wait for our saved revision before opening another machine for this value; one the page does not hold is read.
+    const behind=page?.values.find(value=>value.id===key)
+    if(behind&&savedRevision(behind)<(pendingDecisions.current.get(key)??0))return
     selectionFromMark.current=fromMark&&focus?key:null
     setPart(null)
     const generation=++selectedGeneration.current
@@ -529,8 +537,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   }
   const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current}
   // A saved decision moves one-by-one to the next value at once; the saved results and counts follow.
-  const saved=()=> {
-    const next=focus?nextToCheck(queue,review?.value.id??null):null
+  const saved=(decision=false)=> {
+    if(decision&&review)pendingDecisions.current.set(review.value.id,savedRevision(review.value)+1)
+    const next=focus?nextToCheck(queue.filter(item=>item.key===review?.value.id||!pendingDecisions.current.has(item.key)),review?.value.id??null):null
     setReview(null);setEditing(null)
     if(pinnedRef.current)void selectPage({snapshotVersion:page.snapshotVersion})
     void reader.refresh()
