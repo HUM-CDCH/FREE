@@ -139,6 +139,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   function choose(card: StepCard, option: StepOption, text = '') {
     const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
+    // A choice that moves the workflow on, chosen under another view, returns to the conversation so the next step is
+    // in front of the researcher; one that opens a view goes there, and a run's controls leave the view as it is.
+    if (!STAYS.has(option.action)) reveal()
     // Past the step, something else said instead: the message itself joins the conversation, which answers it.
     const said = option.action === 'dismiss' ? text.trim() : ''
     if (said) {
@@ -337,6 +340,10 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 /** A picking option's label with the documents it acts on. */
 const pickedLabel = (option: StepOption, count: number) => option.label.replace('{n}', plural(count, 'document'))
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
+/** The choices that leave the rail's view where it is: those that open a view themselves, and a run's controls (and the
+ *  export, whose dialog opens over it). Every other choice moves the workflow on and returns to the conversation. */
+const STAYS: ReadonlySet<StepAction> = new Set<StepAction>(['review-schema', 'review', 'open-document',
+  'stop-generation', 'pause', 'stop', 'stop-batch', 'export'])
 
 /** A step folded to the card's title line (set aside, or under another view): the same left edge and ⏵, a summary, and
  *  its actions, which take further lines where the rail is narrow. The title brings the whole step back. */

@@ -1731,6 +1731,8 @@ describe('reopened Source Document workspace', () => {
 
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Template actions' }))
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
@@ -1789,6 +1791,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(releaseAutomatic).not.toBeNull())
@@ -1851,6 +1855,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(patches).toEqual(['Beretning']))
@@ -1924,6 +1930,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning']))
@@ -1991,6 +1999,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     expect(await screen.findByText(notice)).toBeInTheDocument()
     expect(written.map((body) => body.sourceCoverage)).toEqual([excerpted])
@@ -3029,6 +3039,8 @@ describe('reopened Source Document workspace', () => {
 
       openRailView('Template')
       fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+      // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+      openRailView('Template')
       await waitFor(() => expect(written).toHaveLength(1))
       expect(written[0]).not.toHaveProperty('recordScope')
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
