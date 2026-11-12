@@ -71,15 +71,14 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   const bytes = useMemo(() => new TextEncoder().encode(markdown ?? ''), [markdown])
   const root = useRef<HTMLPreElement>(null)
   const describe = marks?.describe, savedLinks = marks?.savedLinks
-  const selectedKey = marks?.selected
   useLayoutEffect(() => observeEvidenceHover(selection, [root.current]))
-  // Switching views remounts this pane while Results keeps its selection.
+  // Reveal the retained selection on mount; later clicks scroll only their destination pane.
   useLayoutEffect(() => {
-    if (!selectedKey) return
+    if (!selection.snapshot().marks?.selected) return
     const mark = root.current?.querySelector<HTMLElement>('[aria-current="true"]')
     const container = root.current?.parentElement
     if (container && mark) scrollWithinPane(container, mark)
-  }, [selectedKey, markdown])
+  }, [selection, markdown])
   if (!markdown) return (
     <div className="mx-auto max-w-[34ch] pt-16 text-center">
       <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
@@ -127,7 +126,7 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
     const infos = describeMarks(keys, describe).map(({ info }) => info)
     const selected = marks?.selected != null && keys.some(key => ownsMark(marks.selected!, key))
     const text = decode(span.start, span.end)
-    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{text}</span>
+    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId} data-hover-keys={JSON.stringify(keys)}>{text}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{text}</span>
       : <button key={span.start} type="button" style={evidenceColorVars(sharedColor(infos.map(info => info.color)))}
         className={`evidence-mark ${infos.some(info => info.style === 'preview') ? 'preview' : infos[0]!.style}${infos.every(info => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
