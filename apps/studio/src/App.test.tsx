@@ -10,6 +10,7 @@ import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import * as paneScrolling from './scrollWithinPane'
 /** The chat's composer: its own hint, or the way past the step whose card carries it. */
 const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
@@ -1518,6 +1519,39 @@ describe('reopened Source Document workspace', () => {
     expect(place()).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(passage)
     expect(place()).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('reveals the selected value when switching from PDF to Markdown, including on return', async () => {
+    const value = { id: 'place', recordId: 'record', fieldId: 'place', path: ['records', 0, 'place'],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id: 'place', name: 'place', type: 'string' }, modelValue: 'Harlow', evidence: [],
+      links: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 1, toCheck: 1, approved: 0, edited: 0, rejected: 0 }, values: [value], total: 1, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    const reveal = vi.spyOn(paneScrolling, 'scrollWithinPane')
+    try {
+      render(<DocumentWorkspace {...reopened} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      openRailView('Results')
+      fireEvent.click(await screen.findByRole('button', { name: /^To check place Harlow/ }))
+      const view = within(screen.getByRole('group', { name: 'Document view' }))
+      for (let visit = 0; visit < 2; visit++) {
+        reveal.mockClear()
+        fireEvent.click(view.getByRole('button', { name: 'Markdown' }))
+        const mark = screen.getByRole('button', { name: 'place: Harlow' })
+        expect(mark).toHaveAttribute('aria-current', 'true')
+        expect(reveal).toHaveBeenCalledWith(screen.getByLabelText('Parsed Markdown').parentElement, mark)
+        fireEvent.click(view.getByRole('button', { name: 'PDF' }))
+      }
+    } finally {
+      reveal.mockRestore()
+    }
   })
 
   it('hides the Markdown marks while the rail is collapsed, and marks the selected value again on expand', async () => {

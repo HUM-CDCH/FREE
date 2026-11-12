@@ -5,6 +5,7 @@ import { evidenceColorVars, ownsMark, sharedColor } from './durableRailModel'
 import { fieldWords } from './reviewVocabulary'
 import { observeEvidenceHover } from './evidenceHover'
 import type { SelectionChannel } from './selectionChannel'
+import { scrollWithinPane } from './scrollWithinPane'
 
 type SelectMark = (keys: string[], element: HTMLElement) => void
 type SavedLink = RailMarkState['savedLinks'][number]
@@ -58,7 +59,15 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   const bytes = useMemo(() => new TextEncoder().encode(markdown ?? ''), [markdown])
   const root = useRef<HTMLPreElement>(null)
   const describe = marks?.describe, savedLinks = marks?.savedLinks
+  const selectedKey = marks?.selected
   useLayoutEffect(() => observeEvidenceHover(selection, [root.current]))
+  // Switching views remounts this pane while Results keeps its selection.
+  useLayoutEffect(() => {
+    if (!selectedKey) return
+    const mark = root.current?.querySelector<HTMLElement>('[aria-current="true"]')
+    const container = root.current?.parentElement
+    if (container && mark) scrollWithinPane(container, mark)
+  }, [selectedKey, markdown])
   if (!markdown) return (
     <div className="mx-auto max-w-[34ch] pt-16 text-center">
       <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
