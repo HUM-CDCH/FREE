@@ -2150,6 +2150,9 @@ def test_children_windows_never_cross_a_cut_so_a_prefix_carves_what_the_whole_bo
     assert asked == windows[:1] and part["complete"] is False and part["entries"] == whole["entries"][:3]
     part = carve(4, False, cuts=[1, 3])
     assert asked == windows[:3] and part["complete"] is False and part["entries"] == whole["entries"][:9]
+    # A cut beyond the entries held is not reached yet: a table's entries wait for its notes (`table_notes`).
+    part = carve(2, False, cuts=[1, 3])
+    assert asked == windows[:1] and part["entries"] == whole["entries"][:3]
     # A window not answered yet is no error: the others are asked, and only the entries before its first line's are
     # carved. Grave 2 begins in the second window.
     unanswered = (windows[1],)
@@ -2181,13 +2184,31 @@ def test_a_line_that_fits_no_children_request_undoes_nothing_an_earlier_prefix_c
     legacy = carve(4)
     assert legacy["children"] == {"windows": 0, "failed": 1} and len(legacy["entries"]) == 4
 
+    def middle(held, complete=True, **options):  # nothing of record 2 fits: the batches around it are carved
+        return discovery.children({**body, "entries": body["entries"][:held], "complete": complete}, source,
+                                  "One grave or find.", lambda _s, user, _r: "RECORD 2" not in user, ask, **options)
+    final = middle(4, cuts=[1, 2, 3, 3])
+    assert [entry["label"] for entry in final["entries"]] == ["Grave 1", "1.", "2.", "Grave 2", "Grave 3", "1.", "2.",
+                                                              "Grave 4", "1.", "2."]
+    assert final["children"] == {"windows": 3, "failed": 1}
+    assert middle(2, False, cuts=[1, 2])["entries"] == final["entries"][:4]
 
-def test_the_cuts_of_a_prefix_are_those_of_the_whole_discovery():
-    """`_assemble`: the entries each window settles do not depend on the windows read after it."""
-    source = evidence(*("\n".join(grave_lines(8)[first:first + 8]) for first in range(0, 32, 8)))
+
+@pytest.mark.parametrize("variant", ["plain", "failed", "continued", "halved"])
+def test_the_cuts_of_a_prefix_are_those_of_the_whole_discovery(variant):
+    """`_assemble`: the entries each window settles do not depend on the windows read after it, also when a window
+    fails, when a page reprints the open record's label and goes on with it, and when a window is read in halves."""
+    pages = ["\n".join(grave_lines(8)[first:first + 8]) for first in range(0, 32, 8)]
+    if variant == "continued":
+        pages[2] = "Grave 4. Further finds.\n3. Cup 4.\n" + pages[2]
+    source = evidence(*pages)
 
     def ask(record, system, user, schema, calls, issues):
         lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
+        if variant == "failed" and any(text.startswith("Grave 3.") for _, text in lines):
+            return None
+        if variant == "halved" and sum(text.startswith("Grave") for _, text in lines) == 2 and "Grave 5." in user:
+            return None  # the third page is read again in halves
         after = section(user, "CONTEXT AFTER")
         return {"places": [[label, "record", text.split(".")[0]] for label, text in lines if text.startswith("Grave")],
                 "begins_inside_record": not lines[0][1].startswith("Grave"),
@@ -2201,13 +2222,15 @@ def test_the_cuts_of_a_prefix_are_those_of_the_whole_discovery():
             if f"Grave {2 * windows + 1}." in section(user, "WINDOW"):
                 raise Pending()
             return ask(record, system, user, *rest)
-        return discovery.discover(source, "grave", lambda *_: True, some, overlap=1, splits=0, by="page", workers=1,
-                                  frontier=True, unanswered=(Pending,))
-    whole = read(4)  # each page holds two graves; the last one read may go on, so it waits
-    assert whole["complete"] and whole["cuts"] == [1, 3, 5, 7] and len(whole["entries"]) == 8
+        return discovery.discover(source, "grave", lambda *_: True, some, overlap=1, by="page", workers=1,
+                                  splits=1 if variant == "halved" else 0, frontier=True, unanswered=(Pending,))
+    whole = read(4)
+    assert whole["complete"] and whole["cuts"] == sorted(whole["cuts"])
+    if variant == "plain":  # each page holds two graves; the last one read may go on, so it waits
+        assert whole["cuts"] == [1, 3, 5, 7] and len(whole["entries"]) == 8
     for windows in (1, 2, 3):
         part = read(windows)
-        assert not part["complete"] and part["cuts"] == whole["cuts"][:windows]
+        assert not part["complete"] and part["cuts"] == whole["cuts"][:len(part["cuts"])]
         assert part["entries"] == whole["entries"][:part["cuts"][-1]]
 
 
