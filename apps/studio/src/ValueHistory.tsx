@@ -23,7 +23,7 @@ function decisionWord(reading: Reading) {
   if (processing === 'absent') return 'Missing'
   if (processing !== 'saved') return 'Not read'
   if (decisionIncompatible) return 'Earlier decision no longer fits'
-  if (reading.disagreement && !reviewed(reading) && (!decision || decision.action === 'PENDING')) return 'Readings differ'
+  if (reading.disagreement && !reviewed(reading) && (!decision || decision.action === 'PENDING')) return 'Different readings'
   return decision?.action === 'APPROVED' ? 'Approved' : decision?.action === 'EDITED' ? 'Edited' : decision?.action === 'REJECTED' ? 'Rejected' : 'To check'
 }
 

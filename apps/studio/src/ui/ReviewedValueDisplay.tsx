@@ -14,7 +14,7 @@ export default function ReviewedValueDisplay({ node, value, path = [], pick }: {
     if (!pick) return <span className="break-words">{shownValue(value)}</span>
     const key = partKey(pick.valueId, path), part = pick.parts.get(key), selected = pick.selected === key, linked = Boolean(part?.link)
     return <button type="button" aria-pressed={selected} aria-label={part ? `${part.name}: ${shownValue(value)}` : undefined}
-      title={linked ? undefined : 'No Evidence linked'}
+      title={linked ? undefined : 'Source not found'}
       onClick={() => pick.onPick(selected ? null : key)}
       className={`block w-full cursor-pointer rounded-sm px-1 text-left break-words outline-none focus-visible:ring-2 focus-visible:ring-accent ${
         selected ? 'bg-ev-soft ring-2 ring-accent' : linked ? 'hover:bg-ev-ghost' : 'text-ink-muted hover:bg-surface-muted'}`}>

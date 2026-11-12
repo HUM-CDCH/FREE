@@ -11,7 +11,7 @@ import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { PendingAsk } from './SchemaInstructions'
-import type { SchemaChat } from './useSchemaChat'
+import { NO_ACTION_REPLY, type SchemaChat } from './useSchemaChat'
 
 const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
 
@@ -122,6 +122,20 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<string> } | null>(null)
   const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
 
+  // Run again with the current template: the halted Extraction is stopped first, and once it has stopped (and a run may
+  // start) the current template runs. Anything else becoming of it drops the request.
+  const [restartFor, setRestartFor] = useState<string | null>(null)
+  if (restartFor !== null && (latest?.extractionId !== restartFor || !['PAUSED', 'FAILED', 'STOPPING', 'STOPPED'].includes(latest.status)))
+    setRestartFor(null)
+  const restarted = useRef<string | null>(null)
+  const restartReady = restartFor !== null && latest?.extractionId === restartFor && latest.status === 'STOPPED' && !!run?.available
+  useEffect(() => {
+    // Once per request: the new run replaces the stopped one as the latest, which ends the request.
+    if (!restartReady || !run || restarted.current === restartFor) return
+    restarted.current = restartFor
+    run.start()
+  }, [restartReady, restartFor, run])
+
   function choose(card: StepCard, option: StepOption, text = '') {
     const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
@@ -131,8 +145,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       if (!canSay) return
       reveal()
       void (preSchema ? chat.ask(said) : chat.send(said))
-    } else if (option.action !== 'review-schema' && !(card.key.startsWith('results-ready:') && option.action === 'review'))
+    } else if (option.action !== 'review-schema' && !(card.key.startsWith('results-ready:') && option.action === 'review')) {
       chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
+      // Every option turned down and nothing said instead: no action, so point to the chat box.
+      if (option.action === 'dismiss') chat.appendMessage(NO_ACTION_REPLY)
+    }
     // Template ready waits for a way on: viewing the template keeps it, any other choice ends it.
     if (card.key.startsWith('template-ready:') && option.action !== 'review-schema') setTemplateReady(false)
     // Results ready likewise: opening Results keeps it, any other choice ends it.
@@ -148,6 +165,10 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       apply: chat.apply,
       'review-schema': () => onShowView('schema'),
       continue: () => {},
+      restart: () => {
+        setRestartFor(latest?.extractionId ?? null)
+        control?.command('stop')
+      },
       discard: chat.discard,
       'scope:records': () => recordScope?.onChange('records'),
       'scope:document': () => recordScope?.onChange('document'),

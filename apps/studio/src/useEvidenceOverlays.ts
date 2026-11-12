@@ -34,7 +34,7 @@ export type MarkInfo = { name: string; value: string; word: string | null; style
 
 /** A mark's accessible name and its tooltip: each value it supports, with what its underline says, in words. */
 export const markLabel = (infos: readonly MarkInfo[]) => infos.map((info) =>
-  `${fieldWords(info.name)}: ${info.value}${info.style === 'doubtful' ? ', uncertain' : info.style === 'rule' ? ', linked by rule' : ''}${info.word ? `, ${info.word}` : ''}`).join('; ')
+  `${fieldWords(info.name)}: ${info.value}${info.style === 'doubtful' ? ', not an exact match' : info.style === 'rule' ? ', matched by rule' : ''}${info.word ? `, ${info.word}` : ''}`).join('; ')
 
 /** The rail's values for the marks: a key `describe` names is a value a mark selects. */
 export type RailMarkState = {

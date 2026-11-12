@@ -61,6 +61,30 @@ describe('RailChat', () => {
     expect(screen.getByRole('region', { name: 'Template ready' })).toBeInTheDocument()
   })
 
+  it('runs the current template again once the halted Extraction on an earlier one has stopped, once', async () => {
+    const schema = createSchemaEditorController({ ...testSchemaPersistence(),
+      initialize: async (definition) => ({ schemaRevisionId: 'revision-2', extractionSchemaId: 'schema-1', revisionNumber: 2, recordScope: null,
+        origin: 'suggestion', createdAt: '2026-11-11T00:00:00.000Z', stabilisedAt: null, ...definition }) as never })
+    const command = vi.fn()
+    const start = vi.fn()
+    const props = { schema, sourceDocumentName: 'letters.pdf', onShowView: vi.fn(), recordScope: { value: 'document' as const, onChange: vi.fn() },
+      onGenerate: vi.fn(), control: { command, busy: false, continueBlocked: null, continueDescription: 'Continue.', pauseDescription: 'Pause.' } }
+    const at = (status: 'FAILED' | 'STOPPING' | 'STOPPED', available = false) => ({
+      ...props, run: { start, available, unavailableReason: null },
+      latest: { extractionId: 'extraction-1', schemaRevisionId: 'revision-1', status, progress: null, toCheck: null } })
+    const view = render(<Harness {...at('FAILED')} />)
+    await act(async () => { await schema.generate(async () => ({ _description: 'One letter.', sender: 'string' })) })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Template ready' })).getByRole('button', { name: /Continue/ }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Extraction' })).getByRole('button', { name: /Run again with the current template/ }))
+    expect(command).toHaveBeenCalledExactlyOnceWith('stop')
+    view.rerender(<Harness {...at('STOPPING')} />)
+    expect(start).not.toHaveBeenCalled()
+    view.rerender(<Harness {...at('STOPPED', true)} />)
+    expect(start).toHaveBeenCalledOnce()
+    view.rerender(<Harness {...at('STOPPED', true)} />)
+    expect(start).toHaveBeenCalledOnce()
+  })
+
   it('stops at Results ready once a run seen at work completes, until the researcher goes on', () => {
     const schema = schemaWithFields()
     const onShowView = vi.fn()
@@ -173,8 +197,9 @@ describe('RailChat', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, run: { start: vi.fn(), available: true, unavailableReason: null } })
     fireEvent.click(within(screen.getByRole('region', { name: 'Run extraction' })).getByRole('button', { name: 'Not yet' }))
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
-    // The answer is in the conversation, which is the rail's home.
+    // The answer is in the conversation, which is the rail's home; every option turned down, the chat points to its box.
     expect(screen.getByText(/Not yet/)).toBeInTheDocument()
+    expect(screen.getByText('If you need help, please use the chat box below.')).toBeInTheDocument()
   })
 
   it('sets a step aside for what is typed instead, said in the conversation', () => {
@@ -189,6 +214,7 @@ describe('RailChat', () => {
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
     expect(screen.getByText('Add a recipient field first')).toBeInTheDocument()
     expect(screen.queryByText(/Not yet/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/If you need help/)).not.toBeInTheDocument()
     expect(start).not.toHaveBeenCalled()
   })
 

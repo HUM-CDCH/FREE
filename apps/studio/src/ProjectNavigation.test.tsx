@@ -42,6 +42,8 @@ vi.mock('./savedMethod', async (importOriginal) => ({
 // The developer evaluation panel is off unless FREE_DEVELOPER_EVAL is set; its read stays out of these fetch counts.
 vi.mock('./projectContexts/evaluationRounds', () => ({ readEvaluationRounds: async () => null }))
 const delayedAdmission=vi.hoisted(()=>({finish:null as null|(()=>void)}))
+/** Each `project.refresh` the workspace was handed: the workspace re-reads the summary whenever it changes. */
+const projectRefreshes=vi.hoisted(()=>new Set<unknown>())
 
 vi.mock('./App', async () => {
   const { createPortal } = await import('react-dom')
@@ -64,8 +66,11 @@ vi.mock('./App', async () => {
     routeExtractionId,
     chatColumn,
     projectName,
+    project,
   }: DocumentWorkspaceProps) => (
     <>
+      {project && void projectRefreshes.add(project.refresh)}
+      {project && <button type="button" onClick={project.refresh}>Refresh the project</button>}
       {chatColumn && createPortal(<p>Project chat of {projectName}</p>, chatColumn)}
       <p>
         {/* DocumentWorkspace no longer reads annotationSet — the Annotation
@@ -2484,6 +2489,22 @@ describe('routed Source Document reopening', () => {
     const chat = await screen.findByText(`Project chat of ${project.name}`)
     expect(document.querySelector('[data-project-chat]')).toContainElement(chat)
     expect(document.getElementById('main-content')).not.toContainElement(chat)
+  })
+
+  it('hands the workspace one project refresh across the reads it causes, so re-reading never asks for another', async () => {
+    projectRefreshes.clear()
+    const fetch = studioFetch()
+    history.replaceState(null, '', documentPath())
+    renderRoutes(fetch)
+    const refresh = await screen.findByRole('button', { name: 'Refresh the project' })
+    const listReads = () => fetch.mock.calls.filter(([input]) => String(input) === '/api/project-contexts').length
+    const before = listReads()
+    fireEvent.click(refresh)
+    await waitFor(() => expect(listReads()).toBe(before + 1))
+    // A new summary is read; the refresh handed down stays the same function.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(listReads()).toBe(before + 1)
+    expect(projectRefreshes.size).toBe(1)
   })
 
   it('threads durable research state into the workspace', async () => {

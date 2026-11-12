@@ -573,7 +573,7 @@ test('a real bounded Article retains two title readings through worker publicati
     await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
     await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title/}).click()
-    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByText('Different readings',{exact:true})).toBeVisible()
     await expect(page.getByRole('button',{name:'Use Ecology of Rivers'})).toBeVisible()
     await expect(page.getByRole('button',{name:'Use A History of Clocks'})).toBeVisible()
     await expect(page.getByText(/read in .*not checked/)).toHaveCount(2)

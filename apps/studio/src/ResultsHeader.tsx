@@ -78,8 +78,8 @@ export default function ResultsHeader({
   // A filter with nothing behind it is not offered, unless it is the one in use.
   const chipList = ([
     { value: 'check', label: 'To check' },
-    { value: 'doubt', label: 'Uncertain', count: counts.doubtful },
-    { value: 'notrev', label: 'Not reviewable', count: counts.notReviewable },
+    { value: 'doubt', label: 'Not exact', count: counts.doubtful },
+    { value: 'notrev', label: 'Can\'t be checked', count: counts.notReviewable },
     { value: 'all', label: 'All' },
   ] satisfies Array<{ value: ValueFilter; label: string; count?: number }>).filter((chip) => chip.count !== 0 || chip.value === filter)
   // The header's content width under which the chips no longer share a line with "Review one by one": the select

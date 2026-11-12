@@ -106,6 +106,18 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, latest: latest('RUNNING'), control: null })?.key).toBe('run:extraction-1')
   })
 
+  it('leads a halted Extraction on an earlier template with a run of the current one, ahead of Retry or Resume', () => {
+    const failed = nextStep({ ...base, latest: latest('FAILED', 'revision-1') })
+    expect(failed?.question).toBe('It ran with an earlier template. Retry keeps that one; run the current template instead?')
+    expect(failed?.options.map(({ action, tone }) => [action, tone])).toEqual([['restart', 'positive'], ['retry', 'secondary'], ['stop', 'danger']])
+    expect(failed?.options[0]).toMatchObject({ label: '▶ Run again with the current template',
+      description: 'Stops this extraction (its saved values and decisions stay), then runs template revision 2' })
+    expect(actions({ latest: latest('PAUSED', 'revision-1') })).toEqual(['restart', 'resume', 'stop'])
+    // The same template under another revision, or no way to run here, keeps Retry first.
+    expect(actions({ latest: { ...latest('FAILED', 'revision-1'), sameTemplate: true } })).toEqual(['retry', 'stop'])
+    expect(actions({ latest: latest('FAILED', 'revision-1'), run: null })).toEqual(['retry', 'stop'])
+  })
+
   it('holds Resume and Retry while pending inputs wait, saying why, and every command while one is under way', () => {
     const control = { ...base.control!, continueBlocked: 'Apply or discard the pending inputs before continuing.' }
     const step = nextStep({ ...base, latest: latest('PAUSED'), control })

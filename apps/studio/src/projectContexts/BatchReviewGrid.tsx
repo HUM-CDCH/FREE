@@ -107,7 +107,7 @@ function GridCell({ value, open, editing, locked, onOpen, onClose, onDecide, onE
     <span className="flex min-w-0 items-center gap-1.5">
       <span className="flex shrink-0 items-center"><CellGlyph kind={row.kind} /></span>
       <span className={`min-w-0 flex-1 truncate ${missing ? 'italic text-ink-faint' : 'text-ink'}`} title={text}>{text}</span>
-      {row.disagreement && <span className="shrink-0 text-[10px] text-ink-muted">readings differ</span>}
+      {row.disagreement && <span className="shrink-0 text-[10px] text-ink-muted">different readings</span>}
     </span>
   )
   if (!reviewable(value))

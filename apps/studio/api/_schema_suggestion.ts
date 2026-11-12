@@ -82,7 +82,7 @@ export async function suggestOrAnswer(
   { document, instruction, edit, window, temperature, signal }: SchemaModelInput,
   chat: SchemaChatMessage | null,
   dependencies: ModelDependencies = {},
-): Promise<SchemaSuggested | { readonly answer: string } | { readonly action: 'extract' }> {
+): Promise<SchemaSuggested | { readonly answer: string } | { readonly action: ChatAction }> {
   const answerable = chat !== null && resolved.profile === 'general'
   const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
@@ -91,7 +91,7 @@ export async function suggestOrAnswer(
     instructions: edit
       ? 'Revise the researcher\'s extraction schema' + (answerable ? ' or answer their question' : '') + '. ' +
         'Return only one JSON object, with no Markdown or commentary. ' +
-        (answerable ? 'For a question, return only {"answer":"<your answer>"}; to run the extraction, return only {"action":"extract"}. Otherwise, ' : '') +
+        (answerable ? 'For a question, return only {"answer":"<your answer>"}; to run the extraction, return only {"action":"extract"}; for a message that only declines, return only {"action":"none"}. Otherwise, ' : '') +
         'return the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
       : answerable
       ? 'Propose a compact extraction schema grounded in the supplied source document, or answer the researcher\'s question about it. ' +
@@ -106,7 +106,8 @@ export async function suggestOrAnswer(
   if (answerable) {
     const answer = await answerOf(generated.response)
     if (answer !== null) return { answer }
-    if (await requestedExtraction(generated.response)) return { action: 'extract' }
+    const action = await requestedAction(generated.response)
+    if (action) return { action }
   }
   const output = edit ? await parseSchemaEditOutput(generated.response) : { template: await parseTemplate(generated.response) }
   const parsed = output.template
@@ -120,16 +121,21 @@ export async function suggestOrAnswer(
   }
 }
 
-/** Whether a reply is exactly `{"action": "extract"}`: the chat message asked for the extraction to run. */
-export async function requestedExtraction(response: string): Promise<boolean> {
+/** What a chat message asked for instead of a schema or an answer: `extract`, to run the extraction, or `none`, when it
+ *  only declined what was offered. */
+export type ChatAction = 'extract' | 'none'
+
+/** The action of a reply that is exactly `{"action": "extract"}` or `{"action": "none"}`; null for any other reply. */
+export async function requestedAction(response: string): Promise<ChatAction | null> {
   let parsed: unknown
   try {
     parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
   } catch {
-    return false
+    return null
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false
-  return Object.keys(parsed).length === 1 && (parsed as Record<string, unknown>).action === 'extract'
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed) || Object.keys(parsed).length !== 1) return null
+  const action = (parsed as Record<string, unknown>).action
+  return action === 'extract' || action === 'none' ? action : null
 }
 
 /** The answer of a reply that is exactly `{"answer": "<text>"}`; null for any other reply. */

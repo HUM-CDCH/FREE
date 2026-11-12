@@ -7,8 +7,8 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget, GeneralExecutionTarget } from './_provider.js'
-import { chatHistoryText, EXTRACT_CLAUSE, schemaSourceExcerpts } from './_schema.js'
-import { answerOf, requestedExtraction, suggestOrAnswer, type SchemaModelInput } from './_schema_suggestion.js'
+import { chatHistoryText, EXTRACT_CLAUSE, NO_ACTION_CLAUSE, schemaSourceExcerpts } from './_schema.js'
+import { answerOf, requestedAction, suggestOrAnswer, type ChatAction, type SchemaModelInput } from './_schema_suggestion.js'
 import { traceModelCall } from '../server/tracing.js'
 import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
@@ -64,8 +64,9 @@ async function ask(target: GeneralExecutionTarget, guidance: string, text: strin
 /**
  * The answer when the message asks a question, or null when it gives an instruction for the schema. The model reads
  * the source as Schema Suggestion does (excerpted past `EXCERPT_THRESHOLD`); a long source's question is then answered
- * again from every window (`answerFromWindow`). With `extractable` (an edit chat's message, once a schema exists), a
- * request to run the extraction is `{ action: 'extract' }`.
+ * again from every window (`answerFromWindow`). A message that only declines what was offered is `{ action: 'none' }`;
+ * with `extractable` (an edit chat's message, once a schema exists), a request to run the extraction is
+ * `{ action: 'extract' }`.
  */
 export async function answerIfQuestion(
   target: GeneralExecutionTarget,
@@ -73,13 +74,15 @@ export async function answerIfQuestion(
   question: SchemaChatQuestion,
   call: SchemaChatCall = {},
   extractable = false,
-): Promise<string | { readonly action: 'extract' } | null> {
+): Promise<string | { readonly action: ChatAction } | null> {
   const text = source ? schemaSourceExcerpts(source.markdown, source.pageSpans).text : NO_SOURCE
   const response = await ask(target, `${questionText(question)}
 
 If that message asks a question (about the source document or the extraction schema) instead of giving an instruction for generating or changing the schema, answer it from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.
-${extractable ? `${EXTRACT_CLAUSE}\n` : ''}Otherwise return only {"answer":null}.`, text, call)
-  if (extractable && await requestedExtraction(response)) return { action: 'extract' }
+${extractable ? `${EXTRACT_CLAUSE}\n` : ''}${NO_ACTION_CLAUSE}
+Otherwise return only {"answer":null}.`, text, call)
+  const action = await requestedAction(response)
+  if (action === 'none' || (extractable && action === 'extract')) return { action }
   return answerOf(response)
 }
 
@@ -120,17 +123,18 @@ async function answerRoute(caller: ModelCaller, call: SchemaChatCall, dependenci
   return answer
 }
 
-/** A message before the first schema: its answer when it asks a question, or null when it is an instruction. */
+/** A message before the first schema: its answer when it asks a question, `{ action: 'none' }` when it only declines,
+ *  or null when it is an instruction. */
 export function answerSchemaChat(
   caller: ModelCaller,
   source: ChatSource,
   message: Pick<SchemaChatQuestion, 'message' | 'history'>,
   call: SchemaChatCall = {},
   dependencies: ModelDependencies = {},
-): Promise<string | null> {
+): Promise<string | { readonly action: 'none' } | null> {
   return traceModelCall('schema-chat', async () => {
     const { answer } = await schemaChatRoutes(caller, call.temperature, dependencies)
-    return answer ? answerIfQuestion(answer, source, { ...message, context: null }, call) as Promise<string | null> : null
+    return answer ? answerIfQuestion(answer, source, { ...message, context: null }, call) as Promise<string | { readonly action: 'none' } | null> : null
   })
 }
 
