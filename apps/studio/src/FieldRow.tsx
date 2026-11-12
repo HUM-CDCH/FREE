@@ -1,4 +1,5 @@
 import pluralize from 'pluralize'
+import { useRef } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { Change, ReplayOutcome } from '../shared/schemaChanges'
 import { Pill } from './ui'
@@ -24,6 +25,7 @@ export type FieldRowProps = {
   /** The values pill: the edit form, focused on its allowed values. */
   onEditValues?: () => void
   onAddNote: () => void
+  onMove?: () => void
   onDelete: () => void
   /** The row as a drop target. On the row itself, not around it: the slot above and the children below are their own
    *  targets, and the pointer moving from them onto this row must re-enter it. */
@@ -177,7 +179,8 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 /** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
  *  when the line is too narrow) and proposal badges; the actions overlay the right edge on hover and focus-within. A
  *  note renders below in full. The panel owns recursion, drag targets and edit forms. */
-export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
+export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onMove, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
+  const dragOrigin = useRef({ x: 0, y: 0 })
   const diffStatus = change?.kind ?? (impliedRemoved ? 'removed' : null)
   const isDiff = diffStatus !== null
   const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
@@ -210,7 +213,17 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
     >
       <div className="@container relative flex min-h-[30px] items-start gap-1">
         {!isDiff && !readOnly ? (
-          <span aria-hidden="true" className="flex h-[30px] w-3.5 shrink-0 cursor-grab select-none items-center justify-center text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
+          <span className="relative h-[30px] w-3.5 shrink-0">
+          <button type="button" aria-label={`Move ${node.name}`} title="Drag or choose where to move this field"
+            disabled={editDisabled && !dragActive}
+            onMouseDown={event => { dragOrigin.current = { x: event.clientX, y: event.clientY }; onStartDrag(event) }}
+            onClick={event => {
+              if (event.detail > 0 && Math.abs(event.clientX - dragOrigin.current.x) + Math.abs(event.clientY - dragOrigin.current.y) >= 4) return
+              event.currentTarget.focus()
+              onMove?.()
+            }}
+            className="absolute -left-2 top-0 flex h-[30px] w-6 cursor-grab select-none items-center justify-center rounded-sm pl-2 text-sm leading-none text-ink-faint opacity-60 outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-default">⠿</button>
+          </span>
         ) : <span className="w-3.5 shrink-0" />}
         {isGroup ? (
           <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.name}`} aria-expanded={expanded}

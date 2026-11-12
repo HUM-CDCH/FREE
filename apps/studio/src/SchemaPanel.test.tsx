@@ -718,7 +718,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
   it('preserves repetition when a field is dragged into a scalar array', async () => {
     const setup = renderPanel({ panelNodes: [{ id: 'dates', name: 'dates', type: 'array', itemType: 'date' }, { id: 'title', name: 'title', type: 'string' }] })
     const title = screen.getByRole('listitem', { name: 'title' })
-    fireEvent.mouseDown(title.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(title.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(screen.getByRole('listitem', { name: 'dates' }))
     fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
     expect(setup.edits).toHaveLength(0)
@@ -740,7 +740,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     const movedRow = screen.getByText('new_field').closest<HTMLElement>('[role="listitem"]')!
     const skeletonRow = screen.getByText('skeleton').closest<HTMLElement>('[role="listitem"]')!
-    fireEvent.mouseDown(movedRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(movedRow.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(skeletonRow)
     fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
@@ -769,7 +769,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const yearRow = screen.getByText('year').closest<HTMLElement>('[role="listitem"]')!
     const nestedSlot = yearRow.parentElement!.firstElementChild!
 
-    fireEvent.mouseDown(graveRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(graveRow.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(nestedSlot)
     fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
@@ -804,7 +804,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const graveRow = screen.getByRole('listitem', { name: 'grave' })
     const slot = graveRow.previousElementSibling!
 
-    fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(titleRow.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 0, clientY: 26 })
     pointerMove(titleRow, slot)
     fireEvent.mouseMove(window, { clientX: 0, clientY: 36 })
@@ -831,7 +831,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const widthRow = screen.getByRole('listitem', { name: 'width' })
     const graveRow = screen.getByRole('listitem', { name: 'grave' })
 
-    fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 100 })
+    fireEvent.mouseDown(titleRow.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 0, clientY: 70 })
     pointerMove(titleRow, widthRow)
     // A scalar under the pointer is still a target that would become a group (unchanged).
@@ -877,7 +877,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const titleRows = screen.getAllByText('title').map((label) => label.closest<HTMLElement>('[role="listitem"]')!)
     const groupRow = screen.getByText('group').closest<HTMLElement>('[role="listitem"]')!
 
-    fireEvent.mouseDown(titleRows.at(-1)!.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(titleRows.at(-1)!.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(groupRow)
     fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
@@ -894,7 +894,7 @@ describe.sequential('SchemaPanel template proposal review', () => {
     const yearRow = screen.getByText('year').closest<HTMLElement>('[role="listitem"]')!
     const placeRow = screen.getByText('place').closest<HTMLElement>('[role="listitem"]')!
 
-    fireEvent.mouseDown(yearRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(yearRow.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(placeRow)
     fireEvent.mouseMove(window, { clientX: 1, clientY: 30 }); fireEvent.mouseUp(window)
 
@@ -922,8 +922,8 @@ describe.sequential('SchemaPanel template proposal review', () => {
 
     expect(setup.edits).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Code' }))
-    expect(screen.getByText(/"name": "surname"/)).toBeInTheDocument()
-    expect(screen.getByText(/"name": "name"/)).toBeInTheDocument()
+    expect(screen.getByText(/"surname": "string"/)).toBeInTheDocument()
+    expect(screen.getByText(/"name": "string"/)).toBeInTheDocument()
   })
 
   it('shows one row per node, mixed counts, metadata reach, and applies atomically', async () => {
@@ -1487,7 +1487,7 @@ describe('template header (redesign §5)', () => {
     expect(editor.className).toMatch(/\bwhitespace-pre\b/)
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Code' }))
-    const code = screen.getByText(/"recordDescription"/).closest('pre')!
+    const code = screen.getByText(/"_description"/).closest('pre')!
     expect(code.className).toMatch(/\boverflow-x-auto\b/)
     expect(code.className).toMatch(/\bwhitespace-pre\b/)
   })
@@ -1639,7 +1639,7 @@ describe('field rows (redesign §6)', () => {
     expect(restingActions).not.toHaveAttribute('inert')
     // A grip pressed and not yet moved: on a narrow row line the actions span is the row's reserved line, so it keeps
     // its layout box (mounted, `invisible`, not removed), and `inert` keeps its buttons from focus and the accessibility tree.
-    fireEvent.mouseDown(genderRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseDown(genderRow.querySelector('button[aria-label^="Move "]')!, { button: 0, clientX: 0, clientY: 0 })
     for (const [row, name] of [[titleRow, 'title'], [genderRow, 'gender']] as const) {
       const actions = row.querySelector<HTMLElement>('[data-row-actions]')
       expect(actions).not.toBeNull()
@@ -1665,7 +1665,7 @@ describe('field rows (redesign §6)', () => {
     const tabOrder = Array.from(row.querySelectorAll<HTMLElement>('button, [tabindex]'))
       .filter((element) => element !== row && !element.hasAttribute('disabled') && element.tabIndex >= 0)
       .map((element) => element.getAttribute('aria-label') ?? element.getAttribute('title') ?? element.textContent)
-    expect(tabOrder).toEqual(['Type: string — click to edit', 'Edit title', 'Add note to title', 'Delete title', 'Research rule'])
+    expect(tabOrder).toEqual(['Move title', 'Type: string — click to edit', 'Edit title', 'Add note to title', 'Delete title', 'Research rule'])
     const edit = within(row).getByRole('button', { name: 'Edit title' })
     edit.focus()
     expect(edit).toHaveFocus()
@@ -1864,7 +1864,7 @@ it('Move offers root and group slots and preserves compatible metadata', () => {
     { id: 'group', name: 'grave', type: 'object', children: [] },
     { id: 'title', name: 'title', type: 'string', description: 'Keep this note.', evidencePolicy: 'quoted' },
   ] })
-  fireEvent.click(screen.getByText('Move title'))
+  fireEvent.click(screen.getByRole('button', { name: 'Move title' }))
   fireEvent.change(screen.getByLabelText('Destination parent'), { target: { value: 'group' } })
   fireEvent.click(screen.getByRole('button', { name: 'Move' }))
   expect(setup.schema.snapshot().draft?.schemaNodes).toEqual([
@@ -1872,7 +1872,7 @@ it('Move offers root and group slots and preserves compatible metadata', () => {
       { id: 'title', name: 'title', type: 'string', description: 'Keep this note.', evidencePolicy: 'quoted' },
     ] },
   ])
-  fireEvent.click(screen.getByText('Move title'))
+  fireEvent.click(screen.getByRole('button', { name: 'Move title' }))
   fireEvent.change(screen.getByLabelText('Destination parent'), { target: { value: '' } })
   fireEvent.change(screen.getByLabelText('Insertion position'), { target: { value: '1' } })
   fireEvent.click(screen.getByRole('button', { name: 'Move' }))
@@ -1928,4 +1928,60 @@ it('Move applies to the current tree when an independent accepted edit precedes 
     fireEvent.click(apply)
   })
   expect(setup.schema.snapshot().draft?.schemaNodes.map(node => node.id)).toEqual(['b', 'a', 'c'])
+})
+
+it('edits an existing field in its own tree position and keeps new fields at the end', () => {
+  renderPanel()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit gender' }))
+  const form = screen.getByRole('textbox', { name: 'Field name' })
+  expect(form.closest('[data-schema-node-id]')).toHaveAttribute('data-schema-node-id', 'gender')
+  expect(screen.getByRole('listitem', { name: 'title' }).compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel field edit' }))
+  fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+  expect(screen.getByRole('listitem', { name: 'gender' }).compareDocumentPosition(screen.getByRole('textbox', { name: 'Field name' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+it('opens only the notes beside their field and saves without altering field identity or source rules', () => {
+  const field: SchemaNode = { id: 'filename', name: 'File_Name', type: 'string', description: 'Old note.', valueSource: 'source-filename', evidencePolicy: 'derived' }
+  const setup = renderPanel({ panelNodes: [field] })
+  fireEvent.click(screen.getByRole('button', { name: 'Add note to File_Name' }))
+  expect(screen.queryByRole('textbox', { name: 'Field name' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Field type' })).not.toBeInTheDocument()
+  const notes = screen.getByRole('textbox', { name: 'Field notes' })
+  expect(notes.closest('[data-schema-node-id]')).toHaveAttribute('data-schema-node-id', 'filename')
+  fireEvent.change(notes, { target: { value: 'New note.' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(setup.schema.snapshot().draft?.schemaNodes).toEqual([{ ...field, description: 'New note.' }])
+  fireEvent.click(screen.getByRole('button', { name: 'Add note to File_Name' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Field notes' }), { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(setup.schema.snapshot().draft?.schemaNodes).toEqual([{ id: field.id, name: field.name, type: field.type, valueSource: field.valueSource, evidencePolicy: field.evidencePolicy }])
+})
+
+it('keeps Move in the existing grip and presents the current Code view as a compact template', () => {
+  const setup = renderPanel()
+  const grip = screen.getByRole('button', { name: 'Move title' })
+  expect(grip).toHaveTextContent('⠿')
+  expect(grip.closest('[role="listitem"]')).toHaveAttribute('aria-label', 'title')
+  fireEvent.click(grip)
+  expect(screen.getByRole('dialog', { name: 'Move field' })).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+  const code = screen.getByText(/"_description"/).closest('pre')!
+  expect(JSON.parse(code.textContent!)).toEqual({ _description: 'One test record.', title: 'string', gender: ['woman', 'man'] })
+  chooseSchemaAction('Edit as code')
+  const original = setup.schema.snapshot().draft
+  expect(JSON.parse((screen.getByRole('textbox', { name: 'Template code' }) as HTMLTextAreaElement).value)).toEqual(original)
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(setup.schema.snapshot().draft).toEqual(original)
+})
+
+it('keeps a nested unfinished edit reachable when its parent is collapsed', () => {
+  renderPanel({ panelNodes: [{ id: 'group', name: 'group', type: 'object', children: [{ id: 'child', name: 'child', type: 'string' }] }] })
+  fireEvent.click(screen.getByRole('button', { name: 'Edit child' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Field name' }), { target: { value: 'unfinished' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Collapse group' }))
+  expect(screen.getByRole('textbox', { name: 'Field name' })).toHaveValue('unfinished')
+  fireEvent.click(screen.getByRole('button', { name: 'Expand group' }))
+  expect(screen.getByRole('textbox', { name: 'Field name' }).closest('[data-schema-node-id]')).toHaveAttribute('data-schema-node-id', 'child')
 })
