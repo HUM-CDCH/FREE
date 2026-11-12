@@ -5,28 +5,41 @@ import { evidenceColorVars, ownsMark, sharedColor } from './durableRailModel'
 import { fieldWords } from './reviewVocabulary'
 import { observeEvidenceHover } from './evidenceHover'
 import type { SelectionChannel } from './selectionChannel'
+import { scrollWithinPane } from './scrollWithinPane'
 
 type SelectMark = (keys: string[], element: HTMLElement) => void
 type SavedLink = RailMarkState['savedLinks'][number]
 type MarkSpan = { start: number; end: number; anchorId: string; keys: string[] }
+type TableProjection = { source: string; points: string[]; offsets: number[] }
+
+function projectTable(source: string): TableProjection {
+  const points = Array.from(source), offsets = [0], encoder = new TextEncoder()
+  for (const point of points) offsets.push(offsets.at(-1)! + encoder.encode(point).length)
+  return { source, points, offsets }
+}
 
 /** Saved offsets count code points in the canonical block, not bytes in its Markdown wrapper.
  * Keep the anchor when that mapping cannot be checked; never search for the value's text. */
-function valueMarks(anchor: TextEvidenceAnchor, block: ParsedContentBlock | undefined, source: string, links: readonly SavedLink[]): MarkSpan[] {
-  const text = block && 'text' in block ? block.text : null
+function valueMarks(anchor: Pick<TextEvidenceAnchor, 'anchor_id' | 'markdown_span'>, block: ParsedContentBlock | undefined, source: string, links: readonly SavedLink[], projection?: TableProjection): MarkSpan[] {
+  // kei-exp writes a table's canonical segment text verbatim; its cells have no Markdown spans of their own.
+  const table = block?.kind === 'table' && block.parser === 'kei-exp'
+  const text = table ? source : block && 'text' in block ? block.text : null
   const prefix = block?.kind === 'heading' ? `${'#'.repeat(block.level)} `
     : block?.kind === 'code' ? `\`\`\`${block.language ?? ''}\n` : ''
   const suffix = block?.kind === 'code' ? '\n```' : ''
-  const points = text !== null && source === prefix + text + suffix ? Array.from(text) : null
+  const points = table && projection ? projection.points : text !== null && source === prefix + text + suffix ? Array.from(text) : null
   const encoder = new TextEncoder()
-  const offset = (at: number) => anchor.markdown_span.start + encoder.encode(prefix + points!.slice(0, at).join('')).length
+  const offset = (at: number) => anchor.markdown_span.start + (table && projection ? projection.offsets[at]!
+    : encoder.encode(prefix + points!.slice(0, at).join('')).length)
   const ranges = links.flatMap(({ key, link }) => {
     const located = link.location ?? (link.grounding && (!('support' in link.grounding) || link.grounding.support === 'literal')
       ? link.grounding : undefined)
-    const spans = located?.textSpans.filter(span => `a_${span.segment}` === anchor.anchor_id)
+    const spans = located?.textSpans.filter(span => table ? `b_${span.segment}` === block.block_id : `a_${span.segment}` === anchor.anchor_id)
     const precise = points && spans?.length && spans.every(span => Number.isSafeInteger(span.start) && Number.isSafeInteger(span.end)
       && 0 <= span.start && span.start < span.end && span.end <= points.length)
-    return (precise ? spans.map(span => ({ start: offset(span.start), end: offset(span.end) })) : [anchor.markdown_span])
+      && (!table || spans.map(span => points.slice(span.start, span.end).join('')).join('') === located?.raw)
+    // Without checked literal offsets a cell cannot be placed safely: the package does not retain cell byte spans.
+    return (precise ? spans.map(span => ({ start: offset(span.start), end: offset(span.end) })) : block?.kind === 'table' ? [] : [anchor.markdown_span])
       .map(span => ({ ...span, key }))
   })
   // Partition overlaps so a shared word selects every value it supports, without nested buttons or lost fields.
@@ -59,6 +72,13 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   const root = useRef<HTMLPreElement>(null)
   const describe = marks?.describe, savedLinks = marks?.savedLinks
   useLayoutEffect(() => observeEvidenceHover(selection, [root.current]))
+  // Reveal the retained selection on mount; later clicks scroll only their destination pane.
+  useLayoutEffect(() => {
+    if (!selection.snapshot().marks?.selected) return
+    const mark = root.current?.querySelector<HTMLElement>('[aria-current="true"]')
+    const container = root.current?.parentElement
+    if (container && mark) scrollWithinPane(container, mark)
+  }, [selection, markdown])
   if (!markdown) return (
     <div className="mx-auto max-w-[34ch] pt-16 text-center">
       <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
@@ -75,20 +95,38 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
     linksByAnchor.set(anchorId, links)
   }
   const blocks = new Map((document?.content_stream ?? []).map(block => [block.block_id, block]))
-  const spans = (document?.evidence_index.anchors ?? []).filter((anchor): anchor is TextEvidenceAnchor => anchor.kind === 'text' && linksByAnchor.has(anchor.anchor_id))
+  const anchors = document?.evidence_index.anchors ?? []
+  const textSpans = anchors.filter((anchor): anchor is TextEvidenceAnchor => anchor.kind === 'text' && linksByAnchor.has(anchor.anchor_id))
     .sort((a, b) => a.markdown_span.start - b.markdown_span.start)
     .filter((anchor, index, all) => index === 0 || anchor.markdown_span.start >= all[index - 1]!.markdown_span.end)
     .flatMap(anchor => valueMarks(anchor, blocks.get(anchor.block_id), decode(anchor.markdown_span.start, anchor.markdown_span.end), linksByAnchor.get(anchor.anchor_id)!))
+  const tables = new Map((document?.content_stream ?? []).flatMap(block => block.kind === 'table' ? [[block.table_id, block] as const] : []))
+  // Convert each linked table once, rather than copying its full text again for every cell.
+  const projections = new Map<string, TableProjection>()
+  const cellSpans = anchors.flatMap(anchor => {
+    if (anchor.kind !== 'table_cell') return []
+    const links = linksByAnchor.get(anchor.anchor_id), block = tables.get(anchor.logical_table_id)
+    const span = block?.markdown_span
+    if (!links || !block || block.parser !== 'kei-exp' || !span) return []
+    let projection = projections.get(block.table_id)
+    if (!projection) {
+      projection = projectTable(decode(span.start, span.end))
+      projections.set(block.table_id, projection)
+    }
+    return valueMarks({ anchor_id: anchor.anchor_id, markdown_span: span }, block, projection.source, links, projection)
+  })
+  const spans = [...textSpans, ...cellSpans].sort((a, b) => a.start - b.start)
   const parts: React.ReactNode[] = []
   let at = 0
   for (const span of spans) {
+    if (span.start < at) continue
     if (span.end > bytes.length) break
     parts.push(decode(at, span.start))
     const keys = span.keys.filter(key => describe?.has(key))
     const infos = describeMarks(keys, describe).map(({ info }) => info)
     const selected = marks?.selected != null && keys.some(key => ownsMark(marks.selected!, key))
     const text = decode(span.start, span.end)
-    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{text}</span>
+    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId} data-hover-keys={JSON.stringify(keys)}>{text}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{text}</span>
       : <button key={span.start} type="button" style={evidenceColorVars(sharedColor(infos.map(info => info.color)))}
         className={`evidence-mark ${infos.some(info => info.style === 'preview') ? 'preview' : infos[0]!.style}${infos.every(info => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
