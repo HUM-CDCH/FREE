@@ -88,6 +88,66 @@ describe('the Markdown view', () => {
   })
 })
 
+describe('saved table-cell evidence', () => {
+  const before = 'Café 🧱\n\n', body = 'Places: Café 🧱\nPort\tRegion\nParis\tWest\nParis\tEast'
+  const cellId = 'a_p2_s0_r2_c0', regionId = 'a_p2_s0_r2_c1'
+  const source = { markdown: before + body, document: {
+    content_stream: [{ kind: 'table', parser: 'kei-exp', block_id: 'b_p2_s0', table_id: 't_p2_s0',
+      markdown_span: { start: bytes(before), end: bytes(before + body) } }],
+    evidence_index: { anchors: [
+      { kind: 'table_cell', anchor_id: cellId, logical_table_id: 't_p2_s0', cell_id: 'r2_c0', canonical_row: 2, canonical_column: 0 },
+      { kind: 'table_cell', anchor_id: regionId, logical_table_id: 't_p2_s0', cell_id: 'r2_c1', canonical_row: 2, canonical_column: 1 },
+    ] },
+  } as unknown as ParsedDocument }
+  const place = 'place', region = 'region'
+  const describe = new Map([
+    [place, { name: 'place', value: 'Paris', word: null, style: 'link' as const }],
+    [region, { name: 'region', value: 'East', word: null, style: 'link' as const }],
+  ])
+  const start = Array.from(body.slice(0, body.lastIndexOf('Paris'))).length
+  const grounding: NonNullable<EvidenceLink['grounding']> = { linkedBy: 'verification', support: 'literal',
+    precision: 'cell', raw: 'Paris', textSpans: [{ segment: 'p2_s0', start, end: start + 5 }], alternatives: [], itemSpans: null }
+  const link: EvidenceLink = { resultPath: ['records', 1, 'place'], evidenceAnchorId: cellId, precision: 'cell', grounding }
+
+  it('marks saved cell offsets in their table block, keeping the cell identity and repeated rows distinct', () => {
+    const onSelect = vi.fn()
+    render(<TestMarkdown {...source} marks={{ describe, selected: place, onSelect, savedLinks: [
+      { key: place, link }, { key: region, link: { ...link, evidenceAnchorId: regionId, grounding: { ...grounding,
+        raw: 'East', textSpans: [{ segment: 'p2_s0', start: start + 6, end: start + 10 }] } } },
+    ] }} />)
+    const mark = screen.getByRole('button', { name: 'place: Paris' })
+    expect(mark.textContent).toBe('Paris')
+    expect(mark.previousSibling?.textContent).toContain('Paris\tWest\n')
+    expect(mark).toHaveAttribute('data-evidence-anchor-id', cellId)
+    expect(mark).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('button', { name: 'region: East' }).textContent).toBe('East')
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([place], mark)
+  })
+
+  it.each([
+    ['missing spans', undefined],
+    ['supporting evidence', { ...grounding, support: 'supporting' as const }],
+    ['different raw text', { ...grounding, raw: 'Lyon' }],
+    ['a foreign table', { ...grounding, textSpans: [{ segment: 'p1_s0', start, end: start + 5 }] }],
+    ['out-of-range offsets', { ...grounding, textSpans: [{ segment: 'p2_s0', start, end: 999 }] }],
+  ] as const)('does not guess a cell position for %s', (_, grounding) => {
+    render(<TestMarkdown {...source} marks={{ describe, selected: null, onSelect: vi.fn(),
+      savedLinks: [{ key: place, link: { ...link, grounding } }] }} />)
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+  })
+
+  it('does not assume another producer writes raw canonical table text', () => {
+    const document = { ...source.document, content_stream: source.document.content_stream.map(block => ({ ...block, parser: 'other' })) }
+    render(<TestMarkdown markdown={source.markdown} document={document} marks={{ describe, selected: null, onSelect: vi.fn(),
+      savedLinks: [{ key: place, link }] }} />)
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+  })
+})
+
 describe('the values in one passage', () => {
   it('names a value once when its model and correction Evidence share the passage, lit while one of its parts is chosen', () => {
     const edited = { name: 'orientation', value: 'N–S', word: 'Edited', style: 'link' as const, anchorId: 'a1' }

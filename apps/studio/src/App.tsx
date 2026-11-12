@@ -837,14 +837,19 @@ export function DocumentWorkspace({
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
-    const mark = container && [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
-      .find(element => element.dataset.evidenceAnchorId === anchor.anchor_id)
+    const candidates = container ? [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
+      .filter(element => element.dataset.evidenceAnchorId === anchor.anchor_id) : []
+    // Several values can mark different words of one anchor. Follow this link's value, not the first word.
+    const path = container && link ? JSON.stringify(link.resultPath) : null
+    const keys = new Set(path ? selection.snapshot().marks?.savedLinks.filter(saved => saved.link.evidenceAnchorId === anchor.anchor_id
+      && JSON.stringify(saved.link.resultPath) === path).map(saved => saved.key) : [])
+    const mark = candidates.find(element => (JSON.parse(element.dataset.hoverKeys ?? '[]') as string[]).some(key => keys.has(key))) ?? candidates[0]
     if (documentView === 'markdown' && container && mark) scrollWithinPane(container, mark)
     else {
       setDocumentView('pdf')
       selectPdfEvidence(anchor, link)
     }
-  }, [documentView, selectPdfEvidence])
+  }, [documentView, selectPdfEvidence, selection])
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
    *  run over the whole document: what admission pins is what was saved at the click (ADR 0015). A `method_changed` refusal

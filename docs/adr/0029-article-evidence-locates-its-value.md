@@ -68,6 +68,9 @@ A value's **printing** is one place where its text, or for a number one spelling
   when the canonical block text maps exactly to its Markdown, accounting for heading/code wrappers and converting
   code-point offsets to UTF-8 bytes. It keeps the whole anchor when that mapping cannot be verified or the Evidence
   is supporting rather than literal. It never searches the document for the value or requires PDF value boxes.
+  A table-cell anchor uses saved literal offsets in its containing `kei-exp` table block, whose Markdown is the
+  canonical segment text. Studio checks the covered text against the saved `raw` and keeps the cell's anchor identity.
+  A cell without checked offsets stays unmarked: the package does not retain its individual Markdown byte span.
 - **Never shown to a model.** The correction context (`modelEvidence` in `durable-feedback.ts`) strips `location`,
   so a drawing refinement never changes a prompt.
 - **Written once.** A link is written with its saved value and never rewritten (`retained.py`). Locating it then

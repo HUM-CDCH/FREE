@@ -1659,7 +1659,7 @@ export default function ProjectContextPage({
         </ProjectSection>
         <ProjectSection
           title="Runs & exports"
-          description="Every pilot round and Batch Extraction, their documents and spreadsheets"
+          description="Every trial round and Batch Extraction, their documents and spreadsheets"
           open={tab === 'extractions'}
           onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'extractions' : 'sources' })}
         >

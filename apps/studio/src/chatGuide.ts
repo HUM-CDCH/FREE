@@ -3,7 +3,7 @@ import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExt
   type BatchExtractionMember, type LatestExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
-import { guidedWorkflow } from './projectContexts/guidedWorkflow'
+import { REVISED_PILOT, guidedWorkflow } from './projectContexts/guidedWorkflow'
 import { batchStoppable } from './stopBatchExtraction'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
@@ -245,7 +245,7 @@ export function extractStep(input: GuideInput, request: number): StepCard {
       : [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)].slice(0, 3)
     picker = { documents, initial, limit: approved ? BATCH_EXTRACTION_SELECTION_LIMIT : PILOT_BATCH_SELECTION_LIMIT }
     options.push({ action: approved ? 'batch' : 'pilot', label: 'Documents in this project · {n}', tone: 'positive', picks: true,
-      hint: approved ? undefined : `Before the template's approval, a run of the project's documents is a pilot of at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
+      hint: approved ? undefined : `Until the template is approved, try it on at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
       disabled: project.busy || summary.runningBatch !== null })
   }
   const blocked = options.every(({ disabled }) => disabled)
@@ -279,7 +279,7 @@ function projectStep(input: GuideInput): StepCard | null {
   }
   const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
   // A schema saved here moves the phase on before the project's summary is read again.
-  const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Pilot extraction', action: 'pilot' as const } : workflow.next
+  const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Try template on a few documents', action: 'pilot' as const } : workflow.next
   // Every document extracted and reviewed: what is left is the dataset.
   if (!next) return exportStep(project)
   const revisionId = summary.currentSchemaRevisionId
@@ -293,14 +293,14 @@ function projectStep(input: GuideInput): StepCard | null {
       .filter((id) => documents.some((document) => document.id === id)).slice(0, 3)
     return {
       key: `pilot:${input.revision.id}`,
-      title: next.label === 'Pilot the revised template' ? next.label : 'Pilot the template',
-      question: `Try the template on a few documents before extracting all ${plural(documents.length, 'document')}?`,
+      title: next.label === REVISED_PILOT ? next.label : 'Try template on a few documents',
+      question: `Check the results on a few before extracting all ${plural(documents.length, 'document')}?`,
       detail: [['Template', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`]],
       error: project.error ?? undefined,
       picker: { documents, initial, limit: PILOT_BATCH_SELECTION_LIMIT },
       options: [
-        { action: 'pilot', label: 'Run pilot on {n}', tone: 'positive', picks: true, disabled: project.busy },
-        ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without a pilot round', tone: 'secondary',
+        { action: 'pilot', label: 'Try on {n}', tone: 'positive', picks: true, disabled: project.busy },
+        ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without trying other documents', tone: 'secondary',
           disabled: !input.run.available, description: runDescription(input, input.latest !== null) } as const] : []),
         ...viewTemplate(input),
         notYet,
@@ -321,7 +321,7 @@ function projectStep(input: GuideInput): StepCard | null {
         ? 'The template changed since its approval. Approve the current revision for the whole project?'
         // Unread rounds may still wait for review, and a pilot document's latest Extraction may be its own, unreviewed.
         : `${batches === null || summary.extractedSourceDocumentCount > summary.reviewedSourceDocumentCount ? ''
-          : 'Every pilot document is reviewed. '}Approve the template for the whole project?`,
+          : 'Every trial document is reviewed. '}Approve the template for the whole project?`,
       options: [{ ...approve, tone: 'positive' }, notYet],
     }
   }
@@ -407,7 +407,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
       .map((run) => ({ ...run, currentReview: null, waits: true }))]
   if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
-  const title = project.summary.schemaStabilised ? 'Review results' : 'Pilot review'
+  const title = project.summary.schemaStabilised ? 'Review results' : 'Review the trial results'
   const progress = round && batchExtractionProgress(round)
   const detail: [string, string][] | undefined = progress && [['Progress', `${progress.reviewed} of ${plural(progress.reviewable, 'document')} reviewed`]]
   const mine = queue.filter(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)

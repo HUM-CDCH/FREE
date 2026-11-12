@@ -94,9 +94,9 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     await page.reload()
     await status.getByRole('button', { name: 'Continue in chat' }).click()
     await expect(page).toHaveURL(new RegExp(`/projects/${project}/documents/`))
-    const pilot = step(page, 'Pilot the template')
+    const pilot = step(page, 'Try template on a few documents')
     await expect(pilot.getByRole('checkbox', { checked: true })).toHaveCount(3)
-    await pilot.getByRole('button', { name: 'Run pilot on 3 documents' }).click()
+    await pilot.getByRole('button', { name: 'Try on 3 documents' }).click()
     await expect(page).toHaveURL(/\/documents\/.*fromBatchExtractionId=/)
 
     // Review the pilot through the API; the chat then asks for the approval, which only it offers.

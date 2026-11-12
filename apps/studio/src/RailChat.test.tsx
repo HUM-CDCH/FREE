@@ -237,6 +237,25 @@ describe('RailChat', () => {
     expect(onShowView).toHaveBeenCalledExactlyOnceWith('chat')
   })
 
+  it('returns to the conversation for a choice that moves on under another view, never for one that opens a view', () => {
+    const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Choose Record Scope' })).getByRole('button', { name: 'View template' }))
+    expect(onShowView).toHaveBeenCalledExactlyOnceWith('schema')
+    fireEvent.click(within(screen.getByRole('region', { name: 'Choose Record Scope' })).getByRole('button', { name: /Catalog: many records/ }))
+    expect(onShowView).toHaveBeenLastCalledWith('chat')
+  })
+
+  it('leaves the view as it is for a run\'s controls', () => {
+    const command = vi.fn()
+    const { onShowView } = renderChat({ mode: 'step', recordScope: { value: 'records', onChange: vi.fn() },
+      run: { start: vi.fn(), available: true, unavailableReason: null },
+      control: { command, busy: false, continueBlocked: null, continueDescription: 'Continue.', pauseDescription: 'Pause.' },
+      latest: { extractionId: 'extraction-1', schemaRevisionId: 'revision-1', status: 'RUNNING', progress: null, toCheck: null } })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Extraction' })).getByRole('button', { name: /Pause extraction/ }))
+    expect(command).toHaveBeenCalledExactlyOnceWith('pause')
+    expect(onShowView).not.toHaveBeenCalled()
+  })
+
   it('opens Results after a finished run', () => {
     const onShowView = vi.fn()
     renderChat({

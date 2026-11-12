@@ -603,7 +603,7 @@ describe('BatchExtractionsPanel', () => {
     expect(await screen.findByText('2 selected')).toBeInTheDocument()
   })
 
-  it('the workflow bar\'s "Next: Pilot extraction" opens the pilot preparation, once the documents are there', async () => {
+  it('the workflow bar\'s "Next: Try template on a few documents" opens the pilot preparation, once the documents are there', async () => {
     stubPilotPreparation()
     const onGuidedRequestHandled = vi.fn()
     const props = { projectContextId, openBatchExtractionId: null, pilotSchemaRevisionId: null, onNavigate: () => {}, guidedRequest: 'pilot' as const, onGuidedRequestHandled }

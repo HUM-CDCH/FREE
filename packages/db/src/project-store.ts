@@ -251,6 +251,9 @@ export type ProjectContextWorkflowPhase =
  * `phase` is the furthest step reached, read from facts that later work never
  * undoes (a reviewed pilot, an approved revision, a finished Batch
  * Extraction), so editing the schema or adding documents never moves it back.
+ * Deleting can: no documents is `upload` again, no template `schema`. An
+ * approval stands for its pilot, so deleting the reviewed documents after it
+ * does not return to `pilot`.
  * What those changes leave to do is counted instead: `schemaStabilised`,
  * `currentSchemaRevisionReviewed` and `pendingExtractionSourceDocumentCount`.
  */
@@ -1778,7 +1781,8 @@ export function createResearcherProjectStore(
             ? 'upload'
             : !state.hasSchemaRevision
               ? 'schema'
-              : !state.hasReviewedExtraction
+              // An approved revision has been piloted: deleting the reviewed documents since never asks for a pilot again.
+              : !state.hasReviewedExtraction && !state.hasStabilisedRevision
                 ? 'pilot'
                 : !state.hasStabilisedRevision
                   ? 'approve'
