@@ -283,6 +283,47 @@ async function openSuggestedFields() {
 }
 
 describe('BatchExtractionsPanel', () => {
+  it('reads the latest saved revision before reopening a template after switching', async () => {
+    const otherSchemaId = '51000000-0000-4000-8003-000000000002'
+    const otherRevisionId = '51000000-0000-4000-8004-000000000003'
+    const other = { ...chosenRevision(), extractionSchemaId: otherSchemaId, schemaRevisionId: otherRevisionId, recordDescription: 'Another template.' }
+    let current = chosenRevision()
+    const schemaList = () => response({ extractionSchemas: [current, other].map(revision => ({
+      extractionSchemaId: revision.extractionSchemaId,
+      name: revision.extractionSchemaId === otherSchemaId ? 'Other' : 'Places',
+      createdAt: revision.createdAt,
+      currentRevision: { schemaRevisionId: revision.schemaRevisionId, revisionNumber: revision.revisionNumber, origin: revision.origin, createdAt: revision.createdAt },
+    })) })
+    const refreshing = Promise.withResolvers<Response>()
+    let holdList = false
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+      if (url.startsWith('/api/extraction-schemas?')) return holdList ? refreshing.promise : schemaList()
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) return response({ revision: chosenRevision() })
+      if (url.startsWith(`/api/schema-revisions/${appendedRevisionId}?`)) return response({ revision: current })
+      if (url.startsWith(`/api/schema-revisions/${otherRevisionId}?`)) return response({ revision: other })
+      if (url.startsWith('/api/schema-revisions?')) return response({ revisions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
+    await screen.findByText('One place record.')
+    fireEvent.change(screen.getByLabelText('Extraction Template'), { target: { value: otherSchemaId } })
+    await screen.findByText('Another template.')
+
+    // The first template was saved since the preparation screen cached its head (here, by another tab).
+    current = { ...current, schemaRevisionId: appendedRevisionId, revisionNumber: 2, recordDescription: 'Latest saved description.' }
+    holdList = true
+    fireEvent.change(screen.getByLabelText('Extraction Template'), { target: { value: batch.extractionSchemaId } })
+    expect(screen.queryByLabelText('Extraction Template fields')).not.toBeInTheDocument()
+    expect(screen.queryByText('One place record.')).not.toBeInTheDocument()
+    await act(async () => { refreshing.resolve(schemaList()) })
+    expect(await screen.findByText('Latest saved description.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit description' })).toHaveTextContent('Latest saved description.')
+  })
+
   it('does not abort a slow poll to start the next interval refresh', async () => {
     vi.useFakeTimers()
     const runningBatch = { ...batch, executionStatus: 'RUNNING' as const }

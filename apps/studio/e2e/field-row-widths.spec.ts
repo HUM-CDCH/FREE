@@ -200,6 +200,8 @@ async function checkRows(page: Page, width: number) {
     const kindActions = actionsOf(kind, 'kind')
     await kind.focus()
     await page.keyboard.press('Tab')
+    await expect(kind.getByRole('button', { name: 'Move kind' })).toBeFocused()
+    await page.keyboard.press('Tab')
     await page.keyboard.press('Tab')
     await expect(kind.getByTitle(/^Allowed values/), `${width}px, kind: its last pill focused`).toBeFocused()
     await page.keyboard.press('Tab')
@@ -310,7 +312,7 @@ async function checkKeyboard(page: Page, width: number) {
     }
   }
   expect(reached, `${width}px: Tab order from the row`).toEqual([
-    expect.stringMatching(/^Type: string/), expect.stringMatching(/^Allowed values/), 'Edit archaeological_context',
+    'Move archaeological_context', expect.stringMatching(/^Type: string/), expect.stringMatching(/^Allowed values/), 'Edit archaeological_context',
   ])
   await expect(actions[0]!).toBeFocused()
   await expect.poll(() => opacity(actions[0]!.locator('..')), `${width}px: actions shown on focus`).toBe('1')
@@ -592,10 +594,26 @@ test('the workspace refuses a project pilot while its description input is unfin
   await expect(page.getByLabel('What one record is')).toHaveValue('Unfinished description to retain.')
 })
 
-test('Move chooses one parent and position at the minimum rail width @deterministic', async ({ page }) => {
+test('Move chooses one parent and position at the minimum rail width @deterministic', async ({ page }, testInfo) => {
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await resizeRail(page, 264)
+  const grip = page.getByRole('button', { name: 'Move sex', exact: true })
+  await expect(grip).toHaveText('⠿')
+  expect((await grip.boundingBox())!.width).toBeGreaterThanOrEqual(24)
+  await grip.focus()
+  await grip.press('Enter')
+  const moveDialog = page.getByRole('dialog', { name: 'Move field', exact: true })
+  const parent = moveDialog.getByLabel('Destination parent')
+  await expect(parent).toBeFocused()
+  const parentBox = (await parent.boundingBox())!
+  const positionBox = (await moveDialog.getByLabel('Insertion position').boundingBox())!
+  expect(positionBox.y).toBeGreaterThan(parentBox.y + parentBox.height)
+  expect((await moveDialog.getByRole('button', { name: 'Cancel' }).boundingBox())!.y).toBeGreaterThan(positionBox.y + positionBox.height)
+  await page.screenshot({ path: testInfo.outputPath('move-dialog.png') })
+  await parent.press('Escape')
+  await expect(moveDialog).toBeHidden()
+  await expect(grip).toBeFocused()
   const order = () => page.getByRole('list', { name: 'Template fields' }).getByRole('listitem').evaluateAll(
     elements => elements.map(element => element.getAttribute('aria-label')),
   )
@@ -612,6 +630,27 @@ test('Move chooses one parent and position at the minimum rail width @determinis
     await expect(dialog).toBeHidden()
     await expect.poll(order).toEqual(expected)
   }
+})
+
+test('field and note edits stay beside their fields and return focus after Cancel @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await resizeRail(page, 264)
+  const layer = page.getByRole('listitem', { name: 'layer', exact: true })
+  await layer.hover()
+  await layer.getByRole('button', { name: 'Edit layer', exact: true }).click()
+  const field = page.getByRole('textbox', { name: 'Field name', exact: true })
+  await expect(field).toBeFocused()
+  await expect(page.locator('[data-schema-node-id="layer"]').getByRole('textbox', { name: 'Field name', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel field edit' }).click()
+  await expect(layer).toBeFocused()
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  await title.hover()
+  await title.getByRole('button', { name: 'Add note to title', exact: true }).click()
+  await expect(page.locator('[data-schema-node-id="title"]').getByRole('textbox', { name: 'Field notes' })).toBeFocused()
+  await expect(field).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(title).toBeFocused()
 })
 
 test('batch preparation blocks Strategy and Run while an edit is unfinished @deterministic', async ({ page }) => {
@@ -692,7 +731,7 @@ function expectRowsInPlace(now: RowGeometry, rest: RowGeometry, what: string, on
 async function dragAbove(page: Page, name: string, above: string, rest: RowGeometry) {
   const order = rest.map((row) => row.name)
   const before = order.slice(0, order.indexOf(name))
-  const grip = (await page.getByRole('listitem', { name, exact: true }).locator('span', { hasText: '⠿' }).boundingBox())!
+  const grip = (await page.getByRole('listitem', { name, exact: true }).getByRole('button', { name: `Move ${name}`, exact: true }).boundingBox())!
   // The slot above a row is the first child of the row's wrapper.
   const slot = (await page.locator(`[data-schema-node-id="${idOf(above)}"] > div`).first().boundingBox())!
   const x = grip.x + grip.width / 2
@@ -744,7 +783,7 @@ test('pressing and dragging a grip at 264px moves no row, and the drop lands whe
   // A pointer held within 60px of the fields' scroll box's top or bottom edge scrolls the list 7px a frame from the
   // press on, which moves every row by design. So bring sex's grip to the middle of the box before measuring the rows at
   // rest, and check that both gestures start and end clear of those edges.
-  const grip = (name: string) => page.getByRole('listitem', { name, exact: true }).locator('span', { hasText: '⠿' })
+  const grip = (name: string) => page.getByRole('listitem', { name, exact: true }).getByRole('button', { name: `Move ${name}`, exact: true })
   await grip('sex').evaluate((element) => element.scrollIntoView({ block: 'center' }))
   const scroller = await page.getByRole('list', { name: 'Template fields' }).evaluate((list) => {
     let element = list.parentElement

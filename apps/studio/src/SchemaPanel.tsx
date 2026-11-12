@@ -22,6 +22,7 @@ import {
   type SchemaNode,
   enumerateFieldPaths,
   mkId,
+  schemaDefinitionToTemplate,
   type SchemaDefinition,
 } from 'extraction/schema'
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
@@ -37,11 +38,18 @@ import {
   moveSchemaNodes,
   removeSchemaNode,
   restoreSchemaNode,
+  schemaAncestorIds,
   schemaDragMode,
   updateSchemaNode,
 } from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
+
+/** Current templates read compactly; older definitions that cannot use that format remain inspectable. */
+function templateCode(definition: SchemaDefinition): string {
+  try { return JSON.stringify(schemaDefinitionToTemplate(definition), null, 2) }
+  catch { return JSON.stringify(definition, null, 2) }
+}
 
 /** `ids` taken out of the collapsed set, so those groups show their children. */
 const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
@@ -167,7 +175,7 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
 }
 
 const dialogCls =
-  'm-auto w-full max-w-sm rounded-card border border-line bg-surface p-4 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]'
+  'm-auto w-full max-w-sm overscroll-contain rounded-card border border-line bg-surface p-4 text-ink backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]'
 
 /** The record description's height in rows (§5): two at rest, growing with its wrapped text to six. */
 const DESCRIPTION_ROWS = { min: 2, max: 6 }
@@ -212,6 +220,20 @@ function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCan
     const remaining = (editing.allowedValues ?? []).filter((v) => v !== value)
     onChange({ ...editing, allowedValues: remaining.length > 0 ? remaining : undefined })
   }
+
+  if (focus === 'notes') return (
+    <div className="my-0.5 flex flex-col gap-2 rounded-md border border-accent bg-accent-ghost p-2.5">
+      <label htmlFor={notesId} className="text-secondary font-semibold [overflow-wrap:anywhere]">Notes for {editing.name}</label>
+      <textarea id={notesId} aria-label="Field notes" autoFocus rows={3}
+        className="w-full resize-y rounded border border-line bg-surface p-2 text-secondary outline-none focus-visible:border-accent"
+        value={editing.description ?? ''} onChange={e => onChange({ ...editing, description: e.target.value })} />
+      {error && <p role="alert" className="text-compact text-danger [overflow-wrap:anywhere]">{error}</p>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="positive" onClick={onSave}>Save</Button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="my-0.5 flex flex-col gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
@@ -292,7 +314,7 @@ function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCan
         </div>
       )}
       <label htmlFor={notesId} className="text-secondary">Field notes
-        <textarea id={notesId} aria-label="Field notes" autoFocus={focus === 'notes'} className="block w-full rounded border border-line bg-surface p-2" value={editing.description ?? ''} onChange={e => onChange({ ...editing, description: e.target.value })} />
+        <textarea id={notesId} aria-label="Field notes" className="block w-full rounded border border-line bg-surface p-2" value={editing.description ?? ''} onChange={e => onChange({ ...editing, description: e.target.value })} />
       </label>
       {error && <span className="text-overline font-semibold text-danger [overflow-wrap:anywhere]" role="alert">{error}</span>}
     </div>
@@ -403,7 +425,7 @@ function SchemaPanel({
         setHistoryOpen(false)
       }
     },
-    [dismissPanelToast],
+    [dismissPanelToast, setView, setCollapsedIds, setConfirmingDeleteSchema, setMoving, setHistoryOpen],
   )
   const observedReplacementVersion = useRef(snap.replacementVersion)
   useEffect(() => {
@@ -504,12 +526,12 @@ function SchemaPanel({
       return { ...parsed, schemaNodes: visit(parsed.schemaNodes) } as SchemaDefinition
     })
   }
-  const importDisabled = editorReadOnly || snap.input !== null || snap.generating || !schema.operationScope()?.projectContextId
+  const importDisabled = editorReadOnly || snap.useBlockedReason !== null || !schema.operationScope()?.projectContextId
   const menuItems: ActionItem[] = [
     { id: 'import', label: 'Import from Excel codebook…', onSelect: () => { if (!schema.snapshot().useBlockedReason) setImportOpen(true) }, disabled: importDisabled },
     // "Edit as code" opens the code view ready to edit (§5); Fields | Code switches to it for reading. A session already
     // open keeps its unsaved code and its error: choosing the action again only shows it.
-    { id: 'code', label: 'Edit as code', onSelect: () => { if (!jsonEditMode) startCodeEdit() } },
+    { id: 'code', label: 'Edit as code', onSelect: () => { if (!jsonEditMode) startCodeEdit() }, disabled: snap.editingBlockedReason !== null && !jsonEditMode },
     {
       id: 'history', label: 'History', onSelect: () => setHistoryOpen(true),
       disabled: snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null || snap.previewingRevisionId !== null,
@@ -517,7 +539,7 @@ function SchemaPanel({
     ...(onRegenerate
       ? [{ id: 'regenerate', label: 'Regenerate from the document…', onSelect: () => onRegenerate?.(), disabled: snap.useBlockedReason !== null }]
       : []),
-    { id: 'clear', label: 'Clear template', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true), disabled: snap.input !== null },
+    { id: 'clear', label: 'Clear template', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true), disabled: snap.editingBlockedReason !== null },
   ]
 
   /** Measures the explicitly opened record-description form. */
@@ -655,6 +677,15 @@ function SchemaPanel({
     setEditFocus(focus)
     begin('field', JSON.stringify({ ...editingOf(node), newField }), value => {
       const edit = JSON.parse(value) as FieldEditing
+      if (focus === 'notes') return {
+        ...base,
+        schemaNodes: updateSchemaNode(base.schemaNodes, node.id, current => {
+          const next = { ...current }
+          if (edit.description) next.description = edit.description
+          else delete next.description
+          return next
+        }),
+      }
       if (edit.newValue?.trim()) throw new Error('Add the pending allowed value or clear it before saving.')
       if (edit.type === 'string' && edit.allowedValues?.length === 1) throw new Error('Need at least 2 allowed values.')
       const name = edit.name.trim().toLowerCase().replace(/\s+/g, '_')
@@ -662,8 +693,23 @@ function SchemaPanel({
       return { ...base, schemaNodes: newField ? [...base.schemaNodes, editedField(node, name, edit)] : updateSchemaNode(base.schemaNodes, node.id, current => editedField(current, name, edit)) }
     })
   }
-  function saveEdit() { inputHandle?.save() }
-  function cancelEdit() { inputHandle?.cancel() }
+  function focusAfterEdit() {
+    const fieldId = editing?.id
+    const kind = snap.input?.kind
+    if (kind === 'json') return // The modal restores its opener.
+    queueMicrotask(() => {
+      if (kind === 'description') {
+        scrollRef.current?.querySelector<HTMLElement>('[aria-label="Edit description"]')?.focus()
+        return
+      }
+      const field = Array.from(fieldListRef.current?.querySelectorAll<HTMLElement>('[data-schema-node-id]') ?? [])
+        .find(element => element.dataset.schemaNodeId === fieldId)
+      const target = field?.querySelector<HTMLElement>('[role="listitem"]') ?? addFieldRef.current
+      target?.focus()
+    })
+  }
+  function saveEdit() { if (inputHandle?.save()) focusAfterEdit() }
+  function cancelEdit() { inputHandle?.cancel(); focusAfterEdit() }
 
   /** One click removes the field and its subtree; Undo puts it back where it was for eight seconds (§6). Both commits
    *  carry an empty label: the controller toasts every non-empty label at the top of the document (`onCommitMessage`,
@@ -726,6 +772,16 @@ function SchemaPanel({
 
   const editDisabled = editorReadOnly || !!dragging || snap.editingBlockedReason !== null
   const instructing = (snap.view === 'empty' || snap.view === 'failed') && !!onGenerateInstructions
+  const originalField = editing && enumerateFieldPaths(nodes).find(field => field.id === editing.id)?.node
+  const inlineEditing = editing && originalField && !editing.newField && !snap.input?.stale && !pending && !editorReadOnly && view === 'fields'
+    && [...schemaAncestorIds(nodes, new Set([editing.id]))].filter(id => id !== editing.id).every(id => !collapsedIds.has(id))
+  const losesChildren = originalField?.children?.length && editing?.type !== 'object' && !(editing?.type === 'array' && editing.itemType === null)
+  const losesValues = originalField?.allowedValues?.length && editing?.type !== 'string'
+  const losesItemType = originalField?.itemType && editing?.type !== 'array'
+  const editForm = editing && <>
+    {(losesChildren || losesValues || losesItemType) && <p role="status" className="text-compact text-danger">Saving this type will remove {losesChildren ? 'child fields and their metadata' : losesValues ? 'allowed values' : 'the array item type'}.</p>}
+    <FieldEditForm editing={editing} error={editingError} focus={editFocus} onChange={setEditing} onSave={saveEdit} onCancel={cancelEdit} />
+  </>
 
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
@@ -738,29 +794,27 @@ function SchemaPanel({
     const change = pending?.changes.find((item) => item.id === node.id)
     const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
+    if (inlineEditing && editing.id === node.id) return editForm
     // The row itself is the group target, at every level: the slot above it and its children below are targets of their
     // own, and the pointer moving from either onto the row must replace their target.
     return (
-      <>
-          <FieldRow node={node} isGroup={isGroup} expanded={isExpanded}
-            onToggleExpanded={() => setCollapsedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
-            change={change} outcome={change && replay?.outcomes.get(change.id)} impliedRemoved={ancestorRemoved}
-            acceptance={change ? { accepted: acceptedChangeIds.has(change.id), onToggle: proposalReview.toggle } : undefined}
-            readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} dragActive={!!dragging} intoGroup={intoGroup}
-            onMouseEnter={isDiff ? undefined : () => setGroupTarget(node.id, node.name)}
-            onMouseLeave={isDiff ? undefined : () => clearGroupTarget(node.id)}
-            onStartDrag={(event) => startDrag(event, node.id, parentId, node.name, isGroup)}
-            onEdit={() => openField(node)}
-            onEditValues={() => openField(node, 'values')}
-            onAddNote={() => openField(node, 'notes')}
-            onDelete={() => deleteField(node, parentId, index)}
-          />
-
-        {!editorReadOnly && !isDiff && <Button disabled={editDisabled} onClick={() => {
+      <FieldRow node={node} isGroup={isGroup} expanded={isExpanded}
+        onToggleExpanded={() => setCollapsedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
+        change={change} outcome={change && replay?.outcomes.get(change.id)} impliedRemoved={ancestorRemoved}
+        acceptance={change ? { accepted: acceptedChangeIds.has(change.id), onToggle: proposalReview.toggle } : undefined}
+        readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} dragActive={!!dragging} intoGroup={intoGroup}
+        onMouseEnter={isDiff ? undefined : () => setGroupTarget(node.id, node.name)}
+        onMouseLeave={isDiff ? undefined : () => clearGroupTarget(node.id)}
+        onStartDrag={(event) => startDrag(event, node.id, parentId, node.name, isGroup)}
+        onEdit={() => openField(node)}
+        onEditValues={() => openField(node, 'values')}
+        onAddNote={() => openField(node, 'notes')}
+        onMove={() => {
           setMoving({ id: node.id, parentId, isGroup, epoch: snap.replacementVersion })
           setMoveParent(parentId); setMoveIndex(index)
-        }}>Move {node.name}</Button>}
-      </>
+        }}
+        onDelete={() => deleteField(node, parentId, index)}
+      />
     )
   }
 
@@ -774,23 +828,29 @@ function SchemaPanel({
     <div className="relative flex h-full min-h-0 flex-col">
       {snap.useBlockedReason && <p role="status" className="px-4 text-compact">{snap.useBlockedReason}</p>}
       {moving && <ModalDialog onDismiss={() => setMoving(null)} className={dialogCls} ariaLabel="Move field">
-        <h2 className="font-semibold">Move field</h2>
-        <label htmlFor={moveParentId}>Destination parent</label>
-        <select id={moveParentId} value={moveParent ?? ''} onChange={event => { setMoveParent(event.target.value || null); setMoveIndex(0) }}>
-          {destinations.map(item => <option key={item.id ?? 'root'} value={item.id ?? ''}>{item.label}</option>)}
-        </select>
-        <label htmlFor={movePositionId}>Insertion position</label>
-        <select id={movePositionId} value={moveIndex} onChange={event => setMoveIndex(Number(event.target.value))}>
-          {Array.from({ length: (destination?.children.length ?? 0) + 1 }, (_, index) => <option key={index} value={index}>{destination?.children[index] ? `Before ${destination.children[index]!.name}` : 'End'}</option>)}
-        </select>
-        {!selectedMove && <p role="status">Choose a different position. Fields must retain unique sibling names and valid source references.</p>}
-        <Button onClick={() => setMoving(null)}>Cancel</Button>
-        <Button variant="positive" disabled={!selectedMove || snap.editingBlockedReason !== null} onClick={() => {
-          const current = schema.snapshot()
-          if (current.replacementVersion !== moving.epoch || current.editingBlockedReason || !current.draft) return
-          const next = moveSchemaNodes(current.draft.schemaNodes, moving, { type: 'slot', parentId: moveParent, index: moveIndex }, 0, 0)
-          if (next) { applyMove(next); setMoving(null) }
-        }}>Move</Button>
+        <h2 className="text-content font-semibold">Move field</h2>
+        <div className="mt-3 flex min-w-0 flex-col gap-3 text-secondary">
+          <label htmlFor={moveParentId} className="flex min-w-0 flex-col gap-1 font-semibold">Destination parent
+          <select id={moveParentId} autoFocus className="min-h-9 w-full min-w-0 rounded-md border border-line-strong bg-surface px-2 font-normal outline-none focus-visible:border-accent" value={moveParent ?? ''} onChange={event => { setMoveParent(event.target.value || null); setMoveIndex(0) }}>
+            {destinations.map(item => <option key={item.id ?? 'root'} value={item.id ?? ''}>{item.label}</option>)}
+          </select>
+          </label>
+          <label htmlFor={movePositionId} className="flex min-w-0 flex-col gap-1 font-semibold">Insertion position
+          <select id={movePositionId} className="min-h-9 w-full min-w-0 rounded-md border border-line-strong bg-surface px-2 font-normal outline-none focus-visible:border-accent" value={moveIndex} onChange={event => setMoveIndex(Number(event.target.value))}>
+            {Array.from({ length: (destination?.children.length ?? 0) + 1 }, (_, index) => <option key={index} value={index}>{destination?.children[index] ? `Before ${destination.children[index]!.name}` : 'End'}</option>)}
+          </select>
+          </label>
+          {!selectedMove && <p role="status" className="text-compact text-ink-muted">Choose a different position. Fields must retain unique sibling names and valid source references.</p>}
+        </div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button onClick={() => setMoving(null)}>Cancel</Button>
+          <Button variant="positive" disabled={!selectedMove || snap.editingBlockedReason !== null} onClick={() => {
+            const current = schema.snapshot()
+            if (current.replacementVersion !== moving.epoch || current.editingBlockedReason || !current.draft) return
+            const next = moveSchemaNodes(current.draft.schemaNodes, moving, { type: 'slot', parentId: moveParent, index: moveIndex }, 0, 0)
+            if (next) { applyMove(next); setMoving(null) }
+          }}>Move</Button>
+        </div>
       </ModalDialog>}
       {/* ── Header ── */}
       <header className="flex shrink-0 flex-col gap-1 border-b border-line px-4 pb-2 pt-2.5">
@@ -955,33 +1015,31 @@ function SchemaPanel({
 
           {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
 
-          {ready && !snap.historicalPreview && view === 'code' && <div><pre className="overflow-x-auto whitespace-pre rounded border border-line p-2 text-compact">{JSON.stringify(snap.historicalPreview ?? snap.draft, null, 2)}</pre>{!editorReadOnly && <Button onClick={startCodeEdit}>Edit</Button>}</div>}
+          {ready && !snap.historicalPreview && view === 'code' && <div><pre className="overflow-x-auto whitespace-pre rounded border border-line p-2 font-mono text-compact">{templateCode(snap.draft!)}</pre>{!editorReadOnly && <Button className="mt-2" disabled={snap.editingBlockedReason !== null} onClick={startCodeEdit}>Edit</Button>}</div>}
           {jsonEditMode && <ModalDialog className="m-auto w-[90vw] max-w-5xl rounded-card border border-line bg-surface p-4 text-ink" ariaLabel="Edit template code" dismissDisabled onDismiss={cancelEdit}>
             <h3>Edit template code</h3>
+            <p className="mt-1 text-secondary text-ink-muted">The complete definition includes field notes and source rules. Keep each existing field’s ID when editing it.</p>
             <label htmlFor={codeInputId}>Template code</label>
             <textarea id={codeInputId} aria-label="Template code" autoFocus spellCheck={false} wrap="off" className="my-3 h-[60vh] w-full overflow-x-auto whitespace-pre border border-line bg-canvas p-2 font-mono text-secondary" value={jsonDraft} onChange={e => inputHandle?.update(e.target.value)} />
             {jsonEditError && <p role="alert">{jsonEditError}</p>}
             <Button variant="positive" onClick={saveEdit}>Save</Button><Button onClick={cancelEdit}>Cancel</Button>
           </ModalDialog>}
 
-          {editing && (() => {
-            const original = enumerateFieldPaths(nodes).find(f => f.id === editing.id)?.node
-            const losesChildren = original?.children?.length && editing.type !== 'object' && !(editing.type === 'array' && editing.itemType === null)
-            const losesValues = original?.allowedValues?.length && editing.type !== 'string'
-            const losesItemType = original?.itemType && editing.type !== 'array'
-            return (losesChildren || losesValues || losesItemType) ? <p role="status" className="text-danger">Saving this type will remove {losesChildren ? 'child fields and their metadata' : losesValues ? 'allowed values' : 'the array item type'}.</p> : null
-          })()}
-          {editing && <FieldEditForm editing={editing} error={editingError} focus={editFocus} onChange={setEditing} onSave={saveEdit} onCancel={cancelEdit} />}
+          {/* A replaced field's stale input stays reachable for copying even when its row no longer exists. */}
+          {editing && !inlineEditing && (!editing.newField || snap.input?.stale || view !== 'fields' || editorReadOnly) && editForm}
           {snap.historicalPreview && <SchemaDefinitionBody view={view} definition={snap.historicalPreview} recordScope={snap.historicalPreview.recordScope} />}
           {ready && !snap.historicalPreview && view === 'fields' && (
             <>
               <div className="mb-3 block">
-                <label htmlFor={descriptionInputId} className="text-compact font-semibold text-ink-muted">What one record is</label>
+                <span className="text-compact font-semibold text-ink-muted">What one record is</span>
                 {snap.input?.kind === 'description' ? <>
                   <textarea id={descriptionInputId} ref={descriptionRef} aria-label="What one record is" autoFocus className="mt-1 block w-full resize-none rounded-[3px] border border-line bg-transparent px-2 py-1 text-secondary leading-relaxed text-ink outline-none focus:border-line-strong" rows={DESCRIPTION_ROWS.min} value={recordDescriptionDraft} onChange={event => inputHandle?.update(event.target.value)} />
                   {editingError && <p role="alert">{editingError}</p>}
                   <Button variant="positive" onClick={saveEdit}>Save</Button><Button onClick={cancelEdit}>Cancel</Button>
-                </> : <><p className="mt-1 text-secondary">{recordDescriptionDraft}</p>{!editorReadOnly && <Button onClick={editDescription}>Edit description</Button>}</>}
+                </> : <button type="button" aria-label="Edit description" disabled={editDisabled} onClick={editDescription}
+                  className="mt-1 block min-h-9 w-full cursor-text rounded-[3px] text-left text-secondary [overflow-wrap:anywhere] outline-none hover:bg-surface-muted focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-default">
+                  {recordDescriptionDraft || 'Describe the record this template extracts…'}
+                </button>}
               </div>
               {mutationError && <p className="mb-2 text-compact font-semibold text-danger [overflow-wrap:anywhere]" role="alert">{mutationError}</p>}
               {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
@@ -989,12 +1047,13 @@ function SchemaPanel({
                 <SchemaTree nodes={pending ? pending.reviewNodes : nodes} expanded={node => !collapsedIds.has(node.id) || (dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id)} renderRow={renderField}
                   removed={node => pending?.changes.some(change => change.id === node.id && change.kind === 'removed') ?? false}
                   renderSlot={(parentId, index) => <div className={slotCls(parentId, index)} onMouseEnter={() => setSlotTarget(parentId, index)} />} />
+                {editing?.newField && !snap.input?.stale && editForm}
               </div>
               {!editorReadOnly && <button
                 ref={addFieldRef}
                 className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-line-strong hover:text-ink focus-visible:border-accent focus-visible:text-accent"
                 type="button"
-                disabled={editing !== null}
+                disabled={editDisabled}
                 onClick={addField}
               >
                 + Add field

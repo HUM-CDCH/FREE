@@ -122,6 +122,16 @@ export function BatchPreparation({
   const [templateId, setTemplateId] = useState('')
   const [revision, setRevision] = useState<SchemaRevision | null>(null)
   const suggestions = useSuggestions(projectContextId)
+  // A previous editor or another tab may have appended revisions since this list was read. Never mount a new
+  // controller from that cached head: refresh the list before opening the selection, including a saved suggestion.
+  const chooseTemplate = useCallback((id: string) => {
+    setRevision(null)
+    setTemplateId(id)
+    if (id !== SUGGEST) {
+      setSchemas({ value: null, failure: null })
+      setSchemasReload(value => value + 1)
+    }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -163,15 +173,13 @@ export function BatchPreparation({
     ? (suggestions.value ?? []).find((candidate) => sameSelection(candidate, selected)) ?? null
     : null
   const savedSchemaId = suggestion?.savedSchema?.extractionSchemaId ?? null
-  const savedSchemaListed = schemas.value?.some((schema) => schema.extractionSchemaId === savedSchemaId) ?? false
   useEffect(() => {
     if (!savedSchemaId) return
     // Adopting the saved template is one step the server's answer takes, wherever that answer came from (this page's
     // apply, or a list read after another tab's); from then on it is the chosen template, whatever the selection does.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (savedSchemaListed) setTemplateId(savedSchemaId)
-    else setSchemasReload((value) => value + 1)
-  }, [savedSchemaId, savedSchemaListed])
+    chooseTemplate(savedSchemaId)
+  }, [savedSchemaId, chooseTemplate])
   // The template's own provenance: the suggestion it was saved from, if any.
   const savedFrom = (suggestions.value ?? []).find((candidate) => candidate.savedSchema?.extractionSchemaId === templateId) ?? null
 
@@ -191,7 +199,7 @@ export function BatchPreparation({
         value={templateId}
         // The workflow's pilot and batch run its Current Schema Revision; another schema is a custom run.
         disabled={schemas.value === null || (guided && templateId !== '')}
-        onChange={(event) => setTemplateId(event.target.value)}
+        onChange={(event) => chooseTemplate(event.target.value)}
       >
         {schemas.value ? (
           <>
