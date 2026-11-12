@@ -526,12 +526,12 @@ function SchemaPanel({
       return { ...parsed, schemaNodes: visit(parsed.schemaNodes) } as SchemaDefinition
     })
   }
-  const importDisabled = editorReadOnly || snap.input !== null || snap.generating || !schema.operationScope()?.projectContextId
+  const importDisabled = editorReadOnly || snap.useBlockedReason !== null || !schema.operationScope()?.projectContextId
   const menuItems: ActionItem[] = [
     { id: 'import', label: 'Import from Excel codebook…', onSelect: () => { if (!schema.snapshot().useBlockedReason) setImportOpen(true) }, disabled: importDisabled },
     // "Edit as code" opens the code view ready to edit (§5); Fields | Code switches to it for reading. A session already
     // open keeps its unsaved code and its error: choosing the action again only shows it.
-    { id: 'code', label: 'Edit as code', onSelect: () => { if (!jsonEditMode) startCodeEdit() } },
+    { id: 'code', label: 'Edit as code', onSelect: () => { if (!jsonEditMode) startCodeEdit() }, disabled: snap.editingBlockedReason !== null && !jsonEditMode },
     {
       id: 'history', label: 'History', onSelect: () => setHistoryOpen(true),
       disabled: snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null || snap.previewingRevisionId !== null,
@@ -539,7 +539,7 @@ function SchemaPanel({
     ...(onRegenerate
       ? [{ id: 'regenerate', label: 'Regenerate from the document…', onSelect: () => onRegenerate?.(), disabled: snap.useBlockedReason !== null }]
       : []),
-    { id: 'clear', label: 'Clear template', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true), disabled: snap.input !== null },
+    { id: 'clear', label: 'Clear template', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true), disabled: snap.editingBlockedReason !== null },
   ]
 
   /** Measures the explicitly opened record-description form. */
@@ -1015,7 +1015,7 @@ function SchemaPanel({
 
           {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
 
-          {ready && !snap.historicalPreview && view === 'code' && <div><pre className="overflow-x-auto whitespace-pre rounded border border-line p-2 font-mono text-compact">{templateCode(snap.draft!)}</pre>{!editorReadOnly && <Button className="mt-2" onClick={startCodeEdit}>Edit</Button>}</div>}
+          {ready && !snap.historicalPreview && view === 'code' && <div><pre className="overflow-x-auto whitespace-pre rounded border border-line p-2 font-mono text-compact">{templateCode(snap.draft!)}</pre>{!editorReadOnly && <Button className="mt-2" disabled={snap.editingBlockedReason !== null} onClick={startCodeEdit}>Edit</Button>}</div>}
           {jsonEditMode && <ModalDialog className="m-auto w-[90vw] max-w-5xl rounded-card border border-line bg-surface p-4 text-ink" ariaLabel="Edit template code" dismissDisabled onDismiss={cancelEdit}>
             <h3>Edit template code</h3>
             <p className="mt-1 text-secondary text-ink-muted">The complete definition includes field notes and source rules. Keep each existing field’s ID when editing it.</p>
@@ -1053,7 +1053,7 @@ function SchemaPanel({
                 ref={addFieldRef}
                 className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-line-strong hover:text-ink focus-visible:border-accent focus-visible:text-accent"
                 type="button"
-                disabled={editing !== null}
+                disabled={editDisabled}
                 onClick={addField}
               >
                 + Add field
