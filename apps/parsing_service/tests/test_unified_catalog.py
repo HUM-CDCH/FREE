@@ -2136,8 +2136,12 @@ def test_children_windows_never_cross_a_cut_so_a_prefix_carves_what_the_whole_bo
                                   "One grave or find.", lambda _s, user, _r: user.count("[L") <= 6, ask, **options)
     legacy = carve()
     assert len(asked) == 3 and len(legacy["entries"]) == 12 and legacy["complete"] is True
-    # Cut after grave 1 and after grave 3: grave 1 alone, graves 2 and 3 in two windows, grave 4 alone.
-    whole = carve(cuts=[1, 3])
+    # One discovery window settles nothing before the source ends: its cut is none, and the body is carved as before.
+    asked_before = list(asked)
+    assert carve(cuts=[3]) == legacy and asked == asked_before
+    # Cut after grave 1 and after grave 3 (the last window's own cut, 4 here, is none): grave 1 alone, graves 2 and 3
+    # in two windows, grave 4 alone.
+    whole = carve(cuts=[1, 3, 4])
     windows = list(asked)
     assert len(windows) == 4 and whole["entries"] == legacy["entries"] and whole["complete"] is True
     # A prefix holding grave 1 asks its window alone; one holding graves 1 to 3 the first three windows. Grave 4,
@@ -2149,10 +2153,10 @@ def test_children_windows_never_cross_a_cut_so_a_prefix_carves_what_the_whole_bo
     # A window not answered yet is no error: the others are asked, and only the entries before its first line's are
     # carved. Grave 2 begins in the second window.
     unanswered = (windows[1],)
-    part = carve(cuts=[1, 3], unanswered=(Pending,))
+    part = carve(cuts=[1, 3, 4], unanswered=(Pending,))
     assert asked == windows and part["complete"] is False and part["entries"] == whole["entries"][:3]
     unanswered = ()
-    assert carve(cuts=[1, 3], unanswered=(Pending,)) == whole
+    assert carve(cuts=[1, 3, 4], unanswered=(Pending,)) == whole
 
 
 def test_a_line_that_fits_no_children_request_undoes_nothing_an_earlier_prefix_carved():
@@ -2168,7 +2172,7 @@ def test_a_line_that_fits_no_children_request_undoes_nothing_an_earlier_prefix_c
                                   "One grave or find.", lambda _s, user, _r: "RECORD 4" not in user, ask, **options)
     early = carve(2, False, cuts=[1, 2])
     late = carve(4, False, cuts=[1, 2, 3])
-    final = carve(4, cuts=[1, 2, 3])
+    final = carve(4, cuts=[1, 2, 3, 3])
     assert len(early["entries"]) == 6 and early["entries"] == final["entries"][:6]
     assert len(late["entries"]) == 9 and late["entries"] == final["entries"][:9]
     assert [entry["label"] for entry in final["entries"]][9:] == ["Grave 4"]

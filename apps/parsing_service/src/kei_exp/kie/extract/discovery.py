@@ -566,7 +566,8 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     Defaults 10 carves while discovery still reads, so nothing found later may change a window already asked: no
     window crosses one of `cuts`, the body's entry counts after each discovery window (`_assemble`), which are the
     same however many windows are read. The entries after the last cut of a body that is not `complete` (a prefix,
-    `discover`) wait for the window that settles them. `unanswered` are the exceptions an `ask` raises for a call
+    `discover`) wait for the window that settles them; the complete body's last window settles the rest, so a
+    source read in one discovery window is carved as under defaults 9. `unanswered` are the exceptions an `ask` raises for a call
     whose reply is not there yet (as in `discover`): none is raised, and every window is still asked, so their calls
     run at once. While an entry waits or a window is not read, the body is not `complete` and holds only the entries
     whose children are all known, final as the complete body's: those before the entry owning the first line not
@@ -612,8 +613,9 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     def fits(window: Window) -> bool:
         user, _, reply = render(window)
         return fits_budget(system, user, reply)
+    whole = body.get("complete", True)  # no prefix ends with the last window, so its cut is none: the rest is one batch
     bounds = [len(entries)] if cuts is None else sorted(
-        {cut for cut in cuts if 0 < cut <= len(entries)} | ({len(entries)} if body.get("complete", True) else set()))
+        {cut for cut in (cuts[:-1] if whole else cuts) if 0 < cut <= len(entries)} | ({len(entries)} if whole else set()))
     begins = [0, *accumulate(len(entry["ranges"]) for entry in entries)]  # each entry's first line in `owned`
     windows, calls, issues, found, failed, claimed = [], [], [], [], 0, set()
     for first, last in pairwise([0, *bounds]):

@@ -742,6 +742,20 @@ def test_defaults_10_saves_records_while_discovery_still_reads_and_reads_what_de
     assert new.result["discovery"]["entries"][1]["parent"] == new.result["discovery"]["entries"][0]["id"]
 
 
+def test_a_source_read_in_one_discovery_window_is_asked_under_defaults_10_what_defaults_9_asks(monkeypatch):
+    """Measured on a real 6-page report: a last record alone in a children window was carved differently."""
+    def whole(defaults):
+        attempt = Attempt(monkeypatch, unified_request(schema=RECORDS, defaults=defaults), graves(), threaded=False,
+                          label=str(defaults))
+        attempt.chat.script.discovery, attempt.chat.script.children = grave_starts, numbered_finds
+        rounds(attempt)
+        return attempt
+    old, new = whole(9), whole(10)
+    assert len(asked(new, children=True)) == 1 and asked(new, True) == asked(old, True) and asked(new) == asked(old)
+    assert read_as(new.result) == read_as(old.result)
+    assert new.result["discovery"]["children"] == old.result["discovery"]["children"] == {"windows": 1, "failed": 0}
+
+
 def test_defaults_10_saves_the_first_windows_records_before_the_second_window_is_read(monkeypatch):
     """The first value does not wait for a slow second window: its children windows end where the first discovery
     window settles its records."""
