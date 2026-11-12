@@ -24,6 +24,11 @@ def source():
                         label="Text", bbox_pt=(0., 0., 100., 20.), extent="block") for n in (1, 2)))
 
 
+def starts(found):
+    """The record starts without their preview ranges (`test_record_starts_...` in test_unified_catalog)."""
+    return [{"segment": each["segment"], "label": each["label"]} for each in found]
+
+
 def reply(user):
     number = "1" if "[L1] 1. Site" in user else "2"
     return {"places": [["L1", "record", number]], "begins_inside_record": False, "ends_inside_record": False}
@@ -42,7 +47,7 @@ def test_pipelined_tail_window_is_in_the_last_progress_event():
 
     result = discovery.discover(source(), "numbered site", lambda *_: True,
         ask, overlap=0, splits=0, by="page", workers=2,
-        progress=lambda found, lines: shown.append(deepcopy(found)), frontier=True,
+        progress=lambda found, lines: shown.append(starts(found)), frontier=True,
         unanswered=(Pending,))
     assert not result['complete']  # the source tail answered while an earlier window is still pending
     assert shown[-1] == [{"segment": "p2_s0", "label": "2"}], shown
@@ -65,7 +70,7 @@ def test_invalid_parent_boundaries_wait_for_their_children_without_duplicate_pro
             return reply(user)
 
         result = discovery.discover(source(), "numbered site", lambda *_: True, ask, overlap=0, splits=1,
-            progress=lambda found, lines: shown.append(deepcopy(found)), frontier=True, unanswered=(Pending,),
+            progress=lambda found, lines: shown.append(starts(found)), frontier=True, unanswered=(Pending,),
             heading_context=True)
         assert all(found["label"] != "Site 1" for snapshot in shown for found in snapshot)
         return result, shown
@@ -96,7 +101,7 @@ def test_slice_publishes_a_finished_window_before_its_slow_peer(defaults):
     # Version 1 uses budget windows; force the same two windows without changing discovery.
     fits = lambda _system, user, _schema: not ("[L1] 1. Site" in user and "[L2] 2. Site" in user)
     def progress(found, lines):
-        shown.append(deepcopy(found))
+        shown.append(found := starts(found))
         if {"segment": "p1_s0", "label": "1"} in found:
             published.set()
 
@@ -153,7 +158,8 @@ def test_durable_planning_publishes_each_checkpoint_while_its_peer_is_pending(mo
     still_pending = plan("extraction", "attempt")
     assert len(still_pending["pending"]) == 1
     assert events[-1] == ("discovery", {
-        "found": [{"segment": f"p{answered + 1}_s0", "label": f"{answered + 1}."}],
+        "found": [{"segment": f"p{answered + 1}_s0", "label": f"{answered + 1}.", "ranges": [
+            {"segment": f"p{answered + 1}_s0", "start": 0, "end": len(document.passages[answered].text.rstrip())}]}],
         "windows": [{"capture": still_pending["pending"][0],
                      "lines": [{"segment": f"p{2 - answered}_s0", "start": 0,
                                 "end": len(document.passages[1 - answered].text.rstrip())}]}],
@@ -236,3 +242,10 @@ def test_planned_catalog_calls_carry_their_entrys_distance_from_the_start_page_a
     assert sorted(page.values()) == list(range(1, 21))
     assert {capture: pending['priorities'][capture] for capture in page} == {
         capture: (20 - page[capture]) // 8 for capture in page}  # pages 1-4 at 2, 5-12 at 1, 13-20 at 0
+
+
+def test_preview_spans_preserve_excluded_note_and_scope_order():
+    ranges = [{"segment": "p1_s0", "start": 0, "end": 18},
+              {"segment": "p1_s0", "start": 56, "end": 78},
+              {"segment": "p2_s0", "start": 0, "end": 20}]
+    assert discovery._spans(ranges) == ranges

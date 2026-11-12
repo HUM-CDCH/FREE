@@ -46,7 +46,7 @@ describe('the Markdown view', () => {
     expect(onSelect).toHaveBeenCalledWith([key], mark)
   })
 
-  it('marks a record start discovery found without selecting it, and a passage it shares with a value selects the value', () => {
+  it('marks a link no value describes without selecting it, and a passage it shares with a value selects the value', () => {
     const onSelect = vi.fn()
     const found = { key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: 'a1' } }
     const { rerender } = render(<TestMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect, savedLinks: [found] }} />)

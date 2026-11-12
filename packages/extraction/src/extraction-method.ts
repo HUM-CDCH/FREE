@@ -114,7 +114,9 @@ export type RecipeCatalogSettings = z.output<typeof recipeCatalogSettingsSchema>
  *  context stays proposed. The candidate ceiling defaults to 32 excerpts. Version 8 is version 6 plus two discovery
  *  readings: a record start copied from the wrong line is placed where it occurs once nearby, and records printed
  *  inside a discovered record (a numbered find in a grave's list) become records of their own, each read beside its
- *  enclosing record's text. Auto input is the served context minus the
+ *  enclosing record's text. Version 10 is version 9 with that second reading pipelined too (`children: 'pipelined'`):
+ *  a durable run reads and saves each record as soon as its ranges are final, while discovery still reads later
+ *  windows. Auto input is the served context minus the
  *  stage's reserve. New admissions use
  *  `UNIFIED_CATALOG_DEFAULTS_VERSION`; an Extraction keeps the one it was admitted under. */
 const UNIFIED_BASE = {
@@ -136,9 +138,12 @@ export const UNIFIED_CATALOG_DEFAULTS = {
     single_pass: true, nearby: true, children: true },
   9: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
     single_pass: true, nearby: true, children: true, complete_text: true },
+  10: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
+    single_pass: true, nearby: true, children: 'pipelined', complete_text: true },
 } as const
-/** Version 9 preserves native table-entry granularity, nested records and complete qualified text values. */
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 9 as const
+/** Version 10 reads as version 9 (native table-entry granularity, nested records, complete qualified text values) and
+ *  saves each record while discovery still reads. */
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 10 as const
 /** Pro mode: an account preference with verification on is admitted under this version, whose verification call reads
  *  every value again and may correct it; the latest reads each value once. */
 export const UNIFIED_CATALOG_PRO_VERSION = 5 as const
@@ -156,7 +161,7 @@ export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceS
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
  *  and the overrides, so it stays identifiable when every control is left to the defaults. */
 export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.extend({
-  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
+  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
 const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const

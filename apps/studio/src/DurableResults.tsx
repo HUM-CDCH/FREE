@@ -22,6 +22,7 @@ import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
 import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
 import { provisionalMarks } from './provisionalMarks'
+import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
 import { forwardItems, nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 import { fieldWords, shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
@@ -367,11 +368,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // A resumed or retried run reads again: its records open as they are read, and stay open once it settles.
   else if(opening&&!opening.live&&state&&ACTIVE.has(state.status))setOpening({...opening,live:true})
   const reviewedRecord=review?.value.recordId
-  // Once discovery finishes, the saved plan keeps its starts visible until the run settles (also after reload).
-  const foundKey=JSON.stringify(!pinned&&state&&ACTIVE.has(state.status)?state.recordsFinal
-    ?(state.records??[]).flatMap(record=>record.segment?[{segment:record.segment}]:[])
-    :state.discovery?.found??[]:[])
-  const found=useMemo(()=>JSON.parse(foundKey) as {segment:string}[],[foundKey])
+  // The run's record blocks on the source: the closed records of its saved plan and, while discovery still looks, the
+  // previews no closed record covers. The plan keeps them visible until the run settles (also after reload); a poll
+  // that says the same publishes nothing new.
+  const blocksKey=useMemo(()=>JSON.stringify(!pinned&&state&&ACTIVE.has(state.status)?recordBlocks(state):[]),[pinned,state])
+  const blocks=useMemo(()=>JSON.parse(blocksKey) as RecordBlock[],[blocksKey])
   const displayed=useMemo(()=>page?(review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values):[],[page,review])
   const previewing=!pinned&&Boolean(state&&ACTIVE.has(state.status))
   const previews=useMemo(()=>previewing&&document?provisionalMarks(document,displayed):[],[previewing,document,displayed])
@@ -474,7 +475,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
         return sourceEvidenceLinks(link,anchors).map(each=>({key:part?.key??value.id,link:each}))
       }),
       ...own.map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:`${value.id}#correction`,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
-    ]}),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
+    ]})]
     for(const preview of previews) {
       // Drawing hints only: never fed to review, export or the saved value's Evidence.
       if(savedLinks.some(saved=>saved.key===preview.key))continue
@@ -483,8 +484,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       savedLinks.push({key:preview.key,link:preview.link})
     }
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
-    selection.publish({marks:{describe,selected:review?chosenPart??review.value.id:null,savedLinks,extractionId:id}})
-  },[model,page,selection,review,document,found,id,chosenPart,fieldOrder,previews,displayed])
+    // Record blocks go beside the links, never among them: they are no Evidence, and nothing selects them.
+    selection.publish({marks:{describe,selected:review?chosenPart??review.value.id:null,savedLinks,extractionId:id,records:blocks}})
+  },[model,page,selection,review,document,blocks,id,chosenPart,fieldOrder,previews,displayed])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
     const {reviewId,onEvidence,requestTaken,activeLink:link}=followRef.current
@@ -625,7 +627,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);const first=review&&queue.some(item=>item.key===review.value.id)&&!blocked.has(review.value.id)?null:nextToCheck(queue,null,blocked);if(first)selectValue(first)}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
-    {previews.length>0&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">Preview highlights show matching text. Citations are still being checked.</p>}
+    {(blocks.length>0||previews.length>0)&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">
+      {blocks.length>0&&<span>Dashed outline: a record still being found, its limits may change. Solid outline: a record with settled limits. Highlights are Evidence. </span>}
+      {previews.length>0&&<span>Preview highlights show matching text. Citations are still being checked.</span>}</p>}
     <ResultSchemaNotice page={page} state={state} current={currentSchema} controlled={controlled} readOnly={readOnly} onSchema={onSchema}/>
     {menuOpen&&<ResultsMenu items={[
       {label:'Export…',disabled:exportState?.status==='pending'?'Exporting…':page.total===0?'Nothing saved to export yet':null,onSelect:()=>{setMenuOpen(false);setExportOpen(true)}},

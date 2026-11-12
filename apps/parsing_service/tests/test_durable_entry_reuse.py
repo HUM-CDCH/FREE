@@ -6,6 +6,7 @@ again from what the process kept (`tokens.compiled`) instead of repeating its ca
 publication. Every comparison here is with the same rounds planned without reuse (`tokens.compiled` returning
 nothing), under the same completion schedule.
 """
+import re
 from collections import Counter as Tally, OrderedDict
 
 import pytest
@@ -17,7 +18,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
 from tests.test_durable_extraction import Counter, MemoryLease
 from tests.test_extract_grounded import CountingChat
-from tests.test_unified_catalog import SCHEMA, Model, evidence, request as unified_request, untimed
+from tests.test_unified_catalog import SCHEMA, Model, evidence, request as unified_request, section, untimed
 
 
 class Kept(Counter):
@@ -44,8 +45,9 @@ class Attempt:
     """One attempt planned round by round, each round inside the attempt's count scope, with the wait-first schedule
     `order` picks the next answered call from: the earliest started, the latest, or by capture key either way."""
 
-    def __init__(self, monkeypatch, request, source, *, chunks=2, order="first", reuse=True, label="attempt"):
-        self.request, self.source, self.chunks, self.order = request, source, chunks, order
+    def __init__(self, monkeypatch, request, source, *, chunks=2, order="first", reuse=True, label="attempt",
+                 threaded=True):
+        self.request, self.source, self.chunks, self.order, self.threaded = request, source, chunks, order, threaded
         self.lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
         self.lease.attempt = digest(label)[:32]
         for name, value in (("id", "selection"), ("schemaRevisionId", "revision")):
@@ -94,10 +96,10 @@ class Attempt:
     def step(self):
         """Start what the round planned (up to `chunks` per role), then answer one running call."""
         keys = {unit["id"]: key for key, unit in self.lease.units.items()}
-        # As `extract_workflow` starts them, in planning order; discovery's windows are planned on threads (#233), so
-        # among themselves by key, which keeps a schedule repeatable.
+        # As `extract_workflow` starts them, in planning order; discovery's windows are planned on threads (#233)
+        # before defaults 3, so among themselves by key, which keeps a schedule repeatable.
         windows = sorted((c for c in self.planner.pending if self.lease.units[keys[c]]["descriptor"]["stage"]
-                          == "discovery"), key=self.planner.pending.get)
+                          == "discovery"), key=self.planner.pending.get) if self.threaded else []
         for capture in windows + [c for c in self.planner.pending if c not in windows]:
             role = self.planner.roles[capture]
             if capture not in self.running and sum(each == role for each in self.running.values()) < self.chunks:
@@ -640,3 +642,161 @@ def test_defaults_8_reads_entries_only_after_its_children_call_and_a_pause_there
         if attempt.plan() is not None:
             break
     assert [record["label"] for record in attempt.result["records"]] == ["1", "2", "3"]
+
+
+# --- defaults 10: the children pass is pipelined too ----------------------------------------------------------------
+
+RECORDS = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
+
+
+def graves(count=16, per_page=2):
+    """Graves that each list two finds, records of their own: `per_page` graves a page, each long enough that the
+    budget of `graves_attempt` cuts several discovery windows and several children windows."""
+    def grave(n):
+        return (f"Grave {n}. Inhumation. Material: m{n}. {' '.join(f'w{word}' for word in range(40))}\nFinds:\n"
+                f"1. Bowl {n}. Material: clay.\n2. Pin {n}. Material: bronze.")
+    return evidence(*("\n".join(grave(n) for n in range(first, min(count, first + per_page - 1) + 1))
+                      for first in range(1, count + 1, per_page)))
+
+
+def grave_starts(user):
+    lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
+    after = section(user, "CONTEXT AFTER")
+    return {"places": [[label, "record", text.split(".")[0]] for label, text in lines if text.startswith("Grave")],
+            "begins_inside_record": not lines[0][1].startswith("Grave"),
+            "ends_inside_record": bool(after) and not after.startswith("Grave")}
+
+
+def numbered_finds(user):
+    return {"children": [[label, label, text.split()[0]] for label, text in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
+                         if re.match(r"\d+\. ", text)]}
+
+
+def graves_attempt(monkeypatch, defaults, source, **settings):
+    """The attempt over `source`, its calls admitted in planning order as `extract_workflow` admits them."""
+    attempt = Attempt(monkeypatch, unified_request(schema=RECORDS, defaults=defaults, input_tokens=600), source,
+                      threaded=False, **settings)
+    attempt.chat.script.discovery, attempt.chat.script.children = grave_starts, numbered_finds
+    return attempt
+
+
+def waits(attempt):
+    """What the round waits on, in planning order: `C` a children window, `D` a discovery window, `e` an entry."""
+    bodies = {unit["id"]: unit["input"]["request"]["body"] for unit in attempt.lease.units.values()}
+    return "".join("C" if bodies[capture]["system"].startswith("You list the records printed inside")
+                   else "D" if bodies[capture]["stage"] == "discovery" else "e" for capture in attempt.planner.pending)
+
+
+def rounds(attempt, limit=3000):
+    """The attempt planned to its end: per round what it waits on, the scopes it lists and how many snapshots are
+    saved."""
+    seen = []
+    for _ in range(limit):
+        result = attempt.plan()
+        seen.append((waits(attempt), dict(attempt.planner.scopes), len(attempt.lease.publications)))
+        if result is not None:
+            return seen
+        attempt.step()
+    raise AssertionError("the attempt never finished")
+
+
+def asked(attempt, children=False):
+    """The requests made: those of the children pass, or all the others."""
+    return sorted((call["system"], call["user"]) for call in attempt.chat.calls
+                  if call["system"].startswith("You list the records printed inside") == children)
+
+
+def read_as(result):
+    """The artifact apart from its execution record (the method's version) and its clock."""
+    return {"records": result["records"], "evidence": result["evidence"], "issues": result["issues"],
+            "completeness": result["completeness"],
+            "discovery": {key: result["discovery"][key] for key in ("entries", "ledger", "windows")}}
+
+
+@pytest.mark.parametrize("chunks,order,reuse", [(1, "first", True), (2, "first", True), (2, "last", True),
+                                                (4, "key", True), (4, "reverse-key", False)])
+def test_defaults_10_saves_records_while_discovery_still_reads_and_reads_what_defaults_9_does(monkeypatch, chunks,
+                                                                                            order, reuse):
+    source = graves()
+    old = graves_attempt(monkeypatch, 9, source, chunks=chunks, order=order, label="old")
+    before = rounds(old)
+    new = graves_attempt(monkeypatch, 10, source, chunks=chunks, order=order, reuse=reuse, label="new")
+    seen = rounds(new)
+    # Defaults 9 lists and saves nothing before its last children call. Defaults 10 has saved records while discovery
+    # and children windows still wait, when the windows are answered in the order they start (answered latest first,
+    # the first window is the last one read, and no record is final before it).
+    assert not any(saved and ("D" in waiting or "C" in waiting) for waiting, _, saved in before)
+    if order == "first":
+        assert any(saved and "D" in waiting for waiting, _, saved in seen)
+        assert any(saved and "C" in waiting for waiting, _, saved in seen)
+    # A listed record never changes: its number and its ranges are the final ones from the round that first lists it.
+    final = seen[-1][1]
+    assert len(final) == 16 * 3 and all(final[number] == scope for _, scopes, _ in seen for number, scope in scopes.items())
+    assert [len(scopes) for _, scopes, _ in seen] == sorted(len(scopes) for _, scopes, _ in seen)
+    # The same discovery and entry requests, each made once, and the same records: when they are asked differs, and
+    # the children windows, cut where a discovery window settles its records.
+    assert asked(new) == asked(old) and len(set(asked(new))) == len(asked(new))
+    assert len(asked(new, children=True)) == new.result["discovery"]["children"]["windows"] > len(asked(old, True))
+    assert read_as(new.result) == read_as(old.result)
+    assert [record["label"] for record in new.result["records"][:3]] == [None, "1", "2"]
+    assert new.result["discovery"]["entries"][1]["parent"] == new.result["discovery"]["entries"][0]["id"]
+
+
+def test_a_source_read_in_one_discovery_window_is_asked_under_defaults_10_what_defaults_9_asks(monkeypatch):
+    """Measured on a real 6-page report: a last record alone in a children window was carved differently."""
+    def whole(defaults):
+        attempt = Attempt(monkeypatch, unified_request(schema=RECORDS, defaults=defaults), graves(), threaded=False,
+                          label=str(defaults))
+        attempt.chat.script.discovery, attempt.chat.script.children = grave_starts, numbered_finds
+        rounds(attempt)
+        return attempt
+    old, new = whole(9), whole(10)
+    assert len(asked(new, children=True)) == 1 and asked(new, True) == asked(old, True) and asked(new) == asked(old)
+    assert read_as(new.result) == read_as(old.result)
+    assert new.result["discovery"]["children"] == old.result["discovery"]["children"] == {"windows": 1, "failed": 0}
+
+
+def test_defaults_10_saves_the_first_windows_records_before_the_second_window_is_read(monkeypatch):
+    """The first value does not wait for a slow second window: its children windows end where the first discovery
+    window settles its records."""
+    attempt = graves_attempt(monkeypatch, 10, graves(), chunks=1, order="last")  # the second window answers last
+    for _ in range(3000):
+        assert attempt.plan() is None
+        if attempt.lease.publications:
+            break
+        attempt.step()
+    read = [unit for unit in attempt.lease.units.values() if unit["checkpoint"] is not None
+            and unit["input"]["request"]["body"]["system"].startswith("You find where records begin")]
+    assert len(read) == 1 and attempt.planner.scopes
+
+
+def test_defaults_10_admits_a_children_call_before_the_next_discovery_window(monkeypatch):
+    seen = rounds(graves_attempt(monkeypatch, 10, graves(), chunks=2))
+    both = [waiting for waiting, _, _ in seen if "C" in waiting and "D" in waiting]
+    assert both and all(waiting.rindex("C") < waiting.index("D") for waiting in both)
+
+
+def test_a_pause_and_a_resumed_attempt_of_defaults_10_read_nothing_twice(monkeypatch):
+    source = graves()
+    whole = graves_attempt(monkeypatch, 10, source, label="whole")
+    rounds(whole)
+    attempt = graves_attempt(monkeypatch, 10, source, label="paused")
+    for _ in range(3000):  # until the first records are saved while discovery still reads
+        assert attempt.plan() is None
+        if attempt.lease.publications and "D" in waits(attempt):
+            break
+        attempt.step()
+    listed, saved = dict(attempt.planner.scopes), dict(attempt.lease.publications)
+    assert listed and saved
+    attempt.lease.intent = "PAUSE"
+    with pytest.raises(Boundary):  # no new call may start; what is saved stays
+        attempt.plan()
+    assert attempt.lease.publications == saved
+    # Resume is a new attempt of the same Extraction: it keeps the saved replies, not the process's kept work.
+    attempt.lease.intent, attempt.lease.attempt, attempt.running = "RUN", digest("resumed")[:32], {}
+    tokens.forget(attempt.lease.attempt)
+    seen = rounds(attempt)
+    assert all(seen[-1][1][number] == scope for number, scope in listed.items())
+    assert asked(attempt) == asked(whole) and asked(attempt, True) == asked(whole, True)
+    assert read_as(attempt.result) == read_as(whole.result)
+    assert all(attempt.lease.publications[identity] == each for identity, each in saved.items())

@@ -698,6 +698,21 @@ queue.
     - **Defaults 6 (single pass).** Verification is off, so nothing waits for
       discovery: an entry's checked values are final once its own entry calls,
       and any arbitration between disagreeing located values, have returned.
+    - **Defaults 8 and 9 (children pass).** One more discovery reading carves
+      the records printed inside a record out of it, which changes that
+      record's ranges and the numbers of the records after it. No entry is
+      read or listed before the whole discovery and its children windows,
+      which are asked one per planning round.
+    - **Defaults 10 (children pass, pipelined).** The discovery and entry
+      readings of defaults 9. Each round carves the records the windows
+      already read settle, and reads and lists an entry once nothing can
+      change it. No children window crosses the entries one discovery window
+      settles, so nothing found later changes a window already asked; an
+      entry is final once every children window up to its last line is
+      answered, and a table entry also once the notes after its table are
+      read. A children call is admitted before the next discovery window, and
+      the windows that wait are asked together. The first records wait for
+      the first discovery window alone.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
       `NeedsCall`. The round visits every known entry in start-page priority,

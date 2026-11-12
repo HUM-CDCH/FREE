@@ -15,6 +15,7 @@ import { evidenceColorVars, markValueId, ownsMark, sharedColor } from './durable
 import { fieldWords } from './reviewVocabulary'
 import { observeEvidenceHover } from './evidenceHover'
 import type { PublishedMarks, SelectionChannel } from './selectionChannel'
+import { recordBlockName, recordBlockTag, recordPieces, type RecordBlock, type RecordPiece } from './recordBlocks'
 
 type PageRender = { pageNumber: number; cssTransform?: boolean; isDetailView?: boolean }
 type PageMap = ReadonlyMap<number, HTMLElement>
@@ -41,6 +42,8 @@ export type RailMarkState = {
   selected: string | null
   /** Stable retained value IDs, including explicit correction occurrences. */
   savedLinks: readonly {key:string;link:EvidenceLink;occurrenceIds?:readonly string[]}[]
+  /** A running Catalog's record blocks: outlines under the marks, never Evidence and never selectable. */
+  records?: readonly RecordBlock[]
 }
 
 /** A correction in its model passage names the value once; distinct values that read alike stay distinct. */
@@ -162,10 +165,12 @@ type Block = { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];
 
 /** One lifetime owns the source's occurrence marks, navigation intent, page events and pointer. Results selection
  * and explicit Evidence navigation are distinct facts; their visible outlines are resolved before touching the DOM. */
-export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extractionId, active, marksShown = true, selection, onSelect, overviewRef }: {
+export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, markdown = null, extractionId, active, marksShown = true, selection, onSelect, overviewRef }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewer: PDFViewer | null
   parsedDocument: ParsedDocument | null
+  /** The parsed Markdown: it says which rows of a table a record block owns. Without it a block is its whole table. */
+  markdown?: string | null
   extractionId: string | null
   active: boolean
   marksShown?: boolean
@@ -191,6 +196,8 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extr
     let blocks = new Map<string, Block>()
     let values: { occurrence: EvidenceOccurrence; box: NonNullable<EvidenceLink['valueBoxes']>[number]; link: EvidenceLink; key: string }[] = []
     let dim: EvidenceOccurrence[] = []
+    const markdownBytes = markdown === null ? null : new TextEncoder().encode(markdown)
+    let records: { blocks: readonly RecordBlock[] | null; pieces: RecordPiece[] } = { blocks: null, pieces: [] }
     let stopHover = () => {}
     let queued = false, disposed = false
     let pointed: HTMLElement | null = null, nameTag: HTMLElement | null = null
@@ -311,6 +318,24 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extr
         if (mark.parentElement !== page) page.append(mark)
       }
       previousValues.forEach(element => element.remove())
+      // Record blocks: outlines under every mark (z-index 3) that take no pointer, placed like the marks, by the page's size.
+      const previousRecords = new Map(elements('.record-block').map(element => [element.dataset.recordBlock!, element]))
+      for (const piece of records.pieces) {
+        const page = pages.get(piece.page), meta = metadata.get(piece.page)
+        if (!page || !meta) continue
+        const outline = previousRecords.get(piece.id) ?? document.createElement('div')
+        previousRecords.delete(piece.id)
+        outline.dataset.recordBlock = piece.id
+        outline.className = `record-block ${piece.state}${piece.start ? ' start' : ''}${piece.end ? ' end' : ''}`
+        outline.setAttribute('role', 'img')
+        outline.setAttribute('aria-label', recordBlockName(piece.state, piece.labels))
+        if (piece.tag.length) outline.dataset.recordLabel = recordBlockTag(piece.tag)
+        else delete outline.dataset.recordLabel
+        Object.assign(outline.style, { left: `${piece.box.x0 / meta.width_pt * 100}%`, top: `${piece.box.y0 / meta.height_pt * 100}%`,
+          width: `${(piece.box.x1 - piece.box.x0) / meta.width_pt * 100}%`, height: `${(piece.box.y1 - piece.box.y0) / meta.height_pt * 100}%` })
+        if (outline.parentElement !== page) page.append(outline)
+      }
+      previousRecords.forEach(element => element.remove())
       for (const page of pages.values()) page.querySelectorAll('.evidence-dim').forEach(element => element.remove())
       appendDimming(pages, parsedDocument, dim)
       if (pointed && !container.contains(pointed)) leave()
@@ -326,6 +351,9 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extr
         marks?.selected != null && ownsMark(marks.selected, key) && link.evidenceAnchorId === located?.anchor.anchor_id)) located = null
       if (requested) located = requested
       blocks = new Map(); values = []; dim = []
+      // The blocks are placed again only when Results publishes other ones (a poll that found nothing new publishes the same).
+      const shown = presentation.current.active ? marks?.records ?? null : null
+      if (shown !== records.blocks) records = { blocks: shown, pieces: shown ? recordPieces(parsedDocument, markdownBytes, shown) : [] }
       if (presentation.current.active) {
         for (const { key, link, occurrenceIds } of marks?.savedLinks ?? []) {
           const anchor = anchors.get(link.evidenceAnchorId)
@@ -406,10 +434,10 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extr
       container.removeEventListener('mouseleave', leave)
       container.removeEventListener('mouseout', out)
       container.removeEventListener('click', click)
-      container.querySelectorAll('.parsed-evidence-highlight, .parsed-evidence-value, .parsed-evidence-focus, .evidence-dim').forEach(element => element.remove())
+      container.querySelectorAll('.parsed-evidence-highlight, .parsed-evidence-value, .parsed-evidence-focus, .evidence-dim, .record-block').forEach(element => element.remove())
       overview?.replaceChildren()
     }
-  }, [containerRef, overviewRef, parsedDocument, extractionId, selection])
+  }, [containerRef, overviewRef, parsedDocument, markdown, extractionId, selection])
   // The source owns location; the viewer owns page events and can be replaced independently.
   useEffect(() => {
     const current = controller.current, bus = viewer?.eventBus
@@ -423,7 +451,7 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, extr
       bus.off('pagerendered', current.paint)
       bus.off('scalechanging', current.scale)
     }
-  }, [viewer, containerRef, overviewRef, parsedDocument, extractionId, selection])
+  }, [viewer, containerRef, overviewRef, parsedDocument, markdown, extractionId, selection])
   return useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     if (controller.current?.source === parsedDocument && controller.current?.extractionId === extractionId)
       controller.current?.locate(anchor, link)

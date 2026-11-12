@@ -834,7 +834,7 @@ export function DocumentWorkspace({
     selection.select(key, false, published.extractionId, keys)
   }, [selection, inspectedAttempt?.extractionId])
   const selectPdfEvidence = useEvidenceOverlays({
-    containerRef, viewer: pdfViewer, parsedDocument: inspectionDocument,
+    containerRef, viewer: pdfViewer, parsedDocument: inspectionDocument, markdown: inspectionSource?.markdown ?? documentMarkdown,
     extractionId: inspectedAttempt?.extractionId ?? null, selection, onSelect: selectMark,
     active: effectiveRailOpen && railView === 'results', marksShown, overviewRef: evidenceOverviewRef,
   })

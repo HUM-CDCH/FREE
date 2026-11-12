@@ -181,12 +181,13 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   const manifest={selectionId:current.selection.id,units:[{ordinal:0,scope:[{segment:'p3_s9',start:0,end:12}]}]}
   await admin.query(`INSERT INTO extraction_runtime.plan (id,"extractionId",generation,stage,digest,manifest)
     VALUES ($1,$2,1,$3,$4,$5)`,[randomUUID(),id,`unified-prefix:${current.attempt!.id}:1`,'f'.repeat(64),JSON.stringify(manifest)])
-  assert.deepEqual((await durable.read(id)).records,[{ordinal:0,page:3,segment:'p3_s9'}])
+  assert.deepEqual((await durable.read(id)).records,[{ordinal:0,page:3,segment:'p3_s9',ranges:[{segment:'p3_s9',start:0,end:12}]}])
   assert.equal((await durable.read(id)).recordsFinal,false)
   const final={...manifest,units:[...manifest.units,{ordinal:1,scope:[{segment:'p4_s0',start:0,end:20}]}]}
   await admin.query(`INSERT INTO extraction_runtime.plan (id,"extractionId",generation,stage,digest,manifest)
     VALUES ($1,$2,1,'unified-records',$3,$4)`,[randomUUID(),id,'a'.repeat(64),JSON.stringify(final)])
-  assert.deepEqual((await durable.read(id)).records,[{ordinal:0,page:3,segment:'p3_s9'},{ordinal:1,page:4,segment:'p4_s0'}])
+  assert.deepEqual((await durable.read(id)).records,[{ordinal:0,page:3,segment:'p3_s9',ranges:[{segment:'p3_s9',start:0,end:12}]},
+    {ordinal:1,page:4,segment:'p4_s0',ranges:[{segment:'p4_s0',start:0,end:20}]}])
   assert.equal((await durable.read(id)).recordsFinal,true)
   await runtime.close()
 })

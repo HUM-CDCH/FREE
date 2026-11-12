@@ -49,7 +49,7 @@ from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from itertools import groupby
+from itertools import accumulate, groupby, pairwise
 
 from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
 from kei_exp.kie.extract.locate import normalise
@@ -552,7 +552,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
 
 def children(body: dict, evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *,
-             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict:
+             progress: Callable[[list[dict], list[dict]], None] | None = None, cuts: Sequence[int] | None = None,
+             unanswered: tuple[type[BaseException], ...] = ()) -> dict:
     """Defaults 8: the completed discovery body with the records printed inside its records (a numbered find in a
     grave's list) carved out of them, read top to bottom: (1) which entry owns each of the entries' lines; (2) counted
     windows over those lines, shown under their record's heading; (3) one call per window lists the entities inside
@@ -560,7 +561,17 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     children, without the entry's own printed label; (4) each kept child becomes an entry owning its lines and naming
     its enclosing entry as `parent`, whose remaining ranges are the child's `context`; the parent's ranges and the
     ledger rows are cut to match. A failed reply is an issue and a failed window, never retried. Before each call,
-    `progress` is given the discovered record starts and the lines the window labels, as in `discover`."""
+    `progress` is given the discovered record starts and the lines the window labels, as in `discover`.
+
+    Defaults 10 carves while discovery still reads, so nothing found later may change a window already asked: no
+    window crosses one of `cuts`, the body's entry counts after each discovery window (`_assemble`), which are the
+    same however many windows are read. The entries after the last cut of a body that is not `complete` (a prefix,
+    `discover`) wait for the window that settles them; the complete body's last window settles the rest, so a
+    source read in one discovery window is carved as under defaults 9. `unanswered` are the exceptions an `ask` raises for a call
+    whose reply is not there yet (as in `discover`): none is raised, and every window is still asked, so their calls
+    run at once. While an entry waits or a window is not read, the body is not `complete` and holds only the entries
+    whose children are all known, final as the complete body's: those before the entry owning the first line not
+    read."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     system = CHILDREN.format(description=description)
@@ -602,20 +613,35 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     def fits(window: Window) -> bool:
         user, _, reply = render(window)
         return fits_budget(system, user, reply)
-    windows = plan([unit for unit, _ in owned], texts, fits, overlap=0) if owned else []
-    calls, issues, found, failed, claimed = [], [], [], 0, set()
-    if windows is None:  # a line that fit a discovery request beside its longer instructions fits this one
-        issues.append(Issue("children_window_failed", "a record line fits no children request"))
-        windows, failed = [], 1
+    whole = body.get("complete", True)  # no prefix ends with the last window, so its cut is none: the rest is one batch
+    bounds = [len(entries)] if cuts is None else sorted(
+        {cut for cut in (cuts[:-1] if whole else cuts) if 0 < cut <= len(entries)} | ({len(entries)} if whole else set()))
+    begins = [0, *accumulate(len(entry["ranges"]) for entry in entries)]  # each entry's first line in `owned`
+    windows, calls, issues, found, failed, claimed = [], [], [], [], 0, set()
+    for first, last in pairwise([0, *bounds]):
+        batch = plan([unit for unit, _ in owned[begins[first]:begins[last]]], texts, fits, overlap=0) \
+            if begins[last] > begins[first] else []
+        if batch is None:  # a line that fit a discovery request beside its longer instructions fits this one
+            issues.append(Issue("children_window_failed", "a record line fits no children request"))
+            batch, failed = [], failed + 1
+        windows += batch
 
     # (3) Ask each window; keep each listed child that is whole lines of one record after its first line.
     ids = {entry["id"] for entry in entries}
-    record_starts_ = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"]} for entry in entries]
-    for window in windows:
+    record_starts_ = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"],
+                       "ranges": _spans(entry["ranges"])} for entry in entries]
+    read = len(windows)  # the windows read from the start on: the entries are carved in source order
+    for number, window in enumerate(windows):
         user, labels, reply = render(window)
         if progress is not None:
             progress(record_starts_, ranges_json(window.primary))
-        answer = ask(None, system, user, reply, calls, issues)
+        try:
+            answer = ask(None, system, user, reply, calls, issues)
+        except unanswered:
+            read = min(read, number)
+            continue
+        if number > read:
+            continue
         rows = answer.get("children") if isinstance(answer, dict) else None
         if not isinstance(rows, list):
             issues.append(Issue("children_window_failed", f"no valid children reply for {_where(window)}"))
@@ -640,6 +666,12 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
                 continue
             claimed.update(lines)
             found.append((parent, lines, label))
+
+    known = owner(windows[read].primary[0]) if read < len(windows) else bounds[-1] if bounds else 0
+    if known < len(entries):
+        body = {**body, "complete": False}
+        entries = entries[:known]
+        found = [each for each in found if each[0] < known]
 
     # (4) Carve: each child owns its lines; its parent's ranges and the ledger rows are cut around them.
     carved = [dict(entry) for entry in entries]
@@ -682,22 +714,43 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
 
 
 def record_starts(seen: Sequence[_Seen]) -> list[dict]:
-    """The record starts the windows read so far found, each by its segment and printed label."""
-    return [{"segment": each.window.primary[index].segment, "label": label}
-            for each in seen for index, _, kind, label in each.places if kind == "record"]
+    """The record starts the windows read so far found, each by its segment and printed label, with the text up to
+    its window's next place: a preview of the record, whose end a later window or the children pass may still move."""
+    found = []
+    for each in seen:
+        units = each.window.primary
+        for at, (index, offset, kind, label) in enumerate(each.places):
+            last, stop = each.places[at + 1][:2] if at + 1 < len(each.places) else (len(units) - 1, units[-1].end)
+            if kind == "record":
+                found.append({"segment": units[index].segment, "label": label, "ranges": _spans(ranges_json(
+                    [Unit(unit.segment, offset if number == index else unit.start, stop if number == last else unit.end)
+                     for number, unit in enumerate(units[index:last + 1], index)]))})
+    return found
 
 
-def table_notes(body: dict, evidence: Evidence) -> dict:
+def _spans(ranges: Sequence[dict]) -> list[dict]:
+    """Preserve canonical order and disjoint ownership for display, omitting empty ranges."""
+    return [dict(each) for each in ranges if each["end"] > each["start"]]
+
+
+def table_notes(body: dict, evidence: Evidence, complete: bool = True) -> dict:
     """Share following record-free table qualifications with its entries, without making them record text.
 
     Headers precede entries, while units, abbreviations and reference-marker definitions often follow them.
     Only ranges explicitly classified as shared qualifications are eligible; a heading, another table, a record
     or ordinary record-free text ends following notes. The counted request budget bounds what the field call can
     read. Child records retain their separately defined parent context.
+
+    A body that is not `complete` (a prefix, `discover`) keeps only the entries before the first one of a table whose
+    notes are not all read: its context could still grow, so it is not final yet. The last segment read may be read
+    in part, so it counts as not read.
     """
     by_segment = {}
     for row in body['ledger']:
         by_segment.setdefault(row['segment'], []).append(row)
+    edge = None if complete else max((index for index, passage in enumerate(evidence.passages)
+                                      if passage.id in by_segment and passage.label not in FURNITURE), default=-1)
+    unsettled = set()
 
     def reference(row):
         return {k: row[k] for k in ('segment', 'start', 'end')}
@@ -707,7 +760,9 @@ def table_notes(body: dict, evidence: Evidence) -> dict:
         if passage.label != 'Table':
             continue
         following = [reference(row) for row in by_segment.get(passage.id, []) if row.get('shared_context')]
-        for after in evidence.passages[index + 1:]:
+        if edge is not None and index >= edge:
+            unsettled.add(passage.id)
+        for position, after in enumerate(evidence.passages[index + 1:], index + 1):
             if after.label in FURNITURE:
                 continue
             if after.label in HEADINGS or after.label == 'Table':
@@ -717,13 +772,20 @@ def table_notes(body: dict, evidence: Evidence) -> dict:
                 if not row.get('shared_context'):
                     break
                 following.append(reference(row))
-            if not rows or any(not row.get('shared_context') for row in rows):
+            if any(not row.get('shared_context') for row in rows):
+                break
+            if edge is not None and position >= edge:  # more notes may follow what is read of it
+                unsettled.add(passage.id)
+            if not rows or passage.id in unsettled:
                 break
         notes[passage.id] = following
     entries = []
     for entry in body['entries']:
         segments = {r['segment'] for r in entry['ranges']}
-        extra = notes.get(next(iter(segments)), []) if len(segments) == 1 and 'parent' not in entry else []
+        table = next(iter(segments)) if len(segments) == 1 and 'parent' not in entry else None
+        if table in unsettled:
+            break
+        extra = notes.get(table, [])
         # a note inside the table may already precede the entry, one range per line of the merged ledger row
         held = [c for c in entry['context'] if not any(
             c['segment'] == r['segment'] and r['start'] <= c['start'] and c['end'] <= r['end'] for r in extra)]
@@ -780,8 +842,10 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
     A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
     so every entry here is final (number, ranges, context, end) except the last, when it is still open at the prefix's
     end (the next window decides its end) or a later record start could still continue it (its printed label names a
-    record); it is left out."""
+    record); it is left out. `cuts` are the entries a prefix ending with each window would hold: the entries each
+    window settles, the same however many windows follow (`children` asks no window across one)."""
     units: list[Unit] = [unit for each in seen for unit in each.window.primary]
+    cuts: list[int] = []
     regions: list[list] = []  # [kind, entry index or None, (unit index, offset)]
     entries: list[dict] = []
     open_entry: int | None = None
@@ -792,6 +856,9 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
         if open_entry is not None:
             entries[open_entry]["end"] = end
 
+    def settled() -> int:  # without the last entry while it is open or a later record start could continue it
+        return len(entries) - (open_entry is not None or bool(entries) and _names(entries[-1]["label"]))
+
     for each in seen:
         start = (first, units[first].start)
         first += len(each.window.primary)
@@ -801,6 +868,7 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
             close("unresolved")
             regions.append(["unresolved", None, start])
             open_entry, previous = None, each
+            cuts.append(settled())
             continue
         closed_cleanly = previous is not None and previous.ok and previous.ends is False
         joins = (previous is not None and previous.ok and previous.ends is True and each.begins is True
@@ -837,14 +905,14 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
                 open_entry = len(entries) - 1
             regions.append([kind, open_entry, position])
         previous = each
+        cuts.append(settled())
     if prefix:
         body = _ledger(regions, units, entries, evidence, texts, heading_context=heading_context)
-        waiting = open_entry is not None or bool(entries) and _names(entries[-1]["label"])
-        return {**body, "entries": entries[:-1]} if waiting else body
+        return {**body, "entries": entries[:settled()], "cuts": cuts}
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])
-    return _ledger(regions, units, entries, evidence, texts, heading_context=heading_context)
+    return {**_ledger(regions, units, entries, evidence, texts, heading_context=heading_context), "cuts": cuts}
 
 
 def _same_label(one: str | None, other: str | None) -> bool:

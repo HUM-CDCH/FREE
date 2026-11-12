@@ -332,7 +332,7 @@ describe('marks select their values', () => {
       containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never, parsedDocument,
       attempt: { extractionId: 'x' },
       active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect,
-        // Discovery's record start in the same passage has no value to select.
+        // A link in the same passage that no value describes has nothing to select.
         savedLinks: [{ key: 'found:0', link: { resultPath: ['records', 0], evidenceAnchorId: anchor.anchor_id } },
           ...links.map((link) => ({ key: JSON.stringify(link.resultPath), link }))] },
     }))
@@ -351,7 +351,7 @@ describe('marks select their values', () => {
     expect(onSelect).toHaveBeenCalledWith([JSON.stringify(['records', 0, 'title']), JSON.stringify(['records', 0, 'subtitle'])], mark)
   })
 
-  it('names the values of the passage under the pointer, no record start, and lights the marks of a value hovered in Results', async () => {
+  it('names the values of the passage under the pointer, no undescribed link, and lights the marks of a value hovered in Results', async () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
     const container = document.createElement('div')

@@ -315,7 +315,19 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   distinguish a verbatim quote from a value's editorial note markers. This is a
   model decision, with no punctuation stripping or field-specific cleanup.
   Defaults 1–8 retain their prompts and recorded versions.
-  Studio admits defaults 9 by default, only where its
+  Defaults 10 is defaults 9 with the children pass pipelined: the same discovery and
+  entry readings, asked earlier. While discovery still reads, a durable run carves the
+  records its read windows settle, then reads, lists and saves each entry whose ranges
+  and context can no longer change. No children window crosses the entries one
+  discovery window settles, so nothing found later changes a window already asked
+  (defaults 9 packs them over the whole discovery: defaults 10 asks more, smaller ones);
+  an entry is final once every children window up to its last line is answered, and a
+  table entry also once the notes after its table are read. A children call is
+  admitted before the next discovery window, and the windows that wait are asked
+  together. The first records wait for the first discovery window alone; a later
+  record still waits for every window before it.
+  Defaults 8 and 9 keep reading no entry before the whole discovery.
+  Studio admits defaults 10 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
