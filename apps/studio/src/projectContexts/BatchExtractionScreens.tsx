@@ -185,7 +185,7 @@ export function BatchExtractionHistory({
   if (batches.length === 0)
     return (
       <p className="py-6 text-center text-xs text-ink-muted">
-        No Batch Extractions yet. Once the template is ready, the chat pilots it
+        No Batch Extractions yet. Once the template is ready, the chat tries it
         on a few documents first, so you can catch a template issue before
         committing to the whole collection.
       </p>
@@ -213,7 +213,7 @@ export function BatchExtractionHistory({
                   </strong>
                   {isPilotRound(batch) && (
                     <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[9.5px] font-semibold text-accent">
-                      Pilot
+                      Trial
                     </span>
                   )}
                 </span>

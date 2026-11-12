@@ -341,7 +341,7 @@ export function BatchPreparation({
                 <div className="rounded-md border border-line bg-surface-muted px-3 py-2">
                   <p className="text-[11px] leading-snug text-ink-muted">
                     These suggested fields start unstabilised, so they cannot run over {selected.size} Source
-                    Documents yet. Pilot them on {PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results and approve
+                    Documents yet. Try them on {PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results and approve
                     the template for batch extraction before running the full collection.
                   </p>
                 </div>
@@ -720,7 +720,7 @@ function PreparedTemplate({
           <p className="text-[11px] leading-snug text-ink-muted">
             {stabilisedAt
               ? 'This template is approved for batch extraction — the full collection is unlocked.'
-              : `This template isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved template. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it in the chat.`}
+              : `This template isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved template. Try it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it in the chat.`}
           </p>
         </div>
       )}

@@ -29,7 +29,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       if (result === 'not-ready')
         throw new ExtractionError(
           'schema_not_ready_to_stabilise',
-          'Review at least one pilot Extraction against this Schema Revision before approving it for Batch Extraction.',
+          'Review at least one trial Extraction against this Schema Revision before approving it for Batch Extraction.',
         )
       return result
     },

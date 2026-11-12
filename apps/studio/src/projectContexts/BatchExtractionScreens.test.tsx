@@ -48,7 +48,7 @@ it('names a run at the pilot limit a pilot and a larger one a collection batch',
       onOpen={vi.fn()}
     />,
   )
-  expect(screen.getByText('Pilot')).toBeVisible()
+  expect(screen.getByText('Trial')).toBeVisible()
   pilot.unmount()
 
   render(
@@ -57,7 +57,7 @@ it('names a run at the pilot limit a pilot and a larger one a collection batch',
       onOpen={vi.fn()}
     />,
   )
-  expect(screen.queryByText('Pilot')).not.toBeInTheDocument()
+  expect(screen.queryByText('Trial')).not.toBeInTheDocument()
 })
 
 it('opens every retained member and keeps typed review on its member route', () => {

@@ -506,7 +506,7 @@ describe('Studio home', () => {
       }),
     ).toBeVisible()
     // The six workflow steps, named as the workflow bar names them.
-    for (const phase of ['Upload', 'Create template', 'Pilot', 'Approve', 'Batch extract', 'Review'])
+    for (const phase of ['Upload', 'Create template', 'Try out', 'Approve', 'Batch extract', 'Review'])
       expect(home().getByText(phase)).toBeInTheDocument()
     expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
 

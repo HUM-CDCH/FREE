@@ -15,7 +15,7 @@ const phases = [
     name: 'Create template',
     copy: 'Describe what you want to extract; a template is drafted.',
   },
-  { number: '03', name: 'Pilot', copy: 'Try the template on a few documents and review the results.' },
+  { number: '03', name: 'Try out', copy: 'Try the template on a few documents and review the results.' },
   { number: '04', name: 'Approve', copy: 'Approve the template for the whole collection.' },
   { number: '05', name: 'Batch extract', copy: 'Run the approved template over every document.' },
   { number: '06', name: 'Review', copy: 'Review each value against its Evidence.' },

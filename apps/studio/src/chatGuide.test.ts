@@ -219,7 +219,7 @@ describe('nextStep in a project', () => {
   })
 
   it('pilots a ready template on this document and the next ones, with a run of this document alone beside it', () => {
-    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the template',
+    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Try template on a few documents',
       picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [{ action: 'pilot', picks: true }, { action: 'run', label: 'Only this document' }, { action: 'review-schema', label: 'View template' }, { action: 'dismiss' }] })
     // A schema saved here leads to the pilot before the summary is read again.
     expect(step({ summary: summary({ phase: 'schema' }) })?.key).toBe('pilot:revision-2')
@@ -230,7 +230,7 @@ describe('nextStep in a project', () => {
 
   it('leads a pilot round\'s review: this document\'s Results, else the next document to review', () => {
     const pilot = { summary: summary({ extractedSourceDocumentCount: 3 }), batches: [batch([member('a', true), member('b'), member('c')])] }
-    expect(step(pilot)).toMatchObject({ key: 'review:extraction-b', title: 'Pilot review', detail: [['Progress', '1 of 3 documents reviewed']], options: [{ action: 'review' }] })
+    expect(step(pilot)).toMatchObject({ key: 'review:extraction-b', title: 'Review the trial results', detail: [['Progress', '1 of 3 documents reviewed']], options: [{ action: 'review' }] })
     expect(step(pilot, { resultsShown: true })).toMatchObject({ options: [], notice: expect.stringContaining('save the review') })
     expect(step({ ...pilot, currentDocumentId: 'd' })).toMatchObject({ key: 'review-next:extraction-b', options: [
       { action: 'open-document', label: 'Next document · b.pdf', target: { sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'batch-revision-2' } },
@@ -244,9 +244,9 @@ describe('nextStep in a project', () => {
     const revised = summary({ currentSchemaRevisionId: 'revision-3', extractedSourceDocumentCount: 3 })
     const round = batch([member('a'), member('b'), member('c')])
     const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
-    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Review 3 pilot results' })
+    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Review 3 trial results' })
     expect(step({ summary: revised, batches: [round], roundId: round.batchExtractionId, currentDocumentId: 'a' }, revision3))
-      .toMatchObject({ key: 'review:extraction-a', title: 'Pilot review' })
+      .toMatchObject({ key: 'review:extraction-a', title: 'Review the trial results' })
     // "Continue in chat" and a tab switch open the document without its round: the page still says to review.
     expect(step({ summary: revised, batches: [round], currentDocumentId: 'a' }, revision3)?.key).toBe('review:extraction-a')
     expect(step({ summary: revised, batches: [round], currentDocumentId: 'd' }, revision3)?.key).toBe('review-next:extraction-a')
@@ -256,9 +256,9 @@ describe('nextStep in a project', () => {
     // The server's phase reached the approval with revision 2's pilot; revision 3's own pilot has run since.
     const revised = summary({ phase: 'approve', currentSchemaRevisionId: 'revision-3', currentSchemaRevisionReviewed: false })
     const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
-    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Pilot the revised template' })
+    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Try the revised template on a few documents' })
     const older = batch([member('a', true), member('b')]), current = batch([member('a'), member('b'), member('c')], 'revision-3')
-    expect(step({ summary: revised, batches: [older, current] }, revision3)).toMatchObject({ key: 'review:extraction-b', title: 'Pilot review' })
+    expect(step({ summary: revised, batches: [older, current] }, revision3)).toMatchObject({ key: 'review:extraction-b', title: 'Review the trial results' })
     // Only revision 2's round waits: the revised template is still to pilot.
     expect(step({ summary: revised, batches: [older] }, revision3)?.key).toBe('pilot:revision-3')
   })
@@ -271,10 +271,10 @@ describe('nextStep in a project', () => {
     it('leads the rest of the round with the approval beside it, as the project page says, then the approval alone', () => {
       const half = { summary: approve(), batches: [batch([member('a'), member('b', true)])] }
       expect(guidedWorkflow(half.summary).next?.label).toBe('Approve template')
-      expect(step(half)).toMatchObject({ key: 'review-next:extraction-a', title: 'Pilot review', detail: [['Progress', '1 of 2 documents reviewed']] })
+      expect(step(half)).toMatchObject({ key: 'review-next:extraction-a', title: 'Review the trial results', detail: [['Progress', '1 of 2 documents reviewed']] })
       expect(options(step(half))).toEqual(['open-document:positive', 'approve:secondary', 'dismiss:dismiss'])
       expect(step({ summary: approve(), batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
-        key: 'approve:revision-2', question: 'Every pilot document is reviewed. Approve the template for the whole project?' })
+        key: 'approve:revision-2', question: 'Every trial document is reviewed. Approve the template for the whole project?' })
       // Unread rounds may still wait: no claim that every pilot document is reviewed.
       expect(step({ ...half, batches: null })?.question).toBe('Approve the template for the whole project?')
     })

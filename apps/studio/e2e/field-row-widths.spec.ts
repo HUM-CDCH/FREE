@@ -585,7 +585,7 @@ test('the workspace refuses a project pilot while its description input is unfin
   await page.getByRole('button', { name: 'Edit description', exact: true }).click()
   await page.getByLabel('What one record is').fill('Unfinished description to retain.')
   await rail(page).getByRole('button', { name: 'Back to chat' }).click()
-  await rail(page).getByRole('button', { name: 'Run pilot on 1 document', exact: true }).click()
+  await rail(page).getByRole('button', { name: 'Try on 1 document', exact: true }).click()
   await expect(rail(page).getByRole('alert')).toContainText('Save or Cancel the open edit first.')
   expect(admissions).toBe(0)
   await openRailView(page, 'Template')

@@ -417,10 +417,10 @@ describe('reopened Source Document workspace', () => {
       const { opened, onNavigate, refresh } = await renderInProject(summary(), [], { fromSchemaBuilder: true })
       // Built toward a pilot: no run of this document alone.
       expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
-      const step = await screen.findByRole('region', { name: 'Pilot the template' })
+      const step = await screen.findByRole('region', { name: 'Try template on a few documents' })
       expect(within(step).getAllByRole('checkbox', { checked: true }).map((box) => box.closest('label')!.textContent)).toEqual(['Beretning.pdf', 'Letter 1.pdf', 'Letter 2.pdf'])
       fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
-      fireEvent.click(within(step).getByRole('button', { name: 'Run pilot on 2 documents' }))
+      fireEvent.click(within(step).getByRole('button', { name: 'Try on 2 documents' }))
       await waitFor(() => expect(onNavigate).toHaveBeenCalledOnce())
       expect(opened).toEqual([expect.objectContaining({ sourceDocumentIds: [here, others[0]], strategy: 'ARTICLE',
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId })])
@@ -580,10 +580,10 @@ describe('reopened Source Document workspace', () => {
       const round = batch([member(here, true), member(others[0]!), member(others[1]!)])
       const { onNavigate } = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round],
         { project: undefined })
-      expect(screen.queryByRole('region', { name: 'Pilot review' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Review the trial results' })).not.toBeInTheDocument()
       cleanup()
       const rendered = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round])
-      const step = await screen.findByRole('region', { name: 'Pilot review' })
+      const step = await screen.findByRole('region', { name: 'Review the trial results' })
       expect(step).toHaveTextContent('1 of 3 documents reviewed')
       fireEvent.click(within(step).getByRole('button', { name: 'Next document · Letter 1.pdf' }))
       expect(rendered.onNavigate).toHaveBeenCalledExactlyOnceWith({ kind: 'document', projectContextId: reopened.projectContextId,
