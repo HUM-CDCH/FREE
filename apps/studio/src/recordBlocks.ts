@@ -135,18 +135,26 @@ export function recordPieces(document: ParsedDocument, markdown: Uint8Array | nu
     tables.set(segment, cells)
     return cells
   }
+  const order = new Map(document.content_stream.map((block, index) => [block.block_id.slice(2), index]))
   const pieces = new Map<string, RecordPiece>()
   for (const block of blocks) {
     const regions: { page: number; box: Box }[] = []
+    let previous: (SourceRange | { segment: string }) | undefined
     for (const range of rangesOf(block)) {
       const source = 'start' in range ? texts(range.segment) : null
       const cells = source && 'start' in range ? tableCells(range.segment)?.filter(cell => cell.from < source.unit(range.end) && cell.to > source.unit(range.start)) : undefined
       for (const region of cells?.length ? [{ page: cells[0]!.page, box: union(cells.filter(cell => cell.page === cells[0]!.page).map(cell => cell.box)) }] : placed(`a_${range.segment}`)) {
         const last = regions.at(-1)
-        // The next block down the same column of the page continues the region; a new column or page starts another.
-        if (last && last.page === region.page && region.box.y0 >= last.box.y0 && Math.min(last.box.x1, region.box.x1) > Math.max(last.box.x0, region.box.x0)) last.box = union([last.box, region.box])
+        // Merge only consecutive source portions; geometry cannot bridge a hole in ownership.
+        const continuous = previous && (previous.segment === range.segment
+          ? 'end' in previous && 'start' in range && previous.end >= range.start
+          : order.get(range.segment) === (order.get(previous.segment) ?? -2) + 1
+            && 'end' in previous && 'start' in range && range.start === 0
+            && texts(previous.segment)?.unit(previous.end) === texts(previous.segment)?.text.length)
+        if (continuous && last && last.page === region.page && region.box.y0 >= last.box.y0 && Math.min(last.box.x1, region.box.x1) > Math.max(last.box.x0, region.box.x0)) last.box = union([last.box, region.box])
         else regions.push(region)
       }
+      previous = range
     }
     for (const [index, { page, box }] of regions.entries()) {
       const id = `${block.state}|${page}|${box.x0},${box.y0},${box.x1},${box.y1}`

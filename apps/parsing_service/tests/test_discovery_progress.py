@@ -242,3 +242,10 @@ def test_planned_catalog_calls_carry_their_entrys_distance_from_the_start_page_a
     assert sorted(page.values()) == list(range(1, 21))
     assert {capture: pending['priorities'][capture] for capture in page} == {
         capture: (20 - page[capture]) // 8 for capture in page}  # pages 1-4 at 2, 5-12 at 1, 13-20 at 0
+
+
+def test_preview_spans_preserve_excluded_note_and_scope_order():
+    ranges = [{"segment": "p1_s0", "start": 0, "end": 18},
+              {"segment": "p1_s0", "start": 56, "end": 78},
+              {"segment": "p2_s0", "start": 0, "end": 20}]
+    assert discovery._spans(ranges) == ranges

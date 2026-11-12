@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { plannedRecords } from 'extraction/durable-contract'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import DocumentMarkdown from './DocumentMarkdown'
 import { recordBlocks, recordPieces, recordSpans, type RecordBlock } from './recordBlocks'
@@ -173,4 +174,34 @@ it('the page draws record blocks as outlines that are no marks, keeps them throu
   await act(async () => selection.publish({ marks: { ...marks, records: [] } }))
   expect(outlines()).toEqual([])
   expect(container.querySelectorAll('button.evidence-mark')).toHaveLength(1)
+})
+
+
+it('keeps parent table regions separate across a child row', () => {
+  const { document, bytes } = source([{ segment: 'p1_s0', kind: 'table', text: 'Parent\nChild\nParent again', at: [40, 100, 280, 160],
+    cells: ['Parent', 'Child', 'Parent again'].map((text, row) => ({ id: `c${row}`, row, column: 0, text,
+      at: [40, 100 + row * 20, 280, 120 + row * 20] as Corners })) }])
+  const blocks = [closed(0, line('p1_s0', 0, 6), line('p1_s0', 13, 25)), closed(1, line('p1_s0', 7, 12))]
+  expect(recordPieces(document, bytes, blocks).map(piece => [piece.labels, piece.box.y0, piece.box.y1])).toEqual([
+    [['Record 1'], 100, 120], [['Record 1'], 140, 160], [['Record 2'], 120, 140]])
+  expect(recordSpans(document, bytes, blocks).map(span => new TextDecoder().decode(bytes.subarray(span.from, span.to))))
+    .toEqual(['Parent', 'Child', 'Parent again'])
+})
+
+
+it('places a multi-page child start on its first canonical fragment', () => {
+  const { document, bytes } = source([
+    { segment: 'p1_s0', kind: 'paragraph', text: 'Parent', at: [40, 40, 280, 60] },
+    { segment: 'p2_s0', kind: 'paragraph', text: 'Child starts', at: [40, 80, 280, 100] },
+    { segment: 'p3_s0', kind: 'paragraph', text: 'Child ends Parent resumes', at: [40, 120, 280, 140] },
+  ])
+  const records = plannedRecords([
+    { ordinal: 0, scope: [line('p1_s0', 0, 6), line('p3_s0', 11, 25)] },
+    { ordinal: 1, scope: [line('p2_s0', 0, 12), line('p3_s0', 0, 10)] },
+  ])
+  const blocks = recordBlocks({ records })
+  const childSpans = recordSpans(document, bytes, blocks).filter(span => span.labels.includes('Record 2'))
+  expect(childSpans.map(span => [new TextDecoder().decode(bytes.subarray(span.from, span.to)), span.first]))
+    .toEqual([['Child starts', true], ['Child ends', false]])
+  expect(recordPieces(document, bytes, blocks).find(piece => piece.tag.includes('Record 2'))?.box.y0).toBe(80)
 })

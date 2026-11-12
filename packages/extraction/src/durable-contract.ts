@@ -88,28 +88,13 @@ export const sourceRange = (value: unknown): value is SourceRange => {
   return typeof range === 'object' && range !== null && typeof range.segment === 'string'
     && Number.isInteger(range.start) && Number.isInteger(range.end) && range.start >= 0 && range.end > range.start
 }
-/** The planned records as the source shows them: where each starts and, when its scope is its exact owned lines (the
- *  unified Catalog's), the text it owns. A record's ranges with no other record's range between them in their segment
- *  read as one, so the polled list stays small and a parent keeps the holes its child records were carved from. Any
- *  other scope keeps its start alone. */
+/** Planned records retain their scope's canonical order and disjoint ownership for source display.
+ *  Other scopes keep their start alone. */
 export function plannedRecords(units: readonly { ordinal: number; scope: unknown }[]) {
   const scopes = units.map(unit => Array.isArray(unit.scope) && unit.scope.length > 0 && unit.scope.every(sourceRange) ? unit.scope as SourceRange[] : null)
-  const owned = new Map<string, { start: number; end: number; unit: number }[]>()
-  scopes.forEach((scope, unit) => scope?.forEach(({ segment, start, end }) => {
-    if (!owned.has(segment)) owned.set(segment, [])
-    owned.get(segment)!.push({ start, end, unit })
-  }))
-  const ranges = units.map((): SourceRange[] => [])
-  for (const [segment, lines] of owned) {
-    let last: { unit: number; range: SourceRange } | undefined
-    for (const { start, end, unit } of lines.sort((a, b) => a.start - b.start || a.end - b.end)) {
-      if (last?.unit === unit) last.range.end = Math.max(last.range.end, end)
-      else ranges[unit]!.push((last = { unit, range: { segment, start, end } }).range)
-    }
-  }
   return units.map((unit, index) => {
     const segment = Array.isArray(unit.scope) ? (unit.scope[0] as { segment?: unknown } | undefined)?.segment : undefined
     return { ordinal: unit.ordinal, segment: typeof segment === 'string' ? segment : null, page: segmentPage(segment),
-      ...(scopes[index] ? { ranges: ranges[index]! } : {}) }
+      ...(scopes[index] ? { ranges: scopes[index]!.map(range => ({ ...range })) } : {}) }
   })
 }

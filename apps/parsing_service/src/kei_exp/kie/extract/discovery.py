@@ -729,16 +729,8 @@ def record_starts(seen: Sequence[_Seen]) -> list[dict]:
 
 
 def _spans(ranges: Sequence[dict]) -> list[dict]:
-    """`ranges` with one segment's consecutive lines joined, the empty ones left out: for display, never a scope."""
-    spans: list[dict] = []
-    for each in ranges:
-        if each["end"] <= each["start"]:
-            continue
-        if spans and spans[-1]["segment"] == each["segment"]:
-            spans[-1]["end"] = each["end"]
-        else:
-            spans.append(dict(each))
-    return spans
+    """Preserve canonical order and disjoint ownership for display, omitting empty ranges."""
+    return [dict(each) for each in ranges if each["end"] > each["start"]]
 
 
 def table_notes(body: dict, evidence: Evidence, complete: bool = True) -> dict:
