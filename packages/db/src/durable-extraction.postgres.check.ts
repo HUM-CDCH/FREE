@@ -339,3 +339,31 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   const denied = await owner.query(`SELECT has_schema_privilege('free_extraction_runtime', 'public', 'USAGE') AS allowed`)
   assert.equal(denied.rows[0].allowed, false)
 })
+
+test('deleting a template with its Extractions stops their runs in the same transaction', async () => {
+  if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
+  const target = await provisionDatabase(baseUrl, `free_test_durable_template_${randomBytes(5).toString('hex')}`)
+  const owner = new Client({ connectionString: target.url })
+  try {
+    await migrate(target.url, '20261003T1357_start_page')
+    await owner.connect()
+    const history = await seedPreMigrationHistory(owner)
+    await migrate(target.url)
+    // A run paused on the template, waiting for Resume: what a forced deletion of the template must end.
+    const extraction = history.extractions.article.inFlight
+    await owner.query(`INSERT INTO extraction_runtime.head
+      (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
+      VALUES ($1,$2,$3,$4,'ARTICLE',$5,'PAUSE',0,true,'PAUSED',NULL,1,0,1,0,false)`,
+      [extraction, history.projectContextId, randomUUID(), { runId: 'source', generation: 'g1' }, randomUUID()])
+    const { extractionSchemaId } = (await owner.query<{ extractionSchemaId: string }>(
+      'SELECT "extractionSchemaId" FROM public."schemaRevision" WHERE id=$1', [history.revisions.article])).rows[0]!
+    // The store's forced deletion: the schema goes, its revisions and their Extractions with it by cascade.
+    await owner.query('DELETE FROM public."extractionSchema" WHERE id=$1', [extractionSchemaId])
+    assert.equal((await owner.query('SELECT 1 FROM public.extraction WHERE id=$1', [extraction])).rowCount, 0)
+    assert.deepEqual((await owner.query('SELECT deleted,intent,"pendingResume" FROM extraction_runtime.head WHERE id=$1', [extraction])).rows,
+      [{ deleted: true, intent: 'STOP', pendingResume: false }])
+  } finally {
+    await owner.end()
+    await target.drop()
+  }
+})

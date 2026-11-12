@@ -1048,6 +1048,32 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const added = await summary()
     assert.equal(added?.phase, 'review')
     assert.equal(added?.pendingExtractionSourceDocumentCount, 1)
+
+    // The piloted document deleted (its Extraction goes with it): the approval stands for the pilot, so the project
+    // never asks for another one.
+    database.tables.SourceDocument = database.tables.SourceDocument.filter((document) => document.id !== DOCUMENT)
+    database.tables.Extraction = database.tables.Extraction.filter((extraction) => extraction.id !== pilot)
+    const deleted = await summary()
+    assert.equal(deleted?.reviewedSourceDocumentCount, 0)
+    assert.equal(deleted?.phase, 'review')
+  })
+
+  it('returns to pilot when the reviewed documents go before any approval', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const summary = async () =>
+      (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
+    const representation = database.tables.SourceRepresentationRevision[0].id as string
+    const pilot = '51000000-0000-4000-8006-000000000041'
+    database.tables.Extraction = [
+      { id: pilot, sourceDocumentId: DOCUMENT, sourceRepresentationRevisionId: representation,
+        schemaRevisionId: REVISION_1, batchExtractionId: null, createdAt: new Date('2026-08-03T10:00:00Z') },
+    ]
+    database.tables.Head = [{ id: pilot, acknowledgement: 'COMPLETED', deleted: false }]
+    database.tables.Finalization = [{ extractionId: pilot, createdAt: new Date('2026-08-04T10:00:00Z') }]
+    assert.equal((await summary())?.phase, 'approve')
+    database.tables.Extraction = []
+    assert.equal((await summary())?.phase, 'pilot')
   })
 
   it('counts a finalized native review as the latest reviewed Extraction', async () => {
