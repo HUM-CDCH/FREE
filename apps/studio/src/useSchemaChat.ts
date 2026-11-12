@@ -12,6 +12,8 @@ import { boundedHistory, useProjectChatLog } from './projectChat'
 import { PROJECT_CHAT_TEXT_LIMIT, type ProjectChatEntry } from '../shared/projectChat.contract'
 
 const EMPTY_NODES: SchemaNode[] = []
+/** The reply when the researcher turns down what was offered and asks for nothing else (no action). */
+export const NO_ACTION_REPLY = 'If you need help, please use the chat box below.'
 
 /** A conversation entry: a message, a guided step the researcher answered (its title and the choice made), or the
  *  Source Document the researcher turned to before what follows was said. */
@@ -280,6 +282,8 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
       }
       if (response.status === 'answered') {
         say(response.answer)
+      } else if (response.status === 'declined') {
+        say(NO_ACTION_REPLY)
       } else if (response.status === 'requested') {
         // Studio, not the model, offers what may run: the step below asks which documents.
         say('Choose what to extract below.')
@@ -354,7 +358,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   }
 
   // A message before the first schema asks the model whether it is a question: a question is answered from the document,
-  // anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
+  // a message that only declines is answered with NO_ACTION_REPLY, anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
   async function ask(message?: string) {
     const fromDraft = message === undefined
     const text = (message ?? instructions.draft).trim()
@@ -380,7 +384,9 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
         boundedHistory(instructions.history),
       )
       if (askAbortRef.current !== controller) return
-      instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)
+      // Only a no: shown with the reply, never kept for generation.
+      if (reply.kind === 'none') keep(show([{ role: 'user', text }, { role: 'assistant', text: NO_ACTION_REPLY }]))
+      else instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)
     } catch (err) {
       if (askAbortRef.current !== controller) return
       // Nothing was recorded: the message goes back to the composer to send again.

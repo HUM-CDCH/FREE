@@ -11,7 +11,7 @@ import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { PendingAsk } from './SchemaInstructions'
-import type { SchemaChat } from './useSchemaChat'
+import { NO_ACTION_REPLY, type SchemaChat } from './useSchemaChat'
 
 const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
 
@@ -145,8 +145,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       if (!canSay) return
       reveal()
       void (preSchema ? chat.ask(said) : chat.send(said))
-    } else if (option.action !== 'review-schema' && !(card.key.startsWith('results-ready:') && option.action === 'review'))
+    } else if (option.action !== 'review-schema' && !(card.key.startsWith('results-ready:') && option.action === 'review')) {
       chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
+      // Every option turned down and nothing said instead: no action, so point to the chat box.
+      if (option.action === 'dismiss') chat.appendMessage(NO_ACTION_REPLY)
+    }
     // Template ready waits for a way on: viewing the template keeps it, any other choice ends it.
     if (card.key.startsWith('template-ready:') && option.action !== 'review-schema') setTemplateReady(false)
     // Results ready likewise: opening Results keeps it, any other choice ends it.

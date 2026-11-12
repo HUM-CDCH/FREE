@@ -75,6 +75,8 @@ export const schemaEditResponseSchema = z.discriminatedUnion('status', [
   /** The chat message asked for the extraction to run instead of a change: Studio offers what it allows, and nothing
    *  is proposed or run here. */
   z.object({ status: z.literal('requested'), action: z.literal('extract') }).strict(),
+  /** The chat message only declined what was offered and asked for nothing else: nothing is proposed or run. */
+  z.object({ status: z.literal('declined') }).strict(),
   z.object({ status: z.literal('refused'), message: z.string() }).strict(),
   z.object({ status: z.literal('failed'), message: z.string() }).strict(),
 ])

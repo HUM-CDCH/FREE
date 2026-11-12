@@ -64,7 +64,7 @@ export async function answerFromWindows(
 /**
  * `answerSchemaChat(input)`: a chat message before the first schema. One step asks whether it is a question and answers
  * it (`answerIfQuestion`); a long source's question is answered again across its windows. An instruction is the
- * page's to keep for generation: nothing is saved here.
+ * page's to keep for generation, and a message that only declines (`none`) the page's to answer: nothing is saved here.
  */
 export async function answerSchemaChatWorkflow(
   input: SchemaChatInput,
@@ -83,6 +83,7 @@ export async function answerSchemaChatWorkflow(
     const answer = await modelStep(ports.steps, 'answerIfQuestion', (signal) =>
       ports.answer(caller, source, { message: input.message, history: input.history }, { ...(input.temperature === null ? {} : { temperature: input.temperature }), signal }))
     if (answer === null) return { ok: true, reply: { kind: 'instruction' } }
+    if (typeof answer !== 'string') return { ok: true, reply: { kind: 'none' } }
     return {
       ok: true,
       reply: {

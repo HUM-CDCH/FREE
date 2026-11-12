@@ -93,6 +93,14 @@ describe('proposeSchemaEdit', () => {
     expect(generate).not.toHaveBeenCalled()
   })
 
+  it('as a chat reply, hands a message that only declines back to Studio with no proposal', async () => {
+    const generate = answering({})
+    const respond = vi.fn().mockResolvedValueOnce({ action: 'none' })
+    await expect(proposeSchemaEdit(definition, 'No thanks', SOURCE, { caller: CALLER, generate, answerable: true, respond }))
+      .resolves.toEqual({ status: 'declined' })
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('accepts a typed repeating scalar field from the browser', () => {
     const repeatingDates = [{ id: 'dates', name: 'dates', type: 'array', itemType: 'date' }]
 

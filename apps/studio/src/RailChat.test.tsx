@@ -197,8 +197,9 @@ describe('RailChat', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, run: { start: vi.fn(), available: true, unavailableReason: null } })
     fireEvent.click(within(screen.getByRole('region', { name: 'Run extraction' })).getByRole('button', { name: 'Not yet' }))
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
-    // The answer is in the conversation, which is the rail's home.
+    // The answer is in the conversation, which is the rail's home; every option turned down, the chat points to its box.
     expect(screen.getByText(/Not yet/)).toBeInTheDocument()
+    expect(screen.getByText('If you need help, please use the chat box below.')).toBeInTheDocument()
   })
 
   it('sets a step aside for what is typed instead, said in the conversation', () => {
@@ -213,6 +214,7 @@ describe('RailChat', () => {
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
     expect(screen.getByText('Add a recipient field first')).toBeInTheDocument()
     expect(screen.queryByText(/Not yet/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/If you need help/)).not.toBeInTheDocument()
     expect(start).not.toHaveBeenCalled()
   })
 

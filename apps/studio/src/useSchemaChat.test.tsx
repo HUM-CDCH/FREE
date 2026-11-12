@@ -4,12 +4,12 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { createSchemaEditorController, durableSchemaPersistence, type SchemaEditorController } from './currentSchemaRevision'
-import { useSchemaChat } from './useSchemaChat'
+import { NO_ACTION_REPLY, useSchemaChat } from './useSchemaChat'
 
-const { requestSchemaEdit, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
-  requestSchemaEdit: vi.fn(), deleteModelOperation: vi.fn(async () => {}), listModelOperations: vi.fn(async () => []),
+const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
+  requestSchemaEdit: vi.fn(), requestSchemaChat: vi.fn(), deleteModelOperation: vi.fn(async () => {}), listModelOperations: vi.fn(async () => []),
 }))
-vi.mock('./api', async importOriginal => ({ ...await importOriginal<typeof import('./api')>(), requestSchemaEdit, deleteModelOperation, listModelOperations }))
+vi.mock('./api', async importOriginal => ({ ...await importOriginal<typeof import('./api')>(), requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations }))
 const initial: SchemaRevision = {
   extractionSchemaId: 'schema-1', schemaRevisionId: 'revision-1', revisionNumber: 1,
   origin: 'researcher-edit', createdAt: '2026-11-10T00:00:00.000Z', stabilisedAt: null,
@@ -17,7 +17,7 @@ const initial: SchemaRevision = {
 }
 const proposal: SchemaEditResponse = { status: 'proposed', fields: { title: { name: 'heading', type: 'string', removed: false } }, additions: [], issues: [] }
 const controllers: SchemaEditorController[] = []
-function setup() {
+function setup(sourceRepresentationId?: string) {
   const schema = createSchemaEditorController(durableSchemaPersistence({
     projectContextId: 'project-1', initial, debounceMs: 60_000,
     append: async (_schema, expected, definition) => ({ ...initial, ...definition, schemaRevisionId: `revision-${expected + 1}`, revisionNumber: expected + 1 }),
@@ -25,7 +25,7 @@ function setup() {
     listRevisions: async () => [], getRevision: async () => initial,
   }), { initialDraft: initial, initialExtractableRevisionId: initial.schemaRevisionId })
   controllers.push(schema)
-  const hook = renderHook(() => useSchemaChat({ schema }))
+  const hook = renderHook(() => useSchemaChat({ schema, sourceRepresentationId }))
   return { schema, hook }
 }
 afterEach(() => { cleanup(); for (const schema of controllers.splice(0)) schema.dispose(); vi.clearAllMocks() })
@@ -82,4 +82,21 @@ it.each(['cancel', 'unmount'] as const)('aborts a model request on %s, with serv
     expect(deleteModelOperation).toHaveBeenCalledWith(`edit:${requestSchemaEdit.mock.calls[0][3]}`)
     expect(hook.result.current.input).toBe('Rename title')
   } else expect(deleteModelOperation).not.toHaveBeenCalled()
+})
+
+it('answers a message that only declines with the chat box, proposing nothing', async () => {
+  requestSchemaEdit.mockResolvedValueOnce({ status: 'declined' })
+  const { hook } = setup()
+  await act(() => hook.result.current.send('No thanks'))
+  expect(hook.result.current.proposalReview.pending).toBeNull()
+  expect(hook.result.current.messages.slice(-2)).toEqual([{ role: 'user', text: 'No thanks' }, { role: 'assistant', text: NO_ACTION_REPLY }])
+})
+
+it('before the first schema, a message that only declines is answered and never kept for generation', async () => {
+  requestSchemaChat.mockResolvedValueOnce({ kind: 'none' })
+  const { hook } = setup('representation-1')
+  await act(() => hook.result.current.ask('not now'))
+  expect(requestSchemaChat).toHaveBeenCalledOnce()
+  expect(hook.result.current.instructions.items).toEqual([])
+  expect(hook.result.current.messages.slice(-2)).toEqual([{ role: 'user', text: 'not now' }, { role: 'assistant', text: NO_ACTION_REPLY }])
 })
