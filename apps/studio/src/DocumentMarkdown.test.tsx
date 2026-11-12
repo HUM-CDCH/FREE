@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import type { EvidenceLink } from 'extraction/durable-types'
 import DocumentMarkdown from './DocumentMarkdown'
 import { useLayoutEffect, useState, type ComponentProps } from 'react'
 import { createSelectionChannel, type SelectionChannel } from './selectionChannel'
@@ -146,5 +147,122 @@ describe('mark visibility preserves the Markdown source', () => {
     render(<TestMarkdown markdown={markdown} document={document} marks={{ describe, selected: key, onSelect: vi.fn(), savedLinks: [{ key, link: { resultPath: ['field'], evidenceAnchorId: 'a1', precision: 'input' } }] }} />)
     expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(markdown)
     expect(screen.queryByRole('button', { name: 'orientation: NE–SW' })).toBeNull()
+  })
+})
+
+describe('saved value spans in Markdown', () => {
+  const passage = 'Café 🧭: Paris, puis Paris.'
+  const anchorId = 'a_p1_s0'
+  const valueKey = 'place'
+  const descriptions = new Map([[valueKey, { name: 'place', value: 'Paris', word: null, style: 'link' as const }]])
+  const spans = (start: number, end: number) => [{ segment: 'p1_s0', start, end }]
+  const second = Array.from(passage.slice(0, passage.lastIndexOf('Paris'))).length
+  const located: EvidenceLink = { resultPath: ['place'], evidenceAnchorId: anchorId,
+    location: { textSpans: spans(second, second + 5), raw: 'Paris' } }
+  const fixture = (kind: 'paragraph' | 'heading' | 'code' = 'paragraph') => {
+    const body = kind === 'heading' ? `## ${passage}` : kind === 'code' ? `\`\`\`text\n${passage}\n\`\`\`` : passage
+    const before = '# Préface\n\n'
+    const span = { start: bytes(before), end: bytes(before + body) }
+    return { markdown: before + body + '\n', document: {
+      content_stream: [{ kind, block_id: 'b_p1_s0', text: passage, level: 2, language: 'text' }],
+      evidence_index: { anchors: [{ kind: 'text', anchor_id: anchorId, block_id: 'b_p1_s0', markdown_span: span }] },
+    } as unknown as ParsedDocument }
+  }
+
+  it('marks only the saved occurrence past accents and an astral character, without PDF value boxes', () => {
+    const onSelect = vi.fn(), source = fixture()
+    render(<TestMarkdown {...source} marks={{ describe: descriptions, selected: valueKey, onSelect, savedLinks: [{ key: valueKey, link: located }] }} />)
+    const mark = screen.getByRole('button', { name: 'place: Paris' })
+    expect(mark.textContent).toBe('Paris')
+    expect(mark.previousSibling?.textContent).toContain('Paris, puis ')
+    expect(mark).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([valueKey], mark)
+  })
+
+  it.each(['heading', 'code'] as const)('maps canonical offsets past a %s wrapper', kind => {
+    const source = fixture(kind)
+    render(<TestMarkdown {...source} marks={{ describe: descriptions, selected: null, onSelect: vi.fn(), savedLinks: [{ key: valueKey, link: located }] }} />)
+    expect(screen.getByRole('button', { name: 'place: Paris' }).textContent).toBe('Paris')
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+  })
+
+  const recipe: EvidenceLink['grounding'] = { linkedBy: 'key', provenance: 'token', textSpans: spans(second, second + 5),
+    keySpans: [], alternatives: [], heading: null, precision: 'segment', raw: 'Paris', normalized: null }
+  const literal: EvidenceLink['grounding'] = { linkedBy: 'verification', support: 'literal', textSpans: spans(second, second + 5),
+    alternatives: [], precision: 'segment', raw: 'Paris', itemSpans: null }
+  it.each([['recipe', recipe], ['verified literal', literal]] as const)('uses %s grounding spans', (_, grounding) => {
+    render(<TestMarkdown {...fixture()} marks={{ describe: descriptions, selected: null, onSelect: vi.fn(),
+      savedLinks: [{ key: valueKey, link: { ...located, location: undefined, grounding } }] }} />)
+    expect(screen.getByRole('button', { name: 'place: Paris' }).textContent).toBe('Paris')
+  })
+
+  it.each([
+    ['no location', { ...located, location: undefined }],
+    ['out-of-range location', { ...located, location: { raw: 'Paris', textSpans: spans(second, 999) } }],
+    ['a foreign segment', { ...located, location: { raw: 'Paris', textSpans: [{ segment: 'p2_s0', start: second, end: second + 5 }] } }],
+    ['supporting evidence', { ...located, location: undefined, grounding: { ...literal, support: 'supporting' as const } }],
+  ] as const)('keeps the passage for %s', (_, link) => {
+    render(<TestMarkdown {...fixture()} marks={{ describe: descriptions, selected: null, onSelect: vi.fn(), savedLinks: [{ key: valueKey, link }] }} />)
+    expect(screen.getByRole('button', { name: 'place: Paris' }).textContent).toBe(passage)
+  })
+
+  it('keeps the passage when its Markdown no longer matches the canonical block', () => {
+    const source = fixture()
+    const changed = source.markdown.replace('Café', 'Cafe')
+    // Retain a valid byte span for the changed Markdown, but the original canonical text.
+    const anchor = source.document.evidence_index.anchors[0]!
+    if (anchor.kind === 'text') anchor.markdown_span.end--
+    render(<TestMarkdown {...source} markdown={changed} marks={{ describe: descriptions, selected: null, onSelect: vi.fn(), savedLinks: [{ key: valueKey, link: located }] }} />)
+    expect(screen.getByRole('button', { name: 'place: Paris' }).textContent).toBe(passage.replace('Café', 'Cafe'))
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(changed)
+  })
+
+  it('selects distinct values in one passage separately and keeps only the selected mark when marks are hidden', () => {
+    const first = 8, firstKey = 'first'
+    const source = fixture(), onSelect = vi.fn()
+    const describe = new Map([...descriptions, [firstKey, { ...descriptions.get(valueKey)!, name: 'first place' }]])
+    const savedLinks = [{ key: firstKey, link: { ...located, location: { raw: 'Paris', textSpans: spans(first, first + 5) } } }, { key: valueKey, link: located }]
+    const marks = { describe, selected: valueKey, onSelect, savedLinks }
+    const { rerender } = render(<TestMarkdown {...source} marks={marks} />)
+    const mark = screen.getByRole('button', { name: 'first place: Paris' })
+    expect(mark.textContent).toBe('Paris')
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([firstKey], mark)
+    rerender(<TestMarkdown {...source} marks={marks} marksShown={false} />)
+    expect(screen.queryByRole('button', { name: 'first place: Paris' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'place: Paris' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+  })
+
+  it('keeps overlapping values selectable without nesting buttons or duplicating source text', () => {
+    const source = fixture(), onSelect = vi.fn(), widerKey = 'phrase'
+    const describe = new Map([...descriptions, [widerKey, { ...descriptions.get(valueKey)!, name: 'phrase', value: 'puis Paris' }]])
+    render(<TestMarkdown {...source} marks={{ describe, selected: null, onSelect, savedLinks: [
+      { key: valueKey, link: located },
+      { key: widerKey, link: { ...located, location: { raw: 'puis Paris', textSpans: spans(second - 5, second + 5) } } },
+    ] }} />)
+    const shared = screen.getByRole('button', { name: 'place: Paris; phrase: puis Paris' })
+    expect(shared.textContent).toBe('Paris')
+    expect(screen.getByRole('button', { name: 'phrase: puis Paris' }).textContent).toBe('puis ')
+    fireEvent.click(shared)
+    expect(onSelect).toHaveBeenCalledWith([valueKey, widerKey], shared)
+    expect(shared.querySelector('button')).toBeNull()
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
+  })
+
+  it('retains a fallback value alongside a precisely located value in the same passage', () => {
+    const source = fixture(), onSelect = vi.fn(), fallbackKey = 'context'
+    const describe = new Map([...descriptions, [fallbackKey, { ...descriptions.get(valueKey)!, name: 'context' }]])
+    render(<TestMarkdown {...source} marks={{ describe, selected: null, onSelect, savedLinks: [
+      { key: valueKey, link: located }, { key: fallbackKey, link: { ...located, location: undefined } },
+    ] }} />)
+    const shared = screen.getByRole('button', { name: 'place: Paris; context: Paris' })
+    expect(shared.textContent).toBe('Paris')
+    const context = screen.getAllByRole('button', { name: 'context: Paris' })[0]!
+    fireEvent.click(context)
+    expect(onSelect).toHaveBeenCalledWith([fallbackKey], context)
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
   })
 })
