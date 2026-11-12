@@ -28,6 +28,22 @@ function renderChat(props: Partial<Omit<RailChatProps, 'chat'>> = {}) {
 }
 
 describe('RailChat', () => {
+  it.each(['reply', 'edit'] as const)('waits for a pending %s before offering Record Scope', (request) => {
+    const props = { schema: schemaWithFields(), sourceDocumentName: 'letters.pdf', latest: null,
+      onShowView: vi.fn(), recordScope: { value: null, onChange: vi.fn() } }
+    function PendingRequest({ busy }: { busy: boolean }) {
+      const chat = useSchemaChat({ schema: props.schema })
+      return <RailChat {...props} chat={{ ...chat, loading: busy && request === 'edit',
+        asking: busy && request === 'reply' ? 'make it simpler' : null }} />
+    }
+    const view = render(<PendingRequest busy={false} />)
+    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+    view.rerender(<PendingRequest busy />)
+    expect(screen.queryByRole('region', { name: 'Choose Record Scope' })).not.toBeInTheDocument()
+    view.rerender(<PendingRequest busy={false} />)
+    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+  })
+
   it('asks for Generate template before the first template and generates with the kept instructions', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate })
