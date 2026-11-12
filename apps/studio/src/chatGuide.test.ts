@@ -279,6 +279,29 @@ describe('nextStep in a project', () => {
       expect(step({ ...half, batches: null })?.question).toBe('Approve the template for the whole project?')
     })
 
+    it('reviews a trial member stopped or failed partway with its saved values, never one still running', () => {
+      const stopped = { ...member('a'), executionStatus: 'STOPPED' as const, completed: false }
+      const running = { ...member('a'), executionStatus: 'RUNNING' as const, completed: false }
+      const others = [member('b', true), member('c', true)]
+      expect(step({ summary: approve(), batches: [batch([stopped, ...others])] })).toMatchObject({ key: 'review-next:extraction-a',
+        detail: [['Progress', '2 of 3 documents reviewed']] })
+      expect(step({ summary: approve(), batches: [batch([running, ...others])] })?.key).toBe('approve:revision-2')
+    })
+
+    it('leaves a member whose document was run again since out of the round\'s progress', () => {
+      // c's document shows a newer run (extraction-c2): only a and b are this round's to review.
+      const round = batch([member('a'), member('b', true), member('c')])
+      const latest = { extractions: [], reviewed: [], newest: ['extraction-a', 'extraction-b', 'extraction-c2'] }
+      expect(step({ summary: approve(), batches: [round], latest })).toMatchObject({ key: 'review-next:extraction-a',
+        detail: [['Progress', '1 of 2 documents reviewed']] })
+    })
+
+    it('names a round\'s review by whether the round was a trial, as the server says', () => {
+      const waiting = [member('a'), member('b', true)]
+      expect(step({ summary: approve(), batches: [{ ...batch(waiting), trial: false }] })?.title).toBe('Review results')
+      expect(step({ summary: approve({ schemaStabilised: true }), batches: [{ ...batch(waiting), trial: true }] })?.title).toBe('Review the trial results')
+    })
+
     it('offers a second trial, which can be skipped, between the first trial\'s review and the approval', () => {
       const reviewed = { summary: approve(), batches: [batch([member('a', true), member('b', true)])] }
       // Not asked yet: whether to try more documents, before the approval.

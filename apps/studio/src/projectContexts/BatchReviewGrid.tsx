@@ -1,6 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { BatchExtraction, BatchExtractionMember } from '../../shared/batchExtraction.contract'
+import { supersededMember, type BatchExtraction, type BatchExtractionMember } from '../../shared/batchExtraction.contract'
 import {
   bulkApprovable, decided, finalizable, gridColumns, gridLayout, layoutValues, reviewable,
   type GridAction, type GridColumn, type GridLayout, type GridRecord, type GridValue,
@@ -170,16 +170,23 @@ function gridRows(batch: BatchExtraction, members: ReadonlyMap<string, MemberGri
  * decides only values still To check with one reading. Each document's review is saved on its own row: finalizing
  * names that member's shown results and Decision Version.
  */
-export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBack, onOpenMember, onFinalized }: {
+export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBack, onOpenMember, onFinalized, newest = null }: {
   batch: BatchExtraction
   /** The pinned Template Revision's fields, for column order; values name their own producing fields. */
   schemaNodes: readonly SchemaNode[]
   documentName(sourceDocumentId: string): string
   onBack(): void
-  onOpenMember(sourceDocumentId: string, extractionId: string): void
+  /** Opens a member's document: on the member's own Extraction, or on its newest when none is named. */
+  onOpenMember(sourceDocumentId: string, extractionId?: string): void
   onFinalized?(): void
+  /** The Extraction each of the project's documents shows (its newest); null when the server does not say. */
+  newest?: ReadonlySet<string> | null
 }) {
-  const grid = useBatchReviewGrid(batch, onFinalized)
+  // A member whose document was run again since: only that newer run is reviewed (in its document and the chat), so
+  // here it is said and not reviewed.
+  const superseded = useMemo(() => new Set(batch.members.filter((member) => supersededMember(member, newest))
+    .map((member) => member.extractionId)), [batch.members, newest])
+  const grid = useBatchReviewGrid(batch, onFinalized, superseded)
   const descriptionId = useId()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const zoom = useGridZoom(containerRef)
@@ -200,12 +207,14 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
   const remaining = approvable(() => true)
   const toCheckCount = ready.reduce((total, [, state]) => total + state.page.reviewCounts.toCheck, 0)
   const reviewed = batch.members.filter((member) => member.currentReview !== null).length
-  const outside = batch.members.filter((member) => !gridMember(member)).length
-  const needsReview = (row: Row) => row.kind === 'values' ? row.state.page.finalization === null : row.member.currentReview === null
+  const outside = batch.members.filter((member) => !gridMember(member) || superseded.has(member.extractionId)).length
+  const needsReview = (row: Row) => row.kind === 'values' ? row.state.page.finalization === null
+    : row.member.currentReview === null && !superseded.has(row.member.extractionId)
   const rows = gridRows(batch, grid.members).filter((row) => filter === 'all' || needsReview(row))
   const needsReviewCount = batch.members.filter((member) => {
     const state = grid.members.get(member.extractionId)
-    return state?.status === 'ready' ? state.page.finalization === null : gridMember(member) && member.currentReview === null
+    return state?.status === 'ready' ? state.page.finalization === null
+      : gridMember(member) && !superseded.has(member.extractionId) && member.currentReview === null
   }).length
 
   const decide = (decisions: GridDecision[]) => { setOpenCell(null); setEditingCell(null); if (decisions.length) void grid.decide(decisions) }
@@ -222,7 +231,7 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
             <p className="min-w-0 text-[11px] text-ink-faint" role="status" aria-atomic="true">
               {batch.members.length} Source Document{batch.members.length === 1 ? '' : 's'} · {reviewed} reviewed
               {' · '}{loading ? 'Loading values…' : `${toCheckCount} value${toCheckCount === 1 ? '' : 's'} to check`}
-              {outside > 0 && ` · ${outside} not in the grid until completed with saved values`}
+              {outside > 0 && ` · ${outside} not in the grid while running, without saved values, or run again since`}
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -252,7 +261,7 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
       </div>
 
       {columns.length === 0 && !loading ? (
-        <EmptyState title={ready.length ? 'No saved values to review.' : 'No completed document with saved values yet.'} />
+        <EmptyState title={ready.length ? 'No saved values to review.' : 'No document with saved values yet.'} />
       ) : (
         <div ref={containerRef} className="max-h-[80vh] overflow-auto rounded-card border border-line bg-surface">
           <table className="w-full border-collapse text-[11.5px]" style={{ zoom: appliedZoom(zoom.percent) }}>
@@ -277,7 +286,9 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
               {rows.map((row) => {
                 const { member } = row
                 const name = documentName(member.sourceDocumentId)
-                const openDocument = () => onOpenMember(member.sourceDocumentId, member.extractionId)
+                // A document run again since opens on its newer run, the one to review.
+                const openDocument = () => onOpenMember(member.sourceDocumentId,
+                  superseded.has(member.extractionId) ? undefined : member.extractionId)
                 if (row.kind === 'status') {
                   const status = memberStatus(member)
                   return (
@@ -287,10 +298,11 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
                         <div className="mt-1"><StatusPill tone={status.tone} label={status.label} /></div>
                       </td>
                       <td className="px-3 py-2 text-ink-faint" colSpan={Math.max(columns.length, 1)}>
-                        {row.state?.status === 'loading' ? <Spinner label="Loading…" />
+                        {superseded.has(member.extractionId) ? 'This document has a newer run. Open it to review that one.'
+                          : row.state?.status === 'loading' ? <Spinner label="Loading…" />
                           : row.state?.status === 'error' ? <><span className="text-danger [overflow-wrap:anywhere]">{row.state.message}</span>{' '}
                             <button type="button" className="font-semibold text-accent outline-none hover:underline" onClick={() => grid.retry(member.extractionId)}>Retry</button></>
-                          : member.reviewable ? 'Shown here once it completes. Open it to review its saved values meanwhile.'
+                          : member.reviewable ? 'Still running: shown here once it stops. Open it to see what it saved so far.'
                           : 'No saved values to review.'}
                       </td>
                     </tr>

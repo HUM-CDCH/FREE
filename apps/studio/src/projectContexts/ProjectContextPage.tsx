@@ -1784,6 +1784,9 @@ export default function ProjectContextPage({
                     }
                   : current,
               )
+              // Its revisions, Extractions, reviews and Batch Extractions went with it: the project's summary (its phase
+              // and counts) and its Batch Extractions are read again.
+              refreshProjects()
               return null
             } catch (error) {
               if (

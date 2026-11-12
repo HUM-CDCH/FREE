@@ -58,6 +58,12 @@ it('names a run at the pilot limit a pilot and a larger one a collection batch',
     />,
   )
   expect(screen.queryByText('Trial')).not.toBeInTheDocument()
+  cleanup()
+
+  // The server says whether the round came before the approval: a small batch after it is no trial, whatever its size.
+  render(<BatchExtractionHistory batches={[{ ...batch, trial: false, members: members(2) }, { ...batch, batchExtractionId: 'trial',
+    trial: true, members: members(2) }]} onOpen={vi.fn()} />)
+  expect(screen.getAllByText('Trial')).toHaveLength(1)
 })
 
 it('opens every retained member and keeps typed review on its member route', () => {
@@ -93,16 +99,32 @@ describe('the settled batch outcome', () => {
       currentReview: index < reviewed ? review : null,
     })) as BatchExtraction['members'],
   })
-  const show = (shown: BatchExtraction) => render(<BatchExtractionMembers batch={shown}
+  const show = (shown: BatchExtraction, newest: ReadonlySet<string> | null = null, onOpenMember = vi.fn()) => render(<BatchExtractionMembers batch={shown}
     pinnedSchemaFailure={null} hasSuccessfulResult coverageMessage={null} opening={false}
     canRunAgain={false} runAgainRefusal={null} runAgainMethod={null}
     documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()} onOpenGridReview={vi.fn()}
-    onOpenMember={vi.fn()} />)
+    onOpenMember={onOpenMember} newest={newest} />)
 
   it('says what is left to review before the batch is done', () => {
     show(collection(6, 2))
     expect(screen.getByRole('status', { name: 'Batch Extraction outcome' })).toHaveTextContent('2 of 6 documents reviewed')
     expect(screen.queryByText('Batch Extraction complete')).not.toBeInTheDocument()
+  })
+
+  it('leaves out of the outcome a member whose document was run again since, and says so on its row', () => {
+    // Six members, five reviewed; the sixth's document has a newer run, which is the one to review.
+    const shown = collection(6, 5)
+    const sixth = shown.members[5]!
+    const onOpenMember = vi.fn()
+    show(shown, new Set(shown.members.slice(0, 5).map((member) => member.extractionId)), onOpenMember)
+    expect(screen.getByRole('status', { name: 'Batch Extraction outcome' })).toHaveTextContent('Batch Extraction complete')
+    expect(screen.getByText('This document has a newer run. Open it to review that one.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(sixth.sourceDocumentId) }))
+    expect(onOpenMember).toHaveBeenCalledWith(sixth.sourceDocumentId, undefined)
+    cleanup()
+    // Reviewed before its document was run again: it still counts as reviewed.
+    show(collection(6, 6), new Set(shown.members.slice(0, 5).map((member) => member.extractionId)))
+    expect(screen.getByRole('status', { name: 'Batch Extraction outcome' })).toHaveTextContent('Batch Extraction complete')
   })
 
   it('names documents that were not extracted first', () => {

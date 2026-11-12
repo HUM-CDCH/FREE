@@ -1,5 +1,5 @@
 import type { RecordScope } from 'extraction/schema'
-import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, type BatchExtraction,
+import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, currentBatch, reviewableMember, type BatchExtraction,
   type BatchExtractionMember, type LatestExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
@@ -456,7 +456,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
   // Only the Extraction a document shows, its newest, can be reviewed: this document's is the one open here.
   const shown = (sourceDocumentId: string, extractionId: string) => sourceDocumentId === project.currentDocumentId && input.latest
     ? input.latest.extractionId === extractionId : project.latest?.newest.includes(extractionId) ?? true
-  const waiting = (member: BatchExtractionMember) => member.reviewable && !member.currentReview && shown(member.sourceDocumentId, member.extractionId)
+  const waiting = (member: BatchExtractionMember) => reviewableMember(member) && !member.currentReview && shown(member.sourceDocumentId, member.extractionId)
   const opened = project.batches.find((batch) => batch.batchExtractionId === project.roundId)
   const round = opened && counts(opened) && opened.members.some(waiting) ? opened
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
@@ -468,8 +468,10 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
       .map((run) => ({ ...run, currentReview: null, waits: true }))]
   if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
-  const title = project.summary.schemaStabilised ? 'Review results' : 'Review the trial results'
-  const progress = round && batchExtractionProgress(round)
+  // The round says whether it was a trial; a document run alone is one before the template's approval.
+  const title = (round?.trial ?? !project.summary.schemaStabilised) ? 'Review the trial results' : 'Review results'
+  // A member whose document was run again since is that run's to review, never this round's progress.
+  const progress = round && batchExtractionProgress(currentBatch(round, project.latest ? new Set(project.latest.newest) : null))
   const detail: [string, string][] | undefined = progress && [['Progress', `${progress.reviewed} of ${plural(progress.reviewable, 'document')} reviewed`]]
   const mine = queue.filter(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
   const here = mine.find(({ waits }) => waits) ?? mine[0]

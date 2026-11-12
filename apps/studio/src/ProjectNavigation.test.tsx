@@ -1566,6 +1566,27 @@ describe('Project Context navigation', () => {
     )
   })
 
+  it('reads the project\'s summary again after deleting a Source Document that was not its last', async () => {
+    // Its Extractions and reviews go with it: the counts and the phase (to the trial again before an approval) change.
+    const twoDocuments = { ...detail, sourceDocuments: [{ ...beretning, pageCount: 6 }, { ...historical, pageCount: 2 }] }
+    const base = studioFetch(undefined, twoDocuments)
+    const lists = vi.fn()
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'DELETE' && url.endsWith(`/source-documents/${otherSourceDocumentId}`)) return new Response(null, { status: 204 })
+      if (url.startsWith('/api/project-contexts?') || url === '/api/project-contexts') lists()
+      return base(input)
+    })
+    renderRoutes(fetcher)
+    const page = await openProjectPage()
+    fireEvent.click(within(page).getByLabelText('Actions for Historical.pdf'))
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete Source Document Historical.pdf' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete Source Document' })
+    const before = lists.mock.calls.length
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Delete/ }))
+    await waitFor(() => expect(lists.mock.calls.length).toBeGreaterThan(before))
+  })
+
   it('keeps project and source deletion controls and dialogs distinct', async () => {
     renderRoutes()
     const page = await openProjectPage()

@@ -8,6 +8,8 @@ import { Button } from '../ui'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
   batchExtractionProgress,
+  currentBatch,
+  reviewableMember,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import { recordScopeOf, strategyOf } from 'extraction/schema'
@@ -15,7 +17,7 @@ import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import PlusIcon from '../PlusIcon'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import { SavedMethodSummary } from '../SavedMethodSummary'
-import { BatchRequestError, listBatchExtractions, openBatchExtraction } from './batchExtractions'
+import { BatchRequestError, listProjectExtractions, openBatchExtraction } from './batchExtractions'
 import type { ProjectContext } from './transport'
 import { BatchPreparation, type PreparationKind } from './BatchPreparation'
 import {
@@ -147,6 +149,7 @@ export default function BatchExtractionsPanel({
     failure: null,
   })
   const [reload, setReload] = useState(0)
+  const [newest, setNewest] = useState<ReadonlySet<string> | null>(null)
   const showHistory = useCallback(() => {
     setPreparing(null)
     onNavigate({ kind: 'project', projectContextId, tab: 'extractions' })
@@ -220,17 +223,29 @@ export default function BatchExtractionsPanel({
     [sourceDocuments],
   )
 
+  // A document deleted (its members go with it), a template deleted (its Batch Extractions go with it) or any other
+  // change the project's summary counts is read again, not left to the next focus.
+  const changeKey = `${sourceDocuments.map((document) => document.sourceDocumentId).join(',')}|${summary?.extractionCount ?? ''}|${summary?.currentSchemaRevisionId ?? ''}`
+  const [seenChange, setSeenChange] = useState(changeKey)
+  if (seenChange !== changeKey) {
+    setSeenChange(changeKey)
+    setReload((value) => value + 1)
+  }
+
   useEffect(() => {
     const controller = new AbortController()
     const requestGeneration = ++historyGeneration.current
     pendingRefresh.current = true
-    void listBatchExtractions(projectContextId, controller.signal).then(
+    // With each document's newest Extraction: a member whose document was run again since is not reviewed here.
+    void listProjectExtractions(projectContextId, controller.signal).then(
       (listed) => {
         if (
           !controller.signal.aborted &&
           requestGeneration === historyGeneration.current
-        )
-          setBatches({ value: listed, failure: null })
+        ) {
+          setBatches({ value: listed.batchExtractions, failure: null })
+          setNewest(listed.newestExtractionIds ? new Set(listed.newestExtractionIds) : null)
+        }
       },
       (error: unknown) => {
         if (
@@ -451,7 +466,7 @@ export default function BatchExtractionsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pilotSchemaRevisionId, hasSourceDocuments])
 
-  const openBatchHasSuccessfulResult = openBatch?.members.some((member) => member.reviewable) ?? false
+  const openBatchHasSuccessfulResult = openBatch?.members.some(reviewableMember) ?? false
   // Both screens depend on the list read: a routed Batch Extraction is reached
   // before it has been read, and until then the batch is unknown, not missing.
   const batchesUnread = reading(batches) ? (
@@ -533,7 +548,7 @@ export default function BatchExtractionsPanel({
     } else {
       const unreviewed = (batches.value ?? [])
         .toSorted(newestBatchFirst)
-        .find((batch) => !batchRunning(batch) && batchExtractionProgress(batch).needsReview > 0)
+        .find((batch) => !batchRunning(batch) && batchExtractionProgress(currentBatch(batch, newest)).needsReview > 0)
       if (unreviewed) reviewBatch(unreviewed)
       // eslint-disable-next-line react-hooks/set-state-in-effect
       else showHistory()
@@ -657,6 +672,7 @@ export default function BatchExtractionsPanel({
               onNavigate({ kind: 'document', projectContextId, sourceDocumentId, extractionId, fromBatchExtractionId: openBatch.batchExtractionId })
             }
             onFinalized={() => setReload((value) => value + 1)}
+            newest={newest}
           />
         ) : (
           <BatchExtractionMembers
@@ -698,6 +714,7 @@ export default function BatchExtractionsPanel({
                 fromBatchExtractionId: openBatch.batchExtractionId,
               })
             }
+            newest={newest}
           />
         )}
       </div>

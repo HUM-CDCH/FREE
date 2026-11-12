@@ -47,12 +47,42 @@ it('shows a completed member one row per record and a running one outside the gr
   expect(await screen.findByRole('button', { name: 'a.pdf · Record 1' })).toBeVisible()
   expect(screen.getByRole('button', { name: 'a.pdf · Record 2' })).toBeVisible()
   expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Documents', 'title', 'year'])
-  expect(screen.getByText(/Shown here once it completes/)).toBeVisible()
+  expect(screen.getByText(/Still running: shown here once it stops/)).toBeVisible()
   // Only the completed member is read: a running one's values still change.
   expect(readDurable).toHaveBeenCalledTimes(1)
   expect(vi.mocked(readDurable).mock.calls[0]![0]).toBe('first')
   fireEvent.click(screen.getByRole('button', { name: 'b.pdf' }))
   expect(onOpenMember).toHaveBeenCalledWith('doc-b', 'second')
+})
+
+it('shows a member stopped or failed partway with its saved values, as the document reviews it', async () => {
+  vi.mocked(readDurable).mockResolvedValue({ state: {} as never, page: page([value('t0', 'title', 0)]) })
+  const settled = { ...batch, members: [member('first', 'doc-a', { executionStatus: 'STOPPED', completed: false }),
+    member('second', 'doc-b', { executionStatus: 'FAILED', completed: false })] } as BatchExtraction
+  render(<BatchReviewGrid batch={settled} schemaNodes={nodes} documentName={(id) => id === 'doc-a' ? 'a.pdf' : 'b.pdf'}
+    onBack={vi.fn()} onOpenMember={vi.fn()} onFinalized={vi.fn()} />)
+  // Each is read and shown with its values: one record each.
+  await waitFor(() => expect(screen.getAllByText('title 0')).toHaveLength(2))
+  expect(readDurable).toHaveBeenCalledTimes(2)
+  expect(screen.queryByText(/Still running/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/No saved values to review/)).not.toBeInTheDocument()
+})
+
+it('says a member whose document was run again since, and leaves it out of the review', async () => {
+  vi.mocked(readDurable).mockResolvedValue({ state: {} as never, page: page([value('t0', 'title', 0)]) })
+  const both = { ...batch, members: [member('first', 'doc-a'), member('second', 'doc-b')] } as BatchExtraction
+  const onOpenMember = vi.fn()
+  // doc-b's newest run is another Extraction than this member.
+  render(<BatchReviewGrid batch={both} schemaNodes={nodes} documentName={(id) => id === 'doc-a' ? 'a.pdf' : 'b.pdf'}
+    onBack={vi.fn()} onOpenMember={onOpenMember} onFinalized={vi.fn()} newest={new Set(['first', 'later-b'])} />)
+  expect(await screen.findByText('This document has a newer run. Open it to review that one.')).toBeVisible()
+  await waitFor(() => expect(screen.getAllByText('title 0')).toHaveLength(1))
+  // Only the member still shown by its document is read and counted.
+  expect(readDurable).toHaveBeenCalledExactlyOnceWith('first', expect.anything())
+  expect(screen.getByRole('button', { name: /Needs review \(1\)/ })).toBeInTheDocument()
+  // Its name opens the document on its newest run.
+  fireEvent.click(screen.getByRole('button', { name: 'b.pdf' }))
+  expect(onOpenMember).toHaveBeenCalledWith('doc-b', undefined)
 })
 
 it('saves one cell’s decision at once and reads the member again', async () => {

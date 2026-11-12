@@ -32,6 +32,7 @@ const batch: BatchExtractionSnapshot = {
   strategy: 'ARTICLE',
   executionStatus: 'QUEUED',
   createdAt: new Date('2026-08-20T10:00:00.000Z'),
+  trial: false,
   members: [
     {
       sourceDocumentId: DOCUMENT,
@@ -242,6 +243,7 @@ describe('/api/batch-extractions transport', () => {
       strategy: 'ARTICLE',
       executionStatus: 'COMPLETED',
       createdAt: '2026-08-20T10:00:00.000Z',
+      trial: false,
       members: [
         {
           extractionId: '51000000-0000-4000-8006-000000000001',

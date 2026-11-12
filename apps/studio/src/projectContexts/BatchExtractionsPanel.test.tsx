@@ -189,6 +189,32 @@ function response(body: unknown) {
   return Response.json(body)
 }
 
+it('reads the Batch Extractions again when a document or a template is deleted, not only on focus',async()=>{
+  let listed={...batch,members:batch.members.map(member=>publishedMember(member))}
+  const reads=vi.fn()
+  vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL)=>{
+    const url=String(input)
+    if(url.startsWith('/api/batch-extractions?')){reads();return response({batchExtractions:[listed]})}
+    if(url.startsWith(`/api/batch-extractions/${batchExtractionId}?`))return response({batchExtraction:listed})
+    if(url.startsWith('/api/batch-schema-suggestions?'))return response({batchSchemaSuggestions:[]})
+    if(url.startsWith('/api/extraction-schemas?'))return response({extractionSchemas:[]})
+    const schema=chosenSchemaRead(url);if(schema)return schema
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  const props={projectContextId,openBatchExtractionId:batchExtractionId,pilotSchemaRevisionId:null,onNavigate:()=>{}}
+  const view=render(<BatchExtractionsPanel {...props} sourceDocuments={documents}/>)
+  await screen.findByText('2 completed')
+  const before=reads.mock.calls.length
+  // The second document is deleted: its member goes with it, and the list is read at once.
+  listed={...listed,members:listed.members.slice(0,1)}
+  view.rerender(<BatchExtractionsPanel {...props} sourceDocuments={documents.slice(0,1)}/>)
+  await waitFor(()=>expect(reads.mock.calls.length).toBe(before+1))
+  await screen.findByText('1 completed')
+  // A template deleted elsewhere changes the project's summary (its Extractions went with it): read again.
+  view.rerender(<BatchExtractionsPanel {...props} sourceDocuments={documents.slice(0,1)} summary={pilotSummary({extractionCount:0})}/>)
+  await waitFor(()=>expect(reads.mock.calls.length).toBe(before+2))
+})
+
 it('refreshes project progress when a polled batch member completes',async()=>{
   let current={...batch,executionStatus:'RUNNING',members:[publishedMember(batch.members[0]),{...batch.members[1],executionStatus:'RUNNING'}]}
   vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL)=>{

@@ -82,6 +82,8 @@ export const batchExtractionSchema = z
     strategy: extractionStrategySchema,
     executionStatus: projectOperationStatusSchema,
     createdAt: z.iso.datetime(),
+    /** Opened before its Schema Revision was approved: a trial round. Absent from an older server. */
+    trial: z.boolean().optional(),
     members: z.array(batchExtractionMemberSchema),
   })
   .strict()
@@ -125,11 +127,32 @@ export const batchExtractionListResponseSchema = z
     reviewedExtractions: z.array(latestExtractionSchema).optional(), newestExtractionIds: z.array(canonicalUuidSchema).optional() })
   .strict()
 
+/** A member's run has settled for now: paused, stopped, failed or completed, so its saved values hold still. */
+const SETTLED: ReadonlySet<BatchExtractionMember['executionStatus']> = new Set(['PAUSED', 'STOPPED', 'FAILED', 'COMPLETED'])
+
+/** Whether a member's saved values can be reviewed: it holds some, and its run completed once or has settled. This is
+ *  what the document's Results, the chat's review step and the batch's review grid all review; a member stopped or
+ *  failed partway keeps what it saved. */
+export const reviewableMember = (member: BatchExtractionMember) =>
+  member.reviewable && (member.completed || SETTLED.has(member.executionStatus))
+
+/** Whether a member's document was run again since: it shows another Extraction (`newest`, each document's), so only
+ *  that newer run is reviewed. Unknown (`newest` null) is never superseded. */
+export const supersededMember = (member: BatchExtractionMember, newest: ReadonlySet<string> | null) =>
+  newest !== null && !newest.has(member.extractionId)
+
+/** The batch as its outcome counts it: a member superseded before it was reviewed can no longer be, so it is left out;
+ *  one reviewed before it was superseded still counts as reviewed. */
+export const currentBatch = (batch: BatchExtraction, newest: ReadonlySet<string> | null): BatchExtraction => newest === null ? batch
+  : { ...batch, members: batch.members.filter((member) => member.currentReview !== null || !supersededMember(member, newest)) }
+
 /**
  * Execution counts and the separate persisted research-review digest.
  */
 export function batchExtractionProgress(batch: BatchExtraction) {
   const extracted = batch.members.filter((member) => member.completed || member.currentReview !== null)
+  // Reviewed, or reviewable now: a member stopped or failed partway with saved values is reviewed like any other.
+  const toReview = batch.members.filter((member) => member.currentReview !== null || reviewableMember(member))
   // A completed member without saved values can never be finalized, so it is its own outcome — never counted as what a
   // researcher has reviewed. These three groups partition `extracted`.
   const reviewed = extracted.filter((member) => member.currentReview !== null)
@@ -138,10 +161,9 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     total: batch.members.length,
     extracted: extracted.length,
     succeeded: extracted.length,
-    // The extracted members a researcher can actually review. A failed member
-    // is not extracted, and an unreviewable result can never carry decisions,
-    // so completion is measured against this subset, never every member.
-    reviewable: extracted.length - unreviewable.length,
+    // The members a researcher can actually review: those reviewed, and those with saved values whose run completed or
+    // settled (a member stopped or failed partway included). Completion is measured against these, never every member.
+    reviewable: toReview.length,
     pending: batch.members.filter(
       (member) =>
         member.executionStatus === 'QUEUED' ||
@@ -152,6 +174,6 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     // A paused, failed or stopped member's finalized cut counts as reviewed too.
     reviewed: batch.members.filter((member) => member.currentReview !== null).length,
     unreviewable: unreviewable.length,
-    needsReview: extracted.length - reviewed.length - unreviewable.length,
+    needsReview: toReview.length - reviewed.length,
   }
 }

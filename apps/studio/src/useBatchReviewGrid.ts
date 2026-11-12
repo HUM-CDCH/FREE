@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DurablePage } from 'extraction/durable-types'
-import type { BatchExtraction, BatchExtractionMember } from '../shared/batchExtraction.contract'
+import { reviewableMember, type BatchExtraction, type BatchExtractionMember } from '../shared/batchExtraction.contract'
 import { durableRequest, durableRoot, readDurable } from './durableExtractionApi'
 import { decisionBody, finalizable, type GridAction, type GridValue } from './batchReviewGrid'
 
@@ -23,17 +23,21 @@ async function pool<T>(items: readonly T[], limit: number, work: (item: T) => Pr
   }))
 }
 
+const NONE: ReadonlySet<string> = new Set()
+
 const failureText = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
 
-/** Only a completed member with saved values joins the grid: a running one's values still change. */
-export const gridMember = (member: BatchExtractionMember) => member.completed && member.reviewable
+/** A member with saved values joins the grid once its run completed or settled (a member stopped or failed partway
+ *  included), as the document's Results and the chat review it: a running one's values still change. */
+export const gridMember = (member: BatchExtractionMember) => reviewableMember(member)
 
 /**
  * The grid's view of a batch: each completed member's latest saved results, read once and again after a decision on
  * it. A decision saves at once, as a revisioned correction of one value, as the document's review does; finalizing
  * names one member's shown results and Decision Version.
  */
-export function useBatchReviewGrid(batch: BatchExtraction, onFinalized?: () => void) {
+export function useBatchReviewGrid(batch: BatchExtraction, onFinalized?: () => void,
+  superseded: ReadonlySet<string> = NONE) {
   const [read, setMembers] = useState<ReadonlyMap<string, MemberGridState>>(new Map())
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
@@ -56,10 +60,11 @@ export function useBatchReviewGrid(batch: BatchExtraction, onFinalized?: () => v
     }
   }, [update])
 
-  // A member is read again when the batch says it changed: completed, or finalized elsewhere. The grid holds the
-  // batch's completed members only, each shown as loading until its first read.
-  const eligible = batch.members.filter(gridMember)
-  const memberKey = JSON.stringify(eligible.map((member) => [member.extractionId, member.currentReview]))
+  // A member is read again when the batch says it changed: its run's status (a resumed one may save more), or finalized
+  // elsewhere. The grid holds the batch's reviewable members only, each shown as loading until its first read.
+  // A member whose document has a newer run is that run's to review, not the grid's: it is not read.
+  const eligible = batch.members.filter((member) => gridMember(member) && !superseded.has(member.extractionId))
+  const memberKey = JSON.stringify(eligible.map((member) => [member.extractionId, member.currentReview, member.executionStatus]))
   useEffect(() => {
     const controller = new AbortController()
     const ids = (JSON.parse(memberKey) as [string, unknown][]).map(([id]) => id)

@@ -171,6 +171,7 @@ function batchFixture(nested = false): {
     strategy: 'ARTICLE',
     executionStatus: finished ? 'COMPLETED' : 'QUEUED',
     createdAt: at(42),
+    trial: false,
     members: [
       member(id.beretning, id.beretningRevision, id.beretningExtraction, finished),
       member(id.fundliste, id.fundlisteRevision, id.fundlisteExtraction, finished),

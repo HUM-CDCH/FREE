@@ -145,6 +145,8 @@ export type BatchExtractionSnapshot = Readonly<{
   /** QUEUED while every member is, COMPLETED once every member has settled, RUNNING otherwise; never FAILED. */
   executionStatus: ProjectOperationStatus
   createdAt: Date
+  /** A trial round: opened before its Schema Revision was approved (stabilised). */
+  trial: boolean
   members: readonly BatchExtractionMemberSnapshot[]
 }>
 

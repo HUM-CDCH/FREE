@@ -38,6 +38,7 @@ function batchDto(batch: BatchExtractionSnapshot) {
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
     createdAt: batch.createdAt.toISOString(),
+    trial: batch.trial,
     members: batch.members.map((member) => ({
       extractionId: member.extractionId,
       sourceDocumentId: member.sourceDocumentId,

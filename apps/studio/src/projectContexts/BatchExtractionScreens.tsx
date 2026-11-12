@@ -5,6 +5,8 @@ import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import {
   PILOT_BATCH_SELECTION_LIMIT,
   batchExtractionProgress,
+  currentBatch,
+  supersededMember,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import { Button, Pill } from '../ui'
@@ -152,16 +154,17 @@ function selectionLine(batch: BatchExtraction): string {
 }
 
 function isPilotRound(batch: BatchExtraction): boolean {
-  // One limit decides what a pilot is, here as in the gate, the completion
-  // dialog and the review guidance.
-  return batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+  // The server says whether the round was opened before its revision's approval; a small batch after the approval is
+  // a batch. An older server's answer is the size limit admission applies before an approval.
+  return batch.trial ?? batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
 }
 
 /** Where a settled batch stands for the researcher: what is left before it is done, or that it is. Null while it runs
  *  and for a pilot round, whose end is the schema's approval (the chat's review step leads there). */
-function batchOutcome(batch: BatchExtraction): { done: boolean; title: string; detail: string } | null {
+function batchOutcome(batch: BatchExtraction, newest: ReadonlySet<string> | null): { done: boolean; title: string; detail: string } | null {
   if (isPilotRound(batch) || batchStatus(batch).running) return null
-  const progress = batchExtractionProgress(batch)
+  // A document run again since is that run's to review: its member here no longer holds the outcome back.
+  const progress = batchExtractionProgress(currentBatch(batch, newest))
   const notExtracted = progress.total - progress.extracted
   const empty = progress.unreviewable > 0
     ? ` ${progress.unreviewable} ${progress.unreviewable === 1 ? 'document has' : 'documents have'} no values to review.` : ''
@@ -274,6 +277,7 @@ export function BatchExtractionMembers({
   onOpenMember,
   onStop,
   stopping = false,
+  newest = null,
 }: {
   batch: BatchExtraction
   pinnedSchemaFailure: string | null
@@ -292,15 +296,18 @@ export function BatchExtractionMembers({
   onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
-  /** Opens the review grid: every completed member's values, one row per record. */
+  /** Opens the review grid: every reviewable member's values, one row per record. */
   onOpenGridReview(): void
-  onOpenMember(sourceDocumentId: string, extractionId: string): void
+  /** Opens a member's document: on the member's own Extraction, or on its newest when none is named. */
+  onOpenMember(sourceDocumentId: string, extractionId?: string): void
+  /** The Extraction each of the project's documents shows (its newest); null when the server does not say. */
+  newest?: ReadonlySet<string> | null
   /** Stops every member still at work; offered while one is. */
   onStop?(): void
   stopping?: boolean
 }) {
   const status = batchStatus(batch)
-  const outcome = batchOutcome(batch)
+  const outcome = batchOutcome(batch, newest)
   const runAgainRefusalId = useId()
   return (
     <>
@@ -317,7 +324,7 @@ export function BatchExtractionMembers({
             </Button>
           )}
           <Button size="sm" variant="secondary" disabled={!hasSuccessfulResult} onClick={onOpenGridReview}
-            title="Review every completed document's values side by side, one row per record">
+            title="Review every document's saved values side by side, one row per record">
             <GridIcon />
             Review in grid
           </Button>
@@ -378,6 +385,9 @@ export function BatchExtractionMembers({
       <ul className="divide-y divide-line" aria-label="Batch Extraction members">
         {batch.members.map((member) => {
           const memberState = memberStatus(member)
+          // A document run again since: said here, and opened on that newer run, the one to review.
+          const superseded = supersededMember(member, newest)
+          const message = superseded ? 'This document has a newer run. Open it to review that one.' : memberState.message
           return (
             <li key={member.sourceDocumentId}>
               {/* `-mx-2 px-2`: hover fill wider than the text, text still flush
@@ -385,7 +395,7 @@ export function BatchExtractionMembers({
               <button
                 className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto] items-center gap-6 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 disabled:cursor-default disabled:hover:bg-transparent sm:grid-cols-[1fr_13rem_auto]"
                 type="button"
-                onClick={() => onOpenMember(member.sourceDocumentId, member.extractionId)}
+                onClick={() => onOpenMember(member.sourceDocumentId, superseded ? undefined : member.extractionId)}
               >
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-2 text-ink-faint">
@@ -394,11 +404,11 @@ export function BatchExtractionMembers({
                       {documentName(member.sourceDocumentId)}
                     </span>
                   </span>
-                  {memberState.message && (
+                  {message && (
                     <span
-                      className={`mt-1 block pl-[21px] text-[11px] leading-snug [overflow-wrap:anywhere] ${statusInk[memberState.tone]}`}
+                      className={`mt-1 block pl-[21px] text-[11px] leading-snug [overflow-wrap:anywhere] ${superseded ? 'text-ink-muted' : statusInk[memberState.tone]}`}
                     >
-                      {memberState.message}
+                      {message}
                     </span>
                   )}
                 </span>
