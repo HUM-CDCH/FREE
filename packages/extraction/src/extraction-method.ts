@@ -115,8 +115,8 @@ export type RecipeCatalogSettings = z.output<typeof recipeCatalogSettingsSchema>
  *  readings: a record start copied from the wrong line is placed where it occurs once nearby, and records printed
  *  inside a discovered record (a numbered find in a grave's list) become records of their own, each read beside its
  *  enclosing record's text. Version 10 is version 9 with that second reading pipelined too (`children: 'pipelined'`):
- *  the same requests and result (but for a line that fits no such request), but a durable run reads and saves each record as soon as its ranges are final,
- *  while discovery still reads later windows. Auto input is the served context minus the
+ *  a durable run reads and saves each record as soon as its ranges are final, while discovery still reads later
+ *  windows. Auto input is the served context minus the
  *  stage's reserve. New admissions use
  *  `UNIFIED_CATALOG_DEFAULTS_VERSION`; an Extraction keeps the one it was admitted under. */
 const UNIFIED_BASE = {

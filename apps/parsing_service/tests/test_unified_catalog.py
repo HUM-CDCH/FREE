@@ -2105,10 +2105,21 @@ def test_a_prefix_holds_back_the_entries_of_a_table_whose_following_notes_are_no
     assert read(6, complete=True) == [('one', ['p1_s1']), ('two', ['p1_s1']), ('three', ['p2_s1'])]
 
 
-def test_a_prefix_carves_only_the_entries_whose_children_windows_are_read():
-    lines = [line for n in range(1, 5) for line in (f"Grave {n}. Inhumation.", "Finds:", f"1. Bowl {n}.", f"2. Pin {n}.")]
-    source, body = one_window(lines, [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
-    asked = []
+def grave_lines(count=4):
+    return [line for n in range(1, count + 1)
+            for line in (f"Grave {n}. Inhumation.", "Finds:", f"1. Bowl {n}.", f"2. Pin {n}.")]
+
+
+def numbered_children(user):
+    return {"children": [[label, label, text.split()[0]] for label, text in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
+                         if re.match(r"\d+\. ", text)]}
+
+
+def test_children_windows_never_cross_a_cut_so_a_prefix_carves_what_the_whole_body_does():
+    """Defaults 10: `cuts` are the entries each discovery window settles. No children window crosses one, so the
+    windows of the entries a prefix holds are the complete body's, whatever is found later."""
+    source, body = one_window(grave_lines(), [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
+    asked, unanswered = [], ()
 
     class Pending(BaseException):
         pass
@@ -2117,52 +2128,83 @@ def test_a_prefix_carves_only_the_entries_whose_children_windows_are_read():
         asked.append(user)
         if user in unanswered:
             raise Pending()
-        return {"children": [[label, label, text.split()[0]] for label, text in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
-                             if re.match(r"\d+\. ", text)]}
+        return numbered_children(user)
 
-    def carve(**options):
-        asked.clear()  # six lines a window: grave 1 and half of grave 2, the rest of it and grave 3, grave 4
-        return discovery.children(body, source, "One grave or find.", lambda _s, user, _r: user.count("[L") <= 6, ask,
-                                  **options)
-    unanswered = ()
-    whole = carve()
+    def carve(held=4, complete=True, **options):  # six lines a window: a grave and a half
+        asked.clear()
+        return discovery.children({**body, "entries": body["entries"][:held], "complete": complete}, source,
+                                  "One grave or find.", lambda _s, user, _r: user.count("[L") <= 6, ask, **options)
+    legacy = carve()
+    assert len(asked) == 3 and len(legacy["entries"]) == 12 and legacy["complete"] is True
+    # Cut after grave 1 and after grave 3: grave 1 alone, graves 2 and 3 in two windows, grave 4 alone.
+    whole = carve(cuts=[1, 3])
     windows = list(asked)
-    assert len(windows) == 3 and len(whole["entries"]) == 12 and "complete" not in whole
-    # A prefix's last window may still grow with the records found later, so it is not asked; the entries whose lines
-    # the windows read hold are carved as in the whole body.
-    part = carve(prefix=True)
-    assert asked == windows[:2] and part["complete"] is False and part["entries"] == whole["entries"][:9]
+    assert len(windows) == 4 and whole["entries"] == legacy["entries"] and whole["complete"] is True
+    # A prefix holding grave 1 asks its window alone; one holding graves 1 to 3 the first three windows. Grave 4,
+    # after the last cut of a body that is not complete, waits.
+    part = carve(1, False, cuts=[1])
+    assert asked == windows[:1] and part["complete"] is False and part["entries"] == whole["entries"][:3]
+    part = carve(4, False, cuts=[1, 3])
+    assert asked == windows[:3] and part["complete"] is False and part["entries"] == whole["entries"][:9]
     # A window not answered yet is no error: the others are asked, and only the entries before its first line's are
-    # carved. Grave 2 begins in the first window and goes on in the second.
+    # carved. Grave 2 begins in the second window.
     unanswered = (windows[1],)
-    part = carve(unanswered=(Pending,))
+    part = carve(cuts=[1, 3], unanswered=(Pending,))
     assert asked == windows and part["complete"] is False and part["entries"] == whole["entries"][:3]
     unanswered = ()
-    assert carve(unanswered=(Pending,)) == whole
+    assert carve(cuts=[1, 3], unanswered=(Pending,)) == whole
 
 
 def test_a_line_that_fits_no_children_request_undoes_nothing_an_earlier_prefix_carved():
     """Found by review: a record found later (a label too long for any request) must not change the records a durable
-    run of defaults 10 has already listed and saved. Defaults 8 and 9, which carve once, then ask no window."""
-    lines = [line for n in range(1, 5) for line in (f"Grave {n}. Inhumation.", "Finds:", f"1. Bowl {n}.", f"2. Pin {n}.")]
-    source, body = one_window(lines, [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
+    run of defaults 10 has already listed and saved. Its own batch asks no window; defaults 8 and 9 then ask none."""
+    source, body = one_window(grave_lines(), [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
 
     def ask(record, system, user, schema, calls, issues):
-        return {"children": [[label, label, text.split()[0]] for label, text in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
-                             if re.match(r"\d+\. ", text)]}
+        return numbered_children(user)
 
-    def carve(entries, **options):  # nothing of record 4 fits a request; four lines a window otherwise
-        return discovery.children({**body, "entries": body["entries"][:entries]}, source, "One grave or find.",
-                                  lambda _s, user, _r: "RECORD 4" not in user and user.count("[L") <= 4, ask, **options)
-    early = carve(3, pipelined=True, prefix=True)  # before record 4 is found: graves 1 and 2 are read, 3 may grow
-    late = carve(4, pipelined=True, prefix=True)
-    final = carve(4, pipelined=True)
-    assert len(early["entries"]) == 6 and early["entries"] == late["entries"] == final["entries"][:6]
-    assert [entry["label"] for entry in final["entries"]][6:] == ["Grave 3", "1.", "2.", "Grave 4"]
+    def carve(held, complete=True, **options):  # nothing of record 4 fits a request
+        return discovery.children({**body, "entries": body["entries"][:held], "complete": complete}, source,
+                                  "One grave or find.", lambda _s, user, _r: "RECORD 4" not in user, ask, **options)
+    early = carve(2, False, cuts=[1, 2])
+    late = carve(4, False, cuts=[1, 2, 3])
+    final = carve(4, cuts=[1, 2, 3])
+    assert len(early["entries"]) == 6 and early["entries"] == final["entries"][:6]
+    assert len(late["entries"]) == 9 and late["entries"] == final["entries"][:9]
+    assert [entry["label"] for entry in final["entries"]][9:] == ["Grave 4"]
     assert final["children"] == {"windows": 3, "failed": 1} and [issue.code for issue in final["issues"]] == [
         "children_window_failed"]
     legacy = carve(4)
     assert legacy["children"] == {"windows": 0, "failed": 1} and len(legacy["entries"]) == 4
+
+
+def test_the_cuts_of_a_prefix_are_those_of_the_whole_discovery():
+    """`_assemble`: the entries each window settles do not depend on the windows read after it."""
+    source = evidence(*("\n".join(grave_lines(8)[first:first + 8]) for first in range(0, 32, 8)))
+
+    def ask(record, system, user, schema, calls, issues):
+        lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
+        after = section(user, "CONTEXT AFTER")
+        return {"places": [[label, "record", text.split(".")[0]] for label, text in lines if text.startswith("Grave")],
+                "begins_inside_record": not lines[0][1].startswith("Grave"),
+                "ends_inside_record": bool(after) and not after.startswith("Grave")}
+
+    class Pending(BaseException):
+        pass
+
+    def read(windows):
+        def some(record, system, user, *rest):
+            if f"Grave {2 * windows + 1}." in section(user, "WINDOW"):
+                raise Pending()
+            return ask(record, system, user, *rest)
+        return discovery.discover(source, "grave", lambda *_: True, some, overlap=1, splits=0, by="page", workers=1,
+                                  frontier=True, unanswered=(Pending,))
+    whole = read(4)  # each page holds two graves; the last one read may go on, so it waits
+    assert whole["complete"] and whole["cuts"] == [1, 3, 5, 7] and len(whole["entries"]) == 8
+    for windows in (1, 2, 3):
+        part = read(windows)
+        assert not part["complete"] and part["cuts"] == whole["cuts"][:windows]
+        assert part["entries"] == whole["entries"][:part["cuts"][-1]]
 
 
 def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_found():

@@ -703,17 +703,16 @@ queue.
       record's ranges and the numbers of the records after it. No entry is
       read or listed before the whole discovery and its children windows,
       which are asked one per planning round.
-    - **Defaults 10 (children pass, pipelined).** The same windows, requests
-      and artifact as defaults 9. Each round carves the records the windows
-      already read decide, and reads and lists an entry once nothing can
-      change it: its children windows are packed from the start, so later
-      records only grow the last one, which waits; an entry is final once
-      every window holding its lines, and each before, is answered, and a
-      table entry also once the notes after its table are read. A children
-      call is admitted before the next discovery window, and the windows left
-      when discovery ends are asked together. A line that fits no children
-      request keeps the windows before it (defaults 8 and 9 then ask none):
-      a later record never undoes a saved one.
+    - **Defaults 10 (children pass, pipelined).** The discovery and entry
+      readings of defaults 9. Each round carves the records the windows
+      already read settle, and reads and lists an entry once nothing can
+      change it. No children window crosses the entries one discovery window
+      settles, so nothing found later changes a window already asked; an
+      entry is final once every children window up to its last line is
+      answered, and a table entry also once the notes after its table are
+      read. A children call is admitted before the next discovery window, and
+      the windows that wait are asked together. The first records wait for
+      the first discovery window alone.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
       `NeedsCall`. The round visits every known entry in start-page priority,

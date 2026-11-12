@@ -315,18 +315,17 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   distinguish a verbatim quote from a value's editorial note markers. This is a
   model decision, with no punctuation stripping or field-specific cleanup.
   Defaults 1–8 retain their prompts and recorded versions.
-  Defaults 10 is defaults 9 with the children pass pipelined: the same windows,
-  requests and artifact, asked earlier. While discovery still reads, a durable run
-  carves the records its read windows decide, then reads, lists and saves each entry
-  whose ranges and context can no longer change. The children windows are packed
-  from the start, so records found later only grow the last one, which is asked once
-  it is full or discovery has ended; an entry is final once every children window
-  holding its lines, and each one before, is answered, and a table entry also once
-  the notes after its table are read. A children call is admitted before the next
-  discovery window, and the windows left when discovery ends are asked together.
-  The one difference in what is asked: a record line that fits no children request
-  leaves the windows before it asked and carved, where defaults 8 and 9 then ask
-  none, so that a record found later never undoes one already saved.
+  Defaults 10 is defaults 9 with the children pass pipelined: the same discovery and
+  entry readings, asked earlier. While discovery still reads, a durable run carves the
+  records its read windows settle, then reads, lists and saves each entry whose ranges
+  and context can no longer change. No children window crosses the entries one
+  discovery window settles, so nothing found later changes a window already asked
+  (defaults 9 packs them over the whole discovery: defaults 10 asks more, smaller ones);
+  an entry is final once every children window up to its last line is answered, and a
+  table entry also once the notes after its table are read. A children call is
+  admitted before the next discovery window, and the windows that wait are asked
+  together. The first records wait for the first discovery window alone; a later
+  record still waits for every window before it.
   Defaults 8 and 9 keep reading no entry before the whole discovery.
   Studio admits defaults 10 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's

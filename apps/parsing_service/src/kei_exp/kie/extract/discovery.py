@@ -49,7 +49,7 @@ from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from itertools import groupby
+from itertools import accumulate, groupby, pairwise
 
 from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
 from kei_exp.kie.extract.locate import normalise
@@ -176,12 +176,10 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = (),
-         candidates: int = CANDIDATES, heading_context: bool = False, whole: bool = True) -> list[Window] | None:
+         candidates: int = CANDIDATES, heading_context: bool = False) -> list[Window] | None:
     """Consecutive windows over `units`; `lead` and `trail` are the units just outside. Defaults 7 (`heading_context`)
     fixes primary windows and overlap before selecting whole headings newest first, skipping those that do not fit;
-    at most `candidates` are measured individually. None when not even one code point fits beside the instructions;
-    unless `whole`, the windows before that unit instead: each depends only on the units from its start on, so
-    they are the same however many units follow."""
+    at most `candidates` are measured individually. None when not even one code point fits beside the instructions."""
     if heading and heading_context:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
         if windows is None:
@@ -211,7 +209,7 @@ def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], 
         if not fits(Window((pieces[start],))):
             cut = windows_of([pieces[start]], texts, lambda part: fits(Window(tuple(part))), overlap=False)
             if cut is None:
-                return None if whole else windows
+                return None
             pieces[start:start + 1] = [piece for part in cut for piece in part]
 
         def window(end: int, dropped: tuple[str, ...] = (), start=start) -> Window:
@@ -554,8 +552,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
 
 def children(body: dict, evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *,
-             progress: Callable[[list[dict], list[dict]], None] | None = None, pipelined: bool = False,
-             prefix: bool = False, unanswered: tuple[type[BaseException], ...] = ()) -> dict:
+             progress: Callable[[list[dict], list[dict]], None] | None = None, cuts: Sequence[int] | None = None,
+             unanswered: tuple[type[BaseException], ...] = ()) -> dict:
     """Defaults 8: the completed discovery body with the records printed inside its records (a numbered find in a
     grave's list) carved out of them, read top to bottom: (1) which entry owns each of the entries' lines; (2) counted
     windows over those lines, shown under their record's heading; (3) one call per window lists the entities inside
@@ -565,14 +563,14 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     ledger rows are cut to match. A failed reply is an issue and a failed window, never retried. Before each call,
     `progress` is given the discovered record starts and the lines the window labels, as in `discover`.
 
-    Defaults 10 (`pipelined`) carves while discovery still reads, so nothing a later record brings may undo what an
-    earlier round carved: a line that fits no request leaves the windows before it as they were, where defaults 8 and
-    9 then ask none; its record and those after it stay whole. `unanswered` are the exceptions an `ask` raises for a call whose
-    reply is not there yet (as in `discover`): none is raised, and every window is still asked, so their calls run at
-    once. A `prefix` body (`discover`, not yet complete) leaves its last window unasked: the windows are packed
-    greedily from the start, so the records found later only grow that one. While a window is not read, the body is
-    not `complete` and holds only the entries whose children are all known, final as the complete body's: those
-    before the entry owning the first line not read."""
+    Defaults 10 carves while discovery still reads, so nothing found later may change a window already asked: no
+    window crosses one of `cuts`, the body's entry counts after each discovery window (`_assemble`), which are the
+    same however many windows are read. The entries after the last cut of a body that is not `complete` (a prefix,
+    `discover`) wait for the window that settles them. `unanswered` are the exceptions an `ask` raises for a call
+    whose reply is not there yet (as in `discover`): none is raised, and every window is still asked, so their calls
+    run at once. While an entry waits or a window is not read, the body is not `complete` and holds only the entries
+    whose children are all known, final as the complete body's: those before the entry owning the first line not
+    read."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     system = CHILDREN.format(description=description)
@@ -614,21 +612,24 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
     def fits(window: Window) -> bool:
         user, _, reply = render(window)
         return fits_budget(system, user, reply)
-    windows = plan([unit for unit, _ in owned], texts, fits, overlap=0, whole=not pipelined) if owned else []
-    calls, issues, found, failed, claimed = [], [], [], 0, set()
-    # a line that fit a discovery request beside its longer instructions fits this one
-    if windows is None or owned and (not windows or (windows[-1].primary[-1].segment, windows[-1].primary[-1].end)
-                                     != (owned[-1][0].segment, owned[-1][0].end)):
-        issues.append(Issue("children_window_failed", "a record line fits no children request"))
-        windows, failed = windows or [], 1
+    bounds = [len(entries)] if cuts is None else sorted(
+        {cut for cut in cuts if 0 < cut <= len(entries)} | ({len(entries)} if body.get("complete", True) else set()))
+    begins = [0, *accumulate(len(entry["ranges"]) for entry in entries)]  # each entry's first line in `owned`
+    windows, calls, issues, found, failed, claimed = [], [], [], [], 0, set()
+    for first, last in pairwise([0, *bounds]):
+        batch = plan([unit for unit, _ in owned[begins[first]:begins[last]]], texts, fits, overlap=0) \
+            if begins[last] > begins[first] else []
+        if batch is None:  # a line that fit a discovery request beside its longer instructions fits this one
+            issues.append(Issue("children_window_failed", "a record line fits no children request"))
+            batch, failed = [], failed + 1
+        windows += batch
 
     # (3) Ask each window; keep each listed child that is whole lines of one record after its first line.
     ids = {entry["id"] for entry in entries}
     record_starts_ = [{"segment": entry["ranges"][0]["segment"], "label": entry["label"],
                        "ranges": _spans(entry["ranges"])} for entry in entries]
-    asked = windows[:-1] if prefix else windows
-    read = len(asked)  # the windows read from the start on: the entries are carved in source order
-    for number, window in enumerate(asked):
+    read = len(windows)  # the windows read from the start on: the entries are carved in source order
+    for number, window in enumerate(windows):
         user, labels, reply = render(window)
         if progress is not None:
             progress(record_starts_, ranges_json(window.primary))
@@ -664,10 +665,11 @@ def children(body: dict, evidence: Evidence, description: str, fits_budget: Call
             claimed.update(lines)
             found.append((parent, lines, label))
 
-    if read < len(windows):
+    known = owner(windows[read].primary[0]) if read < len(windows) else bounds[-1] if bounds else 0
+    if known < len(entries):
         body = {**body, "complete": False}
-        entries = entries[:owner(windows[read].primary[0])]
-        found = [each for each in found if each[0] < len(entries)]
+        entries = entries[:known]
+        found = [each for each in found if each[0] < known]
 
     # (4) Carve: each child owns its lines; its parent's ranges and the ledger rows are cut around them.
     carved = [dict(entry) for entry in entries]
@@ -846,8 +848,10 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
     A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
     so every entry here is final (number, ranges, context, end) except the last, when it is still open at the prefix's
     end (the next window decides its end) or a later record start could still continue it (its printed label names a
-    record); it is left out."""
+    record); it is left out. `cuts` are the entries a prefix ending with each window would hold: the entries each
+    window settles, the same however many windows follow (`children` asks no window across one)."""
     units: list[Unit] = [unit for each in seen for unit in each.window.primary]
+    cuts: list[int] = []
     regions: list[list] = []  # [kind, entry index or None, (unit index, offset)]
     entries: list[dict] = []
     open_entry: int | None = None
@@ -858,6 +862,9 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
         if open_entry is not None:
             entries[open_entry]["end"] = end
 
+    def settled() -> int:  # without the last entry while it is open or a later record start could continue it
+        return len(entries) - (open_entry is not None or bool(entries) and _names(entries[-1]["label"]))
+
     for each in seen:
         start = (first, units[first].start)
         first += len(each.window.primary)
@@ -867,6 +874,7 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
             close("unresolved")
             regions.append(["unresolved", None, start])
             open_entry, previous = None, each
+            cuts.append(settled())
             continue
         closed_cleanly = previous is not None and previous.ok and previous.ends is False
         joins = (previous is not None and previous.ok and previous.ends is True and each.begins is True
@@ -903,14 +911,14 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
                 open_entry = len(entries) - 1
             regions.append([kind, open_entry, position])
         previous = each
+        cuts.append(settled())
     if prefix:
         body = _ledger(regions, units, entries, evidence, texts, heading_context=heading_context)
-        waiting = open_entry is not None or bool(entries) and _names(entries[-1]["label"])
-        return {**body, "entries": entries[:-1]} if waiting else body
+        return {**body, "entries": entries[:settled()], "cuts": cuts}
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])
-    return _ledger(regions, units, entries, evidence, texts, heading_context=heading_context)
+    return {**_ledger(regions, units, entries, evidence, texts, heading_context=heading_context), "cuts": cuts}
 
 
 def _same_label(one: str | None, other: str | None) -> bool:

@@ -135,10 +135,12 @@ NEAR = 40
 # Switching verification on judges the fixed candidates (`VERIFY`); nothing re-extracts them.
 # Unplaceable discovery boundaries use the existing split bound; superseded replies retain calls and issues,
 # while only final readings own source text (discovery version 10). Defaults 1–6 keep discovery version 8.
-# 10: version 9 with its children pass pipelined too (`"children": "pipelined"`): the same windows, requests and
-# artifact, asked earlier (but for a line that fits no children request, `discovery.children`). A durable run carves the records found so far while discovery still reads
-# (`discovery.children`, a prefix), reads each entry once its ranges and context are final, and admits a children call
-# before the next discovery window (`retained.ahead`). Versions 8 and 9 still read no entry before the whole discovery.
+# 10: version 9 with its children pass pipelined too (`"children": "pipelined"`): the same discovery and entry
+# readings, asked earlier. A durable run carves the records the read windows settle while discovery still reads
+# (`discovery.children`, whose windows end where a discovery window settles its records), reads each entry once its
+# ranges and context are final, and admits a children call before the next discovery window (`retained.ahead`).
+# Versions 8 and 9 still read no entry before the whole discovery. Measured on one scanned 45-page catalogue
+# (12 November 2026, Qwen3.8-27B-NVFP4): version 9's first saved value came 18 to 23 minutes after the start.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
@@ -393,8 +395,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
                 with ahead(chat):  # carving the records found goes before looking for more
                     body = discovery.children(body, evidence, schema.record_description,
-                                              partial(budget.fits, "discovery"), ask, prefix=not complete,
-                                              pipelined=effective["children"] == "pipelined",
+                                              partial(budget.fits, "discovery"), ask,
+                                              cuts=body["cuts"] if effective["children"] == "pipelined" else None,
                                               progress=partial(discovering, chat) if complete else None,
                                               unanswered=(NeedsCall,) if early else ())
             except NeedsCall:

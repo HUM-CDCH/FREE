@@ -700,21 +700,23 @@ def rounds(attempt, limit=3000):
     raise AssertionError("the attempt never finished")
 
 
-def asked(attempt):
-    return sorted((call["system"], call["user"]) for call in attempt.chat.calls)
+def asked(attempt, children=False):
+    """The requests made: those of the children pass, or all the others."""
+    return sorted((call["system"], call["user"]) for call in attempt.chat.calls
+                  if call["system"].startswith("You list the records printed inside") == children)
 
 
 def read_as(result):
     """The artifact apart from its execution record (the method's version) and its clock."""
     return {"records": result["records"], "evidence": result["evidence"], "issues": result["issues"],
             "completeness": result["completeness"],
-            "discovery": {key: result["discovery"][key] for key in ("entries", "ledger", "windows", "children")}}
+            "discovery": {key: result["discovery"][key] for key in ("entries", "ledger", "windows")}}
 
 
 @pytest.mark.parametrize("chunks,order,reuse", [(1, "first", True), (2, "first", True), (2, "last", True),
                                                 (4, "key", True), (4, "reverse-key", False)])
-def test_defaults_10_saves_records_while_discovery_still_reads_and_ends_as_defaults_9(monkeypatch, chunks, order,
-                                                                                    reuse):
+def test_defaults_10_saves_records_while_discovery_still_reads_and_reads_what_defaults_9_does(monkeypatch, chunks,
+                                                                                            order, reuse):
     source = graves()
     old = graves_attempt(monkeypatch, 9, source, chunks=chunks, order=order, label="old")
     before = rounds(old)
@@ -731,11 +733,27 @@ def test_defaults_10_saves_records_while_discovery_still_reads_and_ends_as_defau
     final = seen[-1][1]
     assert len(final) == 16 * 3 and all(final[number] == scope for _, scopes, _ in seen for number, scope in scopes.items())
     assert [len(scopes) for _, scopes, _ in seen] == sorted(len(scopes) for _, scopes, _ in seen)
-    # The same requests, each made once, and the same artifact: only when they are asked differs.
+    # The same discovery and entry requests, each made once, and the same records: when they are asked differs, and
+    # the children windows, cut where a discovery window settles its records.
     assert asked(new) == asked(old) and len(set(asked(new))) == len(asked(new))
+    assert len(asked(new, children=True)) == new.result["discovery"]["children"]["windows"] > len(asked(old, True))
     assert read_as(new.result) == read_as(old.result)
     assert [record["label"] for record in new.result["records"][:3]] == [None, "1", "2"]
     assert new.result["discovery"]["entries"][1]["parent"] == new.result["discovery"]["entries"][0]["id"]
+
+
+def test_defaults_10_saves_the_first_windows_records_before_the_second_window_is_read(monkeypatch):
+    """The first value does not wait for a slow second window: its children windows end where the first discovery
+    window settles its records."""
+    attempt = graves_attempt(monkeypatch, 10, graves(), chunks=1, order="last")  # the second window answers last
+    for _ in range(3000):
+        assert attempt.plan() is None
+        if attempt.lease.publications:
+            break
+        attempt.step()
+    read = [unit for unit in attempt.lease.units.values() if unit["checkpoint"] is not None
+            and unit["input"]["request"]["body"]["system"].startswith("You find where records begin")]
+    assert len(read) == 1 and attempt.planner.scopes
 
 
 def test_defaults_10_admits_a_children_call_before_the_next_discovery_window(monkeypatch):
@@ -765,5 +783,6 @@ def test_a_pause_and_a_resumed_attempt_of_defaults_10_read_nothing_twice(monkeyp
     tokens.forget(attempt.lease.attempt)
     seen = rounds(attempt)
     assert all(seen[-1][1][number] == scope for number, scope in listed.items())
-    assert asked(attempt) == asked(whole) and read_as(attempt.result) == read_as(whole.result)
+    assert asked(attempt) == asked(whole) and asked(attempt, True) == asked(whole, True)
+    assert read_as(attempt.result) == read_as(whole.result)
     assert all(attempt.lease.publications[identity] == each for identity, each in saved.items())
