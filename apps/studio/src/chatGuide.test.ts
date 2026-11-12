@@ -279,6 +279,32 @@ describe('nextStep in a project', () => {
       expect(step({ ...half, batches: null })?.question).toBe('Approve the template for the whole project?')
     })
 
+    it('offers a second trial, which can be skipped, between the first trial\'s review and the approval', () => {
+      const reviewed = { summary: approve(), batches: [batch([member('a', true), member('b', true)])] }
+      // Not asked yet: whether to try more documents, before the approval.
+      expect(step({ ...reviewed, moreDocuments: 'ask' })).toMatchObject({ key: 'more-documents:revision-2', title: 'Try more documents?' })
+      expect(step({ ...reviewed, moreDocuments: 'ask' })?.options.map(({ action, label }) => [action, label])).toEqual([
+        ['more-documents', 'Yes, try more documents'], ['skip-more', 'No, go on to approval'], ['dismiss', expect.any(String)]])
+      // Chosen: the documents not tried yet (c and d) to tick, with the upload beside them.
+      const adding = step({ ...reviewed, moreDocuments: 'adding' })
+      expect(adding).toMatchObject({ key: 'more-trial:revision-2', picker: { initial: ['c', 'd'], limit: 5 } })
+      expect(adding?.picker?.documents.map(({ id }) => id)).toEqual(['c', 'd'])
+      expect(options(adding)).toEqual(['pilot:positive', 'upload:secondary', 'skip-more:secondary', 'dismiss:dismiss'])
+      // Every document tried: the upload leads, and waits while new ones are read.
+      const all = { summary: approve(), batches: [batch(['a', 'b', 'c', 'd'].map((id) => member(id, true)))] }
+      expect(step({ ...all, moreDocuments: 'ask' })?.options[0]).toMatchObject({ label: 'Yes, upload more documents' })
+      expect(options(step({ ...all, moreDocuments: 'adding' }))).toEqual(['upload:positive', 'skip-more:secondary', 'dismiss:dismiss'])
+      expect(step({ ...all, moreDocuments: 'adding', uploading: true })).toMatchObject({ key: 'more-upload:revision-2', busy: true,
+        notice: 'Reading the new documents…', options: [{ action: 'upload', disabled: true }, { action: 'skip-more' }, { action: 'dismiss' }] })
+      // Run or skipped: the approval.
+      expect(step({ ...reviewed, moreDocuments: 'done' })?.key).toBe('approve:revision-2')
+      // A round still to review comes first, and a re-approval never asks.
+      expect(step({ summary: approve(), batches: [batch([member('a'), member('b', true)])], moreDocuments: 'ask' })?.key).toBe('review-next:extraction-a')
+      const reapproval = approve({ phase: 'review', currentSchemaRevisionId: 'revision-3' })
+      expect(guidedWorkflow(reapproval).next?.label).toBe('Re-approve template')
+      expect(step({ summary: reapproval, batches: all.batches, moreDocuments: 'ask' })?.key).toBe('approve:revision-3')
+    })
+
     it('never strands the approval behind a pilot member re-run since, which can no longer be reviewed', () => {
       // a's pilot Extraction was followed by a run of a alone (extraction-a2), its document's latest, shown on a.
       const pilot = [batch([member('a'), member('b', true), member('c', true)])]

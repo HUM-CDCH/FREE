@@ -111,6 +111,10 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     expect(latestExtractions.filter(({ extractionId }: { extractionId: string }) => pilotMembers.includes(extractionId))).toEqual(
       pilotMembers.map(() => expect.objectContaining({ completed: true, review: { snapshotVersion: expect.any(Number), feedbackVersion: expect.any(Number) } })))
     await page.reload()
+    // The second trial is offered first; declining it goes on to the approval.
+    const more = step(page, 'Try more documents?')
+    await expect(more).toBeVisible({ timeout: 60_000 })
+    await more.getByRole('button', { name: 'No, go on to approval' }).click()
     const approval = step(page, 'Approve template')
     await expect(approval).toBeVisible({ timeout: 60_000 })
     await approval.getByRole('button', { name: 'Approve template' }).click()

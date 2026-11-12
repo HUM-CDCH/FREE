@@ -30,6 +30,9 @@ export type StepAction =
   | 'approve'
   | 'open-document'
   | 'export'
+  | 'more-documents'
+  | 'upload'
+  | 'skip-more'
   | 'dismiss'
 
 export type StepOption = {
@@ -85,6 +88,12 @@ export type ProjectGuideInput = {
   busy: boolean
   /** Why the last batch start failed. */
   error: string | null
+  /** Before the first approval, after the first trial is reviewed, the chat offers a second trial on more documents:
+   *  `ask` until answered, `adding` once the researcher chose it, `done` once it ran or was skipped. Undefined where
+   *  the host cannot add documents, which goes straight to the approval. */
+  moreDocuments?: 'ask' | 'adding' | 'done'
+  /** Documents added here are still being uploaded or read. */
+  uploading?: boolean
 }
 
 export type GuideInput = {
@@ -314,7 +323,8 @@ function projectStep(input: GuideInput): StepCard | null {
     const approve = { action: 'approve', label: next.label, disabled: project.busy || !revisionId } as const
     // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval
     // beside it, since a member re-run since can never be reviewed.
-    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' }) ?? {
+    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' })
+      ?? (next.label === 'Approve template' ? moreDocumentsStep(project, revisionId) : null) ?? {
       key: `approve:${revisionId}`,
       title: next.label,
       question: next.label === 'Re-approve template'
@@ -341,6 +351,57 @@ function projectStep(input: GuideInput): StepCard | null {
     }
   }
   return null
+}
+
+/** The documents with no Extraction on the revision yet, in the project's order: neither in a round of it nor run alone
+ *  on it. */
+function untried(project: ProjectGuideInput, revisionId: string | null): string[] {
+  const tried = new Set([
+    ...(project.batches ?? []).filter((batch) => batch.schemaRevisionId === revisionId).flatMap((batch) => batch.members.map((member) => member.sourceDocumentId)),
+    ...(project.latest?.extractions ?? []).filter((run) => run.schemaRevisionId === revisionId).map((run) => run.sourceDocumentId),
+  ])
+  return project.documents.map(({ id }) => id).filter((id) => !tried.has(id))
+}
+
+/**
+ * The optional second trial, between the first trial's review and the first approval: whether to try the template on
+ * more documents; once chosen, the documents not tried yet to tick, or the upload of new ones. Skipping it, or starting
+ * it, leads to the approval (after its review).
+ */
+function moreDocumentsStep(project: ProjectGuideInput, revisionId: string | null): StepCard | null {
+  if (project.moreDocuments === undefined || project.moreDocuments === 'done' || project.batches === null) return null
+  const left = untried(project, revisionId)
+  const skip: StepOption = { action: 'skip-more', label: 'No, go on to approval', tone: 'secondary' }
+  if (project.moreDocuments === 'ask')
+    return {
+      key: `more-documents:${revisionId}`,
+      title: 'Try more documents?',
+      question: 'Try the template on a few more documents before approving it?',
+      options: [{ action: 'more-documents', label: left.length > 0 ? 'Yes, try more documents' : 'Yes, upload more documents', tone: 'positive' },
+        skip, notYet],
+    }
+  const upload: StepOption = { action: 'upload', label: 'Upload documents', tone: left.length > 0 ? 'secondary' : 'positive',
+    disabled: project.uploading, description: 'Add PDFs to this project' }
+  if (left.length > 0)
+    return {
+      key: `more-trial:${revisionId}`,
+      title: 'Try template on more documents',
+      question: 'Which documents should the template be tried on?',
+      notice: project.uploading ? 'Reading the new documents…' : undefined,
+      error: project.error ?? undefined,
+      picker: { documents: project.documents.filter(({ id }) => left.includes(id)), initial: left.slice(0, PILOT_BATCH_SELECTION_LIMIT),
+        limit: PILOT_BATCH_SELECTION_LIMIT },
+      options: [{ action: 'pilot', label: 'Try on {n}', tone: 'positive', picks: true, disabled: project.busy }, upload,
+        { ...skip, label: 'Skip, go on to approval' }, notYet],
+    }
+  return {
+    key: `more-upload:${revisionId}`,
+    title: 'Try template on more documents',
+    question: project.uploading ? undefined : 'Upload the documents to try the template on.',
+    notice: project.uploading ? 'Reading the new documents…' : undefined,
+    busy: project.uploading,
+    options: [upload, { ...skip, label: 'Skip, go on to approval' }, notYet],
+  }
 }
 
 type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId' | 'review'>

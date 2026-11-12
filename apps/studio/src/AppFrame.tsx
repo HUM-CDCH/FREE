@@ -11,6 +11,7 @@ import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
+import { isLiveIngestion } from '../shared/sourceDocumentIngestion.contract'
 import type { z } from 'zod'
 import RouteLoadBoundary from './RouteLoadBoundary.tsx'
 import { Button, EmptyState, ModalDialog, Spinner } from './ui'
@@ -168,7 +169,7 @@ export default function AppFrame({
         : JSON.stringify(route)
   const previousRouteFocusKey = useRef(routeFocusKey)
   const tabs = useOpenDocumentTabs()
-  const { projects, refreshProjects, branches } = useProjectContexts()
+  const { projects, refreshProjects, branches, addSources, ingestingSources, ingestions } = useProjectContexts()
   useShiftWheelHorizontalScroll()
 
   useEffect(() => {
@@ -379,9 +380,16 @@ export default function AppFrame({
     : null, [routedBranchState])
   // `refresh` is the provider's own, stable across reads: the workspace re-reads the summary when its saved revision
   // changes, and a callback made anew with each summary would make every read ask for the next one.
+  // The chat's second trial adds PDFs here: they upload, then parse, before the project's documents hold them.
+  const addDocuments = useCallback((files: readonly File[]) => {
+    if (routedProjectContextId) addSources(files.map((file) => ({ projectContextId: routedProjectContextId, file })))
+  }, [addSources, routedProjectContextId])
+  const uploading = !!routedProjectContextId && (
+    ingestingSources.some((source) => source.projectContextId === routedProjectContextId && source.status !== 'failed')
+    || (ingestions[routedProjectContextId]?.ingestions.some(isLiveIngestion) ?? false))
   const workspaceProject = useMemo(() => routedSummary && routedDocuments
-    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: refreshProjects }
-    : null, [routedSummary, routedDocuments, backToBatchExtractionId, refreshProjects])
+    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: refreshProjects, addDocuments, uploading }
+    : null, [routedSummary, routedDocuments, backToBatchExtractionId, refreshProjects, addDocuments, uploading])
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
   )

@@ -202,6 +202,9 @@ export type DocumentWorkspaceProps = {
     /** The Batch Extraction this document was opened from to review, if any. */
     roundId: string | null
     refresh: () => void
+    /** Adds PDFs to the project (the chat's second trial), and whether some are still being uploaded or read. */
+    addDocuments?: (files: readonly File[]) => void
+    uploading?: boolean
   } | null
 }
 
@@ -1158,13 +1161,15 @@ export function DocumentWorkspace({
         project={project && sourceDocumentId ? {
           guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, latest: projectLatestRead,
             roundId: project.roundId,
-            busy: projectBusy || approvingSchema, error: projectError },
+            busy: projectBusy || approvingSchema, error: projectError, uploading: project.uploading },
           start: (kind, ids) => void startProjectBatch(kind, ids),
           approve: () => setApprovingSchema(true),
           stopBatch: () => void stopProjectBatch(),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
             extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId ?? undefined }),
           export: (ids) => setExporting(ids),
+          id: projectContextId,
+          addDocuments: project.addDocuments,
         } : null}
         boundaries={
           !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog

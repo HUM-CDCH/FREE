@@ -106,7 +106,7 @@ describe('RailChat', () => {
     expect(screen.queryByRole('region', { name: 'Results ready' })).not.toBeInTheDocument()
   })
 
-  it('shows each instruction where it was said, between the steps answered around it', () => {
+  it('shows each instruction where it was said, between the replies around it', () => {
     renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate: vi.fn() })
     const say = (text: string) => {
       const input = screen.getByRole('textbox')
@@ -117,7 +117,8 @@ describe('RailChat', () => {
     fireEvent.keyDown(screen.getByRole('region', { name: 'Generate template' }), { key: 'Escape' })
     say('Also the dates')
     const first = screen.getByRole('note', { name: 'Instruction 1' })
-    const step = screen.getByText('Generate template', { selector: 'span.font-semibold' })
+    // Setting the step aside is not noted, but the chat's reply to it is.
+    const step = screen.getByText('If you need help, please use the chat box below.')
     const second = screen.getByRole('note', { name: 'Instruction 2' })
     expect(first.compareDocumentPosition(step) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(step.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -197,8 +198,8 @@ describe('RailChat', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, run: { start: vi.fn(), available: true, unavailableReason: null } })
     fireEvent.click(within(screen.getByRole('region', { name: 'Run extraction' })).getByRole('button', { name: 'Not yet' }))
     expect(screen.queryByRole('region', { name: 'Run extraction' })).not.toBeInTheDocument()
-    // The answer is in the conversation, which is the rail's home; every option turned down, the chat points to its box.
-    expect(screen.getByText(/Not yet/)).toBeInTheDocument()
+    // Turning every option down does nothing, so it is not noted; the chat points to its box.
+    expect(screen.queryByText(/Not yet/)).not.toBeInTheDocument()
     expect(screen.getByText('If you need help, please use the chat box below.')).toBeInTheDocument()
   })
 
@@ -267,5 +268,51 @@ describe('RailChat', () => {
     // The schema changed since that run (its revision is not this draft's): a new run is offered, not the review.
     expect(screen.getByRole('region', { name: 'Run extraction again' })).toBeInTheDocument()
     expect(onShowView).not.toHaveBeenCalled()
+  })
+})
+
+describe('the second trial', () => {
+  afterEach(() => localStorage.clear())
+  const member = (sourceDocumentId: string) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
+    sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true,
+    currentReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: 'revision-2' } })
+  const project = () => ({
+    guide: {
+      summary: { phase: 'approve' as const, extractionCount: 2, extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2,
+        staleSourceDocumentCount: 0, pendingExtractionSourceDocumentCount: 1, currentSchemaRevisionId: 'revision-2', schemaStabilised: false,
+        currentSchemaRevisionReviewed: true, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null },
+      documents: ['a', 'b', 'c'].map((id) => ({ id, name: `${id}.pdf` })), currentDocumentId: 'a',
+      batches: [{ batchExtractionId: 'trial-1', projectContextId: 'project-1', schemaRevisionId: 'revision-2', extractionSchemaId: 'schema',
+        extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG' as const, executionStatus: 'COMPLETED' as const,
+        createdAt: '2026-11-01T00:00:00.000Z', members: [member('a'), member('b')] }],
+      latest: null, roundId: null, busy: false, error: null,
+    },
+    start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), export: vi.fn(), id: 'project-1', addDocuments: vi.fn(),
+  })
+
+  it('asks after the first trial\'s review, uploads and tries more documents, then asks for the approval, once per project', () => {
+    const shown = project()
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: shown })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Try more documents?' })).getByRole('button', { name: /Yes, try more documents/ }))
+    const trial = screen.getByRole('region', { name: 'Try template on more documents' })
+    expect(within(trial).getByRole('checkbox', { name: /c\.pdf/ })).toBeChecked()
+    // Upload opens the file picker; the files chosen go to the project.
+    const file = new File(['%PDF'], 'd.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByTestId('chat-upload'), { target: { files: [file] } })
+    expect(shown.addDocuments).toHaveBeenCalledExactlyOnceWith([file])
+    fireEvent.click(within(trial).getByRole('button', { name: /Try on 1 document/ }))
+    expect(shown.start).toHaveBeenCalledExactlyOnceWith('pilot', ['c'])
+    expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
+    // Another document of the project does not ask again.
+    cleanup()
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: project() })
+    expect(screen.queryByRole('region', { name: 'Try more documents?' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
+  })
+
+  it('goes on to the approval when the researcher declines', () => {
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: project() })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Try more documents?' })).getByRole('button', { name: /No, go on to approval/ }))
+    expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
   })
 })

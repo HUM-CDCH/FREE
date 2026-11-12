@@ -34,6 +34,10 @@ export type RailChatProps = {
     open: (target: NonNullable<StepOption['target']>) => void
     /** Exports the ticked documents' results, once their options and format are chosen. */
     export: (sourceDocumentIds: readonly string[]) => void
+    /** The project's identity, which keeps the answer to the second trial's question. */
+    id?: string
+    /** Adds PDFs to the project, where the workspace can: the second trial's upload. */
+    addDocuments?: (files: readonly File[]) => void
   } | null
   /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
   control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
@@ -80,6 +84,16 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     setResultsReady(latest?.status === 'COMPLETED' && seenRun?.id === latest.extractionId ? latest.extractionId
       : latest?.extractionId === resultsReady ? resultsReady : null)
   }
+  // The second trial's answer, kept with the project in this browser so another document does not ask again.
+  const moreKey = project?.addDocuments && project.id ? `free.more-documents.${project.id}` : null
+  const [more, setMoreState] = useState(() => ({ key: moreKey, value: storedMore(moreKey) }))
+  if (more.key !== moreKey) setMoreState({ key: moreKey, value: storedMore(moreKey) })
+  const setMore = (value: MoreDocuments) => {
+    setMoreState({ key: moreKey, value })
+    try { if (moreKey) localStorage.setItem(moreKey, value) } catch { /* kept for this page only */ }
+  }
+  // The upload's file input, held as state: a choice clicks it, and a ref may not be read where choices are made.
+  const [fileInput, setFileInput] = useState<HTMLInputElement | null>(null)
   // The last run's template against the current one, compared by content, not only by revision.
   const sameTemplate = useSameTemplateAsRun(schema, latest?.schemaRevisionId ?? null)
 
@@ -114,7 +128,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     templateReady,
     resultsReady: resultsReady !== null && resultsReady === latest?.extractionId,
     dismissed,
-    project: project?.guide ?? null,
+    project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
   }
   // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
   const step = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
@@ -148,8 +162,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       if (!canSay) return
       reveal()
       void (preSchema ? chat.ask(said) : chat.send(said))
-    } else if (option.action !== 'review-schema' && !(card.key.startsWith('results-ready:') && option.action === 'review')) {
-      chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
+    } else {
+      // Only a choice that does something is noted in the conversation.
+      if (!UNNOTED.has(option.action)) chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
       // Every option turned down and nothing said instead: no action, so point to the chat box.
       if (option.action === 'dismiss') chat.appendMessage(NO_ACTION_REPLY)
     }
@@ -182,7 +197,14 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       retry: () => control?.command('retry'),
       stop: () => control?.command('stop'),
       'stop-batch': () => project?.stopBatch(),
-      pilot: () => project?.start('pilot', ids),
+      pilot: () => {
+        // The second trial starts: after its review the chat asks for the approval.
+        if (card.key.startsWith('more-trial:')) setMore('done')
+        project?.start('pilot', ids)
+      },
+      'more-documents': () => setMore('adding'),
+      upload: () => fileInput?.click(),
+      'skip-more': () => setMore('done'),
       batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
@@ -310,6 +332,15 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
         bar={shownCard || generate || undefined} composer={sayInCard ? null : composer}>
         <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} after={pendingAsk} />
       </ChatDrawer>
+      {project?.addDocuments && (
+        <input ref={setFileInput} className="sr-only" type="file" tabIndex={-1} aria-hidden="true" accept=".pdf,application/pdf" multiple
+          data-testid="chat-upload"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            event.target.value = ''
+            if (files.length) project.addDocuments?.(files)
+          }} />
+      )}
       {confirmingClear && (
         <DeleteDialog title="Clear the conversation?" confirmLabel="Clear conversation" returnFocusRef={clearRef}
           description="Every message, instruction, answered step and document turn of this project's chat is removed for good. The template is not changed, but it is generated again without the instructions kept so far."
@@ -342,6 +373,18 @@ const pickedLabel = (option: StepOption, count: number) => option.label.replace(
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
 /** The choices that leave the rail's view where it is: those that open a view themselves, and a run's controls (and the
  *  export, whose dialog opens over it). Every other choice moves the workflow on and returns to the conversation. */
+/** The choices that change nothing, so the conversation does not note them: setting a step aside, going on past a
+ *  stop, opening a view or another document, and the export's dialog (the export itself is its own). */
+const UNNOTED: ReadonlySet<StepAction> = new Set<StepAction>(['dismiss', 'continue', 'review-schema', 'review', 'open-document', 'export', 'upload'])
+
+type MoreDocuments = 'ask' | 'adding' | 'done'
+/** The second trial's answer kept for a project; `ask` when none is, or storage is unavailable. */
+function storedMore(key: string | null): MoreDocuments {
+  try {
+    const value = key ? localStorage.getItem(key) : null
+    return value === 'adding' || value === 'done' ? value : 'ask'
+  } catch { return 'ask' }
+}
 const STAYS: ReadonlySet<StepAction> = new Set<StepAction>(['review-schema', 'review', 'open-document',
   'stop-generation', 'pause', 'stop', 'stop-batch', 'export'])
 
