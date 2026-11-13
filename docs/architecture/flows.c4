@@ -1,0 +1,53 @@
+views {
+  dynamic view durable_execution {
+    title 'Flows / Durable Extraction and recovery'
+    description 'High-level call chain. Leases, call planning, drain boundaries and recovery rules live in the linked worker contract and ADR 0017.'
+    studio.ui.review -> studio.handlers 'Start with source, schema and method pins'
+    studio.handlers -> studio.extraction_module 'Admit under the authenticated owner'
+    studio.extraction_module -> project_db 'Commit Extraction, coordination head and workflow enqueue together'
+    studio.durable -> studio.extraction_module 'Reconcile the durable head'
+    studio.extraction_module -> project_db 'Enqueue a linked extractDurableV1 attempt'
+    parsing_service.parser.coordination -> project_db 'Claim the attempt and read its pinned selection'
+    parsing_service.parser.coordination -> parsing_service.parser.extraction 'Plan against saved call outputs'
+    parsing_service.parser.extraction -> parsing_service.task_cache 'Verify the pinned canonical generation'
+    parsing_service.parser.coordination <- parsing_service.parser.extraction 'Yield captured requests without waiting on a model'
+    parsing_service.parser.coordination -> parsing_service.parser.extraction 'Invoke the saved request bodies through the adapters'
+    parsing_service.parser.extraction -> parsing_service.models 'Execute the captured fields and reasoning calls'
+    parsing_service.parser.coordination -> project_db 'Checkpoint each reply and publish retained values'
+    studio.ui.review -> studio.handlers 'Read saved-value pages at a fixed cut'
+    studio.handlers -> studio.extraction_module 'Read the owned snapshot and Decision Version'
+    studio.ui.review <- studio.handlers 'Return saved values, Evidence and review decisions'
+  }
+
+  dynamic view review_and_export {
+    title 'Flows / Review, finalization and export'
+    studio.ui.review -> studio.handlers 'Save an approve, edit, reject or disagreement choice'
+    studio.handlers -> studio.extraction_module 'Check ownership, value identity and expected Decision Version'
+    studio.extraction_module -> project_db 'Append the correction and advance the Project Decision Version'
+    studio.ui.review <- studio.handlers 'Return the acknowledged correction'
+    studio.ui.review -> studio.handlers 'Finalize a named snapshot and Decision Version'
+    studio.handlers -> studio.extraction_module 'Require a decision for every saved value of the named snapshot'
+    studio.extraction_module -> project_db 'Save the named finalization; Extraction stays editable'
+    studio.ui.review -> studio.browser_http 'Read any remaining value pages for the fixed cut'
+    studio.browser_http -> studio.handlers 'Request the same snapshot and Decision Version'
+    studio.ui.review <- studio.handlers 'Return all values of that cut'
+    studio.ui.review -> studio.export 'Build typed CSV or XLSX, with Evidence and disagreement sheets'
+    studio.export -> browser 'Download in the browser'
+  }
+
+  dynamic view canonical_processing {
+    title 'Flows / PDF to canonical Source Representation'
+    studio.ingestion -> project_db 'Enqueue conversion with staged-source identity and pinned ingestion settings'
+    parsing_service.parser.coordination -> project_db 'Dequeue convert on the small or large lane'
+    parsing_service.parser.ingest -> source_inbox 'Copy and verify the admitted PDF'
+    parsing_service.parser.ingest -> parsing_service.parser.canonical 'Check for complete verified recipe reuse'
+    parsing_service.parser.ingest -> parsing_service.parser.transcription 'When no reusable result exists, read native text and route OCR regions'
+    parsing_service.parser.transcription -> parsing_service.models 'OCR only the regions that require it'
+    parsing_service.parser.ingest -> parsing_service.parser.canonical 'Publish a complete generation with hashes'
+    parsing_service.parser.canonical -> parsing_service.task_cache 'Retain manifest and canonical pages'
+    studio.ingestion -> parsing_service.http_api 'Read and verify canonical artifacts'
+    studio.ingestion -> package_store 'Retain the portable package before committing its reference'
+    studio.ingestion -> studio.project_store 'Publish the owned Source Representation Revision'
+    studio.project_store -> project_db 'Save the revision; historical pins stay valid'
+  }
+}
