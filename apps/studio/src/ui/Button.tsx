@@ -13,7 +13,7 @@ export type ButtonProps = ComponentPropsWithRef<'button'> & {
 }
 
 const base =
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-60'
+  'inline-flex max-w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 font-semibold [overflow-wrap:anywhere] outline-none transition-colors disabled:cursor-default disabled:opacity-60'
 
 const variants: Record<Variant, string> = {
   positive:

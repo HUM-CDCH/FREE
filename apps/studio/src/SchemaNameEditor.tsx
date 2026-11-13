@@ -49,7 +49,7 @@ export default function SchemaNameEditor({
   if (!editing)
     return (
       <div className={`group flex h-7 min-w-0 items-center gap-1 text-content font-semibold text-ink ${className}`}>
-        <Name className="truncate">{name}</Name>
+        <Name className="min-w-0 truncate" title={name}>{name}</Name>
         <button
           className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted opacity-0 outline-none transition-colors hover:bg-surface-muted hover:text-ink group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           type="button"
@@ -120,7 +120,7 @@ export default function SchemaNameEditor({
       {failure && (
         <p
           id={failureId}
-          className="absolute left-0 top-full z-20 mt-1 max-w-72 rounded-md border border-danger/30 bg-surface px-2 py-1 text-[11px] font-normal leading-snug text-danger shadow-float"
+          className="absolute left-0 top-full z-20 mt-1 max-w-72 rounded-md border border-danger/30 bg-surface px-2 py-1 text-[11px] font-normal leading-snug text-danger shadow-float [overflow-wrap:anywhere]"
           role="alert"
         >
           {failure}

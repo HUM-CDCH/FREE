@@ -1,8 +1,9 @@
+import { testSchemaPersistence } from './test/schemaPersistence'
 // @vitest-environment jsdom
 
 import type { ComponentProps, ReactNode } from 'react'
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import rawDocument from './assets/parsed_document.v2.json'
@@ -18,9 +19,10 @@ import type { DurableReader } from './durableReader'
 import type { CurrentResultSchema } from './resultSchema'
 import {
   createSchemaEditorController,
-  localSchemaPersistence,
   type SchemaEditorController,
 } from './currentSchemaRevision'
+/** The chat's composer: its own hint, or the way past the step whose card carries it. */
+const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
 vi.mock('./DurableResults', () => ({ DurableResults: vi.fn(() => <p>Durable results</p>) }))
 vi.mock('./api', async (importOriginal) => ({ ...await importOriginal<typeof import('./api')>(), requestSchemaEdit: vi.fn() }))
@@ -59,7 +61,7 @@ const attempt = {
 
 function testSchema(): SchemaEditorController {
   return createSchemaEditorController(
-    localSchemaPersistence({ onEdit: () => {} }),
+    testSchemaPersistence(),
     {
       initialDraft: {
         recordDescription: 'One record.',
@@ -86,6 +88,7 @@ function renderRail({
   documentHistory,
   run = null,
   project = null,
+  onGenerateInstructions,
 }: {
   open?: boolean
   view?: RailView
@@ -100,6 +103,7 @@ function renderRail({
   documentHistory?: (visible: boolean) => ReactNode
   run?: { start: () => void; available: boolean } | null
   project?: ComponentProps<typeof RightRail>['project']
+  onGenerateInstructions?: (instruction: string) => void
 } = {}) {
   const rail = (open: boolean) => (
     <RightRail
@@ -121,10 +125,12 @@ function renderRail({
       recordScope={{ value: 'document', onChange: vi.fn() }}
       run={run}
       project={project}
+      onGenerateInstructions={onGenerateInstructions}
     />
   )
   const rendered = render(rail(open))
-  return { ...rendered, setOpen: (next: boolean) => rendered.rerender(rail(next)) }
+  return { ...rendered, setOpen: (next: boolean) => { open = next; rendered.rerender(rail(open)) },
+    setView: (next: RailView) => { view = next; rendered.rerender(rail(open)) } }
 }
 const results = () => vi.mocked(DurableResults).mock.lastCall![0]
 
@@ -222,6 +228,42 @@ describe('RightRail Results', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }))
     expect(onViewChange).toHaveBeenLastCalledWith('chat')
   })
+  it('keeps generating the template and running the extraction within reach on the workflow lines', () => {
+    const onGenerateInstructions = vi.fn()
+    const start = vi.fn()
+    // No template yet: Generate leads; Run waits for the template and says so.
+    renderRail({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerateInstructions, run: { start, available: true } })
+    const empty = within(screen.getByRole('navigation', { name: 'Template and results' }))
+    fireEvent.click(empty.getByRole('button', { name: 'Generate the template from the document' }))
+    expect(onGenerateInstructions).toHaveBeenCalledExactlyOnceWith('')
+    expect(empty.getByRole('button', { name: 'Extract this document' })).toBeDisabled()
+    expect(empty.getByRole('button', { name: 'Extract this document' })).toHaveAttribute('title', 'Extract this document: create the template first')
+    cleanup()
+    // A template and a finished run: both again, each one click.
+    onGenerateInstructions.mockClear()
+    const completed = { ...attempt, executionStatus: 'COMPLETED' as const }
+    renderRail({ onGenerateInstructions, run: { start, available: true }, extraction: { ...defaultController, attempt: completed } })
+    const done = within(screen.getByRole('navigation', { name: 'Template and results' }))
+    // Generating again asks first, as the Template view's Regenerate does; Cancel generates nothing.
+    fireEvent.click(done.getByRole('button', { name: 'Generate the template again from the document' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Regenerate from the document' })).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+    fireEvent.click(done.getByRole('button', { name: 'Generate the template again from the document' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Regenerate from the document' })).getByRole('button', { name: /^Regenerate template/ }))
+    expect(onGenerateInstructions).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+    fireEvent.click(done.getByRole('button', { name: 'Extract this document again' }))
+    expect(start).toHaveBeenCalledOnce()
+    cleanup()
+    // A run at work offers no second one; a read-only inspection offers neither action.
+    renderRail({ onGenerateInstructions, run: { start, available: true }, extraction: { ...defaultController, attempt: { ...attempt, executionStatus: 'RUNNING' } } })
+    expect(screen.queryByRole('button', { name: /^Extract this document/ })).not.toBeInTheDocument()
+    cleanup()
+    renderRail({ onGenerateInstructions, run: { start, available: true }, inspection: { ...defaultInspection, readOnly: true } })
+    expect(screen.queryByRole('button', { name: /^Generate the template/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Extract this document/ })).not.toBeInTheDocument()
+  })
 })
 
 describe('RightRail developer UI visibility', () => {
@@ -261,7 +303,7 @@ describe('RightRail developer UI visibility', () => {
 describe('RightRail collapsed', () => {
   it('keeps every body mounted, hidden beside the strip, and the same nodes once expanded', () => {
     const view = renderRail({ view: 'results', extraction: { ...defaultController, attempt } })
-    const body = screen.getByText('Durable results'), chat = screen.getByPlaceholderText('Describe a change to the template…')
+    const body = screen.getByText('Durable results'), chat = chatInput()
     const slot = results().historySlot
     view.setOpen(false)
     expect(screen.getByText('Project chat · Results')).toBeVisible()
@@ -275,7 +317,7 @@ describe('RightRail collapsed', () => {
     // Nothing was mounted again: one-by-one, drafts, an input edit, an export and a chat request go on.
     expect(screen.getByText('Durable results')).toBe(body)
     expect(screen.getByText('Durable results')).toBeVisible()
-    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBe(chat)
+    expect(chatInput()).toBe(chat)
     expect(screen.queryByText('Project chat · Results')).not.toBeInTheDocument()
     expect(results().railOpen).toBe(true)
     expect(results().historySlot).toBe(slot)
@@ -324,7 +366,7 @@ describe('RightRail collapsed', () => {
   it('keeps the template chat\'s composer under every view, not only the chat', () => {
     renderRail({ view: 'results', extraction: { ...defaultController, attempt } })
     expect(document.getElementById('rail-panel-schema')).not.toBeVisible()
-    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBeVisible()
+    expect(chatInput()).toBeVisible()
   })
 
   it('keeps a template chat request running through a collapse', async () => {
@@ -332,7 +374,7 @@ describe('RightRail collapsed', () => {
     vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema', schemaRevisionId: 'revision' })
     vi.mocked(requestSchemaEdit).mockReturnValue(new Promise(() => {}))
     const view = renderRail({ schema })
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    const input = chatInput()
     fireEvent.change(input, { target: { value: 'Check fields' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
@@ -345,14 +387,66 @@ describe('RightRail collapsed', () => {
   })
 })
 
+describe('RightRail owns Regenerate', () => {
+  it('blocks Regenerate from the template menu and workflow while a proposal is pending', () => {
+    const schema = testSchema()
+    const proposal = schema.markProposal()
+    const onGenerateInstructions = vi.fn()
+    const rail = renderRail({ schema, view: 'schema', onGenerateInstructions })
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Regenerate from the document…' })).toBeDisabled()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    rail.setView('chat')
+    expect(screen.getByRole('button', { name: 'Generate the template again from the document' })).toBeDisabled()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+    act(() => proposal.release())
+    expect(screen.getByRole('button', { name: 'Generate the template again from the document' })).toBeEnabled()
+  })
+
+  it('shares one dialog and its instructions between the template menu and chat workflow', () => {
+    const schema = testSchema()
+    schema.commit(nodes => nodes.map(node => node.id === 'title' ? { ...node, description: 'Use the printed title.' } : node), '')
+    const onGenerateInstructions = vi.fn()
+    const rail = renderRail({ schema, view: 'schema', onGenerateInstructions })
+    fireEvent.click(screen.getByRole('button', { name: 'Template actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Regenerate from the document…' }))
+    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    const input = within(dialog).getByPlaceholderText(/^Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Keep dates as printed.' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+    rail.setView('chat')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate the template again from the document' }))
+    const reopened = screen.getByRole('dialog', { name: 'Regenerate from the document' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(reopened).getByText('Keep dates as printed.')).toBeVisible()
+    fireEvent.click(within(reopened).getByRole('button', { name: /^Regenerate template/ }))
+    expect(onGenerateInstructions).toHaveBeenCalledExactlyOnceWith('Keep dates as printed.\n\nField notes from the current template:\n- title: Use the printed title.')
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+  })
+
+  it('closes a Regenerate dialog when the current draft is replaced', () => {
+    const schema = testSchema()
+    const onGenerateInstructions = vi.fn()
+    renderRail({ schema, onGenerateInstructions })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate the template again from the document' }))
+    expect(screen.getByRole('dialog', { name: 'Regenerate from the document' })).toBeVisible()
+    act(() => schema.replaceDraft({ recordDescription: 'Replacement.', schemaNodes: [{ id: 'replacement', name: 'replacement', type: 'string' }] }, ''))
+    expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+  })
+})
+
 describe('RightRail asked to extract in the chat', () => {
   const summary = { phase: 'pilot' as const, extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0,
-    staleSourceDocumentCount: 0, pendingExtractionSourceDocumentCount: 3, schemaDraftCount: 0, currentSchemaRevisionId: 'revision',
+    staleSourceDocumentCount: 0, pendingExtractionSourceDocumentCount: 3, currentSchemaRevisionId: 'revision',
     schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null }
   const documents = [{ id: 'here', name: 'test.pdf' }, { id: 'b', name: 'b.pdf' }, { id: 'c', name: 'c.pdf' }]
 
   async function ask(text: string) {
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    const input = chatInput()
     fireEvent.change(input, { target: { value: text } })
     fireEvent.keyDown(input, { key: 'Enter' })
     return screen.findByRole('region', { name: 'Extract' })
@@ -366,7 +460,7 @@ describe('RightRail asked to extract in the chat', () => {
     vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'extract' })
     const run = { start: vi.fn(), available: true }
     const project = { guide: { summary, documents, currentDocumentId: 'here', batches: [], latest: null, roundId: null, busy: false, error: null },
-      start: vi.fn(), approve: vi.fn(), open: vi.fn(), export: vi.fn() }
+      start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), export: vi.fn() }
     renderRail({ schema, run, project })
 
     let step = await ask('Generate the results')
@@ -390,7 +484,7 @@ describe('RightRail asked to extract in the chat', () => {
       schemaRevisionId: schema.snapshot().extractableSchemaRevisionId as string })
     vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'proposed', fields: {}, additions: [], issues: [] })
     renderRail({ schema })
-    const input = screen.getByPlaceholderText('Describe a change to the template…')
+    const input = chatInput()
     fireEvent.change(input, { target: { value: 'keep it' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(await screen.findByText(/That leaves the template as it is/)).toBeInTheDocument()

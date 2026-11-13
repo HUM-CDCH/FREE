@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RailModel, RailRecord, RailRow, RowKind } from './reviewVocabulary'
-import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
+import { forwardItems, nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 
 const row = (record: number, name: string, kind: RowKind = 'to-check', doubt: string | null = null): RailRow => ({
   key: `${record}.${name}`, resultPath: ['records', record, name], name, value: name, extracted: name, kind, link: null,
@@ -28,6 +28,23 @@ describe('the one-by-one queue', () => {
     const decided = reviewQueue(model([record(3, [row(3, 'a'), row(3, 'b', 'approved'), row(3, 'c', 'rejected', 'doubt')]), record(1, [row(1, 'x')])]))
     expect(nextToCheck(decided, '3.a')).toBe('1.x')
     expect(nextToCheck(reviewQueue(model([record(3, [row(3, 'a')])])), '3.a')).toBeNull()
+  })
+
+  it('uses the same eligible values for entry, Skip and Up next without losing the current anchor', () => {
+    const queue = reviewQueue(model([
+      record(1, [row(1, 'a'), row(1, 'b')]), record(2, [row(2, 'c')]),
+    ]))
+    const blocked = new Set(['1.a'])
+    expect(nextToCheck(queue, '1.a', blocked)).toBe('1.b')
+    expect(nextToCheck(queue, '1.b', blocked)).toBe('2.c')
+    expect(nextToCheck(queue, null, blocked)).toBe('1.b')
+    expect(forwardItems(queue, '1.b', blocked).map(item => item.key)).toEqual(['2.c'])
+    expect(nextToCheck(queue, '2.c', new Set(['1.a', '1.b']))).toBeNull()
+    expect(previousInRecord(queue, '1.b')).toBe('1.a')
+    expect(queuePosition(queue, '1.b')).toMatchObject({ at: 2, of: 2 })
+    // Current is in the second record; blocking it must not restart at the first record.
+    const longer = reviewQueue(model([record(1, [row(1, 'a')]), record(2, [row(2, 'b'), row(2, 'c')])]))
+    expect(nextToCheck(longer, '2.b', new Set(['2.b']))).toBe('2.c')
   })
 
   it('previous steps back within the record, decided or not', () => {

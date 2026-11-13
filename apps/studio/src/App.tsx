@@ -3,7 +3,7 @@ import {
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -33,8 +33,9 @@ import { ADMISSION_UNCERTAIN, METHOD_CHANGED, isActive, useExtraction } from './
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
-import { Button, SegmentedControl, Spinner, Toast } from './ui'
+import { SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
+import { ThumbnailsGlyph } from './ui/icons'
 import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
@@ -45,6 +46,7 @@ import { exportableResults, type ProjectDocument } from './chatGuide'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import type { ExportChoices, ExportFormat } from 'extraction-result-export'
 import { useProjectBatches } from './useProjectBatches'
+import { batchStoppable, stopBatchExtraction } from './stopBatchExtraction'
 import { renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
 import { strategyOf } from 'extraction/schema'
@@ -54,6 +56,11 @@ import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 import { extractionSchemaInitialName } from '../shared/schemaRevision.contract'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+
+/** The largest decoded image pdf.js keeps per page, in RGBA bytes (about 8 megapixels); its worker downscales anything
+ *  larger. A 600 dpi A3 scan decodes to 70 megapixels (279 MB), which every repaint then resamples onto a canvas of
+ *  under 2. 8 megapixels still covers an A3 page at 200% zoom, or at 100% on a 2x display. */
+const DECODED_IMAGE_BYTES = 2 ** 25
 
 const COLLAPSED_WIDTH = 46
 const RAIL_MIN = 264
@@ -65,6 +72,8 @@ const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
 // highlight annotation, which left nothing for the browser's native copy to
 // act on. Flip this back to true to restore highlight creation once that's
 // worth the copy/paste tradeoff again.
+// pdf.js's `.page:has(.annotationEditorLayer.nonEditing) … .editorAnnotation` rule is inert while this is off.
+// Re-profile overlay painting before enabling highlights: this dependency selector can invalidate the page's styles.
 const HIGHLIGHT_ANNOTATIONS_ENABLED = false
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
@@ -193,6 +202,9 @@ export type DocumentWorkspaceProps = {
     /** The Batch Extraction this document was opened from to review, if any. */
     roundId: string | null
     refresh: () => void
+    /** Adds PDFs to the project (the chat's second trial), and whether some are still being uploaded or read. */
+    addDocuments?: (files: readonly File[]) => void
+    uploading?: boolean
   } | null
 }
 
@@ -232,7 +244,7 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const pdfViewerRef = useRef<PDFViewer | null>(null)
+  const [pdfViewer, setPdfViewer] = useState<PDFViewer | null>(null)
   const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
   useEffect(() => {
     activeSourceRepresentationIdRef.current = sourceRepresentationId
@@ -245,7 +257,6 @@ export function DocumentWorkspace({
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
     extractionSchema,
-    debounceMs: 1500,
     sourceRepresentationId,
     onCommitMessage: (message) => showToast(message),
   })
@@ -310,6 +321,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
+  const railElement = useRef<HTMLElement>(null)
   const [railView, setRailView] = useState<RailView>(() => routedValue ? 'results' : 'chat')
   // The History tab follows one value when set, until "Whole document"; it belongs to the document it was opened on.
   const [valueScope, setValueScope] = useState<{ sourceDocumentId: string; extractionId: string; valueId: string; name: string } | null>(null)
@@ -424,6 +436,7 @@ export function DocumentWorkspace({
         // as ctrlKey wheel events with small deltas, so scale smoothly.
         const lineHeight = event.deltaMode === 1 ? 25 : event.deltaMode === 2 ? 120 : 1
         pdfViewer.updateScale({
+          drawingDelay: 150,
           scaleFactor: Math.exp(-event.deltaY * 0.0015 * lineHeight),
           origin: [event.clientX, event.clientY],
         })
@@ -450,7 +463,7 @@ export function DocumentWorkspace({
     )
 
     let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
-    pdfViewerRef.current = pdfViewer
+    setPdfViewer(pdfViewer)
     setLoadState({ status: 'loading' })
 
     async function loadPdf() {
@@ -458,6 +471,7 @@ export function DocumentWorkspace({
         loadingTask = pdfjsLib.getDocument({
           url: browserStudioPath(pdfUrl),
           wasmUrl: browserStudioPath('/assets/pdfjs-wasm/'),
+          canvasMaxAreaInBytes: DECODED_IMAGE_BYTES,
         })
         const pdf = await loadingTask.promise
         if (abortController.signal.aborted) {
@@ -499,7 +513,7 @@ export function DocumentWorkspace({
     void loadPdf()
 
     return () => {
-      pdfViewerRef.current = null
+      setPdfViewer(null)
       setPdfDocument(null)
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
@@ -626,15 +640,18 @@ export function DocumentWorkspace({
     resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = railWidth
+    let width = startWidth
     const onMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX
-      setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
+      width = Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx))
+      railElement.current?.style.setProperty('--rail-width', `${width}px`)
     }
     const onUp = () => {
       controller.abort()
       if (resizeControllerRef.current === controller)
         resizeControllerRef.current = null
       document.body.style.cursor = ''
+      setRailWidth(width)
     }
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove, { signal: controller.signal })
@@ -793,10 +810,8 @@ export function DocumentWorkspace({
   // Results and the document pane talk through one channel: value requests go to Results; its marks and one-by-one's
   // dimming come back.
   const [selection] = useState(createSelectionChannel)
-  const publishedMarks = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
-  const publishedDim = useSyncExternalStore(selection.subscribe, () => selection.snapshot().dim)
-  const hovered = useSyncExternalStore(selection.subscribe, () => selection.snapshot().hover)
   const markdownContainerRef = useRef<HTMLDivElement>(null)
+  const evidenceOverviewRef = useRef<HTMLDivElement>(null)
   const [marksShown, setMarksShown] = useState(true)
   // A value link asks Results for its value once per arrival, as soon as its Extraction is known. Leaving it, or
   // another value, withdraws an ask not taken yet; a layout effect, so before Results' effects in the same commit.
@@ -806,44 +821,38 @@ export function DocumentWorkspace({
     const seq = selection.select(routedKey, true, routedExtractionId)
     return () => selection.consume(seq)
   }, [selection, routedKey, routedExtractionId])
-  // The shown Extraction's values as marks on the page, never another's, also in the commit that switches; a mark
-  // reveals its linked fields directly in Results, including shared Evidence. Hovering a mark lights its rows there, and
-  // a row's marks light here.
-  const marks = useMemo(() => publishedMarks && publishedMarks.extractionId === inspectedAttempt?.extractionId ? {
-    ...publishedMarks,
-    hovered,
-    onHover: selection.hover,
-    onSelect: (keys: string[]) => {
-      // A passage holding the selection keeps it; else it picks a part of the selected value there (also from a sibling
-      // part), else keeps that value by its correction Evidence there.
-      const selected = publishedMarks.selected, value = selected && markValueId(selected)
-      const key = selected && keys.includes(selected) ? selected
-        : keys.find((each) => value && each.startsWith(`${value}#[`)) ?? keys.find((each) => value && each === `${value}#correction`) ?? keys[0]
-      if (!key) return
-      setRailOpen(true)
-      setRailView('results')
-      selection.select(key, false, publishedMarks.extractionId, keys)
-    },
-  } : null, [publishedMarks, inspectedAttempt?.extractionId, selection, hovered])
+  const selectMark = useCallback((keys: string[]) => {
+    const published = selection.snapshot().marks
+    if (!published || published.extractionId !== inspectedAttempt?.extractionId) return
+    // Prefer the chosen part or its correction when a passage supports several values.
+    const selected = published.selected, value = selected && markValueId(selected)
+    const key = selected && keys.includes(selected) ? selected
+      : keys.find(each => value && each.startsWith(`${value}#[`)) ?? keys.find(each => value && each === `${value}#correction`) ?? keys[0]
+    if (!key) return
+    setRailOpen(true)
+    setRailView('results')
+    selection.select(key, false, published.extractionId, keys)
+  }, [selection, inspectedAttempt?.extractionId])
   const selectPdfEvidence = useEvidenceOverlays({
-    containerRef,
-    viewerRef: pdfViewerRef,
-    parsedDocument:inspectionDocument,
-    attempt: inspectedAttempt,
-    marks,
-    active: effectiveRailOpen && railView === 'results',
-    dimLink: marks ? publishedDim : null,
+    containerRef, viewer: pdfViewer, parsedDocument: inspectionDocument, markdown: inspectionSource?.markdown ?? documentMarkdown,
+    extractionId: inspectedAttempt?.extractionId ?? null, selection, onSelect: selectMark,
+    active: effectiveRailOpen && railView === 'results', marksShown, overviewRef: evidenceOverviewRef,
   })
   const selectEvidenceAnchor = useCallback((anchor: ParsedEvidenceAnchor, link?: EvidenceLink) => {
     const container = markdownContainerRef.current
-    const mark = container && [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
-      .find(element => element.dataset.evidenceAnchorId === anchor.anchor_id)
+    const candidates = container ? [...container.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')]
+      .filter(element => element.dataset.evidenceAnchorId === anchor.anchor_id) : []
+    // Several values can mark different words of one anchor. Follow this link's value, not the first word.
+    const path = container && link ? JSON.stringify(link.resultPath) : null
+    const keys = new Set(path ? selection.snapshot().marks?.savedLinks.filter(saved => saved.link.evidenceAnchorId === anchor.anchor_id
+      && JSON.stringify(saved.link.resultPath) === path).map(saved => saved.key) : [])
+    const mark = candidates.find(element => (JSON.parse(element.dataset.hoverKeys ?? '[]') as string[]).some(key => keys.has(key))) ?? candidates[0]
     if (documentView === 'markdown' && container && mark) scrollWithinPane(container, mark)
     else {
       setDocumentView('pdf')
       selectPdfEvidence(anchor, link)
     }
-  }, [documentView, selectPdfEvidence])
+  }, [documentView, selectPdfEvidence, selection])
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
    *  run over the whole document: what admission pins is what was saved at the click (ADR 0015). A `method_changed` refusal
@@ -857,9 +866,8 @@ export function DocumentWorkspace({
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
-      const revision = await schema.flush()
+      const revision = await schema.prepareUse()
       if (!stillHere()) return
-      if (!revision) throw new Error('Save the Current Template Revision before extraction.')
       // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the template header before extraction.')
       const strategy = strategyOf(revision.recordScope)
@@ -1002,8 +1010,7 @@ export function DocumentWorkspace({
     setProjectBusy(true)
     setProjectError(null)
     try {
-      const revision = await schema.flush()
-      if (!revision) throw new Error('Save the Current Template Revision first.')
+      const revision = await schema.prepareUse()
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog first.')
       const strategy = strategyOf(revision.recordScope)
       let opened: Awaited<ReturnType<typeof openBatchExtraction>> | null = null
@@ -1032,7 +1039,24 @@ export function DocumentWorkspace({
     }
   }
 
+  /** Stops the project's running Batch Extraction from the chat: every member still at work stops, as its own Stop
+   *  would; finished members keep their results. */
+  async function stopProjectBatch() {
+    if (projectBusy || !project || !projectBatches) return
+    setProjectBusy(true)
+    setProjectError(null)
+    try {
+      await stopBatchExtraction(projectBatches.filter(batchStoppable))
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'The batch extraction could not be stopped.')
+    } finally {
+      project.refresh()
+      setProjectBusy(false)
+    }
+  }
+
   const runExtractionUnavailable =
+    schemaSnap.useBlockedReason !== null ||
     savingForRun ||
     !extraction.canRun ||
     !sourceRepresentationId ||
@@ -1047,7 +1071,7 @@ export function DocumentWorkspace({
   // strategy's.
   const runUnavailableReason: string | null = running || !runExtractionUnavailable
     ? null
-    : !sourceRepresentationCurrent
+    : schemaSnap.useBlockedReason ? schemaSnap.useBlockedReason : !sourceRepresentationCurrent
       ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
       : schemaSnap.save?.status === 'error'
         ? 'The template is not saved. Retry the save first.'
@@ -1076,7 +1100,8 @@ export function DocumentWorkspace({
     )}
     {/* max-[860px] is `width < 860px`, AppFrame's narrowViewport: the rail overlays exactly while the nav does. */}
     <aside
-      style={{ width: effectiveRailWidth }}
+      ref={railElement}
+      style={{ width: 'var(--rail-width)', '--rail-width': `${effectiveRailWidth}px` } as React.CSSProperties}
       className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[860px]:absolute max-[860px]:inset-y-0 max-[860px]:right-0 max-[860px]:z-30 ${
         // No `100%`: portaled into AppFrame's chat column, whose width is 0 while the rail overlays, it made the rail 0 wide.
         effectiveRailOpen
@@ -1129,34 +1154,33 @@ export function DocumentWorkspace({
         onReviewProgress={setDurableReviewProgress}
         onReviewFinalized={onReviewFinalized}
         schemaName={schemaName}
-        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun }}
+        recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: isActive(latestAttempt) || savingForRun || schemaSnap.editingBlockedReason !== null }}
         // Run, and Pause, Resume, Retry or Stop of the latest run, are the chat's steps alone.
         run={fromSchemaBuilder ? null : { start: () => void runExtraction(), available: !runExtractionUnavailable }}
         control={fromSchemaBuilder ? null : { command: (action) => void controlExtraction(action), busy: controlling }}
         project={project && sourceDocumentId ? {
           guide: { summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId, batches: projectBatches, latest: projectLatestRead,
             roundId: project.roundId,
-            busy: projectBusy || approvingSchema, error: projectError },
+            busy: projectBusy || approvingSchema, error: projectError, uploading: project.uploading },
           start: (kind, ids) => void startProjectBatch(kind, ids),
           approve: () => setApprovingSchema(true),
+          stopBatch: () => void stopProjectBatch(),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
             extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId ?? undefined }),
           export: (ids) => setExporting(ids),
+          id: projectContextId,
+          addDocuments: project.addDocuments,
         } : null}
         boundaries={
           !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
             ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
             : null
         }
-        resultsHeaderExtras={
-          <>
-            {reviewedOnAnotherSource && latestReviewedExtraction && (
-              <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
+        resultsMenuItems={reviewedOnAnotherSource && latestReviewedExtraction
+          ? [{ label: 'Open latest reviewed', onSelect: () => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
                 ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
-                : undefined)}>Open latest reviewed</Button>
-            )}
-          </>
-        }
+                : undefined) }]
+          : undefined}
         onRenameSchema={async (name) => {
           // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
           const extractionSchemaId = schema.snapshot().extractionSchemaId
@@ -1229,16 +1253,24 @@ export function DocumentWorkspace({
           {/* Reserve COLLAPSED_WIDTH for the schema rail when it becomes an overlay. */}
           <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[860px]:mr-[46px]" aria-label="PDF document">
             <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2">
-              <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
-                disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}>
-                <span aria-hidden="true">☰</span> Pages
-              </Button>
+              {/* Above the thumbnail rail it opens; held down while the rail is shown. */}
+              <button ref={pagesToggleRef} type="button" aria-label="Page thumbnails" aria-expanded={pagesOpen} aria-controls={pageNavigationId}
+                title={pagesOpen ? 'Hide page thumbnails' : 'Show page thumbnails'}
+                disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}
+                className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-40 aria-expanded:bg-surface-muted aria-expanded:text-ink">
+                <ThumbnailsGlyph />
+              </button>
               {loadState.status === 'ready' ? (
                 <PagePager page={currentPage} pageCount={loadState.pageCount}
-                  onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }} />
+                  onNavigate={(page) => {
+                    // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                    if (pdfViewer) pdfViewer.currentPageNumber = page
+                  }} />
               ) : (
-                <p role="status" aria-live="polite" className={`text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
-                  {loadState.status === 'loading' ? 'Loading PDF…' : loadState.message}
+                <p role="status" aria-live="polite" className={`min-w-0 truncate text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
+                  <span title={loadState.status === 'error' ? loadState.message : undefined}>
+                    {loadState.status === 'loading' ? 'Loading PDF…' : loadState.message}
+                  </span>
                 </p>
               )}
               {loadState.status === 'ready' && (
@@ -1248,7 +1280,7 @@ export function DocumentWorkspace({
                     aria-label="Zoom out"
                     title="Zoom out (Ctrl + -)"
                     disabled={zoomPercent <= 10}
-                    onClick={() => pdfViewerRef.current?.decreaseScale()}
+                    onClick={() => pdfViewer?.decreaseScale()}
                     className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
                   >
                     −
@@ -1258,7 +1290,8 @@ export function DocumentWorkspace({
                     aria-label="Reset zoom to 100%"
                     title="Reset zoom to 100%"
                     onClick={() => {
-                      if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
+                      // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                      if (pdfViewer) pdfViewer.currentScale = 1
                     }}
                     className="min-w-11 rounded-full px-1.5 text-center text-compact font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink"
                   >
@@ -1269,7 +1302,7 @@ export function DocumentWorkspace({
                     aria-label="Zoom in"
                     title="Zoom in (Ctrl + +)"
                     disabled={zoomPercent >= 2500}
-                    onClick={() => pdfViewerRef.current?.increaseScale()}
+                    onClick={() => pdfViewer?.increaseScale()}
                     className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
                   >
                     +
@@ -1286,18 +1319,23 @@ export function DocumentWorkspace({
             <div className="relative flex min-h-0 flex-1">
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
                 id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
-                onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
+                onNavigate={(page) => {
+                    // eslint-disable-next-line react-hooks/immutability -- pdf.js command setter; React owns the instance identity, not its internal state.
+                    if (pdfViewer) pdfViewer.currentPageNumber = page
+                  }}
                 onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }}
                 thumbnails={thumbnails} />}
               <div className="relative min-w-0 flex-1">
                 <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
+                {/* Where the Evidence sits in the whole document: ticks over the PDF's scrollbar (pdf-viewer.css). */}
+                <div ref={evidenceOverviewRef} className="evidence-overview" aria-hidden="true" />
                 {/* Over the PDF, which stays mounted with its marks and position. The Markdown's marks show only while the
                     rail is open. */}
                 {documentView === 'markdown' && (
                   <div ref={markdownContainerRef} className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={effectiveRailOpen ? marks : null} marksShown={marksShown} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} selection={selection} extractionId={inspectedAttempt?.extractionId ?? null} active={effectiveRailOpen} marksShown={marksShown} onSelect={selectMark} />
                   </div>
                 )}
               </div>
@@ -1308,7 +1346,7 @@ export function DocumentWorkspace({
                   this z-40 competes with the rail's z-30 directly. */}
               {toast && (
                 <div className="pointer-events-none absolute inset-x-4 top-3 z-40 flex justify-center">
-                  <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
+                  <Toast key={toast.id} wrap className="[overflow-wrap:anywhere]" message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
                 </div>
               )}
             </div>

@@ -10,7 +10,7 @@ function of this shape and one more entry in `technique`.
 claim was shown, or NONE, reading each claim with its field and sibling fields. A label outside the shown set links
 nothing. Every claim is verified, even a value that occurs as a bounded token in exactly one passage: the same
 string can belong to another field or another record, so a unique text hit is a candidate location (the matching
-cells offered and the `hits` count recorded), never field evidence on its own. Every grounding batch also shows the
+cells offered), never field evidence on its own. Every grounding batch also shows the
 record's fields, so a claim batched apart from the fields that identify its record still says whose it is. The
 version 1 Catalog grounds under a character budget; Article adds its record identity and a served counter, and shows a
 projection instead of the whole record (`projected`): a document root can hold hundreds of list items, and a request
@@ -123,12 +123,6 @@ def _candidates(passages: Sequence[Passage]) -> list[_Candidate]:
     return candidates
 
 
-def _hits(candidates: Sequence[_Candidate | SourceSpan], value: Any) -> list[_Candidate | SourceSpan]:
-    found = [candidate for candidate in candidates if contains(candidate.text, value)]
-    cell_parents = {candidate.passage.id for candidate in found if candidate.cell is not None}
-    return [candidate for candidate in found if candidate.cell is not None or candidate.passage.id not in cell_parents]
-
-
 def _siblings(fields: dict, path: tuple[str | int, ...]) -> str:
     parent: Any = fields
     for part in path[:-1]:
@@ -204,11 +198,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
     candidates = source_spans(passages) if span_ids else _candidates(passages)
-    pending: list[tuple[tuple[str | int, ...], Any, int]] = []
+    pending: list[tuple[tuple[str | int, ...], Any]] = []
     for path, value in leaves(fields):
         if (*prefix, *path) in skip_paths:
             continue
-        pending.append(((*prefix, *path), value, len(_hits(candidates, value))))
+        pending.append(((*prefix, *path), value))
     if not pending:
         return links, [], []
     # Labels are local to this catalogue; saved proofs retain canonical source identities.
@@ -216,7 +210,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     claims = {f"C{n}": claim for n, claim in enumerate(pending, 1)}
     eligible = {claim: [label for label, candidate in labelled.items()
                         if candidate.cell is None or contains(candidate.text, value)]
-                for claim, (_, value, _) in claims.items()}
+                for claim, (_, value) in claims.items()}
     unfiltered = dict(eligible)
     # A list item's claim located to one row that no offered cell lies in: that row, printed as table context.
     context_rows: dict[str, set[tuple[str, int]]] = {}
@@ -234,7 +228,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         row_text = {row: "\t".join(texts) for row, texts in cells_of.items()}
         rows_of = {label: {(c.passage.id, row) for row in range(c.cell.row, c.cell.row + c.cell.rowspan)}
                    for label, c in labelled.items() if c.cell is not None}
-        for claim, (path, _, _) in claims.items():
+        for claim, (path, _) in claims.items():
             item = _enclosing_item(fields, path[2:])
             if item is None:
                 continue
@@ -287,7 +281,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         lines = []
         previous_parent = None
         for claim in batch:
-            path, value, _ = claims[claim]
+            path, value = claims[claim]
             if path[:-1] != previous_parent:
                 lines += _enclosing(fields, path[2:]) if projected else [_siblings(fields, path[2:])]
                 previous_parent = path[:-1]
@@ -344,7 +338,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             continue
         given = answer if isinstance(answer, dict) else {}
         for claim in batch:
-            path, value, hits = claims[claim]
+            path, value = claims[claim]
             label = given.get(claim)
             if span_ids:
                 candidate_reply = label if isinstance(label, dict) else {}
@@ -378,7 +372,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
             else:
                 candidate = labelled[label]
-                links.append(_link(path, candidate, contains(candidate.text, value), hits, "model",
+                links.append(_link(path, candidate, contains(candidate.text, value), "model",
                                    _location(candidate, value) if located else None))
                 if quoted and proofs is not None:
                     proofs.append({"path": list(path), "segment": candidate.passage.id,
@@ -396,12 +390,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     return links, calls, issues
 
 
-def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, hits: int, linked_by: str,
+def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
           location: dict | None = None) -> Link:
     passage, cell = candidate.passage, candidate.cell
     precise = cell is not None and cell.bbox_pt is not None
     return Link(path, passage.id, passage.page, cell.bbox_pt if precise else passage.bbox_pt,
-                verbatim, hits, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision,
+                verbatim, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision,
                 location)
 
 

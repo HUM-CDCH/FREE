@@ -29,8 +29,11 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 WORKDIR /app
 
+# Tesseract and its four language models read where words print on a scan, for value marks alone (ADR 0031,
+# `kie/extract/scan_mark.py`); `tesseract-ocr` brings English.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 libgomp1 \
+        tesseract-ocr tesseract-ocr-dan tesseract-ocr-deu tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
 
 ENV UV_COMPILE_BYTECODE=1 \

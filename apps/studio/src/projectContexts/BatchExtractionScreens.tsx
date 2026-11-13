@@ -5,10 +5,13 @@ import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import {
   PILOT_BATCH_SELECTION_LIMIT,
   batchExtractionProgress,
+  currentBatch,
+  supersededMember,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import { Button, Pill } from '../ui'
 import { memberStatus, type StatusTone } from './batchExtractionStatus'
+import { batchStoppable } from '../stopBatchExtraction'
 
 const statusInk: Record<StatusTone, string> = {
   neutral: 'text-ink-muted',
@@ -55,6 +58,14 @@ function RerunIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  )
+}
+
+function GridIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="none">
+      <path d="M3 3.5h14v13H3zM3 8h14M3 12.5h14M8 3.5v13" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -132,7 +143,7 @@ function RetainedBatchExport({disabled,primary=false,schemaNodes,onExport}:{disa
   return <div className="space-y-1">
     <Button ref={trigger} variant={primary?'positive':'secondary'} disabled={disabled||busy} aria-busy={busy} aria-expanded={open} aria-haspopup="dialog" onClick={()=>setOpen(true)}>{busy?'Exporting…':'Export'}</Button>
     <ExtractionResultExportControl open={open} schemaNodes={schemaNodes} returnFocusRef={trigger} onDismiss={()=>setOpen(false)} onExport={(format,choices)=>void download(format,choices)}/>
-    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+    {error&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{error}</p>}
   </div>
 }
 
@@ -143,16 +154,17 @@ function selectionLine(batch: BatchExtraction): string {
 }
 
 function isPilotRound(batch: BatchExtraction): boolean {
-  // One limit decides what a pilot is, here as in the gate, the completion
-  // dialog and the review guidance.
-  return batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+  // The server says whether the round was opened before its revision's approval; a small batch after the approval is
+  // a batch. An older server's answer is the size limit admission applies before an approval.
+  return batch.trial ?? batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
 }
 
 /** Where a settled batch stands for the researcher: what is left before it is done, or that it is. Null while it runs
  *  and for a pilot round, whose end is the schema's approval (the chat's review step leads there). */
-function batchOutcome(batch: BatchExtraction): { done: boolean; title: string; detail: string } | null {
+function batchOutcome(batch: BatchExtraction, newest: ReadonlySet<string> | null): { done: boolean; title: string; detail: string } | null {
   if (isPilotRound(batch) || batchStatus(batch).running) return null
-  const progress = batchExtractionProgress(batch)
+  // A document run again since is that run's to review: its member here no longer holds the outcome back.
+  const progress = batchExtractionProgress(currentBatch(batch, newest))
   const notExtracted = progress.total - progress.extracted
   const empty = progress.unreviewable > 0
     ? ` ${progress.unreviewable} ${progress.unreviewable === 1 ? 'document has' : 'documents have'} no values to review.` : ''
@@ -176,7 +188,7 @@ export function BatchExtractionHistory({
   if (batches.length === 0)
     return (
       <p className="py-6 text-center text-xs text-ink-muted">
-        No Batch Extractions yet. Once the template is ready, the chat pilots it
+        No Batch Extractions yet. Once the template is ready, the chat tries it
         on a few documents first, so you can catch a template issue before
         committing to the whole collection.
       </p>
@@ -204,11 +216,11 @@ export function BatchExtractionHistory({
                   </strong>
                   {isPilotRound(batch) && (
                     <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[9.5px] font-semibold text-accent">
-                      Pilot
+                      Trial
                     </span>
                   )}
                 </span>
-                <span className="mt-1 block text-[11px] text-ink-muted">
+                <span className="mt-1 block truncate text-[11px] text-ink-muted" title={batchSchemaLine(batch)}>
                   {batchSchemaLine(batch)}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
@@ -261,7 +273,11 @@ export function BatchExtractionMembers({
   onExport,
   onRetrySchema,
   onRunAgain,
+  onOpenGridReview,
   onOpenMember,
+  onStop,
+  stopping = false,
+  newest = null,
 }: {
   batch: BatchExtraction
   pinnedSchemaFailure: string | null
@@ -280,19 +296,38 @@ export function BatchExtractionMembers({
   onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
-  onOpenMember(sourceDocumentId: string, extractionId: string): void
+  /** Opens the review grid: every reviewable member's values, one row per record. */
+  onOpenGridReview(): void
+  /** Opens a member's document: on the member's own Extraction, or on its newest when none is named. */
+  onOpenMember(sourceDocumentId: string, extractionId?: string): void
+  /** The Extraction each of the project's documents shows (its newest); null when the server does not say. */
+  newest?: ReadonlySet<string> | null
+  /** Stops every member still at work; offered while one is. */
+  onStop?(): void
+  stopping?: boolean
 }) {
   const status = batchStatus(batch)
-  const outcome = batchOutcome(batch)
+  const outcome = batchOutcome(batch, newest)
   const runAgainRefusalId = useId()
   return (
     <>
       <div className="mb-5 flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="min-w-0 text-[11px] text-ink-faint">
+        <p className="min-w-0 text-[11px] text-ink-faint [overflow-wrap:anywhere]">
           {batchSchemaLine(batch)} · {selectionLine(batch)}
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
+          {onStop && batchStoppable(batch) && (
+            <Button size="sm" variant="danger" disabled={stopping} onClick={onStop}
+              title="Stop every document still being extracted; finished ones keep their results">
+              {stopping ? 'Stopping…' : '■ Stop'}
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" disabled={!hasSuccessfulResult} onClick={onOpenGridReview}
+            title="Review every document's saved values side by side, one row per record">
+            <GridIcon />
+            Review in grid
+          </Button>
           <RetainedBatchExport disabled={!hasSuccessfulResult} primary={outcome?.done ?? false} schemaNodes={exportSchemaNodes} onExport={onExport}/>
           <Button
             size="sm"
@@ -316,14 +351,14 @@ export function BatchExtractionMembers({
         </div>
       )}
       {runAgainRefusal && (
-        <p id={runAgainRefusalId} className="mb-4 text-[11.5px] leading-snug text-ink-muted">
+        <p id={runAgainRefusalId} className="mb-4 text-[11.5px] leading-snug text-ink-muted [overflow-wrap:anywhere]">
           {runAgainRefusal}
         </p>
       )}
       <div className="mb-4">{runAgainMethod}</div>
       {pinnedSchemaFailure && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <p className="text-[11.5px] leading-snug text-danger" role="alert">
+          <p className="min-w-0 text-[11.5px] leading-snug text-danger [overflow-wrap:anywhere]" role="alert">
             {pinnedSchemaFailure}
           </p>
           <Button size="sm" variant="secondary" onClick={onRetrySchema}>
@@ -333,7 +368,7 @@ export function BatchExtractionMembers({
       )}
       {coverageMessage && (
         <p
-          className="mb-4 text-[11.5px] leading-snug text-ink-muted"
+          className="mb-4 text-[11.5px] leading-snug text-ink-muted [overflow-wrap:anywhere]"
           role="status"
         >
           {coverageMessage}
@@ -350,6 +385,9 @@ export function BatchExtractionMembers({
       <ul className="divide-y divide-line" aria-label="Batch Extraction members">
         {batch.members.map((member) => {
           const memberState = memberStatus(member)
+          // A document run again since: said here, and opened on that newer run, the one to review.
+          const superseded = supersededMember(member, newest)
+          const message = superseded ? 'This document has a newer run. Open it to review that one.' : memberState.message
           return (
             <li key={member.sourceDocumentId}>
               {/* `-mx-2 px-2`: hover fill wider than the text, text still flush
@@ -357,20 +395,20 @@ export function BatchExtractionMembers({
               <button
                 className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto] items-center gap-6 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 disabled:cursor-default disabled:hover:bg-transparent sm:grid-cols-[1fr_13rem_auto]"
                 type="button"
-                onClick={() => onOpenMember(member.sourceDocumentId, member.extractionId)}
+                onClick={() => onOpenMember(member.sourceDocumentId, superseded ? undefined : member.extractionId)}
               >
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-2 text-ink-faint">
                     <DocumentIcon />
-                    <span className="min-w-0 truncate text-[12.5px] font-semibold text-ink">
+                    <span className="min-w-0 truncate text-[12.5px] font-semibold text-ink" title={documentName(member.sourceDocumentId)}>
                       {documentName(member.sourceDocumentId)}
                     </span>
                   </span>
-                  {memberState.message && (
+                  {message && (
                     <span
-                      className={`mt-1 block pl-[21px] text-[11px] leading-snug ${statusInk[memberState.tone]}`}
+                      className={`mt-1 block pl-[21px] text-[11px] leading-snug [overflow-wrap:anywhere] ${superseded ? 'text-ink-muted' : statusInk[memberState.tone]}`}
                     >
-                      {memberState.message}
+                      {message}
                     </span>
                   )}
                 </span>

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { Children, useState, type ReactNode } from 'react'
 import Panel from './ui/Panel'
 import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from 'extraction/parsed-document'
 import { blockForAnchor, tableForAnchor } from 'extraction/parsed-document'
@@ -13,7 +13,7 @@ function groupByPage(anchors: ParsedEvidenceAnchor[]) {
 }
 
 function Detail({ children }: { children: ReactNode }) {
-  return <span className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">{children}</span>
+  return <span className="max-w-full shrink-0 truncate rounded bg-surface-muted px-1.5 py-0.5 font-mono text-[10px] text-ink-muted" title={Children.toArray(children).join('')}>{children}</span>
 }
 
 function TextAnchor({ anchor, document, onSelect }: { anchor: TextEvidenceAnchor; document: ParsedDocument; onSelect: () => void }) {
@@ -23,7 +23,7 @@ function TextAnchor({ anchor, document, onSelect }: { anchor: TextEvidenceAnchor
   return (
     <button type="button" onClick={onSelect} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent/60 hover:bg-accent-ghost focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Evidence anchor ${anchor.anchor_id} on page ${observation.page_number}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-semibold text-ink">{blockText || 'Text block'}</span>
+        <span className="min-w-0 truncate text-xs font-semibold text-ink" title={blockText || 'Text block'}>{blockText || 'Text block'}</span>
         <Detail>text</Detail>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -42,7 +42,7 @@ function TableAnchor({ anchor, document, onSelect }: { anchor: TableCellEvidence
   return (
     <button type="button" onClick={onSelect} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent/60 hover:bg-accent-ghost focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Evidence anchor ${anchor.anchor_id} on page ${observation.page_number}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-semibold text-ink">{cell?.text || 'Empty cell'} · row {anchor.canonical_row + 1}, column {anchor.canonical_column + 1}</span>
+        <span className="min-w-0 truncate text-xs font-semibold text-ink" title={`${cell?.text || 'Empty cell'} · row ${anchor.canonical_row + 1}, column ${anchor.canonical_column + 1}`}>{cell?.text || 'Empty cell'} · row {anchor.canonical_row + 1}, column {anchor.canonical_column + 1}</span>
         <Detail>table cell</Detail>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -68,8 +68,8 @@ function EvidenceTab({ document, onSelectAnchor }: { document: ParsedDocument | 
   const unplaced = document.pages.flatMap((page) => page.unplaced_content.map((tableId) => ({ page: page.page_number, tableId })))
   return (
     <Panel header={<div><h2 className="text-[13px] font-bold text-ink">Source Evidence</h2><p className="text-[11px] text-ink-muted">{document.evidence_index.anchors.length} anchors · {document.page_count} physical pages</p></div>}>
-      {diagnostics.length > 0 && <section className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50/50 p-3"><h3 className="text-[11px] font-bold uppercase tracking-[0.1em] text-amber-800">Diagnostics</h3><ul className="mt-1.5 space-y-1 text-[11px] text-amber-900">{diagnostics.map((diagnostic, index) => <li key={index}>{typeof diagnostic.code === 'string' ? diagnostic.code : 'placement diagnostic'}{typeof diagnostic.message === 'string' ? `: ${diagnostic.message}` : ''}</li>)}</ul></section>}
-      {unplaced.length > 0 && <section className="mb-4 rounded-lg border border-line bg-surface-muted p-3"><h3 className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">Unplaced content</h3><ul className="mt-1.5 space-y-1 text-[11px] text-ink-muted">{unplaced.map((item) => <li key={`${item.page}-${item.tableId}`}>Page {item.page}: {item.tableId}</li>)}</ul></section>}
+      {diagnostics.length > 0 && <section className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50/50 p-3"><h3 className="text-[11px] font-bold uppercase tracking-[0.1em] text-amber-800">Diagnostics</h3><ul className="mt-1.5 space-y-1 text-[11px] text-amber-900 [overflow-wrap:anywhere]">{diagnostics.map((diagnostic, index) => <li key={index}>{typeof diagnostic.code === 'string' ? diagnostic.code : 'placement diagnostic'}{typeof diagnostic.message === 'string' ? `: ${diagnostic.message}` : ''}</li>)}</ul></section>}
+      {unplaced.length > 0 && <section className="mb-4 rounded-lg border border-line bg-surface-muted p-3"><h3 className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">Unplaced content</h3><ul className="mt-1.5 space-y-1 text-[11px] text-ink-muted [overflow-wrap:anywhere]">{unplaced.map((item) => <li key={`${item.page}-${item.tableId}`}>Page {item.page}: {item.tableId}</li>)}</ul></section>}
       {groups.length > 1 && <label className="mb-3 flex items-center gap-2 text-xs text-ink-muted">
         Physical page
         <select aria-label="Evidence page" value={currentPage} onChange={(event) => setSelectedPage(Number(event.target.value))} className="rounded-md border border-line bg-surface px-2 py-1 text-ink">

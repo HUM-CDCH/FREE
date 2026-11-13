@@ -154,6 +154,8 @@ export function restoreSchemaNode(
     const parent = enumerateFieldPaths(nodes).find((field) => field.id === parentId)?.node
     if (parent?.children === undefined) return null
   }
+  const existingIds = new Set(enumerateFieldPaths(nodes).map(field => field.id))
+  if (enumerateFieldPaths([node]).some(field => existingIds.has(field.id))) return null
   return insertAtSlot(deepClone(nodes), parentId, index, node)
 }
 
@@ -233,6 +235,7 @@ export function moveSchemaNodes(
   dy: number,
 ): SchemaNode[] | null {
   const mode = schemaDragMode(dx, dy)
+  if (target?.type === 'slot' && target.parentId !== null && !enumerateFieldPaths(nodes).some(f => f.id === target.parentId && f.node.children !== undefined)) return null
   let output: SchemaNode[] | null = null
 
   if (mode === 'indent') {
@@ -240,6 +243,7 @@ export function moveSchemaNodes(
     const index = siblings.findIndex((node) => node.id === drag.id)
     if (index > 0) {
       const previous = siblings[index - 1]!
+      if (previous.children === undefined) return null
       const [moved, without] = removeSchemaNode(nodes, drag.id)
       if (!moved) return null
       const insertIndex =
@@ -247,15 +251,6 @@ export function moveSchemaNodes(
           ? target.index
           : (previous.children ?? []).length
       output = insertAtSlot(without, previous.id, insertIndex, moved)
-    } else if (drag.parentId === null && index === 0) {
-      const node = nodes[0]
-      if (!node?.children?.length) return null
-      const leaf: SchemaNode = {
-        id: node.id,
-        name: node.name,
-        type: 'verbatim-string',
-      }
-      output = [leaf, ...node.children, ...nodes.slice(1)]
     }
   } else if (mode === 'outdent' && drag.parentId !== null) {
     const [moved, without] = removeSchemaNode(nodes, drag.id)
@@ -278,7 +273,8 @@ export function moveSchemaNodes(
       )
     }
   } else if (mode === 'normal' && target?.type === 'group') {
-    if (drag.isGroup) return null
+    const group = enumerateFieldPaths(nodes).find(f => f.id === target.id)?.node
+    if (group?.children === undefined) return null
     const [moved, without] = removeSchemaNode(nodes, drag.id)
     if (!moved) return null
     output = insertIntoNode(without, target.id, moved)
@@ -293,5 +289,35 @@ export function moveSchemaNodes(
     output = insertAtSlot(without, target.parentId, insertion, moved)
   }
 
-  return output && sameNodeIds(nodes, output) ? output : null
+  if (!output || !sameNodeIds(nodes, output)) return null
+  return newSchemaTreeViolation(nodes, output) ? null : output
+}
+
+export type SchemaTreeViolation =
+  | { reason: 'duplicate-name'; duplicateName: string; message: string }
+  | { reason: 'validation'; message: string }
+
+/** Compare violations by stable identity, so repairing an old draft does not require repairing unrelated fields. */
+export function newSchemaTreeViolation(before: readonly SchemaNode[], after: readonly SchemaNode[]): SchemaTreeViolation | null {
+  function violations(nodes: readonly SchemaNode[]) {
+    const found = new Map<string, SchemaTreeViolation>()
+    function level(nodes: readonly SchemaNode[], nested: boolean) {
+      const names = new Map<string, string[]>()
+      for (const node of nodes) {
+        const ids = names.get(node.name) ?? []
+        ids.push(node.id)
+        names.set(node.name, ids)
+        if (nested && node.valueSource) found.set(`source:${node.id}`, { reason: 'validation', message: 'valueSource is allowed only on top-level fields.' })
+        if (node.children) level(node.children, true)
+      }
+      for (const [name, ids] of names) {
+        if (ids.length > 1) found.set(`siblings:${ids.sort().join(':')}`, { reason: 'duplicate-name', duplicateName: name, message: `A sibling field already uses “${name}”.` })
+      }
+    }
+    level(nodes, false)
+    return found
+  }
+  const previous = violations(before)
+  for (const [key, message] of violations(after)) if (!previous.has(key)) return message
+  return null
 }

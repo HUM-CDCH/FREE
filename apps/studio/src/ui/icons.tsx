@@ -56,6 +56,8 @@ export const DoubtGlyph = () => <Glyph className="text-ev"><path d="M2.5 13h11" 
 export const InfoGlyph = () => <Glyph><circle cx="8" cy="8" r="6" /><path d="M8 7.2v4M8 5v.01" /></Glyph>
 export const MoreGlyph = () => <svg aria-hidden="true" className="size-4" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.3" /><circle cx="8" cy="8" r="1.3" /><circle cx="12.5" cy="8" r="1.3" /></svg>
 export const OneByOneGlyph = () => <Glyph><rect x="2.5" y="3.5" width="11" height="9" rx="1.5" /><path d="M7 6.5l2.5 1.5L7 9.5z" fill="currentColor" /></Glyph>
+/** Two page thumbnails beside the page they lead to. */
+export const ThumbnailsGlyph = () => <Glyph strokeWidth={1.4}><rect x="1.5" y="2" width="4.5" height="5" rx="1" /><rect x="1.5" y="9" width="4.5" height="5" rx="1" /><rect x="8.5" y="2" width="6" height="12" rx="1.2" /></Glyph>
 export const ListGlyph = () => <Glyph strokeWidth={1.5}><path d="M3 4h10M3 8h10M3 12h10" /></Glyph>
 export const UndoGlyph = () => <Glyph><path d="M5.5 4L3 6.5 5.5 9M3 6.5h6.5a3.5 3.5 0 010 7H7" /></Glyph>
 export const DisclosureGlyph = ({ open }: { open: boolean }) => <Glyph className={`transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`}><path d="M4.5 6.5l3.5 3.5 3.5-3.5" /></Glyph>

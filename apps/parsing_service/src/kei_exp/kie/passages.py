@@ -4,6 +4,8 @@ named by identity. It imports neither.
 Extraction never reparses the PDF. It reads `result/result.json` and the page files through
 `pagefile.load_result`, which proves they belong together, and projects every readable segment into a `Passage`
 named `p{page}_s{index}`: the physical PDF page and the segment's position in that page file's `segments` list.
+The one exception is a value mark (ADR 0031, `kie/extract/value_mark.py`): the linker reads the run's own `input.pdf`
+to place, inside a passage's box, a printing these passages already located, and for nothing else.
 That name is the evidence identity every extracted value points at; it holds for the generation it was read from
 and means nothing outside it. FREE derives its anchor ids from the same pair.
 """
@@ -41,6 +43,11 @@ class Passage:
     crop_bbox_pt: tuple[float, float, float, float] | None = None
     status: str = "ok"
     table: PageTable | None = None
+    # every box of a block printed in several places on its page, `bbox_pt` the first; None when in one place
+    boxes_pt: tuple[tuple[float, float, float, float], ...] | None = None
+    # the OCR model read it: any crop, or a transcriber other than native or hybrid (whose crop-free blocks are the
+    # PDF's own text); a value mark on it needs its page image's check (ADR 0031)
+    ocr: bool = False
 
     @property
     def precision(self) -> str:
@@ -90,6 +97,7 @@ def load(run_dir: Path) -> Evidence:
         raise EvidenceUnavailable(str(error)) from error
     passages: list[Passage] = []
     withheld: list[Passage] = []
+    text_layer = loaded.manifest.recipe.get("transcriber") in ("native", "hybrid")
     for number in sorted(loaded.pages):
         page = loaded.pages[number]
         crops = _placement(page, page_path(run_dir / "result", number))
@@ -106,7 +114,8 @@ def load(run_dir: Path) -> Evidence:
                               label=segment.label, bbox_pt=tuple(segment.bbox_pt), extent=segment.extent,
                               unit=segment.unit, crop=segment.crop, crop_order=crop.order if crop else None,
                               crop_bbox_pt=tuple(crop.bbox_pt) if crop else None, status=segment.status,
-                              table=table)
+                              table=table, boxes_pt=tuple(map(tuple, segment.boxes_pt)) if segment.boxes_pt else None,
+                              ocr=not text_layer or segment.crop is not None)
             (passages if segment.status == "ok" else withheld).append(passage)
     manifest = loaded.manifest
     return Evidence(run_id=run_dir.name, generation=manifest.generation, digest=manifest.digest,

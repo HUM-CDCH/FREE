@@ -51,13 +51,12 @@ GENERIC_RECORD_REPLY_TOKENS = 2048
 
 @dataclass(frozen=True)
 class Link:
-    """One extracted value's evidence: the result path and the passage it was read from."""
+    """One extracted value's evidence: the result path and the passage selected to support it."""
     path: tuple[str | int, ...]
     segment: str
     page: int
     bbox_pt: tuple[float, float, float, float]
     verbatim: bool                      # the value occurs as a bounded token in the passage
-    hits: int                           # passages of the record containing the value; above one is ambiguous
     linked_by: str                      # model (lexical only in results from before PROMPT_VERSION 13)
     cell: str | None = None             # local cell identity within segment, only with measured geometry
     precision: str = "segment"

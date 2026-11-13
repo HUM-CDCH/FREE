@@ -129,7 +129,7 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `ingestSource` | `ingest:<projectContextId>:<attemptId>` | workflow-first on `studio`; active dedup by project/SHA-256 | Source Document and revision IDs, or a typed failure |
 | `reprocessSource` | `reprocess:<sourceDocumentId>:<requestKey>` | workflow-first on `studio` | revision ID, or a typed failure |
 | `reconcileDurableExtractions` | `durable-dispatch:<extractionId>` at admission; `studio:durable-reconcile:<extractionId>:<controlVersion>` after a control; a schedule every minute | same transaction as Extraction admission, on `studio` | — (enqueues durable attempts and history cleanup) |
-| `suggestSchemaBatch` | `suggest:<batchId>:<attempt>` | same transaction as create/retry, on `suggest` | merged proposal/draft, or a typed failure |
+| `suggestSchemaBatch` | `suggest:<batchId>:<attempt>` | same transaction as create/retry, on `suggest` | merged proposal and retained result, or a typed failure |
 | `suggestSchema` | `suggestion:<operationId>` | workflow-first on `studio` | template and base revision, or a typed failure |
 | `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal (or a question's answer) and base revision, or a typed failure |
 | `answerSchemaChat` | `chat:<operationId>` | workflow-first on `studio` | a question's answer or `instruction`, or a typed failure |
@@ -229,8 +229,9 @@ FKs. There is no job or member table.
 
 **`suggestSchemaBatch(batchId, attempt)`** runs on queue `suggest` (global 1).
 - A suggestion keeps its membership pins, the attempt number, merged
-  proposal/draft, draft version and terminal outcome; no per-source execution
-  state.
+  proposal and retained result (`draft`), the schema that result was saved as,
+  and terminal outcome; no per-source execution state. Nothing but a
+  publication writes the retained result.
 - Admission snapshots all current member revision pins in sorted order into
   workflow input in the same transaction as enqueue. Past patch
   `batch-schema-suggestion-windows`, each source is suggested one window per
@@ -247,15 +248,22 @@ FKs. There is no job or member table.
   `model_key_required`. An explicit retry resends browser keys, increments the
   attempt and enqueues a new workflow over **all surviving pins**, never
   reusing a prior attempt's source checkpoints. It is allowed only after a
-  terminal attempt and before confirmation. Retry carries `expectedAttempt`:
+  terminal attempt, and clears the saved-schema pointer: the schema saved
+  from an earlier result stays the researcher's. Retry carries `expectedAttempt`:
   under the row lock it advances once; a replay finding exactly that successor
   returns it, and a later attempt is a conflict, so an uncertain POST cannot
   launch another whole batch.
-- An existing draft is kept while retry runs, with editing and Run disabled
-  until the attempt settles. A successful retry replaces the proposal and
-  draft and increments draftVersion once; a failed/interrupted attempt
-  preserves them. Run requires a valid draft, at least one surviving member
-  and no active attempt.
+- The retained result is kept while retry runs. A successful retry replaces
+  the proposal and the result; a failed/interrupted attempt preserves them.
+- `POST …/apply` saves the retained result as an ordinary Extraction Schema:
+  under the project and suggestion locks it requires the attempt the client
+  read, phase READY, a valid result and no active attempt, then creates the
+  schema and its revision 1 (origin SUGGESTION, no Record Scope) with IDs keyed
+  by the suggestion and the result's semantic tree, so a repeated or
+  concurrent apply returns the same schema. It starts no workflow and no
+  batch: that schema is then edited and run like any other, and Batch
+  Extraction admission pins its members' current revisions. A spreadsheet
+  suggestion's template is saved in the transaction that creates the row.
 
 **`ingestSource`** has no ingestion key. Upload validation checks ownership,
 MIME type, magic bytes and the 100 MiB limit, and `(projectContextId,
@@ -690,6 +698,21 @@ queue.
     - **Defaults 6 (single pass).** Verification is off, so nothing waits for
       discovery: an entry's checked values are final once its own entry calls,
       and any arbitration between disagreeing located values, have returned.
+    - **Defaults 8 and 9 (children pass).** One more discovery reading carves
+      the records printed inside a record out of it, which changes that
+      record's ranges and the numbers of the records after it. No entry is
+      read or listed before the whole discovery and its children windows,
+      which are asked one per planning round.
+    - **Defaults 10 (children pass, pipelined).** The discovery and entry
+      readings of defaults 9. Each round carves the records the windows
+      already read settle, and reads and lists an entry once nothing can
+      change it. No children window crosses the entries one discovery window
+      settles, so nothing found later changes a window already asked; an
+      entry is final once every children window up to its last line is
+      answered, and a table entry also once the notes after its table are
+      read. A children call is admitted before the next discovery window, and
+      the windows that wait are asked together. The first records wait for
+      the first discovery window alone.
     - **Durable planning reads in turn.** A planning round never waits on a
       model: each call replays its saved reply or is captured and raises
       `NeedsCall`. The round visits every known entry in start-page priority,

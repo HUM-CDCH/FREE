@@ -78,7 +78,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       latestReviewed: extraction,
     })),
     scheduleBatch: vi.fn(),
-    scheduleSuggestedBatch: vi.fn(),
     listBatches: vi.fn(),
     readBatch: vi.fn(),
     readBatchResults: vi.fn(),

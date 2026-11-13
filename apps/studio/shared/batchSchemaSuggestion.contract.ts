@@ -1,12 +1,8 @@
 import { z } from 'zod'
-import { extractionMethodIntentSchema } from 'extraction/extraction-method'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
-  batchMethodFitsStrategy,
   projectOperationStatusSchema,
 } from './batchExtraction.contract.js'
-import { extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
-import { validationDetailsSchema } from './modelConfig.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
 import { batchSourceCoverageSchema } from './schemaSuggestionSource.contract.js'
@@ -35,23 +31,6 @@ export const batchSchemaSuggestionCreateFromSpreadsheetRequestSchema = z
     separator: z.string().min(1).max(4).optional(),
   })
   .strict()
-
-export const batchSchemaSuggestionDraftRequestSchema = z
-  .object({
-    expectedDraftVersion: z.number().int().nonnegative(),
-    ...schemaDefinitionSchema.shape,
-  })
-  .strict()
-
-/** Run carries the saved method the start view showed, as a Batch Extraction request does. */
-export const batchSchemaSuggestionRunRequestSchema = z
-  .object({ strategy: extractionStrategySchema, method: extractionMethodIntentSchema })
-  .strict()
-  .refine(batchMethodFitsStrategy, {
-    path: ['method', 'settings'],
-    message: 'The saved settings do not match this Extraction Strategy.',
-  })
-  .superRefine(methodRuleIssues)
 
 /** A retry names the attempt it follows, so a repeated POST replays its successor instead of starting another. */
 export const batchSchemaSuggestionRetryRequestSchema = z
@@ -105,12 +84,14 @@ export const batchSchemaSuggestionSchema = z
     proposal: schemaDefinitionSchema.nullable(),
     /** What each Source Document suggestion read of its source; null before a proposal or when not recorded. */
     sourceCoverage: batchSourceCoverageSchema.nullable(),
-    draft: schemaDefinitionSchema.nullable(),
-    draftVersion: z.number().int().nonnegative(),
     /** The current attempt's failure. */
     failure: operationFailureSchema.nullable(),
-    confirmedSchemaRevisionId: canonicalUuidSchema.nullable(),
-    batchExtractionId: canonicalUuidSchema.nullable(),
+    /** The ordinary Extraction Schema the retained result was saved as (its revision 1); null until it is applied, or
+     *  once that schema is deleted. From then on it is edited and run like any other template. */
+    savedSchema: z
+      .object({ extractionSchemaId: canonicalUuidSchema, schemaRevisionId: canonicalUuidSchema })
+      .strict()
+      .nullable(),
     createdAt: z.iso.datetime(),
     sources: z.array(suggestionSourceSchema),
   })
@@ -134,20 +115,10 @@ export const batchSchemaSuggestionErrorSchema = z
       'not_found',
       'persistence_unavailable',
       'unexpected_failure',
-      'draft_conflict',
       'operation_not_ready',
       'attempt_conflict',
-      'method_changed',
-      'schema_not_stabilised',
-      'record_scope_required',
-      'record_scope_mismatch',
-      'invalid_identity_fields',
-      'incompatible_extraction_model',
-      'invalid_model_config',
     ]),
     message: z.string(),
-    /** A refused request's field-addressed issues (`boundedValidationDetails`), e.g. a Run's rule-breaking method. */
-    details: validationDetailsSchema.optional(),
   })
   .strict()
 

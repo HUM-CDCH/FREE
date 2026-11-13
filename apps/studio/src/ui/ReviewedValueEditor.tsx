@@ -49,12 +49,11 @@ export default function ReviewedValueEditor({ node, initial, saveLabel, tall = f
     if (event.key === 'Enter' && !composite) { event.preventDefault(); save() }
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCancel() }
   }
-  const common = { id, autoFocus: true, onKeyDown: keys, value: draft, 'aria-invalid': error !== null || undefined,
+  const common = { id, 'aria-label': 'Reviewed value', autoFocus: true, onKeyDown: keys, value: draft, 'aria-invalid': error !== null || undefined,
     'aria-describedby': error ? `${id}-error` : undefined, className: `${control} ${height}` }
   const type = node?.type === 'array' && node.itemType ? node.itemType : node?.type
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-compact font-semibold text-ink-muted">Reviewed value</label>
       {composite ? (
         <textarea {...common} className={`${control} min-h-24 py-2 font-mono`} onChange={event => {setDraft(event.target.value);setError(null)}} />
       ) : node?.allowedValues ? (
@@ -74,14 +73,11 @@ export default function ReviewedValueEditor({ node, initial, saveLabel, tall = f
           onChange={(event) => { setDraft(event.target.value); setError(null) }} />
       )}
       {error && <p id={`${id}-error`} role="alert" className="m-0 text-compact text-danger">{error}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex h-7.5 overflow-hidden rounded-md border border-line">
-          <button type="button" onClick={save} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
-            <ApprovedGlyph />{saveLabel}
-          </button>
-          <button type="button" onClick={onCancel} className="cursor-pointer border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">Cancel</button>
-        </div>
-        <span className="text-compact text-ink-muted">{composite?'Use Save edit to save':'Enter saves'} · Esc cancels</span>
+      <div className="inline-flex h-7.5 w-fit overflow-hidden rounded-md border border-line">
+        <button type="button" onClick={save} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
+          <ApprovedGlyph />{saveLabel}
+        </button>
+        <button type="button" onClick={onCancel} className="cursor-pointer border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">Cancel</button>
       </div>
     </div>
   )

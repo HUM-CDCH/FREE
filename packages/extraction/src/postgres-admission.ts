@@ -307,17 +307,6 @@ export async function admitInteractiveExtraction(
   }
 }
 
-/** Identity constraints a concurrent suggested-batch handoff of the same suggestion commits first. */
-export const SUGGESTED_BATCH_KEYS = [
-  'extractionSchema_pkey',
-  'schemaRevision_pkey',
-  'schemaRevision_extractionSchemaId_revisionNumber_key',
-  BATCH_KEY,
-  EXTRACTION_KEY,
-  'batchSchemaSuggestion_confirmedSchemaRevisionId_key',
-  'batchSchemaSuggestion_batchExtractionId_key',
-] as const
-
 /**
  * Admits a Batch Extraction: the batch, one durable Extraction per selected Source Document (deterministic IDs) and
  * every member's dispatch commit together on one pooled client. Each member pins its document's
@@ -527,7 +516,7 @@ export type BatchMemberAdmission = Readonly<{
 }>
 
 /** One durable member Extraction and its dispatch, in the batch's admission transaction. */
-export async function admitBatchMember(
+async function admitBatchMember(
   orm: DatabaseOrm,
   client: Parameters<ExtractionExecution['enqueue']>[0],
   execution: ExtractionExecution,
@@ -552,4 +541,3 @@ export async function admitBatchMember(
   await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,workflowID:`durable-dispatch:${id}`,
     queueName:EXTRACTION_QUEUE,authenticatedUser:member.owner,attributes:extractionAttributes(member)},id)
 }
-export type AdmitBatchMember = typeof admitBatchMember

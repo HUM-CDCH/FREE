@@ -1,9 +1,10 @@
 import type { RecordScope } from 'extraction/schema'
-import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, type BatchExtraction,
+import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, currentBatch, reviewableMember, type BatchExtraction,
   type BatchExtractionMember, type LatestExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
-import { guidedWorkflow } from './projectContexts/guidedWorkflow'
+import { REVISED_PILOT, guidedWorkflow } from './projectContexts/guidedWorkflow'
+import { batchStoppable } from './stopBatchExtraction'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 
 /** What the researcher can do from a step: the rail chat carries each key out (RailChat.tsx). */
@@ -12,6 +13,8 @@ export type StepAction =
   | 'stop-generation'
   | 'apply'
   | 'review-schema'
+  | 'continue'
+  | 'restart'
   | 'discard'
   | 'scope:records'
   | 'scope:document'
@@ -21,11 +24,15 @@ export type StepAction =
   | 'resume'
   | 'retry'
   | 'stop'
+  | 'stop-batch'
   | 'pilot'
   | 'batch'
   | 'approve'
   | 'open-document'
   | 'export'
+  | 'more-documents'
+  | 'upload'
+  | 'skip-more'
   | 'dismiss'
 
 export type StepOption = {
@@ -81,10 +88,18 @@ export type ProjectGuideInput = {
   busy: boolean
   /** Why the last batch start failed. */
   error: string | null
+  /** Before the first approval, after the first trial is reviewed, the chat offers a second trial on more documents:
+   *  `ask` until answered, `adding` once the researcher chose it, `done` once it ran or was skipped. Undefined where
+   *  the host cannot add documents, which goes straight to the approval. */
+  moreDocuments?: 'ask' | 'adding' | 'done'
+  /** Documents added here are still being uploaded or read. */
+  uploading?: boolean
 }
 
 export type GuideInput = {
   view: SchemaEditorSnapshot['view']
+  /** A generation runs: the first (`view` is generating) or a regeneration while the saved template stays shown. */
+  generating?: boolean
   generationError: string | null
   /** A historical preview or a read-only inspection: the chat offers no schema step; runs follow `run` and `control`. */
   readOnly: boolean
@@ -110,11 +125,19 @@ export type GuideInput = {
     /** The status line Results shows, e.g. "Reading records · 3 of 14". */
     progress: string | null
     toCheck: number | null
+    /** Whether the revision it ran with, when not the current one, defines the same template (fields, record
+     *  description and Article/Catalog) as the current revision: compared by the host; null until known. */
+    sameTemplate?: boolean | null
   } | null
   /** Results is already in view: a finished run needs no step to open it. */
   resultsShown: boolean
   /** The Template view is already open: the steps after a generation need no way to it. */
   templateShown?: boolean
+  /** A generation has just finished and the researcher has not yet chosen to go on: the chat stops at Template ready. */
+  templateReady?: boolean
+  /** This document's latest Extraction has just completed and the researcher has not yet chosen to go on: the chat stops
+   *  at Results ready. */
+  resultsReady?: boolean
   dismissed: ReadonlySet<string>
   project?: ProjectGuideInput | null
 }
@@ -146,15 +169,25 @@ function controlStep(input: GuideInput): StepCard | null {
     description: 'Stop the extraction; its saved values and decisions stay' }
   const continuing = (action: 'resume' | 'retry', label: string): StepOption => ({ action, label, tone: 'positive',
     disabled: control.busy || control.continueBlocked !== null, description: control.continueDescription })
-  const options: StepOption[] = latest.status === 'PAUSED' ? [continuing('resume', '▶ Resume extraction'), stop]
-    : latest.status === 'FAILED' ? [continuing('retry', '↻ Retry extraction'), stop]
+  // Halted on an earlier template than the current one: continuing would keep that template, so running the current one
+  // again leads, and Resume or Retry follows.
+  const halted = latest.status === 'PAUSED' || latest.status === 'FAILED'
+  const earlierTemplate = halted && !!input.run && input.revision.id !== null
+    && latest.schemaRevisionId !== input.revision.id && latest.sameTemplate !== true
+  const restart: StepOption = { action: 'restart', label: '▶ Run again with the current template', tone: 'positive', disabled: control.busy,
+    description: `Stops this extraction (its saved values and decisions stay), then runs ${input.revision.number !== null ? `template revision ${input.revision.number}` : 'the current template'}` }
+  const lead = (option: StepOption): StepOption[] => earlierTemplate ? [restart, { ...option, tone: 'secondary' }] : [option]
+  const options: StepOption[] = latest.status === 'PAUSED' ? [...lead(continuing('resume', '▶ Resume extraction')), stop]
+    : latest.status === 'FAILED' ? [...lead(continuing('retry', '↻ Retry extraction')), stop]
       : latest.status === 'QUEUED' || latest.status === 'RUNNING'
         ? [{ action: 'pause', label: '❚❚ Pause extraction', tone: 'secondary', disabled: control.busy, description: control.pauseDescription }, stop]
-        : []
+        // Pausing waits for the call under way; Stop still ends the extraction.
+        : latest.status === 'PAUSING' ? [stop] : []
   return {
     key: `extraction:${latest.extractionId}`,
     title: 'Extraction',
     notice: latest.status === 'PAUSING' ? 'Pausing…' : latest.status === 'STOPPING' ? 'Stopping…' : latest.progress ?? 'Working…',
+    question: earlierTemplate ? `It ran with an earlier template. ${latest.status === 'FAILED' ? 'Retry' : 'Resume'} keeps that one; run the current template instead?` : undefined,
     error: latest.status === 'PAUSED' || latest.status === 'FAILED' ? control.continueBlocked ?? undefined : undefined,
     busy: ACTIVE.has(latest.status),
     options,
@@ -174,7 +207,27 @@ export function nextStep(input: GuideInput): StepCard | null {
 function currentStep(input: GuideInput): StepCard | null {
   // An older Extraction or revision shown read-only takes no schema step; a run is still the host's to allow. The
   // open document's own run goes on before anything else; then the project's workflow leads, then this document.
-  return (input.readOnly ? null : schemaStep(input)) ?? controlStep(input) ?? projectStep(input) ?? runStep(input)
+  return (input.readOnly ? null : schemaStep(input)) ?? controlStep(input) ?? resultsReadyStep(input) ?? projectStep(input)
+    ?? runStep(input)
+}
+
+/** Each completed run stops here before the workflow goes on: look at its results, or go on to the next step. */
+function resultsReadyStep(input: GuideInput): StepCard | null {
+  const { latest } = input
+  if (!input.resultsReady || !latest || latest.status !== 'COMPLETED') return null
+  const toCheck = latest.toCheck ?? 0
+  return {
+    key: `results-ready:${latest.extractionId}`,
+    title: 'Results ready',
+    question: input.resultsShown ? 'Continue once the results look right.'
+      : toCheck ? `Look at the results? ${plural(toCheck, 'value')} to check.` : 'Look at the results before going on?',
+    detail: latest.progress ? [['Result', latest.progress]] : undefined,
+    options: [
+      ...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const],
+      { action: 'continue', label: 'Continue', tone: input.resultsShown ? 'positive' : 'secondary' },
+      notYet,
+    ],
+  }
 }
 
 /**
@@ -201,7 +254,7 @@ export function extractStep(input: GuideInput, request: number): StepCard {
       : [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)].slice(0, 3)
     picker = { documents, initial, limit: approved ? BATCH_EXTRACTION_SELECTION_LIMIT : PILOT_BATCH_SELECTION_LIMIT }
     options.push({ action: approved ? 'batch' : 'pilot', label: 'Documents in this project · {n}', tone: 'positive', picks: true,
-      hint: approved ? undefined : `Before the template's approval, a run of the project's documents is a pilot of at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
+      hint: approved ? undefined : `Until the template is approved, try it on at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
       disabled: project.busy || summary.runningBatch !== null })
   }
   const blocked = options.every(({ disabled }) => disabled)
@@ -227,10 +280,15 @@ function projectStep(input: GuideInput): StepCard | null {
   if (!project) return null
   const { summary, documents, batches, currentDocumentId } = project
   const workflow = guidedWorkflow(summary)
-  if (workflow.waiting) return { key: 'project-running', title: 'Batch extraction', notice: workflow.waiting, busy: true, options: [] }
+  if (workflow.waiting) {
+    const running = (batches ?? []).filter(batchStoppable)
+    return { key: 'project-running', title: 'Batch extraction', notice: workflow.waiting, busy: true, error: project.error ?? undefined,
+      options: running.length === 0 ? [] : [{ action: 'stop-batch', label: '■ Stop batch extraction', tone: 'danger', disabled: project.busy,
+        description: 'Stop every document still being extracted; finished ones keep their results' }] }
+  }
   const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
   // A schema saved here moves the phase on before the project's summary is read again.
-  const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Pilot extraction', action: 'pilot' as const } : workflow.next
+  const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Try template on a few documents', action: 'pilot' as const } : workflow.next
   // Every document extracted and reviewed: what is left is the dataset.
   if (!next) return exportStep(project)
   const revisionId = summary.currentSchemaRevisionId
@@ -244,14 +302,14 @@ function projectStep(input: GuideInput): StepCard | null {
       .filter((id) => documents.some((document) => document.id === id)).slice(0, 3)
     return {
       key: `pilot:${input.revision.id}`,
-      title: next.label === 'Pilot the revised template' ? next.label : 'Pilot the template',
-      question: `Try the template on a few documents before extracting all ${plural(documents.length, 'document')}?`,
+      title: next.label === REVISED_PILOT ? next.label : 'Try template on a few documents',
+      question: `Check the results on a few before extracting all ${plural(documents.length, 'document')}?`,
       detail: [['Template', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`]],
       error: project.error ?? undefined,
       picker: { documents, initial, limit: PILOT_BATCH_SELECTION_LIMIT },
       options: [
-        { action: 'pilot', label: 'Run pilot on {n}', tone: 'positive', picks: true, disabled: project.busy },
-        ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without a pilot round', tone: 'secondary',
+        { action: 'pilot', label: 'Try on {n}', tone: 'positive', picks: true, disabled: project.busy },
+        ...(input.run ? [{ action: 'run', label: 'Only this document', hint: 'One Extraction here, without trying other documents', tone: 'secondary',
           disabled: !input.run.available, description: runDescription(input, input.latest !== null) } as const] : []),
         ...viewTemplate(input),
         notYet,
@@ -265,14 +323,15 @@ function projectStep(input: GuideInput): StepCard | null {
     const approve = { action: 'approve', label: next.label, disabled: project.busy || !revisionId } as const
     // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval
     // beside it, since a member re-run since can never be reviewed.
-    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' }) ?? {
+    return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' })
+      ?? (next.label === 'Approve template' ? moreDocumentsStep(project, revisionId) : null) ?? {
       key: `approve:${revisionId}`,
       title: next.label,
       question: next.label === 'Re-approve template'
         ? 'The template changed since its approval. Approve the current revision for the whole project?'
         // Unread rounds may still wait for review, and a pilot document's latest Extraction may be its own, unreviewed.
         : `${batches === null || summary.extractedSourceDocumentCount > summary.reviewedSourceDocumentCount ? ''
-          : 'Every pilot document is reviewed. '}Approve the template for the whole project?`,
+          : 'Every trial document is reviewed. '}Approve the template for the whole project?`,
       options: [{ ...approve, tone: 'positive' }, notYet],
     }
   }
@@ -292,6 +351,57 @@ function projectStep(input: GuideInput): StepCard | null {
     }
   }
   return null
+}
+
+/** The documents with no Extraction on the revision yet, in the project's order: neither in a round of it nor run alone
+ *  on it. */
+function untried(project: ProjectGuideInput, revisionId: string | null): string[] {
+  const tried = new Set([
+    ...(project.batches ?? []).filter((batch) => batch.schemaRevisionId === revisionId).flatMap((batch) => batch.members.map((member) => member.sourceDocumentId)),
+    ...(project.latest?.extractions ?? []).filter((run) => run.schemaRevisionId === revisionId).map((run) => run.sourceDocumentId),
+  ])
+  return project.documents.map(({ id }) => id).filter((id) => !tried.has(id))
+}
+
+/**
+ * The optional second trial, between the first trial's review and the first approval: whether to try the template on
+ * more documents; once chosen, the documents not tried yet to tick, or the upload of new ones. Skipping it, or starting
+ * it, leads to the approval (after its review).
+ */
+function moreDocumentsStep(project: ProjectGuideInput, revisionId: string | null): StepCard | null {
+  if (project.moreDocuments === undefined || project.moreDocuments === 'done' || project.batches === null) return null
+  const left = untried(project, revisionId)
+  const skip: StepOption = { action: 'skip-more', label: 'No, go on to approval', tone: 'secondary' }
+  if (project.moreDocuments === 'ask')
+    return {
+      key: `more-documents:${revisionId}`,
+      title: 'Try more documents?',
+      question: 'Try the template on a few more documents before approving it?',
+      options: [{ action: 'more-documents', label: left.length > 0 ? 'Yes, try more documents' : 'Yes, upload more documents', tone: 'positive' },
+        skip, notYet],
+    }
+  const upload: StepOption = { action: 'upload', label: 'Upload documents', tone: left.length > 0 ? 'secondary' : 'positive',
+    disabled: project.uploading, description: 'Add PDFs to this project' }
+  if (left.length > 0)
+    return {
+      key: `more-trial:${revisionId}`,
+      title: 'Try template on more documents',
+      question: 'Which documents should the template be tried on?',
+      notice: project.uploading ? 'Reading the new documents…' : undefined,
+      error: project.error ?? undefined,
+      picker: { documents: project.documents.filter(({ id }) => left.includes(id)), initial: left.slice(0, PILOT_BATCH_SELECTION_LIMIT),
+        limit: PILOT_BATCH_SELECTION_LIMIT },
+      options: [{ action: 'pilot', label: 'Try on {n}', tone: 'positive', picks: true, disabled: project.busy }, upload,
+        { ...skip, label: 'Skip, go on to approval' }, notYet],
+    }
+  return {
+    key: `more-upload:${revisionId}`,
+    title: 'Try template on more documents',
+    question: project.uploading ? undefined : 'Upload the documents to try the template on.',
+    notice: project.uploading ? 'Reading the new documents…' : undefined,
+    busy: project.uploading,
+    options: [upload, { ...skip, label: 'Skip, go on to approval' }, notYet],
+  }
 }
 
 type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId' | 'review'>
@@ -346,7 +456,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
   // Only the Extraction a document shows, its newest, can be reviewed: this document's is the one open here.
   const shown = (sourceDocumentId: string, extractionId: string) => sourceDocumentId === project.currentDocumentId && input.latest
     ? input.latest.extractionId === extractionId : project.latest?.newest.includes(extractionId) ?? true
-  const waiting = (member: BatchExtractionMember) => member.reviewable && !member.currentReview && shown(member.sourceDocumentId, member.extractionId)
+  const waiting = (member: BatchExtractionMember) => reviewableMember(member) && !member.currentReview && shown(member.sourceDocumentId, member.extractionId)
   const opened = project.batches.find((batch) => batch.batchExtractionId === project.roundId)
   const round = opened && counts(opened) && opened.members.some(waiting) ? opened
     : project.batches.filter(counts).toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
@@ -358,8 +468,10 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
       .map((run) => ({ ...run, currentReview: null, waits: true }))]
   if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
-  const title = project.summary.schemaStabilised ? 'Review results' : 'Pilot review'
-  const progress = round && batchExtractionProgress(round)
+  // The round says whether it was a trial; a document run alone is one before the template's approval.
+  const title = (round?.trial ?? !project.summary.schemaStabilised) ? 'Review the trial results' : 'Review results'
+  // A member whose document was run again since is that run's to review, never this round's progress.
+  const progress = round && batchExtractionProgress(currentBatch(round, project.latest ? new Set(project.latest.newest) : null))
   const detail: [string, string][] | undefined = progress && [['Progress', `${progress.reviewed} of ${plural(progress.reviewable, 'document')} reviewed`]]
   const mine = queue.filter(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
   const here = mine.find(({ waits }) => waits) ?? mine[0]
@@ -396,6 +508,10 @@ function schemaStep(input: GuideInput): StepCard | null {
   if (input.view === 'generating')
     return { key: 'generating', title: 'Template Suggestion', notice: 'Producing template from the document…', busy: true,
       options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
+  // A regeneration keeps the saved template in view while it runs: the chat offers its Stop all the same.
+  if (input.view === 'editing' && input.generating)
+    return { key: 'generating', title: 'Template Suggestion', notice: 'Producing a new template from the document; the current one stays until it is ready…',
+      busy: true, options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
   if (input.view === 'empty' || input.view === 'failed') {
     if (!input.canGenerate) return null
     const kept = input.instructionCount > 0 ? ` (${plural(input.instructionCount, 'instruction')})` : ''
@@ -409,7 +525,7 @@ function schemaStep(input: GuideInput): StepCard | null {
       options: [
         { action: 'generate', label: `Generate template${kept}`, tone: 'positive', disabled: input.asking },
         // Not like this: say how, in the step itself.
-        { ...notYet, label: 'Or say what to focus on, or ask about the document…' },
+        { ...notYet, label: 'Tell me what to focus on, or ask about the document…' },
       ],
     }
   }
@@ -429,6 +545,20 @@ function schemaStep(input: GuideInput): StepCard | null {
       ],
     }
   }
+  // Each generation stops here before anything runs: look at the template, or go on to its next step.
+  if (input.view === 'editing' && input.templateReady)
+    return {
+      key: `template-ready:${input.revision.id ?? 'unsaved'}`,
+      title: 'Template ready',
+      question: input.templateShown ? 'Continue once the template looks right.' : 'Look at the template before going on?',
+      detail: [['Template', plural(input.revision.fieldCount, 'field')],
+        ...input.recordScope ? [['Strategy', input.recordScope === 'records' ? 'Catalog' : 'Article'] as const] : []],
+      options: [
+        ...viewTemplate(input).map((option) => ({ ...option, tone: 'positive' as const })),
+        { action: 'continue', label: 'Continue', tone: input.templateShown ? 'positive' : 'secondary' },
+        { ...notYet, label: 'Or describe a change to the template…' },
+      ],
+    }
   if (input.view === 'editing' && input.recordScope === null)
     return {
       key: 'scope',
@@ -444,6 +574,19 @@ function schemaStep(input: GuideInput): StepCard | null {
   return null
 }
 
+/** Why the chat offers to run again: how the last run ended, unless it finished, and whether the template changed since,
+ *  said only once compared (`unknown`: another revision, not yet known to define another template). */
+function rerunQuestion(status: ExtractionExecutionStatus, template: 'same' | 'changed' | 'unknown'): string {
+  const ended = status === 'STOPPED' ? 'The last extraction was stopped' : status === 'FAILED' ? 'The last extraction failed'
+    : status === 'PAUSED' ? 'The last extraction is paused' : null
+  if (ended)
+    return template === 'same' ? `${ended}. Run it again?`
+      : template === 'changed' ? `${ended}, and the template changed since. Run it again?`
+        : `${ended}, and it used another template revision. Run it again?`
+  return template === 'changed' ? 'The template changed since the last run. Run the extraction again?'
+    : 'The last run used another template revision. Run the extraction again?'
+}
+
 /** The latest run's controls while it can go on, else a run (again) of the schema and what a finished one left. */
 function runStep(input: GuideInput): StepCard | null {
   const control = controlStep(input)
@@ -451,9 +594,11 @@ function runStep(input: GuideInput): StepCard | null {
   // Before a schema is ready, or before its scope is chosen, its own steps lead; there is nothing to run yet.
   if (input.view !== 'editing' || !input.run || (!input.readOnly && input.recordScope === null)) return null
   const latest = input.latest
-  // Finished on this revision: what is left to check, and a new run of it, stay here (no "Not yet": the chat is the
+  // The template the last run used is the current one: its revision, or another revision defining the same template.
+  const sameTemplate = latest !== null && (latest.schemaRevisionId === input.revision.id || latest.sameTemplate === true)
+  // Finished on this template: what is left to check, and a new run of it, stay here (no "Not yet": the chat is the
   // only place to re-run).
-  if (latest && latest.status === 'COMPLETED' && latest.schemaRevisionId === input.revision.id) {
+  if (latest && latest.status === 'COMPLETED' && sameTemplate) {
     const toCheck = latest.toCheck && !input.resultsShown ? latest.toCheck : 0
     return {
       key: `finished:${latest.extractionId}`,
@@ -468,21 +613,21 @@ function runStep(input: GuideInput): StepCard | null {
     }
   }
   const rerun = latest !== null
+  const template = !latest || sameTemplate ? 'same' : latest.sameTemplate === false ? 'changed' : 'unknown'
+  const run: StepOption = { action: 'run', label: rerun ? RERUN_LABEL : RUN_LABEL, tone: 'positive', disabled: !input.run.available,
+    description: runDescription(input, rerun) }
+  // Another template than the last run's: look at it before running again, unless it is already in view.
+  const look = template === 'same' ? [] : viewTemplate(input).map((option) => ({ ...option, tone: 'positive' as const }))
   return {
     // "Not yet" holds until another Extraction starts.
     key: `run:${latest?.extractionId ?? 'first'}`,
     title: rerun ? 'Run extraction again' : 'Run extraction',
-    question: rerun ? 'The template changed since the last run. Run the extraction again?' : `Run the extraction on ${input.sourceDocumentName}?`,
+    question: latest ? rerunQuestion(latest.status, template) : `Run the extraction on ${input.sourceDocumentName}?`,
     detail: [
       ['Template', `${input.revision.number !== null ? `revision ${input.revision.number} · ` : ''}${plural(input.revision.fieldCount, 'field')}`],
       ['Strategy', input.recordScope === 'records' ? 'Catalog' : 'Article'],
     ],
     notice: input.run.unavailableReason ?? undefined,
-    options: [
-      { action: 'run', label: rerun ? RERUN_LABEL : RUN_LABEL, tone: 'positive', disabled: !input.run.available,
-        description: runDescription(input, rerun) },
-      ...viewTemplate(input),
-      notYet,
-    ],
+    options: look.length > 0 ? [...look, { ...run, tone: 'secondary' }, notYet] : [run, ...viewTemplate(input), notYet],
   }
 }

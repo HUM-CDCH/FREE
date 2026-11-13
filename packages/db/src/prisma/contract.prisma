@@ -517,7 +517,9 @@ model BatchSchemaSuggestion {
   phase                       BatchSchemaSuggestionPhase?
   proposal                    Json?
   coverage                    Json?
+  // The retained result an apply saves as revision 1; rows edited before 2026-11 keep the researcher's edits.
   draft                       Json?
+  // Retired in 2026-11 with suggestion draft editing: never written or read since; a later migration drops it.
   draftVersion                Int                             @default(0)
   // SPREADSHEET-kind suggestions are built synchronously from the project's
   // shared spreadsheet slot; DOCUMENTS (the default) read Source Documents.
@@ -527,7 +529,9 @@ model BatchSchemaSuggestion {
   columnFieldMapping          Json?
   projectSpreadsheetVersionId Uuid?
   projectSpreadsheetVersion   ProjectSpreadsheetVersion?      @relation(fields:[projectSpreadsheetVersionId], references:[id], onDelete: Restrict)
+  // Revision 1 of the Extraction Schema the retained result was saved as (by an apply, or a confirmation before them).
   confirmedSchemaRevisionId   Uuid?                           @unique
+  // Retired in 2026-11: the batch a confirmation used to start. Never written or read since; a later migration drops it.
   batchExtractionId           Uuid?                           @unique
   createdAt                   Timestamptz6                    @default(now())
   projectContext              ProjectContext                  @relation(fields:[projectContextId], references:[id], onDelete: Cascade)

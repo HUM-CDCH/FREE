@@ -4,7 +4,7 @@ import type {
   ProducerObservation,
   TextProducerObservation,
 } from 'extraction/parsed-document'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 
 export type EvidenceOccurrence = TextProducerObservation | ProducerObservation
 

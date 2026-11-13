@@ -15,7 +15,7 @@ const phases = [
     name: 'Create template',
     copy: 'Describe what you want to extract; a template is drafted.',
   },
-  { number: '03', name: 'Pilot', copy: 'Try the template on a few documents and review the results.' },
+  { number: '03', name: 'Try out', copy: 'Try the template on a few documents and review the results.' },
   { number: '04', name: 'Approve', copy: 'Approve the template for the whole collection.' },
   { number: '05', name: 'Batch extract', copy: 'Run the approved template over every document.' },
   { number: '06', name: 'Review', copy: 'Review each value against its Evidence.' },
@@ -24,7 +24,7 @@ const phases = [
 /**
  * The quiet one-line card meta from the persisted summary: the Source Document
  * count, then the most decision-relevant state — staleness first, then review
- * progress, then schema drafts still in chat.
+ * progress.
  */
 function metaLine(project: ProjectContext): string {
   const count = project.sourceDocumentCount
@@ -34,10 +34,6 @@ function metaLine(project: ProjectContext): string {
     return `${documents} · ${summary.staleSourceDocumentCount} changed since extraction`
   if (summary.extractedSourceDocumentCount > 0)
     return `${documents} · ${summary.reviewedSourceDocumentCount} of ${summary.extractedSourceDocumentCount} reviewed`
-  if (summary.schemaDraftCount > 0)
-    return `${documents} · ${summary.schemaDraftCount} schema ${
-      summary.schemaDraftCount === 1 ? 'draft' : 'drafts'
-    }`
   return documents
 }
 
@@ -198,7 +194,7 @@ export function StudioHome({
 
         {listState.status === 'error' ? (
           <EmptyState
-            className="max-w-sm bg-surface"
+            className="max-w-sm bg-surface [overflow-wrap:anywhere]"
             title="Could not load your projects"
             description={listState.failure.message}
             tone="danger"
@@ -257,13 +253,13 @@ export function StudioHome({
                         <span className="min-w-0">
                           <h2
                             id={`project-${project.projectContextId}-name`}
-                            className="break-words text-secondary font-semibold text-ink"
+                            className="text-secondary font-semibold text-ink [overflow-wrap:anywhere]"
                           >
                             {project.name}
                           </h2>
                           <span
                             id={`project-${project.projectContextId}-count`}
-                            className="mt-1 block break-words text-[11px] text-ink-faint"
+                            className="mt-1 block text-[11px] text-ink-faint [overflow-wrap:anywhere]"
                           >
                             {metaLine(project)}
                           </span>
@@ -312,7 +308,7 @@ export function StudioHome({
                           <span className="text-secondary text-ink">
                             {eventLabels[event.kind]}
                           </span>
-                          <span className="text-compact leading-relaxed text-ink-faint">
+                          <span className="text-compact leading-relaxed text-ink-faint [overflow-wrap:anywhere]">
                             <span className="group-hover:underline">
                               {event.projectContextName}
                             </span>

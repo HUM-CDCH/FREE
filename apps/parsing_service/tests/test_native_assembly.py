@@ -2,14 +2,15 @@
 from types import SimpleNamespace
 
 import pytest
-from docling.datamodel.base_models import Cluster, LayoutPrediction, Page
+from docling.datamodel.base_models import Cluster, LayoutPrediction, Page, Table, TableStructurePrediction
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.models.stages.page_assemble.page_assemble_model import PageAssembleModel, PageAssembleOptions
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
-from docling_core.types.doc import BoundingBox, CoordOrigin, DocItemLabel, Size
+from docling_core.types.doc import BoundingBox, CoordOrigin, DocItemLabel, Size, TableCell
 from docling_core.types.doc.page import BoundingRectangle, TextCell
 
 from kei_exp.transcription.native import PageBoundPipeline
+from kei_exp.transcription.native_tables import align_native_table
 
 
 @pytest.fixture
@@ -55,6 +56,93 @@ def assembled(assembly, clusters):
     output = list(assembly(SimpleNamespace(timings={}), [page]))
     assert output == [page]
     return page.assembled.elements
+
+
+def test_table_grid_cannot_move_native_values_between_printed_rows(assembly):
+    words = [cell(r * 3 + c, text, 10 + 60 * c, 20 + 12 * r, 45 + 60 * c)
+             for r, row in enumerate((('Place', 'Area', 'Year'), ('Site A', 'East', '1700'),
+                                     ('Site B', 'West', '1701'), ('Site C', 'East', '1702'),
+                                     ('Site D', 'West', '1703'))) for c, text in enumerate(row)]
+    layout = cluster(0, words, DocItemLabel.TABLE)
+    predicted = []
+    for row in range(4):
+        for column in range(3):
+            source_rows = [row] if row == 0 else [1, 2] if row == 1 else [3] if row == 2 else [4]
+            if column == 2 and row == 2:
+                source_rows = []
+            if column == 2 and row == 3:
+                source_rows = [3, 4]
+            selected = [words[r * 3 + column] for r in source_rows]
+            predicted.append(TableCell(text=' '.join(w.text for w in selected),
+                start_row_offset_idx=row, end_row_offset_idx=row + 1,
+                start_col_offset_idx=column, end_col_offset_idx=column + 1,
+                column_header=row == 0,
+                bbox=BoundingBox.enclosing_bbox([w.rect.to_bounding_box() for w in selected]) if selected else None))
+    table = Table(id=0, label=DocItemLabel.TABLE, page_no=1, cluster=layout,
+                  num_rows=4, num_cols=3, table_cells=predicted, otsl_seq=[])
+    page = Page(page_no=1, size=Size(width=300, height=200))
+    page._backend = SimpleNamespace(is_valid=lambda: True,
+        get_segmented_page=lambda: SimpleNamespace(get_cells_in_bbox=lambda **_: words))
+    page.predictions.layout = LayoutPrediction(clusters=[layout])
+    page.predictions.tablestructure = TableStructurePrediction(table_map={0: table})
+    list(assembly(SimpleNamespace(timings={}), [page]))
+    assert table.num_rows == 5
+    assert [(c.text, c.start_row_offset_idx) for c in table.table_cells if c.start_col_offset_idx == 2] == [
+        ('Year', 0), ('1700', 1), ('1701', 2), ('1702', 3), ('1703', 4)]
+
+
+def test_consistent_rowspans_and_multiline_cells_are_not_split_into_peer_rows():
+    words = [cell(0, 'Long', 10, 20, 40), cell(1, 'name', 10, 32, 40),
+             cell(2, 'A', 70, 20, 90), cell(3, 'B', 70, 32, 90)]
+    cells = [TableCell(text='Long name', bbox=box(10, 20, 40, 40),
+                start_row_offset_idx=0, end_row_offset_idx=2, start_col_offset_idx=0, end_col_offset_idx=1),
+             TableCell(text='A', bbox=box(70, 20, 90, 28),
+                start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=1, end_col_offset_idx=2),
+             TableCell(text='B', bbox=box(70, 32, 90, 40),
+                start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=1, end_col_offset_idx=2)]
+    table = SimpleNamespace(table_cells=cells, num_rows=2, num_cols=2)
+    align_native_table(table, words)
+    assert table.table_cells is cells and table.num_rows == 2
+    # Both physical lines may also be one legitimate multi-line logical row.
+    for c in cells:
+        c.start_row_offset_idx, c.end_row_offset_idx = 0, 1
+    table.num_rows = 1
+    align_native_table(table, words)
+    assert table.table_cells is cells and table.num_rows == 1
+
+
+def test_contradictory_columns_without_a_geometric_separation_use_the_unreadable_path():
+    words = [cell(0, 'A', 10, 20, 40), cell(1, 'B', 45, 20, 70)]
+    cells = [TableCell(text='A', bbox=box(10, 20, 50, 28),
+                start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1),
+             TableCell(text='B', bbox=box(45, 20, 70, 28),
+                start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=1, end_col_offset_idx=2)]
+    table = SimpleNamespace(table_cells=cells, num_rows=2, num_cols=2)
+    align_native_table(table, words)
+    assert table.table_cells == [] and table.num_rows == table.num_cols == 0
+
+
+def test_native_words_outside_an_incomplete_grid_are_not_discarded():
+    words = [cell(0, 'First', 10, 20, 40), cell(1, '1700', 70, 20, 100),
+             cell(2, 'Last', 10, 32, 40), cell(3, '1701', 70, 32, 100)]
+    cells = [TableCell(text=w.text, bbox=w.rect.to_bounding_box(),
+                start_row_offset_idx=0, end_row_offset_idx=1,
+                start_col_offset_idx=c, end_col_offset_idx=c + 1) for c, w in enumerate(words[:2])]
+    table = SimpleNamespace(table_cells=cells, num_rows=1, num_cols=2)
+    align_native_table(table, words)
+    assert table.num_rows == 2
+    assert [c.text for c in table.table_cells] == ['First', '1700', 'Last', '1701']
+
+
+def test_a_contradictory_grid_with_ambiguous_continuation_lines_uses_the_unreadable_path():
+    words = [cell(0, 'Long', 10, 20, 40), cell(1, 'name', 10, 32, 40), cell(2, '1700', 70, 32, 100)]
+    cells = [TableCell(text='Long name', bbox=box(10, 20, 40, 40),
+                start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1),
+             TableCell(text='1700', bbox=box(70, 32, 100, 40),
+                start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=1, end_col_offset_idx=2)]
+    table = SimpleNamespace(table_cells=cells, num_rows=2, num_cols=2)
+    align_native_table(table, words)
+    assert table.table_cells == [] and table.num_rows == table.num_cols == 0
 
 
 def test_interleaved_paragraphs_keep_the_source_lines_in_reading_order(assembly):

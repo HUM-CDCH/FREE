@@ -1,4 +1,4 @@
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import type { SchemaNode } from 'extraction/schema'
 
 /** A researcher's decision on a value, as the rail shows it. */
@@ -44,8 +44,8 @@ export type RailRow = {
   /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
   disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
   page: number | null
-  /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
-  retained?: { reviewable: boolean; source?: string; attribution?: string }
+  /** Retained values can be reviewed without a model Evidence link. */
+  retained?: { reviewable: boolean; attribution?: string }
 }
 
 export type RailRecord = {
@@ -78,9 +78,14 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
     case 'reading': return 'Reading'
     case 'checking': return 'Checking'
     case 'queued': return 'Queued'
-    default: return row.evidence?.label ?? 'Not reviewable'
+    default: return row.evidence?.label ?? 'Can\'t be checked'
   }
 }
+
+/** A field's name as the researcher reads it in Results and on a mark: `site_name` and `siteName` as "site name" (its
+ *  element capitalises the first letter). The Template keeps the name as written. */
+export const fieldWords = (name: string) =>
+  name.replace(/_+/g, ' ').replace(/([a-z\d])([A-Z])(?=[a-z])/g, (_, before: string, capital: string) => `${before} ${capital.toLowerCase()}`).trim()
 
 /** Preserve the shape of typed composite values while showing absent values clearly. */
 export const shownValue = (value: unknown) =>
@@ -112,31 +117,12 @@ export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>
   filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null : isNotReviewable(row.kind))
 
-/** A doubtful link (`evidenceCheck`'s two reasons); checks describe the extracted value, so none after an edit or a
- *  rejection. */
-export function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewAction): string | null {
+/** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
+ *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
+ *  name (`doubt`, `doubtful`); the researcher reads "Not an exact match, please double check". */
+export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
-  if (link.verbatim === false) return 'Value not found in the linked passage'
-  const others = (link.lexicalHits ?? 1) - 1
-  if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
+  if (link.verbatim === false) return 'Not an exact match, please double check'
   return null
 }
 
-/** What tied a recipe or unified Catalog value to its field, in the researcher's words; it describes the extracted
- *  value, so none after an edit or a rejection. */
-export function groundingDetail(link: EvidenceLink, action?: ReviewAction): string | null {
-  const grounding = link.grounding
-  if (!grounding || action === 'EDITED' || action === 'REJECTED') return null
-  const literal = 'support' in grounding && grounding.support === 'literal'
-  const parts = ['support' in grounding
-    ? grounding.linkedBy === 'verification'
-      ? (literal ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
-      : (literal ? 'Located by code; the value is printed in the entry' : 'Located by code in a supporting passage; no verifier checked it')
-    : grounding.linkedBy === 'key' ? 'Read after its printed key'
-      : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
-        : 'Entry number from the segmentation']
-  const others = grounding.alternatives.length
-  if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
-  if (!('support' in grounding) && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
-  return parts.join(' · ')
-}

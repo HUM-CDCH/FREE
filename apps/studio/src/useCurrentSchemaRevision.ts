@@ -57,8 +57,6 @@ export type DurableSchemaScope = {
   extractionSchema:
     | (AcknowledgedSchemaRevision & { sourceCoverage?: SourceCoverage | null })
     | null
-  /** Save debounce; the Batch prepare screen passes 0, the workspace 1500. */
-  debounceMs?: number
   /**
    * Present in document workspaces so chat-driven edits resolve a full model
    * context (including the source representation). Omitted scopes resolve a
@@ -116,7 +114,6 @@ export function useDurableCurrentSchemaRevision(
     const persistence = durableSchemaPersistence({
       projectContextId: scope.projectContextId,
       initial,
-      debounceMs: scope.debounceMs,
       append: (extractionSchemaId, expectedRevisionNumber, definition, sourceCoverage, recordScope) =>
         appendSchemaRevision(
           scope.projectContextId,
@@ -206,13 +203,12 @@ export function useDurableCurrentSchemaRevision(
     }
   }, [controller, recoveryResourceId])
 
-  // Warn before leaving with an unsaved durable draft. The Batch prepare
-  // screen gains this guard through unification; the workspace always had it.
+  // Warn before leaving with an unsaved durable draft, wherever the editor is.
   useEffect(() => {
     let detach: (() => void) | null = null
     const sync = () => {
       const save = controller.snapshot().save
-      const shouldWarn = save !== null && save.status !== 'saved'
+      const shouldWarn = controller.snapshot().input !== null || (save !== null && save.status !== 'saved')
       if (shouldWarn && detach === null) {
         const warn = (event: BeforeUnloadEvent) => {
           if (!isAuthenticationRedirecting()) event.preventDefault()

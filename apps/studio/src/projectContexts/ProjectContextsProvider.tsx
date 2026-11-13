@@ -607,9 +607,11 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
               sourceDocuments.length,
             ),
           )
-          // Deleting the last Source Document moves the persisted phase back
-          // to 'ingest' — refresh the list so the stepper reflects it.
-          if (sourceDocuments.length === 0) reloadList.current()
+          // A deleted document takes its Extractions and reviews with it: the
+          // summary's counts, and the phase (back to upload when it was the
+          // last, or to the trial when it held the only reviewed one before an
+          // approval), are read again.
+          reloadList.current()
         }
         return null
       } catch (error) {

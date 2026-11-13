@@ -22,11 +22,6 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       if (!result) throw new ExtractionError('not_found', 'That Project Context was not found.')
       return result
     },
-    async scheduleSuggestedBatch(input) {
-      const result = await persistence.scheduleSuggestedBatch(input)
-      if (!result) throw new ExtractionError('not_found', 'That Schema Suggestion was not found.')
-      return result
-    },
     async stabiliseSchemaRevision(input) {
       const result = await persistence.stabiliseSchemaRevision(input)
       if (result === 'not-found')
@@ -34,7 +29,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       if (result === 'not-ready')
         throw new ExtractionError(
           'schema_not_ready_to_stabilise',
-          'Review at least one pilot Extraction against this Schema Revision before approving it for Batch Extraction.',
+          'Review at least one trial Extraction against this Schema Revision before approving it for Batch Extraction.',
         )
       return result
     },

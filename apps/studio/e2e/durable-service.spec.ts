@@ -4,6 +4,7 @@ import {readFile,writeFile} from 'node:fs/promises'
 import {expect,test,type Page} from '@playwright/test'
 import {withPoolClientTransaction} from 'db'
 import {initializeDurableExtraction} from 'extraction/durable'
+import type {DurableValue} from 'extraction/durable-contract'
 import type {SchemaNode} from 'extraction/schema'
 import {E2E_ORIGIN,loginResearcher} from './auth.js'
 import {cataloguePdf,numberedCataloguePdf,startRealService,textPdf} from './realService.js'
@@ -162,7 +163,7 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     expect(read.size).toBeGreaterThan(0)
     expect([...paused].sort()).toEqual([...read].sort())
     // The chat's step notice says the same: the count is the Results view's.
-    await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
+    await expect(rail.getByRole('group',{name:'Results status'}).getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
     await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
     await expect.poll(async()=>{
       const head=await state()
@@ -213,8 +214,13 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(correction.candidate.grounded).toBe(false)
     expect(correction.included).toBe(true)
     const exampleContext=JSON.parse(correction.candidate.sourceContext)
+    // Drawing metadata stays on saved Evidence, outside model guidance (ADRs 0029 and 0031).
+    const modelEvidence=value.evidence.map(({producer,...link}:DurableValue['evidence'][number])=>({
+      ...link,producer:Object.fromEntries(Object.entries(producer).filter(([key])=>key!=='location'&&key!=='value_boxes_pt')),
+    }))
     expect(exampleContext).toMatchObject({sourceRevisionId:headA.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue,
-      correctionEvidence:[],modelEvidence:value.evidence,modelGrounding:value.grounding})
+      correctionEvidence:[],modelGrounding:value.grounding})
+    expect(exampleContext.modelEvidence).toEqual(modelEvidence)
     const pinnedA=await (await page.request.get(`/api/extractions/${extractionA}/durable/source`)).json()
     if(exampleContext.source.scope==='document')expect(exampleContext.source.text).toBe(pinnedA.markdown)
     else expect(exampleContext.source.excerpts.length).toBeGreaterThan(0)
@@ -271,6 +277,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       expect(later.request.body.system).not.toContain('Researcher guidance sentinel')
     }
     const retainedA=(await (await page.request.get(valueUrl)).json()).values[0]
+    expect(retainedA.evidence).toEqual(value.evidence)
     expect(retainedA.correction.decision.value).toEqual(corrected)
     expect(retainedA.correction.included).toBe(false)
     await openRailView(page,'Results')
@@ -298,9 +305,9 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       })
       await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
       await openRailView(page,'Results')
-      await expect(page.getByRole('region',{name:'Pilot review'})).toContainText('0 of 2 documents reviewed')
+      await expect(page.getByRole('region',{name:'Review the trial results'})).toContainText('0 of 2 documents reviewed')
       await page.getByRole('button',{name:'Save review',exact:true}).click()
-      await expect(page.getByRole('region',{name:'Pilot review'})).toContainText('1 of 2 documents reviewed')
+      await expect(page.getByRole('region',{name:'Review the trial results'})).toContainText('1 of 2 documents reviewed')
       const batch=await (await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)).json()
       await writeFile(info.outputPath('native-pilot-review.json'),JSON.stringify(batch,null,2))
       await page.getByRole('button',{name:'Next document'}).click()
@@ -566,7 +573,7 @@ test('a real bounded Article retains two title readings through worker publicati
     await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
     await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title/}).click()
-    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByText('Different readings',{exact:true})).toBeVisible()
     await expect(page.getByRole('button',{name:'Use Ecology of Rivers'})).toBeVisible()
     await expect(page.getByRole('button',{name:'Use A History of Clocks'})).toBeVisible()
     await expect(page.getByText(/read in .*not checked/)).toHaveCount(2)

@@ -95,11 +95,16 @@ Discovery's reply is streamed by the transport only: the captured request is
 sent unchanged plus the provider's `stream` and usage options, and the call is
 read, checked and committed exactly as an unstreamed one (a server that ignores
 the stream answers once and is read as before). While it is generated, the
-worker shows the places it has completed, and the planner the record starts
-earlier windows found, as DBOS events Studio reads for display only; nothing in
-a run reads them back, and failing to write them never fails a call. Once discovery
-finishes, its saved record starts keep the Catalog marks visible while entries
-are read.
+worker shows the places it has completed, and the planner the records
+earlier windows found, each with the text up to its window's next place, as
+DBOS events Studio reads for display only; nothing in a run reads them back,
+and failing to write them never fails a call. The source shows each as a
+dashed record preview, whose limits may still change. A record the saved plan
+lists (the whole list, or the unified Catalog's partial list while discovery
+still reads) shows the text it owns as a solid outline, which replaces its
+preview and stays until the run settles. A record outline is never Evidence:
+it is no link, and nothing selects, reviews or exports it. (Until 12 November
+2026 a record showed as one mark on the block it starts in.)
 
 During a live Article or Catalog run, a saved provisional string value may also
 highlight its unique, exact occurrence in the pinned source as a dashed preview.

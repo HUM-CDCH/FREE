@@ -53,7 +53,7 @@ def evidence(*texts: str, withheld: tuple[Passage, ...] = ()) -> Evidence:
 
 
 def section(user: str, name: str) -> str:
-    match = re.search(rf"### {name}\n(.*?)(?:\n### END {name}|\n\n### |\n\nReturn the JSON)", user, re.S)
+    match = re.search(rf"### {re.escape(name)}\n(.*?)(?:\n### END {name}|\n\n### |\n\nReturn the JSON)", user, re.S)
     return match[1] if match else ""
 
 
@@ -893,13 +893,14 @@ def test_the_children_pass_over_1500_records_stays_fast():
     assert_accounted(source, {"discovery": result})
 
 
-def test_defaults_8_reads_a_child_record_beside_its_parents_text():
+@pytest.mark.parametrize("defaults", [8, 9])
+def test_current_methods_read_a_child_record_beside_its_parents_text(defaults):
     source = evidence("\n".join(GRAVES[:4]) + "\nMaterial: Holz.\n" + GRAVES[4])
     model = Model(source, discovery=lambda user: {"places": [["L1", "record", "Grave 1"], ["L6", "record", "Grave 2"]],
                                                   "begins_inside_record": False, "ends_inside_record": False},
                   children=lambda user: {"children": [["L3", "L3", "1."], ["L4", "L4", "2."]]})
-    result, chat = extract(source, model, defaults=8)
-    assert (result["execution"]["discovery_version"], result["prompt_version"]) == (11, 10)
+    result, chat = extract(source, model, defaults=defaults)
+    assert (result["execution"]["discovery_version"], result["prompt_version"]) == ((11, 10) if defaults == 8 else (12, 11))
     reads = [call for call in chat.calls if call["system"].startswith("You extract structured data from one record")]
     child = [call for call in reads if "is printed inside another record" in call["system"]]
     assert len(reads) == 4 and len(child) == 2
@@ -991,7 +992,7 @@ def test_source_invalid_boundaries_retry_bounded_halves_without_publishing_the_s
     assert all(call["ok"] for call in result["calls"])
     assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
     assert all(found["label"] != "Alpha" for snapshot in shown for found in snapshot)
-    assert shown[-1] == [{"segment": "p1_s0", "label": "1."}, {"segment": "p1_s0", "label": "2."}]
+    assert [(found["segment"], found["label"]) for found in shown[-1]] == [("p1_s0", "1."), ("p1_s0", "2.")]
     assert all(len(snapshot) == len({item["label"] for item in snapshot}) for snapshot in shown)
     assert_accounted(source, {"discovery": result})
 
@@ -1430,6 +1431,16 @@ def test_a_yes_no_value_has_a_supporting_passage_never_a_literal_span():
     result, _ = extract(source)
     (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "gilded"]]
     assert link["support"] == "supporting" and link["verbatim"] is False and link["raw"] == "Gilded"
+
+
+@pytest.mark.parametrize(('printed', 'value'), [('Alpha*', 'Alpha'), ('A*B', 'A*B')])
+def test_a_text_value_is_located_without_editing_its_quote_or_stripping_punctuation(printed, value):
+    source = evidence(f'1. Adorf. Site: {printed}.')
+    result, _ = extract(source, Model(source, entry=noted(None, site=candidate(value, printed))),
+                        schema=NOTES, defaults=9)
+    assert result['records'][0]['site'] == value
+    (link,) = [link for link in result['evidence'] if link['path'] == ['records', 0, 'site']]
+    assert link['raw'] == value and link['support'] == 'literal'
 
 
 def test_a_list_item_value_printed_in_several_items_is_its_own_items():
@@ -1984,13 +1995,256 @@ def test_the_defaults_and_option_bounds_match_the_shared_fixture():
             unified.UnifiedOptions.model_validate(options)
 
 
+def test_current_method_changes_record_scope_and_text_completeness_without_rewriting_pinned_methods():
+    source = evidence("1. Harbour A (North Island). Material: wood.")
+    old, old_chat = extract(source, defaults=8)
+    current, current_chat = extract(source, defaults=9)
+    old_discovery = next(c['system'] for c in old_chat.calls if c['system'].startswith('You find where'))
+    current_discovery = next(c['system'] for c in current_chat.calls if c['system'].startswith('You find where'))
+    assert unified.DISCOVERY_SCOPE in old_discovery
+    assert unified.DISCOVERY_SCOPE_V9 in current_discovery
+    old_entry = next(c['system'] for c in old_chat.calls if c['system'].startswith('You extract structured'))
+    current_entry = next(c['system'] for c in current_chat.calls if c['system'].startswith('You extract structured'))
+    assert unified.COMPLETE_TEXT_V9 not in old_entry and unified.COMPLETE_TEXT_V9 in current_entry
+    assert old['prompt_version'] == 10 and old['discovery']['version'] == 11
+    assert current['prompt_version'] == 11 and current['discovery']['version'] == 12
+    assert current['execution']['effective']['children'] is True
+    assert current['records'] == old['records']
+
+
+@pytest.mark.parametrize('defaults', [8, 9])
+@pytest.mark.parametrize('inside_table', [False, True])
+def test_table_qualifications_are_shared_context_not_record_text(defaults, inside_table):
+    note = 'Units and reference-marker meanings apply to every entry above.'
+    table = 'Entry\tMaterial\n1. Alpha.\twood\n2. Beta.\tstone'
+    qualifications = note + '\nUnrelated continuation.'
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 1, (
+        passage('p1_s0', table + ('\n' + qualifications if inside_table else ''), label='Table'),
+        *(() if inside_table else (passage('p1_s1', qualifications),)),
+        passage('p1_s2', 'Another section', label='SectionHeader'),
+        passage('p1_s3', 'Unrelated text after the next heading.')))
+    def boundaries(user):
+        return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'record', '2.'],
+                           ['L4', 'context' if defaults == 9 else 'other', None], ['L5', 'other', None]],
+                'begins_inside_record': False, 'ends_inside_record': False}
+    result, chat = extract(source, Model(source, discovery=boundaries), defaults=defaults)
+    reads = [c for c in chat.calls if c['system'].startswith('You extract structured')]
+    assert len(reads) == 2
+    for call in reads:
+        assert (note in section(call['user'], 'CONTEXT (not part of the record)')) == (defaults == 9)
+        assert note not in section(call['user'], 'RECORD')
+        assert 'Another section' not in section(call['user'], 'CONTEXT (not part of the record)')
+        assert 'Unrelated continuation.' not in section(call['user'], 'CONTEXT (not part of the record)')
+    assert all(r['segment'] != 'p1_s1' for e in result['discovery']['entries'] for r in e['ranges'])
+    assert_accounted(source, result)
+
+
+@pytest.mark.parametrize('lines', [1, 2, 4])  # 4: more than the CONTEXT_UNITS lines an entry keeps before it
+def test_a_table_qualification_between_entries_is_shared_once(lines):
+    notes = [f'Note {i} applies to every entry.' for i in range(lines)]
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 1, (
+        passage('p1_s0', '\n'.join(['Entry\tMaterial', '1. Alpha.\twood', *notes, '2. Beta.\tstone']), label='Table'),))
+    def boundaries(user):
+        return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'context', None],
+                           [f'L{3 + lines}', 'record', '2.']],
+                'begins_inside_record': False, 'ends_inside_record': False}
+    result, chat = extract(source, Model(source, discovery=boundaries), defaults=9)
+    reads = [c for c in chat.calls if c['system'].startswith('You extract structured')]
+    assert len(reads) == 2
+    for call in reads:
+        context = section(call['user'], 'CONTEXT (not part of the record)')
+        assert [context.count(note) for note in notes] == [1] * lines
+    assert_accounted(source, result)
+
+
+@pytest.mark.parametrize('ordinary_first', [False, True])
+def test_ordinary_text_ends_table_qualifications_at_its_exact_range(ordinary_first):
+    note, later_note = 'Units apply to the preceding entries.', 'Later shared qualifications.'
+    paragraph = '\n'.join(['Ordinary narrative.', note] if ordinary_first else [note, 'Ordinary narrative.'])
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 1, (
+        passage('p1_s0', 'Entry\tMaterial\n1. Alpha.\twood\n2. Beta.\tstone', label='Table'),
+        passage('p1_s1', paragraph), passage('p1_s2', later_note),
+        passage('p1_s3', 'Another section', label='SectionHeader')))
+    def boundaries(user):
+        return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'record', '2.'],
+                           ['L4', 'other' if ordinary_first else 'context', None],
+                           ['L5', 'context' if ordinary_first else 'other', None],
+                           ['L6', 'context', None], ['L7', 'other', None]],
+                'begins_inside_record': False, 'ends_inside_record': False}
+    result, chat = extract(source, Model(source, discovery=boundaries), defaults=9)
+    for call in (c for c in chat.calls if c['system'].startswith('You extract structured')):
+        context = section(call['user'], 'CONTEXT (not part of the record)')
+        assert (note in context) == (not ordinary_first)
+        assert later_note not in context and 'Ordinary narrative.' not in context
+    assert_accounted(source, result)
+
+
+def test_a_prefix_holds_back_the_entries_of_a_table_whose_following_notes_are_not_all_read():
+    """Defaults 10 reads an entry before discovery ends only once its context is final (`table_notes`)."""
+    source = Evidence('run-u', 'g1', 'd1', 'table.pdf', 2, (
+        passage('p1_s0', '1. Alpha.\twood\n2. Beta.\tstone', label='Table'), passage('p1_s1', 'Units are cm.'),
+        passage('p1_s2', 'Ordinary narrative.'), passage('p2_s0', '3. Gamma.\tclay', label='Table'),
+        passage('p2_s1', 'Later units.')))
+
+    def row(segment, start, end, entry=None, shared=False):
+        return {'segment': segment, 'start': start, 'end': end, 'disposition': 'entry' if entry else 'other',
+                'entry': entry} | ({'shared_context': True} if shared else {})
+    rows = [row('p1_s0', 0, 14, 'one'), row('p1_s0', 15, 30, 'two'), row('p1_s1', 0, 13, shared=True),
+            row('p1_s2', 0, 19), row('p2_s0', 0, 14, 'three'), row('p2_s1', 0, 12, shared=True)]
+    entries = [{'id': name, 'label': None, 'context': [], 'ranges': [{k: each[k] for k in ('segment', 'start', 'end')}]}
+               for name, each in (('one', rows[0]), ('two', rows[1]), ('three', rows[4]))]
+
+    def read(count, complete=False):
+        body = discovery.table_notes({'entries': entries, 'ledger': rows[:count]}, source, complete)
+        return [(entry['id'], [each['segment'] for each in entry['context']]) for entry in body['entries']]
+    # The segment read last may be read in part: more notes may follow in it, so the table's entries wait.
+    assert read(3) == []
+    # Ordinary text ends the notes wherever it is read, so the first table's entries are final with their note.
+    assert read(4) == read(5) == [('one', ['p1_s1']), ('two', ['p1_s1'])]
+    assert read(6) == [('one', ['p1_s1']), ('two', ['p1_s1'])]  # the second table's note may go on
+    assert read(6, complete=True) == [('one', ['p1_s1']), ('two', ['p1_s1']), ('three', ['p2_s1'])]
+
+
+def grave_lines(count=4):
+    return [line for n in range(1, count + 1)
+            for line in (f"Grave {n}. Inhumation.", "Finds:", f"1. Bowl {n}.", f"2. Pin {n}.")]
+
+
+def numbered_children(user):
+    return {"children": [[label, label, text.split()[0]] for label, text in re.findall(r"^\[(L\d+)\] (.*)$", user, re.M)
+                         if re.match(r"\d+\. ", text)]}
+
+
+def test_children_windows_never_cross_a_cut_so_a_prefix_carves_what_the_whole_body_does():
+    """Defaults 10: `cuts` are the entries each discovery window settles. No children window crosses one, so the
+    windows of the entries a prefix holds are the complete body's, whatever is found later."""
+    source, body = one_window(grave_lines(), [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
+    asked, unanswered = [], ()
+
+    class Pending(BaseException):
+        pass
+
+    def ask(record, system, user, schema, calls, issues):
+        asked.append(user)
+        if user in unanswered:
+            raise Pending()
+        return numbered_children(user)
+
+    def carve(held=4, complete=True, **options):  # six lines a window: a grave and a half
+        asked.clear()
+        return discovery.children({**body, "entries": body["entries"][:held], "complete": complete}, source,
+                                  "One grave or find.", lambda _s, user, _r: user.count("[L") <= 6, ask, **options)
+    legacy = carve()
+    assert len(asked) == 3 and len(legacy["entries"]) == 12 and legacy["complete"] is True
+    # One discovery window settles nothing before the source ends: its cut is none, and the body is carved as before.
+    asked_before = list(asked)
+    assert carve(cuts=[3]) == legacy and asked == asked_before
+    # Cut after grave 1 and after grave 3 (the last window's own cut, 4 here, is none): grave 1 alone, graves 2 and 3
+    # in two windows, grave 4 alone.
+    whole = carve(cuts=[1, 3, 4])
+    windows = list(asked)
+    assert len(windows) == 4 and whole["entries"] == legacy["entries"] and whole["complete"] is True
+    # A prefix holding grave 1 asks its window alone; one holding graves 1 to 3 the first three windows. Grave 4,
+    # after the last cut of a body that is not complete, waits.
+    part = carve(1, False, cuts=[1])
+    assert asked == windows[:1] and part["complete"] is False and part["entries"] == whole["entries"][:3]
+    part = carve(4, False, cuts=[1, 3])
+    assert asked == windows[:3] and part["complete"] is False and part["entries"] == whole["entries"][:9]
+    # A cut beyond the entries held is not reached yet: a table's entries wait for its notes (`table_notes`).
+    part = carve(2, False, cuts=[1, 3])
+    assert asked == windows[:1] and part["entries"] == whole["entries"][:3]
+    # A window not answered yet is no error: the others are asked, and only the entries before its first line's are
+    # carved. Grave 2 begins in the second window.
+    unanswered = (windows[1],)
+    part = carve(cuts=[1, 3, 4], unanswered=(Pending,))
+    assert asked == windows and part["complete"] is False and part["entries"] == whole["entries"][:3]
+    unanswered = ()
+    assert carve(cuts=[1, 3, 4], unanswered=(Pending,)) == whole
+
+
+def test_a_line_that_fits_no_children_request_undoes_nothing_an_earlier_prefix_carved():
+    """Found by review: a record found later (a label too long for any request) must not change the records a durable
+    run of defaults 10 has already listed and saved. Its own batch asks no window; defaults 8 and 9 then ask none."""
+    source, body = one_window(grave_lines(), [[f"L{4 * n + 1}", "record", f"Grave {n + 1}"] for n in range(4)])
+
+    def ask(record, system, user, schema, calls, issues):
+        return numbered_children(user)
+
+    def carve(held, complete=True, **options):  # nothing of record 4 fits a request
+        return discovery.children({**body, "entries": body["entries"][:held], "complete": complete}, source,
+                                  "One grave or find.", lambda _s, user, _r: "RECORD 4" not in user, ask, **options)
+    early = carve(2, False, cuts=[1, 2])
+    late = carve(4, False, cuts=[1, 2, 3])
+    final = carve(4, cuts=[1, 2, 3, 3])
+    assert len(early["entries"]) == 6 and early["entries"] == final["entries"][:6]
+    assert len(late["entries"]) == 9 and late["entries"] == final["entries"][:9]
+    assert [entry["label"] for entry in final["entries"]][9:] == ["Grave 4"]
+    assert final["children"] == {"windows": 3, "failed": 1} and [issue.code for issue in final["issues"]] == [
+        "children_window_failed"]
+    legacy = carve(4)
+    assert legacy["children"] == {"windows": 0, "failed": 1} and len(legacy["entries"]) == 4
+
+    def middle(held, complete=True, **options):  # nothing of record 2 fits: the batches around it are carved
+        return discovery.children({**body, "entries": body["entries"][:held], "complete": complete}, source,
+                                  "One grave or find.", lambda _s, user, _r: "RECORD 2" not in user, ask, **options)
+    final = middle(4, cuts=[1, 2, 3, 3])
+    assert [entry["label"] for entry in final["entries"]] == ["Grave 1", "1.", "2.", "Grave 2", "Grave 3", "1.", "2.",
+                                                              "Grave 4", "1.", "2."]
+    assert final["children"] == {"windows": 3, "failed": 1}
+    assert middle(2, False, cuts=[1, 2])["entries"] == final["entries"][:4]
+
+
+@pytest.mark.parametrize("variant", ["plain", "failed", "continued", "halved"])
+def test_the_cuts_of_a_prefix_are_those_of_the_whole_discovery(variant):
+    """`_assemble`: the entries each window settles do not depend on the windows read after it, also when a window
+    fails, when a page reprints the open record's label and goes on with it, and when a window is read in halves."""
+    pages = ["\n".join(grave_lines(8)[first:first + 8]) for first in range(0, 32, 8)]
+    if variant == "continued":
+        pages[2] = "Grave 4. Further finds.\n3. Cup 4.\n" + pages[2]
+    source = evidence(*pages)
+
+    def ask(record, system, user, schema, calls, issues):
+        lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
+        if variant == "failed" and any(text.startswith("Grave 3.") for _, text in lines):
+            return None
+        if variant == "halved" and sum(text.startswith("Grave") for _, text in lines) == 2 and "Grave 5." in user:
+            return None  # the third page is read again in halves
+        after = section(user, "CONTEXT AFTER")
+        return {"places": [[label, "record", text.split(".")[0]] for label, text in lines if text.startswith("Grave")],
+                "begins_inside_record": not lines[0][1].startswith("Grave"),
+                "ends_inside_record": bool(after) and not after.startswith("Grave")}
+
+    class Pending(BaseException):
+        pass
+
+    def read(windows):
+        def some(record, system, user, *rest):
+            if f"Grave {2 * windows + 1}." in section(user, "WINDOW"):
+                raise Pending()
+            return ask(record, system, user, *rest)
+        return discovery.discover(source, "grave", lambda *_: True, some, overlap=1, by="page", workers=1,
+                                  splits=1 if variant == "halved" else 0, frontier=True, unanswered=(Pending,))
+    whole = read(4)
+    assert whole["complete"] and whole["cuts"] == sorted(whole["cuts"])
+    if variant == "plain":  # each page holds two graves; the last one read may go on, so it waits
+        assert whole["cuts"] == [1, 3, 5, 7] and len(whole["entries"]) == 8
+    for windows in (1, 2, 3):
+        part = read(windows)
+        assert not part["complete"] and part["cuts"] == whole["cuts"][:len(part["cuts"])]
+        assert part["entries"] == whole["entries"][:part["cuts"][-1]]
+
+
 def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_found():
     from kei_exp.kie.extract.discovery import Window, _Seen, record_starts
     from kei_exp.kie.extract.windows import Unit
     window = Window((Unit("p1_s0", 0, 10), Unit("p1_s1", 0, 8)))
     seen = [_Seen(window, True, [(0, 0, "record", "1"), (1, 3, "other", None), (1, 4, "record", None)]),
             _Seen(window, False, [])]
-    assert record_starts(seen) == [{"segment": "p1_s0", "label": "1"}, {"segment": "p1_s1", "label": None}]
+    # Each with the text up to its window's next place, one segment's lines joined: a preview of its block.
+    assert record_starts(seen) == [
+        {"segment": "p1_s0", "label": "1", "ranges": [{"segment": "p1_s0", "start": 0, "end": 10},
+                                                      {"segment": "p1_s1", "start": 0, "end": 3}]},
+        {"segment": "p1_s1", "label": None, "ranges": [{"segment": "p1_s1", "start": 4, "end": 8}]}]
 
 
 def test_a_continued_record_with_gaps_keeps_values_and_source_links_in_its_own_ranges():

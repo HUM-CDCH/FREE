@@ -21,6 +21,7 @@ import { createSourceRepresentationResource } from '../api/source_representation
 import {
   createGetExtractionSchemas,
   createPatchExtractionSchema,
+  createPostExtractionSchema,
 } from '../api/extraction_schemas.js'
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { createPostGenerateSchema } from '../api/generate_schema.js'
@@ -202,7 +203,6 @@ type ModelSpies = {
 type ExtractionEffects = {
   singleExecutions: string[]
   batchExecutions: string[]
-  suggestedBatchExecutions: string[]
 }
 
 type TwoAccountStores = {
@@ -326,6 +326,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
       listProjectChatEntries: vi.fn(async () => null),
       appendProjectChatEntries: vi.fn(async () => null),
       deleteProjectChatEntry: vi.fn(async () => null),
+      clearProjectChatEntries: vi.fn(async () => null),
       listLatestExtractions: vi.fn(async () => null),
       createProjectContext: vi.fn(async (name) => {
         const projectContextId =
@@ -447,7 +448,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
       createBatchSchemaSuggestion: vi.fn(async () => null),
       getBatchSchemaSuggestion: vi.fn(async () => null),
       listBatchSchemaSuggestions: vi.fn(async () => null),
-      updateBatchSchemaSuggestionDraft: vi.fn(async () => null),
+      applyBatchSchemaSuggestion: vi.fn(async () => null),
       retryBatchSchemaSuggestion: vi.fn(async () => null),
       createSpreadsheetSchemaSuggestion: vi.fn(async () => null),
       appendProjectSpreadsheetVersion: vi.fn(async () => null),
@@ -463,6 +464,10 @@ function twoAccountStoreFixture(): TwoAccountStores {
               revision: storedRevision(relationship, schemaTree),
             }
           : null
+      }),
+      createExtractionSchema: vi.fn(async (projectContextId, schemaTree) => {
+        const relationship = owned(accountId, projectContextId)
+        return relationship ? storedRevision(relationship, schemaTree) : null
       }),
       listExtractionSchemas: vi.fn(async (projectContextId) => {
         const relationship = owned(accountId, projectContextId)
@@ -615,7 +620,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
   const extractionEffects: ExtractionEffects = {
     singleExecutions: [],
     batchExecutions: [],
-    suggestedBatchExecutions: [],
   }
   const extractionModules: Record<string, ExtractionModule> = {}
   const notFound = () =>
@@ -667,21 +671,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
           throw notFound()
         extractionEffects.batchExecutions.push(input.projectContextId)
         throw new Error('Authorized Batch execution is outside this test.')
-      }),
-      scheduleSuggestedBatch: vi.fn<ExtractionModule['scheduleSuggestedBatch']>(async (input) => {
-        const ownedSuggestionId =
-          accountId === ids.accountA
-            ? ids.batchSuggestionA
-            : ids.batchSuggestionB
-        if (
-          input.projectContextId !== relationship.projectId ||
-          input.batchSchemaSuggestionId !== ownedSuggestionId
-        )
-          throw notFound()
-        extractionEffects.suggestedBatchExecutions.push(
-          input.batchSchemaSuggestionId,
-        )
-        throw new Error('Authorized suggested Batch is outside this test.')
       }),
       listBatches: vi.fn<ExtractionModule['listBatches']>(async (input) => {
         if (input.projectContextId !== relationship.projectId) throw notFound()
@@ -759,6 +748,7 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     }),
     '../api/extraction_schemas.ts': researcherModule((store) => ({
       GET: createGetExtractionSchemas(store),
+      POST: createPostExtractionSchema(store),
       PATCH: createPatchExtractionSchema(store),
     })),
     '../api/schema_revisions.ts': researcherModule((store) =>
@@ -1052,11 +1042,13 @@ describe('two-account project and source API isolation', () => {
       [`/api/project-contexts/${ids.projectB}/chat`, {}],
       [`/api/project-contexts/${ids.projectB}/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entries: [entry] }) }],
       [`/api/project-contexts/${ids.projectB}/chat/${ids.operationB}`, { method: 'DELETE' }],
+      [`/api/project-contexts/${ids.projectB}/chat`, { method: 'DELETE' }],
     ] as const)
       await expectPrivateNotFound(await api(fixture, ids.accountA, pathname, init), forbiddenB)
     expect(aliceStore.listProjectChatEntries).toHaveBeenCalledWith(ids.projectB, 1000)
     expect(aliceStore.appendProjectChatEntries).toHaveBeenCalledWith(ids.projectB, [entry])
     expect(aliceStore.deleteProjectChatEntry).toHaveBeenCalledWith(ids.projectB, ids.operationB)
+    expect(aliceStore.clearProjectChatEntries).toHaveBeenCalledWith(ids.projectB)
   })
 
   it('rejects cross-owner ingest and deletion before staging, a workflow, or mutation', async () => {
@@ -1115,6 +1107,18 @@ describe('two-account schema, revision, suggestion, and editing isolation', () =
         fixture,
         ids.accountA,
         `/api/extraction-schemas?projectContextId=${ids.projectB}`,
+      ),
+      forbiddenB,
+    )
+    await expectPrivateNotFound(
+      await api(
+        fixture,
+        ids.accountA,
+        '/api/extraction-schemas',
+        jsonRequest('POST', {
+          projectContextId: ids.projectB,
+          ...schemaDefinition,
+        }),
       ),
       forbiddenB,
     )
@@ -1419,20 +1423,8 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
       await api(
         fixture,
         ids.accountA,
-        `/api/batch-schema-suggestions/${ids.batchSuggestionB}/draft?projectContextId=${ids.projectA}`,
-        jsonRequest('PATCH', {
-          expectedDraftVersion: 1,
-          ...schemaDefinition,
-        }),
-      ),
-      forbiddenB,
-    )
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        `/api/batch-schema-suggestions/${ids.batchSuggestionB}/run?projectContextId=${ids.projectA}`,
-        jsonRequest('POST', { strategy: 'ARTICLE', method: { models: null, settings: { article: null } } }),
+        `/api/batch-schema-suggestions/${ids.batchSuggestionB}/apply?projectContextId=${ids.projectA}`,
+        jsonRequest('POST', {}),
       ),
       forbiddenB,
     )
@@ -1450,13 +1442,11 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
       ids.projectA,
       [ids.documentB],
     )
-    expect(aliceStore.updateBatchSchemaSuggestionDraft).toHaveBeenCalled()
     expect(aliceStore.retryBatchSchemaSuggestion).toHaveBeenCalledWith(
       ids.projectA,
       ids.batchSuggestionB,
       1,
     )
-    expect(fixture.extractionEffects.suggestedBatchExecutions).toEqual([])
   })
 })
 

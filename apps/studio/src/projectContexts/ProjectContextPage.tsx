@@ -12,33 +12,23 @@ import {
   getSchemaRevision,
   listExtractionSchemas,
   listSchemaRevisions,
-  initializeSchemaRevision,
+  createExtractionSchema,
   renameExtractionSchema,
 } from '../schemaRevisions'
 import { SchemaImport, type SchemaImportTarget } from '../SchemaImport'
 import { defaultSchemaName } from '../schemaNames'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import SchemaNameEditor from '../SchemaNameEditor'
-import SchemaPanel from '../SchemaPanel'
-import {
-  createSchemaEditorController,
-  localSchemaPersistence,
-} from '../currentSchemaRevision'
-import { useSchemaEditorController } from '../useCurrentSchemaRevision'
+import SchemaView from '../SchemaView'
 import { Button, DeleteDialog, ModalDialog, EmptyState } from '../ui'
-import BatchExtractionsPanel, {
-  SuggestedSchemaEditor,
-} from './BatchExtractionsPanel'
+import BatchExtractionsPanel from './BatchExtractionsPanel'
 import {
+  createSpreadsheetBatchSchemaSuggestion,
   getCurrentProjectSpreadsheet,
   uploadProjectSpreadsheet,
 } from './batchExtractions'
-import { useSpreadsheetSchemaSuggestion } from './useSpreadsheetSchemaSuggestion'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
-import { useProjectContexts } from './useProjectContexts'
-// Hidden for now with its use on the Extractions tab below.
-// import { ProjectFeedback } from '../ProjectFeedback'
-import { savedMethodFor, useSavedMethod } from '../savedMethod'
+import { pendingSources, useProjectContexts } from './useProjectContexts'
 import ProjectStatus from './ProjectStatus'
 import { useOpenDocumentTabs } from '../useOpenDocumentTabs'
 import { liveIngestionLabel, parsingSummary, useNow } from './ingestionEstimate'
@@ -127,7 +117,7 @@ function RenameForm({
       {failure && (
         <p
           id="rename-project-context-error"
-          className="basis-full text-[11px] leading-snug text-danger"
+          className="basis-full text-[11px] leading-snug text-danger [overflow-wrap:anywhere]"
           role="alert"
         >
           {failure}
@@ -238,7 +228,7 @@ function ProjectSection({ title, description, open, onToggle, children }: {
           <span aria-hidden="true" className={`inline-block text-[10px] text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
           <span className="shrink-0 text-xs font-bold text-ink">{title}</span>
         </button>
-        <span id={descriptionId} className="ml-4.5 block truncate text-[11px] font-normal text-ink-faint">{description}</span>
+        <span id={descriptionId} className="ml-4.5 block truncate text-[11px] font-normal text-ink-faint" title={description}>{description}</span>
       </h2>
       {open && <div id={bodyId}>{children}</div>}
     </section>
@@ -355,32 +345,8 @@ function SpreadsheetFormatExampleDialog({
   )
 }
 
-/** The read-only field editor for one loaded Schema Revision. A no-op,
- *  in-memory `localSchemaPersistence` controller — the same one
- *  `SuggestedSchemaEditor` uses for a not-yet-confirmed draft — lets
- *  `SchemaPanel` mount without the durable Batch Extraction machinery
- *  `RightRail` normally wires it through. */
 function SchemaFieldsPreview({ revision }: { revision: SchemaRevision }) {
-  const schema = useSchemaEditorController(() =>
-    createSchemaEditorController(
-      localSchemaPersistence({ onEdit: () => {} }),
-      {
-        initialDraft: {
-          recordDescription: revision.recordDescription,
-          schemaNodes: revision.schemaNodes,
-        },
-      },
-    ),
-  )
-  return (
-    <SchemaPanel
-      schema={schema}
-      onClearDraft={() => {}}
-      sourceDocumentName=""
-      readOnly
-      showRegenerate={false}
-    />
-  )
+  return <SchemaView definition={revision} recordScope={revision.recordScope} />
 }
 
 type SchemaFieldsPreviewState =
@@ -444,10 +410,10 @@ function SchemaFieldsPreviewDialog({
       onDismiss={onDismiss}
     >
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <h2 id={titleId} className="text-sm font-bold text-ink">
+        <h2 id={titleId} className="min-w-0 text-sm font-bold text-ink [overflow-wrap:anywhere]">
           {schemaName} — fields
         </h2>
-        <Button ref={closeRef} size="sm" onClick={onDismiss}>
+        <Button ref={closeRef} size="sm" className="shrink-0" onClick={onDismiss}>
           Close
         </Button>
       </div>
@@ -458,7 +424,7 @@ function SchemaFieldsPreviewDialog({
           </p>
         )}
         {state.status === 'error' && (
-          <p className="p-4 text-xs text-danger" role="alert">
+          <p className="p-4 text-xs text-danger [overflow-wrap:anywhere]" role="alert">
             {state.message}
           </p>
         )}
@@ -495,7 +461,6 @@ export default function ProjectContextPage({
   // The saved advanced settings a Batch Extraction pins: the spreadsheet
   // suggestion's "Confirm schema" runs an Article batch, and admission refuses
   // a start whose method is stale.
-  const savedMethod = useSavedMethod()
   const {
     projects,
     branches,
@@ -535,7 +500,6 @@ export default function ProjectContextPage({
   // unless opened, or unless this project already has spreadsheet work.
   const [spreadsheetExpanded, setSpreadsheetExpanded] = useState<boolean | null>(null)
   const [codebookOpen, setCodebookOpen] = useState(false)
-  const importedSchemaId = useRef<string | null>(null)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -594,7 +558,6 @@ export default function ProjectContextPage({
   // One list: this tab's uploads until Studio lists them, then Studio's
   // Source Ingestions. A succeeded one is the branch's Source Document.
   const listed = ingestions[projectContextId]
-  const listedIds = new Set(listed?.ingestions.map((row) => row.workflowId) ?? [])
   // The detail read (`branch`) doesn't carry the persisted activity summary
   // (phase, schemaStabilised, …) — that only ever comes from the list read,
   // so it's looked up separately here regardless of which one supplied
@@ -602,12 +565,7 @@ export default function ProjectContextPage({
   const projectSummary = projects.find(
     (candidate) => candidate.projectContextId === projectContextId,
   )?.summary
-  const queued = ingestingSources.filter(
-    (source) =>
-      source.projectContextId === projectContextId &&
-      (source.kind === 'reprocess' || source.status !== 'admitted' || !listedIds.has(source.workflowId!)),
-  )
-  const serverIngestions = (listed?.ingestions ?? []).filter((row) => row.status !== 'succeeded')
+  const { queued, listed: serverIngestions } = pendingSources({ ingestingSources, ingestions }, projectContextId)
   // The ingest step's own unfinished work: a file still sending, or an
   // admitted Source Ingestion still queued or parsing. Terminal failures are
   // not "in flight" — they wait for the researcher, not the other way round.
@@ -763,33 +721,25 @@ export default function ProjectContextPage({
     return () => controller.abort()
   }, [projectContextId, schemaRequestKey, tab])
 
-  const [spreadsheetSuggestion, sendSpreadsheetSuggestion, createSchemaFromSpreadsheet] =
-    useSpreadsheetSchemaSuggestion({
-      projectContextId,
-      onSuggestion: () => {},
-      onRun: () => {
-        setSchemaRetry((attempt) => attempt + 1)
-        sendSpreadsheetSuggestion({ type: 'reset' })
-        // Confirming this suggestion just committed a Schema Revision,
-        // moving this project's workflow phase (schema -> pilot) —
-        // refresh the list's persisted summary so the stepper picks it up
-        // instead of showing the pre-approval phase until something else
-        // happens to refetch it.
-        refreshProjects()
-      },
-    })
-  const activeSpreadsheetSuggestion = spreadsheetSuggestion.context.suggestion
-  const spreadsheetDraftConflict = spreadsheetSuggestion.matches('conflict')
-  const spreadsheetSuggestionConfirmed =
-    activeSpreadsheetSuggestion?.confirmedSchemaRevisionId != null
-  const updateSpreadsheetSuggestedDefinition = (
-    update: (definition: NonNullable<typeof spreadsheetSuggestion.context.draft>) => NonNullable<typeof spreadsheetSuggestion.context.draft>,
-  ) => {
-    if (!spreadsheetSuggestion.context.draft) return
-    sendSpreadsheetSuggestion({
-      type: 'proposal.changed',
-      definition: update(spreadsheetSuggestion.context.draft),
-    })
+  // A template from the uploaded spreadsheet is saved as an ordinary Extraction Schema by the request that builds it,
+  // then listed and edited like any other.
+  const [spreadsheetTemplate, setSpreadsheetTemplate] = useState<
+    { status: 'idle' | 'building' | 'saved' } | { status: 'failed'; message: string }
+  >({ status: 'idle' })
+  async function createSchemaFromSpreadsheet(hierarchySeparator: string | undefined) {
+    setSpreadsheetTemplate({ status: 'building' })
+    try {
+      await createSpreadsheetBatchSchemaSuggestion(projectContextId, hierarchySeparator)
+      setSpreadsheetTemplate({ status: 'saved' })
+      setSchemaRetry((attempt) => attempt + 1)
+      // A first template moves the project's workflow phase (schema -> pilot): refresh the stepper's summary.
+      refreshProjects()
+    } catch (error) {
+      setSpreadsheetTemplate({
+        status: 'failed',
+        message: error instanceof Error ? error.message : 'The template could not be built from the spreadsheet.',
+      })
+    }
   }
 
   const allSourceDocuments =
@@ -805,34 +755,18 @@ export default function ProjectContextPage({
   const codebookTarget: SchemaImportTarget = {
     operationScope: () => ({ projectContextId, extractionSchemaId: null }),
     snapshot: () => ({ draftVersion: 0, extractionSchemaId: null }),
-    async confirmDefinition(definition) {
-      const revision = await initializeSchemaRevision(projectContextId, definition)
-      importedSchemaId.current = revision.extractionSchemaId
+    async confirmDefinition(definition, workbookName) {
+      await createExtractionSchema(projectContextId, definition, defaultSchemaName(workbookName))
+      setSchemaRetry((attempt) => attempt + 1)
+      refreshProjects()
     },
-  }
-
-  async function nameImportedSchema(workbookName: string) {
-    const extractionSchemaId = importedSchemaId.current
-    importedSchemaId.current = null
-    // Named after the workbook as a generated schema is after its document;
-    // a refused name leaves the default, which can still be renamed inline.
-    if (extractionSchemaId)
-      await renameExtractionSchema(
-        projectContextId,
-        extractionSchemaId,
-        defaultSchemaName(workbookName),
-        undefined,
-        'Extraction Template',
-      ).catch(() => null)
-    setSchemaRetry((attempt) => attempt + 1)
-    refreshProjects()
   }
 
   const spreadsheetShown =
     spreadsheetExpanded ??
     ((spreadsheet.status === 'ready' && spreadsheet.version !== null) ||
       spreadsheetUploading ||
-      spreadsheetSuggestion.context.draft != null)
+      spreadsheetTemplate.status !== 'idle')
 
   useEffect(() => {
     if (tab !== 'schemas') return
@@ -874,7 +808,7 @@ export default function ProjectContextPage({
       <div className="flex h-full items-center justify-center p-8">
         <div className="flex flex-col items-center gap-4">
           <EmptyState
-            className="max-w-sm bg-surface"
+            className="max-w-sm bg-surface [overflow-wrap:anywhere]"
             icon="▢"
             title={
               branch.failure.code === 'not_found'
@@ -918,8 +852,8 @@ export default function ProjectContextPage({
               }}
             />
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold text-ink">
+            <div className="flex items-center gap-2">
+              <h1 className="min-w-0 text-lg font-bold text-ink [overflow-wrap:anywhere]">
                 {project?.name ?? 'Project'}
               </h1>
               <button
@@ -930,7 +864,7 @@ export default function ProjectContextPage({
                   }
                   renameTrigger.current = button
                 }}
-                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink disabled:opacity-60"
+                className="shrink-0 rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink disabled:opacity-60"
                 type="button"
                 aria-label="Rename"
                 title="Rename"
@@ -942,7 +876,7 @@ export default function ProjectContextPage({
               <span className="flex-1" />
               <button
                 ref={deleteTrigger}
-                className="rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 disabled:opacity-60"
+                className="shrink-0 rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 disabled:opacity-60"
                 type="button"
                 aria-label="Delete project"
                 title="Delete project"
@@ -1085,7 +1019,7 @@ export default function ProjectContextPage({
             </div>
 
             {downloadFailure && (
-              <p className="mt-3 text-xs text-danger" role="alert">
+              <p className="mt-3 text-xs text-danger [overflow-wrap:anywhere]" role="alert">
                 {downloadFailure}
               </p>
             )}
@@ -1121,11 +1055,11 @@ export default function ProjectContextPage({
                   >
                     <PdfIcon />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-semibold text-ink">
+                      <span className="block truncate text-xs font-semibold text-ink" title={sourceName(source)}>
                         {sourceName(source)}
                       </span>
                       {source.status === 'failed' ? (
-                        <span className="block text-[11px] leading-snug text-danger">
+                        <span className="block text-[11px] leading-snug text-danger [overflow-wrap:anywhere]">
                           {source.failure}
                         </span>
                       ) : (
@@ -1152,11 +1086,11 @@ export default function ProjectContextPage({
                   >
                     <PdfIcon />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-semibold text-ink">
+                      <span className="block truncate text-xs font-semibold text-ink" title={ingestion.name}>
                         {ingestion.name}
                       </span>
                       {ingestion.status === 'failed' ? (
-                        <span className="block text-[11px] leading-snug text-danger">
+                        <span className="block text-[11px] leading-snug text-danger [overflow-wrap:anywhere]">
                           {ingestion.failure.message}
                           {dismissFailures[ingestion.workflowId] && (
                             <span className="block">{dismissFailures[ingestion.workflowId]}</span>
@@ -1215,7 +1149,7 @@ export default function ProjectContextPage({
                     >
                       <PdfIcon />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold text-ink">
+                        <span className="block truncate text-xs font-semibold text-ink" title={document.name}>
                           {document.name}
                         </span>
                         <span className="block text-[11px] text-ink-faint">
@@ -1304,7 +1238,7 @@ export default function ProjectContextPage({
               queued.length === 0 &&
               serverIngestions.length === 0 &&
               (filter ? (
-                <p className="py-8 text-center text-xs text-ink-muted">
+                <p className="py-8 text-center text-xs text-ink-muted [overflow-wrap:anywhere]">
                   No sources match “{filter}”.
                 </p>
               ) : (
@@ -1463,7 +1397,7 @@ export default function ProjectContextPage({
                                 </p>
                               ) : history.status === 'error' ? (
                                 <p
-                                  className="text-[11px] text-danger"
+                                  className="text-[11px] text-danger [overflow-wrap:anywhere]"
                                   role="alert"
                                 >
                                   {history.message}
@@ -1511,7 +1445,7 @@ export default function ProjectContextPage({
                 )
               ) : schemaList?.status === 'error' ? (
                 <div className="flex flex-col items-center gap-3 py-6 text-center">
-                  <p className="text-xs text-danger" role="alert">
+                  <p className="text-xs text-danger [overflow-wrap:anywhere]" role="alert">
                     Could not load templates. {schemaList.message}
                   </p>
                   <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
@@ -1552,7 +1486,6 @@ export default function ProjectContextPage({
                 disabled={false}
                 open={codebookOpen}
                 onClose={() => setCodebookOpen(false)}
-                onImported={(workbookName) => void nameImportedSchema(workbookName)}
               />
             </section>
 
@@ -1595,12 +1528,12 @@ export default function ProjectContextPage({
                   )}
 
                   {spreadsheet.status === 'error' && (
-                    <p className="text-[11px] text-danger" role="alert">
+                    <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                       Could not load this project's spreadsheet. {spreadsheet.message}
                     </p>
                   )}
                   {spreadsheet.status === 'ready' && spreadsheet.version && (
-                    <p className="text-[11px] text-ink-faint">
+                    <p className="text-[11px] text-ink-faint [overflow-wrap:anywhere]">
                       Current spreadsheet:{' '}
                       <span className="font-semibold text-ink">
                         {spreadsheet.version.originalFilename}
@@ -1686,13 +1619,10 @@ export default function ProjectContextPage({
                       disabled={
                         spreadsheet.status !== 'ready' ||
                         !spreadsheet.version ||
-                        !(
-                          spreadsheetSuggestion.matches('idle') ||
-                          spreadsheetSuggestion.matches('failed')
-                        )
+                        spreadsheetTemplate.status === 'building'
                       }
                       onClick={() =>
-                        createSchemaFromSpreadsheet(
+                        void createSchemaFromSpreadsheet(
                           separator.trim() || undefined,
                         )
                       }
@@ -1702,80 +1632,25 @@ export default function ProjectContextPage({
                   </div>
 
                   {spreadsheetError && (
-                    <p className="text-[11px] text-danger" role="alert">
+                    <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
                       {spreadsheetError}
                     </p>
                   )}
-                  {spreadsheetSuggestion.matches('creating') && (
+                  {spreadsheetTemplate.status === 'building' && (
                     <p className="text-xs text-ink-muted" aria-busy="true">
                       Building…
                     </p>
                   )}
-                  {spreadsheetSuggestion.context.error && (
-                    <p className="text-[11px] text-danger" role="alert">
-                      {spreadsheetSuggestion.context.error}
+                  {spreadsheetTemplate.status === 'failed' && (
+                    <p className="text-[11px] text-danger [overflow-wrap:anywhere]" role="alert">
+                      {spreadsheetTemplate.message}
                     </p>
                   )}
-                  {spreadsheetDraftConflict && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[11px] text-danger" role="alert">
-                        This draft changed elsewhere. Reload before continuing.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
-                        }
-                      >
-                        Reload
-                      </Button>
-                    </div>
-                  )}
-
-                  {spreadsheetSuggestion.context.draft && (
-                    <>
-                      <div
-                        className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
-                        aria-busy={spreadsheetSuggestion.matches('running')}
-                        inert={spreadsheetSuggestion.matches('running') ? true : undefined}
-                      >
-                        <SuggestedSchemaEditor
-                          key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
-                          proposal={spreadsheetSuggestion.context.draft}
-                          proposalVersion={{
-                            draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
-                            attempt: activeSpreadsheetSuggestion?.attempt ?? 1,
-                          }}
-                          sourceDocumentName="Uploaded spreadsheet"
-                          readOnly={spreadsheetSuggestionConfirmed}
-                          showRegenerate={false}
-                          onProposalEdit={updateSpreadsheetSuggestedDefinition}
-                          onPendingLocalEditChange={() => {}}
-                        />
-                      </div>
-                      {!spreadsheetSuggestionConfirmed && (
-                        <Button
-                          size="sm"
-                          variant="positive"
-                          disabled={savedMethod.state.status !== 'ready'}
-                          onClick={() =>
-                            savedMethod.state.status === 'ready' &&
-                            sendSpreadsheetSuggestion({
-                              type: 'run.requested',
-                              strategy: 'ARTICLE',
-                              method: savedMethodFor(
-                                savedMethod.state,
-                                'ARTICLE',
-                                null,
-                              ),
-                            })
-                          }
-                        >
-                          Confirm template
-                        </Button>
-                      )}
-                    </>
+                  {spreadsheetTemplate.status === 'saved' && (
+                    <p className="text-[11px] text-ink-muted" role="status">
+                      Saved as a new Extraction Template named after the spreadsheet, listed above. Open it to review or
+                      edit its fields.
+                    </p>
                   )}
                 </div>
               )}
@@ -1784,13 +1659,10 @@ export default function ProjectContextPage({
         </ProjectSection>
         <ProjectSection
           title="Runs & exports"
-          description="Every pilot round and Batch Extraction, their documents and spreadsheets"
+          description="Every trial round and Batch Extraction, their documents and spreadsheets"
           open={tab === 'extractions'}
           onToggle={(open) => onNavigate({ kind: 'project', projectContextId, tab: open ? 'extractions' : 'sources' })}
         >
-          <>
-          {/* Hidden for now: "Corrections the model learns from". Restore with the import above.
-          <ProjectFeedback projectId={projectContextId}/> */}
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
             // continuation of what this panel currently shows.
@@ -1804,6 +1676,9 @@ export default function ProjectContextPage({
                 ? (resource.batchExtractionId ?? null)
                 : null
             }
+            openBatchExtractionView={
+              resource.tab === 'extractions' ? (resource.view ?? null) : null
+            }
             pilotSchemaRevisionId={
               resource.tab === 'extractions'
                 ? (resource.pilotSchemaRevisionId ?? null)
@@ -1813,7 +1688,6 @@ export default function ProjectContextPage({
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
           />
-          </>
         </ProjectSection>
       </div>
 
@@ -1821,11 +1695,11 @@ export default function ProjectContextPage({
         <DeleteDialog
           title="Delete project"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{project.name}” permanently removes its Source
               Documents, Annotations, Extraction Template, Extractions, and Review
               Decisions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={async () => {
             const rejected = await deleteProject(projectContextId)
@@ -1856,10 +1730,10 @@ export default function ProjectContextPage({
         <DeleteDialog
           title="Delete Source Document"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{deletingSource.name}” permanently removes its
               annotations and extractions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={() =>
             deleteSourceDocument(
@@ -1876,17 +1750,17 @@ export default function ProjectContextPage({
           title="Delete template"
           description={
             deletingSchema.blocked ? (
-              <>
+              <span className="[overflow-wrap:anywhere]">
                 “{deletingSchema.name}” has Extractions run against it.
                 Deleting it anyway also permanently deletes those
                 Extractions, along with its version history. This cannot be
                 undone.
-              </>
+              </span>
             ) : (
-              <>
+              <span className="[overflow-wrap:anywhere]">
                 Deleting “{deletingSchema.name}” permanently removes it and
                 its version history. This cannot be undone.
-              </>
+              </span>
             )
           }
           confirmLabel={deletingSchema.blocked ? 'Delete anyway' : undefined}
@@ -1910,6 +1784,9 @@ export default function ProjectContextPage({
                     }
                   : current,
               )
+              // Its revisions, Extractions, reviews and Batch Extractions went with it: the project's summary (its phase
+              // and counts) and its Batch Extractions are read again.
+              refreshProjects()
               return null
             } catch (error) {
               if (

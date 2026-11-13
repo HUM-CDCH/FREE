@@ -1,57 +1,165 @@
-import type { ParsedDocument } from 'extraction/parsed-document'
-import type { RailMarks } from './useEvidenceOverlays'
-import { evidenceColorVars, markValueId, ownsMark } from './durableRailModel'
+import type { ParsedContentBlock, ParsedDocument, TextEvidenceAnchor } from 'extraction/parsed-document'
+import { memo, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { markLabel, describeMarks, type RailMarkState } from './useEvidenceOverlays'
+import { evidenceColorVars, ownsMark, sharedColor } from './durableRailModel'
+import { fieldWords } from './reviewVocabulary'
+import { observeEvidenceHover } from './evidenceHover'
+import type { SelectionChannel } from './selectionChannel'
+import { recordBlockName, recordBlockTag, recordSpans } from './recordBlocks'
+import { scrollWithinPane } from './scrollWithinPane'
 
-type Marks = RailMarks
+type SelectMark = (keys: string[], element: HTMLElement) => void
+type SavedLink = RailMarkState['savedLinks'][number]
+type MarkSpan = { start: number; end: number; anchorId: string; keys: string[] }
+type TableProjection = { source: string; points: string[]; offsets: number[] }
+
+function projectTable(source: string): TableProjection {
+  const points = Array.from(source), offsets = [0], encoder = new TextEncoder()
+  for (const point of points) offsets.push(offsets.at(-1)! + encoder.encode(point).length)
+  return { source, points, offsets }
+}
+
+/** Saved offsets count code points in the canonical block, not bytes in its Markdown wrapper.
+ * Keep the anchor when that mapping cannot be checked; never search for the value's text. */
+function valueMarks(anchor: Pick<TextEvidenceAnchor, 'anchor_id' | 'markdown_span'>, block: ParsedContentBlock | undefined, source: string, links: readonly SavedLink[], projection?: TableProjection): MarkSpan[] {
+  // kei-exp writes a table's canonical segment text verbatim; its cells have no Markdown spans of their own.
+  const table = block?.kind === 'table' && block.parser === 'kei-exp'
+  const text = table ? source : block && 'text' in block ? block.text : null
+  const prefix = block?.kind === 'heading' ? `${'#'.repeat(block.level)} `
+    : block?.kind === 'code' ? `\`\`\`${block.language ?? ''}\n` : ''
+  const suffix = block?.kind === 'code' ? '\n```' : ''
+  const points = table && projection ? projection.points : text !== null && source === prefix + text + suffix ? Array.from(text) : null
+  const encoder = new TextEncoder()
+  const offset = (at: number) => anchor.markdown_span.start + (table && projection ? projection.offsets[at]!
+    : encoder.encode(prefix + points!.slice(0, at).join('')).length)
+  const ranges = links.flatMap(({ key, link }) => {
+    const located = link.location ?? (link.grounding && (!('support' in link.grounding) || link.grounding.support === 'literal')
+      ? link.grounding : undefined)
+    const spans = located?.textSpans.filter(span => table ? `b_${span.segment}` === block.block_id : `a_${span.segment}` === anchor.anchor_id)
+    const precise = points && spans?.length && spans.every(span => Number.isSafeInteger(span.start) && Number.isSafeInteger(span.end)
+      && 0 <= span.start && span.start < span.end && span.end <= points.length)
+      && (!table || spans.map(span => points.slice(span.start, span.end).join('')).join('') === located?.raw)
+    // Without checked literal offsets a cell cannot be placed safely: the package does not retain cell byte spans.
+    return (precise ? spans.map(span => ({ start: offset(span.start), end: offset(span.end) })) : block?.kind === 'table' ? [] : [anchor.markdown_span])
+      .map(span => ({ ...span, key }))
+  })
+  // Partition overlaps so a shared word selects every value it supports, without nested buttons or lost fields.
+  const boundaries = [...new Set(ranges.flatMap(span => [span.start, span.end]))].sort((a, b) => a - b)
+  const marks: MarkSpan[] = []
+  for (let index = 1; index < boundaries.length; index++) {
+    const start = boundaries[index - 1]!, end = boundaries[index]!
+    const keys = [...new Set(ranges.filter(span => span.start <= start && end <= span.end).map(span => span.key))]
+    if (!keys.length) continue
+    const prior = marks.at(-1)
+    if (prior?.end === start && prior.keys.length === keys.length && prior.keys.every((key, index) => key === keys[index])) prior.end = end
+    else marks.push({ start, end, anchorId: anchor.anchor_id, keys })
+  }
+  return marks
+}
 
 /**
  * The parsed Markdown in the document pane: a page-shaped text with the rail's values
- * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting and lighting their values
- * as the page's marks do.
+ * marked at their saved literal spans when they map to the Markdown, else at their anchors (UTF-8 byte offsets).
+ * Marks select and light their values as the page's marks do. A running Catalog's record blocks are outlined at
+ * their own lines of text, under the marks.
  */
-export default function DocumentMarkdown({ markdown, document, marks, marksShown = true }: { markdown: string | null; document: ParsedDocument | null; marks: Marks | null; marksShown?: boolean }) {
+function DocumentMarkdown({ markdown, document, selection, extractionId, active = true, marksShown = true, onSelect }: {
+  markdown: string | null; document: ParsedDocument | null; selection: SelectionChannel; extractionId: string | null
+  active?: boolean; marksShown?: boolean; onSelect: SelectMark
+}) {
+  const published = useSyncExternalStore(selection.subscribe, () => selection.snapshot().marks)
+  const marks: RailMarkState | null = active && published?.extractionId === extractionId ? published : null
+  // Results republishes descriptions and links on selection; only the UTF-8 encoding survives those updates.
+  const bytes = useMemo(() => new TextEncoder().encode(markdown ?? ''), [markdown])
+  const root = useRef<HTMLPreElement>(null)
+  const describe = marks?.describe, savedLinks = marks?.savedLinks
+  const outlines = marksShown ? marks?.records : undefined
+  const records = useMemo(() => document && outlines?.length ? recordSpans(document, bytes, outlines) : [], [document, bytes, outlines])
+  useLayoutEffect(() => observeEvidenceHover(selection, [root.current]))
+  // Reveal the retained selection on mount; later clicks scroll only their destination pane.
+  useLayoutEffect(() => {
+    if (!selection.snapshot().marks?.selected) return
+    const mark = root.current?.querySelector<HTMLElement>('[aria-current="true"]')
+    const container = root.current?.parentElement
+    if (container && mark) scrollWithinPane(container, mark)
+  }, [selection, markdown])
   if (!markdown) return (
     <div className="mx-auto max-w-[34ch] pt-16 text-center">
       <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
       <p className="mt-1.5 mb-0 text-compact leading-snug text-ink-muted">Parsed Markdown has not been received for this source document.</p>
     </div>
   )
-  const bytes = new TextEncoder().encode(markdown)
-  const decode = (start: number, end: number) => new TextDecoder().decode(bytes.subarray(start, end))
-  const keysByAnchor = new Map<string, string[]>()
-  const links=marks?.savedLinks?.map(({key,link})=>({key,anchorId:link.evidenceAnchorId,precision:link.precision}))
-    ?? [...marks?.describe??[]].map(([key,info])=>({key,anchorId:info.anchorId,precision:info.precision}))
-  for (const {key,anchorId,precision} of links) {
-    if(precision==='input')continue
-    const keys=keysByAnchor.get(anchorId)??[]
-    if(!keys.includes(key))keys.push(key)
-    keysByAnchor.set(anchorId,keys)
+  const decoder = new TextDecoder(), decode = (start: number, end: number) => decoder.decode(bytes.subarray(start, end))
+  const linksByAnchor = new Map<string, SavedLink[]>()
+  for (const saved of savedLinks ?? []) {
+    if (saved.link.precision === 'input') continue
+    const anchorId = saved.link.evidenceAnchorId
+    const links = linksByAnchor.get(anchorId) ?? []
+    links.push(saved)
+    linksByAnchor.set(anchorId, links)
   }
-  const spans = (document?.evidence_index.anchors ?? []).flatMap((anchor) => anchor.kind === 'text' && keysByAnchor.has(anchor.anchor_id)
-    ? [{ ...anchor.markdown_span, anchorId: anchor.anchor_id, keys: keysByAnchor.get(anchor.anchor_id)! }] : [])
-    .sort((a, b) => a.start - b.start)
-    .filter((span, index, all) => index === 0 || span.start >= all[index - 1]!.end) // nested spans: the outer one marks
+  const blocks = new Map((document?.content_stream ?? []).map(block => [block.block_id, block]))
+  const anchors = document?.evidence_index.anchors ?? []
+  const textSpans = anchors.filter((anchor): anchor is TextEvidenceAnchor => anchor.kind === 'text' && linksByAnchor.has(anchor.anchor_id))
+    .sort((a, b) => a.markdown_span.start - b.markdown_span.start)
+    .filter((anchor, index, all) => index === 0 || anchor.markdown_span.start >= all[index - 1]!.markdown_span.end)
+    .flatMap(anchor => valueMarks(anchor, blocks.get(anchor.block_id), decode(anchor.markdown_span.start, anchor.markdown_span.end), linksByAnchor.get(anchor.anchor_id)!))
+  const tables = new Map((document?.content_stream ?? []).flatMap(block => block.kind === 'table' ? [[block.table_id, block] as const] : []))
+  // Convert each linked table once, rather than copying its full text again for every cell.
+  const projections = new Map<string, TableProjection>()
+  const cellSpans = anchors.flatMap(anchor => {
+    if (anchor.kind !== 'table_cell') return []
+    const links = linksByAnchor.get(anchor.anchor_id), block = tables.get(anchor.logical_table_id)
+    const span = block?.markdown_span
+    if (!links || !block || block.parser !== 'kei-exp' || !span) return []
+    let projection = projections.get(block.table_id)
+    if (!projection) {
+      projection = projectTable(decode(span.start, span.end))
+      projections.set(block.table_id, projection)
+    }
+    return valueMarks({ anchor_id: anchor.anchor_id, markdown_span: span }, block, projection.source, links, projection)
+  })
+  const spans = [...textSpans, ...cellSpans].sort((a, b) => a.start - b.start)
   const parts: React.ReactNode[] = []
-  let at = 0
+  let at = 0, record = 0
+  /** The text of these bytes, each record block's part of it in its outline; asked for in reading order. */
+  const outlined = (from: number, to: number) => {
+    const pieces: React.ReactNode[] = []
+    for (; record < records.length && records[record]!.from < to; record += 1) {
+      const span = records[record]!, start = Math.max(span.from, from), end = Math.min(span.to, to)
+      if (end > start) {
+        pieces.push(decode(from, start), <span key={`record:${start}`} role="group" aria-label={recordBlockName(span.state, span.labels)}
+          className={`record-block ${span.state}`}
+          data-record-label={start === span.from && (span.first || span.labels.length > 1) ? recordBlockTag(span.labels) : undefined}>{decode(start, end)}</span>)
+        from = end
+      }
+      // The rest of it lies in the text asked for next.
+      if (span.to > to) break
+    }
+    pieces.push(decode(from, to))
+    return pieces
+  }
   for (const span of spans) {
+    if (span.start < at) continue
     if (span.end > bytes.length) break
-    parts.push(decode(at, span.start))
-    // A record start discovery found has no value to select: filled as on the page, with no underline or pointer.
-    const keys = span.keys.filter((key) => marks!.describe.has(key))
-    // A value's correction Evidence in its own model passage names it once; two values that read alike stay two.
-    const infos = keys.filter((key) => !key.endsWith('#correction') || !keys.includes(markValueId(key))).map((key) => marks!.describe.get(key)!)
-    const selected = marks!.selected !== null && keys.some((key) => ownsMark(marks!.selected!, key))
-    const hovered = keys.some((key) => marks!.hovered?.some((each) => ownsMark(each, key)))
-    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId}>{decode(span.start, span.end)}</span>
-      : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{decode(span.start, span.end)}</span> : (
-      <button key={span.start} type="button" style={evidenceColorVars(infos[0]!.color)} className={`evidence-mark ${infos.some((info) => info.style === 'preview') ? 'preview' : infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''}${hovered ? ' hovered' : ''} whitespace-pre-wrap text-left font-mono`}
-        data-evidence-anchor-id={span.anchorId}
-        aria-label={infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; ')} aria-current={selected || undefined}
-        onClick={(event) => marks!.onSelect(keys, event.currentTarget)}
-        onMouseEnter={() => marks!.onHover?.(keys)} onMouseLeave={() => marks!.onHover?.(null)}>{decode(span.start, span.end)}</button>
-    ))
+    parts.push(...outlined(at, span.start))
+    const keys = span.keys.filter(key => describe?.has(key))
+    const infos = describeMarks(keys, describe).map(({ info }) => info)
+    const selected = marks?.selected != null && keys.some(key => ownsMark(marks.selected!, key))
+    const text = outlined(span.start, span.end)
+    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId} data-hover-keys={JSON.stringify(keys)}>{text}</span>
+      : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{text}</span>
+      : <button key={span.start} type="button" style={evidenceColorVars(sharedColor(infos.map(info => info.color)))}
+        className={`evidence-mark ${infos.some(info => info.style === 'preview') ? 'preview' : infos[0]!.style}${infos.every(info => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
+        data-evidence-anchor-id={span.anchorId} data-hover-keys={JSON.stringify(keys)} aria-label={markLabel(infos)}
+        data-name={[...new Set(infos.map(info => fieldWords(info.name)))].join(', ')} aria-current={selected || undefined}
+        onClick={event => onSelect(keys, event.currentTarget)} onMouseMove={() => selection.hover(keys)} onMouseLeave={() => selection.hover(null)}>{text}</button>)
     at = span.end
   }
-  parts.push(decode(at, bytes.length))
-  return <pre aria-label="Parsed Markdown" className="mx-auto m-0 max-w-[816px] bg-surface px-10 py-8 font-mono text-secondary whitespace-pre-wrap text-ink shadow-page">{parts}</pre>
+  parts.push(...outlined(at, bytes.length))
+  return <pre ref={root} aria-label="Parsed Markdown" className="mx-auto m-0 max-w-[816px] bg-surface px-10 py-8 font-mono text-secondary whitespace-pre-wrap text-ink shadow-page">
+    {parts}
+  </pre>
 }
+
+export default memo(DocumentMarkdown)

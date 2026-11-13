@@ -65,6 +65,12 @@ test('PostgreSQL keeps a Project Context chat in order, once, for its owner, and
   assert.equal(await stranger.listProjectChatEntries(projectContextId, 100), null)
   assert.equal(await stranger.appendProjectChatEntries(projectContextId, [message('intruder')]), null)
   assert.equal(await stranger.deleteProjectChatEntry(projectContextId, all![1]!.projectChatEntryId), null)
+  assert.equal(await stranger.clearProjectChatEntries(projectContextId), null)
+
+  // Cleared, the chat starts again from position 1; an entry cleared away may be appended anew.
+  assert.equal(await store.clearProjectChatEntries(projectContextId), 7)
+  assert.deepEqual(await store.listProjectChatEntries(projectContextId, 100), [])
+  assert.deepEqual((await store.appendProjectChatEntries(projectContextId, [all![1]!]))?.map(({ position }) => position), [1])
 
   assert.notEqual(await store.deleteProjectContext(projectContextId), null)
   assert.deepEqual(await db.orm.public.ProjectChatEntry.where({ projectContextId }).select('id').all(), [])

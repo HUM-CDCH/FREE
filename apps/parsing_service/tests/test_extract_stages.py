@@ -312,13 +312,13 @@ def test_verification_asks_the_model_for_every_claim_including_a_uniquely_found_
     links, calls, issues = verify(passages()[1:3], fields, SCHEMA, chat, record=0)
     by_path = {tuple(link.path): link for link in links}
     entry_no = by_path[("records", 0, "entry_no")]
-    assert (entry_no.linked_by, entry_no.verbatim, entry_no.hits) == ("model", True, 1)
+    assert (entry_no.linked_by, entry_no.verbatim) == ("model", True)
     assert by_path[("records", 0, "year")].segment == "p1_s1" and by_path[("records", 0, "finds", 0)].segment == "p1_s1"
     assert seen["schema"]["properties"]["C1"]["enum"] == ["E1", "E2", "NONE"]
     assert "C1 (entry_no: the printed number): 31" in seen["user"] and "C2 (site): Hjortlund parish" in seen["user"]
     assert "C5 (finds): sword" in seen["user"] and "E1: 31. Hjortlund sogn" in seen["user"]
     site = by_path[("records", 0, "site")]
-    assert site.linked_by == "model" and site.segment == "p1_s1" and site.verbatim is False and site.hits == 0
+    assert site.linked_by == "model" and site.segment == "p1_s1" and site.verbatim is False
     assert ("records", 0, "finds", 1) not in by_path  # NONE: the model found no passage for the sword
     assert [call.stage for call in calls] == ["grounding"] and len(chat.calls) == 1 and not issues
 
@@ -406,7 +406,7 @@ def test_document_fields_are_declared_unverified():
 def test_an_integral_float_is_verified_as_its_integer_text():
     chat = FakeChat(lambda s, u, schema: {"C1": "E1"})
     links, calls, issues = verify(passages()[1:3], {"year": 1827.0}, SCHEMA, chat, record=0)
-    assert [(link.segment, link.linked_by, link.verbatim, link.hits) for link in links] == [("p1_s1", "model", True, 1)]
+    assert [(link.segment, link.linked_by, link.verbatim) for link in links] == [("p1_s1", "model", True)]
     assert len(calls) == 1 and issues == []
     assert contains("Urne af ler, 18.5 cm", 18.5) and not contains("nr. 1827", 182.0)
 

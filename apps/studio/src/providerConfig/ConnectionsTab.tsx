@@ -143,7 +143,7 @@ function DeploymentConnection({
   const models = probeCatalog(probe)
   return (
     <div className="flex flex-col gap-2">
-      <h3 ref={headingRef} tabIndex={-1} className="text-[14px] font-bold text-ink">{connection.name}</h3>
+      <h3 ref={headingRef} tabIndex={-1} className="text-[14px] font-bold text-ink [overflow-wrap:anywhere]">{connection.name}</h3>
       <p className="text-[12px] text-ink-muted">Run by this deployment. It cannot be edited here.</p>
       {connection.baseUrl === null ? (
         <p className="text-[11.5px] text-ink-faint">Runs on this server's CLI login</p>
@@ -305,7 +305,7 @@ function KeyLine({
           </Button>
         )}
       </div>
-      {issue && <p id={issueId} className="text-[11.5px] text-danger">{issue}</p>}
+      {issue && <p id={issueId} className="text-[11.5px] text-danger [overflow-wrap:anywhere]">{issue}</p>}
     </div>
   )
 }

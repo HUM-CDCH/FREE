@@ -89,7 +89,7 @@ describe('deletion cancels its live DBOS scope', () => {
     const { owner, store, project, document, pdf } = await fixture()
     const suggestion = await db.orm.public.BatchSchemaSuggestion.create({ projectContextId: project,
       selectionKey: randomUUID(), attempt: 2, outcome: null, phase: 'READY',
-      draft: { recordDescription: 'Retained.', schemaNodes: [{ id: 'place', name: 'Place', type: 'string' }] }, draftVersion: 1 })
+      draft: { recordDescription: 'Retained.', schemaNodes: [{ id: 'place', name: 'Place', type: 'string' }] } })
     const snapshot = await store.getDocumentReopenSnapshot(project, document)
     await db.orm.public.BatchSchemaSuggestionSource.create({ batchSchemaSuggestionId: suggestion.id,
       sourceDocumentId: document, sourceRepresentationRevisionId: snapshot!.sourceRepresentation.sourceRepresentationId })
@@ -105,8 +105,8 @@ describe('deletion cancels its live DBOS scope', () => {
     expect(response.status, await response.clone().text()).toBe(204)
     for (const id of ids) expect(await status(studioDbos().admission, id)).toBe('CANCELLED')
     expect(await status(kei, `kei-convert:${ids[0]}`)).toBe('CANCELLED')
-    const interrupted = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'failure', 'draft', 'draftVersion').first({ id: suggestion.id })
-    expect(interrupted).toMatchObject({ outcome: 'FAILED', failure: { code: 'interrupted' }, draftVersion: 1 })
+    const interrupted = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'failure', 'draft').first({ id: suggestion.id })
+    expect(interrupted).toMatchObject({ outcome: 'FAILED', failure: { code: 'interrupted' }, draft: { recordDescription: 'Retained.' } })
     expect(interrupted?.draft).toEqual({ recordDescription: 'Retained.', schemaNodes: [{ id: 'place', name: 'Place', type: 'string' }] })
     expect(await store.getDocumentReopenSnapshot(project, document)).toBeNull()
   })

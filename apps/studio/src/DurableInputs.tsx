@@ -15,8 +15,10 @@ const noProbe=()=>{}
 
 /** The shared settings editor owns only this pending selection. It never
  * changes account settings or historical producing inputs. */
-export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,onEdited}:{
+export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,onEdited,onCancel}:{
   attempt:ExtractionAttempt;state:DurableRead;acknowledged:number;currentSchema:string|null;onSaved:()=>void;onEdited:()=>Promise<void>;
+  /** Closes the editor without saving: nothing pending is written, and the Extraction stays as editing left it. */
+  onCancel:()=>void;
 }) {
   const editor=useProviderConfigDraft({accountId:'',providers:[],scheduleProbe:noProbe,cancelProbe:noProbe,disposeProbe:noProbe})
   // One edit session per editing acknowledgement (`acknowledged` opened the editor): changes stay local, no later read
@@ -94,11 +96,14 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
         <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified} unifiedDefaults={pinned}
           extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'} unrecordedArticle={'article' in used.settings&&used.settings.article===null}/>
       </>}
-      {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger">{issue.message}</p>)}
+      {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{issue.message}</p>)}
       {stale&&<p role="status" className="text-secondary">The Extraction changed after this draft started.{' '}
         <Button onClick={()=>void reload()}>Reload draft</Button></p>}
-      <Button variant="positive" disabled={stale||!editor.draft||editor.settingsIssues.length>0} onClick={()=>void save()}>Save pending inputs</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="positive" disabled={stale||!editor.draft||editor.settingsIssues.length>0} onClick={()=>void save()}>Save pending inputs</Button>
+        <Button onClick={onCancel}>Cancel</Button>
+      </div>
     </fieldset>
-    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+    {error&&<p role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{error}</p>}
   </section>
 }

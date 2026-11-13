@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
+import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
+import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
 import { CONVERSATION_EMPTY } from './SchemaPanel'
-import { SchemaInstructionsChat } from './SchemaInstructions'
-import type { SchemaChat } from './useSchemaChat'
+import { PendingAsk } from './SchemaInstructions'
+import { NO_ACTION_REPLY, type SchemaChat } from './useSchemaChat'
 
 const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
 
@@ -27,9 +29,15 @@ export type RailChatProps = {
     guide: ProjectGuideInput
     start: (kind: 'pilot' | 'batch', sourceDocumentIds: readonly string[]) => void
     approve: () => void
+    /** Stops the project's running Batch Extraction: every member still at work. */
+    stopBatch: () => void
     open: (target: NonNullable<StepOption['target']>) => void
     /** Exports the ticked documents' results, once their options and format are chosen. */
     export: (sourceDocumentIds: readonly string[]) => void
+    /** The project's identity, which keeps the answer to the second trial's question. */
+    id?: string
+    /** Adds PDFs to the project, where the workspace can: the second trial's upload. */
+    addDocuments?: (files: readonly File[]) => void
   } | null
   /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
   control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
@@ -59,9 +67,39 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ready = snap.view === 'editing'
   const editable = ready && snap.historicalPreview === null
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
+  // Every generation adopted (the first, or one generated again over a template) holds the chat at Template ready until
+  // the researcher goes on; generating again or leaving the template's editor ends it.
+  const [seenReplacement, setSeenReplacement] = useState(snap.replacementVersion)
+  const [templateReady, setTemplateReady] = useState(false)
+  if (snap.replacementVersion !== seenReplacement) {
+    setSeenReplacement(snap.replacementVersion)
+    setTemplateReady(true)
+  } else if (templateReady && (snap.generating || snap.view !== 'editing')) setTemplateReady(false)
+  // Likewise each run of this document seen at work and then completed holds the chat at Results ready; a run already
+  // completed when the chat first sees it (an opened document) does not.
+  const [seenRun, setSeenRun] = useState(latest && { id: latest.extractionId, status: latest.status })
+  const [resultsReady, setResultsReady] = useState<string | null>(null)
+  if ((latest?.extractionId ?? null) !== (seenRun?.id ?? null) || (latest && latest.status !== seenRun?.status)) {
+    setSeenRun(latest && { id: latest.extractionId, status: latest.status })
+    setResultsReady(latest?.status === 'COMPLETED' && seenRun?.id === latest.extractionId ? latest.extractionId
+      : latest?.extractionId === resultsReady ? resultsReady : null)
+  }
+  // The second trial's answer, kept with the project in this browser so another document does not ask again.
+  const moreKey = project?.addDocuments && project.id ? `free.more-documents.${project.id}` : null
+  const [more, setMoreState] = useState(() => ({ key: moreKey, value: storedMore(moreKey) }))
+  if (more.key !== moreKey) setMoreState({ key: moreKey, value: storedMore(moreKey) })
+  const setMore = (value: MoreDocuments) => {
+    setMoreState({ key: moreKey, value })
+    try { if (moreKey) localStorage.setItem(moreKey, value) } catch { /* kept for this page only */ }
+  }
+  // The upload's file input, held as state: a choice clicks it, and a ref may not be read where choices are made.
+  const [fileInput, setFileInput] = useState<HTMLInputElement | null>(null)
+  // The last run's template against the current one, compared by content, not only by revision.
+  const sameTemplate = useSameTemplateAsRun(schema, latest?.schemaRevisionId ?? null)
 
   const guide: GuideInput = {
     view: snap.view,
+    generating: snap.generating,
     generationError: snap.generationError,
     readOnly: readOnly || snap.historicalPreview !== null,
     canGenerate: !!onGenerate,
@@ -84,11 +122,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     run: run && { unavailableReason: run.unavailableReason, available: run.available },
     control: control && { busy: control.busy, continueBlocked: control.continueBlocked,
       continueDescription: control.continueDescription, pauseDescription: control.pauseDescription },
-    latest,
+    latest: latest && { ...latest, sameTemplate },
     resultsShown,
     templateShown,
+    templateReady,
+    resultsReady: resultsReady !== null && resultsReady === latest?.extractionId,
     dismissed,
-    project: project?.guide ?? null,
+    project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
   }
   // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
   const step = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
@@ -96,17 +136,42 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<string> } | null>(null)
   const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
 
+  // Run again with the current template: the halted Extraction is stopped first, and once it has stopped (and a run may
+  // start) the current template runs. Anything else becoming of it drops the request.
+  const [restartFor, setRestartFor] = useState<string | null>(null)
+  if (restartFor !== null && (latest?.extractionId !== restartFor || !['PAUSED', 'FAILED', 'STOPPING', 'STOPPED'].includes(latest.status)))
+    setRestartFor(null)
+  const restarted = useRef<string | null>(null)
+  const restartReady = restartFor !== null && latest?.extractionId === restartFor && latest.status === 'STOPPED' && !!run?.available
+  useEffect(() => {
+    // Once per request: the new run replaces the stopped one as the latest, which ends the request.
+    if (!restartReady || !run || restarted.current === restartFor) return
+    restarted.current = restartFor
+    run.start()
+  }, [restartReady, restartFor, run])
+
   function choose(card: StepCard, option: StepOption, text = '') {
     const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
+    // A choice that moves the workflow on, chosen under another view, returns to the conversation so the next step is
+    // in front of the researcher; one that opens a view goes there, and a run's controls leave the view as it is.
+    if (!STAYS.has(option.action)) reveal()
     // Past the step, something else said instead: the message itself joins the conversation, which answers it.
     const said = option.action === 'dismiss' ? text.trim() : ''
     if (said) {
       if (!canSay) return
       reveal()
       void (preSchema ? chat.ask(said) : chat.send(said))
-    } else if (option.action !== 'review-schema')
-      chat.appendStep(card.title, option.action === 'dismiss' ? 'Not yet' : option.picks ? pickedLabel(option, ids.length) : option.label)
+    } else {
+      // Only a choice that does something is noted in the conversation.
+      if (!UNNOTED.has(option.action)) chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
+      // Every option turned down and nothing said instead: no action, so point to the chat box.
+      if (option.action === 'dismiss') chat.appendMessage(NO_ACTION_REPLY)
+    }
+    // Template ready waits for a way on: viewing the template keeps it, any other choice ends it.
+    if (card.key.startsWith('template-ready:') && option.action !== 'review-schema') setTemplateReady(false)
+    // Results ready likewise: opening Results keeps it, any other choice ends it.
+    if (card.key.startsWith('results-ready:') && option.action !== 'review') setResultsReady(null)
     // The extract step answers one request: any choice ends it.
     if (card.key.startsWith('extract:')) {
       chat.clearExtractRequest()
@@ -117,6 +182,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       'stop-generation': () => schema.cancelGeneration(),
       apply: chat.apply,
       'review-schema': () => onShowView('schema'),
+      continue: () => {},
+      restart: () => {
+        setRestartFor(latest?.extractionId ?? null)
+        control?.command('stop')
+      },
       discard: chat.discard,
       'scope:records': () => recordScope?.onChange('records'),
       'scope:document': () => recordScope?.onChange('document'),
@@ -126,7 +196,15 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       resume: () => control?.command('resume'),
       retry: () => control?.command('retry'),
       stop: () => control?.command('stop'),
-      pilot: () => project?.start('pilot', ids),
+      'stop-batch': () => project?.stopBatch(),
+      pilot: () => {
+        // The second trial starts: after its review the chat asks for the approval.
+        if (card.key.startsWith('more-trial:')) setMore('done')
+        project?.start('pilot', ids)
+      },
+      'more-documents': () => setMore('adding'),
+      upload: () => fileInput?.click(),
+      'skip-more': () => setMore('done'),
       batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
@@ -147,29 +225,71 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     : chat.messages.length > 0 || instructions.items.length > 0 || pending ? { title: 'Show conversation' } : null
   // A message sent from another view is answered in the conversation: the home shows it.
   const reveal = () => { if (mode === 'step') onShowView('chat') }
-  const ask = () => { reveal(); void chat.ask() }
-  const send = () => { reveal(); void chat.send(chat.input) }
+  // A step with a way past it carries the composer as its last numbered option: sending from it says something else
+  // instead, so it sets the step aside as choosing that option does.
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const sayOption = step?.options.find((option) => option.action === 'dismiss')
+  // Under another view the step folds to its title line and the composer to one row, so the view keeps the rail's
+  // height: the title unfolds the step, and a step that failed is never folded.
+  const [unfolded, setUnfolded] = useState<string | null>(null)
+  const folded = !!step && mode === 'step' && unfolded !== step.key && !step.error
+  const sayInCard = !!step && !!sayOption && !folded
+  const setAside = () => {
+    if (!sayInCard || !step) return
+    if (step.key.startsWith('template-ready:')) setTemplateReady(false)
+    if (step.key.startsWith('results-ready:')) setResultsReady(null)
+    if (step.key.startsWith('extract:')) chat.clearExtractRequest()
+    else setDismissed((current) => new Set(current).add(step.key))
+  }
+  const ask = () => { if (!instructions.draft.trim()) return; reveal(); setAside(); void chat.ask() }
+  const send = () => { if (!chat.input.trim()) return; reveal(); setAside(); void chat.send(chat.input) }
 
   const blocked = !!pending || chat.loading
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
-  const card = step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} sayDisabled={!canSay}
-    onChoose={(option, text) => choose(step, option, text)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })} />
+  const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} scopeBlockedReason={snap.editingBlockedReason} sayDisabled={!canSay}
+    onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
+    composer={composer} onSay={() => composerRef.current?.focus()} onFold={mode === 'step' ? () => setUnfolded(null) : undefined} />
+  // Folded, the step keeps its options beside its title, but for those that need documents ticked or something said.
+  const foldedStep = folded && step && (
+    <SetAsideStepView label={step.title} title={step.title} busy={step.busy}
+      description={recordScope?.disabled && step.options.some(option => option.action.startsWith('scope:')) ? snap.editingBlockedReason : null}
+      summary={[step.detail?.[0]?.[1], step.notice].filter(Boolean).join(' · ')} live={!!step.notice}
+      expandLabel={`Show the ${step.title} step`} onExpand={() => setUnfolded(step.key)}
+      actions={step.options.filter((option) => option.action !== 'dismiss' && !option.picks).map((option) => ({
+        label: option.label, name: option.label, title: option.description, tone: option.tone,
+        disabled: !!option.disabled || (!!recordScope?.disabled && option.action.startsWith('scope:')), run: () => choose(step, option) }))} />
+  )
   // The Generate template step set aside: folded to its title line, generating stays one click away and the title
   // brings the whole step back.
   const generate = !step && preSchema && (
     <SetAsideStepView title="Generate template" summary={instructions.count > 0 ? plural(instructions.count, 'instruction') : 'no instructions'}
       expandLabel="Show the Generate template step"
       onExpand={() => setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))}
-      action={{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
-        run: () => onGenerate?.(instructions.text) }} />
+      actions={[{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
+        run: () => onGenerate?.(instructions.text) }]} />
+  )
+  // The whole conversation cleared, once confirmed: not while a reply or a proposal is on its way.
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const clearRef = useRef<HTMLButtonElement>(null)
+  const clearBusy = chat.asking !== null || chat.loading || !!pending
+  const clear = !readOnly && (chat.messages.length > 0 || instructions.items.length > 0) && (
+    <button ref={clearRef} type="button" disabled={clearBusy} onClick={() => setConfirmingClear(true)}
+      title={clearBusy ? 'Clear the conversation once the reply or proposal is settled' : 'Clear the conversation'}
+      className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-compact text-ink-muted outline-none transition-colors hover:bg-surface hover:text-danger disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted">
+      Clear conversation
+    </button>
   )
   const composerClass = 'min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-50'
   const sendClass = 'grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40'
+  // In a card the composer is its way past the step, and says so; else what the conversation takes now.
+  const composerHint = sayInCard && (preSchema || editable) ? sayOption!.label
+    : preSchema ? 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'
+      : editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'
+  const rows = mode === 'step' ? 1 : sayInCard ? 2 : 3
   const composer = preSchema ? (
     <>
-      <textarea className={composerClass} rows={3}
-        placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'} value={instructions.draft}
+      <textarea ref={composerRef} className={composerClass} rows={rows} aria-label={composerHint} placeholder={composerHint} value={instructions.draft}
         onChange={(event) => instructions.setDraft(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} />
       {chat.asking !== null ? (
@@ -182,8 +302,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     </>
   ) : (
     <>
-      <textarea className={composerClass} rows={3}
-        placeholder={editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'} value={chat.input} disabled={!editable || blocked}
+      <textarea ref={composerRef} className={composerClass} rows={rows} aria-label={composerHint} placeholder={composerHint} value={chat.input} disabled={!editable || blocked}
         onChange={(event) => chat.setInput(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} />
       {chat.loading ? (
@@ -196,18 +315,48 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     </>
   )
 
-  const instructionsConversation = instructions.items.length > 0 || chat.asking !== null || chat.askError ? (
+  // The instructions and questions show where they were said, in the transcript; a reply still coming follows it.
+  const pendingAsk = (chat.asking !== null || chat.askError) ? (
     <>
-      <SchemaInstructionsChat instructions={instructions} messageClass={chatMessageClass} asking={chat.asking} />
-      {chat.askError && <p className="text-compact text-danger" role="alert">{chat.askError}</p>}
+      {chat.asking !== null && <PendingAsk asking={chat.asking} messageClass={chatMessageClass} />}
+      {chat.askError && <p className="text-compact text-danger [overflow-wrap:anywhere]" role="alert">{chat.askError}</p>}
     </>
   ) : undefined
 
+  // While a step offers a way past it, the composer is drawn in the card and the drawer has none of its own.
+  const shownCard = foldedStep || (step && (sayInCard ? card(composer) : card(null)))
   return (
-    <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
-      title="Conversation" label={card || generate} dot={dot} bodyRef={bodyRef} bar={card || generate || undefined} composer={composer}>
-      <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} before={instructionsConversation} />
-    </ChatDrawer>
+    <>
+      <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
+        title="Conversation" label={shownCard || generate} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
+        bar={shownCard || generate || undefined} composer={sayInCard ? null : composer}>
+        <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} after={pendingAsk} />
+      </ChatDrawer>
+      {project?.addDocuments && (
+        <input ref={setFileInput} className="sr-only" type="file" tabIndex={-1} aria-hidden="true" accept=".pdf,application/pdf" multiple
+          data-testid="chat-upload"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            event.target.value = ''
+            if (files.length) project.addDocuments?.(files)
+          }} />
+      )}
+      {confirmingClear && (
+        <DeleteDialog title="Clear the conversation?" confirmLabel="Clear conversation" returnFocusRef={clearRef}
+          description="Every message, instruction, answered step and document turn of this project's chat is removed for good. The template is not changed, but it is generated again without the instructions kept so far."
+          onCancel={() => setConfirmingClear(false)}
+          onConfirm={async () => {
+            try {
+              await chat.clearConversation()
+              // Steps set aside before are asked afresh.
+              setDismissed(new Set())
+              return null
+            } catch (error) {
+              return { message: error instanceof Error ? error.message : 'The conversation could not be cleared.' }
+            }
+          }} />
+      )}
+    </>
   )
 }
 
@@ -222,45 +371,73 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 /** A picking option's label with the documents it acts on. */
 const pickedLabel = (option: StepOption, count: number) => option.label.replace('{n}', plural(count, 'document'))
 const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.picker?.limit ?? 0)
+/** The choices that leave the rail's view where it is: those that open a view themselves, and a run's controls (and the
+ *  export, whose dialog opens over it). Every other choice moves the workflow on and returns to the conversation. */
+/** The choices that change nothing, so the conversation does not note them: setting a step aside, going on past a
+ *  stop, opening a view or another document, and the export's dialog (the export itself is its own). */
+const UNNOTED: ReadonlySet<StepAction> = new Set<StepAction>(['dismiss', 'continue', 'review-schema', 'review', 'open-document', 'export', 'upload'])
 
-/** A step set aside, folded to the card's title line: the same left edge and ⏵, a summary, and its one action. The
- *  title brings the whole step back. */
-function SetAsideStepView({ title, summary, expandLabel, onExpand, action }: {
-  title: string; summary: string; expandLabel: string; onExpand: () => void
-  action: { label: string; name: string; disabled: boolean; run: () => void }
+type MoreDocuments = 'ask' | 'adding' | 'done'
+/** The second trial's answer kept for a project; `ask` when none is, or storage is unavailable. */
+function storedMore(key: string | null): MoreDocuments {
+  try {
+    const value = key ? localStorage.getItem(key) : null
+    return value === 'adding' || value === 'done' ? value : 'ask'
+  } catch { return 'ask' }
+}
+const STAYS: ReadonlySet<StepAction> = new Set<StepAction>(['review-schema', 'review', 'open-document',
+  'stop-generation', 'pause', 'stop', 'stop-batch', 'export'])
+
+/** A step folded to the card's title line (set aside, or under another view): the same left edge and ⏵, a summary, and
+ *  its actions, which take further lines where the rail is narrow. The title brings the whole step back. */
+function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, summary, description, live = false, expandLabel, onExpand, actions }: {
+  /** `live`: the summary carries the step's notice, announced as it changes. */
+  title: string; label?: string; busy?: boolean; summary: string; description?: string | null; live?: boolean; expandLabel: string; onExpand: () => void
+  actions: readonly { label: string; name: string; title?: string; tone?: StepOption['tone']; disabled: boolean; run: () => void }[]
 }) {
+  const descriptionId = useId()
   return (
-    <section aria-label={`${title}, set aside`} className="mx-4 my-2 flex shrink-0 items-center gap-2 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
+    <section aria-label={label} className="mx-4 my-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
       <button type="button" aria-label={expandLabel} title={expandLabel} onClick={onExpand}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left outline-none">
-        <span aria-hidden="true" className="text-accent">⏵</span>
+        className="flex max-w-full min-w-0 cursor-pointer items-center gap-2 text-left outline-none">
+        {busy
+          ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
+          : <span aria-hidden="true" className="text-accent">⏵</span>}
         <span className="truncate text-secondary font-bold text-ink">{title}</span>
-        <span className="shrink-0 text-compact text-ink-faint">· {summary}</span>
       </button>
-      <button type="button" aria-label={action.name} title={action.name} disabled={action.disabled} onClick={action.run}
-        className="shrink-0 cursor-pointer rounded-[3px] border border-green bg-green px-2 py-0.5 text-compact font-semibold text-white outline-none transition-colors hover:brightness-108 disabled:cursor-default disabled:opacity-50">
-        {action.label}
-      </button>
+      {/* Outside the button, whose content is not announced; it also keeps the actions at the line's end. */}
+      <span role={live ? 'status' : undefined} title={summary} className="min-w-0 flex-[1_1_4rem] truncate text-compact text-ink-faint">{summary && `· ${summary}`}</span>
+      {actions.map((action) => (
+        <button key={action.name} type="button" aria-label={action.name} title={action.title ?? action.name} aria-describedby={action.disabled && description ? descriptionId : undefined} disabled={action.disabled} onClick={action.run}
+          className={`max-w-full cursor-pointer truncate rounded-[3px] border px-2 py-0.5 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[action.tone ?? 'positive']}`}>
+          {action.label}
+        </button>
+      ))}
+      {description && <p id={descriptionId} className="basis-full text-compact leading-snug text-ink-muted">{description}</p>}
     </section>
   )
 }
 
 /** The next step: a permission card with numbered options. 1–9 choose while it has focus. A step that acts on
- *  documents lists the project's to tick. The way past it (`dismiss`) is a line to type in: its number focuses it,
- *  Enter sends what is typed and sets the step aside; Esc, or the header's ×, sets it aside unsaid. */
-export function StepCardView({ card, scopeDisabled = false, sayDisabled = false, onChoose, picked = null, onPick }: {
-  card: StepCard; scopeDisabled?: boolean; sayDisabled?: boolean; onChoose: (option: StepOption, text?: string) => void
+ *  documents lists the project's to tick. The way past it (`dismiss`) is the chat's composer, drawn as the card's last
+ *  numbered option: its number focuses it (`onSay`), and sending from it says something else instead and sets the step
+ *  aside; Esc, or the header's ×, sets it aside unsaid. */
+function StepCardView({ card, scopeDisabled = false, scopeBlockedReason = null, sayDisabled = false, onChoose, picked = null, onPick, composer, onSay, onFold }: {
+  card: StepCard; scopeDisabled?: boolean; scopeBlockedReason?: string | null; sayDisabled?: boolean; onChoose: (option: StepOption) => void
   picked?: ReadonlySet<string> | null; onPick?: (ids: ReadonlySet<string>) => void
+  composer: ReactNode; onSay: () => void
+  /** Under another view: folds the step back to its title line. */
+  onFold?: () => void
 }) {
-  const [told, setTold] = useState('')
-  const tellRef = useRef<HTMLInputElement>(null)
+  const scopeDescriptionId = useId()
+  const scopeDescription = scopeDisabled && card.options.some(option => option.action.startsWith('scope:')) ? scopeBlockedReason : null
   const count = picked?.size ?? 0
   const options = card.options.map((option) =>
     scopeDisabled && option.action.startsWith('scope:') ? { ...option, disabled: true }
       : option.picks ? { ...option, label: pickedLabel(option, count), disabled: option.disabled || !pickable(card, count) } : option)
   const dismiss = options.find(({ action }) => action === 'dismiss')
   return (
-    <section aria-label={card.title} className="mx-4 my-2 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface"
+    <section aria-label={card.title} className={`mx-4 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface ${dismiss ? 'mt-2 mb-3' : 'my-2'}`}
       onKeyDown={(event) => {
         // Typing goes to the field; only Esc still closes the step from there.
         if ((event.target as HTMLElement).matches('textarea, input') && event.key !== 'Escape') return
@@ -269,14 +446,20 @@ export function StepCardView({ card, scopeDisabled = false, sayDisabled = false,
         const option = Number.isInteger(index) && index >= 0 ? options[index] : escape ? dismiss : undefined
         if (!option) return
         event.preventDefault()
-        if (option.action === 'dismiss' && !escape) tellRef.current?.focus()
+        if (option.action === 'dismiss' && !escape) onSay()
         else onChoose(option)
       }}>
       <div className="flex items-center gap-2 border-b border-line px-2.5 py-1.5">
         {card.busy
           ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
           : <span aria-hidden="true" className="text-accent">⏵</span>}
-        <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink">{card.title}</span>
+        <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink" title={card.title}>{card.title}</span>
+        {onFold && (
+          <button type="button" aria-label="Fold the step" title="Fold" onClick={onFold}
+            className="shrink-0 cursor-pointer rounded-md px-1 leading-none text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink">
+            <span aria-hidden="true">⌄</span>
+          </button>
+        )}
         {dismiss && (
           <button type="button" aria-label="Not yet" title="Not yet (Esc)" onClick={() => onChoose(dismiss)}
             className="shrink-0 cursor-pointer rounded-md px-1 leading-none text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink">
@@ -295,9 +478,9 @@ export function StepCardView({ card, scopeDisabled = false, sayDisabled = false,
             ))}
           </dl>
         )}
-        {card.error && <p role="alert" className="text-compact leading-snug text-danger">{card.error}</p>}
-        {card.notice && <p role="status" className="text-compact leading-snug text-ink-muted">{card.notice}</p>}
-        {card.question && <p className="text-secondary font-semibold text-ink">{card.question}</p>}
+        {card.error && <p role="alert" className="text-compact leading-snug text-danger [overflow-wrap:anywhere]">{card.error}</p>}
+        {card.notice && <p role="status" className="text-compact leading-snug text-ink-muted [overflow-wrap:anywhere]">{card.notice}</p>}
+        {card.question && <p className="text-secondary font-semibold text-ink [overflow-wrap:anywhere]">{card.question}</p>}
         {card.picker && picked && (
           <fieldset className="scrollbar-subtle flex max-h-44 min-w-0 flex-col gap-0.5 overflow-y-auto rounded-[3px] border border-line bg-surface-muted px-2 py-1.5">
             <legend className="sr-only">Documents</legend>
@@ -318,29 +501,24 @@ export function StepCardView({ card, scopeDisabled = false, sayDisabled = false,
         {card.picker && count > card.picker.limit && (
           <p role="status" className="text-compact leading-snug text-danger">At most {plural(card.picker.limit, 'document')} at once.</p>
         )}
+        {scopeDescription && <p id={scopeDescriptionId} className="text-compact leading-snug text-ink-muted">{scopeDescription}</p>}
         {options.length > 0 && (
           <div className="flex flex-col gap-1">
             {options.map((option, index) => option.action === 'dismiss' ? (
-              <label key={option.action}
-                className={`flex min-h-7 items-baseline gap-2 rounded-[3px] border border-line bg-surface px-2 py-1 text-compact focus-within:border-ink-faint ${sayDisabled ? 'opacity-50' : ''}`}>
-                <span aria-hidden="true" className="w-3 shrink-0 font-mono font-semibold text-ink opacity-70">{index + 1}</span>
-                <input ref={tellRef} type="text" aria-label={option.label} placeholder={option.label} value={told} disabled={sayDisabled}
-                  className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-muted"
-                  onChange={(event) => setTold(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter' || !told.trim()) return
-                    event.preventDefault()
-                    onChoose(option, told)
-                    setTold('')
-                  }} />
-              </label>
+              // The way past the step is the chat's composer itself, numbered as the card's last option.
+              <div key={option.action}
+                className={`flex items-end gap-2 rounded-[3px] border border-line bg-surface px-2 py-1.5 focus-within:border-ink-faint ${sayDisabled ? 'opacity-60' : ''}`}>
+                <span aria-hidden="true" className="w-3 shrink-0 self-start pt-0.5 font-mono text-compact font-semibold text-ink opacity-70">{index + 1}</span>
+                {composer}
+              </div>
             ) : (
               <button key={option.action} type="button" disabled={option.disabled}
+                aria-describedby={scopeDescription && option.action.startsWith('scope:') ? scopeDescriptionId : undefined}
                 title={option.description} aria-description={option.description}
                 className={`flex min-h-7 cursor-pointer items-baseline gap-2 rounded-[3px] border px-2 py-1 text-left text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-50 ${optionClass[option.tone]}`}
                 onClick={() => onChoose(option)}>
                 <span aria-hidden="true" className="w-3 shrink-0 font-mono opacity-70">{index + 1}</span>
-                <span className="min-w-0">
+                <span className="min-w-0 [overflow-wrap:anywhere]">
                   {option.label}
                   {option.hint && <span className="block font-normal opacity-80">{option.hint}</span>}
                 </span>

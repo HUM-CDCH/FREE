@@ -27,7 +27,7 @@ function ports(overrides: Partial<SchemaChatPorts> = {}) {
     cancelSignal: () => undefined,
   }
   const readSource = vi.fn(async (): Promise<SchemaSource | null> => SOURCE)
-  const answer = vi.fn(async (): Promise<string | null> => '42 burials.')
+  const answer = vi.fn(async (): Promise<string | { readonly action: 'none' } | null> => '42 burials.')
   const answerWindow = vi.fn(async (_caller: unknown, window: { index: number }) => `part ${window.index}`)
   const combineAnswers = vi.fn(async (_caller: unknown, answers: readonly string[]) => answers.join(' + '))
   return {
@@ -45,6 +45,13 @@ describe('answerSchemaChatWorkflow', () => {
     expect(readSource).toHaveBeenCalledExactlyOnceWith(input.sourceRepresentationRevisionId)
     expect(names).toEqual(['answerIfQuestion'])
     expect(answer.mock.calls[0]!.slice(0, 3)).toEqual([{ researcherAccountId: OWNER }, SOURCE, { message: input.message, history: input.history }])
+  })
+
+  it('a message that only declines is the reply `none`, and nothing else runs', async () => {
+    const { names, answer, ports: p } = ports()
+    answer.mockResolvedValue({ action: 'none' as const })
+    await expect(answerSchemaChatWorkflow(input, p)).resolves.toEqual({ ok: true, reply: { kind: 'none' } })
+    expect(names).toEqual(['answerIfQuestion'])
   })
 
   it('an instruction is the reply `instruction`, and nothing else runs', async () => {

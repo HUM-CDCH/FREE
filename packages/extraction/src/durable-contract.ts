@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { schemaNodeSchema, schemaPathNames, isRecord } from './schema.js'
 import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-evidence.js'
+import { segmentPage } from './parsed-document.js'
 
 export const DURABLE_EXTRACTION_PROTOCOL = 1 as const
 export const durableCommandSchema = z.object({
@@ -78,4 +79,22 @@ export function durableStatus(head: DurableHead): DurableStatus {
   if (head.acknowledgement === 'COMPLETED' || head.acknowledgement === 'FAILED') return head.acknowledgement
   if (head.intent === 'PAUSE') return head.acknowledgement === 'PAUSED' ? 'PAUSED' : 'PAUSING'
   return head.acknowledgement
+}
+
+/** Part of a canonical segment's text: Unicode code point offsets, end exclusive. */
+export type SourceRange = { segment: string; start: number; end: number }
+export const sourceRange = (value: unknown): value is SourceRange => {
+  const range = value as SourceRange | null
+  return typeof range === 'object' && range !== null && typeof range.segment === 'string'
+    && Number.isInteger(range.start) && Number.isInteger(range.end) && range.start >= 0 && range.end > range.start
+}
+/** Planned records retain their scope's canonical order and disjoint ownership for source display.
+ *  Other scopes keep their start alone. */
+export function plannedRecords(units: readonly { ordinal: number; scope: unknown }[]) {
+  const scopes = units.map(unit => Array.isArray(unit.scope) && unit.scope.length > 0 && unit.scope.every(sourceRange) ? unit.scope as SourceRange[] : null)
+  return units.map((unit, index) => {
+    const segment = Array.isArray(unit.scope) ? (unit.scope[0] as { segment?: unknown } | undefined)?.segment : undefined
+    return { ordinal: unit.ordinal, segment: typeof segment === 'string' ? segment : null, page: segmentPage(segment),
+      ...(scopes[index] ? { ranges: scopes[index]!.map(range => ({ ...range })) } : {}) }
+  })
 }

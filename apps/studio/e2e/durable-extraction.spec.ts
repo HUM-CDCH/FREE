@@ -104,12 +104,16 @@ test('results identify an older template and a new Article admission survives re
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`extractionId=${admitted}`))
-    await expect(page.getByRole('button',{name:'Template rev 3',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'More result actions',exact:true}).click()
+    await expect(page.getByRole('menuitem',{name:'Template revision 3',exact:true})).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.reload()
     await openRailView(page,'Results')
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
     await expect(page.getByText('Old reference 17',{exact:true})).toHaveCount(0)
-    await expect(page.getByRole('button',{name:'Template rev 3',exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'More result actions',exact:true}).click()
+    await expect(page.getByRole('menuitem',{name:'Template revision 3',exact:true})).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.screenshot({path:testInfo.outputPath('new-article-after-reload.png')})
   } finally {await fixture.close()}
 })
@@ -242,13 +246,15 @@ test('saved live review survives reload, rejects another owner and exports its f
     await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
     await page.reload()
     await openRailView(page,'Results')
-    await expect(page.getByText(/1 approved · 1 edited · 0 rejected · review saved/)).toBeVisible()
+    await expect(page.getByRole('img',{name:/^1 approved, 1 edited, 0 rejected/})).toBeVisible()
+    await expect(page.getByText(/checked · review saved/)).toBeVisible()
     // The paused Extraction's controls are the chat's step (ADR 0026).
     const extractionStep=page.getByRole('region',{name:'Extraction',exact:true})
     await expect(extractionStep.getByRole('button',{name:'▶ Resume extraction',exact:true})).toBeVisible()
     await extractionStep.getByRole('button',{name:'■ Stop',exact:true}).click()
     // Stopped, the step and its controls go and the chat leads the project again: with this document's review saved,
-    // the template's approval is next.
+    // the second trial is offered, and declining it leaves the template's approval next.
+    await page.getByRole('button',{name:'No, go on to approval',exact:true}).click()
     await expect(page.getByRole('button',{name:'Approve template',exact:true})).toBeVisible()
     await expect(extractionStep).toHaveCount(0)
     await expect(page.getByRole('button',{name:'▶ Resume extraction',exact:true})).toHaveCount(0)
@@ -331,7 +337,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     expect(retained.values.find((v:{id:string})=>v.id==='names').correction.decision.value).toEqual(['Ada','Bea'])
     await page.getByRole('button',{name:'All',exact:true}).click()
     await page.getByRole('button',{name:/Edited work/}).click()
-    await expect(page.getByText('Extracted value:',{exact:false})).toBeVisible()
+    await expect(page.getByText('Original:',{exact:false})).toBeVisible()
     await page.screenshot({path:'test-results/durable-composite-review.png',fullPage:true})
   } finally {await fixture.close()}
 })
@@ -345,7 +351,7 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
-        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,linked_by:'lexical',precision:'segment'}}]}})
     // Direct reopen already chooses the producing source. Hold its real parsed
     // document request while the retained values and PDF become available.
     await page.route(`**/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source?*`,async route=>{
@@ -361,9 +367,60 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     await expect(page.getByRole('heading',{name:'Unit 7',exact:true})).toBeFocused()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
     release.resolve()
-    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
-    await expect(page.locator('.parsed-evidence-focus')).toHaveAttribute('data-occurrence-id',occurrence.occurrence_id)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
   } finally {release.resolve();await fixture.close()}
+})
+
+test('the selected value shows its value mark inside its block mark',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
+    const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!,{x0,y0,x1,y1}=occurrence.bbox
+    // The Parsing Service's value box (ADR 0031): the second quarter of the block's width, the middle half of its height.
+    const box:[number,number,number,number]=[x0+(x1-x0)/4,y0+(y1-y0)/4,x0+(x1-x0)/2,y1-(y1-y0)/4]
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
+      {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
+        segment:'p1_s0',page:1,bbox_pt:[x0,y0,x1,y1],verbatim:true,linked_by:'lexical',precision:'segment',value_boxes_pt:[box]}}]}})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await openRailView(page,'Results')
+    const block=page.locator(`.parsed-evidence-highlight[data-occurrence-id="${occurrence.occurrence_id}"]`),value=page.locator('.evidence-value-mark')
+    await expect(block).toHaveCount(1)
+    // No value is selected yet: its printing is marked already, quietly; selecting it makes the mark the strong one.
+    await expect(value).toHaveCount(1)
+    await expect(value).not.toHaveClass(/selected/)
+    // Every value of the block has its own mark, so the block leaves the pointer to it: one pointer target per value.
+    await expect(block).toHaveCSS('pointer-events','none')
+    // Under the pointer the mark names its field in a tag of its own, never in a browser tooltip.
+    await value.hover()
+    await expect(page.locator('.evidence-mark-name')).toHaveText(/^title$/i)
+    await expect(value).not.toHaveAttribute('title')
+    await expect(block).not.toHaveAttribute('title')
+    await value.click()
+    await expect(page.locator('.evidence-mark-name')).toHaveCount(0)
+    await expect(value).toHaveClass(/selected/)
+    const outer=(await block.boundingBox())!,inner=(await value.boundingBox())!
+    expect(Math.abs((inner.x-outer.x)/outer.width-0.25)).toBeLessThan(0.03)
+    expect(Math.abs(inner.width/outer.width-0.25)).toBeLessThan(0.03)
+    expect(Math.abs((inner.y-outer.y)/outer.height-0.25)).toBeLessThan(0.05)
+    expect(Math.abs(inner.height/outer.height-0.5)).toBeLessThan(0.05)
+    // The block mark stays the button; the value mark is not announced, and the pointer picks its value with it.
+    await expect(value).toHaveAttribute('aria-hidden','true')
+    await expect(value).toHaveCSS('pointer-events','auto')
+    await value.click()
+    await expect(value).toHaveClass(/selected/)
+    // Choosing the value in Results brings its mark back into view from the far end of the document. Its open row
+    // closes on a click, so it is closed first.
+    const row=page.getByRole('button',{name:/^To check title Unit 7/})
+    await row.click()
+    await expect(value).not.toHaveClass(/selected/)
+    await page.locator('.pdf-viewer').evaluate(element=>element.scrollTo({top:element.scrollHeight,behavior:'instant'}))
+    await expect(value).not.toBeInViewport()
+    await row.click()
+    await expect(value).toHaveClass(/selected/)
+    await expect(value).toBeInViewport({ratio:1})
+    await page.screenshot({path:'test-results/value-mark.png'})
+  } finally {await fixture.close()}
 })
 
 test('a collapsed rail keeps one-by-one and moves nothing on the page; each toggle passes the focus on',async({page})=>{
@@ -373,14 +430,14 @@ test('a collapsed rail keeps one-by-one and moves nothing on the page; each togg
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Unit 7'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
-        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,linked_by:'lexical',precision:'segment'}}]}})
     await page.goto(`${fixture.url}?extractionId=${id}`)
     await openRailView(page,'Results')
     await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Review one by one',exact:true}).click()
     const heading=page.getByRole('heading',{name:'Unit 7',exact:true}),current=page.getByLabel('Current page')
     await expect(heading).toBeFocused()
-    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
     await expect(current).toHaveValue(String(occurrence.page_number))
     // Away from the value's page, which a collapse must not bring back.
     await current.fill('6');await current.press('Enter')
@@ -399,7 +456,7 @@ test('a collapsed rail keeps one-by-one and moves nothing on the page; each togg
     await expect(heading).toBeVisible()
     // Expanding in one-by-one scrolls back to its value.
     await expect(current).toHaveValue(String(occurrence.page_number))
-    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
   } finally {await fixture.close()}
 })
 
@@ -501,7 +558,7 @@ for(const status of ['PAUSED','FAILED','STOPPED'] as const) {
       await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,second.id]])
       await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}`)
       await expect(page.getByText(`2 ${status.toLowerCase()}`,{exact:true})).toBeVisible()
-      await expect(page.getByRole('button',{name:'Review grid',exact:true})).toHaveCount(0)
+      await expect(page.getByRole('button',{name:'Review in grid',exact:true})).toBeEnabled()
       const members=page.getByRole('list',{name:'Batch Extraction members'})
       await expect(members.getByRole('button')).toHaveCount(2)
       await expect(members.getByRole('button').first()).toBeEnabled()
@@ -538,7 +595,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await expect(summary).toContainText('1 failed');await expect(summary).toContainText('1 stopped')
     const members=page.getByRole('list',{name:'Batch Extraction members'})
     await expect(members.getByRole('button')).toHaveCount(3)
-    await expect(page.getByRole('button',{name:'Review grid',exact:true})).toHaveCount(0)
+    await expect(page.getByRole('button',{name:'Review in grid',exact:true})).toBeEnabled()
     await page.getByRole('button',{name:'Export',exact:true}).click()
     const downloading=page.waitForEvent('download')
     await page.getByRole('button',{name:'CSV file',exact:true}).click()
@@ -560,7 +617,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     await expect(page).toHaveURL(new RegExp(`documents/${emptySource.sourceDocumentId}.*extractionId=${empty.id}`))
     await openRailView(page,'Results')
     const rail=page.getByRole('complementary',{name:'Chat, template and results'})
-    await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText('Failed',{exact:true})).toBeVisible()
+    await expect(rail.getByRole('group',{name:'Results status'}).getByText('Failed',{exact:true})).toBeVisible()
     await expect(rail.getByRole('button',{name:'Review one by one',exact:true})).toBeDisabled()
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable/values`)).json()).values).toEqual([])
     expect((await (await page.request.get(`/api/extractions/${empty.id}/durable`)).json()).controlVersion).toBe(0)
@@ -582,7 +639,7 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       await openRailView(page,'Results')
       const rail=page.getByRole('complementary',{name:'Chat, template and results'})
       // A running Article reads the document; every other lifecycle is named as it is. Scoped to Results: the chat's step card repeats the status.
-      await expect(rail.getByRole('region',{name:'Results',exact:true}).getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
+      await expect(rail.getByRole('group',{name:'Results status'}).getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
       await expect(rail.getByText(`Retained ${status}`,{exact:false})).toBeVisible()
       await rail.getByRole('button',{name:`To check title Retained ${status}`}).click()
       await expect(rail.getByRole('button',{name:'Edit',exact:true})).toBeEnabled()
@@ -598,7 +655,7 @@ test('every native lifecycle shows retained review and running keyboard edits ke
         expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
         continue
       }
-      await rail.getByRole('button',{name:'Review from here',exact:true}).click()
+      await rail.getByRole('button',{name:'Review one by one',exact:true}).click()
       for(const name of ['More result actions','Run details']) {
         const overlay=rail.getByRole('button',{name});await overlay.click()
         const target=name==='More result actions'?rail.getByRole('menuitem',{name:'Export…'}):overlay
@@ -753,7 +810,7 @@ test('retained Catalog review fits actual 344px and 264px rails and a narrow vie
       await page.screenshot({path:testInfo.outputPath(`durable-rail-${width}.png`)})
     }
     await rail.getByRole('button',{name:/To check title A retained record/}).click()
-    await rail.getByRole('button',{name:'Review from here',exact:true}).click()
+    await rail.getByRole('button',{name:'Review one by one',exact:true}).click()
     await page.keyboard.press('e')
     await expect(rail.getByRole('textbox',{name:'Reviewed value'})).toBeVisible()
     await assertGeometry()
@@ -857,7 +914,8 @@ for(const source of ['same source','new source revision'] as const) {
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await openRailView(page,'Results')
       } else {
-        await page.getByRole('button',{name:'Open latest reviewed',exact:true}).click()
+        await page.getByRole('button',{name:'More result actions',exact:true}).click()
+        await page.getByRole('menuitem',{name:'Open latest reviewed',exact:true}).click()
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await openRailView(page,'Results')
       }
@@ -891,7 +949,8 @@ test('an open value\'s History lists its latest reading in each Extraction, open
     await savedExtraction(fixture,nodes,['Current title'],'PAUSED',{schemaRevisionId:earlier.schemaRevisionId})
     await fixture.open();await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title Current title/}).click()
-    await page.getByRole('button',{name:'History of this value',exact:true}).click()
+    await page.getByRole('button',{name:'More result actions',exact:true}).click()
+    await page.getByRole('menuitem',{name:'History of this value',exact:true}).click()
     const readings=page.getByRole('list',{name:'Readings of title'}).getByRole('listitem')
     await expect(readings).toHaveCount(2)
     await expect(readings.first()).toContainText('Current title')
@@ -924,7 +983,7 @@ test('a late post-save page response keeps the newer field and its unsaved brows
     await review.getByRole('button',{name:'Edit',exact:true}).click()
     await review.getByRole('textbox',{name:'Reviewed value'}).fill('Keep this unsaved draft')
     held.resolve()
-    await expect(page.getByText(/0 approved · 1 edited · 0 rejected/)).toBeVisible()
+    await expect(page.getByRole('img',{name:/^0 approved, 1 edited, 0 rejected/})).toBeVisible()
     await expect(review.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Keep this unsaved draft')
     const saved=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()).values
     expect(saved.find((value:{id:string})=>value.id==='title').correction.decision.value).toBe('Saved title')
@@ -963,7 +1022,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],[null],'COMPLETED',{disagreement:{title:[{path:[],alternatives}]}})
     await fixture.open();await openRailView(page,'Results')
     await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
-    await expect(page.getByText('Readings differ',{exact:true})).toBeVisible()
+    await expect(page.getByText('Different readings',{exact:true})).toBeVisible()
     await expect(page.getByText('read in p. 3 · not checked')).toHaveCount(2)
     await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0)
     const headers={Origin:new URL(page.url()).origin},root=`/api/extractions/${id}/durable`
@@ -974,7 +1033,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     const csv=await readFile((await (await download).path())!,'utf8')
     expect(csv).toContain('title,title (review),title (alternatives)\r\n,Readings differ,')
     expect(csv).toContain('Article title');expect(csv).toContain('Cited title')
-    await page.getByRole('button',{name:'Review from here'}).click()
+    await page.getByRole('button',{name:'Review one by one'}).click()
     await page.getByRole('heading',{name:'Article title or Cited title'}).press('a')
     expect((await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(1)
     await page.getByRole('button',{name:'Use Article title'}).click()

@@ -11,12 +11,13 @@ export type ToastProps = {
    *  keyboard) does not lose it to the timer; the host pauses and resumes its timer. */
   onHoldChange?: (held: boolean) => void
   className?: string
-  /** Wraps a long message instead of truncating it (the Results rail's notices name counts at its end). */
+  /** Wraps a long message (the default: a notice often names a file, project or template). `false` keeps it on one
+   *  line, ellipsized, with a string message as its title. */
   wrap?: boolean
 }
 
 /** A transient notice. The host decides where it sits and for how long; `role="status"` announces it once. */
-function Toast({ message, action, onDismiss, onHoldChange, className = '', wrap = false }: ToastProps) {
+function Toast({ message, action, onDismiss, onHoldChange, className = '', wrap = true }: ToastProps) {
   const hold = useRef({ hovered: false, focused: false })
   const update = (change: Partial<typeof hold.current>) => {
     const before = hold.current.hovered || hold.current.focused
@@ -33,7 +34,7 @@ function Toast({ message, action, onDismiss, onHoldChange, className = '', wrap 
       onFocus={() => update({ focused: true })}
       onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) update({ focused: false }) }}
     >
-      <span className={`min-w-0 ${wrap ? '' : 'truncate'}`}>{message}</span>
+      <span className={`min-w-0 ${wrap ? '[overflow-wrap:anywhere]' : 'truncate'}`} title={!wrap && typeof message === 'string' ? message : undefined}>{message}</span>
       {action && (
         <button
           type="button"

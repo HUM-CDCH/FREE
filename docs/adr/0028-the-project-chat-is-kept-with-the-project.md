@@ -1,6 +1,7 @@
 # 0028: The project chat is kept with the project
 
-Date: 2026-11-03. Status: accepted; amends [0026](0026-the-chat-leads-the-whole-workflow.md).
+Date: 2026-11-03. Status: accepted; amends [0026](0026-the-chat-leads-the-whole-workflow.md); amended by
+[0029](0029-the-researcher-clears-the-project-chat.md).
 
 ## Context
 
@@ -30,7 +31,7 @@ Source Document than the one it reads, and nothing to bound its length short of 
 
 ## Consequences
 
-- The conversation is the same on reload, on the project page and back, and on another device; the researcher still
-  cannot clear it.
+- The conversation is the same on reload, on the project page and back, and on another device; the researcher clears
+  it only as a whole (0029).
 - Older entries than the latest 1,000 stay stored and are not shown; nothing prunes the log yet.
 - The standalone Template panel, outside a project's document workspace, keeps its chat for the page only.

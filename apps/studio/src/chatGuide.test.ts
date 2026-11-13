@@ -49,6 +49,32 @@ describe('nextStep', () => {
     expect(step?.options.map(({ action, disabled }) => [action, !!disabled])).toEqual([['apply', true], ['review-schema', false], ['discard', false]])
   })
 
+  it('stops at Template ready after a generation, before the Record Scope or a run', () => {
+    const step = nextStep({ ...base, templateReady: true, recordScope: null })
+    expect(step).toMatchObject({ title: 'Template ready', question: 'Look at the template before going on?', detail: [['Template', '6 fields']] })
+    expect(step?.options.map(({ action, tone }) => [action, tone])).toEqual([['review-schema', 'positive'], ['continue', 'secondary'], ['dismiss', 'dismiss']])
+    expect(nextStep({ ...base, templateReady: true })?.detail).toEqual([['Template', '6 fields'], ['Strategy', 'Catalog']])
+    // A finished run on the same template waits too: the generation is looked at first.
+    expect(nextStep({ ...base, templateReady: true, latest: latest('COMPLETED') })?.title).toBe('Template ready')
+  })
+
+  it('leads Template ready with Continue once the template is in view, and keeps a proposal first', () => {
+    expect(actions({ templateReady: true, templateShown: true })).toEqual(['continue', 'dismiss'])
+    expect(nextStep({ ...base, templateReady: true, templateShown: true })?.options[0]?.tone).toBe('positive')
+    expect(nextStep({ ...base, templateReady: true, proposal: { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true } })?.key).toBe('proposal')
+  })
+
+  it('stops at Results ready after a completed run, before the project or the next run', () => {
+    const step = nextStep({ ...base, resultsReady: true, latest: latest('COMPLETED') })
+    expect(step).toMatchObject({ key: 'results-ready:extraction-1', title: 'Results ready', question: 'Look at the results? 2 values to check.',
+      detail: [['Result', 'Reading records · 3 of 14']] })
+    expect(step?.options.map(({ action, tone }) => [action, tone])).toEqual([['review', 'positive'], ['continue', 'secondary'], ['dismiss', 'dismiss']])
+    // In view, Continue leads; a run not completed, or one not just seen to complete, has no such step.
+    expect(actions({ resultsReady: true, latest: latest('COMPLETED'), resultsShown: true })).toEqual(['continue', 'dismiss'])
+    expect(nextStep({ ...base, resultsReady: true, latest: latest('RUNNING') })?.title).not.toBe('Results ready')
+    expect(nextStep({ ...base, latest: latest('COMPLETED') })?.title).not.toBe('Results ready')
+  })
+
   it('asks for the Record Scope before a run', () => {
     expect(actions({ recordScope: null })).toEqual(['scope:records', 'scope:document', 'review-schema'])
   })
@@ -74,8 +100,22 @@ describe('nextStep', () => {
       options: [{ action: 'pause', label: '❚❚ Pause extraction', description: 'Pause.' }, { action: 'stop', label: '■ Stop' }] })
     expect(actions({ latest: latest('PAUSED') })).toEqual(['resume', 'stop'])
     expect(actions({ latest: latest('FAILED') })).toEqual(['retry', 'stop'])
-    expect(nextStep({ ...base, latest: latest('PAUSING') })).toMatchObject({ notice: 'Pausing…', options: [] })
+    // Pausing waits for the call under way: Stop still ends the extraction.
+    expect(nextStep({ ...base, latest: latest('PAUSING') })).toMatchObject({ notice: 'Pausing…', options: [{ action: 'stop', tone: 'danger' }] })
+    expect(nextStep({ ...base, latest: latest('STOPPING') })).toMatchObject({ notice: 'Stopping…', options: [] })
     expect(nextStep({ ...base, latest: latest('RUNNING'), control: null })?.key).toBe('run:extraction-1')
+  })
+
+  it('leads a halted Extraction on an earlier template with a run of the current one, ahead of Retry or Resume', () => {
+    const failed = nextStep({ ...base, latest: latest('FAILED', 'revision-1') })
+    expect(failed?.question).toBe('It ran with an earlier template. Retry keeps that one; run the current template instead?')
+    expect(failed?.options.map(({ action, tone }) => [action, tone])).toEqual([['restart', 'positive'], ['retry', 'secondary'], ['stop', 'danger']])
+    expect(failed?.options[0]).toMatchObject({ label: '▶ Run again with the current template',
+      description: 'Stops this extraction (its saved values and decisions stay), then runs template revision 2' })
+    expect(actions({ latest: latest('PAUSED', 'revision-1') })).toEqual(['restart', 'resume', 'stop'])
+    // The same template under another revision, or no way to run here, keeps Retry first.
+    expect(actions({ latest: { ...latest('FAILED', 'revision-1'), sameTemplate: true } })).toEqual(['retry', 'stop'])
+    expect(actions({ latest: latest('FAILED', 'revision-1'), run: null })).toEqual(['retry', 'stop'])
   })
 
   it('holds Resume and Retry while pending inputs wait, saying why, and every command while one is under way', () => {
@@ -99,6 +139,44 @@ describe('nextStep', () => {
     expect(nextStep({ ...base, latest: latest('STOPPED') })?.title).toBe('Run extraction again')
   })
 
+  it('offers Stop while the template is generated again, the saved one staying in view', () => {
+    expect(nextStep({ ...base, generating: true })).toMatchObject({ title: 'Template Suggestion', busy: true,
+      options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] })
+    expect(nextStep({ ...base, view: 'generating', generating: true })?.options).toEqual([expect.objectContaining({ action: 'stop-generation' })])
+  })
+
+  it('says the template changed only once the last run\'s revision is compared and found to define another one', () => {
+    const question = (status: Parameters<typeof latest>[0], schemaRevisionId: string, sameTemplate?: boolean | null) =>
+      nextStep({ ...base, latest: { ...latest(status, schemaRevisionId), sameTemplate } })?.question
+    expect(question('COMPLETED', 'revision-1', false)).toBe('The template changed since the last run. Run the extraction again?')
+    // Not compared yet, or not readable: another revision, nothing more.
+    expect(question('COMPLETED', 'revision-1', null)).toBe('The last run used another template revision. Run the extraction again?')
+    expect(question('COMPLETED', 'revision-1')).toBe('The last run used another template revision. Run the extraction again?')
+    // A stopped run of the current template asks to run again for that reason alone.
+    expect(question('STOPPED', 'revision-2')).toBe('The last extraction was stopped. Run it again?')
+    expect(question('STOPPED', 'revision-1', true)).toBe('The last extraction was stopped. Run it again?')
+    expect(question('STOPPED', 'revision-1', false)).toBe('The last extraction was stopped, and the template changed since. Run it again?')
+    expect(question('STOPPED', 'revision-1', null)).toBe('The last extraction was stopped, and it used another template revision. Run it again?')
+  })
+
+  it('leads with View template once the template is another than the last run\'s, and with the run otherwise', () => {
+    const options = (input: Partial<GuideInput>) => nextStep({ ...base, ...input })?.options.map(({ action, tone }) => [action, tone])
+    for (const sameTemplate of [false, null])
+      expect(options({ latest: { ...latest('COMPLETED', 'revision-1'), sameTemplate } }))
+        .toEqual([['review-schema', 'positive'], ['run', 'secondary'], ['dismiss', 'dismiss']])
+    // Already in view: nothing to open, the run leads.
+    expect(options({ latest: { ...latest('COMPLETED', 'revision-1'), sameTemplate: false }, templateShown: true }))
+      .toEqual([['run', 'positive'], ['dismiss', 'dismiss']])
+    // A stopped run of the same template, or the first run: the run leads, the template after it.
+    expect(options({ latest: latest('STOPPED') })).toEqual([['run', 'positive'], ['review-schema', 'secondary'], ['dismiss', 'dismiss']])
+    expect(options({ latest: null })).toEqual([['run', 'positive'], ['review-schema', 'secondary'], ['dismiss', 'dismiss']])
+  })
+
+  it('reads a finished run of another revision defining the same template as finished on it', () => {
+    expect(nextStep({ ...base, latest: { ...latest('COMPLETED', 'revision-1'), sameTemplate: true } }))
+      .toMatchObject({ key: 'finished:extraction-1', title: 'Extraction finished' })
+  })
+
   it('keeps a dismissed step away until its key changes', () => {
     expect(nextStep({ ...base, dismissed: new Set(['run:first']) })).toBeNull()
     expect(nextStep({ ...base, view: 'empty', instructionCount: 1, dismissed: new Set(['generate:0']) })?.key).toBe('generate:1')
@@ -115,7 +193,7 @@ describe('nextStep', () => {
 describe('nextStep in a project', () => {
   const summary = (overrides: Partial<ProjectContextActivitySummary> = {}): ProjectContextActivitySummary => ({
     phase: 'pilot', extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0, staleSourceDocumentCount: 0,
-    pendingExtractionSourceDocumentCount: 4, schemaDraftCount: 0, currentSchemaRevisionId: 'revision-2', schemaStabilised: false,
+    pendingExtractionSourceDocumentCount: 4, currentSchemaRevisionId: 'revision-2', schemaStabilised: false,
     currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides,
   })
   const documents = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: `${id}.pdf` }))
@@ -129,8 +207,19 @@ describe('nextStep in a project', () => {
     summary: summary(), documents, currentDocumentId: 'b', batches: [], latest: null, roundId: null, busy: false, error: null, ...overrides })
   const step = (overrides: Partial<ProjectGuideInput> = {}, input: Partial<GuideInput> = {}) => nextStep({ ...base, project: project(overrides), ...input })
 
+  it('stops a running Batch Extraction from the chat while a member is at work', () => {
+    const running = { ...member('b'), executionStatus: 'RUNNING' as const, completed: false }
+    const waiting = { summary: summary({ runningBatch: { completedMemberCount: 1, memberCount: 2 } }) }
+    expect(step({ ...waiting, batches: [batch([member('a'), running])] })).toMatchObject({ key: 'project-running', busy: true,
+      options: [{ action: 'stop-batch', label: '■ Stop batch extraction', tone: 'danger', disabled: false }] })
+    expect(step({ ...waiting, batches: [batch([member('a'), running])], busy: true })?.options[0]).toMatchObject({ disabled: true })
+    // Every member finished, or the batches not read yet: nothing to stop.
+    expect(step({ ...waiting, batches: [batch([member('a')])] })?.options).toEqual([])
+    expect(step({ ...waiting, batches: null })?.options).toEqual([])
+  })
+
   it('pilots a ready template on this document and the next ones, with a run of this document alone beside it', () => {
-    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Pilot the template',
+    expect(step()).toMatchObject({ key: 'pilot:revision-2', title: 'Try template on a few documents',
       picker: { initial: ['b', 'a', 'c'], limit: 5 }, options: [{ action: 'pilot', picks: true }, { action: 'run', label: 'Only this document' }, { action: 'review-schema', label: 'View template' }, { action: 'dismiss' }] })
     // A schema saved here leads to the pilot before the summary is read again.
     expect(step({ summary: summary({ phase: 'schema' }) })?.key).toBe('pilot:revision-2')
@@ -141,7 +230,7 @@ describe('nextStep in a project', () => {
 
   it('leads a pilot round\'s review: this document\'s Results, else the next document to review', () => {
     const pilot = { summary: summary({ extractedSourceDocumentCount: 3 }), batches: [batch([member('a', true), member('b'), member('c')])] }
-    expect(step(pilot)).toMatchObject({ key: 'review:extraction-b', title: 'Pilot review', detail: [['Progress', '1 of 3 documents reviewed']], options: [{ action: 'review' }] })
+    expect(step(pilot)).toMatchObject({ key: 'review:extraction-b', title: 'Review the trial results', detail: [['Progress', '1 of 3 documents reviewed']], options: [{ action: 'review' }] })
     expect(step(pilot, { resultsShown: true })).toMatchObject({ options: [], notice: expect.stringContaining('save the review') })
     expect(step({ ...pilot, currentDocumentId: 'd' })).toMatchObject({ key: 'review-next:extraction-b', options: [
       { action: 'open-document', label: 'Next document · b.pdf', target: { sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'batch-revision-2' } },
@@ -155,9 +244,9 @@ describe('nextStep in a project', () => {
     const revised = summary({ currentSchemaRevisionId: 'revision-3', extractedSourceDocumentCount: 3 })
     const round = batch([member('a'), member('b'), member('c')])
     const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
-    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Review 3 pilot results' })
+    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Review 3 trial results' })
     expect(step({ summary: revised, batches: [round], roundId: round.batchExtractionId, currentDocumentId: 'a' }, revision3))
-      .toMatchObject({ key: 'review:extraction-a', title: 'Pilot review' })
+      .toMatchObject({ key: 'review:extraction-a', title: 'Review the trial results' })
     // "Continue in chat" and a tab switch open the document without its round: the page still says to review.
     expect(step({ summary: revised, batches: [round], currentDocumentId: 'a' }, revision3)?.key).toBe('review:extraction-a')
     expect(step({ summary: revised, batches: [round], currentDocumentId: 'd' }, revision3)?.key).toBe('review-next:extraction-a')
@@ -167,9 +256,9 @@ describe('nextStep in a project', () => {
     // The server's phase reached the approval with revision 2's pilot; revision 3's own pilot has run since.
     const revised = summary({ phase: 'approve', currentSchemaRevisionId: 'revision-3', currentSchemaRevisionReviewed: false })
     const revision3 = { revision: { id: 'revision-3', number: 3, fieldCount: 6 } }
-    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Pilot the revised template' })
+    expect(guidedWorkflow(revised).next).toMatchObject({ step: 'pilot', label: 'Try the revised template on a few documents' })
     const older = batch([member('a', true), member('b')]), current = batch([member('a'), member('b'), member('c')], 'revision-3')
-    expect(step({ summary: revised, batches: [older, current] }, revision3)).toMatchObject({ key: 'review:extraction-b', title: 'Pilot review' })
+    expect(step({ summary: revised, batches: [older, current] }, revision3)).toMatchObject({ key: 'review:extraction-b', title: 'Review the trial results' })
     // Only revision 2's round waits: the revised template is still to pilot.
     expect(step({ summary: revised, batches: [older] }, revision3)?.key).toBe('pilot:revision-3')
   })
@@ -182,12 +271,61 @@ describe('nextStep in a project', () => {
     it('leads the rest of the round with the approval beside it, as the project page says, then the approval alone', () => {
       const half = { summary: approve(), batches: [batch([member('a'), member('b', true)])] }
       expect(guidedWorkflow(half.summary).next?.label).toBe('Approve template')
-      expect(step(half)).toMatchObject({ key: 'review-next:extraction-a', title: 'Pilot review', detail: [['Progress', '1 of 2 documents reviewed']] })
+      expect(step(half)).toMatchObject({ key: 'review-next:extraction-a', title: 'Review the trial results', detail: [['Progress', '1 of 2 documents reviewed']] })
       expect(options(step(half))).toEqual(['open-document:positive', 'approve:secondary', 'dismiss:dismiss'])
       expect(step({ summary: approve(), batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
-        key: 'approve:revision-2', question: 'Every pilot document is reviewed. Approve the template for the whole project?' })
+        key: 'approve:revision-2', question: 'Every trial document is reviewed. Approve the template for the whole project?' })
       // Unread rounds may still wait: no claim that every pilot document is reviewed.
       expect(step({ ...half, batches: null })?.question).toBe('Approve the template for the whole project?')
+    })
+
+    it('reviews a trial member stopped or failed partway with its saved values, never one still running', () => {
+      const stopped = { ...member('a'), executionStatus: 'STOPPED' as const, completed: false }
+      const running = { ...member('a'), executionStatus: 'RUNNING' as const, completed: false }
+      const others = [member('b', true), member('c', true)]
+      expect(step({ summary: approve(), batches: [batch([stopped, ...others])] })).toMatchObject({ key: 'review-next:extraction-a',
+        detail: [['Progress', '2 of 3 documents reviewed']] })
+      expect(step({ summary: approve(), batches: [batch([running, ...others])] })?.key).toBe('approve:revision-2')
+    })
+
+    it('leaves a member whose document was run again since out of the round\'s progress', () => {
+      // c's document shows a newer run (extraction-c2): only a and b are this round's to review.
+      const round = batch([member('a'), member('b', true), member('c')])
+      const latest = { extractions: [], reviewed: [], newest: ['extraction-a', 'extraction-b', 'extraction-c2'] }
+      expect(step({ summary: approve(), batches: [round], latest })).toMatchObject({ key: 'review-next:extraction-a',
+        detail: [['Progress', '1 of 2 documents reviewed']] })
+    })
+
+    it('names a round\'s review by whether the round was a trial, as the server says', () => {
+      const waiting = [member('a'), member('b', true)]
+      expect(step({ summary: approve(), batches: [{ ...batch(waiting), trial: false }] })?.title).toBe('Review results')
+      expect(step({ summary: approve({ schemaStabilised: true }), batches: [{ ...batch(waiting), trial: true }] })?.title).toBe('Review the trial results')
+    })
+
+    it('offers a second trial, which can be skipped, between the first trial\'s review and the approval', () => {
+      const reviewed = { summary: approve(), batches: [batch([member('a', true), member('b', true)])] }
+      // Not asked yet: whether to try more documents, before the approval.
+      expect(step({ ...reviewed, moreDocuments: 'ask' })).toMatchObject({ key: 'more-documents:revision-2', title: 'Try more documents?' })
+      expect(step({ ...reviewed, moreDocuments: 'ask' })?.options.map(({ action, label }) => [action, label])).toEqual([
+        ['more-documents', 'Yes, try more documents'], ['skip-more', 'No, go on to approval'], ['dismiss', expect.any(String)]])
+      // Chosen: the documents not tried yet (c and d) to tick, with the upload beside them.
+      const adding = step({ ...reviewed, moreDocuments: 'adding' })
+      expect(adding).toMatchObject({ key: 'more-trial:revision-2', picker: { initial: ['c', 'd'], limit: 5 } })
+      expect(adding?.picker?.documents.map(({ id }) => id)).toEqual(['c', 'd'])
+      expect(options(adding)).toEqual(['pilot:positive', 'upload:secondary', 'skip-more:secondary', 'dismiss:dismiss'])
+      // Every document tried: the upload leads, and waits while new ones are read.
+      const all = { summary: approve(), batches: [batch(['a', 'b', 'c', 'd'].map((id) => member(id, true)))] }
+      expect(step({ ...all, moreDocuments: 'ask' })?.options[0]).toMatchObject({ label: 'Yes, upload more documents' })
+      expect(options(step({ ...all, moreDocuments: 'adding' }))).toEqual(['upload:positive', 'skip-more:secondary', 'dismiss:dismiss'])
+      expect(step({ ...all, moreDocuments: 'adding', uploading: true })).toMatchObject({ key: 'more-upload:revision-2', busy: true,
+        notice: 'Reading the new documents…', options: [{ action: 'upload', disabled: true }, { action: 'skip-more' }, { action: 'dismiss' }] })
+      // Run or skipped: the approval.
+      expect(step({ ...reviewed, moreDocuments: 'done' })?.key).toBe('approve:revision-2')
+      // A round still to review comes first, and a re-approval never asks.
+      expect(step({ summary: approve(), batches: [batch([member('a'), member('b', true)])], moreDocuments: 'ask' })?.key).toBe('review-next:extraction-a')
+      const reapproval = approve({ phase: 'review', currentSchemaRevisionId: 'revision-3' })
+      expect(guidedWorkflow(reapproval).next?.label).toBe('Re-approve template')
+      expect(step({ summary: reapproval, batches: all.batches, moreDocuments: 'ask' })?.key).toBe('approve:revision-3')
     })
 
     it('never strands the approval behind a pilot member re-run since, which can no longer be reviewed', () => {

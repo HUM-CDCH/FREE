@@ -31,6 +31,8 @@ export type DurableBatchExtraction = Readonly<{
   requestedSettings: ActiveSettings | null
   executionStatus: ProjectOperationStatus
   createdAt: Date
+  /** Opened before its Schema Revision was approved: a trial round. */
+  trial: boolean
   members: readonly BatchExtractionMemberSnapshot[]
 }>
 
@@ -45,6 +47,7 @@ export function snapshot(batch: DurableBatchExtraction): BatchExtractionSnapshot
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
     createdAt: batch.createdAt,
+    trial: batch.trial,
     members: batch.members,
   }
 }
@@ -70,7 +73,7 @@ export async function loadBatches(
     .all()
   const derived = await deriveAttempts(orm, memberIds.length === 0 ? [] : await readAttemptRows(orm, memberIds.map((row) => row.id)))
   const schemas = await orm.public.SchemaRevision.where(row => row.id.in(batches.map(batch => batch.schemaRevisionId)))
-    .select('id', 'extractionSchemaId', 'revisionNumber').all()
+    .select('id', 'extractionSchemaId', 'revisionNumber', 'stabilisedAt').all()
   const owners = schemas.length ? await orm.public.ExtractionSchema.where(row => row.id.in(schemas.map(schema => schema.extractionSchemaId)))
     .select('id', 'name').all() : []
   const schemasById = new Map(schemas.map(schema => [schema.id, schema]))
@@ -116,6 +119,8 @@ export async function loadBatches(
       requestedSettings: recordedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy, null),
       executionStatus,
       createdAt: batch.createdAt,
+      // Approved after it was opened, or not at all: the round tried the revision before its approval.
+      trial: schema.stabilisedAt === null || batch.createdAt < schema.stabilisedAt,
       members,
     })
   }

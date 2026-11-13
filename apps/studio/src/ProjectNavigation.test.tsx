@@ -42,6 +42,8 @@ vi.mock('./savedMethod', async (importOriginal) => ({
 // The developer evaluation panel is off unless FREE_DEVELOPER_EVAL is set; its read stays out of these fetch counts.
 vi.mock('./projectContexts/evaluationRounds', () => ({ readEvaluationRounds: async () => null }))
 const delayedAdmission=vi.hoisted(()=>({finish:null as null|(()=>void)}))
+/** Each `project.refresh` the workspace was handed: the workspace re-reads the summary whenever it changes. */
+const projectRefreshes=vi.hoisted(()=>new Set<unknown>())
 
 vi.mock('./App', async () => {
   const { createPortal } = await import('react-dom')
@@ -64,8 +66,11 @@ vi.mock('./App', async () => {
     routeExtractionId,
     chatColumn,
     projectName,
+    project,
   }: DocumentWorkspaceProps) => (
     <>
+      {project && void projectRefreshes.add(project.refresh)}
+      {project && <button type="button" onClick={project.refresh}>Refresh the project</button>}
       {chatColumn && createPortal(<p>Project chat of {projectName}</p>, chatColumn)}
       <p>
         {/* DocumentWorkspace no longer reads annotationSet — the Annotation
@@ -261,7 +266,6 @@ function projectSummary(
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
     pendingExtractionSourceDocumentCount: number
-    schemaDraftCount: number
     currentSchemaRevisionId: string | null
     schemaStabilised: boolean
     currentSchemaRevisionReviewed: boolean
@@ -276,7 +280,6 @@ function projectSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     pendingExtractionSourceDocumentCount: 1,
-    schemaDraftCount: 0,
     currentSchemaRevisionId: null,
     schemaStabilised: false,
     currentSchemaRevisionReviewed: false,
@@ -503,7 +506,7 @@ describe('Studio home', () => {
       }),
     ).toBeVisible()
     // The six workflow steps, named as the workflow bar names them.
-    for (const phase of ['Upload', 'Create template', 'Pilot', 'Approve', 'Batch extract', 'Review'])
+    for (const phase of ['Upload', 'Create template', 'Try out', 'Approve', 'Batch extract', 'Review'])
       expect(home().getByText(phase)).toBeInTheDocument()
     expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
 
@@ -1341,13 +1344,13 @@ describe('Project Context navigation', () => {
       const url = String(input)
       if (url.startsWith('/api/schema_import_preview?'))
         return Response.json({ worksheets: ['Codebook'], columns: url.includes('worksheet=') ? [column] : [] })
-      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+      if (url === '/api/extraction-schemas' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>
         writes.push({ url, method: 'POST', body })
         return Response.json({ revision: {
           schemaRevisionId: '51000000-0000-4000-8004-000000000009', extractionSchemaId, revisionNumber: 1,
           origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z', stabilisedAt: null,
-          recordDescription: body.recordDescription, recordScope: 'document', schemaNodes: body.schemaNodes,
+          recordDescription: body.recordDescription, recordScope: null, schemaNodes: body.schemaNodes,
         } }, { status: 201 })
       }
       if (init?.method === 'PATCH') {
@@ -1369,13 +1372,11 @@ describe('Project Context navigation', () => {
     fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm template' }))
 
-    await waitFor(() => expect(writes).toHaveLength(2))
-    expect(writes[0].body).toMatchObject({ projectContextId, recordDescription: 'One site.' })
-    expect(writes[0].body).not.toHaveProperty('extractionSchemaId')
-    expect(writes[1]).toMatchObject({
-      url: `/api/extraction-schemas/${extractionSchemaId}`,
-      body: { projectContextId, name: 'Site codebook', expectedName: 'Extraction Template' },
-    })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument())
+    expect(writes).toHaveLength(1)
+    // A new schema every import: never a revision of the project's newest schema.
+    expect(writes[0]).toMatchObject({ url: '/api/extraction-schemas', method: 'POST',
+      body: { projectContextId, recordDescription: 'One site.', name: 'Site codebook' } })
     expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
   })
 
@@ -1563,6 +1564,27 @@ describe('Project Context navigation', () => {
         }),
       }),
     )
+  })
+
+  it('reads the project\'s summary again after deleting a Source Document that was not its last', async () => {
+    // Its Extractions and reviews go with it: the counts and the phase (to the trial again before an approval) change.
+    const twoDocuments = { ...detail, sourceDocuments: [{ ...beretning, pageCount: 6 }, { ...historical, pageCount: 2 }] }
+    const base = studioFetch(undefined, twoDocuments)
+    const lists = vi.fn()
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'DELETE' && url.endsWith(`/source-documents/${otherSourceDocumentId}`)) return new Response(null, { status: 204 })
+      if (url.startsWith('/api/project-contexts?') || url === '/api/project-contexts') lists()
+      return base(input)
+    })
+    renderRoutes(fetcher)
+    const page = await openProjectPage()
+    fireEvent.click(within(page).getByLabelText('Actions for Historical.pdf'))
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete Source Document Historical.pdf' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete Source Document' })
+    const before = lists.mock.calls.length
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Delete/ }))
+    await waitFor(() => expect(lists.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('keeps project and source deletion controls and dialogs distinct', async () => {
@@ -2490,6 +2512,22 @@ describe('routed Source Document reopening', () => {
     expect(document.getElementById('main-content')).not.toContainElement(chat)
   })
 
+  it('hands the workspace one project refresh across the reads it causes, so re-reading never asks for another', async () => {
+    projectRefreshes.clear()
+    const fetch = studioFetch()
+    history.replaceState(null, '', documentPath())
+    renderRoutes(fetch)
+    const refresh = await screen.findByRole('button', { name: 'Refresh the project' })
+    const listReads = () => fetch.mock.calls.filter(([input]) => String(input) === '/api/project-contexts').length
+    const before = listReads()
+    fireEvent.click(refresh)
+    await waitFor(() => expect(listReads()).toBe(before + 1))
+    // A new summary is read; the refresh handed down stays the same function.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(listReads()).toBe(before + 1)
+    expect(projectRefreshes.size).toBe(1)
+  })
+
   it('threads durable research state into the workspace', async () => {
     history.replaceState(null, '', documentPath())
     renderRoutes(studioFetch(() => Response.json(hydratedSnapshot())))
@@ -3094,7 +3132,8 @@ describe('routed Source Document reopening', () => {
     [
       'Batch Extraction',
       `/projects/${projectContextId}/extractions/51000000-0000-4000-8007-000000000099`,
-      4,
+      // The batch list; suggestions are read only by a preparation.
+      3,
       'That project no longer exists',
     ],
   ] as const)(

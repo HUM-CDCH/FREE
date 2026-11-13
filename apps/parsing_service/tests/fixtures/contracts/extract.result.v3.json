@@ -490,7 +490,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s1",
@@ -521,7 +520,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s1",
@@ -552,7 +550,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s1",
@@ -585,7 +582,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s1",
@@ -624,7 +620,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s1",
@@ -661,7 +656,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s2",
@@ -692,7 +686,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s2",
@@ -723,7 +716,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s2",
@@ -754,7 +746,6 @@
         ],
         "cell": null,
         "precision": "segment",
-        "hits": 1,
         "spans": [
           {
             "segment": "p1_s2",

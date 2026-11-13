@@ -110,7 +110,7 @@ export const CATALOG_TREE = {
 export const ARTICLE_RESULT = { records: [{ title: 'Alpha', authors: ['Ada', 'Bo'] }, { title: 'Beta', authors: [] }] }
 export const ARTICLE_EVIDENCE = [
   { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_s1' },
-  { resultPath: ['records', 0, 'authors', 0], evidenceAnchorId: 'a_s2', verbatim: true, lexicalHits: 1 },
+  { resultPath: ['records', 0, 'authors', 0], evidenceAnchorId: 'a_s2', verbatim: true },
   { resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_s3', linkedBy: 'lexical' },
 ]
 /** The latest finalized review of the Article Extraction. */

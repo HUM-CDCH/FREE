@@ -1,12 +1,13 @@
 import { authenticatedFetch } from './auth/authenticatedFetch'
 import { ApiRequestError } from './api'
-import type { DurableRead, DurablePage, DurableHistory, DurableHistorySummary } from 'extraction/durable-types'
+import type { DurableRead, DurablePage, DurableHistory, DurableHistorySummary, SourceRange } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import { documentHistoryResponseSchema, valueHistoryResponseSchema } from '../shared/documentHistory.contract'
 export type PinnedExtractionSource={document:ParsedDocument;markdown:string}
 export type DurableReviewProgress={extractionId:string;snapshotVersion:number;feedbackVersion:number;required:number;toCheck:number;finalized:boolean}
-/** The Extraction's state; while discovery still looks for its records, the starts it has found so far. */
-export type DurableState=DurableRead&{discovery?:{found:{segment:string;label:string|null}[]}|null}
+/** The Extraction's state; while discovery still looks for its records, those it has found so far: where each starts
+ *  and, from a worker that says so, the text it seems to own (`ranges`), which can still change. */
+export type DurableState=DurableRead&{discovery?:{found:{segment:string;label:string|null;ranges?:SourceRange[]}[]}|null}
 
 const READ_RETRY_DELAYS = [1000, 2000] as const
 function waitForReadRetry(ms: number, signal?: AbortSignal): Promise<void> {

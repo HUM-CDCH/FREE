@@ -11,6 +11,7 @@ import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
+import { isLiveIngestion } from '../shared/sourceDocumentIngestion.contract'
 import type { z } from 'zod'
 import RouteLoadBoundary from './RouteLoadBoundary.tsx'
 import { Button, EmptyState, ModalDialog, Spinner } from './ui'
@@ -120,7 +121,7 @@ function EmptyWorkspace({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
       <EmptyState
-        className="max-w-sm bg-surface"
+        className="max-w-sm bg-surface [overflow-wrap:anywhere]"
         icon="▢"
         title={title}
         description={description}
@@ -150,6 +151,7 @@ export default function AppFrame({
   const [navOpen, setNavOpen] = useState(true)
   const [narrowNavOpen, setNarrowNavOpen] = useState(false)
   const [navWidth, setNavWidth] = useState(212)
+  const navElement = useRef<HTMLDivElement>(null)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
   const providerTrigger = useRef<HTMLButtonElement>(null)
@@ -167,7 +169,7 @@ export default function AppFrame({
         : JSON.stringify(route)
   const previousRouteFocusKey = useRef(routeFocusKey)
   const tabs = useOpenDocumentTabs()
-  const { projects, refreshProjects, branches } = useProjectContexts()
+  const { projects, refreshProjects, branches, addSources, ingestingSources, ingestions } = useProjectContexts()
   useShiftWheelHorizontalScroll()
 
   useEffect(() => {
@@ -376,9 +378,18 @@ export default function AppFrame({
   const routedDocuments = useMemo(() => routedBranchState?.status === 'ready'
     ? routedBranchState.detail.sourceDocuments.map(({ sourceDocumentId, name }) => ({ id: sourceDocumentId, name }))
     : null, [routedBranchState])
+  // `refresh` is the provider's own, stable across reads: the workspace re-reads the summary when its saved revision
+  // changes, and a callback made anew with each summary would make every read ask for the next one.
+  // The chat's second trial adds PDFs here: they upload, then parse, before the project's documents hold them.
+  const addDocuments = useCallback((files: readonly File[]) => {
+    if (routedProjectContextId) addSources(files.map((file) => ({ projectContextId: routedProjectContextId, file })))
+  }, [addSources, routedProjectContextId])
+  const uploading = !!routedProjectContextId && (
+    ingestingSources.some((source) => source.projectContextId === routedProjectContextId && source.status !== 'failed')
+    || (ingestions[routedProjectContextId]?.ingestions.some(isLiveIngestion) ?? false))
   const workspaceProject = useMemo(() => routedSummary && routedDocuments
-    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: () => void refreshProjects() }
-    : null, [routedSummary, routedDocuments, backToBatchExtractionId, refreshProjects])
+    ? { summary: routedSummary, documents: routedDocuments, roundId: backToBatchExtractionId, refresh: refreshProjects, addDocuments, uploading }
+    : null, [routedSummary, routedDocuments, backToBatchExtractionId, refreshProjects, addDocuments, uploading])
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
   )
@@ -403,13 +414,17 @@ export default function AppFrame({
     resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = navWidth
-    const onMove = (moveEvent: MouseEvent) =>
-      setNavWidth(clampNavWidth(startWidth + moveEvent.clientX - startX))
+    let width = startWidth
+    const onMove = (moveEvent: MouseEvent) => {
+      width = clampNavWidth(startWidth + moveEvent.clientX - startX)
+      navElement.current?.style.setProperty('--nav-width', `${width}px`)
+    }
     const onUp = () => {
       controller.abort()
       if (resizeControllerRef.current === controller)
         resizeControllerRef.current = null
       document.body.style.cursor = ''
+      setNavWidth(width)
     }
     document.body.style.cursor = 'col-resize'
     window.addEventListener('mousemove', onMove, { signal: controller.signal })
@@ -452,7 +467,8 @@ export default function AppFrame({
       )}
       <div
         data-project-rail
-        style={{ width: effectiveNavWidth }}
+        ref={navElement}
+        style={{ width: 'var(--nav-width)', '--nav-width': `${effectiveNavWidth}px` } as React.CSSProperties}
         className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200 motion-reduce:transition-none ${
           narrowViewport
             ? 'fixed inset-y-0 left-0 z-46 shadow-xl'

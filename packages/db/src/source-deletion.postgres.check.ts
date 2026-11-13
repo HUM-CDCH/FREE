@@ -55,7 +55,7 @@ test('Source Document deletion preserves suggestions and interrupts affected att
   async function suggestion(members: { document: string; representation: string }[], active = true) {
     const row = await db.orm.public.BatchSchemaSuggestion.create({ projectContextId: project,
       selectionKey: randomUUID(), attempt: active ? 2 : 1, outcome: active ? null : 'SUCCEEDED',
-      phase: 'READY', proposal: draft, coverage: [], draft, draftVersion: 1 })
+      phase: 'READY', proposal: draft, coverage: [], draft })
     for (const member of members) await db.orm.public.BatchSchemaSuggestionSource.create({
       batchSchemaSuggestionId: row.id, sourceDocumentId: member.document,
       sourceRepresentationRevisionId: member.representation,
@@ -63,7 +63,7 @@ test('Source Document deletion preserves suggestions and interrupts affected att
     return row.id
   }
   const saved = (id: string) => db.orm.public.BatchSchemaSuggestion.select(
-    'attempt', 'outcome', 'failure', 'phase', 'proposal', 'draft', 'draftVersion',
+    'attempt', 'outcome', 'failure', 'phase', 'proposal', 'draft',
   ).first({ id })
 
   async function projectLockOrder<T, U>(first: () => Promise<T>, second: () => Promise<U>): Promise<[T, U]> {
@@ -120,7 +120,6 @@ test('Source Document deletion preserves suggestions and interrupts affected att
     assert.equal(afterDeletion?.attempt, before?.attempt)
     assert.deepEqual(afterDeletion?.proposal, before?.proposal)
     assert.deepEqual(afterDeletion?.draft, before?.draft)
-    assert.equal(afterDeletion?.draftVersion, before?.draftVersion)
     assert.deepEqual(afterDeletion?.draft, draft)
     assert.deepEqual((await store.getBatchSchemaSuggestion(project, id))?.sources.map((member) => member.sourceDocumentId), [right.document])
     assert.equal(await worker.publishBatchSchemaSuggestion(id, 2, proposed), 'stopped')
@@ -147,19 +146,17 @@ test('Source Document deletion preserves suggestions and interrupts affected att
     const duringRow = await saved(duringId)
     assert.ok(duringRow?.outcome === 'FAILED' || duringRow?.outcome === 'SUCCEEDED')
     assert.deepEqual(duringRow?.draft, publication === 'published' ? publishedDraft : draft)
-    assert.equal(duringRow?.draftVersion, publication === 'published' ? 2 : 1)
 
     const afterSource = await source()
     const afterId = await suggestion([afterSource], false)
     assert.deepEqual(await store.deleteSourceDocument(project, afterSource.document), { interruptedAttempts: [] })
     assert.equal((await saved(afterId))?.outcome, 'SUCCEEDED')
     assert.deepEqual((await saved(afterId))?.draft, draft)
-    assert.equal((await saved(afterId))?.draftVersion, 1)
     assert.deepEqual((await store.getBatchSchemaSuggestion(project, afterId))?.sources, [])
     assert.deepEqual(await store.retryBatchSchemaSuggestion(project, afterId, 1), { status: 'not-ready' })
   })
 
-  await t.test('a confirmed suggestion refuses a late attempt write even if its outcome is missing', async () => {
+  await t.test('an applied suggestion refuses a late attempt write even if its outcome is missing', async () => {
     const member = await source()
     const id = await suggestion([member])
     await db.orm.public.BatchSchemaSuggestion.where({ id }).update({ confirmedSchemaRevisionId: randomUUID() })

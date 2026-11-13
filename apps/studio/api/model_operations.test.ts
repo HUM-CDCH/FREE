@@ -196,6 +196,23 @@ describe('DELETE /api/model-operations/<workflow ID>', () => {
     }
   })
 
+  it('stops a running chat question in the account\'s project, and leaves a finished one as it is', async () => {
+    const chat = (status: string, overrides: Overrides = {}) => ({ ...row('suggestion', 1, status, overrides), workflowID: `chat:${uuid(1)}`,
+      workflowName: 'answerSchemaChat', attributes: overrides.attributes ?? { projectContextId: PROJECT, sourceRepresentationRevisionId: SOURCE_REVISION } })
+    const running = handlers([chat('PENDING')])
+    expect((await running.DELETE(del(encodeURIComponent(`chat:${uuid(1)}`)))).status).toBe(204)
+    expect(running.client.cancelWorkflow).toHaveBeenCalledExactlyOnceWith(`chat:${uuid(1)}`)
+
+    const finished = handlers([chat('SUCCESS', { output: { ok: true } })])
+    expect((await finished.DELETE(del(encodeURIComponent(`chat:${uuid(1)}`)))).status).toBe(204)
+    expect(finished.client.cancelWorkflow).not.toHaveBeenCalled()
+    expect(finished.client.deleteWorkflows).not.toHaveBeenCalled()
+
+    const foreign = handlers([chat('PENDING', { authenticatedUser: OTHER_ACCOUNT })])
+    expect((await foreign.DELETE(del(encodeURIComponent(`chat:${uuid(1)}`)))).status).toBe(404)
+    expect(foreign.client.cancelWorkflow).not.toHaveBeenCalled()
+  })
+
   it("deletes a finished proposal and every older finished proposal on its base, never a newer one or another base's", async () => {
     const proposal = (n: number, base: string) => row('edit', n, 'SUCCESS', { output: { ok: true, baseSchemaRevisionId: base, response: PROPOSED }, input: { baseSchemaRevisionId: base } })
     const rows = [proposal(1, R1), proposal(2, R1), proposal(3, R1), proposal(4, R2)]
@@ -251,7 +268,7 @@ describe('DELETE /api/model-operations/<workflow ID>', () => {
       ['another account', foreign, encodeURIComponent(`edit:${uuid(1)}`)],
       ['a deleted scope', gone, encodeURIComponent(`edit:${uuid(1)}`)],
       ['an unknown workflow', unknown, encodeURIComponent(`suggestion:${uuid(1)}`)],
-      ['a chat ID', malformed, encodeURIComponent(`chat:${uuid(1)}`)],
+      ['another kind of workflow', malformed, encodeURIComponent(`suggest:${uuid(1)}:1`)],
       ['a bare UUID', malformed, uuid(1)],
       ['a broken escape', malformed, '%E0%A4%A'],
       ['no ID', malformed, ''],

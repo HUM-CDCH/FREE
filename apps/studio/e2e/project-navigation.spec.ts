@@ -954,7 +954,7 @@ test.describe('rail navigation', () => {
     await gotoAuthenticated(page, `/projects/${ELMBROOKE}`)
     const status = projectPage(page).getByRole('region', { name: 'Project status' })
     // Only the old revision was piloted: the chat's next step pilots the current one; nothing here leads or approves.
-    await expect(status).toContainText('Next in the chat: Pilot the revised template')
+    await expect(status).toContainText('Next in the chat: Try the revised template on a few documents')
     await expect(projectPage(page).getByRole('button', { name: /Approve|^Next:/ })).toHaveCount(0)
 
     currentPilotReviewed = true

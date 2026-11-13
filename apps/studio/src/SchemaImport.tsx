@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { SCALAR_FIELD_TYPES, type ScalarFieldType } from 'extraction/allowed-values'
-import type { SchemaNode } from 'extraction/schema'
+import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { IMPORT_LIMITS, importDefinition, type ImportColumn } from '../shared/schemaImport'
 import { authenticatedFetch } from './auth/authenticatedFetch'
@@ -16,19 +16,20 @@ function importedFields(nodes: readonly SchemaNode[], separator: string, prefix 
 }
 
 /** What an import writes into: a document's schema editor, or the Schemas tab's new Extraction Schema. */
-export type SchemaImportTarget = Pick<SchemaEditorController, 'operationScope' | 'confirmDefinition'> & {
+export type SchemaImportTarget = Pick<SchemaEditorController, 'operationScope'> & {
+  confirmDefinition(definition: SchemaDefinition, workbookName: string): Promise<void>
   snapshot(): Pick<ReturnType<SchemaEditorController['snapshot']>, 'draftVersion' | 'extractionSchemaId'>
 }
 
-/** The Excel codebook import, as a dialog: renders nothing while closed. `onImported` runs, with the workbook's file
- *  name, once a confirmed import is the schema's definition; the dialog then closes through `onClose`. A preview in flight never blocks dismissal (its
+/** The Excel codebook import, as a dialog: renders nothing while closed. `onImported` runs
+ *  once a confirmed import is the schema's definition; the dialog then closes through `onClose`. A preview in flight never blocks dismissal (its
  *  response is dropped and its request aborted); only the confirmation keeps the dialog open while it saves. */
 export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
   schema: SchemaImportTarget
   disabled: boolean
   open: boolean
   onClose: () => void
-  onImported?: (workbookName: string) => void
+  onImported?: () => void
 }) {
   const [file, setFile] = useState<File | null>(null), [worksheets, setWorksheets] = useState<string[]>([])
   const [worksheet, setWorksheet] = useState(''), [header, setHeader] = useState(1), [separator, setSeparator] = useState('')
@@ -81,7 +82,7 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
               const upload = event.target.files?.[0]; if (!upload) return
               close(); base.current = schema.snapshot().draftVersion; setFile(upload); void preview(upload, null); event.target.value = ''
             }} />
-          <span className="min-w-0 truncate text-ink-muted">{file ? file.name : 'An .xlsx workbook of at most 5 MiB'}</span>
+          <span className="min-w-0 text-ink-muted [overflow-wrap:anywhere]">{file ? file.name : 'An .xlsx workbook of at most 5 MiB'}</span>
         </div>
         {file && <>
           <p className="mt-2 text-compact text-ink-muted">The workbook and column data are transient. Closing or reloading an unconfirmed preview requires re-upload.</p>
@@ -117,13 +118,13 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
                   </tr>
                 })}</tbody>
               </table>
-            {validation && <p role="alert" className="text-danger">{validation}</p>}
-            {definition && <ul aria-label="Fields to import" className="rounded-[3px] border border-line bg-canvas p-2 font-mono text-compact">
+            {validation && <p role="alert" className="text-danger [overflow-wrap:anywhere]">{validation}</p>}
+            {definition && <ul aria-label="Fields to import" className="rounded-[3px] border border-line bg-canvas p-2 font-mono text-compact [overflow-wrap:anywhere]">
               {importedFields(definition.schemaNodes, separator).map(({ id, path, node }) => <li key={id}>{path} — {fieldTypeWords(node)}</li>)}
             </ul>}
           </fieldset>}
         </>}
-        {error && <p role="alert" className="mt-2 text-compact text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-compact text-danger [overflow-wrap:anywhere]">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <Button onClick={dismiss} disabled={confirming}>Cancel</Button>
           {file && columns.length > 0 && (
@@ -131,7 +132,7 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
               if (!definition) return
               if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
               setConfirming(true); setError(null)
-              try { await schema.confirmDefinition(definition); setConfirming(false); onImported?.(file.name); dismiss() }
+              try { await schema.confirmDefinition(definition, file.name); setConfirming(false); onImported?.(); dismiss() }
               catch (error) { setError(error instanceof Error ? error.message : 'Template could not be confirmed.'); setConfirming(false) }
             }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected template' : 'Confirm template'}</Button>
           )}

@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
   batchExtractionProgress,
+  reviewableMember,
   batchExtractionRequestSchema,
   batchExtractionSchema,
 } from './batchExtraction.contract.js'
-import {
-  batchSchemaSuggestionCreateRequestSchema,
-  batchSchemaSuggestionRunRequestSchema,
-} from './batchSchemaSuggestion.contract.js'
+import { batchSchemaSuggestionCreateRequestSchema } from './batchSchemaSuggestion.contract.js'
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
@@ -78,7 +76,6 @@ describe('Batch start methods', () => {
     for (const [strategy, settings] of [['ARTICLE', { article: null }], ['CATALOG', { generic: null }]] as const) {
       const request = { strategy, method: { models: { fields: 'instruct' }, settings } }
       expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(true)
-      expect(batchSchemaSuggestionRunRequestSchema.safeParse(request).success).toBe(true)
     }
     for (const request of [
       { strategy: 'ARTICLE' },
@@ -87,14 +84,13 @@ describe('Batch start methods', () => {
       { strategy: 'CATALOG', method: { models: null, settings: { recipe: null } } },
     ]) {
       expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(false)
-      expect(batchSchemaSuggestionRunRequestSchema.safeParse(request).success).toBe(false)
     }
   })
 
   it('refuses a method that breaks a rule at the field it concerns', () => {
     const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
       prompt: 'reference', grounding: 'semantic' }
-    const parsed = batchSchemaSuggestionRunRequestSchema.safeParse({ strategy: 'ARTICLE', method: { models: null, settings: { article } } })
+    const parsed = batchExtractionRequestSchema.safeParse({ ...selection, strategy: 'ARTICLE', method: { models: null, settings: { article } } })
     expect(parsed.success).toBe(false)
     expect(parsed.error?.issues).toContainEqual(expect.objectContaining({
       path: ['method', 'settings', 'article', 'overlap_passages'], message: 'This choice requires bounded source units.',
@@ -147,17 +143,29 @@ describe('Batch Extraction contracts', () => {
       expect(batchExtractionSchema.safeParse({ ...batch, members: [without(first!, required)] }).success).toBe(false)
   })
 
+  it('reviews a member with saved values once its run completed or settled, never while it runs', () => {
+    for (const [executionStatus, expected] of [['COMPLETED', true], ['STOPPED', true], ['FAILED', true], ['PAUSED', true],
+      ['RUNNING', false], ['PAUSING', false], ['STOPPING', false], ['QUEUED', false]] as const)
+      expect(reviewableMember(batchExtractionSchema.parse({ ...batch, members: [member(0, executionStatus, true)] }).members[0]!), executionStatus).toBe(expected)
+    // No saved values: nothing to review, however it ended.
+    expect(reviewableMember(batchExtractionSchema.parse({ ...batch, members: [member(0, 'STOPPED', false)] }).members[0]!)).toBe(false)
+    // Completed once, then running again (revised inputs adopted): its completed values stay reviewable.
+    expect(reviewableMember(batchExtractionSchema.parse({ ...batch, members: [{ ...member(0, 'RUNNING'), completed: true }] }).members[0]!)).toBe(true)
+  })
+
   it('counts completion and finalized current cuts without treating paused work as success', () => {
     expect(batchExtractionProgress(batchExtractionSchema.parse(batch))).toEqual({
       total: 6,
       extracted: 2,
       succeeded: 2,
-      reviewable: 2,
+      // The failed and the paused member keep saved values, which are reviewed as the completed ones are; the running
+      // one's still change.
+      reviewable: 4,
       pending: 2,
       failed: 1,
       reviewed: 1,
       unreviewable: 0,
-      needsReview: 1,
+      needsReview: 3,
     })
     const empty = batchExtractionSchema.parse({ ...batch, members: [member(0, 'COMPLETED', false)] })
     expect(batchExtractionProgress(empty)).toMatchObject({ succeeded: 1, reviewed: 0, needsReview: 0, unreviewable: 1 })

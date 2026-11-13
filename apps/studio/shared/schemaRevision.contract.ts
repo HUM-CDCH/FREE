@@ -129,6 +129,15 @@ export const appendSchemaRevisionRequestSchema = z
   })
   .strict()
 
+/** A new Extraction Schema whose revision 1 is this definition. */
+export const extractionSchemaCreateRequestSchema = z
+  .object({
+    projectContextId: canonicalUuidSchema,
+    name: extractionSchemaNameSchema.optional(),
+    ...schemaDefinitionSchema.shape,
+  })
+  .strict()
+
 export const initializeSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,

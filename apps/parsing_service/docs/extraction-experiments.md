@@ -23,7 +23,7 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
-| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Return the assembled result. |
+| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Place the result's value marks (`value_mark.py`) and return the assembled result. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
 | `routing.py` | Map assembled values to their actual reply occurrences and order whole verification units with exhaustive unresolved fallback. |
@@ -44,6 +44,7 @@ flowchart LR
 | `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
 | `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
 | `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
+| `value_mark.py` | Place a linked value's printing on the run's own `input.pdf` (ADR 0031): pdfium's characters under the anchor's box, matched only where the value and its surroundings print once, one box per printed line; on a block the OCR model read, only where the rendered page image confirms its text layer. The one read of the PDF in extraction. |
 | `locate.py` | Locate a quoted value in a block's own text as raw code-point spans, matching on a normalised view that maps back to raw offsets. |
 | `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
 | `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
@@ -329,6 +330,31 @@ Each study's protocol was declared before its results were inspected:
 - R3, structured Article input: [rendering protocol](../experiments/extraction/rendering-protocol.md) (`experiments.extraction.register_rendering`).
 - R4, structural grouping: [grouping protocol](../experiments/extraction/grouping-protocol.md).
 - R5, fixed-upstream grounding: [grounding protocol](../experiments/extraction/grounding-protocol.md) (`experiments.extraction.grounding_study`).
+
+## Focused table-discovery validation
+
+`experiments.extraction.table_discovery` compares an exact captured discovery
+request with the version 9 scope and shared-qualification classification. Its
+synthetic controls cover primary tables, internal tables, indices repeated in
+prose and nested requested records. Each printed line is a synthetic passage;
+this tests discovery and ownership, not canonical table cells or field accuracy.
+Replay requires identical requests and never falls back to inference.
+
+`experiments.extraction.table_discovery_full` runs the actual configured method
+over an immutable canonical generation. It does not patch prompt constants. Its
+reference declares ordered entries with exact ranges, resolved ends and parent
+links, plus aligned field records. The same structural scorer gates both
+experiments; a correct start count cannot hide an unresolved end, excess source
+ownership or a lost parent. Field comparison uses NFKC, casefold and whitespace
+normalization, with no punctuation removal.
+
+The full runner retains final serialized HTTP attempts after adapter/template
+construction, successful responses, loaded application hashes, image identities
+and the model revisions each server reports. Headers and credential URLs are
+excluded; missing serving metadata is recorded as unavailable. The module docstrings give
+the commands and input formats. Keep source documents, captures, annotations
+and results outside tracked files. These bounded development checks and repeated
+greedy runs do not establish general accuracy or deterministic model output.
 
 ## Iterative evaluation against a golden workbook
 

@@ -27,10 +27,10 @@ FREE's normative product and safety contract is:
    canonical extraction path over the Project Context's source documents.
    Schema suggestion feeds this path; it is not a competing extraction mode.
 4. **Evidence and review.** Every populated extraction value is paired with
-   locatable source evidence or visibly marked ungrounded. Evidence doubts (the
-   value is not found in the linked passage, or it also appears in other
-   passages) are hints for the reviewer, not decisions: FREE derives no
-   confidence score from them, and only a researcher's decision approves a
+   locatable source evidence or visibly marked ungrounded. A value not printed
+   as such in its linked Evidence is a hint for the reviewer, not a decision.
+   Repetition elsewhere does not make the linked passage uncertain. FREE derives
+   no confidence score from this hint, and only a researcher's decision approves a
    value. Approve, reject and typed edit decisions are revisioned corrections
    of stable saved values, saved in numbered Project decision versions; a
    concurrent write reports a conflict instead of overwriting a newer
@@ -183,8 +183,10 @@ the saved method single Run reads after saving the schema
 ([ADR 0015](adr/0015-extraction-method-pinned-at-admission.md)). It starts
 nothing and answers 409 for a method the account has changed since
 (`method_changed`), a Schema Revision with no Record Scope
-(`record_scope_required`), or a strategy that contradicts it
-(`record_scope_mismatch`). A single start is also refused while the newest
+(`record_scope_required`), a strategy that contradicts it
+(`record_scope_mismatch`), or, with the unified Catalog method, a Catalog start
+whose saved settings still carry retired Catalog limits the researcher has not
+reviewed and applied (`catalog_migration_required`). A single start is also refused while the newest
 Extraction on its Source Representation, a Batch Extraction member included,
 is neither Completed nor Stopped (`extraction_in_progress`, naming it;
 [ADR 0020](adr/0020-one-unfinished-extraction-per-source-representation.md)).
@@ -211,8 +213,10 @@ optional Evidence from the correction's own source. An incompatible correction
 stays saved but never enters the consuming target's context, and FREE
 classifies no guidance conflicts automatically. Each Batch Extraction member
 is its own Extraction, with its own result snapshots and finalized reviews;
-it stays openable and exportable when paused, failed or stopped, and there is
-no batch-wide review grid. An export follows each field that has a Value
+it stays openable and exportable when paused, failed or stopped. A Batch
+Extraction's review grid shows its completed members' latest values side by
+side; each decision there is a correction of one value, and each member's
+review is finalized on its own (ADR 0030). An export follows each field that has a Value
 Disagreement with a review column and an alternatives column; XLSX also lists
 each alternative and where it was read on a Disagreements sheet. Typed columns
 stay typed.

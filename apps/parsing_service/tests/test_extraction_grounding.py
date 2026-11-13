@@ -28,7 +28,7 @@ def recording(received):
         received.append({"record": record, "passages": [p.id for p in passages], "counter": counter,
                          "record_context": record_context, "projected": projected, "located": located})
         first = passages[0]
-        return [Link(("records", record, "year"), first.id, first.page, first.bbox_pt, False, 0, "substitute")], [], []
+        return [Link(("records", record, "year"), first.id, first.page, first.bbox_pt, False, "substitute")], [], []
     return ground
 
 
@@ -120,7 +120,7 @@ def test_a_correct_unique_claim_links_only_after_the_model_attests_it():
     links, calls, issues = grounding.semantic([ADA], {"name": "Ada", "birth_year": 1815}, BIOGRAPHY, chat, record=0)
     assert len(chat.calls) == 1 and issues == [] and [call.stage for call in calls] == ["grounding"]
     birth = {link.path: link for link in links}[("records", 0, "birth_year")]
-    assert (birth.segment, birth.linked_by, birth.verbatim, birth.hits) == ("p1_s0", "model", True, 1)
+    assert (birth.segment, birth.linked_by, birth.verbatim) == ("p1_s0", "model", True)
     assert "lexical" not in {link.linked_by for link in links}
 
 
@@ -217,7 +217,6 @@ def test_generic_catalog_repeated_cells_are_linked_only_in_their_items_row(wrong
         assert result.issues == []
     assert {path: link.cell for path, link in linked.items()} == expected
     assert all(link.precision == "cell" and link.verbatim for link in result.links)
-    assert all(link.hits == 2 for path, link in linked.items() if path[-1] != "number")
     assert len(chat.calls) == 1
 
 
@@ -235,7 +234,7 @@ def test_generic_catalog_keeps_both_rows_eligible_when_an_item_has_no_distinctiv
 
     result = ground_records([([table], fields)], TABLE_ITEMS, FakeChat(script), budget=24_000)
     assert [link.cell for link in result.links] == ["r2_c1", "r2_c2"]
-    assert all(link.hits == 2 for link in result.links) and result.issues == []
+    assert result.issues == []
 
 
 def test_generic_catalog_offers_other_rows_for_a_claim_its_items_row_leaves_unsupported():

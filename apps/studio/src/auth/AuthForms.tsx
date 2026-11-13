@@ -165,7 +165,7 @@ export function ProjectLoadFailure({ onRetry }: { onRetry: () => void }) {
     >
       {researcherSession && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-          <p className="min-w-0 truncate text-xs text-ink-muted">
+          <p className="min-w-0 truncate text-xs text-ink-muted" title={`Signed in as ${researcherSession.session.account.displayName}`}>
             Signed in as{' '}
             <strong className="text-ink">
               {researcherSession.session.account.displayName}

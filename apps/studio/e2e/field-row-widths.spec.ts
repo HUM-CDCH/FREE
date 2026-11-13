@@ -200,6 +200,8 @@ async function checkRows(page: Page, width: number) {
     const kindActions = actionsOf(kind, 'kind')
     await kind.focus()
     await page.keyboard.press('Tab')
+    await expect(kind.getByRole('button', { name: 'Move kind' })).toBeFocused()
+    await page.keyboard.press('Tab')
     await page.keyboard.press('Tab')
     await expect(kind.getByTitle(/^Allowed values/), `${width}px, kind: its last pill focused`).toBeFocused()
     await page.keyboard.press('Tab')
@@ -310,7 +312,7 @@ async function checkKeyboard(page: Page, width: number) {
     }
   }
   expect(reached, `${width}px: Tab order from the row`).toEqual([
-    expect.stringMatching(/^Type: string/), expect.stringMatching(/^Allowed values/), 'Edit archaeological_context',
+    'Move archaeological_context', expect.stringMatching(/^Type: string/), expect.stringMatching(/^Allowed values/), 'Edit archaeological_context',
   ])
   await expect(actions[0]!).toBeFocused()
   await expect.poll(() => opacity(actions[0]!.locator('..')), `${width}px: actions shown on focus`).toBe('1')
@@ -400,8 +402,8 @@ test('a nested row\'s pills sit below the actions overlay, and a click at a pill
       await expect(row, `${what}: the row is back`).toBeVisible()
     }
   }
-  // The taller name line still ellipsizes a name longer than its line (its full text is its title): a copy of layer's
-  // name, made long, in the same line and with the same classes.
+  // A name longer than its line wraps and shows in full, never ellipsized: a copy of layer's name, made long, in the
+  // same line and with the same classes.
   const layerName = page.getByRole('listitem', { name: 'layer', exact: true }).getByText('layer', { exact: true })
   const long = await layerName.evaluate((element) => {
     const copy = element.cloneNode() as HTMLElement
@@ -409,15 +411,15 @@ test('a nested row\'s pills sit below the actions overlay, and a click at a pill
     element.after(copy)
     const style = getComputedStyle(copy)
     const reading = {
-      display: style.display, textOverflow: style.textOverflow, overflowX: style.overflowX, whiteSpace: style.whiteSpace,
+      textOverflow: style.textOverflow, whiteSpace: style.whiteSpace,
       clipped: copy.scrollWidth > copy.clientWidth,
       inside: copy.getBoundingClientRect().right <= element.parentElement!.getBoundingClientRect().right + 0.5,
-      height: copy.getBoundingClientRect().height,
+      wrapped: copy.getBoundingClientRect().height > 28,
     }
     copy.remove()
     return reading
   })
-  expect(long).toEqual({ display: 'block', textOverflow: 'ellipsis', overflowX: 'hidden', whiteSpace: 'nowrap', clipped: true, inside: true, height: 28 })
+  expect(long).toEqual({ textOverflow: 'clip', whiteSpace: 'normal', clipped: false, inside: true, wrapped: true })
 })
 
 test('at rest the hidden row actions take no hits, at 344px and 264px @deterministic', async ({ page }) => {
@@ -461,6 +463,7 @@ test('the record description grows with its text, and the code view scrolls long
   await openSchema(page)
   await resizeRail(page, 264)
   // §5: two rows at rest, growing with its wrapped text (not only its line breaks) to six, without hiding any of it.
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
     ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
@@ -473,6 +476,7 @@ test('the record description grows with its text, and the code view scrolls long
   expect(grown.hidden).toBe(false)
   await description.fill('One grave. '.repeat(60))
   expect((await fit()).rows).toBe(6)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('button', { name: 'Code', exact: true }).click()
   const code = rail(page).locator('pre')
   const reading = await code.evaluate((element) => ({
@@ -492,6 +496,13 @@ test('the record description grows with its text, and the code view scrolls long
   expect(editing).toEqual({ overflowX: 'auto', whiteSpace: 'pre', scrolls: true })
   for (const name of ['Save', 'Cancel'])
     expect((await rail(page).getByRole('button', { name, exact: true }).boundingBox())!.height, name).toBeGreaterThanOrEqual(24)
+  const input = await editor.inputValue()
+  await editor.fill(input + ' ')
+  await editor.press('Escape')
+  await expect(editor).toBeVisible()
+  await expect(editor).toHaveValue(input + ' ')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Template actions' })).toBeFocused()
   const panel = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(panel[0]).toBeLessThanOrEqual(panel[1]!)
 })
@@ -501,6 +512,7 @@ test('the record description re-measures its rows when the rail is resized or th
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  await page.getByRole('button', { name: 'Edit description' }).click()
   const description = page.getByLabel('What one record is')
   const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
     ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
@@ -515,6 +527,10 @@ test('the record description re-measures its rows when the rail is resized or th
   expect(narrow.hidden, 'narrowed: no text hidden').toBe(false)
   await resizeRail(page, 344)
   await expect.poll(async () => (await fit()).rows, 'widened: back to its rows').toBe(wide)
+  await expect(page.getByRole('combobox', { name: 'Record scope' })).toBeDisabled()
+  await rail(page).getByRole('button', { name: 'Back to chat' }).click()
+  await expect(rail(page).getByRole('button', { name: 'Extract this document', exact: true })).toBeDisabled()
+  await expect(rail(page).getByRole('button', { name: 'Generate the template again from the document', exact: true })).toBeDisabled()
   // Narrowed while the Schema view is hidden: measured once it shows again.
   await openRailView(page, 'Results')
   await resizeRail(page, 264)
@@ -552,6 +568,108 @@ test('a history preview at 264px reads across the panel, its commands beneath an
   }
   const overflow = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(overflow[0]).toBeLessThanOrEqual(overflow[1]!)
+  const code = rail(page).getByRole('button', { name: 'Code', exact: true })
+  await expect(code, 'History shares the panel presentation selector').toHaveCount(1)
+  await code.click()
+  await expect(rail(page).locator('pre')).toContainText('One excavation report.')
+  await expect(rail(page).getByRole('list', { name: 'Template fields' })).toHaveCount(0)
+  await rail(page).getByRole('button', { name: 'Fields', exact: true }).click()
+  await expect(rail(page).getByRole('listitem', { name: 'title', exact: true })).toBeVisible()
+})
+
+test('the workspace refuses a project pilot while its description input is unfinished @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  let admissions = 0
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/batch-extractions')) admissions += 1
+  })
+  await openSchema(page)
+  await page.getByRole('button', { name: 'Edit description', exact: true }).click()
+  await page.getByLabel('What one record is').fill('Unfinished description to retain.')
+  await rail(page).getByRole('button', { name: 'Back to chat' }).click()
+  await rail(page).getByRole('button', { name: 'Try on 1 document', exact: true }).click()
+  await expect(rail(page).getByRole('alert')).toContainText('Save or Cancel the open edit first.')
+  expect(admissions).toBe(0)
+  await openRailView(page, 'Template')
+  await expect(page.getByLabel('What one record is')).toHaveValue('Unfinished description to retain.')
+})
+
+test('Move chooses one parent and position at the minimum rail width @deterministic', async ({ page }, testInfo) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await resizeRail(page, 264)
+  const grip = page.getByRole('button', { name: 'Move sex', exact: true })
+  await expect(grip).toHaveText('⠿')
+  expect((await grip.boundingBox())!.width).toBeGreaterThanOrEqual(24)
+  await grip.focus()
+  await grip.press('Enter')
+  const moveDialog = page.getByRole('dialog', { name: 'Move field', exact: true })
+  const parent = moveDialog.getByLabel('Destination parent')
+  await expect(parent).toBeFocused()
+  const parentBox = (await parent.boundingBox())!
+  const positionBox = (await moveDialog.getByLabel('Insertion position').boundingBox())!
+  expect(positionBox.y).toBeGreaterThan(parentBox.y + parentBox.height)
+  expect((await moveDialog.getByRole('button', { name: 'Cancel' }).boundingBox())!.y).toBeGreaterThan(positionBox.y + positionBox.height)
+  await page.screenshot({ path: testInfo.outputPath('move-dialog.png') })
+  await parent.press('Escape')
+  await expect(moveDialog).toBeHidden()
+  await expect(grip).toBeFocused()
+  const order = () => page.getByRole('list', { name: 'Template fields' }).getByRole('listitem').evaluateAll(
+    elements => elements.map(element => element.getAttribute('aria-label')),
+  )
+  for (const [position, expected] of [
+    ['Before title', ['sex', 'title', 'archaeological_context', 'findings', 'kind', 'deposit', 'layer']],
+    ['Before findings', rows],
+  ] as const) {
+    await page.getByRole('button', { name: 'Move sex', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Move field', exact: true })
+    await expect(dialog).toHaveCount(1)
+    await dialog.getByLabel('Destination parent').selectOption({ label: 'Root' })
+    await dialog.getByLabel('Insertion position').selectOption({ label: position })
+    await dialog.getByRole('button', { name: 'Move', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    await expect.poll(order).toEqual(expected)
+  }
+})
+
+test('field and note edits stay beside their fields and return focus after Cancel @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await resizeRail(page, 264)
+  const layer = page.getByRole('listitem', { name: 'layer', exact: true })
+  await layer.hover()
+  await layer.getByRole('button', { name: 'Edit layer', exact: true }).click()
+  const field = page.getByRole('textbox', { name: 'Field name', exact: true })
+  await expect(field).toBeFocused()
+  await expect(page.locator('[data-schema-node-id="layer"]').getByRole('textbox', { name: 'Field name', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel field edit' }).click()
+  await expect(layer).toBeFocused()
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  await title.hover()
+  await title.getByRole('button', { name: 'Add note to title', exact: true }).click()
+  await expect(page.locator('[data-schema-node-id="title"]').getByRole('textbox', { name: 'Field notes' })).toBeFocused()
+  await expect(field).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(title).toBeFocused()
+})
+
+test('batch preparation blocks Strategy and Run while an edit is unfinished @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await loginResearcher(page, id.object)
+  await page.goto(`/projects/${id.project}/extractions`)
+  await page.getByRole('button', { name: 'Custom Batch Extraction', exact: true }).click()
+  const strategy = page.getByRole('combobox', { name: 'Batch extraction strategy', exact: true })
+  const run = page.getByRole('button', { name: 'Run 1 Source Document', exact: true })
+  await expect(strategy).toBeEnabled()
+  await expect(run).toBeEnabled()
+  const editor = page.getByRole('region', { name: 'Extraction Template fields', exact: true })
+  await editor.getByRole('button', { name: 'Edit description', exact: true }).click()
+  await expect(strategy).toBeDisabled()
+  await expect(run).toBeDisabled()
+  await expect(strategy).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(strategy).toBeEnabled()
+  await expect(run).toBeEnabled()
 })
 
 test('the Undo toast sits clear of the composer and the footer at 344px and 264px @deterministic', async ({ page }) => {
@@ -567,7 +685,7 @@ test('the Undo toast sits clear of the composer and the footer at 344px and 264p
     const toast = page.getByText('Field removed').locator('..')
     await expect(toast).toBeVisible()
     const toastBox = (await toast.boundingBox())!
-    const composer = (await page.getByPlaceholder('Describe a change to the template…').locator('..').boundingBox())!
+    const composer = (await page.getByPlaceholder(/^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/).locator('..').boundingBox())!
     const footer = (await rail(page).locator('footer').boundingBox())!
     expect(overlaps(toastBox, composer), `${width}px: the toast clear of the composer`).toBe(false)
     expect(overlaps(toastBox, footer), `${width}px: the toast clear of the footer`).toBe(false)
@@ -613,7 +731,7 @@ function expectRowsInPlace(now: RowGeometry, rest: RowGeometry, what: string, on
 async function dragAbove(page: Page, name: string, above: string, rest: RowGeometry) {
   const order = rest.map((row) => row.name)
   const before = order.slice(0, order.indexOf(name))
-  const grip = (await page.getByRole('listitem', { name, exact: true }).locator('span', { hasText: '⠿' }).boundingBox())!
+  const grip = (await page.getByRole('listitem', { name, exact: true }).getByRole('button', { name: `Move ${name}`, exact: true }).boundingBox())!
   // The slot above a row is the first child of the row's wrapper.
   const slot = (await page.locator(`[data-schema-node-id="${idOf(above)}"] > div`).first().boundingBox())!
   const x = grip.x + grip.width / 2
@@ -626,7 +744,7 @@ async function dragAbove(page: Page, name: string, above: string, rest: RowGeome
     expect(row.actions!.visibility, `264px, ${name}'s grip pressed: ${row.name}'s actions hidden`).toBe('hidden')
     expect(row.actions!.inert, `264px, ${name}'s grip pressed: ${row.name}'s actions inert`).toBe(true)
   }
-  await expect(page.getByRole('button', { name: /^(Edit|Add note to|Delete) / }), 'no row action is in the accessibility tree during a drag')
+  await expect(page.getByRole('list', { name: 'Template fields' }).getByRole('button', { name: /^(Edit|Add note to|Delete) / }), 'no row action is in the accessibility tree during a drag')
     .toHaveCount(0)
   const targetY = slot.y + slot.height / 2
   const startY = grip.y + grip.height / 2
@@ -665,7 +783,7 @@ test('pressing and dragging a grip at 264px moves no row, and the drop lands whe
   // A pointer held within 60px of the fields' scroll box's top or bottom edge scrolls the list 7px a frame from the
   // press on, which moves every row by design. So bring sex's grip to the middle of the box before measuring the rows at
   // rest, and check that both gestures start and end clear of those edges.
-  const grip = (name: string) => page.getByRole('listitem', { name, exact: true }).locator('span', { hasText: '⠿' })
+  const grip = (name: string) => page.getByRole('listitem', { name, exact: true }).getByRole('button', { name: `Move ${name}`, exact: true })
   await grip('sex').evaluate((element) => element.scrollIntoView({ block: 'center' }))
   const scroller = await page.getByRole('list', { name: 'Template fields' }).evaluate((list) => {
     let element = list.parentElement

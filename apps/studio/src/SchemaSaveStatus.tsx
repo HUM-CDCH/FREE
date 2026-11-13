@@ -26,25 +26,27 @@ export function SchemaSaveStatus({
   const failure =
     status === 'error' ? save?.error?.message || 'The template could not be saved.' : null
   const failureAsStatus = failure !== null && !retry
+  const text = status === 'dirty'
+    ? 'Unsaved changes'
+    : status === 'saving'
+      ? 'Saving…'
+      : status === 'conflict'
+        ? 'Not saved: the template changed elsewhere'
+        : failureAsStatus
+          ? `Not saved: ${failure}`
+          : showSaved && status === 'saved'
+            ? `Saved · revision ${save?.acknowledged.revisionNumber}`
+            : ''
   return (
     <span className={`flex min-w-0 items-center gap-1.5 text-secondary font-medium ${className}`}>
-      {/* Always rendered, so a status that appears in it is announced. */}
+      {/* Always rendered, so a status that appears in it is announced. A status line: a long one ellipsizes, whole in
+          its title (on the text, so the status keeps its accessible name). */}
       <span
         role="status"
-        className={failureAsStatus ? 'min-w-0 truncate text-danger' : 'shrink-0 text-ink-muted'}
+        className={`min-w-0 truncate ${failureAsStatus ? 'text-danger' : 'text-ink-muted'}`}
         title={failureAsStatus ? failure : undefined}
       >
-        {status === 'dirty'
-          ? 'Unsaved changes'
-          : status === 'saving'
-            ? 'Saving…'
-            : status === 'conflict'
-              ? 'Not saved: the template changed elsewhere'
-              : failureAsStatus
-                ? `Not saved: ${failure}`
-                : showSaved && status === 'saved'
-                  ? `Saved · revision ${save?.acknowledged.revisionNumber}`
-                  : ''}
+        {text && !failureAsStatus ? <span title={text}>{text}</span> : text}
       </span>
       {failure !== null && !failureAsStatus && (
         <>

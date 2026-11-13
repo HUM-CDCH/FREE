@@ -7,6 +7,7 @@ function sameNode(left: SchemaNode, right: SchemaNode): boolean {
     left.type !== right.type ||
     left.description !== right.description ||
     left.valueSource !== right.valueSource ||
+    left.evidencePolicy !== right.evidencePolicy ||
     left.itemType !== right.itemType
   )
     return false

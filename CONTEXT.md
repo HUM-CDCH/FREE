@@ -33,7 +33,7 @@ The concise researcher-facing name for a Project Context. It denotes the same re
 _Avoid_: research context
 
 **Project Chat**:
-A Project Context's one conversation, which leads its guided workflow: messages, a guided step's answers, and each turn to another of its Source Documents. It is kept with the Project Context and outlives the page that showed it ([ADR 0028](docs/adr/0028-the-project-chat-is-kept-with-the-project.md)). The model reads its latest part beside the open Source Document only.
+A Project Context's one conversation, which leads its guided workflow: messages, a guided step's answers, and each turn to another of its Source Documents. It is kept with the Project Context and outlives the page that showed it ([ADR 0028](docs/adr/0028-the-project-chat-is-kept-with-the-project.md)); the researcher may clear it as a whole, apart from the template ([ADR 0029](docs/adr/0029-the-researcher-clears-the-project-chat.md)). The model reads its latest part beside the open Source Document only.
 _Avoid_: schema chat when the whole conversation is meant, chat history when the kept conversation is meant
 
 **Research Workspace**:
@@ -69,7 +69,7 @@ The authoritative declaration, saved with a Schema Revision, of what one Extract
 _Avoid_: cardinality, extraction mode, document type
 
 **Schema Suggestion**:
-A proposed Extraction Schema for researcher review, built from a whole Source Document (read in windows) and the researcher's optional instruction. A Batch Schema Suggestion suggests per Source Document and keeps the fields the documents share; a project spreadsheet's columns can also seed one.
+A proposed Extraction Schema for researcher review, built from a whole Source Document (read in windows) and the researcher's optional instruction. A Batch Schema Suggestion suggests per Source Document and keeps the fields the documents share; a project spreadsheet's columns can also seed one. A Batch Schema Suggestion is an operation, not a second schema: its settled result is saved as an ordinary Extraction Schema, which is then reviewed, edited and run like any other, and a later attempt's result is saved as another. The suggestion stays as that schema's provenance.
 _Avoid_: extraction suggestion, recommendation, prediction, candidate
 
 **Field**:
@@ -77,7 +77,7 @@ A structured value or attribute that can appear in an extraction schema.
 _Avoid_: property, column, metadata
 
 **Extraction Schema**:
-A researcher-approved structure that belongs to exactly one Project Context: a record description and the Fields FREE should extract. Every Extraction applies one of its Schema Revisions, which keeps extraction precise and repeatable.
+A structure that belongs to exactly one Project Context: a record description and the Fields FREE should extract. Every Extraction applies one of its Schema Revisions, which keeps extraction precise and repeatable. Saving a schema, whether written, suggested or imported, does not approve it; the researcher's approval for runs beyond a pilot is the stabilisation of one Schema Revision.
 Studio's interface calls it a *template* (and a Schema Revision a template revision, Schema Suggestion a template suggestion) so the word explains itself to researchers, as the Model Configuration page calls the Interaction Route the *Assistant model*; code, contracts, the API and these documents keep the Extraction Schema terms. Exports keep their column names.
 _Avoid_ (in code and documents): template, which there names NuExtract's own template; extraction target, target list
 
@@ -106,7 +106,7 @@ The immutable schema revision, Extraction Method and resolved settings that prod
 _Avoid_: current schema, mutable run settings
 
 **Batch Extraction**:
-A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document.
+A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document. Admission pins the Schema Revision Run saved and each Source Document's current Source Representation, whatever a Schema Suggestion was generated from.
 _Avoid_: annotation set, combined extraction, project-wide extraction
 
 **Extraction Result**:
@@ -189,11 +189,11 @@ What one Extraction is admitted with and pinned to: its Extraction Strategy, rec
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
-The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; an account's Pro mode admits version 5 instead, which reads every value a second time. It needs no recipe, language, numbering convention, field name or particular model.
+The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; an account's Pro mode admits version 5 instead, which reads every value a second time. Studio admits version 10 for new ordinary runs, pipelining children discovery for settled records: the schema defines peer records, enclosing records retain separately discovered children, and explicitly identified shared table qualifications inform field interpretation without becoming record text. It needs no recipe, language, numbering convention, field name or particular model.
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:
-A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, except that its textless artwork and its blocks with undecodable font glyphs are read by the OCR model, and a role left unchosen uses the deployment's default.
+A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions); it names no Model Connection. Each new ingestion or reprocessing freezes it at admission; native PDF text uses neither model, except that its textless artwork, its blocks with undecodable font glyphs and its unreadable tables are read by the OCR model, and a role left unchosen uses the deployment's default.
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:

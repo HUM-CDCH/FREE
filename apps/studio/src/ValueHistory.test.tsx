@@ -58,7 +58,7 @@ describe('value History', () => {
     render(<ValueHistory {...props} onOpen={vi.fn()} onBack={vi.fn()} />)
     const rows = within(await screen.findByRole('list', { name: 'Readings of title' })).getAllByRole('listitem')
     expect(rows[0]).toHaveTextContent(/^Quay.*Approved/)
-    expect(rows[1]).toHaveTextContent(/^Harbour or Quay.*Readings differ/)
+    expect(rows[1]).toHaveTextContent(/^Harbour or Quay.*Different readings/)
   })
 
   it('reads only while shown, again when told to, and reports a failed read', async () => {

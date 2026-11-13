@@ -18,12 +18,9 @@ export type EvidenceLink = Readonly<{
   resultPath: ResultPath
   evidenceAnchorId: string
   precision?: 'cell' | 'segment' | 'input'
-  /** The value occurs as a bounded token in the linked anchor. Absent on
-   *  boolean values and on links stored before this check existed. */
+  /** The value occurs as a bounded token in the linked anchor. Unified links may instead carry supporting Evidence,
+   *  including for boolean values. Absent on older links. */
   verbatim?: boolean
-  /** Candidate anchors containing the value; above one, the passage is
-   *  ambiguous. A reviewer's doubt, not a probability; never auto-accept. */
-  lexicalHits?: number
   /** How the link was made when not by the grounder: the values call cited
    *  the block and code found the value in it, or code found the value in
    *  exactly one candidate. Absent means the grounder chose the anchor. */
@@ -35,6 +32,9 @@ export type EvidenceLink = Readonly<{
   /** An Article (version 1) link's value printing: its one code-point span in the linked segment and the printed text.
    *  Where to draw it only; it claims no rule, so it is never `grounding`. */
   location?: Readonly<{ textSpans: readonly TextSpan[]; raw: string }>
+  /** Where the value prints on its page, one box per printed line in PDF points from the top-left of the displayed
+   *  page (ADR 0031). Where to draw it only; Studio checks each lies inside its anchor before drawing. */
+  valueBoxes?: readonly Readonly<{ x0: number; y0: number; x1: number; y1: number }>[]
 }>
 
 export type TextSpan = Readonly<{ segment: string; start: number; end: number }>
@@ -145,6 +145,8 @@ export type BatchExtractionSnapshot = Readonly<{
   /** QUEUED while every member is, COMPLETED once every member has settled, RUNNING otherwise; never FAILED. */
   executionStatus: ProjectOperationStatus
   createdAt: Date
+  /** A trial round: opened before its Schema Revision was approved (stabilised). */
+  trial: boolean
   members: readonly BatchExtractionMemberSnapshot[]
 }>
 
@@ -156,14 +158,6 @@ export type ScheduleBatchInput = Readonly<{
   method: ExtractionMethodIntent
   sourceDocumentIds: readonly string[]
   repetition: BatchRepetition
-}>
-
-export type ScheduleSuggestedBatchInput = Readonly<{
-  projectContextId: string
-  batchSchemaSuggestionId: string
-  strategy: ExtractionStrategy
-  /** The saved method the researcher saw at start; one snapshot for the batch and every member. */
-  method: ExtractionMethodIntent
 }>
 
 export type ScheduleBatchResult = Readonly<{
@@ -208,7 +202,6 @@ export interface ExtractionModule {
   readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
-  scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>
   /** Marks a piloted Schema Revision stabilised, unlocking collection-scale Batch Extraction against it.
    *  Requires a finalized durable pilot review of that revision's current result cut. */
   stabiliseSchemaRevision(input: StabiliseSchemaRevisionInput): Promise<StabiliseSchemaRevisionResult>

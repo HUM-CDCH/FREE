@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { durableValueSchema } from './durable-contract.js'
-import { plainEvidenceLink } from './kei-evidence.js'
+import { durableValueSchema, plannedRecords } from './durable-contract.js'
+import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 test('retained model Evidence preserves leaf attribution and rejects a different value or anchor',()=> {
-  const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,hits:1,
+  const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,
     linked_by:'key',spans:[{segment:'p1_s1',start:7,end:11}],alternatives:[],provenance:'token',key_spans:[{segment:'p1_s1',start:0,end:5}],
     heading:null,precision:'segment',raw:'Book',normalized:null}
   const value={id:'work-value',recordId:'own-source-record',fieldId:'work',path:['records',0,'work'],
@@ -31,7 +31,7 @@ test('Python version-3 producer Evidence satisfies the durable producer contract
 
 test('a single-pass unified link keeps its spans as a lexical producer, not a stripped plain link', () => {
   const span = { segment: 'p1_s0', start: 3, end: 7 }
-  const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true, hits: 1,
+  const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true,
     linked_by: 'lexical', support: 'literal', spans: [span], alternatives: [], precision: 'segment', raw: 'Site', item: null }
   assert.deepEqual(durableValueSchema.shape.evidence.element.shape.producer.parse(link), link)
 })
@@ -56,6 +56,19 @@ test('an Article version-1 link keeps its location as a plain producer and proje
     { spans: [{ ...span, start: -1 }], raw }, { spans: [], raw }, { spans: [span, span], raw },
     { spans: [span], raw: '' }, { spans: [span] }, { spans: [{ ...span, page: 1 }], raw }, { spans: [span], raw, boxes: [] },
   ]) assert.equal(producerSchema.safeParse({ ...fixture.with_location, location }).success, false, JSON.stringify(location))
+})
+
+test('a producer link keeps the value boxes the Parsing Service writes and projects them as valueBoxes', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../apps/parsing_service/tests/fixtures/contracts/value-mark-link.json', import.meta.url), 'utf8'))
+  const producerSchema = durableValueSchema.shape.evidence.element.shape.producer
+  for (const name of ['article', 'unified', 'without']) assert.deepEqual(producerSchema.parse(fixture[name]), fixture[name], name)
+  const boxes = ([x0, y0, x1, y1]: number[]) => ({ x0, y0, x1, y1 })
+  const article = plainEvidenceLink(producerSchema.parse(fixture.article) as Parameters<typeof plainEvidenceLink>[0], 'a_p1_s3')
+  assert.deepEqual(article.valueBoxes, fixture.article.value_boxes_pt.map(boxes))
+  assert.equal('valueBoxes' in plainEvidenceLink(producerSchema.parse(fixture.without) as Parameters<typeof plainEvidenceLink>[0], 'a_p1_s3'), false)
+  assert.deepEqual(unifiedEvidenceLink(producerSchema.parse(fixture.unified) as Parameters<typeof unifiedEvidenceLink>[0], 'a_p2_s5').valueBoxes,
+    fixture.unified.value_boxes_pt.map(boxes))
+  assert.equal(producerSchema.safeParse({ ...fixture.article, value_boxes_pt: [[1, 1, 1, 2]] }).success, false)
 })
 
 test('Value Disagreements retain typed alternatives at null places addressed by child id',()=> {
@@ -88,4 +101,43 @@ test('chosen readings are optional and only allowed on approvals', async()=> {
   assert.equal(durableCorrectionSchema.safeParse({...plain,choices:[{...choices[0],id:'a'}]}).success,false)
   for(const action of ['EDITED','REJECTED','PENDING'])
     assert.equal(durableCorrectionSchema.safeParse({...plain,action,choices}).success,false)
+})
+
+test('a planned record keeps the text it owns, its disjoint lines stay disjoint',()=> {
+  const line=(segment:string,start:number,end:number)=>({segment,start,end})
+  const records=plannedRecords([
+    // A parent whose child was carved out of the same block keeps the hole; its next block is a separate range.
+    {ordinal:0,scope:[line('p1_s0',0,10),line('p1_s0',11,20),line('p1_s0',41,50),line('p1_s1',0,8)]},
+    {ordinal:1,scope:[line('p1_s0',21,30),line('p1_s0',31,40)]},
+    // Unowned text remains excluded.
+    {ordinal:2,scope:[line('p2_s0',0,5),line('p2_s0',30,35)]},
+  ])
+  assert.deepEqual(records,[
+    {ordinal:0,segment:'p1_s0',page:1,ranges:[line('p1_s0',0,10),line('p1_s0',11,20),line('p1_s0',41,50),line('p1_s1',0,8)]},
+    {ordinal:1,segment:'p1_s0',page:1,ranges:[line('p1_s0',21,30),line('p1_s0',31,40)]},
+    {ordinal:2,segment:'p2_s0',page:2,ranges:[line('p2_s0',0,5),line('p2_s0',30,35)]},
+  ])
+})
+
+test('a planned record whose scope is not its exact lines keeps its start alone',()=> {
+  assert.deepEqual(plannedRecords([
+    {ordinal:0,scope:[{segment:'p3_s9'}]},
+    {ordinal:1,scope:[{segment:'p4_s0',start:0,end:4},{segment:'p4_s1',start:'0',end:4}]},
+    {ordinal:2,scope:[{segment:'p5_s0',start:4,end:4}]},
+    {ordinal:3,scope:{pages:[1,2]}},
+    {ordinal:4,scope:[]},
+  ]),[
+    {ordinal:0,segment:'p3_s9',page:3},{ordinal:1,segment:'p4_s0',page:4},{ordinal:2,segment:'p5_s0',page:5},
+    {ordinal:3,segment:null,page:null},{ordinal:4,segment:null,page:null},
+  ])
+})
+
+
+test('record ranges exclude shared notes and keep a multi-page child in scope order', () => {
+  const line = (segment: string, start: number, end: number) => ({ segment, start, end })
+  const scopes = [
+    [line('p1_s0', 0, 18), line('p1_s0', 56, 78), line('p3_s0', 20, 40)],
+    [line('p2_s0', 0, 20), line('p3_s0', 0, 20)],
+  ]
+  assert.deepEqual(plannedRecords(scopes.map((scope, ordinal) => ({ scope, ordinal }))).map(record => record.ranges), scopes)
 })

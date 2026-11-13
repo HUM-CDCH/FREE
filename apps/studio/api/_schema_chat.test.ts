@@ -151,6 +151,19 @@ describe('respondToSchemaEdit', () => {
     expect(untouched).not.toHaveBeenCalled()
   })
 
+  it('hands back a message that only declines, on a general route and beside NuExtract alike', async () => {
+    generateTextMock.mockResolvedValueOnce({ text: '{"action":"none"}', finishReason: 'stop' })
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'No thanks' }, general))
+      .resolves.toEqual({ action: 'none' })
+    expect(sent(0)).toContain('{\\"action\\":\\"none\\"}')
+
+    const untouched = stubNuExtract('{}')
+    generateTextMock.mockResolvedValueOnce({ text: '{"action":"none"}', finishReason: 'stop' })
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'not now' }, nuextract))
+      .resolves.toEqual({ action: 'none' })
+    expect(untouched).not.toHaveBeenCalled()
+  })
+
   it('NuExtract with no Assistant model beside it revises the schema, as before', async () => {
     const request = stubNuExtract('{"_description":"One burial.","name":"string"}')
     await expect(respondToSchemaEdit(CALLER, input, question, nuextractAlone)).resolves.toMatchObject({ template: { name: 'string' } })
@@ -167,6 +180,14 @@ describe('answerSchemaChat', () => {
     expect(sent(0)).not.toContain('{\\"action\\":\\"extract\\"}')
     generateTextMock.mockResolvedValueOnce({ text: '{"answer":null}', finishReason: 'stop' })
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Focus on dates', history: [] }, {}, general)).resolves.toBeNull()
+  })
+
+  it('hands back a message that only declines, never a request to extract', async () => {
+    generateTextMock.mockResolvedValueOnce({ text: '{"action":"none"}', finishReason: 'stop' })
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'no thanks', history: [] }, {}, general)).resolves.toEqual({ action: 'none' })
+    expect(sent(0)).toContain('{\\"action\\":\\"none\\"}')
+    generateTextMock.mockResolvedValueOnce({ text: '{"action":"extract"}', finishReason: 'stop' })
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Extract it', history: [] }, {}, general)).resolves.toBeNull()
   })
 
   it('keeps every message as an instruction when nothing can answer it', async () => {

@@ -1,6 +1,7 @@
 """Retained values are produced from validated stage objects, never debug files."""
 from __future__ import annotations
 
+from contextlib import nullcontext
 from uuid import UUID
 
 from kei_exp.kie.extract.durable import digest
@@ -27,6 +28,12 @@ def discovering(router, found, lines):
     durable run reads (None once discovery is done). A view only: nothing is retained."""
     if getattr(router,"runtime",None) is not None:
         router.runtime.discovering(found, lines)
+
+
+def ahead(router):
+    """A scope whose calls a durable run admits before the round's earlier ones (`CapturePlanner.ahead`)."""
+    runtime = getattr(router,"runtime",None)
+    return nullcontext() if runtime is None else runtime.ahead()
 
 
 def plan_execution(router, stage, execution):

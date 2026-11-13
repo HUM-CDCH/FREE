@@ -21,7 +21,7 @@ export function ProposalReviewBar({
       >
         {proposal.changes.map((change) =>
           change.outcome === 'unresolved' && change.reason ? (
-            <p key={`reason-${change.id}`}>{change.reason}</p>
+            <p key={`reason-${change.id}`} className="[overflow-wrap:anywhere]">{change.reason}</p>
           ) : null,
         )}
       </div>

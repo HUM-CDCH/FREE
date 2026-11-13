@@ -7,7 +7,7 @@ import type { NavigableRoute } from '../projectNavigation'
 import { SessionControls } from '../auth/AuthForms.tsx'
 import { DeleteDialog, Overline } from '../ui'
 import { CreateProjectModal } from './CreateProjectModal'
-import { useProjectContexts } from './useProjectContexts'
+import { pendingSources, useProjectContexts } from './useProjectContexts'
 import { sourceName } from '../sourceIngestionMachine'
 
 /**
@@ -131,6 +131,7 @@ export function ProjectContextRail({
     createProject,
     addSources,
     ingestingSources,
+    ingestions,
     deleteProject,
     deleteSourceDocument,
   } = useProjectContexts()
@@ -290,7 +291,7 @@ export function ProjectContextRail({
           </p>
         )}
         {listState.status === 'error' && (
-          <p className="py-6 pr-2 text-xs leading-relaxed text-danger">
+          <p className="py-6 pr-2 text-xs leading-relaxed text-danger [overflow-wrap:anywhere]">
             {listState.failure.message}{' '}
             <button
               className="font-semibold underline"
@@ -312,9 +313,26 @@ export function ProjectContextRail({
             const isExpanded = visibleExpanded.has(projectContextId)
             const active = projectContextId === activeProjectContextId
             const branch = branches[projectContextId]
-            const queued = ingestingSources.filter(
-              (source) => source.projectContextId === projectContextId,
+            // One list: an upload's row never disappears before parsing ends.
+            const { queued, listed } = pendingSources(
+              { ingestingSources, ingestions },
+              projectContextId,
             )
+            const pending = [
+              ...queued.map((source) => ({
+                key: source.itemId,
+                name: sourceName(source),
+                status:
+                  source.status === 'failed' || source.status === 'parsing'
+                    ? source.status
+                    : 'queued',
+              })),
+              ...listed.map((row) => ({
+                key: row.workflowId,
+                name: row.name,
+                status: row.status,
+              })),
+            ]
             return (
               <li key={projectContextId} className="py-1.5">
                 {/* The chevron and the name are one control: either discloses
@@ -399,30 +417,28 @@ export function ProjectContextRail({
                   <div className="ml-1.5">
                     {/* In-flight first: an added Source Document is visible
                         here, grayed out, before its parsing finishes. */}
-                    {queued.map((source) => (
+                    {pending.map((row) => (
                       <div
                         className={`flex items-center border-l pl-3 ${
-                          source.status === 'failed'
+                          row.status === 'failed'
                             ? 'border-danger/40'
                             : 'border-line'
                         }`}
-                        key={source.itemId}
+                        key={row.key}
                       >
                         <span
                           className={`min-w-0 flex-1 break-words py-1.5 pr-1 text-xs font-medium leading-snug ${
-                            source.status === 'failed'
+                            row.status === 'failed'
                               ? 'text-danger'
                               : 'text-ink-faint'
                           }`}
-                          aria-label={`${sourceName(source)} (${
-                            source.status === 'failed'
+                          aria-label={`${row.name} (${
+                            row.status === 'failed'
                               ? 'failed to parse'
-                              : source.status === 'parsing'
-                                ? 'parsing'
-                                : 'queued'
+                              : row.status
                           })`}
                         >
-                          <WrappedName name={sourceName(source)} />
+                          <WrappedName name={row.name} />
                         </span>
                       </div>
                     ))}
@@ -447,7 +463,7 @@ export function ProjectContextRail({
                     )}
                     {branch?.status === 'ready' &&
                       branch.detail.sourceDocuments.length === 0 &&
-                      queued.length === 0 && (
+                      pending.length === 0 && (
                         <p
                           className={`py-1 pr-1 text-[11px] leading-snug text-ink-muted ${guide}`}
                         >
@@ -525,7 +541,7 @@ export function ProjectContextRail({
       {sourceContextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-20 w-40 rounded-2xl border border-line bg-surface p-1.5 text-xs shadow-lg"
+          className="fixed z-30 w-40 rounded-2xl border border-line bg-surface p-1.5 text-xs shadow-lg"
           style={{ left: sourceContextMenu.x, top: sourceContextMenu.y }}
         >
           <button
@@ -579,10 +595,10 @@ export function ProjectContextRail({
         <DeleteDialog
           title="Delete Source Document"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{deletingSource.name}” permanently removes its
               annotations and extractions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={() =>
             deleteSourceDocument(
@@ -599,11 +615,11 @@ export function ProjectContextRail({
         <DeleteDialog
           title="Delete project"
           description={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Deleting “{deletingProject.name}” permanently removes its Source
               Documents, Annotations, Extraction Template, Extractions, and
               Review Decisions. This cannot be undone.
-            </>
+            </span>
           }
           onConfirm={async () => {
             const rejected = await deleteProject(

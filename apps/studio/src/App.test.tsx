@@ -3,13 +3,17 @@ import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { StrictMode } from 'react'
+import { Profiler, StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import * as paneScrolling from './scrollWithinPane'
+import type { ParsedDocument } from 'extraction/parsed-document'
+/** The chat's composer: its own hint, or the way past the step whose card carries it. */
+const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
 // The run action is "▶ Run extraction" until the document has an Extraction, then "↻ Re-run extraction".
 const RUN_EXTRACTION = /^(▶ Run|↻ Re-run) extraction$/
@@ -33,6 +37,7 @@ const {
   getDocument,
   ResponseException,
   scrollPageIntoView,
+  updateScale,
 } = vi.hoisted(() => {
   class ResponseException extends Error {
     readonly status: number
@@ -51,6 +56,7 @@ const {
     })),
     ResponseException,
     scrollPageIntoView: vi.fn(),
+    updateScale: vi.fn(),
   }
 })
 
@@ -184,7 +190,9 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
       this.currentScale = this.scale / 2
     }
 
-    updateScale({ scaleFactor }: { scaleFactor: number }) {
+    updateScale(options: { scaleFactor: number; drawingDelay?: number }) {
+      updateScale(options)
+      const { scaleFactor } = options
       this.currentScale = this.scale * scaleFactor
     }
 
@@ -267,6 +275,7 @@ afterEach(() => {
   getDocument.mockClear()
   destroyLoadingTask.mockClear()
   scrollPageIntoView.mockClear()
+  updateScale.mockClear()
   saved.refresh.mockReset()
   saved.refresh.mockImplementation(savedRefresh)
 })
@@ -369,7 +378,7 @@ describe('reopened Source Document workspace', () => {
     const documents = [here, ...others].map((id, index) => ({ id, name: index === 0 ? 'Beretning.pdf' : `Letter ${index}.pdf` }))
     const summary = (overrides: Partial<NonNullable<DocumentWorkspaceProps['project']>['summary']> = {}) => ({
       phase: 'pilot' as const, extractionCount: 0, extractedSourceDocumentCount: 0, reviewedSourceDocumentCount: 0, staleSourceDocumentCount: 0,
-      pendingExtractionSourceDocumentCount: 4, schemaDraftCount: 0, currentSchemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      pendingExtractionSourceDocumentCount: 4, currentSchemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides })
     const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: sourceDocumentId.replace('-8001-', '-8006-'), sourceDocumentId,
       sourceRepresentationRevisionId: sourceDocumentId.replace('-8001-', '-8002-'), executionStatus: 'COMPLETED', completed: true, reviewable: true,
@@ -408,10 +417,10 @@ describe('reopened Source Document workspace', () => {
       const { opened, onNavigate, refresh } = await renderInProject(summary(), [], { fromSchemaBuilder: true })
       // Built toward a pilot: no run of this document alone.
       expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
-      const step = await screen.findByRole('region', { name: 'Pilot the template' })
+      const step = await screen.findByRole('region', { name: 'Try template on a few documents' })
       expect(within(step).getAllByRole('checkbox', { checked: true }).map((box) => box.closest('label')!.textContent)).toEqual(['Beretning.pdf', 'Letter 1.pdf', 'Letter 2.pdf'])
       fireEvent.click(within(step).getByRole('checkbox', { name: 'Letter 2.pdf' }))
-      fireEvent.click(within(step).getByRole('button', { name: 'Run pilot on 2 documents' }))
+      fireEvent.click(within(step).getByRole('button', { name: 'Try on 2 documents' }))
       await waitFor(() => expect(onNavigate).toHaveBeenCalledOnce())
       expect(opened).toEqual([expect.objectContaining({ sourceDocumentIds: [here, others[0]], strategy: 'ARTICLE',
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId })])
@@ -422,7 +431,7 @@ describe('reopened Source Document workspace', () => {
 
     it('runs the documents ticked when a chat message asks to extract, as a pilot before the approval', async () => {
       const { opened, onNavigate } = await renderInProject(summary(), [])
-      const input = screen.getByPlaceholderText('Describe a change to the template…')
+      const input = chatInput()
       fireEvent.change(input, { target: { value: 'Generate the results for the other letters' } })
       fireEvent.keyDown(input, { key: 'Enter' })
       const step = await screen.findByRole('region', { name: 'Extract' })
@@ -571,10 +580,10 @@ describe('reopened Source Document workspace', () => {
       const round = batch([member(here, true), member(others[0]!), member(others[1]!)])
       const { onNavigate } = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round],
         { project: undefined })
-      expect(screen.queryByRole('region', { name: 'Pilot review' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Review the trial results' })).not.toBeInTheDocument()
       cleanup()
       const rendered = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round])
-      const step = await screen.findByRole('region', { name: 'Pilot review' })
+      const step = await screen.findByRole('region', { name: 'Review the trial results' })
       expect(step).toHaveTextContent('1 of 3 documents reviewed')
       fireEvent.click(within(step).getByRole('button', { name: 'Next document · Letter 1.pdf' }))
       expect(rendered.onNavigate).toHaveBeenCalledExactlyOnceWith({ kind: 'document', projectContextId: reopened.projectContextId,
@@ -747,6 +756,8 @@ describe('reopened Source Document workspace', () => {
       expect(reads).toEqual([])
     }
     expect(shownToasts.filter(message => message.includes('complete —'))).toHaveLength(1)
+    // Each completed run stops at Results ready until the researcher goes on.
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Results ready' })).getByRole('button', { name: /Continue/ }))
     expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled()
   }, 6_000)
 
@@ -1032,6 +1043,32 @@ describe('reopened Source Document workspace', () => {
     }
   })
 
+  it('updates the rail width during a drag and commits React state only on release', async () => {
+    await renderReopened()
+    cleanup()
+    const commits = vi.fn()
+    render(<Profiler id="workspace" onRender={commits}><DocumentWorkspace {...reopened} /></Profiler>)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    const rail = screen.getByRole('complementary', { name: 'Chat, template and results' })
+    const separator = document.querySelector('[title="Drag to resize"]')!
+    commits.mockClear()
+    fireEvent.mouseDown(separator, { clientX: 500 })
+    for (let i = 1; i <= 20; i++) fireEvent.mouseMove(window, { clientX: 500 - i })
+    expect(commits.mock.calls.length).toBe(0)
+    fireEvent.mouseUp(window)
+    expect(commits.mock.calls.length).toBe(1)
+    expect(rail).toHaveStyle({ width: 'var(--rail-width)' })
+    expect(rail.style.getPropertyValue('--rail-width')).toBe('364px')
+    expect(document.body.style.cursor).toBe('')
+  })
+
+  it('defers wheel-zoom raster drawing while keeping cursor-centred scale updates immediate', async () => {
+    await renderReopened()
+    fireEvent.wheel(document.querySelector('.pdf-viewer')!, { ctrlKey: true, deltaY: -50, clientX: 120, clientY: 80 })
+    expect(updateScale).toHaveBeenCalledExactlyOnceWith({ drawingDelay: 150,
+      scaleFactor: Math.exp(50 * 0.0015), origin: [120, 80] })
+  })
+
   it('does not reload Source Document resources when only its name changes', async () => {
     let renamed = false
     const pending = new Promise<Response>(() => undefined)
@@ -1113,6 +1150,7 @@ describe('reopened Source Document workspace', () => {
     expect(getDocument).toHaveBeenNthCalledWith(2, {
       url: `/sources/${nextSourceRepresentationId}/pdf`,
       wasmUrl: '/assets/pdfjs-wasm/',
+      canvasMaxAreaInBytes: 2 ** 25,
     })
     expect(
       screen.getByRole('status', { name: 'Loading Source Document' }),
@@ -1131,7 +1169,7 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(screen.getByTitle('Collapse panel'))
 
-    expect(rail).toHaveStyle({ width: '46px' })
+    expect(rail.style.getPropertyValue('--rail-width')).toBe('46px')
     expect(rail.className).not.toContain(mobileDrawerWidth)
 
     fireEvent.click(screen.getByTitle('Expand panel'))
@@ -1205,6 +1243,7 @@ describe('reopened Source Document workspace', () => {
         expect(getDocument).toHaveBeenCalledWith({
           url: `/free${reopened.pdfUrl}`,
           wasmUrl: '/free/assets/pdfjs-wasm/',
+          canvasMaxAreaInBytes: 2 ** 25,
         }),
       )
       expect(
@@ -1376,7 +1415,8 @@ describe('reopened Source Document workspace', () => {
       return Promise.resolve(durableRead(url, 'COMPLETED', { snapshotVersion: cut.snapshotVersion, feedbackVersion: 0 })
         ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
     }))
-    render(<DocumentWorkspace {...reopened} />)
+    const commits = vi.fn()
+    render(<Profiler id="workspace-hover" onRender={commits}><DocumentWorkspace {...reopened} /></Profiler>)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
     const view = within(screen.getByRole('group', { name: 'Document view' }))
@@ -1387,13 +1427,16 @@ describe('reopened Source Document workspace', () => {
     expect(document.querySelectorAll('[data-evidence-linked]')).toHaveLength(2)
     // Hover links the two sides: a row lights its passage, the passage lights its rows.
     const passage = screen.getByRole('button', { name: /place: Harlow/ })
-    fireEvent.mouseOver(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
+    commits.mockClear()
+    fireEvent.mouseMove(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
     expect(passage).toHaveClass('hovered')
-    fireEvent.mouseEnter(passage)
-    expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(2)
+    fireEvent.mouseLeave(screen.getByRole('button', { name: /^To check parish Elmbrooke/ }))
+    fireEvent.mouseMove(passage)
+    expect(document.querySelectorAll('[data-result-key].hovered')).toHaveLength(2)
     fireEvent.mouseLeave(passage)
-    expect(document.querySelectorAll('[data-evidence-hovered]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-result-key].hovered')).toHaveLength(0)
     expect(passage).not.toHaveClass('hovered')
+    expect(commits.mock.calls.length).toBe(0)
 
     saveAndRead([linked('place', 'Harlow'), linked('parish', 'Elmbrook')])
     const parish = await screen.findByRole('button', { name: /^To check parish Elmbrook/ })
@@ -1477,6 +1520,118 @@ describe('reopened Source Document workspace', () => {
     expect(place()).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(passage)
     expect(place()).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it.each([
+    ['text', 'Results', true], ['text', 'Markdown', true], ['table', 'Results', true], ['table', 'Markdown', true],
+    ['text', 'Results', false], ['table', 'Results', false],
+  ] as const)('scrolls from %s evidence in %s to the other pane only (marks shown: %s)', async (kind, from, shown) => {
+    const markdown = 'Paris\tRome\nParis', span = { start: 0, end: new TextEncoder().encode(markdown).length }
+    const source = structuredClone(parsedDocument) as ParsedDocument
+    const base = source.content_stream[0]!, observation = source.evidence_index.anchors[0]!.producer_observations[0]!
+    const block = { block_id: 'b_p1_s0', page_number: 1, parser: 'kei-exp', bbox: base.bbox, markdown_span: span }
+    const cells = [{ start: 0, end: 5, row: 0, column: 0, text: 'Paris' },
+      { start: 6, end: 10, row: 0, column: 1, text: 'Rome' }, { start: 11, end: 16, row: 1, column: 0, text: 'Paris' }]
+    const anchorId = (index: number) => kind === 'text' ? 'a_p1_s0' : `a_p1_s0_r${cells[index]!.row}_c${cells[index]!.column}`
+    source.pages[0]!.ordered_content = [block.block_id]
+    source.pages[0]!.markdown_span = span
+    source.content_stream = [kind === 'text' ? { ...block, kind: 'paragraph', text: markdown } : { ...block, kind: 'table', table_id: 't_p1_s0' }]
+    if (kind === 'text') source.evidence_index.anchors = [{ ...source.evidence_index.anchors[0]!, kind: 'text',
+      anchor_id: anchorId(0), block_id: block.block_id, markdown_span: span, producer_observations: [observation] }]
+    else {
+      const parser = { parser: 'kei-exp', version: null }
+      source.tables = [{ table_id: 't_p1_s0', rows: 2, cols: 2, continuation: 'page_local',
+        parser_attribution: { content_parser: parser, structure_parser: parser, geometry_parser: null },
+        spans: [{ page_number: 1, producer_table_ref: null, page_local_row_start: 0, page_local_row_end: 1, page_local_col_count: 2 }],
+        cells: cells.map((cell, index) => ({ cell_id: `r${cell.row}_c${cell.column}`, row: cell.row, column: cell.column,
+          text: cell.text, role: null, rowspan: 1, colspan: 1, bbox: base.bbox, evidence_anchor_id: anchorId(index) })) }]
+      source.evidence_index.anchors = cells.map((cell, index) => ({ kind: 'table_cell', anchor_id: anchorId(index),
+        content_sha256: source.document.content_sha256, preprocess_id: source.preprocessing.preprocess_id, logical_table_id: 't_p1_s0',
+        cell_id: `r${cell.row}_c${cell.column}`, canonical_row: cell.row, canonical_column: cell.column,
+        producer_observations: [{ ...observation, occurrence_id: `cell-${index}`, row_offset: cell.row, column_offset: cell.column, row_span: 1, column_span: 1 }] }))
+    }
+    const value = (id: string, indexes: number[]) => ({ id, recordId: 'record', fieldId: id, path: ['records', 0, id],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id, name: id, type: 'string' }, modelValue: cells[indexes[0]!]!.text, evidence: [],
+      links: indexes.map(index => ({ resultPath: ['records', 0, id], evidenceAnchorId: anchorId(index), location: {
+        textSpans: [{ segment: 'p1_s0', start: cells[index]!.start, end: cells[index]!.end }], raw: cells[index]!.text } })),
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 2, toCheck: 2, approved: 0, edited: 0, rejected: 0 },
+        values: [value('place', [0, 2]), value('parish', [1])], total: 2, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(source) : new Response(markdown)))
+    }))
+    const reveal = vi.spyOn(paneScrolling, 'scrollWithinPane')
+    try {
+      render(<DocumentWorkspace {...reopened} extractionSchema={{ ...reopened.extractionSchema!, recordScope: 'records' }}
+        persistedExtraction={{ ...reopened.persistedExtraction!, strategy: 'CATALOG',
+          extractionSchema: { ...reopened.persistedExtraction!.extractionSchema, recordScope: 'records' } }} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      openRailView('Results')
+      fireEvent.click(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' }))
+      const pane = screen.getByLabelText('Parsed Markdown').parentElement!
+      if (!shown) fireEvent.click(screen.getByRole('button', { name: 'Evidence marks' }))
+      fireEvent.click(await screen.findByRole('button', { name: /^To check parish Rome/ }))
+      if (from === 'Results') {
+        // Close and choose it again: reach its own mark, not the first value in a shared anchor.
+        fireEvent.click(screen.getByRole('button', { name: /^To check parish Rome/ }))
+        const target = [...pane.querySelectorAll<HTMLElement>('[data-evidence-anchor-id]')].find(element => element.textContent === 'Rome')
+        reveal.mockClear()
+        fireEvent.click(screen.getByRole('button', { name: /^To check parish Rome/ }))
+        const mark = screen.getByRole('button', { name: 'parish: Rome' })
+        expect(reveal).toHaveBeenCalledExactlyOnceWith(pane, target)
+        expect(mark).toHaveAttribute('aria-current', 'true')
+      } else {
+        const row = document.querySelector<HTMLElement>('[data-result-key="place"]')!
+        fireEvent.click(row.closest('section')!.querySelector('button[aria-expanded]')!)
+        reveal.mockClear()
+        // A value can have several marks. Clicking the later one must not jump the source back to its first.
+        fireEvent.click(screen.getAllByRole('button', { name: 'place: Paris' })[1]!)
+        await waitFor(() => expect(reveal).toHaveBeenCalled())
+        const selectedRow = document.querySelector<HTMLElement>('[data-result-key="place"]')!
+        expect(reveal).toHaveBeenCalledExactlyOnceWith(selectedRow.closest('.overflow-y-auto'), selectedRow)
+        expect(selectedRow.querySelector('button')).toHaveFocus()
+      }
+      expect(within(screen.getByRole('group', { name: 'Document view' })).getByRole('button', { name: 'Markdown' })).toHaveAttribute('aria-pressed', 'true')
+    } finally {
+      reveal.mockRestore()
+    }
+  })
+
+  it('reveals the selected value when switching from PDF to Markdown, including on return', async () => {
+    const value = { id: 'place', recordId: 'record', fieldId: 'place', path: ['records', 0, 'place'],
+      selectionId: '51000000-0000-4000-8009-000000000001', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      node: { id: 'place', name: 'place', type: 'string' }, modelValue: 'Harlow', evidence: [],
+      links: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'bundled-anchor' }],
+      grounding: 'grounded', processing: 'saved', lineage: [], correction: null, historicalCorrection: null }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/durable/values?')) return Promise.resolve(Response.json({ extractionId: reopened.persistedExtraction!.extractionId,
+        snapshotVersion: 1, feedbackVersion: 0, status: 'COMPLETED', finalization: null,
+        reviewCounts: { required: 1, toCheck: 1, approved: 0, edited: 0, rejected: 0 }, values: [value], total: 1, next: null, coverage: {} }))
+      return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning\n\nPlaces: Harlow.')))
+    }))
+    const reveal = vi.spyOn(paneScrolling, 'scrollWithinPane')
+    try {
+      render(<DocumentWorkspace {...reopened} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      openRailView('Results')
+      fireEvent.click(await screen.findByRole('button', { name: /^To check place Harlow/ }))
+      const view = within(screen.getByRole('group', { name: 'Document view' }))
+      for (let visit = 0; visit < 2; visit++) {
+        reveal.mockClear()
+        fireEvent.click(view.getByRole('button', { name: 'Markdown' }))
+        const mark = screen.getByRole('button', { name: 'place: Harlow' })
+        expect(mark).toHaveAttribute('aria-current', 'true')
+        expect(reveal).toHaveBeenCalledWith(screen.getByLabelText('Parsed Markdown').parentElement, mark)
+        fireEvent.click(view.getByRole('button', { name: 'PDF' }))
+      }
+    } finally {
+      reveal.mockRestore()
+    }
   })
 
   it('hides the Markdown marks while the rail is collapsed, and marks the selected value again on expand', async () => {
@@ -1576,6 +1731,8 @@ describe('reopened Source Document workspace', () => {
 
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Template actions' }))
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
@@ -1634,6 +1791,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(releaseAutomatic).not.toBeNull())
@@ -1696,6 +1855,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(patches).toEqual(['Beretning']))
@@ -1769,6 +1930,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rename template Beretning' }))
     await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning']))
@@ -1836,6 +1999,8 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
     fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+    openRailView('Template')
 
     expect(await screen.findByText(notice)).toBeInTheDocument()
     expect(written.map((body) => body.sourceCoverage)).toEqual([excerpted])
@@ -2148,9 +2313,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     openRailView('Template')
-    const input = screen.getByPlaceholderText(
-      'Describe a change to the template…',
-    )
+    const input = chatInput()
     fireEvent.change(input, { target: { value: 'Rename place' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -2270,7 +2433,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/admitted samples/)).not.toBeInTheDocument()
     fireEvent.keyDown(firstPage, { key: 'Escape' })
     expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Page thumbnails' })).toHaveFocus()
   })
 
   it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the template\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
@@ -2361,7 +2524,7 @@ describe('reopened Source Document workspace', () => {
       // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
       await waitFor(() => expect(extractionRequests).toHaveLength(2))
       for (const request of extractionRequests) {
-        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 6 } } } })
+        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 10 } } } })
         expect(request).not.toHaveProperty('catalogRecipe')
       }
       expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
@@ -2676,6 +2839,42 @@ describe('reopened Source Document workspace', () => {
       expect(selector).toHaveValue('records')
     })
 
+    it.each(['Save', 'Cancel'] as const)('blocks chat scope choices during an unfinished edit and restores them after %s', async finish => {
+      const { writes } = stubWorkspace(undefined, null)
+      await renderWith({ ...reopened.extractionSchema!, recordScope: null })
+      fireEvent.click(screen.getByRole('button', { name: 'Edit description' }))
+      fireEvent.change(screen.getByLabelText('What one record is'), { target: { value: 'Kept description.' } })
+      const folded = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+      for (const choice of [/^Article:/, /^Catalog:/]) {
+        expect(folded.getByRole('button', { name: choice })).toBeDisabled()
+        expect(folded.getByRole('button', { name: choice })).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+      }
+      expect(folded.getByText('Save or Cancel the open edit first.')).toBeVisible()
+      fireEvent.click(railScope().getByRole('button', { name: 'Back to chat' }))
+      const choices = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+      const article = choices.getByRole('button', { name: /^Article:/ })
+      const catalog = choices.getByRole('button', { name: /^Catalog:/ })
+      for (const choice of [article, catalog]) {
+        expect(choice).toBeDisabled()
+        expect(choice).toHaveAccessibleDescription('Save or Cancel the open edit first.')
+      }
+      expect(choices.getByText('Save or Cancel the open edit first.')).toBeVisible()
+      fireEvent.click(article)
+      fireEvent.keyDown(screen.getByRole('region', { name: 'Choose Record Scope' }), { key: '2' })
+      expect(screen.queryByTitle('Choose Record Scope · Article: one record per document')).not.toBeInTheDocument()
+      expect(writes).toHaveLength(0)
+
+      openRailView('Template')
+      fireEvent.click(screen.getByRole('button', { name: finish }))
+      fireEvent.click(railScope().getByRole('button', { name: 'Back to chat' }))
+      const enabled = within(screen.getByRole('region', { name: 'Choose Record Scope' }))
+      expect(enabled.getByRole('button', { name: /^Article:/ })).toBeEnabled()
+      expect(enabled.getByRole('button', { name: /^Catalog:/ })).toBeEnabled()
+      expect(enabled.queryByText('Save or Cancel the open edit first.')).not.toBeInTheDocument()
+      fireEvent.click(enabled.getByRole('button', { name: /^Article:/ }))
+      await waitFor(() => expect(writes).toContainEqual(expect.objectContaining({ recordScope: 'document' })))
+    })
+
     it('keeps the scope through a template edit: the append names none and the server keeps the head\'s', async () => {
       const { writes, runs } = stubWorkspace(undefined, 'records')
       await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })
@@ -2840,6 +3039,8 @@ describe('reopened Source Document workspace', () => {
 
       openRailView('Template')
       fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+      // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+      openRailView('Template')
       await waitFor(() => expect(written).toHaveLength(1))
       expect(written[0]).not.toHaveProperty('recordScope')
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
@@ -2847,6 +3048,9 @@ describe('reopened Source Document workspace', () => {
       expect(selector).toHaveValue('')
       // The chat asks for the scope before it offers Run.
       expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
+      // Each generation stops at Template ready until the researcher goes on.
+      const ready = await screen.findByRole('region', { name: 'Template ready' })
+      fireEvent.click(within(ready).getByRole('button', { name: /Continue/ }))
 
       fireEvent.change(selector, { target: { value: 'document' } })
       await waitFor(() => expect(written).toHaveLength(2))
@@ -3665,9 +3869,11 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     )
     const run = screen.getByRole('button', { name: RUN_EXTRACTION })
     expect(run).toBeEnabled()
-    // "Open latest reviewed" sits in the Results header.
+    // "Open latest reviewed" sits in the Results header's ⋯ menu.
     openRailView('Results')
-    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     expect(resultsRunActions()).toEqual([])
 
     // Leaving the chat for Results mounts its step anew: the Run shown now.
@@ -3750,7 +3956,8 @@ describe('updated latest reviewed extraction', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
     fireEvent.click(await screen.findByRole('button', { name: /To check place/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'History of this value' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'History of this value' }))
     expect(shownRailView()).toBe('History')
     const readings = await screen.findByRole('list', { name: 'Readings of place' })
     expect(readings).toHaveTextContent('Elmbrooke')
@@ -3778,7 +3985,8 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} latestReviewedExtraction={elsewhere} onOpenExtraction={onOpenExtraction} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Results')
-    fireEvent.click(await screen.findByRole('button', { name: 'Open latest reviewed' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'More result actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open latest reviewed' }))
     expect(onOpenExtraction).toHaveBeenCalledWith(elsewhere.extractionId, { snapshotVersion: 1, feedbackVersion: 2 })
   })
 

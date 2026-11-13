@@ -147,7 +147,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
           {/* Always rendered, so the notice is announced when it appears. */}
           <div role="status">
             {notice && (
-              <p className="mt-1.5 flex flex-wrap items-baseline gap-2 text-[11.5px] text-ink">
+              <p className="mt-1.5 flex flex-wrap items-baseline gap-2 text-[11.5px] text-ink [overflow-wrap:anywhere]">
                 {`Settings from “${notice.name}” are in your draft. Apply saves them.`}
                 <button type="button" className={`${textButton} text-accent hover:underline`} onClick={() => undo(notice)}>Undo</button>
               </p>
@@ -216,7 +216,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArtic
     keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: kept ? null : article }))
   const entries = options ? requestEntries(options) : []
   return <>
-    {additional.length > 0 && <section aria-label="Additional saved settings" className="flex flex-col gap-1 text-[11px] text-ink-muted">
+    {additional.length > 0 && <section aria-label="Additional saved settings" className="flex flex-col gap-1 text-[11px] text-ink-muted [overflow-wrap:anywhere]">
       <h4 className="font-semibold">Additional saved settings</h4>
       <p>Saved identity and instructions still affect preliminary bounded source sizing. Resets take effect for future Extractions when applied, or for pending inputs when saved.</p>
       {additional.map((key) => {
@@ -243,7 +243,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArtic
         <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
         <p className="text-[12px] text-ink">{effectiveSummary(explicit)}</p>
         {!custom && <p className="text-[11.5px] text-ink-muted">Service defaults; resolved for the Extraction using each served model’s context size.</p>}
-        <p className="text-[11.5px] text-ink-muted">Field and reasoning models follow the Models tab: field values {draft.extractionModels.fields ?? 'deployment default'}, reasoning {draft.extractionModels.reasoning ?? 'deployment default'}.</p>
+        <p className="text-[11.5px] text-ink-muted [overflow-wrap:anywhere]">Field and reasoning models follow the Models tab: field values {draft.extractionModels.fields ?? 'deployment default'}, reasoning {draft.extractionModels.reasoning ?? 'deployment default'}.</p>
       </section>
       <section className="text-[11px] text-ink-muted">
         {!options ? <p>Fix the issues above to preview the request.</p> :
@@ -257,7 +257,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArtic
 
 /** Always rendered, so a message that appears in it is announced. */
 function FieldError({ id, message }: { id: string; message: string | null }) {
-  return <p id={id} aria-live="polite" className="text-[11px] font-semibold text-danger">{message}</p>
+  return <p id={id} aria-live="polite" className="text-[11px] font-semibold text-danger [overflow-wrap:anywhere]">{message}</p>
 }
 
 type ArticleChoiceKey = Exclude<keyof typeof ARTICLE_CHOICES, AdditionalArticleKey>
@@ -465,7 +465,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
           <p className="text-[10.5px] text-ink-faint">Records and fields come from the template; models from the Models tab. Document-level fields remain unverified.</p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
-            {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="text-ink">{line.value}</dd>])}
+            {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="min-w-0 text-ink [overflow-wrap:anywhere]">{line.value}</dd>])}
           </dl>
           <p className="text-[11.5px] text-ink-muted">Each Extraction records the budgets it resolved from the served models before any call; a later change never alters it.</p>
           <details className="text-[11px] text-ink-muted">

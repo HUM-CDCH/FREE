@@ -1,4 +1,4 @@
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 
 /** Who linked a supported value to its evidence: the verifier, or a rule (code's lexical match, a recipe's key or
  *  structure). */

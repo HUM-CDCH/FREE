@@ -703,6 +703,25 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
+  it('creates named templates and revision 1 together, preserving the omitted-name default and ownership', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const definition = { recordDescription: 'One place.', schemaNodes: nodes('place') }
+    for (const name of [undefined, '  Workbook  ']) {
+      const revision = await store.createExtractionSchema(PROJECT, definition, name)
+      assert.ok(revision)
+      assert.equal(revision.revisionNumber, 1)
+      assert.deepEqual(revision.schemaTree, definition)
+      assert.equal(database.tables.ExtractionSchema.find(row => row.id === revision.extractionSchemaId)?.name,
+        name === undefined ? 'Extraction Template' : 'Workbook')
+    }
+    const count = database.tables.ExtractionSchema.length
+    for (const name of ['', ' ', 'x'.repeat(513)])
+      await assert.rejects(store.createExtractionSchema(PROJECT, definition, name))
+    assert.equal(await store.createExtractionSchema(OTHER_PROJECT, definition, 'Not owned'), null)
+    assert.equal(database.tables.ExtractionSchema.length, count)
+  })
+
   it('renames only the named Project Context and refuses an unknown one', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
@@ -743,7 +762,6 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
       pendingExtractionSourceDocumentCount: 0,
-      schemaDraftCount: 0,
       currentSchemaRevisionId: null,
       schemaStabilised: false,
       currentSchemaRevisionReviewed: false,
@@ -752,7 +770,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     })
   })
 
-  it('stays on schema until a Schema Revision exists, counting drafts', async () => {
+  it('stays on schema until a Schema Revision exists; a suggestion is activity', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     // No Schema Revision yet: the researcher is still creating the schema.
@@ -764,7 +782,6 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )?.summary
     assert.equal(chattingSummary?.phase, 'schema')
     assert.equal(chattingSummary?.currentSchemaRevisionId, null)
-    assert.equal(chattingSummary?.schemaDraftCount, 0)
 
     database.tables.BatchSchemaSuggestion = [
       {
@@ -779,19 +796,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const readySummary = ready.find(
       (item) => item.projectContextId === PROJECT,
     )?.summary
-    // A ready suggestion is still a draft: confirming it is part of creating the schema.
     assert.equal(readySummary?.phase, 'schema')
-    assert.equal(readySummary?.schemaDraftCount, 1)
     assert.deepEqual(readySummary?.lastActivityAt, new Date('2026-08-02T09:00:00Z'))
-
-    // A confirmed suggestion is no longer a draft.
-    database.tables.BatchSchemaSuggestion[0].confirmedSchemaRevisionId = REVISION_1
-    const confirmed = await store.listProjectContexts(20)
-    const confirmedSummary = confirmed.find(
-      (item) => item.projectContextId === PROJECT,
-    )?.summary
-    assert.equal(confirmedSummary?.phase, 'schema')
-    assert.equal(confirmedSummary?.schemaDraftCount, 0)
   })
 
   it('summarizes extraction, review, and staleness from the latest Extraction', async () => {
@@ -1042,6 +1048,32 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     const added = await summary()
     assert.equal(added?.phase, 'review')
     assert.equal(added?.pendingExtractionSourceDocumentCount, 1)
+
+    // The piloted document deleted (its Extraction goes with it): the approval stands for the pilot, so the project
+    // never asks for another one.
+    database.tables.SourceDocument = database.tables.SourceDocument.filter((document) => document.id !== DOCUMENT)
+    database.tables.Extraction = database.tables.Extraction.filter((extraction) => extraction.id !== pilot)
+    const deleted = await summary()
+    assert.equal(deleted?.reviewedSourceDocumentCount, 0)
+    assert.equal(deleted?.phase, 'review')
+  })
+
+  it('returns to pilot when the reviewed documents go before any approval', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const summary = async () =>
+      (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
+    const representation = database.tables.SourceRepresentationRevision[0].id as string
+    const pilot = '51000000-0000-4000-8006-000000000041'
+    database.tables.Extraction = [
+      { id: pilot, sourceDocumentId: DOCUMENT, sourceRepresentationRevisionId: representation,
+        schemaRevisionId: REVISION_1, batchExtractionId: null, createdAt: new Date('2026-08-03T10:00:00Z') },
+    ]
+    database.tables.Head = [{ id: pilot, acknowledgement: 'COMPLETED', deleted: false }]
+    database.tables.Finalization = [{ extractionId: pilot, createdAt: new Date('2026-08-04T10:00:00Z') }]
+    assert.equal((await summary())?.phase, 'approve')
+    database.tables.Extraction = []
+    assert.equal((await summary())?.phase, 'pilot')
   })
 
   it('counts a finalized native review as the latest reviewed Extraction', async () => {

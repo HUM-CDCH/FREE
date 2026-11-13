@@ -26,6 +26,9 @@ export type GuidedWorkflow = {
   previous: WorkflowPhase | null
 }
 
+/** The pilot step's name once the template changed since its pilot, said in the chat and the project's status. */
+export const REVISED_PILOT = 'Try the revised template on a few documents'
+
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`
 
@@ -53,11 +56,11 @@ export function guidedWorkflow(
   // re-approval does not, so a revised schema is only a hint on the pilot then.
   const pilotAttention =
     summary.phase === 'approve' && !summary.currentSchemaRevisionReviewed
-      ? 'Template changed since the pilot'
+      ? 'Template changed since the trial'
       : null
   const pilotHint =
     reached('approve') && revised && !summary.currentSchemaRevisionReviewed
-      ? 'Revised template not piloted'
+      ? 'Revised template not tried yet'
       : null
   const approveAttention = reached('approve') && revised ? 'Template changed since approval' : null
   const batchAttention = reached('batch') && pending > 0 ? `${plural(pending, 'document')} to extract` : null
@@ -103,10 +106,10 @@ export function guidedWorkflow(
         return 'Create template'
       case 'pilot':
         return pilotToReview
-          ? `Review ${plural(unreviewed, 'pilot result')}`
+          ? `Review ${plural(unreviewed, 'trial result')}`
           : pilotAttention
-            ? 'Pilot the revised template'
-            : 'Pilot extraction'
+            ? REVISED_PILOT
+            : 'Try template on a few documents'
       case 'approve':
         return approveAttention ? 'Re-approve template' : 'Approve template'
       case 'batch':

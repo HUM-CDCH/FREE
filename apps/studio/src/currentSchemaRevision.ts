@@ -1,5 +1,5 @@
 import {
-  duplicateFieldKeys,
+  schemaDefinitionSchema,
   enumerateFieldPaths,
   mkId,
   templateToSchemaDefinition,
@@ -17,6 +17,7 @@ import {
   type SchemaSaveCoordinator,
   type SchemaSaveState,
 } from './schemaSaveCoordinator'
+import { newSchemaTreeViolation } from './schemaEditorTree'
 import { sameSchemaDefinition } from './schemaDefinitionEquality'
 import { SchemaRevisionConflictError } from './schemaRevisions'
 import type { SchemaModelContext } from './api'
@@ -26,68 +27,29 @@ import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 // Persistence port
 // ────────────────────────────────────────────────────────────────────────────
 
-/**
- * Schema editing is the common capability. Durable revision, history, and
- * lifecycle operations are optional so local drafts expose only real storage
- * capabilities.
- */
+/** Durable capabilities supplied by the application's revision adapter. A new schema has no first revision yet. */
 export type SchemaEditorPersistence = {
-  /**
-   * Hand each committed draft to this persistence's save engine. Without `sourceCoverage` the saved revision keeps the
-   * declaration of the suggestion it was edited from; a wholesale replacement names its own, null for none.
-   */
+  /** Omitted coverage inherits the saved revision's declaration; replacements declare their own. */
   edit(definition: SchemaDefinition, sourceCoverage?: SourceCoverage | null): void
-  /** Save the Article/Catalog choice as the definition's record scope: a schema change, like an edit. Absent when the
-   *  persistence keeps no Schema Revision (a local draft). */
-  setRecordScope?(recordScope: RecordScope): void
-  /** Durable Extraction Schema identity; absent for local drafts. */
-  extractionSchemaId?(): string | null
-  /** The Project Context the durable schema lives in: the scope of the model operations a reloaded page looks for. */
-  projectContextId?(): string
-  /** `recordScope`: the Article/Catalog choice made before the first revision; omitted, the revision declares none. */
-  initialize?(
-    definition: SchemaDefinition,
-    signal?: AbortSignal,
-    sourceCoverage?: SourceCoverage | null,
-    recordScope?: RecordScope,
-  ): Promise<SchemaRevision>
-  flush?(): Promise<AcknowledgedSchemaRevision | null>
-  saveState?(): SchemaSaveState | null
-  reloadCurrent?(): AcknowledgedSchemaRevision | null
-  /**
-   * Map an acknowledged revision to a chat model context. Omit to disable
-   * chat-driven schema edits for this persistence.
-   */
-  modelContext?(revision: AcknowledgedSchemaRevision): SchemaModelContext | null
-  listRevisions?(
-    limit: number,
-    signal?: AbortSignal,
-  ): Promise<SchemaRevisionSummary[]>
-  getRevision?(
-    schemaRevisionId: string,
-    signal?: AbortSignal,
-  ): Promise<SchemaRevision>
-  onChange?(listener: () => void): () => void
-  dispose?(): void
+  setRecordScope(recordScope: RecordScope): void
+  extractionSchemaId(): string | null
+  projectContextId(): string
+  initialize(definition: SchemaDefinition, signal?: AbortSignal, sourceCoverage?: SourceCoverage | null, recordScope?: RecordScope): Promise<SchemaRevision>
+  flush(): Promise<AcknowledgedSchemaRevision | null>
+  saveState(): SchemaSaveState | null
+  reloadCurrent(): AcknowledgedSchemaRevision | null
+  modelContext(revision: PreparedSchema): SchemaModelContext
+  listRevisions(limit: number, signal?: AbortSignal): Promise<SchemaRevisionSummary[]>
+  getRevision(schemaRevisionId: string, signal?: AbortSignal): Promise<SchemaRevision>
+  onChange(listener: () => void): () => void
+  dispose(): void
 }
 
-export type DurableSchemaPersistence = SchemaEditorPersistence &
-  Required<
-    Pick<
-      SchemaEditorPersistence,
-      | 'extractionSchemaId'
-      | 'projectContextId'
-      | 'initialize'
-      | 'setRecordScope'
-      | 'flush'
-      | 'saveState'
-      | 'reloadCurrent'
-      | 'listRevisions'
-      | 'getRevision'
-      | 'onChange'
-      | 'dispose'
-    >
-  >
+export type PreparedSchema = Readonly<{
+  extractionSchemaId: string
+  schemaRevisionId: string
+  recordScope: RecordScope | null
+}>
 
 /** Normalize externally supplied node trees defensively (stable unique ids). */
 function withUniqueNodeIds(nodes: readonly SchemaNode[]): SchemaNode[] {
@@ -147,7 +109,7 @@ export function durableSchemaPersistence(options: {
     schemaRevisionId: string,
     signal?: AbortSignal,
   ): Promise<SchemaRevision>
-}): DurableSchemaPersistence {
+}): SchemaEditorPersistence {
   let extractionSchemaId = options.initial?.extractionSchemaId ?? null
   let uncertainInitialization = false
   const listeners = new Set<() => void>()
@@ -174,6 +136,9 @@ export function durableSchemaPersistence(options: {
     coordinator = createSchemaSaveCoordinator(revision, appendCurrent, options.debounceMs, notify)
   }
   return {
+    modelContext(revision) {
+      return { projectContextId: options.projectContextId, extractionSchemaId: revision.extractionSchemaId, schemaRevisionId: revision.schemaRevisionId }
+    },
     extractionSchemaId() {
       return extractionSchemaId
     },
@@ -235,17 +200,6 @@ export function durableSchemaPersistence(options: {
   }
 }
 
-/**
- * In-memory persistence for drafts outside the Extraction Schema revision
- * chain, such as a Batch Schema Suggestion. Every committed edit is forwarded
- * to the caller-owned draft machinery; nothing here claims durability.
- */
-export function localSchemaPersistence(options: {
-  onEdit(definition: SchemaDefinition): void
-}): SchemaEditorPersistence {
-  return { edit: options.onEdit }
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Controller
 // ────────────────────────────────────────────────────────────────────────────
@@ -254,9 +208,33 @@ export type SchemaMutationResult =
   | { ok: true }
   | { ok: false; reason: 'no-draft' }
   | { ok: false; reason: 'duplicate-name'; duplicateName: string }
+  | { ok: false; reason: 'validation'; message: string }
+
+export type SchemaProposalValidity = { ok: true } | { ok: false; reason: 'stale' | 'blocked'; message: string }
+export type SchemaProposalHandle = {
+  release(): void
+  validity(): SchemaProposalValidity
+  apply(mutator: (nodes: SchemaNode[]) => SchemaNode[], message: string): SchemaMutationResult | Exclude<SchemaProposalValidity, { ok: true }>
+}
+
+export type SchemaLocalInput = {
+  id: symbol
+  kind: 'field' | 'description' | 'json'
+  value: string
+  error: string | null
+  stale: boolean
+}
+export type SchemaInputHandle = {
+  update(value: string): void
+  save(): boolean
+  cancel(): void
+}
 
 export type SchemaEditorSnapshot = {
   /** What the editor body renders: ungenerated / producing / failed / editing. */
+  input: SchemaLocalInput | null
+  useBlockedReason: string | null
+  editingBlockedReason: string | null
   view: 'empty' | 'generating' | 'failed' | 'editing'
   /** Generation can run while the acknowledged current draft stays mounted. */
   generating: boolean
@@ -267,9 +245,9 @@ export type SchemaEditorSnapshot = {
   draft: SchemaDefinition | null
   /** Increments for every whole-draft mutation, including description edits. */
   draftVersion: number
-  /** Increments when a wholesale external payload replaces the editor draft. */
+  /** Increments on whole-draft replacement and reset, invalidating gestures and local authority. */
   replacementVersion: number
-  /** Durable save lifecycle; null when the persistence is not durable. */
+  /** Durable save lifecycle; null before the first revision. */
   save: SchemaSaveState | null
   history: SchemaRevisionSummary[]
   /** Identity of the durable Extraction Schema once one exists. */
@@ -284,9 +262,8 @@ export type SchemaEditorSnapshot = {
   creatingFromRevisionId: string | null
   previewingRevisionId: string | null
   historicalPreview: SchemaRevision | null
-  /** What the generation behind the current draft did not read of its source: set while that generated draft stays
-   *  (edits included), null once it is replaced wholesale or when the generation read the whole source. The saved
-   *  revision keeps the declaration and edits inherit it, so a reopened schema shows it again. */
+  /** Source ranges the suggestion did not read. Accepted edits and recovered edits retain their saved provenance;
+   * generation, import and History replacement declare their own provenance in persistence. */
   sourceCoverage: Extract<SourceCoverage, { complete: false }> | null
   /**
    * The definition's Article/Catalog choice (`document` / `records`): the one the next save declares, else the
@@ -297,6 +274,10 @@ export type SchemaEditorSnapshot = {
 }
 
 export type SchemaEditorController = {
+  inputHandle(): SchemaInputHandle | null
+  beginInput(kind: SchemaLocalInput['kind'], value: string, commit: (value: string) => SchemaDefinition): SchemaInputHandle
+  prepareUse(): Promise<PreparedSchema>
+  markProposal(base?: { draftVersion: number; schemaRevisionId: string | null }): SchemaProposalHandle
   snapshot(): SchemaEditorSnapshot
   subscribe(listener: () => void): () => void
 
@@ -307,8 +288,8 @@ export type SchemaEditorController = {
     options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
-  /** The durable scope a reloaded page lists model operations for; null for a local draft. */
-  operationScope(): { projectContextId: string; extractionSchemaId: string | null } | null
+  /** The Project Context scope used to recover model operations after reload. */
+  operationScope(): { projectContextId: string; extractionSchemaId: string | null }
   /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
   restoreGeneration(template: unknown, baseSchemaRevisionId: string | null, sourceCoverage?: SourceCoverage | null): Promise<boolean>
 
@@ -317,24 +298,21 @@ export type SchemaEditorController = {
     mutator: (nodes: SchemaNode[]) => SchemaNode[],
     message: string,
   ): SchemaMutationResult
-  /** Replace the payload wholesale from the JSON editor. Trusted. */
+  /** Replace an accepted payload (including recovered session drafts). */
   replaceDraft(definition: SchemaDefinition, message: string): void
-  /** Adopt an externally refreshed draft without writing it back. */
-  adoptDraft(definition: SchemaDefinition): void
   clearDraft(message: string): SchemaMutationResult
-  setRecordDescription(recordDescription: string): void
   /** Choose Article (`document`) or Catalog (`records`): saved as a new revision's record scope, or declared by the
    *  first revision when none exists yet. */
   setRecordScope(recordScope: RecordScope): void
 
-  /** Create a new Current Schema Revision from a Historical Schema Revision. */
+  /** Open a read-only Historical Schema Revision. */
   previewHistoricalRevision(schemaRevisionId: string): Promise<SchemaRevision>
   closeHistoricalPreview(): void
   createCurrentRevisionFromHistory(
     schemaRevisionId: string,
   ): Promise<AcknowledgedSchemaRevision>
 
-  requestModelEdit(): Promise<SchemaModelContext | null>
+  requestModelEdit(): Promise<SchemaModelContext>
   reloadCurrent(): AcknowledgedSchemaRevision | null
   flush(): Promise<AcknowledgedSchemaRevision | null>
   reset(): Promise<void>
@@ -375,20 +353,46 @@ export function createSchemaEditorController(
   let historyAbort: AbortController | null = null
   let replacementVersion = 0
   let draftVersion = 0
-  /** The adopted generation's declaration, valid for the replacement it made; a reopened revision's counts as the
-   *  replacement that opened the editor. */
-  let generatedCoverage: { coverage: SourceCoverage | null; replacementVersion: number } | null =
-    options.initialSourceCoverage ? { coverage: options.initialSourceCoverage, replacementVersion } : null
+  let sourceCoverage: SourceCoverage | null = options.initialSourceCoverage ?? null
   /** The choice held for the first revision while no durable revision exists. */
   let pendingRecordScope: RecordScope | null = null
   let disposed = false
 
+  let input: SchemaLocalInput | null = null
+  let activeHandle: SchemaInputHandle | null = null
+  let inputBaseVersion = 0
+  let inputEpoch = 0
+  let inputBaseScope: RecordScope | null = null
+  let preparing = false
+  let proposal: symbol | null = null
+  let previewRequest = 0
+  function currentScope() {
+    const save = persistence.saveState()
+    return save ? save.recordScope : pendingRecordScope
+  }
+  function inputIsStale() {
+    return input !== null && (input.stale || inputEpoch !== replacementVersion || inputBaseScope !== currentScope() || !draft || inputBaseVersion !== draftVersion)
+  }
+  function blocked() {
+    return disposed ? 'This editor is closed.' : input ? 'Save or Cancel the open edit first.'
+      : preparing ? 'The template is being prepared; try again.'
+      : historicalPreview || previewingRevisionId ? 'Close the historical preview first.'
+      : creatingFromRevisionId ? 'A historical revision is being applied.'
+      : proposal ? 'Apply or discard the pending proposal first.' : null
+  }
+  function writable() {
+    const reason = blocked()
+    if (reason) throw new Error(reason)
+  }
   const listeners = new Set<() => void>()
   let snapshot: SchemaEditorSnapshot = buildSnapshot()
 
   function buildSnapshot(): SchemaEditorSnapshot {
-    const save = persistence.saveState?.() ?? null
+    const save = persistence.saveState() ?? null
     return {
+      input: input ? { ...input, stale: inputIsStale() } : null,
+      editingBlockedReason: blocked(),
+      useBlockedReason: blocked() ?? (generating ? 'Wait for template generation.' : null),
       view:
         draft !== null
           ? 'editing'
@@ -405,7 +409,7 @@ export function createSchemaEditorController(
       replacementVersion,
       save,
       history,
-      extractionSchemaId: persistence.extractionSchemaId?.() ?? null,
+      extractionSchemaId: persistence.extractionSchemaId() ?? null,
       currentRevisionNumber:
         save?.acknowledged.revisionNumber ?? options.initialRevisionNumber,
       extractableSchemaRevisionId,
@@ -413,13 +417,14 @@ export function createSchemaEditorController(
       previewingRevisionId,
       historicalPreview,
       sourceCoverage:
-        generatedCoverage?.replacementVersion === replacementVersion && generatedCoverage.coverage?.complete === false
-          ? generatedCoverage.coverage
+        sourceCoverage?.complete === false
+          ? sourceCoverage
           : null,
       recordScope: save ? save.recordScope : pendingRecordScope,
     }
   }
   function publish() {
+    if (input && inputIsStale()) input = { ...input, stale: true }
     snapshot = buildSnapshot()
     for (const listener of listeners) listener()
   }
@@ -437,16 +442,42 @@ export function createSchemaEditorController(
     persistence.edit(definition)
   }
 
+  function definitionProblems(definition: SchemaDefinition): Map<string, string> {
+    const parsed = schemaDefinitionSchema.safeParse(definition)
+    if (parsed.success) return new Map()
+    return new Map(parsed.error.issues.map(issue => {
+      let current: unknown = definition
+      const path = issue.path.map(part => {
+        const value: unknown = current && typeof current === 'object' ? (current as Record<PropertyKey, unknown>)[part] : undefined
+        current = value
+        return typeof part === 'number' && value && typeof value === 'object' && 'id' in value ? String(value.id) : String(part)
+      })
+      return [`${path.join('/')}:${issue.code}:${issue.message}`, issue.message]
+    }))
+  }
+
+  function mutate(mutator: (nodes: SchemaNode[]) => SchemaNode[], message: string): SchemaMutationResult {
+    if (!draft) return { ok: false, reason: 'no-draft' }
+    const nextNodes = mutator(draft.schemaNodes)
+    const fields = enumerateFieldPaths(nextNodes)
+    if (new Set(fields.map(field => field.id)).size !== fields.length) return { ok: false, reason: 'no-draft' }
+    const violation = newSchemaTreeViolation(draft.schemaNodes, nextNodes)
+    if (violation) return violation.reason === 'duplicate-name'
+      ? { ok: false, reason: 'duplicate-name', duplicateName: violation.duplicateName }
+      : { ok: false, reason: 'validation', message: violation.message }
+    applyDraft(
+      { recordDescription: draft.recordDescription, schemaNodes: nextNodes },
+      message,
+    )
+    return { ok: true }
+  }
+
   // Saves acknowledge → the extractable revision returns only when the visible
   // draft is exactly what persistence acknowledged; acknowledged revision
   // movement also refreshes history.
   let lastHistoryKey: string | null = null
   function reloadHistory() {
     historyAbort?.abort()
-    if (!persistence.listRevisions) {
-      history = []
-      return
-    }
     const abort = new AbortController()
     historyAbort = abort
     persistence
@@ -463,10 +494,10 @@ export function createSchemaEditorController(
       })
   }
   const historyKey = () =>
-    `${persistence.extractionSchemaId?.() ?? ''}:${persistence.saveState?.()?.acknowledged.revisionNumber ?? ''}`
+    `${persistence.extractionSchemaId() ?? ''}:${persistence.saveState()?.acknowledged.revisionNumber ?? ''}`
   const unsubscribeSave =
-    persistence.onChange?.(() => {
-      const save = persistence.saveState?.() ?? null
+    persistence.onChange(() => {
+      const save = persistence.saveState() ?? null
       if (save?.status === 'saved' && draft !== null) {
         // The server owns canonicalization. Once the coordinator reports saved,
         // its acknowledgement is the authoritative visible and extractable tree.
@@ -475,8 +506,6 @@ export function createSchemaEditorController(
           draftVersion += 1
         }
         extractableSchemaRevisionId = save.acknowledged.schemaRevisionId
-      } else if (save?.status === 'saved') {
-        extractableSchemaRevisionId = null
       }
       publish()
       const key = historyKey()
@@ -484,12 +513,12 @@ export function createSchemaEditorController(
         lastHistoryKey = key
         reloadHistory()
       }
-    }) ?? (() => {})
+    })
   lastHistoryKey = historyKey()
   reloadHistory()
 
   function flushPersistence() {
-    return persistence.flush?.() ?? Promise.resolve(null)
+    return persistence.flush()
   }
 
   /** Joins a generated candidate to the revision chain — onto the acknowledged head when a schema exists (the save
@@ -497,14 +526,16 @@ export function createSchemaEditorController(
    *  revision keeps. generate() and restoreGeneration() share it. */
   async function adoptGenerated(
     definition: SchemaDefinition,
-    sourceCoverage: SourceCoverage | null,
+    coverage: SourceCoverage | null,
     signal?: AbortSignal,
   ): Promise<boolean> {
-    if ((persistence.extractionSchemaId?.() ?? null) !== null) {
+    const epoch = replacementVersion
+    if ((persistence.extractionSchemaId() ?? null) !== null) {
       // Keep the acknowledged current draft mounted and extractable while the generated candidate joins the revision
       // chain. The save acknowledgement is the only event allowed to replace it.
-      persistence.edit(definition, sourceCoverage)
+      persistence.edit(definition, coverage)
       const revision = await flushPersistence()
+      if (disposed || epoch !== replacementVersion) throw new Error('The template changed while saving.')
       if (!revision) throw new Error('A durable Extraction Template is required.')
       if (draft === null || !sameSchemaDefinition(draft, revision)) {
         draft = normalizeSchemaDefinition(revision)
@@ -512,18 +543,105 @@ export function createSchemaEditorController(
       }
       extractableSchemaRevisionId = revision.schemaRevisionId
       replacementVersion += 1
+      sourceCoverage = coverage
       return true
     }
-    if (!persistence.initialize) throw new Error('Template generation is unavailable for this draft.')
-    const revision = await persistence.initialize(definition, signal, sourceCoverage, pendingRecordScope ?? undefined)
-    if (signal?.aborted || disposed) return false
+    const revision = await persistence.initialize(definition, signal, coverage, pendingRecordScope ?? undefined)
+    if (signal?.aborted || disposed || epoch !== replacementVersion) return false
     replacementVersion += 1
     draft = definition
     draftVersion += 1
+    sourceCoverage = coverage
     extractableSchemaRevisionId = revision.schemaRevisionId
     return true
   }
   return {
+    inputHandle() { return input ? activeHandle : null },
+    beginInput(kind, value, commit) {
+      writable()
+      if (!draft) throw new Error('No template draft is open.')
+      const id = Symbol('schema-input')
+      input = { id, kind, value, error: null, stale: false }
+      inputBaseVersion = draftVersion
+      inputBaseScope = currentScope()
+      inputEpoch = replacementVersion
+      activeHandle = {
+        update(value) {
+          if (input?.id !== id) return
+          input = { ...input, value, error: null }
+          publish()
+        },
+        cancel() {
+          if (input?.id !== id) return
+          input = null; publish()
+        },
+        save() {
+          if (input?.id !== id) return false
+          try {
+            if (disposed || inputIsStale() || !draft)
+              throw new Error('The template changed. Copy your input, then Cancel and reopen the edit.')
+            const next = commit(input.value)
+            const fields = enumerateFieldPaths(next.schemaNodes)
+            if (new Set(fields.map(f => f.id)).size !== fields.length) throw new Error('Field IDs must be unique.')
+            const violation = newSchemaTreeViolation(draft.schemaNodes, next.schemaNodes)
+            if (violation) throw new Error(violation.message)
+            const previousProblems = definitionProblems(draft)
+            for (const [key, message] of definitionProblems(next)) if (!previousProblems.has(key)) throw new Error(message)
+            input = null
+            applyDraft(next, '✎ Template updated')
+            return true
+          } catch (error) {
+            if (input?.id === id) input = { ...input, error: error instanceof Error ? error.message : 'Invalid input.' }
+            publish(); return false
+          }
+        },
+      }
+      publish()
+      return activeHandle
+    },
+    markProposal(base) {
+      const baseVersion = base?.draftVersion ?? draftVersion
+      const baseRevision = base ? base.schemaRevisionId : extractableSchemaRevisionId
+      const baseScope = currentScope()
+      const baseEpoch = replacementVersion
+      const token = Symbol('proposal')
+      proposal = token; publish()
+      function validity(): SchemaProposalValidity {
+        if (proposal !== token || !draft || baseVersion !== draftVersion || baseRevision !== extractableSchemaRevisionId || baseEpoch !== replacementVersion || baseScope !== currentScope() || disposed)
+          return { ok: false, reason: 'stale', message: 'Template changed during review. The proposal was discarded.' }
+        const reason = input ? 'Save or Cancel the open edit first.'
+          : preparing ? 'The template is being prepared; try again.'
+          : historicalPreview || previewingRevisionId ? 'Close the historical preview first.'
+          : creatingFromRevisionId ? 'A historical revision is being applied.' : null
+        return reason ? { ok: false, reason: 'blocked', message: reason } : { ok: true }
+      }
+      return {
+        validity,
+        release() { if (proposal === token) { proposal = null; publish() } },
+        apply(mutator, message) {
+          const valid = validity()
+          if (!valid.ok) return valid
+          proposal = null
+          const result = mutate(mutator, message)
+          if (!result.ok) proposal = token
+          publish()
+          return result
+        },
+      }
+    },
+    async prepareUse() {
+      const reason = blocked() ?? (generating ? 'Wait for template generation.' : null)
+      if (reason) throw new Error(reason)
+      const epoch = replacementVersion
+      preparing = true; publish()
+      try {
+        const revision = await flushPersistence()
+        const save = persistence.saveState()
+        if (disposed || proposal || input || historicalPreview || previewingRevisionId || epoch !== replacementVersion || !revision || !draft || !sameSchemaDefinition(draft, revision) || save?.status !== 'saved' || save.recordScope !== revision.recordScope)
+          throw new Error('The current template could not be prepared. Save or retry before running.')
+        return Object.freeze({ extractionSchemaId: revision.extractionSchemaId, schemaRevisionId: revision.schemaRevisionId, recordScope: revision.recordScope })
+      } finally { preparing = false; publish() }
+    },
     snapshot() {
       return snapshot
     },
@@ -534,6 +652,10 @@ export function createSchemaEditorController(
 
     async generate(request, options = {}) {
       if (disposed) return
+      writable()
+      const base = draft ? structuredClone(draft) : null
+      const baseScope = currentScope()
+      const epoch = replacementVersion
       generationAbort?.abort()
       const abort = new AbortController()
       generationAbort = abort
@@ -552,19 +674,14 @@ export function createSchemaEditorController(
           declared = coverage
         })
         if (abort.signal.aborted || disposed) return
+        if (input || proposal || baseScope !== currentScope() || epoch !== replacementVersion || (base === null ? draft !== null : !draft || !sameSchemaDefinition(base, draft))) throw new Error('The template changed during generation. Generate again from the current template.')
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
         if (!(await adoptGenerated(definition, declared, abort.signal))) return
-        generatedCoverage = { coverage: declared, replacementVersion }
         generating = false
         publish()
       } catch (error) {
         if (abort.signal.aborted || disposed) return
-        const failedOn = draft
-        persistence.reloadCurrent?.()
-        // A save conflict's reload adopts the competing revision (the save subscription replaces the draft without a
-        // replacement); the declaration described the draft it replaced. A failure that keeps the draft keeps it.
-        if (draft !== failedOn) generatedCoverage = null
         generating = false
         generationError =
           error instanceof Error ? error.message : 'Template generation failed.'
@@ -574,17 +691,16 @@ export function createSchemaEditorController(
       }
     },
     operationScope() {
-      const projectContextId = persistence.projectContextId?.() ?? null
-      return projectContextId === null ? null : { projectContextId, extractionSchemaId: persistence.extractionSchemaId?.() ?? null }
+      return { projectContextId: persistence.projectContextId(), extractionSchemaId: persistence.extractionSchemaId() }
     },
     /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
      *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
      *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
-    async restoreGeneration(template, baseSchemaRevisionId, sourceCoverage = null) {
-      if (disposed || generating) return false
-      const save = persistence.saveState?.() ?? null
+    async restoreGeneration(template, baseSchemaRevisionId, coverage = null) {
+      if (disposed || generating || blocked()) return false
+      const save = persistence.saveState() ?? null
       const onBase = baseSchemaRevisionId === null
-        ? (persistence.extractionSchemaId?.() ?? null) === null && draft === null
+        ? (persistence.extractionSchemaId() ?? null) === null && draft === null
         : save?.status === 'saved' && save.acknowledged.schemaRevisionId === baseSchemaRevisionId
           && extractableSchemaRevisionId === baseSchemaRevisionId
       if (!onBase) return false
@@ -595,8 +711,7 @@ export function createSchemaEditorController(
         return false
       }
       try {
-        const saved = await adoptGenerated(definition, sourceCoverage)
-        if (saved) generatedCoverage = { coverage: sourceCoverage, replacementVersion }
+        const saved = await adoptGenerated(definition, coverage)
         publish()
         return saved
       } catch (error) {
@@ -604,11 +719,12 @@ export function createSchemaEditorController(
         // A conflict means newer work landed first: adopt it and drop the generation. Any other failure keeps the
         // visible draft (edits made meanwhile included) and the save engine's own error and retry.
         if (error instanceof SchemaRevisionConflictError) {
-          const current = persistence.reloadCurrent?.() ?? null
+          const current = persistence.reloadCurrent() ?? null
           if (current) {
             draft = normalizeSchemaDefinition(current)
             draftVersion += 1
             replacementVersion += 1
+            sourceCoverage = null
             extractableSchemaRevisionId = current.schemaRevisionId
           }
         }
@@ -636,54 +752,33 @@ export function createSchemaEditorController(
     },
 
     async confirmDefinition(definition) {
+      writable()
       await adoptGenerated(definition, null)
       publish()
     },
     commit(mutator, message) {
-      if (!draft) return { ok: false, reason: 'no-draft' }
-      const nextNodes = mutator(draft.schemaNodes)
-      const fields = enumerateFieldPaths(nextNodes)
-      const duplicates = duplicateFieldKeys(fields)
-      if (duplicates.length > 0) {
-        const duplicateName =
-          fields.find(({ key }) => key === duplicates[0])!.node.name
-        return { ok: false, reason: 'duplicate-name', duplicateName }
-      }
-      applyDraft(
-        { recordDescription: draft.recordDescription, schemaNodes: nextNodes },
-        message,
-      )
-      return { ok: true }
+      if (blocked()) return { ok: false, reason: 'no-draft' }
+      return mutate(mutator, message)
     },
     replaceDraft(definition, message) {
+      writable()
+      replacementVersion += 1
+      // Recovery changes edit authority, while the edits still derive from the saved source declaration.
       applyDraft(normalizeSchemaDefinition(definition), message)
     },
-    adoptDraft(definition) {
-      extractableSchemaRevisionId = null
-      replacementVersion += 1
-      draft = normalizeSchemaDefinition(definition)
-      draftVersion += 1
-      historicalPreview = null
-      generationError = null
-      publish()
-    },
     clearDraft(message) {
+      if (blocked()) return { ok: false, reason: 'no-draft' }
       if (!draft) return { ok: false, reason: 'no-draft' }
+      replacementVersion += 1
       applyDraft(
         { recordDescription: draft.recordDescription, schemaNodes: [] },
         message,
       )
       return { ok: true }
     },
-    setRecordDescription(recordDescription) {
-      if (!draft || recordDescription === draft.recordDescription) return
-      applyDraft(
-        { recordDescription, schemaNodes: draft.schemaNodes },
-        '✎ Record description updated',
-      )
-    },
     setRecordScope(recordScope) {
-      const save = persistence.saveState?.() ?? null
+      writable()
+      const save = persistence.saveState() ?? null
       if (!save) {
         // No revision yet: the first one declares the choice.
         if (recordScope === pendingRecordScope) return
@@ -691,7 +786,7 @@ export function createSchemaEditorController(
         publish()
         return
       }
-      if (recordScope === save.recordScope || !persistence.setRecordScope) return
+      if (recordScope === save.recordScope) return
       // The acknowledged revision runs the other scope: it is no longer what a run would use until the save lands.
       extractableSchemaRevisionId = null
       historicalPreview = null
@@ -701,32 +796,33 @@ export function createSchemaEditorController(
     },
 
     async previewHistoricalRevision(schemaRevisionId) {
-      if (!persistence.getRevision)
-        throw new Error('Revision history is unavailable for this draft.')
+      if (input || preparing || proposal || creatingFromRevisionId || disposed) throw new Error(blocked() ?? 'Editor busy.')
+      const request = ++previewRequest
+      const epoch = replacementVersion
       previewingRevisionId = schemaRevisionId
       publish()
       try {
         const loaded = await persistence.getRevision(schemaRevisionId)
-        historicalPreview = {
-          ...loaded,
-          ...normalizeSchemaDefinition(loaded),
-        }
+        if (request !== previewRequest || epoch !== replacementVersion || disposed) return loaded
+        historicalPreview = loaded
         return historicalPreview
       } finally {
-        previewingRevisionId = null
+        if (request === previewRequest) previewingRevisionId = null
         if (!disposed) publish()
       }
     },
     closeHistoricalPreview() {
-      if (historicalPreview === null) return
+      previewRequest += 1
+      previewingRevisionId = null
+      if (historicalPreview === null) { publish(); return }
       historicalPreview = null
       publish()
     },
     async createCurrentRevisionFromHistory(schemaRevisionId) {
-      if (!persistence.getRevision)
-        throw new Error('Revision history is unavailable for this draft.')
+      if (input || preparing || proposal || disposed) throw new Error(blocked() ?? 'Editor busy.')
       if (creatingFromRevisionId !== null)
         throw new Error('A historical revision is already being applied.')
+      const epoch = replacementVersion
       creatingFromRevisionId = schemaRevisionId
       publish()
       try {
@@ -735,9 +831,19 @@ export function createSchemaEditorController(
             ? historicalPreview
             : await persistence.getRevision(schemaRevisionId)
         await flushPersistence()
+        if (disposed || epoch !== replacementVersion) throw new Error('The template changed while loading history.')
+        draft = normalizeSchemaDefinition(loaded)
+        draftVersion += 1
+        replacementVersion += 1
+        historicalPreview = null
+        extractableSchemaRevisionId = null
         // Restored content is not the current suggestion's: the new revision records no declaration.
-        persistence.edit(normalizeSchemaDefinition(loaded), null)
+        sourceCoverage = null
+        persistence.edit(draft, null)
+        publish()
+        const savingEpoch = replacementVersion
         const created = await flushPersistence()
+        if (disposed || savingEpoch !== replacementVersion) throw new Error('The template changed while saving history.')
         if (!created)
           throw new Error('A durable Extraction Template is required.')
         if (draft === null || !sameSchemaDefinition(draft, created)) {
@@ -752,14 +858,6 @@ export function createSchemaEditorController(
         )
         publish()
         return created
-      } catch (error) {
-        const current = persistence.reloadCurrent?.() ?? null
-        if (current) {
-          draft = normalizeSchemaDefinition(current)
-          extractableSchemaRevisionId = current.schemaRevisionId
-          publish()
-        }
-        throw error
       } finally {
         creatingFromRevisionId = null
         if (!disposed) publish()
@@ -767,14 +865,17 @@ export function createSchemaEditorController(
     },
 
     async requestModelEdit() {
-      const revision = await flushPersistence()
-      if (!revision || !persistence.modelContext) return null
+      const revision = await this.prepareUse()
       return persistence.modelContext(revision)
     },
     reloadCurrent() {
-      const revision = persistence.reloadCurrent?.() ?? null
+      const previousRevisionId = persistence.saveState()?.acknowledged.schemaRevisionId
+      const revision = persistence.reloadCurrent()
       if (!revision) return null
       draft = normalizeSchemaDefinition(revision)
+      // Reloading the same revision retains known provenance. A competing revision has its own lineage;
+      // revision responses do not carry its declaration (a reopened Project Context supplies it).
+      if (revision.schemaRevisionId !== previousRevisionId) sourceCoverage = null
       draftVersion += 1
       replacementVersion += 1
       generationError = null
@@ -787,16 +888,26 @@ export function createSchemaEditorController(
     },
 
     async reset() {
-      await flushPersistence()
-      generationAbort?.abort()
-      generating = false
-      generationError = null
-      draft = null
-      draftVersion += 1
-      replacementVersion += 1
-      historicalPreview = null
-      extractableSchemaRevisionId = null
+      writable()
+      const epoch = replacementVersion
+      preparing = true
       publish()
+      try {
+        await flushPersistence()
+        if (disposed || epoch !== replacementVersion) throw new Error('The template changed while clearing.')
+        generationAbort?.abort()
+        generating = false
+        generationError = null
+        draft = null
+        sourceCoverage = null
+        draftVersion += 1
+        replacementVersion += 1
+        historicalPreview = null
+        extractableSchemaRevisionId = null
+      } finally {
+        preparing = false
+        publish()
+      }
     },
 
     dispose() {
@@ -804,7 +915,7 @@ export function createSchemaEditorController(
       unsubscribeSave()
       historyAbort?.abort()
       generationAbort?.abort()
-      persistence.dispose?.()
+      persistence.dispose()
       listeners.clear()
     },
   }

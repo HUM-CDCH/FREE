@@ -2,7 +2,7 @@
 
 Every grounder here is a scripted closure over the request text. It tests control flow, never semantic judgement: what
 each request offers (the selectable `### Evidence` labels) and shows (the claim, its enclosing item's fields and the
-table's row/header context), and what `verify` records for each reply (a link with its `verbatim`, `hits` and
+table's row/header context), and what `verify` records for each reply (a link with its `verbatim` and
 precision, or an issue, or nothing). A "careful" grounder answers NONE when the request shows the trap; the careless
 `labelling` takes the first offered evidence line that prints the value. Whether a served model is careful is measured
 elsewhere; where no request can expose the error (a printed qualifier) only human semantic validation catches it.
@@ -122,7 +122,7 @@ def test_a_value_shown_only_in_the_prompt_is_not_source_evidence():
     """`elbow 0` is printed only in the request's own claim, never in the source. Control flow: the Evidence section
     does not carry it, so the careful `labelling` answers NONE (nothing linked, nothing reported); a grounder that
     trusts the prompt finds it in the claim and answers the only offered label (the passage), and the link records
-    `verbatim is False and hits == 0` (Studio: "Value not found in the linked passage"); a grounder answering with
+    `verbatim is False` (Studio: "Value not printed word for word."); a grounder answering with
     the claim's own label `C1` is refused as `unknown_label` and links nothing."""
     fields = {"publisher": "Viega", "currency": "USD", "items": [table_item(0, description="elbow 0")]}
     source = passages(["77000 per 100 7.5"])
@@ -141,7 +141,7 @@ def test_a_value_shown_only_in_the_prompt_is_not_source_evidence():
         return {label: options[0] if value in user else "NONE"}
     (link,), issues, _ = ground(fields, source, path, trusting_the_prompt)
     assert link.path == ("records", 0, *path) and link.segment == "p1_s0"
-    assert link.verbatim is False and link.hits == 0 and not issues
+    assert link.verbatim is False and not issues
 
     links, (issue,), _ = ground(fields, source, path, lambda system, user, schema: {"C1": "C1"})
     assert links == [] and issue.code == "unknown_label" and issue.path == ("records", 0, *path)
@@ -183,7 +183,7 @@ def test_a_value_in_the_items_own_row_but_another_column_is_judged_by_the_printe
     assert control.cell == "r1_c3"  # the same grounder links the cell when the header names the claim's field
 
     (link,), issues, _ = ground(fields, [table], path, labelling([]), GROUPED)
-    assert (link.cell, link.precision, link.verbatim, link.hits) == ("r1_c3", "cell", True, 1) and not issues
+    assert (link.cell, link.precision, link.verbatim) == ("r1_c3", "cell", True) and not issues
 
 
 # Step 3 -----------------------------------------------------------------------------------------------------------
@@ -225,7 +225,7 @@ def test_a_printed_qualifier_is_shown_but_no_code_can_tell_a_qualified_value_apa
     assert control.cell == "r1_c3"  # the same grounder links an unqualified cell
 
     (link,), issues, _ = ground(fields, [table], path, labelling([]))
-    assert (link.cell, link.precision, link.verbatim, link.hits) == ("r1_c3", "cell", True, 1) and not issues
+    assert (link.cell, link.precision, link.verbatim) == ("r1_c3", "cell", True) and not issues
 
 
 # Step 4 -----------------------------------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ def ambiguity_aware(system, user, schema):
 def test_an_item_without_an_identifier_is_offered_every_row_printing_its_value():
     """Two rows print `7.5`; the item has no sku. Control flow: both cells are offered and both rows (with their skus)
     are in the table context, so an ambiguity-aware grounder can answer NONE; the careless `labelling` links the first
-    and the link records `hits == 2`, the ambiguity Studio can show."""
+    and the link records that choice without claiming the occurrence is unique."""
     table = grid([("header", ("sku", "description", "unit", "amount")),
                   ("data", ("77317", "elbow", "per 100", "7.5")),
                   ("data", ("77318", "elbow", "per 100", "7.5"))])
@@ -262,15 +262,15 @@ def test_an_item_without_an_identifier_is_offered_every_row_printing_its_value()
     assert control.cell == "r1_c3"  # with its sku the item is offered its own row only, and the grounder links it
 
     (link,), issues, _ = ground(fields, [table], path, labelling([]))
-    assert (link.cell, link.verbatim, link.hits) == ("r1_c3", True, 2) and not issues
+    assert (link.cell, link.verbatim) == ("r1_c3", True) and not issues
 
 
-def test_a_repeated_identifier_is_narrowed_by_the_items_other_values_and_counted_in_hits(without_context_rows):
+def test_a_repeated_identifier_is_narrowed_by_the_items_other_values(without_context_rows):
     """Two rows print sku `77317` with different amounts. Control flow: the claim `amount = 23.47` is offered only the
     cell printing it. A `unit = "per 100"` claim printed in both duplicate rows: for the item whose amount is `23.47`
     its most distinctive other value is that amount, so only its own row's cell is offered (one row, not both, as
-    the plan expected), while the link still records `hits == 2`; for an item whose only identifying value is the
-    repeated sku (no amount read), both cells are offered and the careless link records `hits == 2`. The amount
+    the plan expected); for an item whose only identifying value is the repeated sku (no amount read), both cells
+    are offered and the careless grounder selects the first. The amount
     claim's offered cell already lies in its item's rows, so no context row is added: its request is byte-identical to
     one built without context rows."""
     table = grid([("header", ("sku", "description", "unit", "amount")),
@@ -282,15 +282,15 @@ def test_a_repeated_identifier_is_narrowed_by_the_items_other_values_and_counted
     links, issues, user = ground(fields, [table], ("items", 0, "amount"), labelling([]))
     assert [cell for cell, _ in offered_cells(user).values()] == ["r1_c3"]
     assert user == without_context_rows(fields, [table], ("items", 0, "amount"), labelling([]))
-    assert [(link.cell, link.hits) for link in links] == [("r1_c3", 1)] and not issues
+    assert [link.cell for link in links] == ["r1_c3"] and not issues
 
     links, issues, user = ground(fields, [table], ("items", 0, "unit"), labelling([]))
     assert [cell for cell, _ in offered_cells(user).values()] == ["r1_c2"]
-    assert [(link.cell, link.hits) for link in links] == [("r1_c2", 2)] and not issues
+    assert [link.cell for link in links] == ["r1_c2"] and not issues
 
     links, issues, user = ground(fields, [table], ("items", 1, "unit"), labelling([]))
     assert sorted(cell for cell, _ in offered_cells(user).values()) == ["r1_c2", "r2_c2"]
-    assert [(link.cell, link.hits) for link in links] == [("r1_c2", 2)] and not issues
+    assert [link.cell for link in links] == ["r1_c2"] and not issues
 
 
 def test_an_item_located_to_many_rows_adds_no_context_rows(without_context_rows):
@@ -356,7 +356,7 @@ def test_a_section_heading_is_judged_against_the_items_own_row(without_context_r
     assert control.cell == "r1_c0"  # an item listed under Elbows is linked to the Elbows section
 
     (link,), issues, _ = ground(fields, [table], path, labelling([]), GROUPED)
-    assert (link.cell, link.precision, link.verbatim, link.hits) == ("r1_c0", "cell", True, 1) and not issues
+    assert (link.cell, link.precision, link.verbatim) == ("r1_c0", "cell", True) and not issues
 
 
 # Routing ----------------------------------------------------------------------------------------------------------

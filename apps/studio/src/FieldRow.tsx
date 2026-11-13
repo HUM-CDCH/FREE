@@ -1,4 +1,5 @@
 import pluralize from 'pluralize'
+import { useRef } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { Change, ReplayOutcome } from '../shared/schemaChanges'
 import { Pill } from './ui'
@@ -24,6 +25,7 @@ export type FieldRowProps = {
   /** The values pill: the edit form, focused on its allowed values. */
   onEditValues?: () => void
   onAddNote: () => void
+  onMove?: () => void
   onDelete: () => void
   /** The row as a drop target. On the row itself, not around it: the slot above and the children below are their own
    *  targets, and the pointer moving from them onto this row must re-enter it. */
@@ -57,7 +59,7 @@ const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px
  *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
  *  row (the 264px rail, nested rows) would squeeze them under a pill's width: there they start on the line below the
  *  name, at its full width, and the name's line holds the name alone. From 240px, where the actions still overlay the
- *  first line, that line is as tall as the overlay (28px; a line height, so a long name still ellipsizes), and the
+ *  first line, that line is as tall as the overlay (28px; a line height, so a long name wrapping onto more lines keeps it), and the
  *  pills start below it: 3 + 28 + 2 = 33px down, under the overlay's bottom at 29px. Under 240px the actions are in
  *  the flow instead and the name's line keeps its own height. Either way the name, not a control, may run under the
  *  actions (its full text is its title). The row line is the size container (`@container`). */
@@ -122,8 +124,9 @@ function AcceptanceControl({ id, name, accepted, onChange }: {
   )
 }
 
-/** Never shrunk for its pills, which wrap under it instead; only a name longer than the whole line ellipsizes. */
-const NAME = 'font-mono text-content font-semibold shrink-0 truncate'
+/** Never shrunk for its pills, which wrap under it instead; a name longer than the whole line wraps onto more lines,
+ *  breaking anywhere (field names run unspaced), so it is always shown in full. */
+const NAME = 'font-mono text-content font-semibold shrink-0 [overflow-wrap:anywhere]'
 
 function FieldChangeLabel({ node, change, impliedRemoved, underActions }: {
   node: SchemaNode
@@ -140,9 +143,9 @@ function FieldChangeLabel({ node, change, impliedRemoved, underActions }: {
       <>
         {nameChanged ? (
           <>
-            <span className="min-w-0 truncate font-mono text-content font-semibold text-danger line-through">{change.before.name}</span>
+            <span className="min-w-0 font-mono text-content font-semibold text-danger line-through [overflow-wrap:anywhere]">{change.before.name}</span>
             <span className="shrink-0 text-overline text-ink-faint" aria-hidden="true">→</span>
-            <span className="min-w-0 truncate font-mono text-content font-semibold text-green">{change.after.name}</span>
+            <span className="min-w-0 font-mono text-content font-semibold text-green [overflow-wrap:anywhere]">{change.after.name}</span>
           </>
         ) : (
           <span className={`${NAME} max-w-full text-ink`} title={change.after.name}>{change.after.name}</span>
@@ -176,7 +179,8 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 /** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
  *  when the line is too narrow) and proposal badges; the actions overlay the right edge on hover and focus-within. A
  *  note renders below in full. The panel owns recursion, drag targets and edit forms. */
-export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
+export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onMove, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
+  const dragOrigin = useRef({ x: 0, y: 0 })
   const diffStatus = change?.kind ?? (impliedRemoved ? 'removed' : null)
   const isDiff = diffStatus !== null
   const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
@@ -209,7 +213,17 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
     >
       <div className="@container relative flex min-h-[30px] items-start gap-1">
         {!isDiff && !readOnly ? (
-          <span aria-hidden="true" className="flex h-[30px] w-3.5 shrink-0 cursor-grab select-none items-center justify-center text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
+          <span className="relative h-[30px] w-3.5 shrink-0">
+          <button type="button" aria-label={`Move ${node.name}`} title="Drag or choose where to move this field"
+            disabled={editDisabled && !dragActive}
+            onMouseDown={event => { dragOrigin.current = { x: event.clientX, y: event.clientY }; onStartDrag(event) }}
+            onClick={event => {
+              if (event.detail > 0 && Math.abs(event.clientX - dragOrigin.current.x) + Math.abs(event.clientY - dragOrigin.current.y) >= 4) return
+              event.currentTarget.focus()
+              onMove?.()
+            }}
+            className="absolute -left-2 top-0 flex h-[30px] w-6 cursor-grab select-none items-center justify-center rounded-sm pl-2 text-sm leading-none text-ink-faint opacity-60 outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-default">⠿</button>
+          </span>
         ) : <span className="w-3.5 shrink-0" />}
         {isGroup ? (
           <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.name}`} aria-expanded={expanded}
@@ -238,7 +252,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           ))}
           <ChangeBadge change={change} outcome={outcome} />
           {intoGroup && !isDiff && (
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">into {node.name}</span>
+            <span className="min-w-0 max-w-full truncate rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white" title={`into ${node.name}`}>into {node.name}</span>
           )}
           {/* In the pills' flow: an overlay on the row line (absolute, the row line positions it), or below the pills on
               a narrow row line. */}
@@ -258,7 +272,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         )}
       </div>
       {isDiff && change && change.before?.description !== change.after?.description && (
-        <div className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug whitespace-pre-line`}>
+        <div className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug whitespace-pre-line [overflow-wrap:anywhere]`}>
           {change.before?.description && change.before.description !== change.after?.description && (
             <p className="text-danger line-through" aria-label="Previous note">{change.before.description}</p>
           )}
@@ -271,13 +285,38 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         </div>
       )}
       {node.description && !isDiff && (readOnly ? (
-        <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line`}>{node.description}</p>
+        <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere]`}>{node.description}</p>
       ) : (
         <button type="button" onClick={onAddNote} disabled={editDisabled}
-          className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>
+          className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere] outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>
           {node.description}
         </button>
       ))}
     </div>
   )
+}
+
+/** Shared tree geometry for editing, proposal review and verbatim historical reading. Hosts supply row actions only. */
+export function SchemaTree({ nodes, expanded, renderRow, renderSlot, removed, parentId = null, ancestorRemoved = false }: {
+  nodes: readonly SchemaNode[]
+  expanded(node: SchemaNode): boolean
+  renderRow(node: SchemaNode, parentId: string | null, index: number, ancestorRemoved: boolean): React.ReactNode
+  renderSlot?(parentId: string | null, index: number): React.ReactNode
+  removed?(node: SchemaNode): boolean
+  parentId?: string | null
+  ancestorRemoved?: boolean
+}) {
+  return <>
+    {nodes.map((node, index) => <div key={node.id} data-schema-node-id={node.id}>
+      {renderSlot?.(parentId, index)}
+      {renderRow(node, parentId, index, ancestorRemoved)}
+      {node.children !== undefined && expanded(node) && (node.children.length > 0 || renderSlot) && (
+        <div role="list" aria-label={`Fields of ${node.name}`} className="-mr-2 ml-4 mt-0.5 border-l border-line pl-3 pr-2">
+          <SchemaTree nodes={node.children} expanded={expanded} renderRow={renderRow} renderSlot={renderSlot} removed={removed}
+            parentId={node.id} ancestorRemoved={ancestorRemoved || !!removed?.(node)} />
+        </div>
+      )}
+    </div>)}
+    {renderSlot?.(parentId, nodes.length)}
+  </>
 }

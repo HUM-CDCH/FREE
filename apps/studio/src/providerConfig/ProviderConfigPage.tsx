@@ -153,7 +153,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     return (
       <div className="mx-auto max-w-4xl rounded-2xl border border-danger/40 bg-surface p-6">
         <p className="text-sm font-semibold text-danger">Model configuration could not be loaded.</p>
-        {error && <p role="alert" className="mt-2 font-mono text-xs whitespace-pre-line text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 font-mono text-xs whitespace-pre-line text-danger [overflow-wrap:anywhere]">{error}</p>}
         <div className="mt-3 flex gap-2">
           <Button ref={initialFocusRef} autoFocus variant="secondary" size="sm" onClick={onClose}>Close</Button>
         </div>
@@ -206,7 +206,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
       </header>
 
       {error && (
-        <p role="alert" className="mx-5 mt-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs whitespace-pre-line text-danger">
+        <p role="alert" className="mx-5 mt-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs whitespace-pre-line text-danger [overflow-wrap:anywhere]">
           {error}
         </p>
       )}

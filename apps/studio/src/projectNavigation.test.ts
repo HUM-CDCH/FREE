@@ -50,6 +50,14 @@ describe('Project Context routes', () => {
       { kind: 'badReference' },
     ],
     [
+      `/projects/${projectContextId}/extractions/${batchExtractionId}/review`,
+      { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId, view: 'grid' },
+    ],
+    [
+      `/projects/${projectContextId}/extractions/${batchExtractionId}/other`,
+      { kind: 'badReference' },
+    ],
+    [
       `/projects/${projectContextId}/documents/${sourceDocumentId}`,
       { kind: 'document', projectContextId, sourceDocumentId },
     ],
@@ -80,6 +88,7 @@ describe('Project Context routes', () => {
     { kind: 'project', projectContextId, tab: 'schemas' },
     { kind: 'project', projectContextId, tab: 'extractions' },
     { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
+    { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId, view: 'grid' },
     { kind: 'document', projectContextId, sourceDocumentId },
     { kind: 'document', projectContextId, sourceDocumentId, extractionId },
     { kind: 'document', projectContextId, sourceDocumentId, extractionId, reviewCut: { snapshotVersion: 1, feedbackVersion: 2 } },
@@ -107,6 +116,8 @@ describe('Project Context routes', () => {
         batchExtractionId,
       }),
     ).toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}`)
+    expect(href({ kind: 'project', projectContextId, tab: 'extractions', batchExtractionId, view: 'grid' }))
+      .toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)
   })
 
   it('names an Extraction\'s result and decision cut only beside that Extraction', () => {
@@ -132,10 +143,6 @@ describe('Project Context routes', () => {
     // A navigation in Studio drops it; only a reload or Back keeps the URL that has it.
     expect(href({ kind: 'document', projectContextId, sourceDocumentId, extractionId, value: 'site' }))
       .toBe(`${document}?extractionId=${extractionId}`)
-  })
-
-  it('has no batch review grid route', () => {
-    expect(parseRoute(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)).toEqual({ kind: 'badReference' })
   })
 })
 

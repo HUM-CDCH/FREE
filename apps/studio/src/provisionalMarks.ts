@@ -1,5 +1,5 @@
 import { blockForAnchor, tableForAnchor, type ParsedDocument } from 'extraction/parsed-document'
-import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { EvidenceLink } from 'extraction/durable-types'
 import { valueParts, type RetainedValue } from './durableRailModel'
 
 /** Display-only text matches while citations are checked. They never become saved Evidence or review decisions.

@@ -45,10 +45,10 @@ async function suggestionRow(projectContextId: string) {
       outcome: string | null
       failure: { code: string } | null
       phase: string | null
-      draftVersion: number
+      hasResult: boolean
       xmin: string
     }>(
-      'SELECT id, attempt, outcome, failure, phase, "draftVersion", xmin::text AS xmin FROM "batchSchemaSuggestion" WHERE "projectContextId" = $1',
+      'SELECT id, attempt, outcome, failure, phase, draft IS NOT NULL AS "hasResult", xmin::text AS xmin FROM "batchSchemaSuggestion" WHERE "projectContextId" = $1',
       [projectContextId],
     )
     return rows[0]
@@ -125,7 +125,7 @@ describe('suggestSchemaBatch on PostgreSQL', () => {
 
     expect((await awaitWorkflowOutcome(studioDbos().admission, `suggest:${id}:1`, { timeoutMs: 60_000 })).state).toBe('finished')
     const first = await suggestionRow(projectContextId)
-    expect(first).toMatchObject({ attempt: 1, outcome: 'FAILED', failure: { code: 'source_suggestion_failed' }, phase: null, draftVersion: 0 })
+    expect(first).toMatchObject({ attempt: 1, outcome: 'FAILED', failure: { code: 'source_suggestion_failed' }, phase: null, hasResult: false })
     // The attempt ended at source B: a source after it never ran.
     const firstCalls = readModelCalls(inProcessLog)
     expect(firstCalls).toEqual(order.slice(0, order.indexOf('source B') + 1))
@@ -135,7 +135,7 @@ describe('suggestSchemaBatch on PostgreSQL', () => {
     expect((await awaitWorkflowOutcome(studioDbos().admission, `suggest:${id}:2`, { timeoutMs: 60_000 })).state).toBe('finished')
     // Attempt 2 reused none of attempt 1's source checkpoints: every pin ran again, then the merge.
     expect(readModelCalls(inProcessLog).slice(firstCalls.length)).toEqual([...order, 'merge'])
-    expect(await suggestionRow(projectContextId)).toMatchObject({ attempt: 2, outcome: 'SUCCEEDED', failure: null, phase: 'READY', draftVersion: 1 })
+    expect(await suggestionRow(projectContextId)).toMatchObject({ attempt: 2, outcome: 'SUCCEEDED', failure: null, phase: 'READY', hasResult: true })
     const read = await store.getBatchSchemaSuggestion(projectContextId, id)
     expect(read).toMatchObject({ attempt: 2, executionStatus: 'COMPLETED' })
     expect(read?.draft).toEqual(read?.proposal)
@@ -155,7 +155,7 @@ describe('suggestSchemaBatch on PostgreSQL', () => {
     expect(recovered.code, recovered.output).toBe(0)
     // The first source's step had checkpointed: the recovered attempt ran only the source it died in, then merged.
     expect(readModelCalls(env.FREE_TEST_MODEL_LOG)).toEqual([first, second, second, 'merge'])
-    expect(await suggestionRow(sources.projectContextId)).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', phase: 'READY', draftVersion: 1 })
+    expect(await suggestionRow(sources.projectContextId)).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', phase: 'READY', hasResult: true })
   })
 
   it('crash recovery of a long source skips its checkpointed windows and keeps the source out of DBOS', async () => {
@@ -184,12 +184,12 @@ describe('suggestSchemaBatch on PostgreSQL', () => {
     const killed = await runWorkflowChild('suggestion-publish', env)
     expect(killed.signal, killed.output).toBe('SIGKILL')
     const published = await suggestionRow(sources.projectContextId)
-    expect(published).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', draftVersion: 1 })
+    expect(published).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', hasResult: true })
 
     const recovered = await runWorkflowChild('suggestion-publish', env)
     expect(recovered.code, recovered.output).toBe(0)
     const row = await suggestionRow(sources.projectContextId)
-    expect(row).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', phase: 'READY', draftVersion: 1 })
+    expect(row).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', phase: 'READY', hasResult: true })
     // The replayed publication found the outcome written and updated nothing.
     expect(row?.xmin).toBe(published!.xmin)
     // The merge had checkpointed before the kill: recovery called no model.

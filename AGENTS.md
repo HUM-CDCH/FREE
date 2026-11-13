@@ -29,6 +29,23 @@ If the docs and the existing code disagree, follow the existing code, and list e
 - This repository is public: no credentials, internal hostnames/IPs, personal
   data or non-redistributable documents in tracked files (see `CONTRIBUTING.md`).
 
+## Sustainable design
+
+This codebase is yours: what it does and how it is built depend entirely on your
+choices, and you will continue developing it over time. Build it with sustainable
+design in mind:
+
+- **Strategic approach, not tactical:** your primary goal is to keep the structure
+  clean and easy to change tomorrow, as well as making the code work today.
+- **Deep modules:** design components that offer powerful functionality through
+  simple interfaces. Avoid fragmentation into shallow modules full of pass-through
+  methods.
+- **Pull complexity downward:** a module's ease of use matters more than its ease
+  of implementation. Absorb complexity within the module instead of pushing it
+  onto callers.
+- **Define errors out of existence:** design abstractions so that edge cases fit
+  naturally into the standard flow, reducing unnecessary branches and exceptions.
+
 ## Commands
 
 - `pnpm test`: run the fast unit and static checks
