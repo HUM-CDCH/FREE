@@ -8,6 +8,7 @@ import DocumentMarkdown from './DocumentMarkdown'
 import { useLayoutEffect, useState, type ComponentProps } from 'react'
 import { createSelectionChannel, type SelectionChannel } from './selectionChannel'
 import type { RailMarkState, MarkInfo } from './useEvidenceOverlays'
+import { sourceEvidenceLinks } from './evidenceNavigation'
 
 afterEach(cleanup)
 
@@ -34,6 +35,33 @@ function TestMarkdown({ marks, channel, ...props }: Pick<ComponentProps<typeof D
 }
 
 describe('the Markdown view', () => {
+  it.each([null, 'name'])('keeps attribution context out of a precise value click with %s selected', selected => {
+    const markdown = 'Name: Book\n\nYear: 1901'
+    const anchors = ['Name: Book', 'Year: 1901'].map((text, index) => ({
+      kind: 'text', anchor_id: `a_p1_s${index}`, block_id: `b_p1_s${index}`,
+      markdown_span: { start: markdown.indexOf(text), end: markdown.indexOf(text) + text.length },
+    }))
+    const document = { evidence_index: { anchors }, content_stream: anchors.map((anchor, index) => ({
+      block_id: anchor.block_id, kind: 'paragraph', text: index ? 'Year: 1901' : 'Name: Book',
+    })) } as unknown as ParsedDocument
+    const contextSpans = anchors.map((_, index) => ({ segment: `p1_s${index}`, start: 0, end: 10 }))
+    const describe = new Map<string, MarkInfo>([['name', { name: 'Name', value: 'Book', word: null, style: 'link' }],
+      ['year', { name: 'Year', value: '1901', word: null, style: 'link' }]])
+    const savedLinks = [...describe].flatMap(([key, info], index) => sourceEvidenceLinks({
+      resultPath: ['records', 0, key], evidenceAnchorId: anchors[index].anchor_id, precision: 'segment', contextSpans,
+      location: { textSpans: [{ segment: `p1_s${index}`, start: 6, end: 10 }], raw: info.value },
+    }, new Set(anchors.map(anchor => anchor.anchor_id))).map(link => ({ key, link })))
+    const onSelect = vi.fn()
+    render(<TestMarkdown markdown={markdown} document={document} marks={{ describe, selected, savedLinks, onSelect }} />)
+    const year = screen.getByRole('button', { name: 'Year: 1901' })
+    expect(year).toHaveTextContent(/^1901$/)
+    expect(year).not.toHaveAttribute('aria-current')
+    fireEvent.click(year)
+    expect(onSelect).toHaveBeenCalledWith(['year'], year)
+    expect(screen.getAllByRole('button')).toHaveLength(2)
+    if (selected) expect(screen.getByTitle('Attribution context').textContent).toBe('Year: ')
+  })
+
   it('marks a value at its anchor\'s byte span, past multi-byte text, and selects it', () => {
     const onSelect = vi.fn()
     render(<TestMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: key, onSelect }} />)
@@ -108,6 +136,21 @@ describe('saved table-cell evidence', () => {
   const grounding: NonNullable<EvidenceLink['grounding']> = { linkedBy: 'verification', support: 'literal',
     precision: 'cell', raw: 'Paris', textSpans: [{ segment: 'p2_s0', start, end: start + 5 }], alternatives: [], itemSpans: null }
   const link: EvidenceLink = { resultPath: ['records', 1, 'place'], evidenceAnchorId: cellId, precision: 'cell', grounding }
+
+  it('keeps a whole-table context anchor from hiding the precise cell values', () => {
+    const anchor = { kind: 'text', anchor_id: 'a_p2_s0', block_id: 'b_p2_s0',
+      markdown_span: { start: bytes(before), end: bytes(before + body) } }
+    const document = { ...source.document, evidence_index: { anchors: [...source.document.evidence_index.anchors, anchor] } } as ParsedDocument
+    const onSelect = vi.fn()
+    render(<TestMarkdown markdown={source.markdown} document={document} marks={{ describe, selected: region, onSelect,
+      savedLinks: [{ key: place, link }, ...sourceEvidenceLinks({ resultPath: ['records', 0, 'region'],
+        evidenceAnchorId: 'a_elsewhere', contextSpans: [{ segment: 'p2_s0', start: 0, end: body.length }] },
+        new Set(['a_p2_s0'])).map(link => ({ key: region, link }))] }} />)
+    const mark = screen.getByRole('button', { name: 'place: Paris' })
+    expect(mark.textContent).toBe('Paris')
+    fireEvent.click(mark)
+    expect(onSelect).toHaveBeenCalledWith([place], mark)
+  })
 
   it('marks saved cell offsets in their table block, keeping the cell identity and repeated rows distinct', () => {
     const onSelect = vi.fn()

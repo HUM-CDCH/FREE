@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, renderHook } from '@testing-library/react'
+import { act, cleanup, fireEvent, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import type { EvidenceLink } from 'extraction/durable-types'
@@ -8,7 +8,7 @@ import parsedFixture from './assets/parsed_document.v2.json'
 import { useEvidenceOverlays, type MarkInfo, type RailMarkState } from './useEvidenceOverlays'
 import { useLayoutEffect, useState } from 'react'
 import { createSelectionChannel, type SelectionChannel } from './selectionChannel'
-import { verifiedEvidenceBbox } from './evidenceNavigation'
+import { sourceEvidenceLinks, verifiedEvidenceBbox } from './evidenceNavigation'
 
 // Publish fixtures through the same channel as Results. Rerenders model a new durable read, never a painter-only input.
 type RailMarks = RailMarkState & { onSelect: (keys: string[], element: HTMLElement) => void }
@@ -45,6 +45,39 @@ afterEach(() => {
 })
 
 describe('focused Evidence navigation', () => {
+  it('outlines selected attribution context without adding it to another value\'s click targets', () => {
+    const parsed = decodeParsedDocument(parsedFixture), original = parsed.evidence_index.anchors.find(anchor => anchor.kind === 'text')!
+    const anchors = [0, 1].map(index => ({ ...original, anchor_id: `a_p1_s${index}`,
+      producer_observations: original.producer_observations.map(occurrence => ({ ...occurrence, occurrence_id: `${occurrence.occurrence_id}-${index}` })),
+    }))
+    const parsedDocument = { ...parsed, evidence_index: { ...parsed.evidence_index, anchors } }
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchors[0].producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const onSelect = vi.fn(), describe = new Map<string, MarkInfo>([
+      ['name', { name: 'Name', value: 'Book', word: null, style: 'link' }],
+      ['year', { name: 'Year', value: '1901', word: null, style: 'link' }],
+    ])
+    const links = [...describe.keys()].flatMap((key, index) => sourceEvidenceLinks({
+      resultPath: ['records', 0, key], evidenceAnchorId: anchors[index].anchor_id, precision: 'segment',
+      contextSpans: [{ segment: `p1_s${1 - index}`, start: 0, end: 10 }],
+    }, new Set(anchors.map(anchor => anchor.anchor_id))).map(link => ({ key, link })))
+    const { rerender } = renderHook(({ savedLinks }) => usePublishedEvidence({
+      containerRef: { current: container }, viewer: null, parsedDocument, attempt: null, active: true,
+      marks: { describe, selected: 'name', savedLinks, onSelect },
+    }), { initialProps: { savedLinks: links } })
+    const year = container.querySelector<HTMLElement>('button[aria-label="Year: 1901"]')!
+    expect(year).not.toBeNull()
+    expect(year.getAttribute('aria-current')).toBeNull()
+    fireEvent.click(year)
+    expect(onSelect).toHaveBeenCalledWith(['year'], year)
+    rerender({ savedLinks: links.filter(each => each.key === 'name') })
+    const context = container.querySelector<HTMLElement>(`[data-evidence-anchor-id="${anchors[1].anchor_id}"]`)!
+    expect(context.classList.contains('parsed-evidence-focus')).toBe(true)
+    expect(context.tagName).toBe('DIV')
+    expect(context.style.pointerEvents).toBe('none')
+  })
+
   it('repaints after a PDF page reset and releases the focus listener on selection and source changes', async () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
