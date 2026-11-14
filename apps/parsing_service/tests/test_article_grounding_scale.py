@@ -330,12 +330,12 @@ def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
 def test_record_aware_requests_remain_pinned_for_full_bounded_and_legacy_settings():
     """The record-aware prompts change fitting requests; refused requests still make no model call."""
     refused, fits = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
-                     "20bf5ebb59214c77794f595bda93f103434d554b758980aa85373b3ef9d1a4a5")
+                     "cc904caf7ced27af9640aa553972485b066e2b7bfedabf83a251710923d6f21a")
     captured = {
         (None, 6600): refused, ("full", 6600): refused,
-        ("bounded", 6600): "6625145ede77944480e721d94bf80f192f095cdb2529b317ec8ab29f3a990e71",
+        ("bounded", 6600): "f4edc93123675479dee2366168e5ddfe0004a666f3bc5017d206139a4928b267",
         (None, 9000): fits, ("full", 9000): fits,
-        ("bounded", 9000): "32a843e473efab2bac00fc0c5c5e2e380a6b7a1d7a2cfc6e66dbd335f8dc2a74",
+        ("bounded", 9000): "61269ae0800520b9f9969ab627b6a1de4e5d9b3e3104cfd8e672c6227ce26d50",
     }
     for (context, reasoning), digest in captured.items():
         settings = None if context is None else {"context": context, **({"context_tokens": 8192} if context ==

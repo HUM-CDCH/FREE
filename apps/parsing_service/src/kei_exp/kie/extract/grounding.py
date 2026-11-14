@@ -60,15 +60,17 @@ QUOTED_GROUNDING = (
     "a source tab as \\t. " + _GROUNDING_RULES)
 NONE = "NONE"
 RECORD_GROUNDING = (
-    'Ground every claim under "### Claims" in the offered evidence. Return one object per claim with '
-    '"label" (the evidence printing or directly supporting its value, or NONE), "context" (an array of '
-    'additional evidence labels), and "attribution" (a boolean). Select the smallest complete set that '
-    'supports BOTH the value in its field and its relationship to THIS record or enclosing list item. '
-    'Include separate record headings, bylines and affiliation markers, table headers or conditions when '
-    'needed to establish that relationship. Extracted sibling values are claims, not source evidence. '
-    'Shared headings apply only until superseded; a location of an owner is not the location of the subject. '
-    'Set attribution true only when the selected source establishes the whole claim. Use NONE, [] and false '
-    'if support is absent or uncertain. Do not attach unrelated passages or use context to rescue a wrong value. '
+    'Ground every claim under "### Claims" in the offered evidence. Return a single JSON object keyed by every '
+    'claim label; each value is an object with "label" (one evidence label, or NONE), "context" (an array of at '
+    'most 8 further evidence labels, possibly empty) and "attribution" (a boolean). "label" is the primary '
+    'evidence: it must print or directly support the value in the meaning of its field. "context" holds only the '
+    'evidence needed to attribute that value to THIS record or enclosing list item, such as a record heading, '
+    'byline or affiliation marker, table header or condition; select the smallest complete set. Extracted sibling '
+    'values are claims, not source evidence. A shared heading or qualification applies only within its scope; a '
+    'later statement replaces an earlier value only when it changes the same field for this record. Attribute the '
+    'value to the requested subject and relationship; do not transfer properties from related entities unless the '
+    'source supports that attribution. Set attribution true only when label and context together establish both the '
+    'value and its attribution; otherwise use NONE, [] and false. '
     + _GROUNDING_RULES)
 SPAN_GROUNDING = (
     'Ground every claim under "### Claims" in the offered canonical source spans. Return one object per claim '
