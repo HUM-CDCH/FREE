@@ -1,4 +1,5 @@
 """Native cells remain children of the exact canonical parent text."""
+from tests.helpers.chat import evidence_labels, evidence_reply
 from dataclasses import replace
 
 import pytest
@@ -45,8 +46,8 @@ def test_invalid_nested_or_overlapping_cells_are_not_published():
 @pytest.mark.parametrize("projected", [False, True])
 def test_a_matching_cell_is_selectable_and_its_parent_is_not(projected):
     def choose(system, user, schema):
-        assert schema['properties']['C1']['enum'] == ['E4', 'NONE']
-        return {'C1': 'E4'}
+        assert evidence_labels(schema['properties']['C1']) == ['E4', 'NONE']
+        return evidence_reply(schema, {'C1': 'E4'})
     links, calls, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA, FakeChat(choose), record=0, projected=projected)
     assert len(calls) == 1 and not issues
     assert (links[0].cell, links[0].precision, links[0].bbox_pt, links[0].linked_by) == (
@@ -93,7 +94,7 @@ def test_grounded_catalog_uses_only_spans_wholly_inside_one_cell():
 @pytest.mark.parametrize("projected", [False, True])
 def test_a_whole_table_answer_is_rejected_when_its_matching_cell_was_offered(projected):
     links, _, issues = verify([passage()], {'entry_no': '7-8'}, SCHEMA,
-                              FakeChat(lambda *_: {'C1': 'E1'}), record=0, projected=projected)
+                              FakeChat(lambda _s, _u, schema: evidence_reply(schema, {'C1': 'E1'})), record=0, projected=projected)
     assert links == [] and issues[0].code == 'unknown_label'
 
 
@@ -103,7 +104,7 @@ def test_whole_table_support_remains_per_claim_and_per_table():
     prose = Passage('p4_s1', 4, 1, 'A glass bead catalogue.', 'text', (0, 0, 200, 60), 'block')
     def choose(system, user, schema):
         # 7-8 has a cell in the first table: only that parent is removed, not other sources.
-        assert schema['properties']['C1']['enum'] == ['E4', 'E8', 'E10', 'NONE']
+        assert evidence_labels(schema['properties']['C1']) == ['E4', 'E8', 'E10', 'NONE']
         # This value crosses cells, so the first table must still be available for this claim.
         assert schema['properties']['C2']['enum'] == ['E1', 'E8', 'E10', 'NONE']
         return {'C1': 'E4', 'C2': 'E1'}
@@ -131,8 +132,8 @@ def test_a_table_its_matching_cell_hid_is_offered_for_a_claim_the_cell_leaves_un
     offered = []
 
     def choose(system, user, schema):
-        offered.append(schema['properties']['C1']['enum'])
-        return {'C1': 'E1' if captioned and 'E1' in offered[-1] else 'NONE'}
+        offered.append(evidence_labels(schema['properties']['C1']))
+        return evidence_reply(schema, {'C1': 'E1' if captioned and 'E1' in offered[-1] else 'NONE'})
     links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0,
                                   projected=projected)
     assert offered == [['E4', 'NONE'], ['E1', 'E4', 'NONE']] and len(calls) == 2 and not issues

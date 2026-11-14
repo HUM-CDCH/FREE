@@ -8,6 +8,18 @@ from kei_exp.kie.extract.llm import Reply
 Script = Callable[[str, str, dict | None], Any]
 
 
+def evidence_labels(spec: dict) -> list[str]:
+    """The primary evidence choices in either the legacy or record-aware semantic reply."""
+    return spec.get("properties", {}).get("label", spec)["enum"]
+
+
+def evidence_reply(schema: dict, labels: dict) -> dict:
+    """A scripted single-passage judgement in the semantic reply shape actually requested."""
+    return {claim: {"label": label, "context": [], "attribution": label != "NONE"}
+            if "context" in schema["properties"][claim].get("properties", {}) else label
+            for claim, label in labels.items()}
+
+
 class FakeChat:
     """`script(system, user, schema)` answers each call: a JSON-serialisable object becomes the reply's text, a
     `Reply` is returned as is (for truncation and garbage), an exception is raised."""

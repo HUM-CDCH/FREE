@@ -18,7 +18,7 @@ type Method=typeof methods[number]
 const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:2|3}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:2|3|11}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -64,7 +64,7 @@ for(const method of methods) {
       if(ingestion.status!=='succeeded')throw new Error('The disposable native source was not published.')
       const sourceId=ingestion.sourceDocumentId
       service.holdNextExtraction()
-      const id=await seedNative(page,project,sourceId,method)
+      const id=await seedNative(page,project,sourceId,method,method==='unified'?{defaults:11}:{})
       await service.reconcileDurable()
       await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
       const state=async()=>await (await page.request.get(`/api/extractions/${id}/durable`)).json()
@@ -100,6 +100,7 @@ for(const method of methods) {
       const saved=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
       const value=saved.values.find((each:{processing:string;node:{type:string}})=>each.processing==='saved'&&['string','verbatim-string'].includes(each.node.type))??saved.values.find((each:{processing:string})=>each.processing==='saved')
       expect(value).toBeDefined()
+      if(method==='article'||method==='unified')expect(value.evidence.flatMap((link:DurableValue['evidence'][number])=>link.producer.context??[]).length).toBeGreaterThan(0)
       await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}&value=${encodeURIComponent(value.id)}`)
       await openRailView(page,'Results')
       const review=page.getByRole('region',{name:`Review ${value.node.name}`,exact:true})
@@ -110,6 +111,7 @@ for(const method of methods) {
       const valueUrl=`/api/extractions/${id}/durable/values/${encodeURIComponent(value.id)}`
       await expect.poll(async()=>(await (await page.request.get(valueUrl)).json()).values[0].correction?.decision.value).toEqual(corrected)
       await page.reload();await openRailView(page,'Results')
+      if(method==='article'||method==='unified')expect((await (await page.request.get(valueUrl)).json()).values[0].evidence).toEqual(value.evidence)
       await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeVisible()
       await page.getByRole('button',{name:'More result actions'}).click()
       await page.getByRole('menuitem',{name:'Export…'}).click()

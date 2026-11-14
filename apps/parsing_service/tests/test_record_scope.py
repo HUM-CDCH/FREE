@@ -5,6 +5,7 @@ refused as it says, and every artifact row is published or refused at `run.dispa
 implementation's result passes. The scope is the schema's `recordScope` when it declares one and otherwise the task
 selection (`options.strategy`); it is never read off array fields or a model's output.
 """
+from tests.helpers.chat import evidence_labels, evidence_reply
 import json
 import re
 from pathlib import Path
@@ -129,7 +130,7 @@ NESTED = Schema.model_validate({"recordDescription": "One excavation report.", "
 
 def grounded_by_first_label(system, user, schema):
     """Every claim attested by the first evidence offered: the semantic technique's reply."""
-    return {claim: spec["enum"][0] for claim, spec in schema["properties"].items()}
+    return evidence_reply(schema, {claim: evidence_labels(spec)[0] for claim, spec in schema["properties"].items()})
 
 
 def test_an_article_with_nested_arrays_is_one_root_with_evidence_for_every_leaf():

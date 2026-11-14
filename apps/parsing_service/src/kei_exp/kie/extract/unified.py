@@ -141,6 +141,8 @@ NEAR = 40
 # ranges and context are final, and admits a children call before the next discovery window (`retained.ahead`).
 # Versions 8 and 9 still read no entry before the whole discovery. Measured on one scanned 45-page catalogue
 # (12 November 2026, Qwen3.8-27B-NVFP4): version 9's first saved value came 18 to 23 minutes after the start.
+# 11: keep record attribution ranges. Before accepting a scalar inherited from outside those ranges, independently
+# read its field in the intervening source and require agreement; local values keep version 10's single-pass path.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
@@ -165,14 +167,17 @@ DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verifica
                 "nearby": True, "children": True, "complete_text": True},
             10: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
                  "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                 "nearby": True, "children": "pipelined", "complete_text": True}}
+                 "nearby": True, "children": "pipelined", "complete_text": True},
+            11: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
+                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
+                 "nearby": True, "children": "pipelined", "complete_text": True, "record_evidence": True}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -281,7 +286,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
                if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass", "heading_context",
-                           "nearby", "children", "complete_text")}
+                           "nearby", "children", "complete_text", "record_evidence")}
             | ({"candidates": options.setting("candidates")} if options.defaults >= 7 else {})
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
@@ -511,6 +516,8 @@ class _Found:
     item: tuple | None = None         # (list path, window, local position) of the outermost list item it is in
     anchor: tuple | None = None       # that item's occurrence in the entry, when it was located exactly once
     repaired: bool = False            # its quote or value is the source's text a model copied nearly verbatim
+    context: list[Span] = field(default_factory=list)
+    verified: bool = False
 
 
 def _leaf(node: Node) -> dict:
@@ -810,6 +817,20 @@ VERIFY_HEADING = ("You check values extracted from one record of a source docume
           "or superseded value or one belonging to another record, and \"unclear\" when applicability is uncertain. "
           "List items and their values require the record text. Judge only from the text shown. "
           "Return only the JSON object.")
+VERIFY_RECORD = (
+    "Read the source independently of any shown candidate value, for one record. A record is: {description}\n{notes}\n"
+    "Candidates are of two kinds. One shown with only its field path is a field to read again: return {{\"value\", "
+    "\"quote\"}} with its value for THIS RECORD and an exact source quote, or null if the source does not give it. "
+    "One shown with a value and quote is to be judged: answer supported, unsupported or unclear; its value must "
+    "belong to this subject or list item in the RECORD. Read each field's meaning, not just a matching word. "
+    "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
+    "explicitly shared table qualification may supply a value from it. When CONTEXT names the enclosing record, a "
+    "scalar may inherit what is stated for that whole record or a group containing this child, never what belongs "
+    "only to its parent or another record. Follow headings in source order: a later statement replaces an earlier "
+    "value only when it changes the same field for this record; preserve compatible higher-level context. A group "
+    "heading that follows this record does not apply to it. Attribute each value to the requested subject and "
+    "relationship; do not transfer properties from related entities unless the source supports that attribution. "
+    "Return only the requested JSON object. Do not infer missing values.")
 VERIFY_CHILD = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
                 "The RECORD is printed inside another record, whose own text is shown as CONTEXT. For each candidate "
                 "answer \"supported\" when the RECORD states that value for that field of this record, or, for a "
@@ -1034,23 +1055,28 @@ class _Run:
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
-        if heading_context:
+        if self.effective.get("record_evidence"):
+            replies = self._record_evidence(entry, replies, out, view)
+        if heading_context and not self.effective.get("record_evidence"):
             self._incomplete(replies, out)
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
-        self._verify(number, replies, out, parent=parent)
-        if heading_context:
+        self._verify(number, replies, out, owned=units, parent=parent, context=heading)
+        if heading_context or self.effective.get("record_evidence"):
             order = {segment: index for index, segment in enumerate(self.texts)}
             shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
                                    key=lambda unit: (order[unit.segment], unit.start, unit.end))
-            view = _view([*shown_heading, *units], self.texts)
+            shown = [*shown_heading, *units]
+            if self.effective.get("record_evidence"):
+                shown = sorted(set(shown), key=lambda unit: (order[unit.segment], unit.start, unit.end))
+            view = _view(shown, self.texts)
         out.contest = self._settle(number, out, view)
         if not single:
             _renumbered(out.found)
             out.record = conform(_placed(out.found), self.nodes)
             return out
-        # Nothing reads a value again: one whose quote is missing or found nowhere stays the record's, without Evidence.
+        # Keep an extracted value whose quote remains missing or unlocated, without Evidence.
         for each in out.found:
             if each.kind == "rejected" and each.reason in UNCITED:
                 each.kind = "proposed"
@@ -1062,6 +1088,46 @@ class _Run:
                                           for each in out.found if each.kind == "proposed" and each.item is None],
                                          number)
         return out
+
+    def _record_evidence(self, entry: dict, replies: list, out: _Work, view: BlockText) -> list:
+        """Keep candidates fixed; include intervening source so a misassigned heading cannot hide supersession."""
+        units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["ranges"]]
+        first = units[0]
+        order = {segment: index for index, segment in enumerate(self.texts)}
+        parent = entry.get("parent") is not None
+        admitted = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"]) \
+            if self.effective["headings"] or parent else ()
+        heading = admitted
+        prior = [unit for unit in admitted if (order[unit.segment], unit.start) < (order[first.segment], first.start)]
+        if prior and not parent:
+            earliest = min(prior, key=lambda unit: (order[unit.segment], unit.start))
+            # Intervening records expose supersession; only admitted context may ground an inherited quote.
+            heading = tuple(Unit(segment, earliest.start if segment == earliest.segment else 0,
+                                 first.start if segment == first.segment else len(self.texts[segment]))
+                            for segment in self.texts if order[earliest.segment] <= order[segment] <= order[first.segment]
+                            and (segment != first.segment or first.start)) + tuple(unit for unit in admitted if unit not in prior)
+        context = _view(list(admitted), self.texts) if admitted else None
+        nodes = {}
+        def scalars(children, path=()):
+            for node in children:
+                key = (*path, node.name)
+                if node.type == "object":
+                    scalars(node.children or [], key)
+                elif node.type != "array":
+                    nodes[key] = node
+        scalars(self.nodes)
+        for index, found in enumerate(out.found):
+            if found.reason in UNCITED and found.path in nodes and context is not None:
+                recovered = _Checker(view, (0, len(view.text)), found.window, self.nodes, self.tables,
+                                     repair=False, context=context, heading_context=True)._scalar(
+                                         found.path, nodes[found.path], {"value": found.value, "quote": found.quote},
+                                         found.item, found.anchor)
+                if recovered.kind == "candidate":
+                    out.found[index] = found = recovered
+            # Source ownership, not another extracted field, supplies the record's identity.
+            found.context = ([Span(segment_id=s, start=a, end=b) for s, a, b in found.anchor]
+                             if found.anchor else [Span(segment_id=u.segment, start=u.start, end=u.end) for u in units])
+        return [(replace(window, heading=heading), answer) for window, answer in replies]
 
     def _incomplete(self, replies: list[tuple[Window, dict | None]], out: _Work) -> None:
         """A candidate grounded only in context that an omitted excerpt follows stays a proposal: that excerpt could
@@ -1082,15 +1148,20 @@ class _Run:
                     found.kind, found.reason = "proposed", "context_incomplete"
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                parent: bool = False) -> None:
+                owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = ()) -> None:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
+        independent = self.effective.get("record_evidence", False)
+        # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
+        inherited = {found.path for found in out.found if found.reason in UNCITED or any(
+            not any(own.segment == span.segment_id and own.start <= span.start and span.end <= own.end
+                    for own in owned) for span in found.spans)} if independent else set()
         for found in out.found:
             if found.kind != "candidate":
                 continue
             policy = evidence_policy(self.nodes, _field_path(found.path))
             if policy != "quoted":
                 found.kind, found.reason = "proposed", f"evidence_policy_{policy}"
-            elif not self.effective["verification"]:  # a single pass accepts what code grounded, as code's link
+            elif not self.effective["verification"] and found.path not in inherited:
                 found.kind, found.reason = ("accepted", None) if self.effective.get("single_pass") else \
                     ("proposed", "verification_disabled")
         # Corrections address scalar fields; changing a list item would require rediscovering its identity.
@@ -1102,10 +1173,12 @@ class _Run:
                     scalars(node.children or [], key)
                 elif node.type != "array" and evidence_policy(self.nodes, key) == "quoted":
                     nodes[key] = node
-        if self.effective.get("corrections") and self.effective["verification"]:
+        if independent or self.effective.get("corrections") and self.effective["verification"]:
             scalars(self.nodes)
-        prompt = VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
-            if self.effective.get("heading_context") else VERIFY
+        if independent:
+            nodes = {path: node for path, node in nodes.items() if path in inherited}
+        prompt = VERIFY_RECORD if independent else VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
+            if self.effective.get("heading_context") or self.effective.get("record_evidence") else VERIFY
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
@@ -1116,7 +1189,7 @@ class _Run:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
                 user = _user(window, self.texts, "RECORD", self.tables,
-                             heading_context=self.effective.get("heading_context", False) or parent,
+                             heading_context=self.effective.get("heading_context", False) or self.effective.get("record_evidence", False) or parent,
                              parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
                     f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
                     ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
@@ -1136,9 +1209,10 @@ class _Run:
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
-                        # The checker sees only this request's record text, never context or unseen windows.
+                        # Locate only in this request's source; independent heading reads may use its context.
                         view = _view([*window.before, *window.primary, *window.after], self.texts)
-                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
+                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False,
+                            context=_view(list(context), self.texts) if independent and context else None)
                         if isinstance(value, dict) and "value" in value and value["value"] is None:
                             # A null quoting the candidate's own printed value contradicts itself: left for review.
                             quote = value.get("quote")
@@ -1151,6 +1225,16 @@ class _Run:
                                 found.kind, found.reason = VERDICTS[value or "unsupported"]
                             continue
                         corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
+                        if independent:
+                            if typed_value(value.get("value"), nodes[found.path]) != found.value:
+                                found.kind, found.reason = "rejected", "verification_rejected"
+                            elif corrected.kind == "candidate":
+                                found.spans, found.alternatives, found.support = corrected.spans, corrected.alternatives, corrected.support
+                                found.kind, found.reason = "accepted", None
+                                found.verified = True
+                            else:
+                                found.kind, found.reason = "proposed", "verification_unresolved"
+                            continue
                         if corrected.kind == "candidate" and found.kind == "candidate" and corrected.value == found.value:
                             found.kind = "accepted"
                             continue
@@ -1394,8 +1478,9 @@ def _link(found: _Found, number: int, passages: dict, linked_by: str = "verifica
                                    alternatives=found.alternatives), passages, {})
     keep = ("path", "segment", "page", "bbox_pt", "cell", "precision", "spans", "alternatives", "raw")
     return {**{key: shared[key] for key in keep}, "verbatim": found.support == "literal", "support": found.support,
-            "linked_by": linked_by,
-            "item": [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None}
+            "linked_by": "verification" if found.verified else linked_by,
+            "item": [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None,
+            **({"context": spans_json(found.context)} if found.context else {})}
 
 
 def _review(found: _Found, number: int | None, texts: dict[str, str]) -> dict:

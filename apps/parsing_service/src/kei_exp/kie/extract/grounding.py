@@ -6,8 +6,8 @@ model calls made and the issues found. `assembly.ground_records` obtains one tec
 per verification group of each record; it does not know which technique it holds. A new grounding arm is a new
 function of this shape and one more entry in `technique`.
 
-`semantic` is the production reference: bounded grounding calls that may answer only with an evidence label each
-claim was shown, or NONE, reading each claim with its field and sibling fields. A label outside the shown set links
+`semantic` is the production reference: bounded grounding calls choose primary evidence each claim was shown,
+or NONE; Article also retains the selected context establishing record attribution. A label outside the shown set links
 nothing. Every claim is verified, even a value that occurs as a bounded token in exactly one passage: the same
 string can belong to another field or another record, so a unique text hit is a candidate location (the matching
 cells offered), never field evidence on its own. Every grounding batch also shows the
@@ -59,6 +59,19 @@ QUOTED_GROUNDING = (
     "Do not paraphrase or normalize source text. Escape control characters in JSON strings, for example "
     "a source tab as \\t. " + _GROUNDING_RULES)
 NONE = "NONE"
+RECORD_GROUNDING = (
+    'Ground every claim under "### Claims" in the offered evidence. Return a single JSON object keyed by every '
+    'claim label; each value is an object with "label" (one evidence label, or NONE), "context" (an array of at '
+    'most 8 further evidence labels, possibly empty) and "attribution" (a boolean). "label" is the primary '
+    'evidence: it must print or directly support the value in the meaning of its field. "context" holds only the '
+    'evidence needed to attribute that value to THIS record or enclosing list item, such as a record heading, '
+    'byline or affiliation marker, table header or condition; select the smallest complete set. Extracted sibling '
+    'values are claims, not source evidence. A shared heading or qualification applies only within its scope; a '
+    'later statement replaces an earlier value only when it changes the same field for this record. Attribute the '
+    'value to the requested subject and relationship; do not transfer properties from related entities unless the '
+    'source supports that attribution. Set attribution true only when label and context together establish both the '
+    'value and its attribution; otherwise use NONE, [] and false. '
+    + _GROUNDING_RULES)
 SPAN_GROUNDING = (
     'Ground every claim under "### Claims" in the offered canonical source spans. Return one object per claim '
     'with "label" (exactly an offered evidence label or NONE) and "attribution" (a boolean). Select a span and set '
@@ -193,7 +206,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     prefix: tuple[str | int, ...] = ("records", record)
     if quoted and span_ids:
         raise ValueError("choose quoted or span-ID verification, not both")
-    instruction = SPAN_GROUNDING if span_ids else QUOTED_GROUNDING if quoted else GROUNDING
+    bundled = projected and not (span_ids or quoted)
+    instruction = RECORD_GROUNDING if bundled else SPAN_GROUNDING if span_ids else QUOTED_GROUNDING if quoted else GROUNDING
     if not passages:
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
@@ -257,7 +271,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     retry: list[str] = []
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
-    batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
+    batch_size = 4 if quoted else 16 if bundled else 32 if span_ids else len(claim_ids)
     batches = [claim_ids[n:n + batch_size] for n in range(0, len(claim_ids), batch_size)]
     # Every batch shows the whole record, so a claim split away from the fields that identify its record is not
     # verified blind; the budget below counts these lines like the rest of the request.
@@ -296,7 +310,13 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         reply_schema = {"type": "object", "properties": {
             claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
             "required": batch, "additionalProperties": False, "x-free-hidden": True}
-        if quoted:
+        if bundled:
+            reply_schema["properties"] = {claim: {"type": "object", "properties": {
+                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
+                "context": {"type": "array", "items": {"type": "string", "enum": [label for label in labelled if label in shown]}, "maxItems": 8},
+                "attribution": {"type": "boolean"}}, "required": ["label", "context", "attribution"],
+                "additionalProperties": False} for claim in batch}
+        elif quoted:
             reply_schema["properties"] = {claim: {"type": "object", "properties": {
                 "label": {"type": "string", "enum": [*eligible[claim], NONE]},
                 "quote": {"type": "string", "maxLength": 500},
@@ -307,10 +327,17 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 "label": {"type": "string", "enum": [*eligible[claim], NONE]},
                 "attribution": {"type": "boolean"}}, "required": ["label", "attribution"],
                 "additionalProperties": False} for claim in batch}
+        reserve = 2048
+        if bundled:
+            longest = max(shown, key=len, default=NONE)
+            reply = {claim: {"label": max([*eligible[claim], NONE], key=len),
+                             "context": [longest] * 8, "attribution": False} for claim in batch}
+            # A byte bound covers the structured reply without resending the source every eight claims.
+            reserve = max(reserve, len(json.dumps(reply).encode("utf-8")))
         size = len(instruction) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
         count = counter.request_tokens(instruction, user, reply_schema) if counter else None
-        exceeded = count + 2048 > counter.context_tokens if counter else size > budget
-        if projected and not exceeded:  # the reply, every label at its longest, within the output reserve
+        exceeded = count + reserve > counter.context_tokens if counter else size > budget
+        if projected and not bundled and not exceeded:  # legacy label replies keep their fixed reserve
             exceeded = len(json.dumps({claim: max([*eligible[claim], NONE], key=len) for claim in batch})) > 2048
         if exceeded:
             if len(batch) > 1:
@@ -318,13 +345,13 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 batches[0:0] = [batch[:middle], batch[middle:]]
             else:
                 issues.append(Issue("grounding_exceeds_budget",
-                                    (f"{count} input + 2048 output tokens exceed {counter.context_tokens}" if counter
+                                    (f"{count} input + {reserve} output tokens exceed {counter.context_tokens}" if counter
                                      else f"{size} characters exceed {budget}") + "; complete evidence was not sent",
                                     record, claims[batch[0]][0]))
             continue
         try:
             answer, attempts = complete(chat, stage="grounding", record=record, system=instruction, user=user,
-                                       schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
+                                       schema=reply_schema, counter=counter, max_tokens=reserve if counter else None)
         except NeedsCall:  # the batches after it do not depend on its reply: captured now, they run beside it
             waiting = True
             continue
@@ -340,6 +367,30 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         for claim in batch:
             path, value = claims[claim]
             label = given.get(claim)
+            context = ()
+            if bundled:
+                reply = label if isinstance(label, dict) else {}
+                label = reply.get("label")
+                if label is None:
+                    issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
+                    continue
+                extra = reply.get("context")
+                if not isinstance(reply.get("attribution"), bool) or not isinstance(extra, list) or len(extra) > 8:
+                    issues.append(Issue("missing_claim", f"{claim}: incomplete record evidence", record, path))
+                    continue
+                if any(not isinstance(each, str) or each not in shown for each in extra):
+                    issues.append(Issue("unknown_label", f"{claim}: context label was not offered", record, path))
+                    continue
+                if reply["attribution"] is not (label != NONE):
+                    if claim in fallback:
+                        retry.append(claim)
+                    else:
+                        issues.append(Issue("unsupported_attribution", f"{claim}: source support was not attested", record, path))
+                    continue
+                context = tuple({"segment": labelled[each].passage.id,
+                                 "start": labelled[each].cell.start if labelled[each].cell else 0,
+                                 "end": labelled[each].cell.end if labelled[each].cell else len(labelled[each].passage.text)}
+                                for each in dict.fromkeys(extra) if each != label)
             if span_ids:
                 candidate_reply = label if isinstance(label, dict) else {}
                 label = candidate_reply.get("label")
@@ -372,8 +423,10 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
             else:
                 candidate = labelled[label]
+                if bundled and candidate.cell is not None:
+                    context += ({"segment": candidate.passage.id, "start": 0, "end": len(candidate.passage.text)},)
                 links.append(_link(path, candidate, contains(candidate.text, value), "model",
-                                   _location(candidate, value) if located else None))
+                                   _location(candidate, value) if located else None, context))
                 if quoted and proofs is not None:
                     proofs.append({"path": list(path), "segment": candidate.passage.id,
                                    "cell": candidate.cell.cell_id if candidate.cell else None,
@@ -391,12 +444,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 
 
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
-          location: dict | None = None) -> Link:
+          location: dict | None = None, context: tuple[dict, ...] = ()) -> Link:
     passage, cell = candidate.passage, candidate.cell
     precise = cell is not None and cell.bbox_pt is not None
     return Link(path, passage.id, passage.page, cell.bbox_pt if precise else passage.bbox_pt,
                 verbatim, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision,
-                location)
+                location, context)
 
 
 # A printed number: digits with decimal or thousands separators, perhaps a leading one (`.5`), never part of a word or
@@ -500,7 +553,7 @@ def semantic(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Ch
              skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
              located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
-    """The production reference: one evidence label per claim, or NONE."""
+    """The production reference: primary evidence and, for Article, the context establishing record attribution."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
                   record_context=record_context, proofs=proofs, skip_paths=skip_paths,
                   projected=projected, located=located, on_batch=on_batch)
