@@ -62,7 +62,7 @@ test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found
   await showPage(dialog, 'Catalog: Window overlap')
   await dialog.getByRole('textbox', { name: 'Window overlap' }).fill('0')
   await showPage(dialog, 'Catalog: Pro mode')
-  await expect(dialog.getByText(/Off reads each value once/)).toBeVisible()
+  await expect(dialog.getByText(/Shared headings are checked separately/)).toBeVisible()
   await dialog.getByRole('switch', { name: 'Pro mode' }).click()
   await expect(dialog.getByText(`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}`)).toBeVisible()
   const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/model_config' &&
