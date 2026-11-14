@@ -1061,7 +1061,7 @@ class _Run:
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
-        self._verify(number, replies, out, parent=parent, context=heading)
+        self._verify(number, replies, out, owned=units, parent=parent, context=heading)
         if heading_context or self.effective.get("record_evidence"):
             order = {segment: index for index, segment in enumerate(self.texts)}
             shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
@@ -1147,13 +1147,13 @@ class _Run:
                     found.kind, found.reason = "proposed", "context_incomplete"
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                parent: bool = False, context: tuple[Unit, ...] = ()) -> None:
+                owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = ()) -> None:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
         independent = self.effective.get("record_evidence", False)
         # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
         inherited = {found.path for found in out.found if found.reason in UNCITED or any(
-            not any(own.segment_id == span.segment_id and own.start <= span.start and span.end <= own.end
-                    for own in found.context) for span in found.spans)} if independent else set()
+            not any(own.segment == span.segment_id and own.start <= span.start and span.end <= own.end
+                    for own in owned) for span in found.spans)} if independent else set()
         for found in out.found:
             if found.kind != "candidate":
                 continue

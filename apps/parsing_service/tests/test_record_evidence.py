@@ -1,4 +1,6 @@
 """Attribution context must be source-backed and must not make a wrong value acceptable."""
+from dataclasses import replace
+
 import pytest
 
 from kei_exp.kie.extract import grounding, unified
@@ -8,7 +10,7 @@ from kei_exp.kie.extract.models import as_router
 from kei_exp.kie.extract.schema import Schema
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import passages
-from tests.test_unified_catalog import candidate, evidence, extract, Model
+from tests.test_unified_catalog import candidate, evidence, extract, Model, PARTS, table_passage
 
 
 def test_record_evidence_shares_the_source_but_reserves_the_complete_reply():
@@ -107,7 +109,7 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
     work = unified._Work(found=[unified._Found(("jail",), "North", "Jail North", 0,
                                                kind="rejected", reason="quote_not_in_source")])
     replies = runner._record_evidence(entry, [(Window(tuple(units)), {})], work, unified._view(units, runner.texts))
-    runner._verify(0, replies, work, context=tuple(Unit(each["segment"], each["start"], each["end"])
+    runner._verify(0, replies, work, owned=units, context=tuple(Unit(each["segment"], each["start"], each["end"])
                                                 for each in entry["context"]))
     assert seen and (work.found[0].kind == "accepted") == accepted
     assert work.found[0].value == "North"
@@ -216,3 +218,25 @@ def test_disagreeing_inherited_values_reach_arbitration_with_their_source(monkey
     work = runner.entry(0, entry)
     assert work.contest[0]["outcome"] == "unresolved"
     assert not any(found.kind == "accepted" for found in work.found)
+
+
+@pytest.mark.parametrize("defaults", [10, 11])
+@pytest.mark.parametrize("verdict", ["supported", "unsupported"])
+def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(defaults, verdict):
+    table = replace(table_passage([["A-1", "Skull"], ["A-2", "Tibia"]]), id="p1_s1", index=1)
+    source = evidence("1. Remains.")
+    source = replace(source, passages=(*source.passages, table))
+    parts = [{"number": number, "description": description} for number, description in [("A-1", "Skull"), ("A-2", "Tibia")]]
+    model = Model(source, entry=lambda *_: {"parts": [
+        {"_item_text": row["number"], **{key: candidate(value, value) for key, value in row.items()}}
+        for row in parts]})
+    def answer(system, user, schema):
+        if system.startswith("Read the source independently"):
+            return {key: verdict for key in schema["properties"]}
+        return model(system, user, schema)
+    result, _ = extract(source, answer, schema=PARTS, defaults=defaults, verification=False)
+    assert not any(call["stage"] == "verification" for call in result["calls"])
+    assert result["records"] == [{"parts": parts}]
+    descriptions = [link for link in result["evidence"] if link["path"][-1] == "description"]
+    assert [link["cell"] for link in descriptions] == ["r0_c1", "r1_c1"]
+    assert [link["item"] for link in descriptions] == [link["spans"] for link in result["evidence"] if link["path"][-1] == "number"]

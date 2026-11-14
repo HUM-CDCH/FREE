@@ -424,6 +424,49 @@ test('the selected value shows its value mark inside its block mark',async({page
   } finally {await fixture.close()}
 })
 
+test('record attribution context never steals a precise value click, including after reload',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const base=`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}`
+    const source=decodeParsedDocument(await (await page.request.get(`${base}/source`)).json())
+    const original=source.evidence_index.anchors.find(anchor=>anchor.kind==='text')!
+    const texts=['Name: Book','Year: 1901'],markdown=texts.join('\n\n')
+    source.content_stream=texts.map((text,index)=>({kind:'paragraph',block_id:`b_p1_s${index}`,page_number:1,parser:'fixture',
+      bbox:{x0:40,y0:60+30*index,x1:400,y1:80+30*index},text,markdown_span:{start:index*12,end:index*12+text.length}}))
+    source.tables=[]
+    source.pages=source.pages.map(page=>({...page,ordered_content:page.page_number===1?source.content_stream.map(block=>block.block_id):[]}))
+    source.evidence_index.anchors=texts.map((_,index)=>({...original,kind:'text',anchor_id:`a_p1_s${index}`,block_id:`b_p1_s${index}`,
+      markdown_span:{start:index*12,end:index*12+10},producer_observations:[{occurrence_id:`record-context-${index}`,page_number:1,
+        producer_ref:null,bbox:{x0:40,y0:60+30*index,x1:400,y1:80+30*index}}]}))
+    const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf:await (await page.request.get(`${base}/pdf`)).body(),
+      document:decodeParsedDocument(source),markdown}))
+    await pool.query('UPDATE public."sourceRepresentationRevision" SET "artifactReference"=$2,"artifactSha256"=$3 WHERE id=$1',
+      [fixture.sourceRepresentationRevisionId,descriptor.artifactReference,descriptor.artifactSha256])
+    const nodes=[{id:'name',name:'name',type:'string' as const},{id:'year',name:'year',type:'integer' as const}]
+    const context=texts.map((text,index)=>({segment:`p1_s${index}`,start:0,end:text.length}))
+    const modelEvidence=Object.fromEntries(nodes.map((node,index)=>[node.id,[{anchorId:`a_p1_s${index}`,occurrenceIds:[`record-context-${index}`],
+      producer:{path:['records',0,node.name],segment:`p1_s${index}`,page:1,bbox_pt:null,verbatim:true,linked_by:'model' as const,precision:'segment' as const,context,
+        location:{spans:[{segment:`p1_s${index}`,start:6,end:10}],raw:index?'1901':'Book'}}}]]))
+    const {id}=await savedExtraction(fixture,nodes,['Book',1901],'PAUSED',{modelEvidence})
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    for(const reload of [false,true]) {
+      if(reload)await page.reload()
+      await openRailView(page,'Results')
+      await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
+      const view=page.getByLabel('Parsed Markdown'),year=view.getByRole('button',{name:'year: 1901',exact:true})
+      await expect(year).toHaveText('1901')
+      await year.click()
+      await expect(page.getByRole('region',{name:'Review year',exact:true})).toBeVisible()
+      await view.getByRole('button',{name:'name: Book',exact:true}).click()
+      await expect(page.getByRole('region',{name:'Review name',exact:true})).toBeVisible()
+      await expect(view.getByTitle('Attribution context')).toHaveText('Year: ')
+      await year.click()
+      await expect(page.getByRole('region',{name:'Review year',exact:true})).toBeVisible()
+      await expect(view.getByRole('button')).toHaveCount(2)
+    }
+  } finally {await fixture.close()}
+})
+
 test('a collapsed rail keeps one-by-one and moves nothing on the page; each toggle passes the focus on',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {

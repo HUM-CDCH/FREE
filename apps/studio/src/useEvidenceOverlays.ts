@@ -8,6 +8,7 @@ import type { EvidenceLink } from 'extraction/durable-types'
 import {
   anchorOccurrences,
   type EvidenceOccurrence,
+  type SourceEvidenceLink,
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 import { scrollWithinPane } from './scrollWithinPane'
@@ -41,7 +42,7 @@ export type RailMarkState = {
   describe: ReadonlyMap<string, MarkInfo>
   selected: string | null
   /** Stable retained value IDs, including explicit correction occurrences. */
-  savedLinks: readonly {key:string;link:EvidenceLink;occurrenceIds?:readonly string[]}[]
+  savedLinks: readonly {key:string;link:SourceEvidenceLink;occurrenceIds?:readonly string[]}[]
   /** A running Catalog's record blocks: outlines under the marks, never Evidence and never selectable. */
   records?: readonly RecordBlock[]
 }
@@ -356,13 +357,15 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, mark
       if (shown !== records.blocks) records = { blocks: shown, pieces: shown ? recordPieces(parsedDocument, markdownBytes, shown) : [] }
       if (presentation.current.active) {
         for (const { key, link, occurrenceIds } of marks?.savedLinks ?? []) {
+          if (link.contextOnly && !(marks?.selected && ownsMark(marks.selected, key))) continue
           const anchor = anchors.get(link.evidenceAnchorId)
           if (!anchor || link.precision === 'input') continue
           const occurrences = anchorOccurrences(anchor).filter(occurrence => !occurrenceIds || occurrenceIds.includes(occurrence.occurrence_id))
           if (link.valueBoxes) values.push(...placedValueBoxes(parsedDocument, occurrences, link.valueBoxes).map(placed => ({ ...placed, link, key })))
           for (const occurrence of occurrences) {
             const block = blocks.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [], resultPath: link.resultPath }
-            if (!block.keys.includes(key)) block.keys.push(key)
+            if (link.contextOnly) block.focus = true
+            else if (!block.keys.includes(key)) block.keys.push(key)
             blocks.set(occurrence.occurrence_id, block)
           }
         }

@@ -10,7 +10,7 @@ import { scrollWithinPane } from './scrollWithinPane'
 
 type SelectMark = (keys: string[], element: HTMLElement) => void
 type SavedLink = RailMarkState['savedLinks'][number]
-type MarkSpan = { start: number; end: number; anchorId: string; keys: string[] }
+type MarkSpan = { start: number; end: number; anchorId: string; keys: string[]; contextKeys: string[] }
 type TableProjection = { source: string; points: string[]; offsets: number[] }
 
 function projectTable(source: string): TableProjection {
@@ -33,7 +33,7 @@ function valueMarks(anchor: Pick<TextEvidenceAnchor, 'anchor_id' | 'markdown_spa
   const offset = (at: number) => anchor.markdown_span.start + (table && projection ? projection.offsets[at]!
     : encoder.encode(prefix + points!.slice(0, at).join('')).length)
   const ranges = links.flatMap(({ key, link }) => {
-    const located = link.location ?? (link.grounding && (!('support' in link.grounding) || link.grounding.support === 'literal')
+    const located = link.contextOnly ? { textSpans: link.contextSpans ?? [], raw: '' } : link.location ?? (link.grounding && (!('support' in link.grounding) || link.grounding.support === 'literal')
       ? link.grounding : undefined)
     const spans = located?.textSpans.filter(span => table ? `b_${span.segment}` === block.block_id : `a_${span.segment}` === anchor.anchor_id)
     const precise = points && spans?.length && spans.every(span => Number.isSafeInteger(span.start) && Number.isSafeInteger(span.end)
@@ -41,18 +41,21 @@ function valueMarks(anchor: Pick<TextEvidenceAnchor, 'anchor_id' | 'markdown_spa
       && (!table || spans.map(span => points.slice(span.start, span.end).join('')).join('') === located?.raw)
     // Without checked literal offsets a cell cannot be placed safely: the package does not retain cell byte spans.
     return (precise ? spans.map(span => ({ start: offset(span.start), end: offset(span.end) })) : block?.kind === 'table' ? [] : [anchor.markdown_span])
-      .map(span => ({ ...span, key }))
+      .map(span => ({ ...span, key, contextOnly: link.contextOnly }))
   })
   // Partition overlaps so a shared word selects every value it supports, without nested buttons or lost fields.
   const boundaries = [...new Set(ranges.flatMap(span => [span.start, span.end]))].sort((a, b) => a - b)
   const marks: MarkSpan[] = []
   for (let index = 1; index < boundaries.length; index++) {
     const start = boundaries[index - 1]!, end = boundaries[index]!
-    const keys = [...new Set(ranges.filter(span => span.start <= start && end <= span.end).map(span => span.key))]
-    if (!keys.length) continue
+    const covering = ranges.filter(span => span.start <= start && end <= span.end)
+    const keys = [...new Set(covering.filter(span => !span.contextOnly).map(span => span.key))]
+    const contextKeys = [...new Set(covering.filter(span => span.contextOnly).map(span => span.key))]
+    if (!keys.length && !contextKeys.length) continue
     const prior = marks.at(-1)
-    if (prior?.end === start && prior.keys.length === keys.length && prior.keys.every((key, index) => key === keys[index])) prior.end = end
-    else marks.push({ start, end, anchorId: anchor.anchor_id, keys })
+    if (prior?.end === start && prior.keys.length === keys.length && prior.keys.every((key, index) => key === keys[index])
+      && prior.contextKeys.length === contextKeys.length && prior.contextKeys.every((key, index) => key === contextKeys[index])) prior.end = end
+    else marks.push({ start, end, anchorId: anchor.anchor_id, keys, contextKeys })
   }
   return marks
 }
@@ -146,8 +149,12 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
     const keys = span.keys.filter(key => describe?.has(key))
     const infos = describeMarks(keys, describe).map(({ info }) => info)
     const selected = marks?.selected != null && keys.some(key => ownsMark(marks.selected!, key))
+    const contextSelected = marks?.selected != null && span.contextKeys.some(key => ownsMark(marks.selected!, key))
     const text = outlined(span.start, span.end)
-    parts.push(!marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId} data-hover-keys={JSON.stringify(keys)}>{text}</span>
+    parts.push(!keys.length && span.contextKeys.length ? <span key={span.start} data-evidence-anchor-id={span.anchorId}
+      title={contextSelected ? 'Attribution context' : undefined}
+      style={contextSelected ? { background: 'var(--color-ev-ghost)', outline: '1px dotted var(--color-accent)' } : undefined}>{text}</span>
+      : !marksShown && !selected ? <span key={span.start} data-evidence-anchor-id={span.anchorId} data-hover-keys={JSON.stringify(keys)}>{text}</span>
       : keys.length === 0 ? <span key={span.start} className="evidence-mark" style={{ border: 0, cursor: 'auto' }}>{text}</span>
       : <button key={span.start} type="button" style={evidenceColorVars(sharedColor(infos.map(info => info.color)))}
         className={`evidence-mark ${infos.some(info => info.style === 'preview') ? 'preview' : infos[0]!.style}${infos.every(info => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}

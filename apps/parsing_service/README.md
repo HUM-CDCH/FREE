@@ -333,7 +333,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   record still waits for every window before it.
   Defaults 8 and 9 keep reading no entry before the whole discovery.
   Defaults 11 retains record attribution context alongside value spans. Local values
-  keep defaults 10's single pass. Inherited scalar headings require an independent
+  keep defaults 10's single pass: locality uses the record's owned ranges, not a list
+  item's identifying anchor cell. Inherited scalar headings require an independent
   reading without the candidate value, using intervening source to expose superseded
   headings; only an equal, source-located reading receives Evidence. This check never
   substitutes a different candidate value. Only the record's own text or its admitted
