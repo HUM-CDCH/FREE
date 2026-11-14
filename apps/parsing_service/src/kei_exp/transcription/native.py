@@ -449,8 +449,15 @@ class NativeText:
         emit({"type": "log", "text": "Embedded PDF text found; extracting without OCR."})
         pages = execution.pages
         emit({"type": "phase", "name": "native", "total": pages[1] - pages[0] + 1 if pages else None})
-        result = converter.convert(visible_text_source(execution.pdf), raises_on_error=False,
-                                   page_range=pages or DEFAULT_PAGE_RANGE)
+        source_warning = None
+        try:
+            source = visible_text_source(execution.pdf, pages)
+        except Exception as error:
+            # Optional normalization must not prevent Docling reading a PDF, or silently certify unchecked text.
+            source = execution.pdf
+            source_warning = f"native clipping filter failed ({type(error).__name__}); original PDF used"
+            emit({"type": "log", "text": source_warning})
+        result = converter.convert(source, raises_on_error=False, page_range=pages or DEFAULT_PAGE_RANGE)
         document = result.document
         # Without formula recognition Docling leaves native formula characters in orig and exports a placeholder.
         # Preserve those characters as text; they are not decoded LaTeX.
@@ -460,6 +467,8 @@ class NativeText:
         for index, page in enumerate(result.pages, 1):
             omit = tuple(region.bbox for region in execution.ocr_regions if region.page == page.page_no)
             errors = [error.error_message for error in result.errors if error.page_no == page.page_no]
+            if source_warning:
+                errors.append(source_warning)
             blocks = blocks_of(document, page.page_no, omit=omit)
             if execution.transcriber == self.kind:  # no OCR follows to read such a table
                 errors += ["table has no readable cells; OCR is required" for block in blocks if block["error"]]
@@ -471,7 +480,7 @@ class NativeText:
                 incomplete=f"page {page.page_no}: " + "; ".join(errors) if errors else None, source_page=page.page_no,
             ))
         stray = "; ".join(error.error_message for error in result.errors if not error.page_no)
-        unattributed = None
+        unattributed = source_warning if not records else None
         if result.status != ConversionStatus.SUCCESS:
             status = f"native PDF extraction: {result.status.value}"
             attributed = any(record.incomplete for record in records)

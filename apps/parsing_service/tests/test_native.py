@@ -352,6 +352,28 @@ def test_native_empty_table_is_incomplete_not_a_successful_caption_only_parse(di
     assert "table has no readable cells" in outcome.incomplete
 
 
+@pytest.mark.parametrize('error', [ValueError('unreadable PDF'), KeyError('/BBox'), pdfium.PdfiumError('bad form')])
+def test_native_filter_failure_uses_original_and_marks_evidence_incomplete(digital_pdf, monkeypatch, error):
+    document = DoclingDocument(name='fallback')
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_text(label=DocItemLabel.TEXT, text='A printed value: 34.51', prov=ProvenanceItem(
+        page_no=1, charspan=(0, 22), bbox=BoundingBox(l=10, t=10, r=300, b=30, coord_origin=CoordOrigin.TOPLEFT)))
+    def fail(path, pages):
+        assert path == digital_pdf and pages == (1, 1)
+        raise error
+    def convert(source, **kwargs):
+        assert source == digital_pdf and kwargs['page_range'] == (1, 1)
+        return SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
+                               status=ConversionStatus.SUCCESS)
+    monkeypatch.setattr('kei_exp.transcription.native.visible_text_source', fail)
+    monkeypatch.setattr('kei_exp.transcription.native.DocumentConverter', lambda **_: SimpleNamespace(convert=convert))
+    outcome = TRANSCRIBERS['native'].transcribe(
+        resolve(RunParams(pdf=digital_pdf, model='surya', pages=(1, 1))), None, lambda _: None)
+    assert 'A printed value: 34.51' in outcome.pages[0].text
+    assert 'native clipping filter failed' in outcome.pages[0].incomplete
+    assert 'original PDF used' in outcome.incomplete
+
+
 @pytest.mark.live_model
 def test_the_native_worker_run_reads_the_pdf_without_a_server_a_cut_or_ocr(digital_pdf, tmp_path, monkeypatch):
     # The real native path must work without checking, starting, or calling the OCR server or cutter. The run asks
