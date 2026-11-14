@@ -48,8 +48,9 @@ def labelling(users: list[str], schemas: list[dict] | None = None):
             schemas.append(schema)
         claims = re.findall(r"^(C\d+) \([^\n]*\): ([^\n]+)$", user, re.MULTILINE)
         shown = re.findall(r"^(E\d+): ([^\n]+)$", user, re.MULTILINE)
-        return {claim: next((label for label, text in shown if value in text and label in schema["properties"][claim]
-                             ["enum"]), "NONE") for claim, value in claims}
+        labels = {claim: next((label for label, text in shown if value in text and label in schema["properties"][claim]
+                             ["properties"]["label"]["enum"]), "NONE") for claim, value in claims}
+        return {claim: {"label": label, "context": [], "attribution": label != "NONE"} for claim, label in labels.items()}
     return script
 
 
@@ -84,9 +85,11 @@ def test_every_request_and_its_reply_fit_the_served_context():
     links, calls, issues, users = ground(root(240), source, counter=counter, schemas=schemas)
     assert len(calls) > 1 and not [issue for issue in issues if issue.code == "grounding_exceeds_budget"]
     for user, schema in zip(users, schemas, strict=True):
-        assert counter.request_tokens(grounding.GROUNDING, user, schema) + 2048 <= counter.context_tokens
-        longest = {claim: max(spec["enum"], key=len) for claim, spec in schema["properties"].items()}
-        assert len(json.dumps(longest)) <= 2048  # the reply, every label at its longest, within the reserve
+        longest = {claim: {"label": max(spec["properties"]["label"]["enum"], key=len),
+                           "context": [max(spec["properties"]["context"]["items"]["enum"], key=len)] * 8,
+                           "attribution": False} for claim, spec in schema["properties"].items()}
+        reserve = max(2048, len(json.dumps(longest).encode("utf-8")))
+        assert counter.request_tokens(grounding.RECORD_GROUNDING, user, schema) + reserve <= counter.context_tokens
     assert len({link.path for link in links}) == sum(1 for _ in leaves(root(240)))
 
 
@@ -133,7 +136,7 @@ def test_a_failed_batch_keeps_the_others_links_and_a_resume_grounds_only_the_unf
         if "elbow 2" in user.split("### Claims", 1)[1].split("### Evidence", 1)[0]:
             return Reply("{", 10, 2048, "length", 0.0)  # the batch holding item 2's claims is cut off
         return labelling([])(system, user, schema)
-    small = LimitedCounter(WordCounter(), 2048 + 200)  # a few claims per request
+    small = LimitedCounter(WordCounter(), 2048 + 320)  # a few claims per request, including attribution instructions
     links, _, issues, _ = ground(fields, source, counter=small, script=failing)
     supported = {link.path for link in links}
     failed = {issue.path for issue in issues if issue.code == "call_failed"}
@@ -183,7 +186,7 @@ def test_a_bounded_article_root_with_many_items_is_grounded_where_each_value_was
     item_users = [user for user in users if "77" in user]
     assert item_users and all(len(set(re.findall(r"Page (\d)", user.split("### Evidence")[1]))) == 1
                               for user in item_users)  # each item claim is checked in the context it was read from
-    assert result["article_version"] == article.ARTICLE_VERSION == 17
+    assert result["article_version"] == article.ARTICLE_VERSION == 19
 
 
 def test_contested_unsupported_and_uncompleted_claims_stay_distinct_through_the_article_path():
@@ -324,16 +327,15 @@ def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
     assert all(len(user.split()) + 2048 <= 6600 for user in checks)
 
 
-def test_settings_without_overflow_windows_send_the_requests_9ef058d2_sent():
-    """Requests captured from 9ef058d2 (before `grounding_overflow`): an omitted article (Studio's legacy `article:
-    null`), explicit full and explicit bounded settings without the factor, refused and fitting alike."""
+def test_record_aware_requests_remain_pinned_for_full_bounded_and_legacy_settings():
+    """The record-aware prompts change fitting requests; refused requests still make no model call."""
     refused, fits = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
-                     "5e6e2bd270c9b7ab59d00f27fe63d851367c15ce615e92c08c9cd5cd6e6b41d3")
+                     "20bf5ebb59214c77794f595bda93f103434d554b758980aa85373b3ef9d1a4a5")
     captured = {
         (None, 6600): refused, ("full", 6600): refused,
-        ("bounded", 6600): "fd01a94ec4eb28bba52bc9b0b8a641f001de4653828f77fb002c5c7c6a23729e",
+        ("bounded", 6600): "6625145ede77944480e721d94bf80f192f095cdb2529b317ec8ab29f3a990e71",
         (None, 9000): fits, ("full", 9000): fits,
-        ("bounded", 9000): "a2e86e466876c6efb7b732cbc60f8d95389dc53040675fa00217aa8742439c4d",
+        ("bounded", 9000): "32a843e473efab2bac00fc0c5c5e2e380a6b7a1d7a2cfc6e66dbd335f8dc2a74",
     }
     for (context, reasoning), digest in captured.items():
         settings = None if context is None else {"context": context, **({"context_tokens": 8192} if context ==

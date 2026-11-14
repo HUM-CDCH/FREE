@@ -157,6 +157,33 @@ def test_interleaved_paragraphs_keep_the_source_lines_in_reading_order(assembly)
     assert len({element.id for element in output}) == len(output)
 
 
+@pytest.fixture
+def summary_picture():
+    # Synthetic layout fixture: a timeline and its right-hand overview were classified as one picture.
+    lines = [cell(i, text, 220, 110 + 35 * i, 470) for i, text in enumerate([
+        'Excavation results', 'Three houses and 17 graves', 'Two storehouses', 'One enclosure',
+        'Four pits', 'Five vessels', 'Six tools', 'Seven beads', 'Eight posts', 'Nine fragments',
+    ])]
+    return cluster(4, lines, DocItemLabel.PICTURE)
+
+
+def test_picture_cells_survive_as_located_text_without_repeating_owned_cells(assembly, summary_picture):
+    heading = cluster(8, [summary_picture.cells[0]], DocItemLabel.SECTION_HEADER)
+    output = assembled(assembly, [summary_picture, heading])
+    texts = [element for element in output if getattr(element, 'text', '')]
+    assert sorted(element.text for element in texts) == sorted(c.text for c in summary_picture.cells)
+    assert len({element.id for element in output}) == len(output)
+    by_text = {element.text: element for element in texts}
+    for source in summary_picture.cells:
+        assert by_text[source.text].cluster.bbox == source.rect.to_bounding_box()
+
+
+def test_overlapping_picture_regions_do_not_duplicate_native_cells(assembly, summary_picture):
+    second = summary_picture.model_copy(update={'id': 5})
+    output = assembled(assembly, [summary_picture, second])
+    assert len([element for element in output if getattr(element, 'text', '')]) == len(summary_picture.cells)
+
+
 def test_separate_columns_and_nontext_labels_keep_their_groups(assembly):
     left = cluster(1, [cell(0, 'Left first.', 40, 30, 270), cell(1, 'Left second.', 40, 42, 270)])
     right = cluster(2, [cell(2, 'Right first.', 320, 30, 550), cell(3, 'Right second.', 320, 42, 550)])

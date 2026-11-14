@@ -107,7 +107,9 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       const candidates = Object.values(properties).some((field) =>
         typeof field === 'object' && field !== null && 'properties' in field &&
         'quote' in ((field as { properties: object }).properties))
-      const records = [...prompt.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
+      const source = system.startsWith('You extract structured data from one record')
+        ? prompt.split('### RECORD\n')[1]?.split('\n### END RECORD')[0] ?? '' : prompt
+      const records = [...source.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
         const [site, finds, year] = match[0].split(/:\s*| dated /)
         return { site, finds, year: Number(year) }
       })
@@ -121,6 +123,8 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
         })
         if (places.length !== 2) throw new Error(`Unified discovery did not receive both parsed entries: ${prompt}`)
         answer = { places, begins_inside_record: false, ends_inside_record: false }
+      } else if (system.startsWith('You list the records printed inside')) {
+        answer = { children: [] }
       } else if (system.startsWith('You extract structured data from one record')) {
         if (records.length !== 1) throw new Error(`Unified fields received ${records.length} records: ${prompt}`)
         const record = records[0]!
@@ -157,8 +161,12 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
-        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
-          [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE']))
+        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) => {
+          const label = evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE'
+          const heading = evidence.find(([, , text]) => text.includes('Site catalogue'))?.[1]
+          return [claim, properties[claim]?.properties?.context
+            ? { label, context: heading && heading !== label && label !== 'NONE' ? [heading] : [], attribution: label !== 'NONE' } : label]
+        }))
       } else throw new Error(`Unexpected model template: ${JSON.stringify(properties)}`)
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
