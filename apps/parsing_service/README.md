@@ -237,7 +237,11 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   Article whose root no value context answered (`article_root_unanswered: ...`)
   rather than retain an all-null root.
 - Article extracts the document as one object, which may contain arrays;
-  `options.article` holds its research settings. A Catalog without
+  `options.article` holds its research settings. Version 19 grounds up to 16 claims
+  per call, retaining primary evidence and the context establishing record attribution.
+  Complete structured replies are budgeted before admission; oversized batches split
+  without truncating source evidence. An unanswered claim remains incomplete.
+  A Catalog without
   `options.catalog` or `options.unified` runs generic discovery (result
   version 1). `options.catalog = {recipe, input_tokens?, output_tokens?,
   factors?}` selects a recipe such as `numbered-catalogue-de@1`: result version
@@ -327,7 +331,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   together. The first records wait for the first discovery window alone; a later
   record still waits for every window before it.
   Defaults 8 and 9 keep reading no entry before the whole discovery.
-  Studio admits defaults 10 by default, only where its
+  Defaults 11 retains record attribution context alongside value spans. Local values
+  keep defaults 10's single pass. Inherited scalar headings require an independent
+  reading without the candidate value, using intervening source to expose superseded
+  headings; only an equal, source-located reading receives Evidence. This check never
+  substitutes a different candidate value. Earlier admissions keep their defaults.
+  Studio admits defaults 11 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
