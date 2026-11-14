@@ -1238,7 +1238,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
     expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
-    expect(screen.getByText('Service defaults, version 10')).toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 11')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     setting('Input token ceiling')
     const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })
@@ -1263,10 +1263,10 @@ describe('Advanced', () => {
     setting('Heading excerpts measured')
     expect(screen.getByText('Heading context is off, so no excerpt is measured or shown.')).toBeVisible()
     setting('Pro mode')
-    // From defaults 6 a single pass is the default; Pro mode admits the version that reads every value again.
-    expect(screen.getByText(/Off reads each value once/)).toBeInTheDocument()
+    // Shared-heading attribution is checked even when the all-value Pro mode is off.
+    expect(screen.getByText(/Shared headings are checked separately/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch', { name: 'Pro mode' }))
-    expect(screen.queryByText(/Off reads each value once/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Shared headings are checked separately/)).not.toBeInTheDocument()
     expect(screen.getByText(/Pro mode runs defaults version 5/)).toBeInTheDocument()
     setting('Effective settings')
     expect(screen.getByText('Unified Catalog, defaults version 5 with custom settings')).toBeInTheDocument()

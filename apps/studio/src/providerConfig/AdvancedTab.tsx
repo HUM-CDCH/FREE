@@ -457,7 +457,9 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
             <p className="text-[11px] text-ink-muted">Heading context is off, so no excerpt is measured or shown.</p>}
           {page.path === 'catalog.unified.verification' && (!pinned && method.defaults === UNIFIED_CATALOG_PRO_VERSION
             ? <p className="text-[11px] text-ink-muted">{`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}: a second call reads every value again and may correct it, completing long passages; about twice the calls and time.`}</p>
-            : !(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">{'single_pass' in defaults
+            : !(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">{'record_evidence' in defaults
+              ? 'Values found inside a record keep their source links. Shared headings are checked separately; uncertain matches stay ungrounded.'
+              : 'single_pass' in defaults
               ? 'Off reads each value once: a value code locates in its own entry is linked by rule, unverified; one without a locatable quote stays for review without Evidence.'
               : 'Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.'}</p>)}
         </section>)}

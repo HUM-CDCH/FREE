@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest'
-import { anchorOccurrences, verifiedEvidenceBbox } from './evidenceNavigation'
+import { anchorOccurrences, sourceEvidenceLinks, verifiedEvidenceBbox } from './evidenceNavigation'
 
 describe('source-document Evidence navigation', () => {
+  it('opens attribution context without copying value highlights onto it', () => {
+    const link = { resultPath: ['records', 0, 'country'], evidenceAnchorId: 'a_p1_s1', precision: 'segment' as const,
+      contextSpans: [{ segment: 'p1_s0', start: 0, end: 12 }, { segment: 'p1_s0', start: 15, end: 20 }],
+      valueBoxes: [{ x0: 1, y0: 2, x1: 3, y1: 4 }],
+      location: { textSpans: [{ segment: 'p1_s1', start: 1, end: 4 }], raw: 'UK' } }
+    const result = sourceEvidenceLinks(link, new Set(['a_p1_s0', 'a_p1_s1']))
+    expect(result).toHaveLength(2)
+    expect(result[0]).toBe(link)
+    expect(result[1].evidenceAnchorId).toBe('a_p1_s0')
+    expect(result[1].valueBoxes).toBeUndefined()
+    expect(result[1].location).toBeUndefined()
+  })
   it('accepts rotated page-space geometry and rejects unsafe bounds', () => {
     const anchor = { kind: 'text' as const, anchor_id: 'a', content_sha256: 'a'.repeat(64), preprocess_id: 'p', block_id: 'b', markdown_span: { start: 0, end: 1 }, producer_observations: [{ occurrence_id: 'o', page_number: 1, producer_ref: '#/texts/1', bbox: { x0: 1, y0: 2, x1: 4, y1: 6 } }] }
     const occurrence = anchor.producer_observations[0]

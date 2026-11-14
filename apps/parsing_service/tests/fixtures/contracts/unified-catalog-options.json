@@ -109,6 +109,27 @@
       "nearby": true,
       "children": "pipelined",
       "complete_text": true
+    },
+    "11": {
+      "reserves": {
+        "discovery": 4096,
+        "entry": 4096,
+        "verification": 2048,
+        "arbitration": 512,
+        "document": 2048
+      },
+      "overlap": 3,
+      "headings": true,
+      "verification": false,
+      "splits": 6,
+      "windows": "budget",
+      "pipelined": true,
+      "entry_reply": "context",
+      "single_pass": true,
+      "nearby": true,
+      "children": "pipelined",
+      "complete_text": true,
+      "record_evidence": true
     }
   },
   "valid": [
@@ -126,11 +147,12 @@
     {"defaults": 1, "input_tokens": 512, "output_tokens": 64, "overlap": 0, "headings": false, "verification": false},
     {"defaults": 1, "input_tokens": 1048576, "output_tokens": 65536, "overlap": 4},
     {"defaults": 9},
-    {"defaults": 10}
+    {"defaults": 10},
+    {"defaults": 11}
   ],
   "invalid": [
     {},
-    {"defaults": 11},
+    {"defaults": 12},
     {"defaults": 7, "candidates": 0},
     {"defaults": 7, "candidates": 1025},
     {"defaults": 7, "candidates": 1.5},

@@ -140,12 +140,14 @@ export const UNIFIED_CATALOG_DEFAULTS = {
     single_pass: true, nearby: true, children: true, complete_text: true },
   10: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
     single_pass: true, nearby: true, children: 'pipelined', complete_text: true },
+  11: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
+    single_pass: true, nearby: true, children: 'pipelined', complete_text: true, record_evidence: true },
 } as const
-/** Version 10 reads as version 9 (native table-entry granularity, nested records, complete qualified text values) and
- *  saves each record while discovery still reads. */
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 10 as const
+/** Version 11 retains record attribution context and independently checks inherited fields against intervening source.
+ *  Local values keep version 10's single-pass behavior. */
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 11 as const
 /** Pro mode: an account preference with verification on is admitted under this version, whose verification call reads
- *  every value again and may correct it; the latest reads each value once. */
+ *  every value again and may correct it; the latest rechecks inherited headings only. */
 export const UNIFIED_CATALOG_PRO_VERSION = 5 as const
 
 /** The unified Catalog's six controls as the account saves them: each an override, absent for the defaults. */
@@ -161,7 +163,7 @@ export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceS
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
  *  and the overrides, so it stays identifiable when every control is left to the defaults. */
 export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.extend({
-  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
+  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10), z.literal(11)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
 const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const

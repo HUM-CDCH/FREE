@@ -81,6 +81,8 @@ def occurrence_reply(system, user, schema):
             answer[claim] = shape["enum"][0]
         else:
             answer[claim] = {"label": shape["properties"]["label"]["enum"][0], "attribution": True}
+            if "context" in shape["properties"]:
+                answer[claim]["context"] = []
             if "quote" in shape["properties"]:
                 answer[claim]["quote"] = "10"
     return answer

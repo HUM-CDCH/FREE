@@ -61,6 +61,7 @@ class Link:
     cell: str | None = None             # local cell identity within segment, only with measured geometry
     precision: str = "segment"
     location: dict | None = None        # Article only: the value's one printing, {spans: [{segment, start, end}], raw}
+    context: tuple[dict, ...] = ()      # source ranges needed to attribute the value to its record
 
 
 @dataclass(frozen=True)

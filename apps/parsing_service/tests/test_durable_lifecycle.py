@@ -14,6 +14,7 @@ from dbos import DBOSClient,WorkflowSerializationFormat
 
 from kei_exp.kie.passages import load
 from tests.helpers import catalogue
+from tests.helpers.chat import evidence_reply
 from tests.helpers.postgres import checked_conninfo
 from tests.test_durable_workflow_recovery import CHILD,until
 from tests.test_extract_grounded import honest
@@ -53,7 +54,7 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
                 if case['method']=='recipe':parsed=honest(system,user,schema)
                 elif case['method']=='unified':parsed=unified(system,user,schema)
                 elif 'record boundaries' in system:parsed={'starts':['B1','B2','B3'],'end':None}
-                elif '### Claims' in user:parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']}
+                elif '### Claims' in user:parsed=evidence_reply(schema,{key:'NONE' for key in schema['properties']})
                 else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
                 output={'choices':[{'message':{'content':'{' if number==failed_at else json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':counted,'completion_tokens':10}}
@@ -249,7 +250,7 @@ def test_queued_pause_starts_no_provider_call_and_releases_the_attempt_lane(tmp_
             else:
                 calls.append(body)
                 user=body['messages'][-1]['content'];schema=body['response_format']['json_schema']['schema']
-                parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']} if '### Claims' in user else {'name':'Hill'}
+                parsed=evidence_reply(schema,{key:'NONE' for key in schema['properties']}) if '### Claims' in user else {'name':'Hill'}
                 output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':100,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')

@@ -75,7 +75,7 @@ PROMPT_VERSION = 18
 # again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
 # `of` is asked as the shortest excerpt naming the work.
 # 17: resolution constrains its reply without showing its schema (RESOLUTION states the shape).
-ARTICLE_VERSION = 17
+ARTICLE_VERSION = 19  # share record-aware evidence across larger, reply-budgeted grounding batches
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -276,6 +276,10 @@ def link_json(link: Link) -> dict:
     dumped = {**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)}
     if link.location is None:
         del dumped["location"]
+    if not link.context:
+        del dumped["context"]
+    else:
+        dumped["context"] = list(link.context)
     return dumped
 
 

@@ -1,5 +1,6 @@
 """The stages over a scripted model: discovery, one record at a time, model verification of every claim, and
 the merge into one grounded artifact. Passages are built by hand; the parse-run projection has its own tests."""
+from tests.helpers.chat import evidence_reply
 import dataclasses
 import json
 from pathlib import Path
@@ -392,7 +393,7 @@ def test_document_fields_are_declared_unverified():
             return one_identity(schema)
         if "entry_no" in schema["properties"]:
             return {"entry_no": "31"}
-        return {"title": "Bauer 1988"} if "title" in schema["properties"] else {"C1": "E2"}
+        return {"title": "Bauer 1988"} if "title" in schema["properties"] else evidence_reply(schema, {"C1": "E2"})
     chat = FakeChat(script)
     result = extract_over(evidence(), request, chat)
     assert result["unverified"] == ["title"] and result["complete"] is True
@@ -442,7 +443,7 @@ def test_completeness_needs_every_call_ok_and_every_value_grounded():
             return {"entry_no": "31", "site": "Nowhere", "year": None, "finds": None}
         if "title" in schema["properties"]:
             return {"title": None}
-        return {label: "E2" if label == "C1" else "NONE" for label in schema["properties"]}
+        return evidence_reply(schema, {label: "E2" if label == "C1" else "NONE" for label in schema["properties"]})
     result = extract_over(evidence(), request, FakeChat(script))
     assert result["complete"] is False and ["records", 0, "site"] in result["ungrounded"]
     assert [link["segment"] for link in result["evidence"]] == ["p1_s1"]

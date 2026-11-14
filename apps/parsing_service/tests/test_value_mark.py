@@ -5,6 +5,7 @@ occupies [x + 6i, x + 6i + 6) at 10 pt: `assert_at` holds every box to that plac
 another line, fails), never to what pdfium reports. A Courier fi ligature is one glyph in one advance. reportlab is
 not installed in this service's dev environment, so the PDFs are written by hand (`write_pdf`).
 """
+from tests.helpers.chat import evidence_labels, evidence_reply
 import json
 import logging
 import zlib
@@ -424,7 +425,7 @@ def test_article_links_carry_their_value_marks_while_running_and_when_final(tmp_
 
     def answer(system, user, schema):
         if "### Claims" in user:
-            return {claim: shape["enum"][0] for claim, shape in schema["properties"].items()}
+            return evidence_reply(schema, {claim: evidence_labels(shape)[0] for claim, shape in schema["properties"].items()})
         return {"site": "Hill", "year": 1827}
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     with caplog.at_level(logging.INFO, logger="kei_exp.kie.extract.run"):

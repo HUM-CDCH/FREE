@@ -26,6 +26,7 @@ const linkSchema = z.object({
     .optional(),
   precision: z.enum(['cell', 'segment', 'input']).optional(),
   value_boxes_pt: z.array(valueBox).min(1).max(64).optional(),
+  context: z.array(span.strict().refine(each => each.start < each.end)).min(1).optional(),
 })
 /** One grounded value's evidence (version 1). An Article link may carry `location`: the value's unique printing in its
  *  selected candidate, as code-point spans and the printed text. */
@@ -66,6 +67,8 @@ export const evidenceAnchorIdOf = (link: { segment: string; cell?: string | null
 
 const valueBoxes = (link: { value_boxes_pt?: [number, number, number, number][] }) =>
   link.value_boxes_pt ? { valueBoxes: link.value_boxes_pt.map(([x0, y0, x1, y1]) => ({ x0, y0, x1, y1 })) } : {}
+const contextSpans = (link: { context?: z.infer<typeof span>[] }) =>
+  link.context ? { contextSpans: link.context } : {}
 
 /** A version 3 link as the Extraction keeps it: a located value with its spans (`VerifiedGrounding`). */
 export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string) {
@@ -76,6 +79,7 @@ export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>,
       precision: link.precision, raw: link.raw, itemSpans: link.item,
     },
     ...valueBoxes(link),
+    ...contextSpans(link),
   }
 }
 
@@ -89,6 +93,7 @@ export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidence
     // A display location only: never `grounding`, which names a version 2 or 3 rule and its review wording.
     ...(link.location ? { location: { textSpans: link.location.spans, raw: link.location.raw } } : {}),
     ...valueBoxes(link),
+    ...contextSpans(link),
   }
 }
 /** The recipe's rule attribution is independent of a verifier's support. */
@@ -105,5 +110,6 @@ export function groundedEvidenceLink(link: z.infer<typeof groundedEvidenceSchema
       },
     },
     ...valueBoxes(link),
+    ...contextSpans(link),
   }
 }

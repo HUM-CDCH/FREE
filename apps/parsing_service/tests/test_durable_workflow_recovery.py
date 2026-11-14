@@ -19,6 +19,7 @@ import pytest
 from dbos import DBOSClient, WorkflowSerializationFormat
 
 from tests.helpers import catalogue
+from tests.helpers.chat import evidence_reply
 from tests.helpers.postgres import checked_conninfo
 
 FIXTURE=os.environ.get('DURABLE_RECOVERY_FIXTURE')
@@ -105,7 +106,7 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
                     parsed={'starts':['B1','B2'],'end':None}
                 elif '### Claims' in user:
                     shape=body['response_format']['json_schema']['schema']
-                    parsed={key:{'label':'NONE','attribution':False} for key in shape['properties']}
+                    parsed=evidence_reply(shape,{key:'NONE' for key in shape['properties']})
                 else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
                 output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
                         'usage':{'prompt_tokens':counted,'completion_tokens':10}}
