@@ -43,7 +43,7 @@ def test_article_retains_separate_identity_evidence_and_rejects_unattested_or_in
     fields = {"authors": [{"name": "Author A", "institution": "Institute B"}]}
     for extra, attested, accepted in [(["E1"], True, True), (["E99"], True, False), (["E1"], False, False)]:
         def answer(system, user, reply_schema):
-            assert 'relationship to THIS record' in system and 'Author A' in user
+            assert 'attribute that value to THIS record' in system and 'Author A' in user
             return {"C1": {"label": "E2", "context": extra, "attribution": attested}}
         links, _, _ = grounding.verify(source, fields, schema, CountingChat(answer), record=0, projected=True,
                                        located=True, skip_paths=frozenset({("records", 0, "authors", 0, "name")}))
@@ -94,7 +94,7 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
     def answer(system, user, reply_schema):
         seen.append(user)
         assert user.index("Jail North") < user.index("Jail South") < user.index("### RECORD")
-        assert 'supersedes' in system
+        assert 'replaces an earlier value only when it changes the same field' in system
         assert ' = "North"' not in user  # the independent reading cannot copy the candidate
         return {"C1": reading}
     chat = as_router(CountingChat(answer))
