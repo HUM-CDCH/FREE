@@ -240,7 +240,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   `options.article` holds its research settings. Version 19 grounds up to 16 claims
   per call, retaining primary evidence and the context establishing record attribution.
   Complete structured replies are budgeted before admission; oversized batches split
-  without truncating source evidence. An unanswered claim remains incomplete.
+  without truncating source evidence. Unanswered claims and malformed context replies
+  remain incomplete; an explicit negative attribution is a completed rejection.
   A Catalog without
   `options.catalog` or `options.unified` runs generic discovery (result
   version 1). `options.catalog = {recipe, input_tokens?, output_tokens?,
@@ -335,7 +336,12 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   keep defaults 10's single pass. Inherited scalar headings require an independent
   reading without the candidate value, using intervening source to expose superseded
   headings; only an equal, source-located reading receives Evidence. This check never
-  substitutes a different candidate value. Earlier admissions keep their defaults.
+  substitutes a different candidate value. Only the record's own text or its admitted
+  context can supply the supporting quote: intervening records are shown to judge
+  supersession, not to supply inherited values. Following shared table qualifications
+  remain available, and children retain their enclosing record's context even with
+  ordinary headings disabled. Arbitration includes the inherited source spans.
+  Earlier admissions keep their defaults.
   Studio admits defaults 11 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
