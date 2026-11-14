@@ -261,6 +261,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     const stopped=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
     expect(stopped.status).toBe('STOPPED')
     expect((await page.request.post(`/api/extractions/${id}/durable/control`,{data:{id:randomUUID(),expectedVersion:stopped.controlVersion,action:'resume'},headers:{Origin:new URL(page.url()).origin}})).status()).toBe(409)
+    await openRailView(page,'Results')
     await page.getByRole('button',{name:'All',exact:true}).click()
     await expect(page.getByText('Corrected without Evidence',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'More result actions'}).click()
