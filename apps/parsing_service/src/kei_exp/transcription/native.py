@@ -32,6 +32,7 @@ from kei_exp.regions import Crop
 from kei_exp.transcription.types import TRANSCRIBER_KNOBS, ConversionError, Execution, OcrRegion, PageRecord, Transcription
 from kei_exp.transcription.tables import table_of_html
 from kei_exp.transcription.native_tables import align_native_table
+from kei_exp.transcription.native_pdf import visible_text_source
 
 
 def native_regions(path: Path, pages: tuple[int, int] | None = None, *,
@@ -227,7 +228,17 @@ class NativePageAssembly(PageAssembleModel):
                                if any(c.id != other.id and c.bbox.overlaps(other.bbox) for other in paragraphs)}
                 next_id = max((c.id for c in clusters), default=0) + 1
                 repaired = []
+                owned = {cell.index for c in clusters if c.label != DocItemLabel.PICTURE for cell in c.cells}
                 for cluster in clusters:
+                    if cluster.label == DocItemLabel.PICTURE:
+                        # Layout can absorb visible prose into a figure; PictureItem drops those native cells.
+                        for cell in cluster.cells:
+                            if cell.index not in owned:
+                                repaired.append(Cluster(id=next_id, label=DocItemLabel.TEXT,
+                                    confidence=cluster.confidence, cells=[cell],
+                                    bbox=cell.rect.to_bounding_box().to_top_left_origin(page.size.height)))
+                                owned.add(cell.index)
+                                next_id += 1
                     if cluster.id not in interleaved or not cluster.cells:
                         repaired.append(cluster)
                         continue
@@ -438,7 +449,8 @@ class NativeText:
         emit({"type": "log", "text": "Embedded PDF text found; extracting without OCR."})
         pages = execution.pages
         emit({"type": "phase", "name": "native", "total": pages[1] - pages[0] + 1 if pages else None})
-        result = converter.convert(execution.pdf, raises_on_error=False, page_range=pages or DEFAULT_PAGE_RANGE)
+        result = converter.convert(visible_text_source(execution.pdf), raises_on_error=False,
+                                   page_range=pages or DEFAULT_PAGE_RANGE)
         document = result.document
         # Without formula recognition Docling leaves native formula characters in orig and exports a placeholder.
         # Preserve those characters as text; they are not decoded LaTeX.
