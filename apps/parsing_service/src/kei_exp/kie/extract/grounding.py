@@ -271,7 +271,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     retry: list[str] = []
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
-    batch_size = 4 if quoted else 32 if bundled or span_ids else len(claim_ids)
+    # shortcut: 48 claims preserves measured attribution; lift the ceiling only after larger batches pass the same checks.
+    batch_size = 4 if quoted else 48 if bundled else 32 if span_ids else len(claim_ids)
     batches = [claim_ids[n:n + batch_size] for n in range(0, len(claim_ids), batch_size)]
     # Every batch shows the whole record, so a claim split away from the fields that identify its record is not
     # verified blind; the budget below counts these lines like the rest of the request.

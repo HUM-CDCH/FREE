@@ -237,7 +237,7 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   Article whose root no value context answered (`article_root_unanswered: ...`)
   rather than retain an all-null root.
 - Article extracts the document as one object, which may contain arrays;
-  `options.article` holds its research settings. Version 19 grounds up to 16 claims
+  `options.article` holds its research settings. Version 20 grounds up to 48 claims
   per call, retaining primary evidence and the context establishing record attribution.
   Complete structured replies are budgeted before admission; oversized batches split
   without truncating source evidence. Unanswered claims and malformed context replies

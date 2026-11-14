@@ -1178,7 +1178,7 @@ class _Run:
         if independent:
             nodes = {path: node for path, node in nodes.items() if path in inherited}
         prompt = VERIFY_RECORD if independent else VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
-            if self.effective.get("heading_context") or self.effective.get("record_evidence") else VERIFY
+            if self.effective.get("heading_context") else VERIFY
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (

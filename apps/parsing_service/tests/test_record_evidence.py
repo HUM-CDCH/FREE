@@ -15,7 +15,7 @@ from tests.test_unified_catalog import candidate, evidence, extract, Model, PART
 
 def test_record_evidence_shares_the_source_but_reserves_the_complete_reply():
     import json
-    fields = {f"field{n}": f"value{n}" for n in range(32)}
+    fields = {f"field{n}": f"value{n}" for n in range(48)}
     schema = Schema.model_validate({"recordDescription": "One record", "schemaNodes": [
         {"id": key, "name": key, "type": "string"} for key in fields]})
     source = passages([" ".join(fields.values())] + ["Other source"] * 1000)
@@ -28,7 +28,7 @@ def test_record_evidence_shares_the_source_but_reserves_the_complete_reply():
         return {key: {"label": "E1", "context": [], "attribution": True} for key in reply_schema["properties"]}
     links, calls, issues = grounding.verify(source, fields, schema, Chat(answer), record=0, projected=True,
                                             counter=WordCounter())
-    assert len(calls) == len(seen) == 1 and len(links) == 32 and not issues
+    assert len(calls) == len(seen) == 1 and len(links) == 48 and not issues
     longest = {key: {"label": "E1001", "context": ["E1001"] * 8, "attribution": False}
                for key in seen[0]["schema"]["properties"]}
     assert seen[0]["max_tokens"] >= len(json.dumps(longest).encode("utf-8")) > 2048

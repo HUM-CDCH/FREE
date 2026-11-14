@@ -75,7 +75,9 @@ PROMPT_VERSION = 18
 # again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
 # `of` is asked as the shortest excerpt naming the work.
 # 17: resolution constrains its reply without showing its schema (RESOLUTION states the shape).
-ARTICLE_VERSION = 19  # share record-aware evidence across larger, reply-budgeted grounding batches
+# 18: retain model-selected attribution context beside the primary evidence.
+# 19: reserve the complete structured reply and share evidence across up to 16 claims.
+ARTICLE_VERSION = 20  # share evidence across larger batches within the input and reply budgets
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
