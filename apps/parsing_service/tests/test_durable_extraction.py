@@ -3,6 +3,7 @@
 This tier uses an in-memory implementation of the coordination contract and
 scripted providers. PostgreSQL fencing and process recovery have separate tiers.
 """
+from tests.helpers.chat import evidence_labels, evidence_reply
 from copy import deepcopy
 from dataclasses import asdict
 from uuid import uuid4
@@ -381,7 +382,7 @@ def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():
     request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article"})
     def answer(system,user,schema):
         if "### Claims" in user:
-            return {claim:shape["enum"][0] for claim,shape in schema["properties"].items()}
+            return evidence_reply(schema, {claim:evidence_labels(shape)[0] for claim,shape in schema["properties"].items()})
         return {"site":"Hill","year":1827}
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     finish(lease,CountingChat(answer),lambda router,counter: run.dispatch(None,source,request,router,counter={"fields":counter,"reasoning":counter}))
@@ -400,7 +401,7 @@ def test_an_article_attempt_an_older_worker_left_is_recovered_with_located_links
     request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article"})
     def answer(system,user,schema):
         if "### Claims" in user:
-            return {claim:shape["enum"][0] for claim,shape in schema["properties"].items()}
+            return evidence_reply(schema, {claim:evidence_labels(shape)[0] for claim,shape in schema["properties"].items()})
         return {"site":"Hill","year":1827}
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     chat=CountingChat(answer)

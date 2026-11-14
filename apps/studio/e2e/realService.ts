@@ -157,8 +157,12 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
-        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
-          [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE']))
+        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) => {
+          const label = evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE'
+          const heading = evidence.find(([, , text]) => text.includes('Site catalogue'))?.[1]
+          return [claim, properties[claim]?.properties?.context
+            ? { label, context: heading && heading !== label && label !== 'NONE' ? [heading] : [], attribution: label !== 'NONE' } : label]
+        }))
       } else throw new Error(`Unexpected model template: ${JSON.stringify(properties)}`)
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })

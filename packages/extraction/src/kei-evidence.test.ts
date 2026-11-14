@@ -7,6 +7,19 @@ import {
 const plain = { path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: null, verbatim: true, linked_by: 'lexical' as const }
 const span = { segment: 'p1_s0', start: 4, end: 8 }
 
+test('record attribution context survives producer decoding and projection separately from value spans', () => {
+  const context = [{ segment: 'p2_s0', start: 0, end: 24 }]
+  const decoded = evidenceSchema.parse({ ...plain, context })
+  assert.deepEqual(plainEvidenceLink(decoded, 'a_p1_s0').contextSpans, context)
+  const unified = unifiedEvidenceSchema.parse({ ...plain, context, support: 'literal', spans: [span],
+    alternatives: [], precision: 'segment', raw: 'Book', item: null })
+  const link = unifiedEvidenceLink(unified, 'a_p1_s0')
+  assert.deepEqual(link.contextSpans, context)
+  assert.deepEqual(link.grounding.textSpans, [span])
+  assert.equal(evidenceSchema.safeParse({ ...plain, context: [{ ...span, start: 8 }] }).success, false)
+  assert.equal(evidenceSchema.safeParse({ ...plain, context: [{ ...span, segment: 'invented' }] }).success, false)
+})
+
 test('a producer link names its segment anchor, or its cell anchor inside a table', () => {
   assert.equal(evidenceAnchorIdOf(plain), 'a_p1_s0')
   assert.equal(evidenceAnchorIdOf({ ...plain, cell: 'r1_c2' }), 'a_p1_s0_r1_c2')

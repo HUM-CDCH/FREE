@@ -15,13 +15,20 @@ export function anchorOccurrences(anchor: ParsedEvidenceAnchor): EvidenceOccurre
 /** A continued value keeps its primary precision and locates its other source segments by their canonical anchors. */
 export function sourceEvidenceLinks(link: EvidenceLink, anchors: ReadonlySet<string>): EvidenceLink[] {
   const links = [link]
-  if (link.precision === 'input') return links
+  if (link.precision === 'input' && !link.contextSpans?.length) return links
   for (const { segment } of link.grounding?.textSpans ?? []) {
     const id = `a_${segment}`
     // A primary cell already locates this segment more precisely; keep it alone.
     if (link.evidenceAnchorId === id || link.evidenceAnchorId.startsWith(`${id}_`) || !anchors.has(id)
       || links.some(each => each.evidenceAnchorId === id)) continue
     links.push({ ...link, evidenceAnchorId: id, precision: 'segment' })
+  }
+  for (const { segment } of link.contextSpans ?? []) {
+    const id = `a_${segment}`
+    if (!anchors.has(id) || links.some(each => each.evidenceAnchorId === id)) continue
+    // Context locates attribution; the primary value's highlights do not belong on it.
+    links.push({ ...link, evidenceAnchorId: id, precision: 'segment', valueBoxes: undefined,
+      location: undefined, grounding: undefined })
   }
   return links
 }
