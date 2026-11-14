@@ -821,7 +821,9 @@ VERIFY_RECORD = (
     "Read the source independently for one record. A record is: {description}\n{notes}\n"
     "For each requested field whose answer is an object, return its value for THIS RECORD and an exact source quote, or null if "
     "unknown. Read the field's meaning, not just a matching word. CONTEXT contains surrounding source, including "
-    "other records: only an applicable shared heading may supply a value from it. Follow headings in source order; "
+    "other records: only an applicable shared heading or an explicitly shared table qualification may supply a value "
+    "from it. When CONTEXT names the enclosing record, a scalar may inherit what is stated for that whole record or "
+    "a group containing this child, never what belongs only to its parent or another subject. Follow headings in source order; "
     "a later applicable heading supersedes an earlier one, even when written as a continuation or pronoun. "
     "A new group heading after this subject starts subsequent records; it does not apply retroactively. "
     "A place associated with an owner, author, supplier or other related person is not automatically the subject's "
@@ -1054,17 +1056,20 @@ class _Run:
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
         if self.effective.get("record_evidence"):
             replies = self._record_evidence(entry, replies, out, view)
-        if heading_context:
+        if heading_context and not self.effective.get("record_evidence"):
             self._incomplete(replies, out)
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
-        self._verify(number, replies, out, parent=parent)
-        if heading_context:
+        self._verify(number, replies, out, parent=parent, context=heading)
+        if heading_context or self.effective.get("record_evidence"):
             order = {segment: index for index, segment in enumerate(self.texts)}
             shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
                                    key=lambda unit: (order[unit.segment], unit.start, unit.end))
-            view = _view([*shown_heading, *units], self.texts)
+            shown = [*shown_heading, *units]
+            if self.effective.get("record_evidence"):
+                shown = sorted(set(shown), key=lambda unit: (order[unit.segment], unit.start, unit.end))
+            view = _view(shown, self.texts)
         out.contest = self._settle(number, out, view)
         if not single:
             _renumbered(out.found)
@@ -1087,14 +1092,20 @@ class _Run:
         """Keep candidates fixed; include intervening source so a misassigned heading cannot hide supersession."""
         units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["ranges"]]
         first = units[0]
-        order = list(self.texts)
-        start = min([order.index(first.segment), *(order.index(each["segment"]) for each in entry["context"])])
-        heading = tuple(Unit(segment, 0, first.start if segment == first.segment else len(self.texts[segment]))
-                        for segment in order[start:order.index(first.segment) + 1]
-                        if segment != first.segment or first.start)
-        if not self.effective["headings"]:
-            heading = ()
-        context = _view(list(heading), self.texts) if heading else None
+        order = {segment: index for index, segment in enumerate(self.texts)}
+        parent = entry.get("parent") is not None
+        admitted = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"]) \
+            if self.effective["headings"] or parent else ()
+        heading = admitted
+        prior = [unit for unit in admitted if (order[unit.segment], unit.start) < (order[first.segment], first.start)]
+        if prior and not parent:
+            earliest = min(prior, key=lambda unit: (order[unit.segment], unit.start))
+            # Intervening records expose supersession; only admitted context may ground an inherited quote.
+            heading = tuple(Unit(segment, earliest.start if segment == earliest.segment else 0,
+                                 first.start if segment == first.segment else len(self.texts[segment]))
+                            for segment in self.texts if order[earliest.segment] <= order[segment] <= order[first.segment]
+                            and (segment != first.segment or first.start)) + tuple(unit for unit in admitted if unit not in prior)
+        context = _view(list(admitted), self.texts) if admitted else None
         nodes = {}
         def scalars(children, path=()):
             for node in children:
@@ -1136,7 +1147,7 @@ class _Run:
                     found.kind, found.reason = "proposed", "context_incomplete"
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                parent: bool = False) -> None:
+                parent: bool = False, context: tuple[Unit, ...] = ()) -> None:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
         independent = self.effective.get("record_evidence", False)
         # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
@@ -1200,7 +1211,7 @@ class _Run:
                         # Locate only in this request's source; independent heading reads may use its context.
                         view = _view([*window.before, *window.primary, *window.after], self.texts)
                         checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False,
-                            context=_view(list(window.heading), self.texts) if independent and window.heading else None)
+                            context=_view(list(context), self.texts) if independent and context else None)
                         if isinstance(value, dict) and "value" in value and value["value"] is None:
                             # A null quoting the candidate's own printed value contradicts itself: left for review.
                             quote = value.get("quote")

@@ -373,12 +373,17 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                     issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
                     continue
                 extra = reply.get("context")
-                if ((reply.get("attribution") is not (label != NONE)) or not isinstance(extra, list) or len(extra) > 8
-                        or any(not isinstance(each, str) or each not in shown for each in extra)):
+                if not isinstance(reply.get("attribution"), bool) or not isinstance(extra, list) or len(extra) > 8:
+                    issues.append(Issue("missing_claim", f"{claim}: incomplete record evidence", record, path))
+                    continue
+                if any(not isinstance(each, str) or each not in shown for each in extra):
+                    issues.append(Issue("unknown_label", f"{claim}: context label was not offered", record, path))
+                    continue
+                if reply["attribution"] is not (label != NONE):
                     if claim in fallback:
                         retry.append(claim)
                     else:
-                        issues.append(Issue("unsupported_attribution", f"{claim}: incomplete record evidence", record, path))
+                        issues.append(Issue("unsupported_attribution", f"{claim}: source support was not attested", record, path))
                     continue
                 context = tuple({"segment": labelled[each].passage.id,
                                  "start": labelled[each].cell.start if labelled[each].cell else 0,

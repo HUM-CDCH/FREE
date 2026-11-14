@@ -61,6 +61,26 @@ def test_unanswered_record_claim_remains_incomplete(reply):
     assert [(issue.code, issue.path) for issue in issues] == [("missing_claim", ("records", 0, "name"))]
 
 
+@pytest.mark.parametrize("reply,reason", [
+    ({"label": "E1", "attribution": True}, "missing_claim"),
+    ({"label": "E1", "context": []}, "missing_claim"),
+    ({"label": "E1", "context": [], "attribution": 1}, "missing_claim"),
+    ({"label": "E1", "context": ["E1"] * 9, "attribution": True}, "missing_claim"),
+    ({"label": "E1", "context": ["E99"], "attribution": True}, "unknown_label"),
+    ({"label": "E1", "context": [], "attribution": False}, None),
+])
+def test_article_context_reply_distinguishes_incomplete_checks_from_rejections(reply, reason):
+    from kei_exp.kie.extract.assembly import grounding_accounting
+    schema = Schema.model_validate({"recordDescription": "One record", "schemaNodes": [
+        {"id": "n", "name": "name", "type": "string"}]})
+    links, _, issues = grounding.verify(passages(["Name A"]), {"name": "Name A"}, schema,
+                                       CountingChat(lambda *_: {"C1": reply}), record=0, projected=True)
+    assert not links
+    result = grounding_accounting({("records", 0, "name")}, set(), issues)
+    assert (result["not_completed"], result["unsupported"]) == ((1, 0) if reason else (0, 1))
+    assert result["reasons"] == ({reason: 1} if reason else {})
+
+
 @pytest.mark.parametrize("reading,accepted", [(candidate("North", "Jail North"), True),
                                               (candidate("South", "Jail South"), False), (None, False)])
 def test_heading_recovery_checks_intervening_source_even_when_discovery_misassigns_it(reading, accepted):
@@ -87,7 +107,8 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
     work = unified._Work(found=[unified._Found(("jail",), "North", "Jail North", 0,
                                                kind="rejected", reason="quote_not_in_source")])
     replies = runner._record_evidence(entry, [(Window(tuple(units)), {})], work, unified._view(units, runner.texts))
-    runner._verify(0, replies, work)
+    runner._verify(0, replies, work, context=tuple(Unit(each["segment"], each["start"], each["end"])
+                                                for each in entry["context"]))
     assert seen and (work.found[0].kind == "accepted") == accepted
     assert work.found[0].value == "North"
     if accepted:
@@ -107,3 +128,91 @@ def test_new_catalog_defaults_run_attachment_through_the_real_entry_path():
     assert result["records"] == [{"region": "Moor"}]
     assert result["evidence"][0]["context"] == result["discovery"]["entries"][0]["ranges"]
     assert result["evidence"][0]["linked_by"] == "verification"
+
+
+def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="region"):
+    schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
+        {"id": "r", "name": field, "type": "string"}]})
+    chat = as_router(CountingChat(answer))
+    counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
+    effective = unified._execution(source, schema, unified.UnifiedOptions(defaults=11, headings=headings),
+                                   chat, counters)["effective"]
+    runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]),
+                         {p.id: p.text for p in source.passages}, effective)
+    monkeypatch.setattr(runner, "_read", lambda *args, **kwargs: reads)
+    return runner
+
+
+@pytest.mark.parametrize("context", [False, True], ids=["no-admitted-heading", "intervening-record"])
+def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agrees(monkeypatch, context):
+    text = "Group North\n1. Owner lives in West.\n2. Second."
+    start = text.index("2.")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}] if context else []}
+    window = Window((Unit("p1_s0", start, len(text)),))
+    wrong = candidate("West", "Owner lives in West")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        return {"C1": wrong}
+    runner = record_runner(monkeypatch, evidence(text), [(window, {"region": wrong})], answer)
+    work = runner.entry(0, entry)
+    assert seen and not any(found.kind == "accepted" for found in work.found)
+    assert all(found.value == "West" for found in work.found)
+    assert ("Owner lives in West" in seen[0]) == context  # intervening text is for judging supersession only
+
+
+@pytest.mark.parametrize("reading,accepted", [(candidate("metres", "Units: metres"), True),
+                                              (candidate("feet", "Units: feet"), False)])
+def test_following_shared_table_qualification_remains_available(monkeypatch, reading, accepted):
+    source = evidence("1. Sample.", "Units: metres")
+    entry = {"ranges": [{"segment": "p1_s0", "start": 0, "end": 10}],
+             "context": [{"segment": "p2_s0", "start": 0, "end": 13}]}
+    window = Window((Unit("p1_s0", 0, 10),), heading=(Unit("p2_s0", 0, 13),))
+    def answer(system, user, schema):
+        assert "Units: metres" in user
+        return {"C1": reading}
+    runner = record_runner(monkeypatch, source,
+                           [(window, {"unit": candidate("metres", "Units: metres")})], answer, field="unit")
+    work = runner.entry(0, entry)
+    assert any(found.kind == "accepted" for found in work.found) == accepted
+    assert all(found.value == "metres" for found in work.found)
+
+
+@pytest.mark.parametrize("headings", [False, True])
+def test_child_keeps_only_its_parent_context_including_text_after_it(monkeypatch, headings):
+    text = "Earlier unrelated West.\nGrave North.\n1. Bead.\nAll finds: gold."
+    start, end = text.index("1."), text.index("\nAll")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": end}], "parent": 0,
+             "context": [{"segment": "p1_s0", "start": text.index("Grave"), "end": start},
+                         {"segment": "p1_s0", "start": end + 1, "end": len(text)}]}
+    window = Window((Unit("p1_s0", start, end),),
+                    heading=tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"]))
+    def answer(system, user, schema):
+        assert "Earlier unrelated West" not in user
+        assert "All finds: gold" in user and "Grave North" in user
+        return {"C1": candidate("gold", "All finds: gold")}
+    runner = record_runner(monkeypatch, evidence(text),
+                           [(window, {"material": candidate("gold", "All finds: gold")})], answer,
+                           headings=headings, field="material")
+    work = runner.entry(0, entry)
+    assert work.record == {"material": "gold"} and work.found[0].verified
+
+
+def test_disagreeing_inherited_values_reach_arbitration_with_their_source(monkeypatch):
+    text = "Group North\nGroup South\n1. First part.\nContinued."
+    start, middle = text.index("1."), text.index("Continued")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": start}]}
+    reads = [(Window((Unit("p1_s0", a, b),)), {"region": candidate(value, f"Group {value}")})
+             for a, b, value in [(start, middle, "North"), (middle, len(text), "South")]]
+    def answer(system, user, schema):
+        if "choice" in schema["properties"]:
+            assert "Group North" in user and "Group South" in user
+            return {"choice": "NONE"}
+        value = "North" if "### RECORD\n1." in user else "South"
+        return {"C1": candidate(value, f"Group {value}")}
+    runner = record_runner(monkeypatch, evidence(text), reads, answer)
+    work = runner.entry(0, entry)
+    assert work.contest[0]["outcome"] == "unresolved"
+    assert not any(found.kind == "accepted" for found in work.found)
