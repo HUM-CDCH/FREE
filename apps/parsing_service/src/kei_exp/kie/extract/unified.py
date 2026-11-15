@@ -35,7 +35,7 @@ import json
 import threading
 import time
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -530,6 +530,15 @@ def candidates_schema(nodes: list[Node]) -> dict:
     """The reply schema of an entry or document call: a `{value, quote}` candidate or null at every scalar."""
     return {"type": "object", "properties": {node.name: _candidate(node) for node in nodes},
             "required": [node.name for node in nodes], "additionalProperties": False}
+
+
+def _scalar_nodes(nodes: Sequence[Node], path: tuple = ()) -> Iterator[tuple[tuple, Node]]:
+    for node in nodes:
+        key = (*path, node.name)
+        if node.type == "object":
+            yield from _scalar_nodes(node.children or [], key)
+        elif node.type != "array":
+            yield key, node
 
 
 def _candidate(node: Node) -> dict:
@@ -1107,15 +1116,7 @@ class _Run:
                             for segment in self.texts if order[earliest.segment] <= order[segment] <= order[first.segment]
                             and (segment != first.segment or first.start)) + tuple(unit for unit in admitted if unit not in prior)
         context = _view(list(admitted), self.texts) if admitted else None
-        nodes = {}
-        def scalars(children, path=()):
-            for node in children:
-                key = (*path, node.name)
-                if node.type == "object":
-                    scalars(node.children or [], key)
-                elif node.type != "array":
-                    nodes[key] = node
-        scalars(self.nodes)
+        nodes = dict(_scalar_nodes(self.nodes))
         for index, found in enumerate(out.found):
             if found.reason in UNCITED and found.path in nodes and context is not None:
                 recovered = _Checker(view, (0, len(view.text)), found.window, self.nodes, self.tables,
@@ -1166,15 +1167,9 @@ class _Run:
                     ("proposed", "verification_disabled")
         # Corrections address scalar fields; changing a list item would require rediscovering its identity.
         nodes = {}
-        def scalars(children, path=()):
-            for node in children:
-                key = (*path, node.name)
-                if node.type == "object":
-                    scalars(node.children or [], key)
-                elif node.type != "array" and evidence_policy(self.nodes, key) == "quoted":
-                    nodes[key] = node
         if independent or self.effective.get("corrections") and self.effective["verification"]:
-            scalars(self.nodes)
+            nodes = {path: node for path, node in _scalar_nodes(self.nodes)
+                     if evidence_policy(self.nodes, path) == "quoted"}
         if independent:
             nodes = {path: node for path, node in nodes.items() if path in inherited}
         prompt = VERIFY_RECORD if independent else VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
