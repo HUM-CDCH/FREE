@@ -438,12 +438,15 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 
 def _continuation(passages: Sequence[Passage], broken: Passage) -> Passage | None:
     """The passage finishing the word `broken` splits at its end (`signifi-`, then `cantly`): the next one starting in
-    lower case, on its page or the following, with only page headers and footers between. Text flow, not meaning:
-    evidence cut inside a word is cited whole, and no other content or heading is crossed to find its end."""
+    lower case, on its page or the following, with only page headers, footers and a parser's reprint of `broken`
+    between. Text flow, not meaning: evidence cut inside a word is cited whole, and no other content or heading is
+    crossed to find its end."""
     # shortcut: only an ASCII hyphen marks the break; add the other hyphen characters when a parser emits them.
     if not re.search(r"[^\W\d]-$", broken.text.rstrip()):
         return None
-    after = next((each for each in passages[passages.index(broken) + 1:] if each.label not in FURNITURE), None)
+    opening = broken.text[:len(broken.text) // 2]  # a block printing it again across the page turn is no new content
+    after = next((each for each in passages[passages.index(broken) + 1:]
+                  if each.label not in FURNITURE and opening not in each.text), None)
     if after is None or after.label in HEADINGS or after.page > broken.page + 1 or not after.text.lstrip()[:1].islower():
         return None
     return after
