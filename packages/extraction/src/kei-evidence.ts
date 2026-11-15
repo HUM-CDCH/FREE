@@ -110,6 +110,5 @@ export function groundedEvidenceLink(link: z.infer<typeof groundedEvidenceSchema
       },
     },
     ...valueBoxes(link),
-    ...contextSpans(link),
   }
 }

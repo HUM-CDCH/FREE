@@ -308,26 +308,16 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             passages={candidate.passage.id: candidate.passage for candidate in candidates})
         # The instruction states the reply's shape and the evidence lists the labels: constrained, not shown, since
         # showing every claim's label enum grew each request by claims x labels and halved batches.
-        reply_schema = {"type": "object", "properties": {
-            claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
-            "required": batch, "additionalProperties": False, "x-free-hidden": True}
-        if bundled:
-            reply_schema["properties"] = {claim: {"type": "object", "properties": {
-                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
-                "context": {"type": "array", "items": {"type": "string", "enum": [label for label in labelled if label in shown]}, "maxItems": 8},
-                "attribution": {"type": "boolean"}}, "required": ["label", "context", "attribution"],
-                "additionalProperties": False} for claim in batch}
-        elif quoted:
-            reply_schema["properties"] = {claim: {"type": "object", "properties": {
-                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
-                "quote": {"type": "string", "maxLength": 500},
-                "attribution": {"type": "boolean"}}, "required": ["label", "quote", "attribution"],
-                "additionalProperties": False} for claim in batch}
-        elif span_ids:
-            reply_schema["properties"] = {claim: {"type": "object", "properties": {
-                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
-                "attribution": {"type": "boolean"}}, "required": ["label", "attribution"],
-                "additionalProperties": False} for claim in batch}
+        chosen = {claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch}
+        if bundled or quoted or span_ids:  # an object per claim: its label, what the technique adds, its attribution
+            more = {"context": {"type": "array", "items": {"type": "string", "enum": [
+                label for label in labelled if label in shown]}, "maxItems": 8}} if bundled else \
+                {"quote": {"type": "string", "maxLength": 500}} if quoted else {}
+            chosen = {claim: {"type": "object", "properties": {"label": label, **more, "attribution": {"type": "boolean"}},
+                              "required": ["label", *more, "attribution"], "additionalProperties": False}
+                      for claim, label in chosen.items()}
+        reply_schema = {"type": "object", "properties": chosen, "required": batch, "additionalProperties": False,
+                        "x-free-hidden": True}
         reserve = 2048
         if bundled:
             longest = max(shown, key=len, default=NONE)
@@ -371,12 +361,9 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             context = ()
             if bundled:
                 reply = label if isinstance(label, dict) else {}
-                label = reply.get("label")
-                if label is None:
-                    issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
-                    continue
-                extra = reply.get("context")
-                if not isinstance(reply.get("attribution"), bool) or not isinstance(extra, list) or len(extra) > 8:
+                label, extra = reply.get("label"), reply.get("context")
+                if label is None or not isinstance(reply.get("attribution"), bool) or not isinstance(extra, list) \
+                        or len(extra) > 8:
                     issues.append(Issue("missing_claim", f"{claim}: incomplete record evidence", record, path))
                     continue
                 if any(not isinstance(each, str) or each not in shown for each in extra):
