@@ -158,15 +158,15 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       } else if ('site' in properties) {
         if (records.length !== 1) throw new Error(`Record extraction received ${records.length} records: ${prompt}`)
         answer = records[0]
-      } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
+      } else if (Object.keys(properties).every(key => /^[CG]\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
-        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) => {
-          const label = evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE'
-          const heading = evidence.find(([, , text]) => text.includes('Site catalogue'))?.[1]
-          return [claim, properties[claim]?.properties?.context
-            ? { label, context: heading && heading !== label && label !== 'NONE' ? [heading] : [], attribution: label !== 'NONE' } : label]
-        }))
+        const heading = evidence.find(([, , text]) => text.includes('Site catalogue'))?.[1]
+        // Article asks each list item's attribution context once (G keys); a claim (C keys) answers with its label.
+        answer = Object.fromEntries([
+          ...Object.keys(properties).filter(key => key.startsWith('G')).map(group => [group, heading ? [heading] : []]),
+          ...claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
+            [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE'])])
       } else throw new Error(`Unexpected model template: ${JSON.stringify(properties)}`)
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })

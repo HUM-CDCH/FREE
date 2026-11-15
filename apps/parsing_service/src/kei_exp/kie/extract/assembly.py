@@ -77,7 +77,10 @@ PROMPT_VERSION = 18
 # 17: resolution constrains its reply without showing its schema (RESOLUTION states the shape).
 # 18: retain model-selected attribution context beside the primary evidence.
 # 19: reserve the complete structured reply and share evidence across up to 16 claims.
-ARTICLE_VERSION = 20  # share evidence across the claims that fit the input and reply budgets
+# 20: share evidence across the claims that fit the input and reply budgets.
+# 21: a claim answers with its label alone; the context attributing a list item or object is asked once for its
+# claims, and evidence a page end cuts mid-sentence is cited with the text that finishes it.
+ARTICLE_VERSION = 21
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

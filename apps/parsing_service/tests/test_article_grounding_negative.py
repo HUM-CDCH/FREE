@@ -20,7 +20,7 @@ from kei_exp.kie.extract.routing import verify_routed
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import leaves
 from kei_exp.pagefile import PageTable, TableCell
-from tests.test_article_grounding_scale import SCHEMA, labelling
+from tests.test_article_grounding_scale import SCHEMA, labelling, no_context
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import passages
 
@@ -61,9 +61,7 @@ def ground(fields: dict, source, path: tuple, script, schema: Schema = SCHEMA):
 
     def recording(system, user, reply_schema):
         users.append(user)
-        answer = script(system, user, reply_schema)
-        return {claim: {"label": label, "context": [], "attribution": label != "NONE"}
-                if isinstance(label, str) else label for claim, label in answer.items()}
+        return no_context(reply_schema) | script(system, user, reply_schema)
     links, _, issues = grounding.semantic(source, fields, schema, CountingChat(recording), record=0,
         counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}", projected=True,
         skip_paths=frozenset(every - {("records", 0, *path)}))
@@ -110,7 +108,7 @@ def claim(user: str) -> tuple[str, str, str]:
 
 def within(user: str) -> str:
     """The claim's enclosing item fields, as the request shows them."""
-    return re.findall(r"^Within [^:]+: (.*)$", claims_part(user), re.MULTILINE)[-1]
+    return re.findall(r"^G\d+ Within [^:]+: (.*)$", claims_part(user), re.MULTILINE)[-1]
 
 
 def table_item(n: int, **values) -> dict:
@@ -139,7 +137,7 @@ def test_a_value_shown_only_in_the_prompt_is_not_source_evidence():
         """Answers the first offered label other than NONE whenever the claim's value appears anywhere in the request
         (the claim line included): a stand-in for a model that trusts the prompt instead of the evidence."""
         label, _, value = claim(user)
-        options = [option for option in schema["properties"][label]["properties"]["label"]["enum"] if option != "NONE"]
+        options = [option for option in schema["properties"][label]["enum"] if option != "NONE"]
         return {label: options[0] if value in user else "NONE"}
     (link,), issues, _ = ground(fields, source, path, trusting_the_prompt)
     assert link.path == ("records", 0, *path) and link.segment == "p1_s0"
@@ -158,7 +156,7 @@ def header_aware(system, user, schema):
     label, field, value = claim(user)
     cells, shown = offered_cells(user), context(user)
     headers = {cell["column"]: cell["text"] for cell in shown.values() if cell["role"] == "column_header"}
-    for option in schema["properties"][label]["properties"]["label"]["enum"]:
+    for option in schema["properties"][label]["enum"]:
         if option in cells and headers.get(shown[cells[option][0]]["column"]) == field and value in cells[option][1]:
             return {label: option}
     return {label: "NONE"}
@@ -195,7 +193,7 @@ def qualifier_aware(system, user, schema):
     """Careful about qualifiers: NONE when the offered cell prints tokens beyond the value and the item's unit."""
     label, _, value = claim(user)
     unit = re.search(r'"unit": "([^"]*)"', within(user))
-    for option in schema["properties"][label]["properties"]["label"]["enum"]:
+    for option in schema["properties"][label]["enum"]:
         text = offered_cells(user).get(option, (None, None))[1]
         if text is None or value not in text:
             continue
@@ -237,7 +235,7 @@ def ambiguity_aware(system, user, schema):
     """Careful about identity: NONE when more than one offered cell prints the value and the claim's item shows no
     article number (`_enclosing` leaves a null field out of the request)."""
     label, _, value = claim(user)
-    printing = [option for option in schema["properties"][label]["properties"]["label"]["enum"]
+    printing = [option for option in schema["properties"][label]["enum"]
                 if value in offered_cells(user).get(option, ("", ""))[1]]
     if len(printing) > 1 and '"sku"' not in within(user):
         return {label: "NONE"}
@@ -326,7 +324,7 @@ def section_aware(system, user, schema):
     above = [cell for cell in shown if cell["role"] == "row_section" and cell["row"] < rows[0]]
     nearest = max(above, key=lambda cell: cell["row"])["text"] if above else None
     for option, (_, text) in offered_cells(user).items():
-        if option in schema["properties"][label]["properties"]["label"]["enum"] and text == value == nearest:
+        if option in schema["properties"][label]["enum"] and text == value == nearest:
             return {label: option}
     return {label: "NONE"}
 
