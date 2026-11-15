@@ -438,10 +438,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 def _continuation(passages: Sequence[Passage], broken: Passage) -> Passage | None:
     """The passage finishing the word `broken` splits at its end (`signifi-`, then `cantly`): the next one starting in
     lower case, on its page or the following. Text flow, not meaning: evidence cut inside a word is cited whole."""
+    # shortcut: only an ASCII hyphen marks the break; add the other hyphen characters when a parser emits them.
     if not re.search(r"[^\W\d]-$", broken.text.rstrip()):
         return None
     later = passages[passages.index(broken) + 1:]
-    return next((each for each in later if each.page <= broken.page + 1 and each.text[:1].islower()), None)
+    return next((each for each in later if each.page <= broken.page + 1 and each.text.lstrip()[:1].islower()), None)
 
 
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
