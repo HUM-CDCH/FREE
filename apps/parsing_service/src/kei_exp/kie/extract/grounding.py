@@ -62,7 +62,8 @@ NONE = "NONE"
 RECORD_GROUNDING = (
     'Ground every claim under "### Claims" in the offered evidence. Return a single JSON object keyed by every '
     'claim label; each value is an object with "label" (one evidence label, or NONE), "context" (an array of at '
-    'most 8 further evidence labels, possibly empty) and "attribution" (a boolean). "label" is the primary '
+    'most 8 further evidence labels, possibly empty) and "attribution" (a boolean). Write it compactly, without '
+    'spaces, indentation or line breaks between JSON tokens. "label" is the primary '
     'evidence: it must print or directly support the value in the meaning of its field. "context" holds only the '
     'evidence needed to attribute that value to THIS record or enclosing list item, such as a record heading, '
     'byline or affiliation marker, table header or condition; select the smallest complete set. Extracted sibling '
