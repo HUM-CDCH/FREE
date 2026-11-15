@@ -441,25 +441,21 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 
 
 def _continuation(passages: Sequence[Passage], broken: Passage) -> Passage | None:
-    """The passage finishing what `broken` leaves cut at its end, with only page headers, footers and a parser's
-    reprint of `broken` between: the rest of a word split by a hyphen (`signifi-`, then `cantly`), starting in lower
-    case on its page or the following, or the rest of a sentence a page end cuts, the next page's first text of its
-    kind. Text flow, not meaning: evidence cut at its end is cited whole, and no other content or heading is crossed
-    to find the rest."""
+    """The passage finishing what `broken` leaves cut at its end, with only page headers and footers between: the
+    rest of a word split by a hyphen (`signifi-`, then `cantly`), starting in lower case on its page or the following,
+    or the rest of a sentence a page end cuts, the next page's first text of its kind. Text flow, not meaning:
+    evidence cut at its end is cited whole, and no other content or heading is crossed to find the rest."""
     # shortcut: only an ASCII hyphen marks a word break; add the other hyphen characters when a parser emits them.
     ending = broken.text.rstrip()
     word = re.search(r"[^\W\d]-$", ending)
     if not word and not re.search(r"[\w,]$", ending):
         return None
-    opening = broken.text[:len(broken.text) // 2]  # a block printing it again across the page turn is no new content
-    after = next((each for each in passages[passages.index(broken) + 1:]
-                  if each.label not in FURNITURE and opening not in each.text), None)
+    after = next((each for each in passages[passages.index(broken) + 1:] if each.label not in FURNITURE), None)
     if after is None or after.label in HEADINGS or after.page > broken.page + 1:
         return None
     if after.text.lstrip()[:1].islower() if word else after.page > broken.page and after.label == broken.label:
         return after
     return None
-    return after
 
 
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,

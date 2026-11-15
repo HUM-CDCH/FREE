@@ -40,9 +40,7 @@ def test_record_evidence_shares_the_source_and_reserves_the_complete_reply():
 
 
 def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it():
-    # Across the page turn: a running header, then the parser printing the broken paragraph again.
-    source = passages(["The RF group was signifi-", "Running Header", "9 of 16 The RF group was",
-                       "cantly higher than the CF group (34.51)."])
+    source = passages(["The RF group was signifi-", "Running Header", "cantly higher than the CF group (34.51)."])
     source[1] = replace(source[1], label="PageHeader")
     schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
         {"id": "c", "name": "cf", "type": "number"}, {"id": "s", "name": "significant", "type": "string"}]})
@@ -51,7 +49,7 @@ def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it()
     whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
     # The half printing the value is primary; a value neither half prints keeps the model's choice.
     assert not issues and [(link.segment, link.context) for link in links] == [
-        (source[3].id, (whole(source[0]),)), (source[0].id, (whole(source[3]),))]
+        (source[2].id, (whole(source[0]),)), (source[0].id, (whole(source[2]),))]
 
 
 def test_evidence_a_page_end_cuts_mid_sentence_is_cited_with_the_next_pages_first_text():
