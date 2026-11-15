@@ -34,6 +34,19 @@ def test_record_evidence_shares_the_source_but_reserves_the_complete_reply():
     assert seen[0]["max_tokens"] >= len(json.dumps(longest).encode("utf-8")) > 2048
 
 
+def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it():
+    source = passages(["The RF group was signifi-", "Running Header", "cantly higher than the CF group (34.51)."])
+    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
+        {"id": "c", "name": "cf", "type": "number"}, {"id": "s", "name": "significant", "type": "string"}]})
+    answer = lambda *_: {claim: {"label": "E1", "context": [], "attribution": True} for claim in ("C1", "C2")}
+    links, _, issues = grounding.verify(source, {"cf": 34.51, "significant": "yes"}, schema, CountingChat(answer),
+                                        record=0, projected=True)
+    whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
+    # The half printing the value is primary; a value neither half prints keeps the model's choice.
+    assert not issues and [(link.segment, link.context) for link in links] == [
+        (source[2].id, (whole(source[0]),)), (source[0].id, (whole(source[2]),))]
+
+
 def test_article_retains_separate_identity_evidence_and_rejects_unattested_or_invented_context():
     source = passages(["Author A¹", "¹ Institute B, Country C"])
     schema = Schema.model_validate({"recordDescription": "authors", "schemaNodes": [

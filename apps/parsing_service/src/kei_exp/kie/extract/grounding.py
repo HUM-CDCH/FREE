@@ -271,8 +271,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     retry: list[str] = []
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
-    # shortcut: 48 claims preserves measured attribution; lift the ceiling only after larger batches pass the same checks.
-    batch_size = 4 if quoted else 48 if bundled else 32 if span_ids else len(claim_ids)
+    batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
     batches = [claim_ids[n:n + batch_size] for n in range(0, len(claim_ids), batch_size)]
     # Every batch shows the whole record, so a claim split away from the fields that identify its record is not
     # verified blind; the budget below counts these lines like the rest of the request.
@@ -424,8 +423,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
             else:
                 candidate = labelled[label]
-                if bundled and candidate.cell is not None:
-                    context += ({"segment": candidate.passage.id, "start": 0, "end": len(candidate.passage.text)},)
+                whole = candidate.passage if bundled and candidate.cell is not None else _continuation(
+                    passages, candidate.passage) if bundled else None
+                if whole is not None:
+                    if candidate.cell is None and contains(whole.text, value) and not contains(candidate.text, value):
+                        candidate, whole = _Candidate(whole), candidate.passage  # the half printing the value is primary
+                    context += ({"segment": whole.id, "start": 0, "end": len(whole.text)},)
                 links.append(_link(path, candidate, contains(candidate.text, value), "model",
                                    _location(candidate, value) if located else None, context))
                 if quoted and proofs is not None:
@@ -442,6 +445,15 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     if waiting:
         raise NeedsCall()
     return links, calls, issues
+
+
+def _continuation(passages: Sequence[Passage], broken: Passage) -> Passage | None:
+    """The passage finishing the word `broken` splits at its end (`signifi-`, then `cantly`): the next one starting in
+    lower case, on its page or the following. Text flow, not meaning: evidence cut inside a word is cited whole."""
+    if not re.search(r"[^\W\d]-$", broken.text.rstrip()):
+        return None
+    later = passages[passages.index(broken) + 1:]
+    return next((each for each in later if each.page <= broken.page + 1 and each.text[:1].islower()), None)
 
 
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
