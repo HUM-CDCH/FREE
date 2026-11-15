@@ -191,7 +191,7 @@ def test_new_catalog_defaults_run_attachment_through_the_real_entry_path():
     assert result["evidence"][0]["linked_by"] == "verification"
 
 
-def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="region"):
+def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="region", entries=()):
     schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
         {"id": "r", "name": field, "type": "string"}]})
     chat = as_router(CountingChat(answer))
@@ -199,7 +199,7 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
     effective = unified._execution(source, schema, unified.UnifiedOptions(defaults=11, headings=headings),
                                    chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]),
-                         {p.id: p.text for p in source.passages}, effective)
+                         {p.id: p.text for p in source.passages}, effective, entries=entries)
     monkeypatch.setattr(runner, "_read", lambda *args, **kwargs: reads)
     return runner
 
@@ -277,6 +277,134 @@ def test_disagreeing_inherited_values_reach_arbitration_with_their_source(monkey
     work = runner.entry(0, entry)
     assert work.contest[0]["outcome"] == "unresolved"
     assert not any(found.kind == "accepted" for found in work.found)
+
+
+SHARED = "Read the source independently for each marked record"
+ALONE = "Read the source independently of any shown candidate value, for one record"
+
+
+def heading_group(monkeypatch, text, candidates, answer):
+    """A runner over `text`, whose first line is the heading discovery admitted for every numbered line after it
+    (its other lines belong to no record), with each record's entry reply for `region`."""
+    lines, at = [], 0
+    for line in text.split("\n"):
+        lines.append((at, at + len(line), line))
+        at += len(line) + 1
+    heading = {"segment": "p1_s0", "start": 0, "end": lines[0][1]}
+    entries = [{"ranges": [{"segment": "p1_s0", "start": start, "end": end}], "context": [heading]}
+               for start, end, line in lines if line[0].isdigit()]
+    reads = [[(Window((Unit("p1_s0", entry["ranges"][0]["start"], entry["ranges"][0]["end"]),)), {"region": each})]
+             for entry, each in zip(entries, candidates, strict=True)]
+    runner = record_runner(monkeypatch, evidence(text), None, answer, entries=entries)
+    monkeypatch.setattr(runner, "_read", lambda stage, number, *args, **kwargs: reads[number])
+    return runner, entries
+
+
+def test_records_under_one_heading_share_one_reading_that_sees_a_heading_between_them(monkeypatch):
+    north = candidate("North", "Group North")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        assert system.startswith(SHARED) and list(schema["properties"]) == ["R1", "R2", "R3"]
+        assert "North\"" not in user  # the readings cannot copy a candidate
+        places = [user.index(each) for each in ("### CONTEXT (not part of the records)\nGroup North",
+                                                "### RECORD R1\n1. First.\n### END RECORD R1", "### RECORD R2",
+                                                "### CONTEXT (not part of the records)\nGroup South", "### RECORD R3")]
+        assert places == sorted(places) and user.endswith("### FIELD\nregion\n\nReturn the JSON object now.")
+        return {"R1": north, "R2": north, "R3": candidate("South", "Group South")}
+    runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.\nGroup South\n3. Third.",
+                                    [north] * 3, answer)
+    works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
+    assert len(seen) == 1
+    assert [(work.found[0].kind, work.found[0].reason) for work in works] == [
+        ("accepted", None), ("accepted", None), ("rejected", "verification_rejected")]
+    assert works[0].found[0].verified and works[0].record == {"region": "North"}
+    # The one call is every sharing record's, under one key, and no record's own.
+    assert not any(work.calls for work in works) and len({key for work in works for key in work.shared}) == 1
+    assert all(len(calls) == 1 and not issues for work in works for calls, issues in work.shared.values())
+
+
+@pytest.mark.parametrize("reading,kind", [
+    (candidate("North", "Group North"), "accepted"),
+    (candidate("South", "Group North"), "rejected"),            # an unequal reading
+    (candidate("North", "Owner lives in North"), "proposed"),   # only another record prints the quote
+    (None, "rejected")])
+def test_a_shared_reading_is_accepted_only_equal_and_located_in_the_record_or_its_heading(monkeypatch, reading, kind):
+    north = candidate("North", "Group North")
+    runner, entries = heading_group(monkeypatch, "Group North\n1. Owner lives in North.\n2. Second.", [north] * 2,
+                                    lambda *_: {"R1": north, "R2": reading})
+    assert runner.entry(1, entries[1]).found[0].kind == kind
+    assert runner.entry(0, entries[0]).found[0].kind == "accepted"
+
+
+def test_a_local_or_uncited_value_is_not_read_with_the_records_sharing_the_heading(monkeypatch):
+    seen = []
+    def answer(system, user, schema):
+        seen.append(system)
+        return {"C1": candidate("West", "Lives in West")}
+    runner, entries = heading_group(monkeypatch, "Group North\n1. Lives in West.\n2. Second.",
+                                    [candidate("West", "Lives in West")] * 2, answer)
+    assert runner.entry(0, entries[0]).found[0].kind == "accepted" and not seen  # local: the single pass
+    work = runner.entry(1, entries[1])  # cited nowhere it may be: read alone, and never from another record
+    assert [each.startswith(ALONE) for each in seen] == [True] and not work.shared
+    assert work.found[0].kind != "accepted"
+
+
+def test_a_shared_reading_without_a_valid_reply_leaves_each_record_its_own_reading(monkeypatch):
+    north = candidate("North", "Group North")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(system)
+        return {} if system.startswith(SHARED) else {"C1": north}
+    runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
+    works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
+    assert [each.startswith(SHARED) for each in seen] == [True, False, False]  # asked once, then one call each
+    assert all(work.found[0].kind == "accepted" and len(work.calls) == 1 for work in works)
+    assert works[0].shared == works[1].shared
+    assert [issue.code for _, issues in works[0].shared.values() for issue in issues] == ["reply_malformed"]
+
+
+def test_a_shared_reading_that_waits_is_asked_once_for_all_its_records(monkeypatch):
+    class Waiting(BaseException):
+        """As durable planning's `NeedsCall`: the call is captured, its reply comes in a later round."""
+    north = candidate("North", "Group North")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(system)
+        raise Waiting
+    runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
+    for number, entry in enumerate(entries):
+        with pytest.raises(Waiting):
+            runner.entry(number, entry)
+    assert len(seen) == 1
+
+
+def test_a_heading_value_waits_for_complete_discovery_to_know_the_records_sharing_it(monkeypatch):
+    north = candidate("North", "Group North")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(system)
+        return {"R1": north, "R2": north}
+    runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
+    work = runner.entry(0, entries[0], verify=False)  # discovery still reads: later records may share the heading
+    assert not seen and (work.found[0].kind, work.found[0].reason) == ("proposed", "verification_pending")
+    assert work.record == {"region": "North"} and not work.undecided and not work.failed
+    assert runner.entry(0, entries[0]).found[0].kind == "accepted" and len(seen) == 1
+
+
+def test_a_catalog_counts_the_reading_its_records_share_once():
+    source = evidence("Kreis Moor\n1. Adorf.\n2. Bedorf.")
+    schema = {"recordDescription": "One numbered entry", "schemaNodes": [{"id": "r", "name": "region", "type": "string"}]}
+    moor = candidate("Moor", "Kreis Moor")
+    model = Model(source, entry=lambda *_: {"region": moor})
+    def answer(system, user, reply_schema):
+        if system.startswith(SHARED):
+            return dict.fromkeys(reply_schema["properties"], moor)
+        return model(system, user, reply_schema)
+    result, _ = extract(source, answer, schema=schema, defaults=11)
+    assert result["records"] == [{"region": "Moor"}] * 2
+    assert [link["linked_by"] for link in result["evidence"]] == ["verification"] * 2
+    assert [call["record"] for call in result["calls"] if call["stage"] == "verification"] == [0]
 
 
 @pytest.mark.parametrize("defaults", [10, 11])

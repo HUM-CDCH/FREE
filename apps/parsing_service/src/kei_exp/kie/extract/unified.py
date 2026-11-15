@@ -143,6 +143,10 @@ NEAR = 40
 # (12 November 2026, Qwen3.8-27B-NVFP4): version 9's first saved value came 18 to 23 minutes after the start.
 # 11: keep record attribution ranges. Before accepting a scalar inherited from outside those ranges, independently
 # read its field in the intervening source and require agreement; local values keep version 10's single-pass path.
+# The records under one admitted heading share that reading, one call per field (`_Run._shared`). Measured on one
+# 13-record catalogue whose records all inherit one field (15 November 2026, Qwen3.8-27B-NVFP4, the frozen values of
+# two field models): 2 calls and 3,790 tokens against 26 calls and 19,842 with one call per record; the 6 wrong
+# values stayed rejected and the 4 correct ones the single calls rejected were linked, also with 4 or 7 records a call.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
             2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
@@ -415,7 +419,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 "calls": [_call_json(call) for call in body["calls"]]}, body.get("complete", True)
     found, complete = discover()
     run = _Run(schema, budget, {passage.id: passage.text for passage in evidence.passages}, effective,
-               {passage.id: passage.table for passage in evidence.passages if passage.table is not None})
+               {passage.id: passage.table for passage in evidence.passages if passage.table is not None},
+               found["entries"])
     passages = {passage.id: passage for passage in evidence.passages}
     pages = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
 
@@ -840,6 +845,23 @@ VERIFY_RECORD = (
     "heading that follows this record does not apply to it. Attribute each value to the requested subject and "
     "relationship; do not transfer properties from related entities unless the source supports that attribution. "
     "Return only the requested JSON object. Do not infer missing values.")
+# One reading per record of a field the records under one admitted heading may inherit from it (`_Run._shared`).
+VERIFY_RECORDS = (
+    "Read the source independently for each marked record. A record is: {description}\n{notes}\n"
+    "FIELD names one field to read again. For each record label return {{\"value\", \"quote\"}} with that field's "
+    "value for THAT RECORD and an exact source quote, or null if the source does not give it. Read every record on "
+    "its own, and the field's meaning, not just a matching word. "
+    "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
+    "explicitly shared table qualification may supply a value from outside a record's own text; another record's "
+    "text never supplies it. Follow headings in source order: a later statement replaces an earlier value only "
+    "when it changes the same field for the records that follow it; preserve compatible higher-level context. A "
+    "group heading that follows a record does not apply to it. Attribute each value to the requested subject and "
+    "relationship; do not transfer properties from related entities unless the source supports that attribution. "
+    "Return only the requested JSON object. Do not infer missing values.")
+# shortcut: a fixed number of records per shared reading, sized so that their replies stay well inside the
+# verification reserve (2048 tokens; a reading measured 21 to 44); count the replies if readings grow longer.
+SHARED = 16
+_ALONE = object()  # no shared reading: the record's own verification call reads it
 VERIFY_CHILD = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
                 "The RECORD is printed inside another record, whose own text is shown as CONTEXT. For each candidate "
                 "answer \"supported\" when the RECORD states that value for that field of this record, or, for a "
@@ -964,15 +986,35 @@ class _Work:
     conflicts: list = field(default_factory=list)
     native: list[dict] | None = None
     unit: str | None = None  # the entry's capture identity apart from its number (`calls.complete`)
+    # The calls and issues of the readings this entry shares with others, by reading: counted once (`_artifact`).
+    shared: dict = field(default_factory=dict)
     page: int | None = None  # the entry's first page, for its calls' priority (`calls.complete`)
 
 
 class _Run:
     def __init__(self, schema: Schema, budget: _Budget, texts: dict[str, str], effective: dict,
-                 tables: dict[str, PageTable] | None = None):
+                 tables: dict[str, PageTable] | None = None, entries: Sequence[dict] = ()):
         self.schema, self.budget, self.texts, self.effective = schema, budget, texts, effective
         self.tables = tables or {}
         self.nodes = schema.record_nodes
+        self.entries = entries
+        # Entry number -> (the earliest heading admitted for it, the entries sharing that heading in source order).
+        # Complete discovery alone decides it, so every member composes the same shared reading (`_shared`). A child,
+        # or an entry with context that does not precede it (a table qualification), is in none and reads alone.
+        self.groups: dict[int, tuple[Unit, tuple[int, ...]]] = {}
+        self._readings: dict[tuple, Any] = {}
+        self._lock = threading.Lock()
+        if effective.get("record_evidence") and effective.get("headings"):
+            order = {segment: index for index, segment in enumerate(texts)}
+            at = lambda each: (order[each["segment"]], each["start"])
+            under: dict[tuple, list[int]] = {}
+            for number, entry in enumerate(entries):
+                if entry.get("parent") is None and entry["ranges"] and entry["context"] \
+                        and all(at(each) < at(entry["ranges"][0]) for each in entry["context"]):
+                    earliest = min(entry["context"], key=at)
+                    under.setdefault((earliest["segment"], earliest["start"], earliest["end"]), []).append(number)
+            self.groups = {number: (Unit(*heading), tuple(members)) for heading, members in under.items()
+                           for number in members}
 
     def _read(self, stage: str, number: int | None, units: list[Unit], system: str, schema: dict, marker: str,
               heading: tuple[Unit, ...], out: _Work, *, parent: bool = False) -> list[tuple[Window, dict | None]]:
@@ -1017,7 +1059,8 @@ class _Run:
     def entry(self, number: int, entry: dict, *, verify: bool = True, unit: str | None = None,
               page: int | None = None) -> _Work:
         """The entry's windows read and checked, then (with `verify`) its candidates verified and settled; without, its
-        record holds the candidates. With verification off nothing waits on `verify`: code settles it at once. `unit` names it
+        record holds the candidates. With verification off code settles it at once and only a value inherited from a
+        heading other records may share waits on `verify`, a proposal meanwhile (`_shared`). `unit` names it
         for the capture identity of its calls, `page` for their priority."""
         out = _Work(unit=unit, page=page)
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
@@ -1072,7 +1115,7 @@ class _Run:
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
-        self._verify(number, replies, out, owned=units, parent=parent, context=heading)
+        self._verify(number, replies, out, owned=units, parent=parent, context=heading, settled=verify)
         if heading_context or record_evidence:
             order = {segment: index for index, segment in enumerate(self.texts)}
             in_source = lambda unit: (order[unit.segment], unit.start, unit.end)
@@ -1146,14 +1189,90 @@ class _Run:
                         and all(superseded(span) for span in found.spans):
                     found.kind, found.reason = "proposed", "context_incomplete"
 
+    def _shared(self, number: int, path: tuple, out: _Work) -> Any:
+        """This record's independent reading of `path` from the one call the records under its heading share, or
+        `_ALONE`. The request shows the source from that heading to the last of up to `SHARED` records once, each
+        record under its label and everything else as context, so a heading between them that supersedes it is
+        still seen, and it holds no candidate value. It is composed from discovery alone: whichever record asks
+        first asks for all, a durable round captures it once, and no record waits on another's entry call. A request
+        over the budget or without a valid reply is asked again in halves; a record left alone reads alone."""
+        if number not in self.groups:
+            return _ALONE
+        earliest, members = self.groups[number]
+        first = members.index(number) // SHARED * SHARED
+        chunk = members[first:first + SHARED]
+        system = VERIFY_RECORDS.format(description=self.schema.record_description, notes=_notes(self.nodes))
+        node = dict(_scalar_nodes(self.nodes))[path]
+        names = list(self.texts)
+        order = {segment: index for index, segment in enumerate(names)}
+
+        def between(start: tuple[int, int], end: tuple[int, int]) -> list[Unit]:
+            return [unit for index in range(start[0], end[0] + 1) for unit in discovery.trimmed(
+                names[index], self.texts[names[index]], start[1] if index == start[0] else 0,
+                end[1] if index == end[0] else len(self.texts[names[index]]))]
+        while len(chunk) > 1:
+            key = (chunk, path)
+            with self._lock:
+                if key not in self._readings:
+                    labels = [f"R{n}" for n in range(1, len(chunk) + 1)]
+                    owned = sorted(((Unit(each["segment"], each["start"], each["end"]), label)
+                                    for label, member in zip(labels, chunk, strict=True)
+                                    for each in self.entries[member]["ranges"]),
+                                   key=lambda each: (order[each[0].segment], each[0].start))
+                    blocks: list[tuple[str | None, list[Unit]]] = []
+                    at = (order[earliest.segment], earliest.start)
+                    for unit, label in owned:
+                        for owner, units in ((None, between(at, (order[unit.segment], unit.start))), (label, [unit])):
+                            if units and blocks and blocks[-1][0] == owner:
+                                blocks[-1][1].extend(units)
+                            elif units:
+                                blocks.append((owner, units))
+                        at = max(at, (order[unit.segment], unit.end))
+                    user = "\n\n".join(
+                        f"### CONTEXT (not part of the records)\n{_source_text(units, self.texts, self.tables)}"
+                        if owner is None else
+                        f"### RECORD {owner}\n{_source_text(units, self.texts, self.tables)}\n### END RECORD {owner}"
+                        for owner, units in blocks) + \
+                        f"\n\n### FIELD\n{'.'.join(str(step) for step in _field_path(path))}" \
+                        "\n\nReturn the JSON object now."
+                    schema = {"type": "object", "properties": dict.fromkeys(labels, _leaf(node)),
+                              "required": labels, "additionalProperties": False}
+                    calls: list = []
+                    issues: list = []
+                    try:
+                        answer = self.budget.ask(
+                            "verification", chunk[0], system, user, schema, calls, issues,
+                            out.unit and f"heading:{earliest.segment}:{earliest.start}", out.page) \
+                            if self.budget.fits("verification", system, user, schema) else None
+                        if answer is not None and not all(answer[label] is None or isinstance(answer[label], dict)
+                                                          for label in labels):
+                            answer = None
+                        self._readings[key] = (answer, calls, issues)
+                    except BaseException as waiting:  # noqa: BLE001 - asking again this round would be another call
+                        self._readings[key] = waiting
+                kept = self._readings[key]
+            if isinstance(kept, BaseException):
+                raise kept
+            answer, calls, issues = kept
+            if calls or issues:
+                out.shared[key] = (calls, issues)
+            if answer is not None:
+                return answer[f"R{chunk.index(number) + 1}"]
+            half = len(chunk) // 2
+            chunk = chunk[:half] if chunk.index(number) < half else chunk[half:]
+        return _ALONE
+
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = ()) -> None:
-        """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
+                owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = (),
+                settled: bool = True) -> None:
+        """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure.
+        `settled` says discovery is complete, so the records sharing a heading are known (`_shared`)."""
         independent = self.effective.get("record_evidence", False)
         # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
-        inherited = {found.path for found in out.found if found.reason in UNCITED or any(
-            not any(own.segment == span.segment_id and own.start <= span.start and span.end <= own.end
-                    for own in owned) for span in found.spans)} if independent else set()
+        outside = lambda found: any(not any(own.segment == span.segment_id and own.start <= span.start
+                                            and span.end <= own.end for own in owned) for span in found.spans)
+        inherited = {found.path for found in out.found if found.reason in UNCITED or outside(found)} \
+            if independent else set()
         for found in out.found:
             if found.kind != "candidate":
                 continue
@@ -1177,25 +1296,38 @@ class _Run:
             batch = [found for found in out.found if found.window == index and (
                 found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
                 found.reason in ("no_quote", "quote_not_in_source", "value_not_in_quote"))]
-            pending = [batch] if batch else []
+            # A value located outside the record is read with the records sharing its heading. Which those are is
+            # known once discovery is complete: until then it waits as a proposal, and the entry is read again.
+            shared = {}
+            for found in batch:
+                if found.kind == "candidate" and found.path in nodes and outside(found) and number in self.groups:
+                    if not settled:
+                        found.kind, found.reason = "proposed", "verification_pending"
+                    elif (reading := self._shared(number, found.path, out)) is not _ALONE:
+                        shared[id(found)] = reading
+            alone = [found for found in batch if id(found) not in shared and found.reason != "verification_pending"]
+            pending = [[found] for found in batch if id(found) in shared] + ([alone] if alone else [])
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
-                user = _user(window, self.texts, "RECORD", self.tables,
-                             heading_context=self.effective.get("heading_context", False) or independent or parent,
-                             parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
-                    f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
-                    ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
-                     f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
-                    for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
-                verdict = {"type": "string", "enum": list(VERDICTS)}
-                schema = {"type": "object", "properties": {
-                    label: _leaf(nodes[found.path]) if found.path in nodes else verdict
-                    for label, found in zip(labels, group, strict=True)},
-                          "required": labels, "additionalProperties": False}
-                answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
-                                         out.unit, out.page) \
-                    if self.budget.fits("verification", system, user, schema) else None
+                if id(group[0]) in shared:
+                    answer = {labels[0]: shared[id(group[0])]}
+                else:
+                    user = _user(window, self.texts, "RECORD", self.tables,
+                                 heading_context=self.effective.get("heading_context", False) or independent or parent,
+                                 parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
+                        f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
+                        ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
+                         f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
+                        for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
+                    verdict = {"type": "string", "enum": list(VERDICTS)}
+                    schema = {"type": "object", "properties": {
+                        label: _leaf(nodes[found.path]) if found.path in nodes else verdict
+                        for label, found in zip(labels, group, strict=True)},
+                              "required": labels, "additionalProperties": False}
+                    answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
+                                             out.unit, out.page) \
+                        if self.budget.fits("verification", system, user, schema) else None
                 if answer is not None and all(label in answer and (
                         (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
                         else isinstance(answer[label], str) and answer[label] in VERDICTS)
@@ -1510,8 +1642,11 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     else:
         records = [merge(entry.record, document.values if document else {}, evidence.source_name, schema)
                    for entry in entries]
+    # A shared reading is every sharing entry's, whichever round or thread asked it: its calls and issues count once.
+    shared = {key: each for work in entries for key, each in work.shared.items()}
     calls = [_call_of(call) for call in found["calls"]] + \
-        [call for work in (*entries, *([document] if document else [])) for call in work.calls]
+        [call for work in (*entries, *([document] if document else [])) for call in work.calls] + \
+        [call for each, _ in shared.values() for call in each]
     unresolved = [row for row in found["ledger"] if row["disposition"] == "unresolved"]
     unread = [row for row in found["ledger"] if row["disposition"] == "withheld"]
     processing = {
@@ -1561,7 +1696,8 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "processing": processing, "completeness": completeness,
         "complete": completeness["boundaries"] and completeness["processing"] and completeness["evidence"],
         "issues": [*found["issues"], *(_issue_json(issue) for work in (*entries, *([document] if document else []))
-                                       for issue in work.issues)],
+                                       for issue in work.issues),
+                   *(_issue_json(issue) for _, each in shared.values() for issue in each)],
         "calls": [asdict(call) for call in calls],
         "tokens": {"input": _total(call.input_tokens for call in calls),
                    "output": _total(call.output_tokens for call in calls)},

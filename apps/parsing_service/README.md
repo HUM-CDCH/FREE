@@ -343,7 +343,14 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   headings; only an equal, source-located reading receives Evidence. This check never
   substitutes a different candidate value. Only the record's own text or its admitted
   context can supply the supporting quote: intervening records are shown to judge
-  supersession, not to supply inherited values. Following shared table qualifications
+  supersession, not to supply inherited values. Records that share their earliest
+  admitted heading are read in one call per field, up to 16 records at a time: the
+  source from that heading to the last of them is shown once, each record under its
+  own label, and each record's reading is still judged alone. A child, a record whose
+  context does not all precede it, and a shared reply that is not valid keep one call
+  per record. Which records share a heading is known once discovery is complete: a
+  durable run that reads entries earlier keeps such a value as a
+  `verification_pending` proposal until then. Following shared table qualifications
   remain available, and children retain their enclosing record's context even with
   ordinary headings disabled. Arbitration includes the inherited source spans.
   Earlier admissions keep their defaults.
