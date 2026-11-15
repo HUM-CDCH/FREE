@@ -36,6 +36,7 @@ def test_record_evidence_shares_the_source_but_reserves_the_complete_reply():
 
 def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it():
     source = passages(["The RF group was signifi-", "Running Header", "cantly higher than the CF group (34.51)."])
+    source[1] = replace(source[1], label="PageHeader")
     schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
         {"id": "c", "name": "cf", "type": "number"}, {"id": "s", "name": "significant", "type": "string"}]})
     answer = lambda *_: {claim: {"label": "E1", "context": [], "attribution": True} for claim in ("C1", "C2")}
@@ -45,6 +46,25 @@ def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it()
     # The half printing the value is primary; a value neither half prints keeps the model's choice.
     assert not issues and [(link.segment, link.context) for link in links] == [
         (source[2].id, (whole(source[0]),)), (source[0].id, (whole(source[2]),))]
+
+
+def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evidence():
+    # Sample B's lower-case sentence prints the value, but Sample A's own text sits between: E1 stays primary.
+    other = [replace(each, page=2) for each in passages(["DNA antibodies.", "Sample B", "there are 2 antibodies in Sample B."])]
+    record = [*passages(["Sample A contains two anti-"]), *other]
+    schema = Schema.model_validate({"recordDescription": "One sample", "schemaNodes": [
+        {"id": "a", "name": "antibodies", "type": "number"}]})
+    answer = lambda *_: {"C1": {"label": "E1", "context": [], "attribution": True}}
+    links, _, issues = grounding.verify(record, {"antibodies": 2}, schema, CountingChat(answer), record=0, projected=True)
+    assert not issues and [(link.segment, link.verbatim, link.location, link.context) for link in links] == [
+        (record[0].id, False, None, ())]
+    # A heading between the halves is not the word's end either, even in lower case.
+    source = passages(["The RF group was signifi-", "foods", "cantly higher than the CF group (34.51)."])
+    source[1] = replace(source[1], label="SectionHeader")
+    links, _, issues = grounding.verify(source, {"cf": 34.51}, Schema.model_validate({
+        "recordDescription": "One study", "schemaNodes": [{"id": "c", "name": "cf", "type": "number"}]}),
+        CountingChat(answer), record=0, projected=True)
+    assert not issues and [(link.segment, link.context) for link in links] == [(source[0].id, ())]
 
 
 def test_article_retains_separate_identity_evidence_and_rejects_unattested_or_invented_context():

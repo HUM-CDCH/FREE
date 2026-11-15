@@ -31,6 +31,7 @@ from typing import Any
 
 from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.calls import Call, complete
+from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
 from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.locate import GROUPING, JOINERS, SIGNS, BlockText, _before, _bounded, _whole_number, forms, locate
@@ -437,12 +438,15 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 
 def _continuation(passages: Sequence[Passage], broken: Passage) -> Passage | None:
     """The passage finishing the word `broken` splits at its end (`signifi-`, then `cantly`): the next one starting in
-    lower case, on its page or the following. Text flow, not meaning: evidence cut inside a word is cited whole."""
+    lower case, on its page or the following, with only page headers and footers between. Text flow, not meaning:
+    evidence cut inside a word is cited whole, and no other content or heading is crossed to find its end."""
     # shortcut: only an ASCII hyphen marks the break; add the other hyphen characters when a parser emits them.
     if not re.search(r"[^\W\d]-$", broken.text.rstrip()):
         return None
-    later = passages[passages.index(broken) + 1:]
-    return next((each for each in later if each.page <= broken.page + 1 and each.text.lstrip()[:1].islower()), None)
+    after = next((each for each in passages[passages.index(broken) + 1:] if each.label not in FURNITURE), None)
+    if after is None or after.label in HEADINGS or after.page > broken.page + 1 or not after.text.lstrip()[:1].islower():
+        return None
+    return after
 
 
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
