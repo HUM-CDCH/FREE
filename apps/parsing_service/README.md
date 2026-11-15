@@ -346,7 +346,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   supersession, not to supply inherited values. Records that share their earliest
   admitted heading are read in one call per field, up to 16 records at a time: the
   source from that heading to the last of them is shown once, each record under its
-  own label, and each record's reading is still judged alone. A child, a record whose
+  own label, and each record's reading is still judged alone. With multiple inherited
+  fields, sharing can require more calls than the individual check, which batches
+  those fields per record: for a group that fits the budgets, shared calls grow with
+  the number of fields, individual calls with the number of records. A child, a record whose
   context does not all precede it, and a shared reply that is not valid keep one call
   per record. Which records share a heading is known once discovery is complete: a
   durable run that reads entries earlier keeps such a value as a

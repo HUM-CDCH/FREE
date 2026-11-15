@@ -1013,8 +1013,9 @@ class _Run:
                         and all(at(each) < at(entry["ranges"][0]) for each in entry["context"]):
                     earliest = min(entry["context"], key=at)
                     under.setdefault((earliest["segment"], earliest["start"], earliest["end"]), []).append(number)
-            self.groups = {number: (Unit(*heading), tuple(members)) for heading, members in under.items()
-                           for number in members}
+            for heading, members in under.items():
+                group = (Unit(*heading), tuple(members))
+                self.groups.update((number, group) for number in members)
 
     def _read(self, stage: str, number: int | None, units: list[Unit], system: str, schema: dict, marker: str,
               heading: tuple[Unit, ...], out: _Work, *, parent: bool = False) -> list[tuple[Window, dict | None]]:
@@ -1334,8 +1335,9 @@ class _Run:
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
-                        # Locate only in this request's source; independent heading reads may use its context.
-                        view = _view([*window.before, *window.primary, *window.after], self.texts)
+                        # Shared readings see the whole owned record; siblings and unadmitted context cannot ground it.
+                        view = _view(owned if id(found) in shared else
+                                     [*window.before, *window.primary, *window.after], self.texts)
                         checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False,
                             context=_view(list(context), self.texts) if independent and context else None)
                         if isinstance(value, dict) and "value" in value and value["value"] is None:

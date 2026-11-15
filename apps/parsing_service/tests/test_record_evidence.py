@@ -427,3 +427,63 @@ def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(defa
     descriptions = [link for link in result["evidence"] if link["path"][-1] == "description"]
     assert [link["cell"] for link in descriptions] == ["r0_c1", "r1_c1"]
     assert [link["item"] for link in descriptions] == [link["spans"] for link in result["evidence"] if link["path"][-1] == "number"]
+
+
+@pytest.mark.parametrize("shared", [False, True], ids=["individual", "shared"])
+@pytest.mark.parametrize("quote", ["This record is North.", "Other record is North.", "Unadmitted North."])
+def test_verification_locates_only_the_source_shown_for_its_own_record(monkeypatch, shared, quote):
+    text = "Group North\n1. First part.\nThis record is North.\nUnadmitted North.\n2. Other record is North."
+    start, middle, gap, sibling = (text.index(each) for each in ("1.", "This record", "Unadmitted", "2."))
+    heading = {"segment": "p1_s0", "start": 0, "end": len("Group North")}
+    entries = [{"ranges": [{"segment": "p1_s0", "start": start, "end": middle},
+                           {"segment": "p1_s0", "start": middle, "end": gap}], "context": [heading]},
+               {"ranges": [{"segment": "p1_s0", "start": sibling, "end": len(text)}], "context": [heading]}]
+    reads = [(Window((Unit("p1_s0", start, middle),)), {"region": candidate("North", "Group North")}),
+             (Window((Unit("p1_s0", middle, gap),)), {"region": None})]
+    def answer(system, user, schema):
+        assert system.startswith(SHARED if shared else ALONE)
+        assert (quote in user) == shared
+        return dict.fromkeys(schema["properties"], candidate("North", quote))
+    runner = record_runner(monkeypatch, evidence(text), reads, answer, entries=entries if shared else entries[:1])
+    work = runner.entry(0, entries[0])
+    found, = work.found
+    accepted = shared and quote == "This record is North."
+    assert work.record == {"region": "North"}
+    assert (found.kind, found.reason) == (("accepted", None) if accepted else
+                                         ("proposed", "verification_unresolved"))
+    if accepted:
+        assert [(span.segment_id, span.start, span.end) for span in found.spans] == [
+            ("p1_s0", middle + quote.index("North"), middle + quote.index("North") + len("North"))]
+        assert found.verified
+
+
+def test_heading_group_members_are_stored_once(monkeypatch):
+    north = candidate("North", "Group North")
+    runner, entries = heading_group(monkeypatch, "Group North\n" + "\n".join(
+        f"{number}. Record." for number in range(1, 2001)), [north] * 2000, lambda *_: None)
+    group = runner.groups[0]
+    assert group[1] == tuple(range(len(entries)))
+    assert all(each is group for each in runner.groups.values())
+
+
+@pytest.mark.parametrize("fields,shared_calls", [(1, 1), (3, 3), (8, 8)])
+def test_small_heading_group_call_count_depends_on_inherited_fields(monkeypatch, fields, shared_calls):
+    source = evidence("Kreis Moor\n1. Adorf.\n2. Bedorf.")
+    schema = {"recordDescription": "One numbered entry", "schemaNodes": [
+        {"id": f"f{n}", "name": f"field{n}", "type": "string"} for n in range(fields)]}
+    values = {node["name"]: candidate("Moor", "Kreis Moor") for node in schema["schemaNodes"]}
+    model = Model(source, entry=lambda *_: values)
+    def answer(system, user, reply_schema):
+        if system.startswith((SHARED, ALONE)):
+            return dict.fromkeys(reply_schema["properties"], candidate("Moor", "Kreis Moor"))
+        return model(system, user, reply_schema)
+    counts = []
+    # One member per call reaches the unchanged individual fallback, which batches the record's fields.
+    for size in (1, 16):
+        monkeypatch.setattr(unified, "SHARED", size)
+        result, _ = extract(source, answer, schema=schema, defaults=11)
+        assert result["records"] == [dict.fromkeys(values, "Moor")] * 2
+        assert len(result["evidence"]) == fields * 2
+        assert all(link["linked_by"] == "verification" for link in result["evidence"])
+        counts.append(sum(call["stage"] == "verification" for call in result["calls"]))
+    assert counts == [2, shared_calls]
