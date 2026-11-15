@@ -1064,22 +1064,20 @@ class _Run:
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
-        if self.effective.get("record_evidence"):
+        record_evidence = self.effective.get("record_evidence", False)
+        if record_evidence:
             replies = self._record_evidence(entry, replies, out, view)
-        if heading_context and not self.effective.get("record_evidence"):
+        elif heading_context:
             self._incomplete(replies, out)
         if not verify and self.effective["verification"]:
             out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
             return out
         self._verify(number, replies, out, owned=units, parent=parent, context=heading)
-        if heading_context or self.effective.get("record_evidence"):
+        if heading_context or record_evidence:
             order = {segment: index for index, segment in enumerate(self.texts)}
-            shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
-                                   key=lambda unit: (order[unit.segment], unit.start, unit.end))
-            shown = [*shown_heading, *units]
-            if self.effective.get("record_evidence"):
-                shown = sorted(set(shown), key=lambda unit: (order[unit.segment], unit.start, unit.end))
-            view = _view(shown, self.texts)
+            in_source = lambda unit: (order[unit.segment], unit.start, unit.end)
+            shown = [*sorted({unit for window, _ in replies for unit in window.heading}, key=in_source), *units]
+            view = _view(sorted(set(shown), key=in_source) if record_evidence else shown, self.texts)
         out.contest = self._settle(number, out, view)
         if not single:
             _renumbered(out.found)
@@ -1184,7 +1182,7 @@ class _Run:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
                 user = _user(window, self.texts, "RECORD", self.tables,
-                             heading_context=self.effective.get("heading_context", False) or self.effective.get("record_evidence", False) or parent,
+                             heading_context=self.effective.get("heading_context", False) or independent or parent,
                              parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
                     f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
                     ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
