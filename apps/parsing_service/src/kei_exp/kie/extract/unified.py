@@ -272,9 +272,7 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
                                 f"model's served context of {context}")
         stages[stage] = {"role": ROLE[stage], "input_tokens": options.input_tokens or context - output,
                          "output_tokens": output}
-    # `extraction_id` stays in the version 3 artifact's execution record, always null: durable attempts are named by
-    # the coordination schema, not by this record.
-    return {"version": RECORD_VERSION, "extraction_id": None,
+    return {"version": RECORD_VERSION,
             "source": {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest},
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],

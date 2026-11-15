@@ -19,6 +19,11 @@ import {
   ProjectNavigationProvider,
   ProjectRoutes,
 } from './ProjectNavigation.tsx'
+/** A project batch read (`latest=1`): with no Extraction run alone, each member is its document's newest. */
+const projectRead = (batchExtractions: readonly { members: readonly { extractionId: string }[] }[]) => ({
+  batchExtractions, latestExtractions: [], reviewedExtractions: [],
+  newestExtractionIds: batchExtractions.flatMap((batch) => batch.members.map((member) => member.extractionId)),
+})
 
 // The Extractions tab reads the signed-in account's saved method, which no project scopes; routing keeps every
 // service default.
@@ -302,6 +307,7 @@ function projectListResponse(
           : 0,
       summary,
     })),
+    recentActivity: [],
   }
   return Response.json(body)
 }
@@ -329,7 +335,7 @@ function studioFetch(
     if (reopened) return reopen(reopened[1])
     if (url.startsWith('/api/extraction-schemas?')) return schemas()
     if (url.startsWith('/api/batch-extractions?'))
-      return Response.json({ batchExtractions: [] })
+      return Response.json(projectRead([]))
     if (url.startsWith('/api/batch-schema-suggestions?'))
       return Response.json({ batchSchemaSuggestions: [] })
     if (url.startsWith('/api/project-spreadsheets?'))
@@ -614,6 +620,7 @@ describe('Studio home', () => {
               sourceDocumentCount: 2,
               summary: state.summary,
             })),
+            recentActivity: [],
           }),
       }),
     )
@@ -727,7 +734,7 @@ describe('Project Context lifecycle in the rail', () => {
       if (url.startsWith('/api/extraction-schemas?'))
         return Response.json({ extractionSchemas: [] })
       if (url.startsWith('/api/batch-extractions?'))
-        return Response.json({ batchExtractions: [] })
+        return Response.json(projectRead([]))
       if (url.startsWith('/api/batch-schema-suggestions?'))
         return Response.json({ batchSchemaSuggestions: [] })
       if (url.endsWith(projectContextId))
@@ -1404,6 +1411,7 @@ describe('Project Context navigation', () => {
       strategy: 'ARTICLE',
       createdAt: '2026-08-14T10:42:00.000Z',
       executionStatus: 'COMPLETED',
+      trial: true,
       members: [
         {
           extractionId: '51000000-0000-4000-8006-000000000031',
@@ -1420,7 +1428,7 @@ describe('Project Context navigation', () => {
     const batchFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.startsWith('/api/batch-extractions?'))
-        return Response.json({ batchExtractions: [batchExtraction] })
+        return Response.json(projectRead([batchExtraction]))
       if (url.startsWith('/api/batch-schema-suggestions?'))
         return Response.json({ batchSchemaSuggestions: [] })
       if (url.startsWith('/api/schema-revisions/'))
@@ -3159,7 +3167,7 @@ describe('routed Source Document reopening', () => {
           if (url.startsWith(`/api/project-contexts/${projectContextId}/source-ingestions`))
             return failureResponse('not_found', 'That Project Context is unavailable.', 404)
           if (url.startsWith('/api/batch-extractions?'))
-            return Response.json({ batchExtractions: [] })
+            return Response.json(projectRead([]))
           if (url.startsWith('/api/batch-schema-suggestions?'))
             return Response.json({ batchSchemaSuggestions: [] })
           throw new Error(`A stale scoped route must not read ${url}.`)

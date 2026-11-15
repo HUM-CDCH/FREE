@@ -55,9 +55,7 @@ Suggestion Route. Only the windows get the researcher's instruction: read again
 at the combining step, a document-scope exclusion ("exclude the bibliography")
 also removes per-entry fields. Combining works level by level:
 the union of one source's windows, and in a Batch Schema Suggestion the
-intersection of the sources' suggestions. The DBOS patches
-`schema-suggestion-windows` and `batch-schema-suggestion-windows` gate these
-steps. Each step checkpoints the model's output, never the source text; a
+intersection of the sources' suggestions. Each step checkpoints the model's output, never the source text; a
 failed one checkpoints a stable code and FREE's own message, never the
 provider's error, body or headers. A suggestion too large to combine in one
 request fails with `merge_input_too_large` rather than being left out; one

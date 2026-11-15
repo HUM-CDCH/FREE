@@ -15,7 +15,6 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.assembly import PROMPT_VERSION, fingerprint
 from kei_exp.kie.extract.run import ExtractRequest, extract
 from kei_exp.kie.extract.schema import Schema
-from experiments.extraction.legacy_article import inventory
 from kei_exp.kie.extract.catalog import discover
 from kei_exp.kie.extract.grounding import verify
 from kei_exp.kie.extract.stages import contains, extract_record, merge
@@ -368,9 +367,8 @@ def test_extract_composes_the_stages_into_a_complete_grounded_artifact(digital_p
     assert not (tmp_path / "extractions").exists()  # nothing is published beside the run
 
 
-def test_an_article_whose_document_states_nothing_is_one_empty_root_and_the_inventory_unit_reports_none():
-    """Document scope: the document is the object even when it gives none of the fields; nothing is 'not found'. The
-    retained research inventory still reports a reply with no records as `no_records_found`."""
+def test_an_article_whose_document_states_nothing_is_one_empty_root():
+    """Document scope: the document is the object even when it gives none of the fields; nothing is 'not found'."""
     request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
                                              "options": {"strategy": "article"}})
     chat = FakeChat(lambda s, u, schema: pytest.fail("no inventory") if "records" in schema["properties"] else {})
@@ -378,9 +376,6 @@ def test_an_article_whose_document_states_nothing_is_one_empty_root_and_the_inve
     assert result["records"] == [{"entry_no": None, "site": None, "year": None, "finds": None, "title": None,
                                   "filename": "bauer.pdf"}]
     assert result["issues"] == [] and result["ungrounded"] == [] and result["complete"] is True
-    without = FakeChat(lambda s, u, schema: {"nothing": 1})
-    found, (call,), issues = inventory(passages(), SCHEMA, without, counter=FixedCounter())
-    assert found == [] and call.ok and [issue.code for issue in issues] == ["no_records_found"]
 
 
 def test_document_fields_are_declared_unverified():

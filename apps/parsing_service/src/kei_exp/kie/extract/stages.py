@@ -57,7 +57,7 @@ class Link:
     page: int
     bbox_pt: tuple[float, float, float, float]
     verbatim: bool                      # the value occurs as a bounded token in the passage
-    linked_by: str                      # model (lexical only in results from before PROMPT_VERSION 13)
+    linked_by: str                      # model, or structure for a recipe's links
     cell: str | None = None             # local cell identity within segment, only with measured geometry
     precision: str = "segment"
     location: dict | None = None        # Article only: the value's one printing, {spans: [{segment, start, end}], raw}

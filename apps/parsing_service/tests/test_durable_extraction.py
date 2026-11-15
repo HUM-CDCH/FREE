@@ -120,37 +120,27 @@ def finish(lease, chat, extract):
     raise AssertionError("method never completed")
 
 
-@pytest.mark.parametrize("oversized", [False, True])
-def test_article_retry_keeps_the_pre_fallback_plan_and_reuses_completed_calls(oversized):
-    from kei_exp.kie.extract.article import document_root
+def test_article_retry_keeps_its_plan_and_reuses_completed_calls():
     from kei_exp.kie.extract.contexts import Context
 
     request = run.ExtractRequest.model_validate({"schema": {
         "recordDescription": "The whole document",
         "schemaNodes": [{"id": "title", "name": "title", "type": "string"}]},
         "options": {"strategy": "article", "article": {"grounding": "off"}}})
-    source = evidence(passages(["Title: Target. " + "word " * (14000 if oversized else 10)] * 3))
+    source = evidence(passages(["Title: Target. " + "word " * 10] * 3))
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     chat = CountingChat(lambda *_: {"title": "Target"})
     planner = CapturePlanner(lease)
     planner.plan_records("article-contexts", [Context(source.passages).dumped()])
     old_plan = deepcopy(lease.plans["article-contexts"])
-    if oversized:
-        # Before fallback existed, the one-part plan was saved before the root failed admission.
-        counter = Counter()
-        with pytest.raises(ValueError, match="required source and reply budget exceed"):
-            document_root(source.passages, request.schema_, Router(chat, chat, planner),
-                          counters={"fields": counter, "reasoning": counter}, record_chars=48000,
-                          method=request.options.article)
-        assert not chat.calls
     old_units = deepcopy(lease.units)
     lease.attempt = str(uuid4())
     extract = lambda router, counter: run.dispatch(None, source, request, router,
         counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)
     assert result["records"] == [{"title": "Target"}]
-    assert (len(result["value_contexts"][0]) > 1) is oversized
-    assert any(issue["code"] == "context_fallback" for issue in result["issues"]) is oversized
+    assert len(result["value_contexts"][0]) == 1
+    assert not any(issue["code"] == "context_fallback" for issue in result["issues"])
     assert lease.plans["article-contexts"] == old_plan
     assert all(lease.units[key] == unit for key, unit in old_units.items())
     assert lease.state["generation"] == 1
@@ -387,45 +377,6 @@ def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():
     finish(lease,CountingChat(answer),lambda router,counter: run.dispatch(None,source,request,router,counter={"fields":counter,"reasoning":counter}))
     running,final=linked_while_running(lease)
     assert running and running.items() <= final.items()
-
-
-def test_an_article_attempt_an_older_worker_left_is_recovered_with_located_links(monkeypatch):
-    """No DBOS patch guards `location` (ADR 0029). A worker from before it publishes an Article's first links without
-    one and dies; this version recovers the attempt from its saved replies, with no new call and no changed input, and
-    publishes the located links as new snapshots beside the old ones, never as a conflicting one."""
-    from kei_exp.kie.extract import grounding
-    class Killed(BaseException):
-        pass
-    source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
-    request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article"})
-    def answer(system,user,schema):
-        if "### Claims" in user:
-            return {claim:shape["enum"][0] for claim,shape in schema["properties"].items()}
-        return {"site":"Hill","year":1827}
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    chat=CountingChat(answer)
-    def extract(router,counter):
-        return run.dispatch(None,source,request,router,counter={"fields":counter,"reasoning":counter})
-    call=lease.call
-    def killed_once_linked(name,*args):
-        saved=call(name,*args)
-        if name=="publish_snapshot" and any(value["evidence"] for value in args[2]):
-            raise Killed
-        return saved
-    with monkeypatch.context() as older:
-        older.setattr(grounding,"_location",lambda *_: None)
-        older.setattr(lease,"call",killed_once_linked)
-        with pytest.raises(Killed):
-            finish(lease,chat,extract)
-    def producers(publications):
-        return [each["producer"] for publication in publications for value in publication["values"]
-                for each in value["evidence"]]
-    old,count=deepcopy(lease.publications),len(chat.calls)
-    assert producers(old.values()) and not any("location" in each for each in producers(old.values()))
-    finish(lease,chat,extract)
-    assert len(chat.calls)==count and old.items()<=lease.publications.items()
-    final=[publication for publication in lease.publications.values() if publication["coverage"].get("processingComplete")]
-    assert producers(final) and all("location" in each for each in producers(final))
 
 
 @pytest.mark.parametrize("complete", [True, False])

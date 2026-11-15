@@ -12,7 +12,7 @@ const batch: BatchExtraction = {
   schemaRevisionId: '51000000-0000-4000-8004-000000000001',
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   extractionSchemaName: 'Places', schemaRevisionNumber: 1, strategy: 'ARTICLE',
-  executionStatus: 'RUNNING', createdAt: '2026-10-04T10:00:00.000Z',
+  executionStatus: 'RUNNING', createdAt: '2026-10-04T10:00:00.000Z', trial: true,
   members: ['PAUSED', 'FAILED', 'STOPPED', 'COMPLETED'].map((executionStatus, index) => ({
     extractionId: `51000000-0000-4000-8006-00000000000${index + 1}`,
     sourceDocumentId: `51000000-0000-4000-8001-00000000000${index + 1}`,
@@ -30,7 +30,7 @@ it('reports retained member states without claiming completed research review', 
   expect(screen.queryByText(/Running ·/)).not.toBeInTheDocument()
 })
 
-it('names a run at the pilot limit a pilot and a larger one a collection batch', () => {
+it('marks a round Trial as the server says, whatever its size', () => {
   const members = (count: number): BatchExtraction['members'] =>
     Array.from({ length: count }, (_, index) => ({
       extractionId: `51000000-0000-4000-8006-${String(index + 1).padStart(12, '0')}`,
@@ -42,25 +42,7 @@ it('names a run at the pilot limit a pilot and a larger one a collection batch',
       currentReview: null,
     }))
 
-  const pilot = render(
-    <BatchExtractionHistory
-      batches={[{ ...batch, members: members(5) }]}
-      onOpen={vi.fn()}
-    />,
-  )
-  expect(screen.getByText('Trial')).toBeVisible()
-  pilot.unmount()
-
-  render(
-    <BatchExtractionHistory
-      batches={[{ ...batch, members: members(6) }]}
-      onOpen={vi.fn()}
-    />,
-  )
-  expect(screen.queryByText('Trial')).not.toBeInTheDocument()
-  cleanup()
-
-  // The server says whether the round came before the approval: a small batch after it is no trial, whatever its size.
+  // The server says whether the round came before the approval: a small batch after it is no trial.
   render(<BatchExtractionHistory batches={[{ ...batch, trial: false, members: members(2) }, { ...batch, batchExtractionId: 'trial',
     trial: true, members: members(2) }]} onOpen={vi.fn()} />)
   expect(screen.getAllByText('Trial')).toHaveLength(1)
@@ -88,7 +70,7 @@ it('opens every retained member and keeps typed review on its member route', () 
 describe('the settled batch outcome', () => {
   const review = { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T10:00:00.000Z', schemaRevisionId: batch.schemaRevisionId }
   const collection = (count: number, reviewed: number, status: 'COMPLETED' | 'FAILED' = 'COMPLETED'): BatchExtraction => ({
-    ...batch, executionStatus: 'COMPLETED',
+    ...batch, executionStatus: 'COMPLETED', trial: false,
     members: Array.from({ length: count }, (_, index) => ({
       extractionId: `51000000-0000-4000-8006-${String(index + 1).padStart(12, '0')}`,
       sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
@@ -139,7 +121,7 @@ describe('the settled batch outcome', () => {
   })
 
   it('leaves a pilot round and a running batch without an outcome', () => {
-    const pilot = show(collection(3, 3))
+    const pilot = show({ ...collection(3, 3), trial: true })
     expect(screen.queryByRole('status', { name: 'Batch Extraction outcome' })).not.toBeInTheDocument()
     pilot.unmount()
     show(batch)

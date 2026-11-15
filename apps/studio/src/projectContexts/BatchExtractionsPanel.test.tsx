@@ -73,6 +73,7 @@ const batch = {
   strategy: 'ARTICLE' as const,
   executionStatus: 'COMPLETED' as const,
   createdAt: '2026-08-14T10:42:00.000Z',
+  trial: true,
   members: [
     {
       extractionId,
@@ -185,8 +186,15 @@ function readySuggestion(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** A project batch read (`latest=1`): with no Extraction run alone, each member is its document's newest. */
+const projectRead = (batchExtractions: readonly { members: readonly { extractionId: string }[] }[]) => ({
+  batchExtractions, latestExtractions: [], reviewedExtractions: [],
+  newestExtractionIds: batchExtractions.flatMap((batch) => batch.members.map((member) => member.extractionId)),
+})
+
 function response(body: unknown) {
-  return Response.json(body)
+  const listed = body as { batchExtractions?: Parameters<typeof projectRead>[0] }
+  return Response.json(listed.batchExtractions ? { ...projectRead(listed.batchExtractions), ...listed } : body)
 }
 
 it('reads the Batch Extractions again when a document or a template is deleted, not only on focus',async()=>{

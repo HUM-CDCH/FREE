@@ -3,7 +3,6 @@ from dataclasses import replace
 
 import pytest
 
-from experiments.extraction.legacy_article import reconcile_values
 from kei_exp.kie.extract import article, run
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.method import ArticleOptions
@@ -13,22 +12,6 @@ from kei_exp.kie.extract.routing import rank_units, value_origins, verify_routed
 from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage
-
-
-def test_origins_follow_reconciled_array_items_and_never_equal_values_in_other_fields():
-    a, b = {"label": "A", "value": 37}, {"label": "B", "value": 37}
-    candidates = [{"site": "Hill", "year": 1800, "items": [a], "other": {"left": 37}},
-                  {"site": "Hill", "year": 1801, "items": [b, a], "other": {"right": 37}}]
-    merged, conflicts = reconcile_values(candidates)
-    assert merged["year"] is None and conflicts
-    origins = {tuple(item["path"]): item for item in value_origins(candidates, merged, {"site": "Hill"}, ["p1_s0"])}
-    assert ("year",) not in origins
-    assert origins[("site",)] == {"path": ["site"], "kind": "inventory", "passages": ["p1_s0"]}
-    assert origins[("items", 0, "value")]["sources"] == [
-        {"unit": 0, "path": ["items", 0, "value"]}, {"unit": 1, "path": ["items", 1, "value"]}]
-    assert origins[("items", 1, "value")]["sources"] == [{"unit": 1, "path": ["items", 0, "value"]}]
-    assert origins[("other", "left")]["sources"] == [{"unit": 0, "path": ["other", "left"]}]
-    assert origins[("other", "right")]["sources"] == [{"unit": 1, "path": ["other", "right"]}]
 
 
 def test_single_reply_preserves_duplicate_array_positions_and_rejects_untraceable_values():

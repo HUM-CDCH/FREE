@@ -294,12 +294,6 @@ describe('/api/extractions transport', () => {
     expect(await inProgress.json()).toEqual({
       error: { code: 'extraction_in_progress', message: 'Unfinished.', details: { extractionId: EXTRACTION } },
     })
-    vi.mocked(module.runSingle).mockRejectedValueOnce(new ExtractionError('invalid_source_representation', 'Unavailable.'))
-    const unavailable = await handle(request(fresh))
-    expect(unavailable.status).toBe(503)
-    expect(await unavailable.json()).toEqual({
-      error: { code: 'source_artifact_unavailable', message: 'The pinned Source Representation is unavailable.' },
-    })
   })
 
   it('admits a new durable Extraction and returns its saved identity', async () => {

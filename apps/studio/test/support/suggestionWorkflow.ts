@@ -7,7 +7,6 @@ import {
   workflowStatusesOf,
   type CanonicalPackageStore,
 } from 'db'
-import { DBOS } from '@dbos-inc/dbos-sdk'
 import { dbosSteps } from 'extraction'
 import { packCanonicalPackage } from '../../../../packages/db/src/artifact-store.js'
 import {
@@ -154,6 +153,5 @@ export function suggestionPorts(
     steps: dbosSteps,
     generate,
     store: store(workerSuggestionStore(createInternalProjectWorkerStore(db, { packages }))),
-    patched: (name) => DBOS.patch(name),
   }
 }

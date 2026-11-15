@@ -19,12 +19,11 @@ export type EvidenceLink = Readonly<{
   evidenceAnchorId: string
   precision?: 'cell' | 'segment' | 'input'
   /** The value occurs as a bounded token in the linked anchor. Unified links may instead carry supporting Evidence,
-   *  including for boolean values. Absent on older links. */
+   *  including for boolean values. Absent on a provisional mark Studio places itself (`provisionalMarks`). */
   verbatim?: boolean
-  /** How the link was made when not by the grounder: the values call cited
-   *  the block and code found the value in it, or code found the value in
+  /** How the link was made when not by the grounder: code found the value in
    *  exactly one candidate. Absent means the grounder chose the anchor. */
-  linkedBy?: 'citation_lexical' | 'lexical'
+  linkedBy?: 'lexical'
   /** Version 2 (recipe Catalog) evidence: code-point spans of the value in its canonical segment, the key that
    *  introduced it or the heading it was inherited from, and the precision its box can claim. Version 3 (unified
    *  Catalog): the verified value's literal span or supporting passage. Absent on version 1. */

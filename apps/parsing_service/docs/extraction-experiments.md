@@ -53,7 +53,7 @@ flowchart LR
 | `durable.py` | Plan and capture calls for every method: planning runs the algorithms against committed call outputs, and an unexecuted request yields to the durable workflow instead of reaching a provider. |
 | `captured_provider.py` | Send a captured request's saved HTTP body without recomposition. |
 | `retained.py` | Validate typed values, bind stable record and field identities and publish retained snapshots, always from validated stage objects, never debug files. |
-| `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. `legacy_article.py` holds historical identity extraction and exact-union assembly for captured Article replays. Never imported by serving code. |
+| `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
 
 These are ordinary Python functions. There is no plugin graph or separate
 service per stage. Strategy differences reflect source structure: an Article is
@@ -67,8 +67,7 @@ filters these assembled items and moves their origins and overlap diagnostics to
 the retained positions. Nested list positions remain part of their enclosing item. Grounding checks those
 origins first and still searches all remaining contexts when unsupported. An
 origin identifies where a value was read; the verifier decides whether the
-source supports it. The legacy exact array union and its origin mapping remain
-available to replay captured studies.
+source supports it.
 
 ## Pipeline map
 

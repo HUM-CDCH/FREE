@@ -14,6 +14,7 @@ const input: SchemaEditInput = {
   baseSchemaRevisionId: '51000000-0000-4000-8004-000000000001',
   sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
   instruction: 'Rename title to heading',
+  history: [],
   temperature: null,
 }
 const TREE = { recordDescription: 'One report.', schemaNodes: [{ id: 'n1', name: 'title', type: 'string', description: 'The title' }] }
@@ -132,9 +133,9 @@ describe('proposeSchemaEditWorkflow', () => {
     expect(noDocument.names).toEqual([])
   })
 
-  it('past schema-chat-answers the message may ask a question: a short source\'s answer is the outcome of the one step', async () => {
+  it('the message may ask a question: a short source\'s answer is the outcome of the one step', async () => {
     const answered = { status: 'answered' as const, answer: 'Each report has one title.' }
-    const { names, propose, ports: p } = ports({ patched: async (name) => name === 'schema-chat-answers' })
+    const { names, propose, ports: p } = ports()
     vi.mocked(propose).mockResolvedValue(answered as never)
 
     await expect(proposeSchemaEditWorkflow(input, p)).resolves.toEqual({ ok: true, baseSchemaRevisionId: input.baseSchemaRevisionId, response: answered })
@@ -148,7 +149,6 @@ describe('proposeSchemaEditWorkflow', () => {
     const answerWindow = vi.fn<(caller: unknown, window: { index: number }, question: unknown) => Promise<string>>(async (_caller, window) => `part ${window.index}`)
     const combineAnswers = vi.fn(async (_caller: unknown, answers: readonly string[]) => answers.join(' + '))
     const { names, propose, ports: p } = ports({
-      patched: async () => true,
       readSource: async () => long,
       answerWindow: answerWindow as never,
       combineAnswers: combineAnswers as never,
@@ -164,9 +164,4 @@ describe('proposeSchemaEditWorkflow', () => {
     expect(question.context).toContain('"title"')
   })
 
-  it('a run before schema-chat-answers never lets the message ask a question', async () => {
-    const { propose, ports: p } = ports({ patched: async () => false })
-    await proposeSchemaEditWorkflow(input, p)
-    expect((vi.mocked(propose).mock.calls[0]! as unknown as [unknown, string, unknown, { answerable?: boolean }])[3].answerable).toBeUndefined()
-  })
 })

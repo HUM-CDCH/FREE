@@ -7,7 +7,7 @@ result, what stayed ungrounded, the issues, and every model call's cost.
 
 Every implementation has one call shape: the run directory, the evidence read from it, the validated request and a
 router, keyword-only `counter` and `chunks`, returning the finished artifact. The unified Catalog's
-is `unified.extract` (version 3, `options.unified`); the legacy recipe Catalog's is `grounded.extract`, Article's `article.extract` and the legacy version 1
+is `unified.extract` (version 3, `options.unified`); the recipe Catalog's is `grounded.extract`, Article's `article.extract` and the generic version 1
 Catalog's `catalog.extract`; the last two assemble their version 1 artifact in `assembly.py`. `extract` chooses one
 from the request's task scope (`ExtractRequest.record_scope`: Article for "document", a Catalog for "records") and
 options, does not know what it does, and holds its result to the scope's cardinality (`dispatch`); no implementation
@@ -65,7 +65,7 @@ class Options(BaseModel):
 
     @model_validator(mode="after")
     def _unified_stands_alone(self) -> Options:
-        """The unified method never reads the legacy character limits or a recipe: sent with it, they are refused
+        """The unified method never reads the generic Catalog's character limits or a recipe: sent with it, they are refused
         rather than silently ignored."""
         if self.unified is not None and (self.strategy != "catalog" or self.catalog is not None
                                          or {"discovery_chars", "record_chars"} & self.model_fields_set):
@@ -101,8 +101,8 @@ class ExtractRequest(BaseModel):
     """The validated schema and options of a durable attempt's pinned selection, and the CLI's.
 
     A schema that declares `recordScope` fixes the strategy: "document" is Article's, "records" a Catalog's, and any
-    other pairing is refused before a model call. One that declares none (the CLI, the research harness, a legacy
-    caller) takes its scope from the task selection, `options.strategy`: never from its fields or a model's output."""
+    other pairing is refused before a model call. One that declares none (the CLI, the research harness) takes its
+    scope from the task selection, `options.strategy`: never from its fields or a model's output."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     schema_: Schema = Field(alias="schema")
     options: Options = Field(default_factory=Options)

@@ -244,7 +244,7 @@ export default function BatchExtractionsPanel({
           requestGeneration === historyGeneration.current
         ) {
           setBatches({ value: listed.batchExtractions, failure: null })
-          setNewest(listed.newestExtractionIds ? new Set(listed.newestExtractionIds) : null)
+          setNewest(new Set(listed.newestExtractionIds))
         }
       },
       (error: unknown) => {

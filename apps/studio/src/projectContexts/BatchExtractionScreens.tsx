@@ -3,7 +3,6 @@ import type { ExportChoices, ExportFormat } from 'extraction-result-export'
 import type { SchemaNode } from 'extraction/schema'
 import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import {
-  PILOT_BATCH_SELECTION_LIMIT,
   batchExtractionProgress,
   currentBatch,
   supersededMember,
@@ -153,16 +152,10 @@ function selectionLine(batch: BatchExtraction): string {
   return `${count} Source Document${count === 1 ? '' : 's'} · ${strategy}`
 }
 
-function isPilotRound(batch: BatchExtraction): boolean {
-  // The server says whether the round was opened before its revision's approval; a small batch after the approval is
-  // a batch. An older server's answer is the size limit admission applies before an approval.
-  return batch.trial ?? batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
-}
-
 /** Where a settled batch stands for the researcher: what is left before it is done, or that it is. Null while it runs
  *  and for a pilot round, whose end is the schema's approval (the chat's review step leads there). */
 function batchOutcome(batch: BatchExtraction, newest: ReadonlySet<string> | null): { done: boolean; title: string; detail: string } | null {
-  if (isPilotRound(batch) || batchStatus(batch).running) return null
+  if (batch.trial || batchStatus(batch).running) return null
   // A document run again since is that run's to review: its member here no longer holds the outcome back.
   const progress = batchExtractionProgress(currentBatch(batch, newest))
   const notExtracted = progress.total - progress.extracted
@@ -214,7 +207,7 @@ export function BatchExtractionHistory({
                   <strong className="text-[12.5px] font-semibold text-ink">
                     <time dateTime={batch.createdAt}>{stamp(batch.createdAt)}</time>
                   </strong>
-                  {isPilotRound(batch) && (
+                  {batch.trial && (
                     <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[9.5px] font-semibold text-accent">
                       Trial
                     </span>

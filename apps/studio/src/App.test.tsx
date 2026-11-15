@@ -383,14 +383,20 @@ describe('reopened Source Document workspace', () => {
     const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: sourceDocumentId.replace('-8001-', '-8006-'), sourceDocumentId,
       sourceRepresentationRevisionId: sourceDocumentId.replace('-8001-', '-8002-'), executionStatus: 'COMPLETED', completed: true, reviewable: true,
       currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId } : null })
-    const batch = (members: ReturnType<typeof member>[]) => ({ batchExtractionId: '51000000-0000-4000-8007-000000000001',
+    const batch = (members: ReturnType<typeof member>[], trial = false) => ({ batchExtractionId: '51000000-0000-4000-8007-000000000001',
       projectContextId: reopened.projectContextId, schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       extractionSchemaId: reopened.extractionSchema!.extractionSchemaId, extractionSchemaName: 'Places', schemaRevisionNumber: 1,
-      strategy: 'ARTICLE', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', members })
+      strategy: 'ARTICLE', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', trial, members })
     /** A reviewed member as the project's read of each document's latest and newest reviewed Extraction has it. */
     const reviewedMember = (sourceDocumentId: string) => ({ sourceDocumentId, extractionId: member(sourceDocumentId).extractionId,
       schemaRevisionId: reopened.extractionSchema!.schemaRevisionId, sourceRepresentationRevisionId: member(sourceDocumentId).sourceRepresentationRevisionId,
       batchExtractionId: batch([]).batchExtractionId, createdAt: '2026-11-01T00:00:00.000Z', completed: true, review: { snapshotVersion: 1, feedbackVersion: 0 } })
+    /** The project's read of each document's latest Extractions, as the server answers it for these rounds alone. */
+    const projectRead = (batches: ReturnType<typeof batch>[]) => {
+      const members = batches.flatMap((round) => round.members)
+      const reviewed = members.filter((each) => each.currentReview).map((each) => reviewedMember(each.sourceDocumentId))
+      return { latestExtractions: reviewed, reviewedExtractions: reviewed, newestExtractionIds: members.map((each) => each.extractionId) }
+    }
     /** The workspace in its project, with the project's Batch Extractions and every batch it opens recorded. */
     async function renderInProject(projectSummary: ReturnType<typeof summary>, batches: ReturnType<typeof batch>[], overrides: Partial<DocumentWorkspaceProps> = {}) {
       const opened: Array<Record<string, unknown>> = []
@@ -401,7 +407,7 @@ describe('reopened Source Document workspace', () => {
           opened.push(body)
           return Promise.resolve(Response.json({ batchExtraction: batch(body.sourceDocumentIds.map((id) => ({ ...member(id), completed: false, executionStatus: 'QUEUED' }))), disposition: 'created' }, { status: 201 }))
         }
-        if (url.startsWith('/api/batch-extractions?')) return Promise.resolve(Response.json({ batchExtractions: batches }))
+        if (url.startsWith('/api/batch-extractions?')) return Promise.resolve(Response.json({ batchExtractions: batches, ...projectRead(batches) }))
         // Every chat message here asks to run the extraction.
         if (url.endsWith('/edit_schema')) return Promise.resolve(Response.json({ status: 'requested', action: 'extract' }))
         return Promise.resolve(durableRead(url) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
@@ -506,7 +512,7 @@ describe('reopened Source Document workspace', () => {
       }
     })
 
-    it('refuses an export, naming why, rather than skip a ticked document or guess without the server\'s reviews', async () => {
+    it('refuses an export, naming why, rather than skip a ticked document', async () => {
       const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
         extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 2 })
       const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:export')
@@ -518,8 +524,6 @@ describe('reopened Source Document workspace', () => {
           // Letter 1's newest review moved to another revision while the export was open.
           [{ latestExtractions: reviewed, reviewedExtractions: [reviewed[0], { ...reviewed[1], schemaRevisionId: '51000000-0000-4000-8004-000000000099' }],
             newestExtractionIds: reviewed.map(({ extractionId }) => extractionId) }, /Letter 1\.pdf.*reload/i],
-          // An older server answers no reviews.
-          [{}, /reload the page/i],
         ] as const) {
           await renderInProject(done, [round])
           const step = await screen.findByRole('region', { name: 'Export results' })
@@ -577,7 +581,7 @@ describe('reopened Source Document workspace', () => {
     })
 
     it('leads a pilot round\'s review to its next document, then asks for the approval in a dialog', async () => {
-      const round = batch([member(here, true), member(others[0]!), member(others[1]!)])
+      const round = batch([member(here, true), member(others[0]!), member(others[1]!)], true)
       const { onNavigate } = await renderInProject(summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 1 }), [round],
         { project: undefined })
       expect(screen.queryByRole('region', { name: 'Review the trial results' })).not.toBeInTheDocument()

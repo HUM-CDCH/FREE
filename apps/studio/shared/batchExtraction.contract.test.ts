@@ -120,6 +120,7 @@ describe('Batch Extraction contracts', () => {
     strategy: 'ARTICLE',
     executionStatus: 'RUNNING',
     createdAt: '2026-09-26T10:00:00.000Z',
+    trial: false,
     members: [
       member(0, 'COMPLETED'),
       member(1, 'COMPLETED', true, review),

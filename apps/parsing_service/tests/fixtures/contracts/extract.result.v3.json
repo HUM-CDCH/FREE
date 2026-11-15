@@ -264,7 +264,6 @@
     "seconds": 0.0,
     "execution": {
       "version": 1,
-      "extraction_id": null,
       "source": {
         "run_id": "run-contract",
         "generation": "20260923T000000.000000Z-fixture0",
@@ -343,10 +342,10 @@
         }
       }
     },
-    "execution_sha256": "2b0854139d63224c30bec792b73f78f2e854cbbff5e856e5d6ae628d68ae3161",
+    "execution_sha256": "f9f2a093ff72a4e53fbfd3f5336317f5939fd75c7ff75f644c883786c0418161",
     "discovery": {
       "version": 8,
-      "execution_sha256": "2b0854139d63224c30bec792b73f78f2e854cbbff5e856e5d6ae628d68ae3161",
+      "execution_sha256": "f9f2a093ff72a4e53fbfd3f5336317f5939fd75c7ff75f644c883786c0418161",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -449,7 +448,7 @@
         }
       ]
     },
-    "discovery_sha256": "5331a34ce17a668af0590df720ace8f24f3449ad6c17b0eb007bfa0025f11fe3",
+    "discovery_sha256": "b35bf0a481700515b7bcd793e29428bee33c9b75edb28fbc956efa08d385536d",
     "records": [
       {
         "label": "12",
@@ -930,6 +929,6 @@
       "input": 1003,
       "output": 30
     },
-    "fingerprint": "ffdb0df9c8be6c6d5949e8cb0f41ec7a0ff69dcaf310955f23c9a2b662bfe841"
+    "fingerprint": "a788b571d3640aebd95fd4bc0c2fa554f2e51346911b4999bda7f87c049ab93d"
   }
 }

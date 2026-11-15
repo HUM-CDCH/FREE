@@ -46,6 +46,14 @@ and Studio DBOS system schemas before removing patch calls (rows 1.6, 2.9).
 | 1.9 | Separate Article plan stage `article-contexts:fallback` (`article.py:132-137`) | Attempts planned before Article v10 | Production (stage name only) | Possibly a stage-name assertion | Old plans |
 | 1.10 | "Legacy" wording where the thing is live: `schema.py:93` and `run.py:104` (a schema without `recordScope` is a live Studio draft state — `project-store.ts:706` — refused at admission with `record_scope_required`; only the CLI and harness reach Python without one), stale comments `stages.py:60`, `pagefile.py:132`, `docs/extraction-experiments.md:56,69-71` | — | — | — | — |
 
+**Tier 1 status (done on this branch).** All rows landed except these, which stay with a reason:
+- 1.3: `canonicalIntent`'s `article: null` branch stays; `durable-repository.ts` replays stored `{article: null}` pins through it, so it moves to 2.2.
+- 1.4: `chatGuide.ts` `exportableResults` still handles a null `project.latest` (now unreachable); removing it means rewriting the chatGuide and RailChat fixtures.
+- 1.5: `EvidenceLink.verbatim` stays optional; Studio's own provisional marks (`provisionalMarks.ts:37`) omit it, so it is not an "older links" field.
+- 1.8: `test_article_resolution.py:672` stays; it tests request-keyed call reuse, a current property.
+- 1.10: `grounding.py`'s module docstring line on `linked_by: "lexical"` is left for PR #390's session.
+- Also: `BatchSourceCoverage.combined: false` is no longer produced but is still read from stored rows (Tier 2).
+
 ## Tier 2 — delete with a migration (drop columns or refuse old JSON; reset dev rows)
 
 | # | Path | Keeps working | Still called by | Deleting breaks | Dev data that depends on it |

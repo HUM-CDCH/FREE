@@ -313,7 +313,8 @@ def scheduled(monkeypatch, lease, chat, ground, *, chunks, delay):
             ground(Router(chat, chat, planner), Counter())
         except NeedsCall:
             pending.append(len(planner.pending))
-            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles}
+            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles,
+                    "priorities": planner.priorities}
         pending.append(0)
         return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": planner.scopes}
 
@@ -333,7 +334,6 @@ def scheduled(monkeypatch, lease, chat, ground, *, chunks, delay):
             sleep(0.005)
         return handles[0]
     monkeypatch.setattr(worker.config, "CATALOG_CHUNKS", chunks)
-    monkeypatch.setattr(worker.DBOS, "deprecate_patch", lambda name: name == "extract-wait-first")
     monkeypatch.setattr(worker.DBOS, "start_workflow", start)
     monkeypatch.setattr(worker.DBOS, "wait_first", wait_first)
     monkeypatch.setattr(worker, "SetWorkflowID", lambda workflow_id: nullcontext())

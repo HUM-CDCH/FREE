@@ -233,13 +233,11 @@ FKs. There is no job or member table.
   and terminal outcome; no per-source execution state. Nothing but a
   publication writes the retained result.
 - Admission snapshots all current member revision pins in sorted order into
-  workflow input in the same transaction as enqueue. Past patch
-  `batch-schema-suggestion-windows`, each source is suggested one window per
-  step (`suggestSource:<id>:window:<n>`) and its window suggestions are
+  workflow input in the same transaction as enqueue. Each source is suggested
+  one window per step (`suggestSource:<id>:window:<n>`) and its window suggestions are
   combined in `suggestSource:<id>:reduce:<level>:<group>` steps; the merge
   then intersects the sources level by level in `merge:reduce:<level>:<group>`
-  steps. Before the patch, one `suggestSource:<id>` step per source and one
-  `merge` step. One conditional transaction publishes the final proposal and
+  steps. One conditional transaction publishes the final proposal and
   draft. Recovery reuses those checkpoints.
 - All terminal writes require the current attempt and no terminal outcome.
   A step first checks whether its attempt was interrupted or its scope was
@@ -287,8 +285,7 @@ contentSha256)` is unique.
 - Then `submitToKei` (the admitted conversion lane), `pollKei`, verify
   manifest and pages, translate/package, and commit under the ownership and
   content constraints. A replayed commit returns the same document/revision.
-  The workflow deletes its own staging file on success. Past patch
-  `ingest-retain-failed-source` a failure keeps it, so `POST
+  The workflow deletes its own staging file on success; a failure keeps it, so `POST
   …/source-ingestions/<id>/retry` can admit the same bytes again (ADR 0014,
   4); Retry, dismissal or GC removes it. GC handles the rest.
 
@@ -306,11 +303,9 @@ user action carries a client-minted ID (*Client IDs*).
 
 - **Generation (`suggestSchema`).** `generate_schema` takes an
   `operation_id` and the base Schema Revision it starts from (none for a
-  first generation). Past patch `schema-suggestion-windows`, each window of
-  the source is suggested in its own step (`suggestWindow:<n>`), and the
+  first generation). Each window of the source is suggested in its own step (`suggestWindow:<n>`), and the
   window suggestions are combined level by level in `reduce:<level>:<group>`
-  steps. Before the patch, one `generateSchema` step wraps
-  `generateSchemaWithModel`.
+  steps.
   - A live tab saves the result through `generate()` and the save
     coordinator, so the usual conflict rules apply: the save uses the tab's
     acknowledged head, and editing during a regeneration is allowed.
@@ -325,8 +320,7 @@ user action carries a client-minted ID (*Client IDs*).
 - **Edit proposals (`proposeSchemaEdit`).** `edit_schema` takes an
   `operation_id`. One step wraps `proposeSchemaEdit`'s Schema Suggestion call
   (ADR 0022). The output is the proposal and its base Schema Revision. Nothing is saved
-  until the researcher applies it through the revision path. Past patch
-  `schema-chat-answers`, the message may ask a question instead (ADR 0023): the
+  until the researcher applies it through the revision path. The message may ask a question instead (ADR 0023): the
   output is its answer, and a long source's question, first answered from
   excerpts, is answered again in `answerWindow:<n>` steps and combined in a
   `combineAnswers` step. The message may also ask for the extraction to run

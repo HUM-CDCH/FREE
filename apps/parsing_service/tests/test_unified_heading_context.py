@@ -399,9 +399,9 @@ def test_defaults_6_keeps_its_heading_inheritance_output_and_replay_identity():
     assert result["proposed"] == [{"path": ["records", 0, "region"], "value": "Moor", "quote": "Kreis Moor",
                                     "support": None, "spans": [], "alternatives": [], "window": 0,
                                     "reason": "quote_not_in_source", "raw": None, "item": None}]
-    assert result["execution_sha256"] == "bb80010b8c9b959335a7e2a329d1ab02e4d075f6cd44e8c7cb1de8cff88b8b24"
-    assert result["discovery_sha256"] == "c2f487f7a61d1eb4203f53b7df778e1078d9d7fc45cf830032b118246944381c"
-    assert result["fingerprint"] == "455b11ca44b6ac08dd6c35342cd969db54a69a54813687e84088b0d04f629085"
+    assert result["execution_sha256"] == "51c6ee5752d83a1fa1a38360882dd78b2373d23bcad823fca5db8a5b6f83b700"
+    assert result["discovery_sha256"] == "3fd7a80d81cf9c7ba5083582093c5c80aae82d6bab24472cdd03239f692578ee"
+    assert result["fingerprint"] == "097aee629bf644a26a774c5e12a85d589132b09c4847c90523314e5afbf7e1e2"
     entry = next(call for call in chat.calls if call["system"].startswith("You extract structured data"))
     assert entry["system"] == unified.ENTRY.format(description=SCHEMA["recordDescription"], notes="") + unified.SINGLE_PASS
     assert "Kreis Moor" not in entry["user"] and "#### CONTEXT" not in entry["user"]

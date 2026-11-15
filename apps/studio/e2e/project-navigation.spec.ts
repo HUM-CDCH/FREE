@@ -21,6 +21,11 @@ import {
   expectOperableInViewport,
   REQUIRED_VIEWPORTS,
 } from './accessibility.js'
+/** A project batch read (`latest=1`): with no Extraction run alone, each member is its document's newest. */
+const projectRead = (batchExtractions: readonly { members: readonly { extractionId: string }[] }[]) => ({
+  batchExtractions, latestExtractions: [], reviewedExtractions: [],
+  newestExtractionIds: batchExtractions.flatMap((batch) => batch.members.map((member) => member.extractionId)),
+})
 
 const sourcePdf = fileURLToPath(
   new URL('./fixtures/Beretning_Elmbrooke_8_13.pdf', import.meta.url),
@@ -938,7 +943,7 @@ test.describe('rail navigation', () => {
       batchExtractionId: revisionId, projectContextId: ELMBROOKE, schemaRevisionId: revisionId,
       extractionSchemaId: '00000000-0000-4000-8000-0000000001c3', extractionSchemaName: 'Places',
       schemaRevisionNumber: revisionNumber, strategy: 'ARTICLE', executionStatus: 'COMPLETED',
-      createdAt: '2026-08-14T10:42:00.000Z',
+      createdAt: '2026-08-14T10:42:00.000Z', trial: true,
       members: [{ extractionId: '00000000-0000-4000-8000-0000000001c4', sourceDocumentId: BERETNING,
         sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING], executionStatus: 'COMPLETED',
         completed: true, reviewable: true, currentReview: { snapshotVersion: 1, feedbackVersion: 0,
@@ -982,6 +987,7 @@ test.describe('rail navigation', () => {
       strategy: 'ARTICLE',
       executionStatus: 'COMPLETED',
       createdAt: '2026-08-14T10:42:00.000Z',
+      trial: true,
       members: [
         {
           extractionId: '00000000-0000-4000-8000-0000000001b4',
@@ -1006,7 +1012,7 @@ test.describe('rail navigation', () => {
       route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'No Template Revision.' } } }),
     )
     await page.route('**/api/batch-extractions**', (route) =>
-      route.fulfill({ json: { batchExtractions: [batchExtraction] } }),
+      route.fulfill({ json: projectRead([batchExtraction]) }),
     )
 
     // A deep link opens the section it names, and a refresh keeps it.

@@ -182,8 +182,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.equal(changedBatch?.disposition,'created')
   assert.notEqual(changedBatch?.batch.batchExtractionId,nativeBatch?.batch.batchExtractionId)
   assert.equal(changedBatch?.batch.members.length,documents.length)
-  // A page loaded before Studio recorded Article's service defaults submits `article: null`: stale once the account
-  // has saved Article settings (admitted while it has none, at the end).
+  // `article: null` is never a saved method (Studio records Article's default explicitly): it is refused as stale.
   const stale={models:null,settings:{article:null}}
   await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),
     sourceRepresentationRevisionId:documents[1].revisionId,method:stale}),{code:'method_changed'})
@@ -222,12 +221,9 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   const last=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()})
   assert.equal(last?.disposition,'created')
 
-  // Without saved Article settings, that stale `article: null` is admitted as recorded: the method its page showed.
+  // Without saved Article settings it is still stale: the account runs Studio's recorded Article default.
   await settle(last!.extraction.extractionId,'RUN','COMPLETED')
   await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1',
     [owner,{...savedConfiguration,extractionSettings:{}}])
-  const admittedStale=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID(),method:stale})
-  assert.equal(admittedStale?.disposition,'created')
-  assert.deepEqual((await admin.query('SELECT "requestedSettings" FROM public.extraction WHERE id=$1',
-    [admittedStale!.extraction.extractionId])).rows[0].requestedSettings,{article:null})
+  await assert.rejects(persistence.scheduleExtraction({...spareRun,extractionId:randomUUID(),method:stale}),{code:'method_changed'})
 })

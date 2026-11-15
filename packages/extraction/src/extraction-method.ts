@@ -75,8 +75,7 @@ export const ARTICLE_KEYS = [
 
 /** Studio's Article default, not the Parsing Service's (`method.py` `REFERENCE`, which is `UNRECORDED_ARTICLE`): the
  *  whole source, and a claim too large to check in it checked in windows of it. A current Studio page records and sends
- *  it explicitly for an account without saved Article settings (a page loaded before it still sends `article: null`),
- *  and Customize starts from it. The schema's own defaults are `UNRECORDED_ARTICLE`'s. */
+ *  it explicitly for an account without saved Article settings, and Customize starts from it. The schema's own defaults are `UNRECORDED_ARTICLE`'s. */
 export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
 /** What an Extraction recorded without Article settings (`article: null`) runs: the schema's defaults, the whole source
  *  without windows, as the service runs an omitted `options.article`. */

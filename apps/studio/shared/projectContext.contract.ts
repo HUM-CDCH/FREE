@@ -117,8 +117,7 @@ export const projectContextActivityEventSchema = z
 export const projectContextListResponseSchema = z
   .object({
     projectContexts: z.array(projectContextListItemSchema),
-    // Defaulted so a reader of an older response shape still parses.
-    recentActivity: z.array(projectContextActivityEventSchema).default([]),
+    recentActivity: z.array(projectContextActivityEventSchema),
   })
   .strict()
 export const projectContextWithDocumentsResponseSchema = z

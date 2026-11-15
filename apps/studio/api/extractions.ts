@@ -39,13 +39,6 @@ function asTransportError(error: unknown): unknown {
   switch (error.code) {
     case 'not_found':
       return new ApiError(404, 'not_found', error.message, { cause: error })
-    case 'invalid_source_representation':
-      return new ApiError(
-        503,
-        'source_artifact_unavailable',
-        'The pinned Source Representation is unavailable.',
-        { cause: error },
-      )
     case 'extraction_id_conflict':
     case 'invalid_extraction_pins':
     case 'source_representation_superseded':

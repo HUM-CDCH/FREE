@@ -1972,7 +1972,7 @@ def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, m
     produced = unified.extract(run_dir, source, request(scoped), as_router(CountingChat(Model(source))),
                                counter=WordCounter())
     assert produced["complete"] is True and len(produced["records"]) == 2
-    assert produced["execution"]["extraction_id"] is None and not (run_dir / "extractions").exists()
+    assert "extraction_id" not in produced["execution"] and not (run_dir / "extractions").exists()
     fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
                "request": {"schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 1}}},
                "manifest": json.loads((run_dir / "result" / "result.json").read_text(encoding="utf-8")),

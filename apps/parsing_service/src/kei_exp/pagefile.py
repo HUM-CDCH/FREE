@@ -129,7 +129,7 @@ class PageSegment(_Base):
     bbox_pt: PointBox                                   # derived through the image's transform and the unit's placement
     extent: Literal["block", "input"]  # block: the engine's box of one block; input: the whole input, the transcriber
                                        # returned no boxes, and bbox_pt is the input's extent, deliberately coarse
-    table: PageTable | None = None      # absent on version 4; cells refine, never replace, this segment
+    table: PageTable | None = None      # cells refine, never replace, this segment
     # A block printed in several places on its page (a native paragraph Docling merged across a column break): every
     # box in reading order, bbox_pt the first. Absent for a block in one place, and before native text rules 3.
     boxes_pt: tuple[PointBox, ...] | None = Field(default=None, exclude_if=lambda value: value is None)

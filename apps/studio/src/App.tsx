@@ -980,8 +980,6 @@ export function DocumentWorkspace({
     try {
       const read = await listProjectExtractions(projectContextId)
       const latest = projectLatest(read)
-      // Only the server's reviews say what to export: an older one answers none.
-      if (!latest) throw new Error('Reload the page to export: the reviewed results could not be read.')
       const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
         batches: read.batchExtractions, latest, roundId: project.roundId, busy: false, error: null })
       const name = (id: string) => project.documents.find((document) => document.id === id)?.name ?? id

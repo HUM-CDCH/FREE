@@ -52,7 +52,8 @@ def test_overlap_joins_only_its_contributing_occurrences_and_preserves_nested_po
 
 def test_an_empty_occurrence_map_never_falls_back_to_value_equality():
     readings, root = [{"fees": [10]}, {"fees": [10]}], {"fees": [10]}
-    assert len(value_origins(readings, root, {}, [])[0]["sources"]) == 2  # captured union studies
+    with pytest.raises(ValueError, match="need item_sources"):
+        value_origins(readings, root, {}, [])
     assert value_origins(readings, root, {}, [], strict=False, item_sources={}) == [
         {"path": ["fees", 0], "kind": "value", "sources": []}]
     with pytest.raises(ValueError, match="no extraction origin"):

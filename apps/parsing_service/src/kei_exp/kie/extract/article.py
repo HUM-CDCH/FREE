@@ -5,8 +5,7 @@ source by default, bounded parts with `options.article.context` or when the whol
 assembled across them by `contexts.assemble_document`, resolved by `resolution.resolve`, verified in every source
 context, and the artifact assembled in `assembly.py`, as the version 1 Catalog's is (`document_root`). No identity
 is inventoried: the artifact's `inventory` holds the one document identity, every passage its support.
-`inventory_request` stays only to size bounded contexts; historical identity extraction lives in the research
-tooling (`experiments/extraction/legacy_article.py`). Every model call goes through `calls.complete`; the shared
+`inventory_request` stays only to size bounded contexts. Every model call goes through `calls.complete`; the shared
 value prompts live in `stages.py` and grounding in `grounding.py`.
 """
 from __future__ import annotations
@@ -130,11 +129,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
         contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"])
     from kei_exp.kie.extract.retained import plan_records
-    # Retry keeps its generation: a pre-fallback attempt may already have saved the one-part plan before failing
-    # admission. Keep that plan immutable and publish fallback scopes separately; call captures still reuse their
-    # unchanged inputs, independently of this context listing.
-    context_stage = "article-contexts:fallback" if fallback is not None else "article-contexts"
-    plan_records(chat, context_stage, [context.dumped() for context in contexts])
+    plan_records(chat, "article-contexts", [context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
         budget=options.record_chars, counter=counter["fields"],
         structured=method.rendering == "structured")
@@ -257,7 +252,7 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
 def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
                   record_chars: int, method: ArticleOptions = REFERENCE,
                   contexts: list[Context] | None = None, start_page: int | None = None,
-                  on_context: Callable[..., None] | None = None, resolve_parts: bool = True) -> Records:
+                  on_context: Callable[..., None] | None = None) -> Records:
     """The document's one root, from each of its value contexts, assembled; grounding belongs to the shared path.
 
     The whole document is the object: no identity is inventoried or bound, and every record field is asked of every
@@ -267,8 +262,7 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     assembled by `contexts.assemble_document`: every array item kept in context order, an equal item that contexts
     sharing an overlap passage both returned joined once (an `overlap_items_joined` issue), equal items from other
     contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict.
-    A split source is then resolved over those assembled occurrences;
-    `resolve_parts=False` replays artifacts before `ARTICLE_VERSION` 12, which made no resolution call. With
+    A split source is then resolved over those assembled occurrences. With
     `on_context`, after each value context's call, the root assembled by `assemble_document` and conformed over the
     contexts answered so far is reported with its scalar conflicts and the number of those contexts whose call failed:
     the partial view's reading of the document before the last context answers."""
@@ -319,7 +313,7 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     root, contested, repeats, joined = (assemble_document(candidates, sharing(groups), item_sources=item_sources)
                                         if len(candidates) != 1
                                         else (candidates[0], [], [], []))
-    if resolve_parts and len(groups) > 1 and any(each is not None and _answered(each[0]) for each in answered):
+    if len(groups) > 1 and any(each is not None and _answered(each[0]) for each in answered):
         root, contested, repeats, joined, resolved, settled = resolve(
             candidates, groups, root, contested, repeats, joined, schema, chat, counters["reasoning"],
             item_sources=item_sources)

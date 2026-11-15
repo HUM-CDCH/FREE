@@ -255,9 +255,9 @@ def invoke_capture(extraction: str, attempt: str, capture: str, priority: int = 
 
 @DBOS.workflow(name="extractionCallV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
                serialization_type=WorkflowSerializationFormat.PORTABLE)
-def call_workflow(extraction: str, attempt: str, capture: str, priority: int = 0) -> dict:
-    # `priority` (0 for a call started before calls had one) is its place in the model server's queue, never its
-    # identity: a recovered workflow's recorded child start is matched by name alone.
+def call_workflow(extraction: str, attempt: str, capture: str, priority: int) -> dict:
+    # `priority` is its place in the model server's queue, never its identity: a recovered workflow's recorded child
+    # start is matched by name alone.
     return invoke_capture(extraction, attempt, capture, priority)
 
 
@@ -321,8 +321,6 @@ def extract_workflow(request: dict) -> dict:
     if set(request) != {"protocol", "extraction_id", "attempt_id"} or request["protocol"] != 1:
         return {"ok": False, "reason": "invalid durable attempt"}
     extraction, attempt = request["extraction_id"], request["attempt_id"]
-    # Pre-patch attempts have ended. Consume an existing marker on replay without adding one to new attempts.
-    DBOS.deprecate_patch("extract-wait-first")
     # Each call runs as soon as it is planned, up to CATALOG_CHUNKS per role at once, and the attempt is planned again
     # as soon as one ends: a slow call holds up no other. Nothing is acknowledged while a call it started still runs,
     # so a Pause or a failure keeps every output already admitted.
@@ -374,8 +372,7 @@ def extract_workflow(request: dict) -> dict:
             if capture in ended:  # its call ended without saving an output: planning it again would never end
                 return stop(False, {"code": "capture_replanned"})
             if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
-                # A round recorded before calls had a priority has none.
-                priority = work.get("priorities", {}).get(capture, 0)
+                priority = work["priorities"][capture]
                 with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
                     running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture,
                                                                   priority))
