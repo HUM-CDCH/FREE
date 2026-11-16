@@ -65,6 +65,10 @@ class Options(BaseModel):
             raise ValueError("options.article applies to the article strategy only")
         if self.strategy == "catalog" and self.unified is None:
             self.unified = UnifiedOptions(defaults=10)
+        if self.strategy == "article" and self.article is None:
+            if "article" in self.model_fields_set:
+                raise ValueError("options.article cannot be null")
+            self.article = REFERENCE
         return self
 
     def dumped(self) -> dict:

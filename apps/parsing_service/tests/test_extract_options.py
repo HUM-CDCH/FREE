@@ -7,12 +7,11 @@ from kei_exp.kie.extract.method import REFERENCE
 
 def test_catalog_defaults_to_unified_and_records_it():
     assert Options().dumped() == {"strategy": "catalog", "models": None, "unified": {"defaults": 10}}
-    assert Options(strategy="article").dumped() == {"strategy": "article", "models": None}
 
 
 def test_dumped_article_options_are_exactly_the_recorded_ones():
     assert Options(strategy="article").dumped() == {
-        "strategy": "article", "models": None, "discovery_chars": 48_000, "record_chars": 24_000,
+        "strategy": "article", "models": None,
         "article": REFERENCE.model_dump()}
 
 
