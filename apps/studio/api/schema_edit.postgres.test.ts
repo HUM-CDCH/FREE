@@ -54,7 +54,9 @@ const ports: SchemaEditPorts = {
   generate: (caller, input) =>
     generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
   respond: (caller, input, question) =>
-    respondToSchemaEdit(caller, input, question, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
+    respondToSchemaEdit(caller, input, question, {
+      keys, keyWaitMs: 400, deployment: deploymentModels({}),
+    }),
 }
 
 type Base = { extractionSchemaId: string; schemaRevisionId: string }

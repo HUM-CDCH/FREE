@@ -22,6 +22,10 @@ FIXTURE=os.environ.get('DURABLE_LIFECYCLE_FIXTURE')
 pytestmark=[pytest.mark.postgres,pytest.mark.slow,pytest.mark.skipif(not FIXTURE,reason='run durable-lifecycle.postgres.check.ts')]
 
 
+def claims(schema):
+    return {key: [] if 'items' in spec else 'NONE' for key, spec in schema['properties'].items()}
+
+
 @pytest.mark.parametrize('index',range(6))
 def test_both_strategies_pause_and_continue_at_saved_boundaries(tmp_path,index):
     fixture=json.loads(Path(FIXTURE).read_text())
@@ -33,6 +37,14 @@ def test_both_strategies_pause_and_continue_at_saved_boundaries(tmp_path,index):
     catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,'segments':texts}]}]},source,generation=case['source']['generation'])
     (source/'params.json').write_text('{}')
     unified=Model(load(source))
+
+    def read(system, user, schema):
+        if case['method'] == 'unified':
+            return unified(system, user, schema)
+        if '### Claims' in user:
+            return claims(schema)
+        return {'name': 'Valley' if 'Valley' in user else 'Hill'}
+
     calls=[];blocked=threading.Event();release=threading.Event()
     failed_at=None
     threshold=2 if case['method']=='unified' else 1
@@ -49,9 +61,8 @@ def test_both_strategies_pause_and_continue_at_saved_boundaries(tmp_path,index):
                     assert release.wait(45),'fixture provider was never released'
                 system,user=messages[0]['content'],messages[-1]['content']
                 schema=body['response_format']['json_schema']['schema']
-                if case['method']=='unified':parsed=unified(system,user,schema)
-                elif '### Claims' in user:parsed={key:[] if 'items' in spec else 'NONE' for key,spec in schema['properties'].items()}
-                else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
+
+                parsed=read(system,user,schema)
                 output={'choices':[{'message':{'content':'{' if number==failed_at else json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':counted,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')
@@ -244,7 +255,7 @@ def test_queued_pause_starts_no_provider_call_and_releases_the_attempt_lane(tmp_
             else:
                 calls.append(body)
                 user=body['messages'][-1]['content'];schema=body['response_format']['json_schema']['schema']
-                parsed={key:[] if 'items' in spec else 'NONE' for key,spec in schema['properties'].items()} if '### Claims' in user else {'name':'Hill'}
+                parsed=claims(schema) if '### Claims' in user else {'name':'Hill'}
                 output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':100,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')
