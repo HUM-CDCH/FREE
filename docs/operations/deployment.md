@@ -280,6 +280,15 @@ worse than the loop.
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
 
+`compose.nvfp4.yaml`, added after `compose.gpu.yaml`, replaces the
+instruction model with `nvidia/Qwen3.8-27B-NVFP4` and multi-token prediction.
+The service name, and so every client address, stays the same. This is the
+DGX Spark deployment's reasoning server. The overlay also sets the worker's
+`KEI_CATALOG_CHUNKS` to 3 instead of `NUEXTRACT_MAX_NUM_SEQS`: its 8G KV cache
+holds about 118k tokens, and four unified discovery windows of about 29k
+tokens at once fill it, so vLLM preempts them and the first window takes more
+than twice as long. The launcher does not add this overlay.
+
 ### Sharing model servers between stacks
 
 A second stack on the host, such as a test stack beside production, can use the

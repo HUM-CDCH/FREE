@@ -1,0 +1,60 @@
+# Opt-in after compose.gpu.yaml: the instruction model runs as NVIDIA's NVFP4 Qwen3.8-27B with multi-token
+# prediction in place of the FP8 checkpoint, under the same service name, so every client address stays the same.
+# This is the reasoning server the DGX Spark deployment runs; the flags are the ones it was measured with.
+services:
+  extraction_model:
+    command: !override
+      - nvidia/Qwen3.8-27B-NVFP4
+      - --revision
+      - 482ca0f3832238542f8f5295dde86b5f22711d80
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --language-model-only
+      - --generation-config
+      - vllm
+      - --seed
+      - "0"
+      - --gpu-memory-utilization
+      - "${EXTRACT_GPU_MEMORY_UTILIZATION:-0.35}"
+      - --max-model-len
+      - "32768"
+      # 8G of fp8 KV cache holds about 118k tokens: four unified discovery windows of ~29k each fill it.
+      - --kv-cache-memory-bytes
+      - 8G
+      - --kv-cache-dtype
+      - fp8
+      - --max-num-seqs
+      - "4"
+      - --max-num-batched-tokens
+      - "8192"
+      - --enable-chunked-prefill
+      - --async-scheduling
+      - --enable-prefix-caching
+      - --load-format
+      - fastsafetensors
+      - --kernel-config
+      - '{"enable_flashinfer_autotune":false}'
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":5}'
+      - --default-chat-template-kwargs
+      - '{"enable_thinking":false}'
+      - --scheduling-policy
+      - priority
+
+  parsing_service:
+    environment:
+      KEI_EXTRACT_MODEL: nvidia/Qwen3.8-27B-NVFP4
+
+  parsing_worker:
+    environment:
+      KEI_EXTRACT_MODEL: nvidia/Qwen3.8-27B-NVFP4
+      # Four ~29k-token discovery windows at once overfill the KV cache above and vLLM preempts them: replaying one
+      # run's first four windows, 3 at once had the first window in 92 s with no preemption, 4 at once in 209 s.
+      # This also bounds NuExtract's entry calls to 3 of its 4 sequences.
+      KEI_CATALOG_CHUNKS: "3"
+
+  studio:
+    environment:
+      FREE_DEPLOYMENT_INSTRUCT_MODEL: nvidia/Qwen3.8-27B-NVFP4
